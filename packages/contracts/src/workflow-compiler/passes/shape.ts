@@ -5,6 +5,8 @@ import {
   type WorkflowCompilerDiagnosticCode,
 } from "../diagnostics.ts";
 import { rememberAuthoredOrder } from "./authored-order.ts";
+import type { WorkflowCallNode } from "../call.ts";
+import { parseReferenceText } from "../reference.ts";
 import { HUMAN_APPROVAL_EVENT as HUMAN_APPROVAL_COMPILER_EVENT } from "../../human-approval.ts";
 import { parseDuration, WORKFLOW_COMPILER_LIMITS } from "../limits.ts";
 import {
@@ -13,7 +15,12 @@ import {
   registeredActionMetadata,
 } from "../registry.ts";
 import { WORKFLOW_ACTION_REGISTRY_VERSION } from "../../workflow-action-registry.ts";
-import { WORKFLOW_STRUCTURED_INPUT_TYPES } from "../schema.ts";
+import {
+  WORKFLOW_MCP_TOOL_NAME,
+  WORKFLOW_STEP_TOOL_REFERENCE,
+  WORKFLOW_STRUCTURED_INPUT_TYPES,
+  WORKFLOW_TOOL_ENTRY_NAME,
+} from "../schema.ts";
 import {
   DEFAULT_STEP_FILES,
   OMITTED_STEP_FILES_WRITE,
@@ -28,6 +35,7 @@ import type {
   WorkflowActionNode,
   WorkflowBranchNode,
   WorkflowExpressionNode,
+  WorkflowForEachNode,
   WorkflowInputSlot,
   WorkflowLane,
   WorkflowNode,
@@ -80,6 +88,8 @@ const ROOT_KEYS: ReadonlySet<string> = new Set([
   "limits",
   "agents",
   "cancel",
+  "outputs",
+  "tools",
   "steps",
 ]);
 const NODE_BASE_KEYS = ["id", "needs", "if", "agentVersionId"] as const;
@@ -89,6 +99,7 @@ const ACTION_KEYS: ReadonlySet<string> = new Set([
   "with",
   "skills",
   "role",
+  "tools",
   "inputs",
   "outputs",
   "files",
@@ -107,6 +118,8 @@ const KIND_KEYS = [
   "repeat",
   "wait",
   "parallel",
+  "forEach",
+  "call",
 ] as const;
 const ACTION_LIMIT_KEYS: ReadonlySet<string> = new Set([
   "maxDuration",
@@ -158,6 +171,22 @@ const PARALLEL_BODY_KEYS: ReadonlySet<string> = new Set([
   "branches",
   "outputs",
 ]);
+const FOR_EACH_NODE_KEYS: ReadonlySet<string> = new Set([
+  ...NODE_BASE_KEYS,
+  "forEach",
+]);
+const FOR_EACH_BODY_KEYS: ReadonlySet<string> = new Set([
+  "items",
+  "max",
+  "as",
+  "steps",
+]);
+const FOR_EACH_AS = /^[a-z][A-Za-z0-9]{0,63}$/;
+const CALL_NODE_KEYS: ReadonlySet<string> = new Set([
+  ...NODE_BASE_KEYS,
+  "call",
+]);
+const CALL_BODY_KEYS: ReadonlySet<string> = new Set(["workflow", "with"]);
 const WORKFLOW_LIMIT_KEYS: ReadonlySet<string> = new Set([
   "wallClock",
   "maxCostUsd",
@@ -192,6 +221,8 @@ const MAX_SET_ITEMS = 32;
 type Context = {
   readonly collector: DiagnosticCollector;
   readonly locations: NodeLocations;
+  /** Each step's tools references, checked against the tools section at the end. */
+  readonly toolReferences?: Array<{ path: Path; references: string[] }>;
 };
 
 function report(
@@ -892,6 +923,30 @@ function shapeAction(
     }
   }
 
+  // The MCP tools the step's session may call, by reference into the workflow
+  // tools section; whether each reference resolves is checked once the section
+  // is read.
+  let tools: string[] | undefined;
+  if (Object.hasOwn(raw, "tools")) {
+    tools = readStringSet(
+      context,
+      raw["tools"],
+      [...path, "tools"],
+      32,
+      "action_tools_invalid",
+      "action_tools_invalid",
+      (item) => WORKFLOW_STEP_TOOL_REFERENCE.test(item),
+    );
+    if (tools === undefined) failed = true;
+    else {
+      tools = [...tools].sort();
+      context.toolReferences?.push({
+        path: [...path, "tools"],
+        references: tools,
+      });
+    }
+  }
+
   const inputSlots = readInputSlots(
     context,
     raw["inputs"],
@@ -962,6 +1017,7 @@ function shapeAction(
   if (agentVersionId) node.agentVersionId = agentVersionId;
   if (skills) node.skills = skills;
   if (role) node.role = role;
+  if (tools && tools.length > 0) node.tools = tools;
   if (inputSlots) node.inputs = inputSlots;
   if (outputSlots) node.outputs = outputSlots;
   if (sealedFiles) node.files = sealedFiles;
@@ -1250,6 +1306,185 @@ function shapeRepeat(
   return node;
 }
 
+/**
+ * A bounded sequential forEach: `forEach: {items, max, as, steps}`. Whether
+ * `items` is a list, and the type of its items, is checked by the flow pass.
+ */
+function shapeForEach(
+  context: Context,
+  raw: Raw,
+  path: Path,
+  id: string,
+  needs: string[],
+  condition: WorkflowExpressionNode | undefined,
+): WorkflowForEachNode | undefined {
+  checkKeys(context, raw, path, FOR_EACH_NODE_KEYS, NODE_PRESENTATION);
+  const body = raw["forEach"];
+  const bodyPath = [...path, "forEach"];
+  if (!isPlainObject(body)) {
+    report(context, bodyPath, "field_invalid");
+    return undefined;
+  }
+  checkKeys(context, body, bodyPath, FOR_EACH_BODY_KEYS);
+  let failed = false;
+  let items: WorkflowValueNode | undefined;
+  if (!Object.hasOwn(body, "items")) {
+    report(context, [...bodyPath, "items"], "field_missing");
+    failed = true;
+  } else {
+    items = compileWorkflowValue(
+      body["items"],
+      [...bodyPath, "items"],
+      context.collector,
+    );
+    if (!items) failed = true;
+  }
+  let max = 0;
+  if (!Object.hasOwn(body, "max")) {
+    report(context, [...bodyPath, "max"], "field_missing");
+    failed = true;
+  } else if (!isInteger(body["max"], 1, WORKFLOW_COMPILER_LIMITS.forEachMax)) {
+    report(context, [...bodyPath, "max"], "for_each_max_invalid");
+    failed = true;
+  } else {
+    max = body["max"];
+  }
+  let as = "";
+  if (!Object.hasOwn(body, "as")) {
+    report(context, [...bodyPath, "as"], "field_missing");
+    failed = true;
+  } else if (typeof body["as"] !== "string" || !FOR_EACH_AS.test(body["as"])) {
+    report(context, [...bodyPath, "as"], "for_each_as_invalid");
+    failed = true;
+  } else {
+    as = body["as"];
+  }
+  let steps: WorkflowNode[] | undefined;
+  if (!Object.hasOwn(body, "steps")) {
+    report(context, [...bodyPath, "steps"], "field_missing");
+    failed = true;
+  } else {
+    steps = shapeNodeList(
+      context,
+      body["steps"],
+      [...bodyPath, "steps"],
+      false,
+    );
+    if (!steps) failed = true;
+  }
+  if (failed || !items || !steps) return undefined;
+  const node: WorkflowForEachNode = {
+    kind: "forEach",
+    id,
+    needs,
+    items,
+    max,
+    as,
+    steps,
+  };
+  if (condition) node.if = condition;
+  return node;
+}
+
+/**
+ * A call to a published workflow version (#418). It is shaped to a call node
+ * here and replaced by the child's steps right after, before any other pass
+ * sees the document, so nothing downstream knows a call existed.
+ */
+function shapeCall(
+  context: Context,
+  raw: Raw,
+  path: Path,
+  id: string,
+  needs: string[],
+  condition: WorkflowExpressionNode | undefined,
+): WorkflowNode | undefined {
+  checkKeys(context, raw, path, CALL_NODE_KEYS, NODE_PRESENTATION);
+  const body = raw["call"];
+  const bodyPath = [...path, "call"];
+  if (!isPlainObject(body)) {
+    report(context, bodyPath, "call_shape_invalid");
+    return undefined;
+  }
+  checkKeys(context, body, bodyPath, CALL_BODY_KEYS);
+  let failed = false;
+  const version = body["workflow"];
+  if (typeof version !== "string" || !UUID_TEXT.test(version)) {
+    report(context, [...bodyPath, "workflow"], "call_shape_invalid");
+    failed = true;
+  }
+  const bindings: Record<string, WorkflowValueNode> = Object.create(null);
+  if (Object.hasOwn(body, "with")) {
+    const given = body["with"];
+    if (!isPlainObject(given)) {
+      report(context, [...bodyPath, "with"], "call_shape_invalid");
+      failed = true;
+    } else {
+      for (const name of Object.keys(given)) {
+        if (!INPUT_NAME.test(name)) {
+          report(context, [...bodyPath, "with"], "call_input_unknown");
+          failed = true;
+          continue;
+        }
+        const value = compileWorkflowValue(
+          given[name],
+          [...bodyPath, "with", name],
+          context.collector,
+        );
+        if (value) bindings[name] = value;
+        else failed = true;
+      }
+    }
+  }
+  if (failed) return undefined;
+  const node: WorkflowCallNode = {
+    kind: "call",
+    id,
+    needs,
+    workflow: (version as string).toLowerCase(),
+    with: bindings,
+  };
+  if (condition) node.if = condition;
+  // The call node is replaced before the document is validated, so it never
+  // reaches the compiled schema; the cast keeps the union closed everywhere else.
+  return node as unknown as WorkflowNode;
+}
+
+/**
+ * A workflow's declared outputs: a name mapped to a `$step` reference. They are
+ * what a caller can read from this workflow; the reference itself is checked
+ * with the rest of the flow.
+ */
+function shapeOutputs(
+  context: Context,
+  raw: unknown,
+): WorkflowSemanticDocument["outputs"] | undefined {
+  const path: Path = ["outputs"];
+  if (!isPlainObject(raw)) {
+    report(context, path, "workflow_outputs_invalid");
+    return undefined;
+  }
+  const outputs: NonNullable<WorkflowSemanticDocument["outputs"]> = Object
+    .create(null);
+  let failed = false;
+  for (const name of Object.keys(raw)) {
+    const text = raw[name];
+    const parsed = typeof text === "string"
+      ? parseReferenceText(text)
+      : undefined;
+    if (
+      !OUTPUT_NAME.test(name) || !parsed || !parsed.ok ||
+      parsed.root !== "step"
+    ) {
+      report(context, path, "workflow_outputs_invalid");
+      failed = true;
+      continue;
+    }
+    outputs[name] = { kind: "ref", root: "step", path: parsed.path };
+  }
+  return failed ? undefined : outputs;
+}
+
 function shapeWait(
   context: Context,
   raw: Raw,
@@ -1375,6 +1610,8 @@ export const STRUCTURAL_KEY_NAMES: ReadonlySet<string> = new Set([
   ...WAIT_BODY_KEYS,
   ...PARALLEL_NODE_KEYS,
   ...PARALLEL_BODY_KEYS,
+  ...FOR_EACH_NODE_KEYS,
+  ...FOR_EACH_BODY_KEYS,
   ...WORKFLOW_LIMIT_KEYS,
   ...BRANCH_ARM_KEYS,
   ...INPUT_KEYS,
@@ -1588,6 +1825,8 @@ function shapeNode(
     repeat: shapeRepeat,
     wait: shapeWait,
     parallel: shapeParallel,
+    forEach: shapeForEach,
+    call: shapeCall,
   } as const;
   const node = shapers[kind](
     context,
@@ -1797,6 +2036,102 @@ function shapeAgents(
 }
 
 /**
+ * Reads the workflow tools section (25-one-engine.md 15.5): named MCP
+ * connections, each with the exact tools the workflow may use and the seats that
+ * get all of them. Absent is no section. Lists are sorted and must not repeat,
+ * because the section is digest-bearing.
+ */
+function shapeTools(
+  context: Context,
+  raw: unknown,
+): NonNullable<WorkflowSemanticDocument["tools"]> | null {
+  const path: Path = ["tools"];
+  if (!isPlainObject(raw) || Object.keys(raw).length > 32) {
+    report(context, path, "workflow_tools_invalid");
+    return null;
+  }
+  const tools: NonNullable<WorkflowSemanticDocument["tools"]> = Object.create(
+    null,
+  );
+  let failed = false;
+  for (const name of Object.keys(raw)) {
+    const entry = raw[name];
+    if (
+      !WORKFLOW_TOOL_ENTRY_NAME.test(name) || !isPlainObject(entry) ||
+      Object.keys(entry).some((key) =>
+        key !== "connectionId" && key !== "allow" && key !== "seats"
+      ) ||
+      typeof entry["connectionId"] !== "string" ||
+      !UUID_TEXT.test(entry["connectionId"])
+    ) {
+      report(context, path, "workflow_tools_invalid");
+      failed = true;
+      continue;
+    }
+    const entryPath: Path = [...path, name];
+    const allow = readStringSet(
+      context,
+      entry["allow"],
+      [...entryPath, "allow"],
+      64,
+      "workflow_tools_invalid",
+      "workflow_tools_invalid",
+      (item) => WORKFLOW_MCP_TOOL_NAME.test(item),
+    );
+    if (allow === undefined || allow.length === 0) {
+      if (allow !== undefined) {
+        report(context, [...entryPath, "allow"], "workflow_tools_invalid");
+      }
+      failed = true;
+      continue;
+    }
+    let seats: string[] | undefined;
+    if (Object.hasOwn(entry, "seats")) {
+      seats = readStringSet(
+        context,
+        entry["seats"],
+        [...entryPath, "seats"],
+        32,
+        "workflow_tools_invalid",
+        "workflow_tools_invalid",
+        (item) => STEP_ROLE.test(item),
+      );
+      if (seats === undefined) {
+        failed = true;
+        continue;
+      }
+    }
+    tools[name] = {
+      connectionId: entry["connectionId"].toLowerCase(),
+      allow: [...allow].sort(),
+      ...(seats && seats.length > 0 ? { seats: [...seats].sort() } : {}),
+    };
+  }
+  return failed ? null : tools;
+}
+
+/** Every step's tools reference must name an entry, and a tool that entry allows. */
+function checkToolReferences(
+  context: Context,
+  tools: WorkflowSemanticDocument["tools"],
+): void {
+  for (const { path, references } of context.toolReferences ?? []) {
+    for (const reference of references) {
+      const dot = reference.indexOf(".");
+      const name = dot < 0 ? reference : reference.slice(0, dot);
+      const entry = tools?.[name];
+      const tool = dot < 0 ? null : reference.slice(dot + 1);
+      if (
+        entry === undefined || (tool !== null && !entry.allow.includes(tool))
+      ) {
+        report(context, path, "action_tools_invalid");
+        break;
+      }
+    }
+  }
+}
+
+/**
  * Walks an inert snapshot of an authored definition and builds the normalized
  * semantic document. Presentation keys are stripped only at the workflow
  * root, node objects and lane objects; everywhere else a key such as `name`
@@ -1808,7 +2143,7 @@ export function shapeWorkflow(
   collector: DiagnosticCollector,
 ): ShapeResult {
   const locations: NodeLocations = new WeakMap();
-  const context: Context = { collector, locations };
+  const context: Context = { collector, locations, toolReferences: [] };
   const before = collector.size;
   if (!isPlainObject(root)) {
     report(context, [], "field_invalid");
@@ -1829,10 +2164,20 @@ export function shapeWorkflow(
       cancel = "stop-started-actions";
     } else report(context, ["cancel"], "field_invalid");
   }
+  const outputs = Object.hasOwn(root, "outputs")
+    ? shapeOutputs(context, root["outputs"])
+    : undefined;
+  const tools = Object.hasOwn(root, "tools")
+    ? shapeTools(context, root["tools"])
+    : undefined;
   const steps = Object.hasOwn(root, "steps")
     ? shapeNodeList(context, root["steps"], ["steps"], false)
     : (report(context, ["steps"], "field_missing"), undefined);
+  if (tools !== null) checkToolReferences(context, tools);
   if (collector.size > before || !inputs || !limits || !agents || !steps) {
+    return { document: undefined, locations };
+  }
+  if (Object.hasOwn(root, "outputs") && !outputs) {
     return { document: undefined, locations };
   }
   const document: WorkflowSemanticDocument = {
@@ -1846,5 +2191,7 @@ export function shapeWorkflow(
     steps,
   };
   if (cancel) document.cancel = cancel;
+  if (outputs && Object.keys(outputs).length > 0) document.outputs = outputs;
+  if (tools && Object.keys(tools).length > 0) document.tools = tools;
   return { document, locations };
 }

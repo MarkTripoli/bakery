@@ -66,6 +66,8 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "action_limits_invalid",
     "action_skills_invalid",
     "action_role_invalid",
+    "action_tools_invalid",
+    "workflow_tools_invalid",
     "action_files_invalid",
     "action_files_write_needs_grant",
     "action_sealed_invalid",
@@ -84,6 +86,7 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "reference_parallel_sibling",
     "reference_parallel_scope",
     "reference_repeat_scope",
+    "reference_each_scope",
     "reference_input_unknown",
     "reference_step_unknown",
     "reference_field_unknown",
@@ -101,6 +104,20 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "retry_fault_unsupported",
     "repeat_max_invalid",
     "repeat_exceeds_policy",
+    "for_each_max_invalid",
+    "for_each_as_invalid",
+    "for_each_items_invalid",
+    // Calls and declared workflow outputs.
+    "call_shape_invalid",
+    "call_version_unavailable",
+    "call_child_invalid",
+    "call_input_unknown",
+    "call_input_missing",
+    "call_input_unusable",
+    "call_depth_exceeded",
+    "call_action_unsupported",
+    "call_output_unknown",
+    "workflow_outputs_invalid",
     "wait_shape_invalid",
     "wait_timeout_required",
     "parallel_lanes_invalid",
@@ -188,6 +205,10 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
   action_skills_invalid:
     "The declared skill versions are invalid or not sorted and unique.",
   action_role_invalid: "The declared step role is invalid.",
+  action_tools_invalid:
+    "The step's tools are not sorted, unique references to entries and allowed tools of the workflow tools section.",
+  workflow_tools_invalid:
+    "The tools section is not a map of named connections, each with sorted, unique allowed tools and seats.",
   action_files_invalid:
     "The files section is not a read and write list of known areas without repeats.",
   action_files_write_needs_grant:
@@ -211,6 +232,8 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
     "A reference reads a sibling lane without depending on it.",
   reference_parallel_scope: "A reference reads inside a parallel lane.",
   reference_repeat_scope: "A reference is outside the repeat scope.",
+  reference_each_scope:
+    "A reference reads a forEach item or step from outside that loop.",
   reference_input_unknown: "A reference names an undeclared input.",
   reference_step_unknown: "A reference names an unknown step.",
   reference_field_unknown: "A reference names an unknown field.",
@@ -227,6 +250,29 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
   retry_fault_unsupported: "A retry fault is not supported by the action.",
   repeat_max_invalid: "The repeat max is invalid.",
   repeat_exceeds_policy: "The repeat max exceeds the repair-cycle policy.",
+  for_each_max_invalid: "The forEach max must be a whole number from 1 to 12.",
+  for_each_as_invalid:
+    "The forEach item name is invalid or repeats an enclosing forEach's name.",
+  for_each_items_invalid: "The forEach items must be a list.",
+  call_shape_invalid:
+    "A call needs a `call` object with a published `workflow` version id and, when the child declares inputs, a `with` object.",
+  call_version_unavailable:
+    "The called workflow version is not a published version of this organization.",
+  call_child_invalid: "The called workflow version does not compile.",
+  call_input_unknown:
+    "The call names an input the called workflow does not declare.",
+  call_input_missing:
+    "The call leaves out a required input of the called workflow.",
+  call_input_unusable:
+    "A value the call passes cannot stand where the called workflow reads that input.",
+  call_depth_exceeded:
+    "Calls nest at most two levels: a workflow, its child and that child's own child.",
+  call_action_unsupported:
+    "A called workflow cannot use `tool.call` yet: a tool pin belongs to the version that holds the step.",
+  call_output_unknown:
+    "Only an output the called workflow declares can be read from a call; its inner steps and its outcome are not readable.",
+  workflow_outputs_invalid:
+    "A workflow output must be a name mapped to a `$step` reference.",
   wait_shape_invalid: "The wait must declare a duration or an event.",
   wait_timeout_required: "An event wait requires a timeout.",
   parallel_lanes_invalid: "The parallel lanes are invalid.",

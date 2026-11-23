@@ -154,6 +154,7 @@ function fakeApi(
       get: rejecting,
       check: rejecting,
       request: rejecting,
+      cancelRequest: rejecting,
       list: rejecting,
       sources: rejecting,
       createSource: rejecting,
@@ -185,6 +186,12 @@ function fakeApi(
       replace: rejecting,
     },
     workerComponents: { list: rejecting },
+    providerRoutes: {
+      list: rejecting,
+      health: rejecting,
+      create: rejecting,
+      update: rejecting,
+    },
     workerProviderBindings: { list: rejecting, create: rejecting },
     workerProviderAuth: {
       create: rejecting,
@@ -206,6 +213,12 @@ function fakeApi(
       test: rejecting,
     },
     installationRestore: { get: rejecting, step: rejecting },
+    installationUpdates: {
+      status: rejecting,
+      list: rejecting,
+      dismiss: rejecting,
+    },
+    installationUncertainActions: { get: rejecting },
     installationSettings: { get: rejecting, update: rejecting },
     storageSettings: { get: rejecting, put: rejecting },
     usage: { list: rejecting },

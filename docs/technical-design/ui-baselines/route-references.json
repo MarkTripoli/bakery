@@ -5187,6 +5187,20 @@
       "frames": []
     },
     {
+      "routeId": "machine-models",
+      "path": "/machines/$machineId/models",
+      "status": "no-mock",
+      "rationale": "The Models tab lists the models served by providerRoutes for one machine, with server-derived health and an administrator-only switch. It was designed in the #70 slice 3 to 6 comment (design-70/fleet images), not as a Paper frame, and stays real-API only; it is not scored against synthetic records.",
+      "frames": []
+    },
+    {
+      "routeId": "machine-model-new",
+      "path": "/machines/$machineId/models/new",
+      "status": "no-mock",
+      "rationale": "Adding a model is an administrator-only form over providerRoutes.create with the server's own refusal of an address. It was designed in the #70 slice 3 to 6 comment (design-70/fleet images), not as a Paper frame, and stays real-API only.",
+      "frames": []
+    },
+    {
       "routeId": "files",
       "path": "/files",
       "status": "no-mock",
@@ -5268,6 +5282,13 @@
       "path": "/installation/usage",
       "status": "no-mock",
       "rationale": "The installation usage page (#75) is designed by design-ux on #75 (revision 2, mock at pr-evidence design-75/v2/usage.png); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-updates",
+      "path": "/installation/updates",
+      "status": "no-mock",
+      "rationale": "The Updates page (#59 slice 4) is designed by design-ux on #59 (revisions 3 and 4, mock at pr-evidence design-59/v3/); Paper has no frame for it.",
       "frames": []
     },
     {

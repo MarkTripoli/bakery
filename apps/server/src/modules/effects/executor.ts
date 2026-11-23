@@ -9,6 +9,11 @@ import {
   recordOutcome,
   standaloneSnapshots,
 } from "./dispatch.ts";
+import {
+  prepareMcpEffect,
+  type PrepareMcpEffectInput,
+  type PrepareMcpEffectResult,
+} from "./mcp.ts";
 import { prepareEffect } from "./prepare.ts";
 import {
   DEFAULT_RECONCILE_LEASE_SECONDS,
@@ -58,6 +63,10 @@ export type RunEffectResult = Readonly<{
 
 export type EffectExecutor = Readonly<{
   prepareEffect(input: PrepareEffectInput): Promise<PrepareEffectResult>;
+  /** Records the intent of a write to an MCP tool; the same `runEffect` then drives it. */
+  prepareMcpEffect(
+    input: PrepareMcpEffectInput,
+  ): Promise<PrepareMcpEffectResult>;
   reconcileEffect(input: ReconcileEffectInput): Promise<ReconcileResult>;
   runEffect(input: RunEffectInput): Promise<RunEffectResult>;
 }>;
@@ -134,6 +143,7 @@ export function createEffectExecutor(deps: EffectExecutorDeps): EffectExecutor {
     database: deps.database,
     registry: deps.registry,
     snapshotsFor: deps.snapshotsFor,
+    ...(deps.mcp === undefined ? {} : { mcp: deps.mcp }),
     ...(deps.leaseSeconds === undefined
       ? {}
       : { leaseSeconds: deps.leaseSeconds }),
@@ -199,6 +209,8 @@ export function createEffectExecutor(deps: EffectExecutorDeps): EffectExecutor {
         registry: deps.registry,
         snapshots: standaloneSnapshots(deps.database, deps.snapshotsFor),
       }, input),
+    prepareMcpEffect: (input) =>
+      prepareMcpEffect({ database: deps.database }, input),
     reconcileEffect: (input) => reconcileEffect(deps, input),
     runEffect,
   };

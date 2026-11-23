@@ -85,7 +85,7 @@ export async function loadVersion(
     `select v.id,v.artifact_id,v.task_id,v.blob_id,case when $3::boolean then v.content when v.content is null then null else ''::bytea end as content,
     v.media_type,v.sha256,v.size_bytes,v.subject_head_sha,v.subject_base_sha,t.conversation_id,t.application_id,t.repository_id
     from bakery.artifact_versions v join bakery.tasks t on t.organization_id=v.organization_id and t.id=v.task_id
-    where v.organization_id=$1 and v.id=$2 ${
+    where v.organization_id=$1 and v.id=$2 and v.publication_status='current' ${
       options.lock ? "for update of v for share of t" : ""
     }`,
     [work.organizationId, id, options.bytes ?? false],

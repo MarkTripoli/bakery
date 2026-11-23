@@ -40,6 +40,27 @@ w.action("implement", implement, {
 w.toJSON(); // the document: validate it, publish it, or export it as YAML
 ```
 
+## A bounded loop over a list
+
+`forEach` runs its steps once per item, one item at a time, in list order
+(interpreter revision 3). The body callback runs once, while the document is
+built; what it declares becomes the loop's steps. `item` reads the current item
+as `$each.<as>`, typed by the list it walks.
+
+```ts
+const cases = w.forEach(
+  "cases",
+  prepare.output("cases"),
+  { max: 12, as: "case" }, // a longer list halts the run; null runs nothing
+  (steps, item) => {
+    steps.action("run_case", runCase, { prompt: item.field("prompt") });
+  },
+);
+w.action("report", "workflow.noop", { ran: cases.iterations() });
+```
+
+A failed iteration stops the loop; `cases.outcome()` says how it ended.
+
 ## What is checked, and where
 
 - **At compile time** (for an action declared with `defineAction`): a binding

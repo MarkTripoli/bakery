@@ -29,6 +29,12 @@ import {
   stepSkillIssues,
 } from "./version-skills.ts";
 import {
+  checkToolCallPins,
+  checkToolSectionPins,
+  writeToolCallBindings,
+  writeToolSectionBindings,
+} from "./version-tool-bindings.ts";
+import {
   insertSkillSlots,
   resolveSkillSlots,
   stripPersonalSkills,
@@ -43,7 +49,9 @@ import {
   validateWorkflowSourceYaml,
   type WorkflowValidationIssue,
 } from "./validation.ts";
+import { createPackageHandlers, type PackageDependencies } from "./packages.ts";
 import { assertWorkflowSatisfiesRepositoryRules } from "./rule-guard.ts";
+import { loadCalledWorkflows } from "./called-workflows.ts";
 import { readStarts } from "./start-read.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import {
@@ -113,7 +121,7 @@ export type WorkflowWriteFacts = Readonly<{
   accessTokenId?: string | null;
 }>;
 
-function writeFactsOf(context: ActionContext): WorkflowWriteFacts {
+export function writeFactsOf(context: ActionContext): WorkflowWriteFacts {
   const { organizationId, principalId } = requireWorkTransaction(context);
   const attribution = attributeAction(context, principalId);
   return {
@@ -854,7 +862,7 @@ async function settlePersonalSkillUse(
 }
 
 /** Structural guard only: a JSON object within the size bound. */
-function requireDraftDefinition(definition: unknown): string {
+export function requireDraftDefinition(definition: unknown): string {
   if (
     definition === null || typeof definition !== "object" ||
     Array.isArray(definition)
@@ -1263,7 +1271,16 @@ export async function publishWorkflowVersion(
       params: { reason: "validation_stale" },
     });
   }
-  const report = await validateWorkflowDefinitionStatic(draft.definition);
+  // The published versions this draft calls, from its own organization only.
+  const calls = await loadCalledWorkflows(
+    transaction,
+    organizationId,
+    draft.definition,
+  );
+  const report = await validateWorkflowDefinitionStatic(
+    draft.definition,
+    calls,
+  );
   const bindingErrors: readonly WorkflowValidationIssue[] = report.valid
     ? (await validateWorkflowBindings(
       transaction,
@@ -1286,10 +1303,32 @@ export async function publishWorkflowVersion(
       definition: draft.definition,
     })
     : [];
+  // A tool.call step over an MCP connection is pinned to the connection's
+  // current snapshot and the exact tool, or the version is refused.
+  const toolPins = report.valid
+    ? await checkToolCallPins(transaction, {
+      organizationId,
+      principalId,
+      workflowId,
+      definition: draft.definition,
+      calls,
+    })
+    : { issues: [], pins: [] };
+  // The workflow tools section: its steps and seats are pinned the same way.
+  const sectionPins = report.valid
+    ? await checkToolSectionPins(transaction, {
+      organizationId,
+      principalId,
+      workflowId,
+      definition: draft.definition,
+    })
+    : { issues: [], pins: [] };
   const issues = [
     ...report.errors,
     ...bindingErrors,
     ...skillErrors,
+    ...toolPins.issues,
+    ...sectionPins.issues,
     ...sourceErrors,
   ];
   if (!report.valid || issues.length > 0 || report.normalizedDigest === null) {
@@ -1331,6 +1370,16 @@ export async function publishWorkflowVersion(
     starts: canonicalJson(
       readStarts(WorkflowStartsSchema.parse(draft.starts)),
     ),
+  });
+  await writeToolCallBindings(transaction, {
+    organizationId,
+    workflowVersionId: draft.id,
+    pins: toolPins.pins,
+  });
+  await writeToolSectionBindings(transaction, {
+    organizationId,
+    workflowVersionId: draft.id,
+    pins: sectionPins.pins,
   });
   await transaction.query(
     `delete from bakery.workflow_drafts
@@ -1589,7 +1638,12 @@ export async function validateWorkflow(
     context,
   );
   const { definition } = input as { definition: JsonValue };
-  const report = await validateWorkflowDefinitionStatic(definition);
+  const calls = await loadCalledWorkflows(
+    transaction,
+    organizationId,
+    definition,
+  );
+  const report = await validateWorkflowDefinitionStatic(definition, calls);
   const bindingResult = report.valid
     ? await validateWorkflowBindings(transaction, organizationId, definition)
     : { errors: [] as readonly WorkflowValidationIssue[], bindings: [] };
@@ -1601,7 +1655,30 @@ export async function validateWorkflow(
       definition,
     })
     : [];
-  const bindingErrors = [...bindingResult.errors, ...skillErrors];
+  // The dry run says what publish would say about a tool.call step's MCP pin.
+  const toolErrors = report.valid
+    ? (await checkToolCallPins(transaction, {
+      organizationId,
+      principalId,
+      workflowId: null,
+      definition,
+      calls,
+    })).issues
+    : [];
+  const sectionErrors = report.valid
+    ? (await checkToolSectionPins(transaction, {
+      organizationId,
+      principalId,
+      workflowId: null,
+      definition,
+    })).issues
+    : [];
+  const bindingErrors = [
+    ...bindingResult.errors,
+    ...skillErrors,
+    ...toolErrors,
+    ...sectionErrors,
+  ];
   const failed = !report.valid || bindingErrors.length > 0;
   const { graph, requiresRepository, registryVersion, registryDigest } = report;
   return {
@@ -1631,13 +1708,17 @@ export async function validateWorkflow(
 
 export function createWorkflowsHandlers(
   secret: string,
+  packageDependencies: PackageDependencies = {},
 ): WorkflowsActionHandlers {
+  const packages = createPackageHandlers(packageDependencies);
   return {
     listWorkflows: createWorkflowDefinitionsListHandler(secret),
     getWorkflow: getWorkflowDefinition,
     createWorkflow: createWorkflowDefinition,
     updateWorkflow: updateWorkflowDefinition,
     copyWorkflow: copyWorkflowDefinition,
+    exportPackage: packages.exportPackage,
+    importPackage: packages.importPackage,
     listVersions: createWorkflowVersionsListHandler(secret),
     getVersion: getWorkflowVersion,
     getVersionSkills: readWorkflowVersionSkills,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { WorkflowCompilerDiagnosticSchema } from "./diagnostics.ts";
+import { WORKFLOW_COMPILER_LIMITS } from "./limits.ts";
 import type { WorkflowJsonValue } from "./json-value.ts";
 import {
   type WorkflowStepFiles,
@@ -10,6 +11,13 @@ const IDENTIFIER = /^[a-z][a-z0-9_]{1,63}$/;
 const FIELD_SEGMENT = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** A tools section entry name: a plain identifier, so `name.tool` splits once. */
+export const WORKFLOW_TOOL_ENTRY_NAME = /^[a-z][a-z0-9_]{0,63}$/;
+/** An MCP tool name as a server declares it. */
+export const WORKFLOW_MCP_TOOL_NAME = /^[A-Za-z0-9_][A-Za-z0-9_.\-]{0,127}$/;
+/** A step's reference into the tools section: `entry` or `entry.tool`. */
+export const WORKFLOW_STEP_TOOL_REFERENCE =
+  /^[a-z][a-z0-9_]{0,63}(?:\.[A-Za-z0-9_][A-Za-z0-9_.\-]{0,127})?$/;
 
 function described<T extends z.ZodType>(schema: T, description: string): T {
   return schema.describe(description) as T;
@@ -53,11 +61,11 @@ export const WorkflowJsonValueSchema: z.ZodType<WorkflowJsonValue> = z.lazy(
 );
 
 export const WORKFLOW_REFERENCE_ROOTS = Object.freeze(
-  ["input", "task", "step", "repeat", "delivery"] as const,
+  ["input", "task", "step", "repeat", "delivery", "each"] as const,
 );
 
 const referenceRootSchema = z.enum(WORKFLOW_REFERENCE_ROOTS).describe(
-  "Namespace a reference reads: workflow input, task, completed step, enclosing repeat or the run's delivery state.",
+  "Namespace a reference reads: workflow input, task, completed step, enclosing repeat, the run's delivery state, or the current item of an enclosing forEach (`each`, whose first path segment is the loop's `as` name).",
 );
 
 const referencePathSchema = z.array(
@@ -81,7 +89,7 @@ const referenceNodeSchema: z.ZodType<WorkflowReferenceNode> = z.object({
   root: referenceRootSchema,
   path: referencePathSchema,
 }).strict().describe(
-  "Typed reference to a workflow input, task field, completed step output or repeat candidate.",
+  "Typed reference to a workflow input, task field, completed step output, repeat candidate or forEach item.",
 );
 
 export const WorkflowReferenceNodeSchema = referenceNodeSchema;
@@ -306,6 +314,11 @@ export type WorkflowActionNode = {
   skills?: string[] | undefined;
   /** Role (seat) this step runs as, when it declares one. */
   role?: string | undefined;
+  /**
+   * Tools from the workflow's tools section this step's session may call:
+   * `name` for every tool the entry allows, `name.tool` for one of them.
+   */
+  tools?: string[] | undefined;
   /** Named input slots, in authored order, each binding the bytes it pins. */
   inputs?: WorkflowInputSlot[] | undefined;
   /** Named output slots the step must publish when it completes. */
@@ -393,13 +406,28 @@ export type WorkflowParallelNode = {
   lanes: WorkflowLane[];
   outputs: Record<string, Record<string, WorkflowValueNode>>;
 };
+/**
+ * A bounded, sequential loop over a list (interpreter revision 3). The body
+ * runs once per item, in list order; `$each.<as>` reads the current item.
+ */
+export type WorkflowForEachNode = {
+  kind: "forEach";
+  id: string;
+  needs: string[];
+  if?: WorkflowExpressionNode | undefined;
+  items: WorkflowValueNode;
+  max: number;
+  as: string;
+  steps: WorkflowNode[];
+};
 export type WorkflowNode =
   | WorkflowActionNode
   | WorkflowSequenceNode
   | WorkflowBranchNode
   | WorkflowRepeatNode
   | WorkflowWaitNode
-  | WorkflowParallelNode;
+  | WorkflowParallelNode
+  | WorkflowForEachNode;
 
 const stepsSchema = (): z.ZodType<WorkflowNode[]> =>
   z.array(described(z.lazy(() => WorkflowNodeSchema), "Child workflow node."))
@@ -428,6 +456,14 @@ const actionNodeSchema = z.object({
     .describe(
       "Role (seat) this step runs as; a step role is declared per step and never implies a grant.",
     ),
+  tools: z.array(
+    described(
+      z.string().regex(WORKFLOW_STEP_TOOL_REFERENCE),
+      "A tools section entry name, or an entry name and one of its tools joined by a dot.",
+    ),
+  ).max(32).optional().describe(
+    "Sorted, duplicate-free references into the workflow tools section: the MCP tools this step's session may call through its tool gateway; digest-affecting.",
+  ),
   inputs: z.array(
     z.object({
       name: nameSchema,
@@ -590,6 +626,25 @@ const parallelNodeSchema = z.object({
   ).describe("Typed exports keyed by lane identifier."),
 }).strict().describe("Bounded parallel group of named lanes.");
 
+const forEachNodeSchema = z.object({
+  kind: z.literal("forEach").describe(
+    "Tag marking a bounded sequential loop over a list.",
+  ),
+  ...baseNodeShape,
+  items: z.lazy(() => WorkflowValueNodeSchema).describe(
+    "The list the loop walks, resolved when the loop is reached: normally a reference to a list-typed input or step output. Null runs no iteration; a list longer than max halts the run.",
+  ),
+  max: z.number().int().min(1).max(12).describe(
+    "Most items the loop accepts; also the iteration count the worst case assumes.",
+  ),
+  as: z.string().regex(/^[a-z][A-Za-z0-9]{0,63}$/).describe(
+    "Name the body reads the current item by, as $each.<as>; distinct from every enclosing forEach's name.",
+  ),
+  steps: stepsSchema(),
+}).strict().describe(
+  "Bounded sequential forEach: runs its steps once per list item, in order, one iteration at a time.",
+);
+
 /** Normalized workflow node of any kind. */
 export const WorkflowNodeSchema: z.ZodType<WorkflowNode> = z.lazy(() =>
   described(
@@ -600,11 +655,12 @@ export const WorkflowNodeSchema: z.ZodType<WorkflowNode> = z.lazy(() =>
       repeatNodeSchema,
       waitNodeSchema,
       parallelNodeSchema,
+      forEachNodeSchema,
     ]),
     "Any normalized workflow node.",
   )
 ).describe(
-  "Normalized workflow node: action, sequence, branch, repeat, wait or parallel.",
+  "Normalized workflow node: action, sequence, branch, repeat, wait, parallel or forEach.",
 );
 
 /**
@@ -632,6 +688,28 @@ const inputSchema = z.object({
       "Sorted, duplicate-free allowed values; only string inputs may be enumerations.",
     ),
 }).strict().describe("Declared workflow input.");
+
+/** One named connection and the tools a workflow may use from it (25-one-engine.md 15.5). */
+export const WorkflowToolsEntrySchema = z.object({
+  connectionId: z.string().regex(UUID).describe(
+    "Lower-case MCP connection the entry's tools are called on; pinned to its capability snapshot when the version is published.",
+  ),
+  allow: z.array(
+    described(
+      z.string().regex(WORKFLOW_MCP_TOOL_NAME),
+      "Exact tool name as the server declares it; never a wildcard.",
+    ),
+  ).min(1).max(64).describe(
+    "Sorted, duplicate-free tool names the workflow may call on the connection; steps and seats narrow from these.",
+  ),
+  seats: z.array(
+    described(z.string().regex(IDENTIFIER), "Seat (step role) name."),
+  ).max(32).optional().describe(
+    "Sorted, duplicate-free seats whose every step gets all of the entry's allowed tools.",
+  ),
+}).strict().describe(
+  "A named connection in the workflow tools section, with the tools it allows and the seats that get them.",
+);
 
 export const WorkflowSemanticDocumentSchema = z.object({
   compilerVersion: z.literal(2).describe(
@@ -669,6 +747,18 @@ export const WorkflowSemanticDocumentSchema = z.object({
   cancel: z.enum(["stop-started-actions"]).optional().describe(
     "Cancellation policy for started actions.",
   ),
+  outputs: z.record(
+    nameSchema,
+    referenceNodeSchema,
+  ).optional().describe(
+    "Named outputs a calling workflow may read, each a reference to a step output; absent when none are declared, which leaves every existing digest unchanged.",
+  ),
+  tools: z.record(
+    described(z.string().regex(WORKFLOW_TOOL_ENTRY_NAME), "Tools entry name."),
+    WorkflowToolsEntrySchema,
+  ).optional().describe(
+    "The workflow tools section: named MCP connections with their allowed tools, referenced by steps and seats; digest-affecting.",
+  ),
   steps: z.array(
     described(z.lazy(() => WorkflowNodeSchema), "Top-level workflow node."),
   ).max(200).describe(
@@ -690,7 +780,7 @@ export const WorkflowPlanStepSchema = z.object({
     "Executable step kind; container nodes are not steps.",
   ),
   keyTemplate: z.string().max(2048).describe(
-    "Step key with @n markers for every enclosing repeat iteration.",
+    "Step key with @n markers for every enclosing repeat or forEach iteration.",
   ),
   parent: z.string().max(2048).nullable().describe(
     "Qualified identifier of the enclosing container, or null at the root.",
@@ -711,18 +801,26 @@ export const WorkflowPlanStepSchema = z.object({
   retry: retrySchema,
   loops: z.array(
     z.object({
-      repeat: z.string().max(2048).describe(
-        "Qualified identifier of the enclosing repeat.",
+      kind: z.enum(["repeat", "forEach"]).describe(
+        "Which loop this is: a repeat (its @n counts tries; seed steps are iteration 0) or a forEach (its @n is the position of the item, 1-based, in the list it walks).",
       ),
-      max: z.number().int().min(1).max(8).describe(
-        "Iteration ceiling of the enclosing repeat.",
+      repeat: z.string().max(2048).describe(
+        "Qualified identifier of the enclosing repeat or forEach.",
+      ),
+      max: z.number().int().min(1).max(
+        Math.max(
+          WORKFLOW_COMPILER_LIMITS.repeatMax,
+          WORKFLOW_COMPILER_LIMITS.forEachMax,
+        ),
+      ).describe(
+        "Iteration ceiling of the enclosing repeat or forEach (its max): at most repeatMax for a repeat, forEachMax for a forEach.",
       ),
       seed: z.boolean().describe(
         "True for a seed step, whose only iteration is 0; body steps run 1..max.",
       ),
-    }).strict().describe("One enclosing repeat, outermost first."),
+    }).strict().describe("One enclosing repeat or forEach, outermost first."),
   ).max(8).describe(
-    "Enclosing repeats from the outermost, one @n marker each in the key template.",
+    "Enclosing repeats and forEach loops from the outermost, one @n marker each in the key template.",
   ),
 }).strict().describe("One executable step of the bounded execution plan.");
 

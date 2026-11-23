@@ -1,5 +1,11 @@
 import type { ExecutionTelemetry } from "./modules/execution/telemetry.ts";
 import { createDeliveryStepRunner } from "./modules/delivery/delivery-steps.ts";
+import { createToolCallStepRunner } from "./modules/tool-call/tool-call-step.ts";
+import { createPostgresMcpPinnedStatePort } from "./modules/mcp/postgres.ts";
+import { createRemoteMcpToolTransport } from "./modules/mcp/tool-transport.ts";
+import { httpsMcpTransport } from "./modules/mcp/discovery-transport.ts";
+import { composeEngineStepRunners } from "./modules/workflow-adapter/engine-steps.ts";
+import { createSplitStepRunner } from "./modules/work/coordination-split-step.ts";
 import { createLocalDeliveryTargets } from "./modules/delivery/local-delivery-targets.ts";
 import {
   createSkillObjectStore,
@@ -292,6 +298,11 @@ export function createApp(options: {
   alertRules?: AlertRuleDependencies;
   /** Replaces the SMTP exchange of the installation email test (tests only). */
   emailSend?: EmailSettingsDependencies["send"];
+  /**
+   * What sends a remote MCP tool call (tool.call steps and the worker tool
+   * gateway). Replaceable so a test answers without a network; HTTPS otherwise.
+   */
+  mcpToolTransport?: ReturnType<typeof httpsMcpTransport>;
   skillSourceAdapter?: SkillSourceAdapter;
   skillSourceLocatorNormalizer?: typeof normalizeSkillSourceLocator;
   skillImportProcessHooks?: SkillImportProcessHooks;
@@ -579,6 +590,7 @@ export function createApp(options: {
     publicBaseUrl: options.config.publicBaseUrl,
     passwordHasher: providerPasswordHasher(auth),
     release: options.config.version,
+    desktopUpdateFeed: options.config.desktopUpdateFeed,
   });
   app.route(
     "/",
@@ -808,15 +820,45 @@ export function createApp(options: {
       integrations,
       ticketNoteWriter,
       ticketLabelWriter,
-      // Delivery steps run only where the install configured a target.
-      ...(options.config.deliveryTarget
-        ? {
-          engineSteps: createDeliveryStepRunner({
+      // The engine settles a tool call itself, over the integration door; the
+      // delivery steps run only where the install configured a target.
+      engineSteps: composeEngineStepRunners([
+        // A split's plan is made and watched by the engine, as the person who
+        // started the run (#422).
+        createSplitStepRunner({ database: options.pgDatabase }),
+        createToolCallStepRunner({
+          database: options.pgDatabase,
+          registry: integrationRegistry,
+          providerRequests,
+          // A remote MCP tool is called by this server's own broker, through the
+          // pinned-tool door; the credential never leaves the server.
+          mcp: {
+            pinnedState: createPostgresMcpPinnedStatePort(options.database),
+            transport: createRemoteMcpToolTransport({
+              database: options.pgDatabase,
+              secretsKey: options.config.secretsKey,
+              transport: options.mcpToolTransport ?? httpsMcpTransport(),
+            }),
+          },
+        }),
+        ...(options.config.deliveryTarget
+          ? [createDeliveryStepRunner({
             database: options.pgDatabase,
             targets: createLocalDeliveryTargets(options.config.deliveryTarget),
-          }),
-        }
-        : {}),
+          })]
+          : []),
+      ]),
+      // The tool gateway's MCP tools (#436): a session's calls go through the
+      // same pinned-tool door and broker as a tool.call step, so the credential
+      // stays on the server.
+      toolGateway: {
+        pinnedState: createPostgresMcpPinnedStatePort(options.database),
+        transport: createRemoteMcpToolTransport({
+          database: options.pgDatabase,
+          secretsKey: options.config.secretsKey,
+          transport: options.mcpToolTransport ?? httpsMcpTransport(),
+        }),
+      },
       // The tool gateway's operations: whatever these registries already
       // implement, narrowed to the operation map a session is defined by.
       // Composed rather than re-registered so a session calls the same handler
@@ -1121,6 +1163,7 @@ export function createApp(options: {
       tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      skillFileStore,
     }),
   );
   app.route(

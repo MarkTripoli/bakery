@@ -9,6 +9,7 @@ import {
   snapshotWorkflowValue,
 } from "./json-value.ts";
 import type { PointerSegment } from "./diagnostics.ts";
+import type { ShapeChild } from "./call.ts";
 import { normalizeWorkflow } from "./normalize.ts";
 import type { WorkflowCompilerCatalog } from "./catalog.ts";
 import { resolveWorkflowActions } from "./passes/actions.ts";
@@ -22,6 +23,7 @@ import {
   INPUT_NAME,
   LANE_ID,
   OUTPUT_NAME,
+  shapeWorkflow,
   STRUCTURAL_KEY_NAMES,
 } from "./passes/shape.ts";
 import { checkWorkflowBounds } from "./passes/bounds.ts";
@@ -57,6 +59,13 @@ export type WorkflowDocumentResult =
 /** Optional inputs to a compile. */
 export type WorkflowCompileOptions = {
   /**
+   * Published workflow versions a `call` may name, by version id, each the
+   * version's authored definition. The caller loads only versions the
+   * definition's organization may call; the compiler stays pure and refuses
+   * any call whose version is not here.
+   */
+  readonly workflows?: ReadonlyMap<string, unknown> | undefined;
+  /**
    * Catalog to resolve actions, checks, limits, events and `with` fields
    * against. Without one the compiler validates shape and identifiers only.
    */
@@ -75,7 +84,10 @@ function isValueSlot(segments: readonly PointerSegment[]): boolean {
   const tail = segments[last];
   if (tail === "effectKey") return true;
   if (tail === "agents" && last === 0) return true;
-  if (tail === "with") return typeof segments[last - 1] === "number";
+  if (tail === "with") {
+    return typeof segments[last - 1] === "number" ||
+      segments[last - 1] === "call";
+  }
   if (tail === "currentCandidate") return true;
   if (segments[last - 3] === "branch" && segments[last - 2] === "outputs") {
     return tail !== undefined && SLOT_ARMS.has(tail);
@@ -86,7 +98,7 @@ function isValueSlot(segments: readonly PointerSegment[]): boolean {
 /**
  * Whether `path` is the exact authored path of a step node: `steps/N` from the
  * root, then any nesting of sequence nodes (`steps/N`), branch arms, repeat
- * bodies, repeat seed sequences and parallel lanes. Declared-name positions (branch outputs, lane ids, lane
+ * bodies, repeat seed sequences, forEach steps and parallel lanes. Declared-name positions (branch outputs, lane ids, lane
  * exports, arm keys, repeat candidates) count only below such a path, so a
  * submitted key chain cannot rebuild one elsewhere (`ui`, `limits`, ...).
  */
@@ -101,7 +113,7 @@ function isNodePath(path: readonly PointerSegment[]): boolean {
     } else if (a === "branch" && (b === "then" || b === "else")) {
       if (typeof path[i + 2] !== "number") return false;
       i += 3;
-    } else if (a === "repeat" && b === "steps") {
+    } else if ((a === "repeat" || a === "forEach") && b === "steps") {
       if (typeof path[i + 2] !== "number") return false;
       i += 3;
     } else if (a === "repeat" && b === "seed" && path[i + 2] === "steps") {
@@ -131,6 +143,7 @@ function isStructuralKey(
 ): boolean {
   const n = parent.length;
   if (n === 1 && parent[0] === "inputs") return INPUT_NAME.test(key);
+  if (n === 1 && parent[0] === "outputs") return OUTPUT_NAME.test(key);
   if (n >= 2 && parent[n - 1] === "outputs") {
     const owner = parent[n - 2];
     const prefix = parent.slice(0, n - 2);
@@ -164,6 +177,20 @@ function isStructuralKey(
 const SNAPSHOT_OPTIONS: SnapshotOptions = {
   opaqueAt: isValueSlot,
   structuralKey: isStructuralKey,
+};
+
+/** Shapes a called workflow's authored definition like any definition. */
+const shapeChildDefinition: ShapeChild = (definition, collector) => {
+  const decoded = typeof definition === "string"
+    ? decodeWorkflowJson(definition, SNAPSHOT_OPTIONS)
+    : snapshotWorkflowValue(definition, SNAPSHOT_OPTIONS, collector);
+  if (!decoded.ok) {
+    for (const diagnostic of decoded.diagnostics) {
+      collector.add(diagnostic.path, diagnostic.code);
+    }
+    return { document: undefined, locations: new WeakMap() };
+  }
+  return shapeWorkflow(decoded.value, collector);
 };
 
 /**
@@ -208,7 +235,13 @@ export async function compileWorkflowDocumentDetailed(
       actionSites: [],
     };
   }
-  const { document, locations } = normalizeWorkflow(decoded.value, collector);
+  const { document, locations } = normalizeWorkflow(
+    decoded.value,
+    collector,
+    options.workflows
+      ? { children: options.workflows, shapeChild: shapeChildDefinition }
+      : undefined,
+  );
   if (document && options.catalog && collector.size === 0) {
     resolveWorkflowActions(document, locations, options.catalog, collector);
   }

@@ -657,6 +657,8 @@ export function createFileVersionLister(secret: string) {
           " on def.organization_id = av.organization_id" +
           " and def.id = av.agent_id" +
           " where v.organization_id = $1 and v.artifact_id = $2" +
+          // Staged and refused versions (O29) are not part of a file's history.
+          " and v.publication_status = 'current'" +
           " and ($3::int is null or v.revision < $3)" +
           " order by v.revision desc limit $4",
         [organizationId, file.artifact_id, before, limit + 1],
@@ -922,7 +924,8 @@ export function createFileProbeReader() {
           " on a.organization_id = v.organization_id and a.id = v.artifact_id" +
           " where v.organization_id = $1 and v.artifact_id = $2" +
           " and (($3::int is null and v.id = a.current_version_id)" +
-          " or v.revision = $3)",
+          // A revision names a published version; a staged or refused one is not.
+          " or (v.revision = $3 and v.publication_status = 'current'))",
         [organizationId, file.artifact_id, input.revision],
       )
       : await tx.query<{
@@ -1049,7 +1052,8 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
           " where v.organization_id = $1 and v.artifact_id = $2" +
           " and (case when $4::uuid is not null then v.id = $4::uuid" +
           " when $3::int is null then v.id = a.current_version_id" +
-          " else v.revision = $3 end)",
+          // A revision names a published version; a staged or refused one is not.
+          " else v.revision = $3 and v.publication_status = 'current' end)",
         [organizationId, file.artifact_id, input.revision, pinnedId],
       )
       : await tx.query<BytesRow>(

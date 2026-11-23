@@ -9,7 +9,8 @@ export const WORKFLOW_ACTION_NAMES = Object.freeze(
     "harness.repair",
     "quality.check",
     "review.independent",
-    "integration.action",
+    "tool.call",
+    "coordination.split",
     "delivery.candidate_evidence",
     "delivery.prepare",
     "delivery.merge",
@@ -107,6 +108,10 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
     "rpi.design": metadata({
       input: "DesignInput",
       output: "ArtifactOutput",
+      // A design step needs its design tool. A host has it when it advertises
+      // `paper`, or when it advertises `tool-gateway` (the Claude harness
+      // serves each session its bound tools, a Paper connection among them:
+      // #436, 25-one-engine.md 15.7 slice B). See HOST_CAPABILITY_SUBSTITUTES.
       capabilities: ["model", "paper"],
       cancel: "cooperative",
       retry: { maxAttempts: 2, backoff: "30s", faults: ["DEPENDENCY_TIMEOUT"] },
@@ -160,9 +165,11 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
       },
       effectPolicy: "review_evidence",
     }),
-    "integration.action": metadata({
-      input: "IntegrationActionInput",
-      output: "IntegrationActionOutput",
+    "tool.call": metadata({
+      input: "ToolCallInput",
+      output: "ToolCallOutput",
+      // The server settles the call itself, as the person who started the run, so
+      // no worker host runs it; like the delivery steps it names what it needs.
       capabilities: ["integration"],
       cancel: "cooperative_fenced",
       retry: {
@@ -171,6 +178,20 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
         faults: ["DEPENDENCY_UNAVAILABLE"],
       },
       effectPolicy: "external_effect_keyed_reconcile",
+    }),
+    // The parent run's own step owns a plan of child work items: it creates the
+    // plan and waits for the plan's terminal projection (chapter 25 section 5).
+    "coordination.split": metadata({
+      input: "SplitInput",
+      output: "SplitOutput",
+      capabilities: [],
+      cancel: "cooperative",
+      retry: {
+        maxAttempts: 1,
+        backoff: "0s",
+        faults: [],
+      },
+      effectPolicy: "none",
     }),
     "delivery.candidate_evidence": metadata({
       input: "CandidateEvidence",
@@ -409,6 +430,42 @@ export class WorkflowActionRegistryError extends Error {
  * server's problem, never the caller's, so it is reported as one; the
  * discriminant is what a consumer switches on, never the message.
  */
+/**
+ * Host capabilities that stand in for an action capability. A host whose
+ * capabilities include a substitute meets the action capability it stands for:
+ * `tool-gateway` (a worker running the Claude harness, which serves each
+ * session its bound tools through a local MCP gateway) meets `paper`, because
+ * a design step on that host reaches its design tool as a capability binding.
+ * A Pi or Codex host has no gateway, so it still needs `paper` itself.
+ */
+export const HOST_CAPABILITY_SUBSTITUTES: Readonly<
+  Partial<Record<WorkflowActionCapability, readonly string[]>>
+> = Object.freeze({ paper: Object.freeze(["tool-gateway"]) });
+
+/** The worker host capability a Claude harness worker advertises (#436). */
+export const TOOL_GATEWAY_CAPABILITY = "tool-gateway" as const;
+
+/**
+ * A host's capabilities with every action capability its substitutes meet
+ * added, so the one subset rule (job requirements within host capabilities)
+ * also answers "paper or a tool gateway".
+ */
+export function hostSatisfiedCapabilities(
+  capabilities: readonly string[],
+): string[] {
+  const satisfied = new Set(capabilities);
+  for (
+    const [capability, substitutes] of Object.entries(
+      HOST_CAPABILITY_SUBSTITUTES,
+    )
+  ) {
+    if (substitutes?.some((substitute) => satisfied.has(substitute))) {
+      satisfied.add(capability);
+    }
+  }
+  return [...satisfied];
+}
+
 export type WorkerActionDefect = "capabilities_invalid" | "contract_drift";
 
 /**
