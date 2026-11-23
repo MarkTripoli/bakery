@@ -1,4 +1,5 @@
 /** The run page with its checks and the repository's current rules, for run-rules.spec.ts. */
+import { presetRead } from "./preset-read.ts";
 import { expect, type Page, type Route } from "@playwright/test";
 import { mockAuthenticatedSession } from "./mock-session.ts";
 
