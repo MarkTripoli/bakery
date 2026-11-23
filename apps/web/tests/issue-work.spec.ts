@@ -790,6 +790,18 @@ for (
         .toHaveCount(0);
     });
 
+    test("a request that changed while the question was open is read again, not reported as a failure", async ({ page }) => {
+      const seen = await open(page, { ...NO_RUN, cancel: "stale" });
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+      await expect(section(page).getByText("Work could not be stopped."))
+        .toHaveCount(0);
+      expect(seen.cancels).toHaveLength(1);
+    });
+
     test("a stop of a request with no run that fails says so and leaves the row", async ({ page }) => {
       await open(page, { ...NO_RUN, cancel: "failed" });
       await stopButton(page).click();

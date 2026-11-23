@@ -442,10 +442,12 @@ export function IssueWork(
           idempotencyKey: crypto.randomUUID(),
         });
       if (!result.ok) {
-        // The request moved on while the question was open: a run began, or
-        // the work ended. Reading it again shows what is true now, so this is
-        // not a failure to report.
-        if (target.runId === null && failureStatus(result.error) === 409) {
+        // The request moved on while the question was open: a run began or
+        // the work ended (409), or it changed so its version no longer matches
+        // (412). Reading it again shows what is true now, so this is not a
+        // failure to report.
+        const status = failureStatus(result.error);
+        if (target.runId === null && (status === 409 || status === 412)) {
           return "moved" as const;
         }
         throw result.error;

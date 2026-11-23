@@ -170,7 +170,7 @@ export type WorkSeed = {
    * What stopping a request with no run answers: accepted (default), a run that
    * began meanwhile (hasRun), work that already ended (finished), or a failure.
    */
-  cancel?: "accepted" | "hasRun" | "finished" | "failed";
+  cancel?: "accepted" | "hasRun" | "finished" | "stale" | "failed";
   reason?: string | null;
   pausedReason?:
     | "edited_after_setup"
@@ -721,6 +721,10 @@ export async function issuesFixture(page: Page, options: Options = {}) {
       }
       if (answer === "finished") {
         return refuse(409, "STATE_CONFLICT", "ticket_request_finished");
+      }
+      // The request changed while the question was open: the version no longer matches.
+      if (answer === "stale") {
+        return refuse(412, "PRECONDITION_FAILED", "version_mismatch");
       }
       if (answer === "failed") return refuse(500, "INTERNAL_ERROR", "failed");
       return route.fulfill({

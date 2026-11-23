@@ -47,7 +47,7 @@ export type SettingsForm = {
   /** The Bakery member automatic starts run as. */
   readonly principalId: string | null;
   readonly people: readonly TriggerPerson[];
-  /** The built-in workflow the repository runs; kept as saved, since this page does not change it. */
+  /** The built-in workflow the repository runs; the Workflow section changes it and Save sends it only when it differs from what was saved. */
   readonly preset: TicketPresetId;
 };
 
