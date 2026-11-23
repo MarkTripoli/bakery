@@ -13,9 +13,9 @@ import {
   filterModels,
   harnessOfAgent,
   type ModelDraft,
+  modelMuted,
   modelNote,
   modelsEmpty,
-  modelsForAgents,
   modelsForMachine,
   modelState,
   modelTone,
@@ -72,7 +72,8 @@ Deno.test("a model's state is one word from its status and health", () => {
     modelState(route({ status: "disabled", health: "open" })),
     "turnedOff",
   );
-  assertEquals(modelState(route({ status: "revoked" })), "turnedOff");
+  // Removed for good is its own state: it can never be turned on again.
+  assertEquals(modelState(route({ status: "revoked" })), "revoked");
 });
 
 Deno.test("only a working model is green and only a stopped one is red", () => {
@@ -81,6 +82,7 @@ Deno.test("only a working model is green and only a stopped one is red", () => {
   assertEquals(modelTone("stopped"), "danger");
   assertEquals(modelTone("notTried"), "neutral");
   assertEquals(modelTone("turnedOff"), "neutral");
+  assertEquals(modelTone("revoked"), "neutral");
 });
 
 Deno.test("a coding agent and its harness name each other, and one has no agent", () => {
@@ -104,18 +106,16 @@ Deno.test("a machine's models are the ones tied to its own sign-ins", () => {
   assertEquals(modelsForMachine([mine], new Set()), []);
 });
 
-Deno.test("where sign-ins cannot be read, a machine's models are those for the agents it advertises", () => {
-  const claude = route({ id: "c" });
-  const codex = route({ id: "x", harness: "codex" });
-  const pi = route({ id: "p", harness: "pi" });
-  const mastra = route({ id: "m", harness: "mastra" });
-  assertEquals(
-    modelsForAgents([claude, codex, pi, mastra], ["claude", "pi"]).map((r) =>
-      r.id
-    ),
-    ["c", "p"],
-  );
-  assertEquals(modelsForAgents([claude], []), []);
+Deno.test("a model that is not in use is muted, and a revoked one says why it stays off", () => {
+  assertEquals(modelMuted(route()), false);
+  assertEquals(modelMuted(route({ status: "disabled" })), true);
+  assertEquals(modelMuted(route({ status: "revoked" })), true);
+  assertEquals(modelNote(route({ status: "revoked" }), null), {
+    kind: "revoked",
+  });
+  assertEquals(modelNote(route({ status: "disabled" }), null), {
+    kind: "none",
+  });
 });
 
 Deno.test("only an administrator switches a model, and never a revoked one", () => {

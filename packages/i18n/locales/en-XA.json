@@ -6398,10 +6398,8 @@
   "machines.models.turnedOffNotice": "⟦Ŧûŕñëð ôƒƒ. Ñëŵ ŵôŕķ ïš ñôŧ šëñŧ ŧô {model}. ŧëšŧ çôþÿ ŧëš⟧",
   "machines.models.changed": "⟦Šôɱëôñë ëļšë çĥàñĝëð ŧĥïš ɱôðëļ. Ŧĥë ļàŧëšŧ šŧàŧë ïš šĥôŵñ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "machines.models.switchFailed": "⟦Ŧĥë ɱôðëļ çôûļð ñôŧ ƀë çĥàñĝëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧë⟧",
-  "machines.models.adminOnly": "⟦Ôñļÿ àðɱïñïšŧŕàŧôŕš çàñ çĥàñĝë ɱôðëļš. ŧëšŧ çôþÿ ŧ⟧",
   "machines.models.empty.title": "⟦Ñô ɱôðëļš ÿëŧ ŧë⟧",
   "machines.models.empty.body": "⟦Àðð ŧĥë ɱôðëļš ŧĥïš ɱàçĥïñë'š çôðïñĝ àĝëñŧš ɱàÿ ûšë. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
-  "machines.models.signInFirst.title": "⟦Šïĝñ ïñ ŧô à çôðïñĝ àĝëñŧ ƒïŕšŧ. ŧëšŧ çôþÿ⟧",
   "machines.models.signInFirst.body": "⟦À ɱôðëļ ïš àððëð ƒôŕ à çôðïñĝ àĝëñŧ ŧĥàŧ ïš šïĝñëð ïñ ôñ ŧĥïš ɱàçĥïñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "machines.models.signInFirst.action": "⟦Ĝô ŧô çôðïñĝ àĝëñŧš ŧëšŧ⟧",
   "machines.models.search": "⟦Šëàŕçĥ ƀÿ ɱôðëļ ŧëš⟧",
@@ -6435,5 +6433,12 @@
   "machines.models.new.submit": "⟦Àðð ɱôðëļ ŧ⟧",
   "machines.models.new.submitting": "⟦Àððïñĝ……⟧",
   "machines.models.new.failed": "⟦Ŧĥë ɱôðëļ çôûļð ñôŧ ƀë àððëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
-  "machines.models.new.changed": "⟦Šôɱëŧĥïñĝ çĥàñĝëð ŵĥïļë ÿôû ŵëŕë ƒïļļïñĝ ŧĥïš ïñ. Çĥëçķ ïŧ àñð ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
+  "machines.models.new.changed": "⟦Šôɱëŧĥïñĝ çĥàñĝëð ŵĥïļë ÿôû ŵëŕë ƒïļļïñĝ ŧĥïš ïñ. Çĥëçķ ïŧ àñð ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "machines.models.signInFirst.title": "⟦Ñô ɱôðëļš ÿëŧ ŧë⟧",
+  "machines.models.adminSeeOnly": "⟦Ôñļÿ àðɱïñïšŧŕàŧôŕš çàñ šëë ŧĥïš ɱàçĥïñë'š ɱôðëļš. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "machines.models.state.revoked": "⟦Ŧûŕñëð ôƒƒ ƒôŕ ĝôôð ŧëšŧ⟧",
+  "machines.models.note.revoked": "⟦Ïŧ çàññôŧ ƀë ŧûŕñëð ôñ àĝàïñ. Àðð ïŧ àš à ñëŵ ɱôðëļ ŧô ûšë ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "machines.models.line": "⟦{provider} · {agent} · {payment} ŧëšŧ çôþÿ⟧",
+  "machines.models.new.intro": "⟦Šàÿ ŵĥïçĥ ɱôðëļ à çôðïñĝ àĝëñŧ ôñ ŧĥïš ɱàçĥïñë ɱàÿ ûšë. Ñôŧĥïñĝ ïš çĥàŕĝëð ôŕ šŵïŧçĥëð ƀÿ àððïñĝ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "machines.models.new.back": "⟦Ɓàçķ ŧô ɱôðëļš ŧë⟧"
 }

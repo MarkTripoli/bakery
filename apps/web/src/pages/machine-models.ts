@@ -33,11 +33,14 @@ export type ModelState =
   | "havingTrouble"
   | "stopped"
   | "notTried"
-  | "turnedOff";
+  | "turnedOff"
+  /** Removed for good: it can never be turned on again. */
+  | "revoked";
 
 export function modelState(
   route: Pick<RouteFacts, "status" | "health">,
 ): ModelState {
+  if (route.status === "revoked") return "revoked";
   if (route.status !== "active") return "turnedOff";
   switch (route.health) {
     case "healthy":
@@ -102,21 +105,12 @@ export function modelsForMachine(
   );
 }
 
-/**
- * Where a machine's own sign-ins cannot be read (only an administrator reads them), the models shown are
- * those for the coding agents the machine advertises: the ones its work can be sent to.
- */
-export function modelsForAgents(
-  routes: readonly RouteFacts[],
-  agents: readonly CodingAgent[],
-): RouteFacts[] {
-  return routes.filter((route) => {
-    const agent = agentOfHarness(route.harness);
-    return agent !== null && agents.includes(agent);
-  });
+/** A turned-off model that is only turned off can come back; a revoked one never does. */
+/** A row that is not in use is quiet: turned off, or removed for good. */
+export function modelMuted(route: Pick<RouteFacts, "status">): boolean {
+  return route.status !== "active";
 }
 
-/** A turned-off model that is only turned off can come back; a revoked one never does. */
 export function canSwitch(
   route: Pick<RouteFacts, "status">,
   isAdmin: boolean,
@@ -165,7 +159,8 @@ export function reasonCode(reason: string | null | undefined): ReasonCode {
 export type ModelNote =
   | Readonly<{ kind: "none" }>
   | Readonly<{ kind: "answered"; at: string }>
-  | Readonly<{ kind: "trouble"; reason: ReasonCode; since: string | null }>;
+  | Readonly<{ kind: "trouble"; reason: ReasonCode; since: string | null }>
+  | Readonly<{ kind: "revoked" }>;
 
 export function modelNote(
   route: Pick<RouteFacts, "status" | "health" | "inferenceVerifiedAt">,
@@ -174,6 +169,7 @@ export function modelNote(
     | null,
 ): ModelNote {
   const state = modelState(route);
+  if (state === "revoked") return { kind: "revoked" };
   if (state === "havingTrouble" || state === "stopped") {
     return {
       kind: "trouble",

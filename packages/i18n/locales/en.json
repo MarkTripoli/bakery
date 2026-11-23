@@ -6398,10 +6398,9 @@
   "machines.models.turnedOffNotice": "Turned off. New work is not sent to {model}.",
   "machines.models.changed": "Someone else changed this model. The latest state is shown.",
   "machines.models.switchFailed": "The model could not be changed. Try again.",
-  "machines.models.adminOnly": "Only administrators can change models.",
   "machines.models.empty.title": "No models yet",
   "machines.models.empty.body": "Add the models this machine's coding agents may use.",
-  "machines.models.signInFirst.title": "Sign in to a coding agent first.",
+  "machines.models.signInFirst.title": "No models yet",
   "machines.models.signInFirst.body": "A model is added for a coding agent that is signed in on this machine.",
   "machines.models.signInFirst.action": "Go to coding agents",
   "machines.models.search": "Search by model",
@@ -6435,5 +6434,11 @@
   "machines.models.new.submit": "Add model",
   "machines.models.new.submitting": "Adding…",
   "machines.models.new.failed": "The model could not be added. Try again.",
-  "machines.models.new.changed": "Something changed while you were filling this in. Check it and try again."
+  "machines.models.new.changed": "Something changed while you were filling this in. Check it and try again.",
+  "machines.models.adminSeeOnly": "Only administrators can see this machine's models.",
+  "machines.models.state.revoked": "Turned off for good",
+  "machines.models.note.revoked": "It cannot be turned on again. Add it as a new model to use it.",
+  "machines.models.line": "{provider} · {agent} · {payment}",
+  "machines.models.new.intro": "Say which model a coding agent on this machine may use. Nothing is charged or switched by adding it.",
+  "machines.models.new.back": "Back to models"
 }

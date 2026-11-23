@@ -159,6 +159,12 @@ input:not([type="hidden"], [type="radio"], [type="checkbox"]) {
   display: grid;
   gap: var(--space-1);
 }
+.ui-field--short {
+  max-inline-size: 320px;
+}
+.ui-combobox--short {
+  max-inline-size: 320px;
+}
 .ui-field--inline {
   align-items: center;
   column-gap: var(--space-6);

@@ -19,6 +19,8 @@ export type ComboboxProps =
   & {
     /** `filter` renders a compact toolbar control with a visually hidden label. */
     appearance?: "field" | "filter";
+    /** `short` keeps a field that holds a short choice to 320px instead of the whole column. */
+    width?: "default" | "short";
     label: string;
     /**
      * A help tip for the control, shown on the label line at the end of the
@@ -39,6 +41,7 @@ export function Combobox(
     help,
     multiple = false,
     options,
+    width = "default",
     state,
     variant,
     ...unsafeProps
@@ -51,7 +54,9 @@ export function Combobox(
     <label
       className={`ui-combobox ui-combobox--${
         isMultiple ? "multiple" : "single"
-      } ui-combobox--${appearance}`}
+      } ui-combobox--${appearance}${
+        width === "short" ? " ui-combobox--short" : ""
+      }`}
       data-ui-component="combobox"
       data-state={resolvedState}
       data-variant={isMultiple ? "multiple" : "single"}

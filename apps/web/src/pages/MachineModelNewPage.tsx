@@ -161,8 +161,14 @@ export function MachineModelNewPage(
     : !isAdmin
     ? (
       <UI.EmptyState
+        width="fill"
         title={say("machines.models.new.forbidden")}
         description=""
+        action={
+          <UI.Button variant="secondary" onClick={back}>
+            {say("machines.models.new.back")}
+          </UI.Button>
+        }
       />
     )
     : (
@@ -235,6 +241,7 @@ export function MachineModelNewPage(
           >
             <UI.Combobox
               id="machine-model-provider"
+              width="short"
               label={say("machines.models.new.provider")}
               aria-invalid={errors.provider !== undefined && !other ||
                 undefined}
@@ -259,6 +266,7 @@ export function MachineModelNewPage(
             {other
               ? (
                 <UI.Field
+                  width="short"
                   label={say("machines.models.new.providerName")}
                   htmlFor="machine-model-provider-name"
                   error={fieldError("provider")}
@@ -277,6 +285,7 @@ export function MachineModelNewPage(
               )
               : null}
             <UI.Field
+              width="short"
               label={say("machines.models.new.model")}
               htmlFor="machine-model-name"
               error={fieldError("model")}
@@ -310,6 +319,7 @@ export function MachineModelNewPage(
               />
             </UI.Field>
             <UI.Field
+              width="short"
               label={say("machines.models.new.region")}
               htmlFor="machine-model-region"
               error={fieldError("region")}
@@ -384,12 +394,19 @@ export function MachineModelNewPage(
           ]}
         />
       </ShellSlot>
-      <UI.SettingsContent data-testid="machine-model-new-page" variant="wide">
+      <UI.SettingsContent data-testid="machine-model-new-page" variant="form">
         <UI.PageHeader
           flush
           variant="list"
           title={say("machines.models.new.title")}
         />
+        {isAdmin
+          ? (
+            <UI.Text variant="muted">
+              {say("machines.models.new.intro")}
+            </UI.Text>
+          )
+          : null}
         {content}
       </UI.SettingsContent>
     </>

@@ -240,6 +240,10 @@
   padding: var(--space-6);
 }
 
+.ui-empty-state--fill {
+  max-inline-size: none;
+}
+
 .ui-empty-state--page,
 .ui-error-state--page {
   min-block-size: 240px;

@@ -17,6 +17,8 @@ export type EmptyStateProps =
     titleStyle?: "quiet" | "heading";
     title: ReactNode;
     variant?: "firstUse" | "filtered" | "complete";
+    /** `fill` runs the card the whole width of its column; `content` keeps the readable content width. */
+    width?: "content" | "fill";
   };
 
 /** Explains why a bounded collection has no content. */
@@ -30,6 +32,7 @@ export function EmptyState(
     title,
     titleStyle = "quiet",
     variant = "firstUse",
+    width = "content",
     ...props
   }: EmptyStateProps,
 ) {
@@ -39,6 +42,7 @@ export function EmptyState(
         "ui-empty-state",
         `ui-empty-state--${variant}`,
         layout === "centered" ? "ui-empty-state--centered" : "",
+        width === "fill" ? "ui-empty-state--fill" : "",
       ].filter(Boolean).join(" ")}
       {...props}
       data-inset={inset === "page" ? "page" : undefined}

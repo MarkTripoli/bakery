@@ -39,11 +39,22 @@ const CenteredStory: StoryObj = {
   ),
 };
 
+const FillStory: StoryObj = {
+  render: () => (
+    <EmptyState
+      width="fill"
+      title="No models yet"
+      description="A model is added for a coding agent that is signed in on this machine."
+    />
+  ),
+};
+
 export const Contract: StoryObj = {
   render: (args, context) => (
     <>
       {BaseContract.render?.(args, context)}
       {CenteredStory.render?.(args, context)}
+      {FillStory.render?.(args, context)}
     </>
   ),
 };

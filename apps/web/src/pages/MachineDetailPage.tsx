@@ -1234,12 +1234,20 @@ export function MachineDetailPage(
                           machineId={machineId}
                           isAdmin={isAdmin}
                           agents={agents}
-                          advertised={codingAgents(workerData.capabilities)}
-                          bindingIds={isAdmin && providers.data
-                            ? new Set(
-                              providers.data.items.map((item) => item.id),
-                            )
-                            : null}
+                          bindings={providers.data
+                            ? {
+                              state: "ready",
+                              ids: new Set(
+                                providers.data.items.map((item) => item.id),
+                              ),
+                            }
+                            : providers.isError
+                            ? { state: "failed" }
+                            : providers.fetchStatus === "idle"
+                            // Not asked for: a machine that is no longer in use has no sign-ins to read.
+                            ? { state: "ready", ids: new Set<string>() }
+                            : { state: "loading" }}
+                          retryBindings={() => void providers.refetch()}
                           justAdded={justAdded}
                           signInHref={`${MACHINES_HOME}/${machineId}`}
                         />
