@@ -154,6 +154,7 @@ function fakeApi(
       get: rejecting,
       check: rejecting,
       request: rejecting,
+      cancelRequest: rejecting,
       list: rejecting,
       sources: rejecting,
       createSource: rejecting,
