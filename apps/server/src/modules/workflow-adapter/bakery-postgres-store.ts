@@ -2389,14 +2389,33 @@ export function createBakeryPostgresWorkflowRepository(options: {
           );
           return { key, terminal: true };
         }
-        const requirements = withRunPlacement(
-          repositoryExecutionRequirements(
-            profile,
-            action,
-            requiredCapabilities,
-          ),
-          RunPlacementSchema.parse(row.runPlacement ?? {}),
-        );
+        let requirements;
+        try {
+          requirements = withRunPlacement(
+            repositoryExecutionRequirements(
+              profile,
+              action,
+              requiredCapabilities,
+            ),
+            RunPlacementSchema.parse(row.runPlacement ?? {}),
+          );
+        } catch (error) {
+          // A placement no host can satisfy fails this step with its reason,
+          // for the person to see: leaving it thrown would roll admission back
+          // and retry the same refusal on every tick.
+          if (
+            error instanceof StandardError && error.code === "STATE_CONFLICT"
+          ) {
+            await projectFailure(
+              transaction,
+              row,
+              `placement_conflict:${String(error.params?.reason ?? "")}`,
+              owner,
+            );
+            return { key, terminal: true };
+          }
+          throw error;
+        }
         const contentDigest = await budgetContentDigest({
           action,
           actionVersion: key.actionVersion,

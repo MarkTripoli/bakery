@@ -1289,7 +1289,12 @@ export async function createRunCommand(
       profile?.observationDigest ?? null,
       profile?.baseSha ?? null,
       input.environment ?? "live",
-      JSON.stringify(RunPlacementSchema.parse(options.placement ?? {})),
+      // An ordinary run records the empty placement, `{}`: no constraint.
+      JSON.stringify(
+        options.placement === undefined
+          ? {}
+          : RunPlacementSchema.parse(options.placement),
+      ),
     ],
   );
   const run = inserted.rows[0];
