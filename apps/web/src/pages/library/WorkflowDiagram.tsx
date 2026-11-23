@@ -414,7 +414,6 @@ export function WorkflowDiagram(
   );
 
   const nodes = (all: readonly TreeNode[]): ReactNode => {
-    // The step that ends the run is the End marker the page draws, not a card.
     const held = all.filter((node) =>
       node.kind !== "step" || node.end !== true
     );

@@ -41,7 +41,12 @@ const unknownPreset: RunCreateInput = {
 type PresetIdIsClosed = Expect<
   Equal<
     NonNullable<RunCreateInput["presetId"]>,
-    "fixed-coding" | "fixed-coding-reviewed"
+    | "fixed-coding"
+    | "fixed-coding-reviewed"
+    | "deliver-oneshot"
+    | "deliver-lean"
+    | "deliver-full"
+    | "deliver-prd"
   >
 >;
 const _presetIdIsClosed: PresetIdIsClosed = true;

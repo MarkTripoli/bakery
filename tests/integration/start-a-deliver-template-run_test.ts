@@ -13,11 +13,6 @@ import { onboardObserved } from "../helpers/review-repair/preset-integration-cas
 import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
 import { presetBudgetPolicy } from "../helpers/fixed-coding-preset.ts";
 
-// #429: the Deliver templates are built-in workflows. The preset read carries
-// their whole definition and says whether the composer can start them; a run of
-// one takes its plan sign-off switch (gates) from the request, pausing for the
-// plan by default, and no other run accepts it.
-
 type PresetsPage = {
   items: Array<{
     id: string;
@@ -64,12 +59,9 @@ Deno.test("the preset read lists the Deliver templates after the coding presets,
     }
   }));
 
-Deno.test("a Deliver run takes gates from the request and defaults to the plan sign-off; other runs refuse it (#429)", () =>
+Deno.test("a Deliver run takes gates from the request; the plan sign-off is a Deliver template default, not a requirement on any workflow; other runs refuse gates (#429)", () =>
   withFixture(async (fixture) => {
     const agent = await seedFundedCodingAgent(fixture, fixture, "gates");
-    // A repository onboarded through the real inspection route, so its active
-    // profile has the observed fixed policy the check and review steps need, with
-    // one funded agent bound to each model action.
     const repository = await onboardObserved(
       fixture,
       Object.fromEntries(MODEL_ACTIONS.map((action) => [action, agent])),
@@ -106,15 +98,12 @@ Deno.test("a Deliver run takes gates from the request and defaults to the plan s
     );
     assertEquals(await gatesOf(gated.id), "plan");
 
-    // A preset that declares no gates input refuses the field, and so does a run
-    // of a workflow version.
     const fixedCoding = await start(
       { presetId: "fixed-coding", gates: "plan" },
       "fixed coding gates",
     );
     assertEquals(fixedCoding.status, 422);
     assert((await fixedCoding.text()).includes("gates_not_accepted"));
-    // A value that is not plan or none is malformed.
     const malformed = await start(
       { presetId: "deliver-oneshot", gates: "maybe" },
       "bad gates",
@@ -190,8 +179,6 @@ Deno.test("a Deliver run's plan sign-off lands in the task's approvals, and a de
       return { task, run, owner };
     };
 
-    // gates: plan, the default: the engine reaches the sign-off, asks the
-    // person who started the run, and waits.
     const gated = await startedAtThePlan({ presetId: "deliver-oneshot" });
     try {
       const signoff = await engine.findNext(gated.run.id, gated.owner);
@@ -224,7 +211,6 @@ Deno.test("a Deliver run's plan sign-off lands in the task's approvals, and a de
       assert(approval, "the sign-off is in the task's approvals");
       assertEquals(approval.status, "open");
 
-      // Until someone decides, the step keeps waiting; nothing is approved by silence.
       assertEquals(
         await engine.completeApprovalWait(signoff!, gated.owner),
         false,
@@ -249,7 +235,6 @@ Deno.test("a Deliver run's plan sign-off lands in the task's approvals, and a de
         )).rows[0];
       assertEquals(output.status, "completed");
       assertEquals(output.output.decision, "approve");
-      // The run goes on to the build.
       const next = await engine.findNext(gated.run.id, gated.owner);
       assertEquals(
         next?.stepKey,
@@ -260,7 +245,6 @@ Deno.test("a Deliver run's plan sign-off lands in the task's approvals, and a de
       await engine.releaseEngineOwner(gated.owner);
     }
 
-    // gates: none, the plan sign-off is skipped and no approval is asked for.
     const ungated = await startedAtThePlan({
       presetId: "deliver-oneshot",
       gates: "none",
@@ -281,4 +265,33 @@ Deno.test("a Deliver run's plan sign-off lands in the task's approvals, and a de
     } finally {
       await engine.releaseEngineOwner(ungated.owner);
     }
+  }));
+
+Deno.test("a task starts with no workflow chosen, and no server path assigns one: built-ins are optional (#429)", () =>
+  withFixture(async (fixture) => {
+    const agent = await seedFundedCodingAgent(fixture, fixture, "optional");
+    const repository = await onboardObserved(
+      fixture,
+      Object.fromEntries(MODEL_ACTIONS.map((action) => [action, agent])),
+    );
+    const task = await createPresetTask(fixture, fixture, repository, {
+      title: "no workflow chosen",
+    });
+    const runs = await expectJson<{ items: unknown[] }>(
+      await apiCall(fixture, fixture, "GET", `/v1/tasks/${task.id}/runs`),
+      200,
+    );
+    assertEquals(runs.items, []);
+    const presets = await expectJson<PresetsPage>(
+      await apiCall(fixture, fixture, "GET", "/v1/workflow-presets"),
+      200,
+    );
+    assert(presets.items.length > 0);
+    assertEquals(
+      (await expectJson<{ items: unknown[] }>(
+        await apiCall(fixture, fixture, "GET", `/v1/tasks/${task.id}/runs`),
+        200,
+      )).items,
+      [],
+    );
   }));

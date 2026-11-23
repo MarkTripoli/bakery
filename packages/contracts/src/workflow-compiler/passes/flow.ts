@@ -87,8 +87,6 @@ function checkAction(
       }
     }
   }
-  // An input slot's `from` is read like any other value: a reference that names
-  // nothing the step could see is a diagnostic here, not a failure at run time.
   node.inputs?.forEach((slot, index) => {
     analyzeValue(env, reader, slot.from, [
       ...flow.path,

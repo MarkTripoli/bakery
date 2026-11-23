@@ -249,8 +249,6 @@ export function treeOf(definition: unknown): Tree {
   }
   const counter = { next: 0 };
   const flat = spec.steps.flatMap((node) => drawNode(node, counter));
-  // A workflow that ends the run on its last step is drawn as the End marker the
-  // page already draws, not as a card of its own, and is not counted as a step.
   const last = flat[flat.length - 1];
   const drawn = last !== undefined && last.kind === "step" &&
       last.uses === "workflow.stop" && last.problem === undefined

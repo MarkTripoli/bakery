@@ -327,8 +327,6 @@ function resolveStep(
         ) {
           return untypedResolution(path.slice(position + 1));
         }
-        // `$step.<id>.outputs.<slot>` names the document the step wrote under
-        // its one declared output slot, where the action can bind one.
         if (authored.kind === "action" && segment === "outputs") {
           const slot = documentOutputSlot(authored.action, authored.outputs);
           if (slot === undefined || path[position + 1] !== slot) {

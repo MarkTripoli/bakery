@@ -81,8 +81,6 @@ const uniformAgentReasons = (reason: AvailabilityReason): AgentReasons =>
 const AGENT_REASONS_BY_ACTION: Readonly<Record<string, AgentReasons>> = Object
   .freeze({
     "harness.implement": CODING_AGENT_REASONS,
-    // The writers and reviewers of a Deliver template's documents run on the
-    // generic agent step; they need an agent bound for it like the coding step.
     "agent.freeform": CODING_AGENT_REASONS,
     "harness.repair": uniformAgentReasons("repair_agent_unavailable"),
     "review.independent": uniformAgentReasons("review_agent_unavailable"),
@@ -528,7 +526,6 @@ export function presetOutput(
   availability: AvailabilityOutput | null,
 ): WorkflowPresetOutput {
   return {
-    // The frozen spec is plain JSON; the output type only lacks the proof.
     definition: preset.spec as unknown as WorkflowPresetOutput["definition"],
     startableFromComposer: presetStartableFromComposer(preset),
     id: preset.id,
@@ -593,10 +590,6 @@ export function presetRunInputs(
   gates: "plan" | "none" | undefined,
 ): ReturnType<typeof presetBriefInputs> & { gates?: "plan" | "none" } {
   const inputs = presetBriefInputs(task, approvedPlan);
-  // A run takes only the inputs its definition declares: an input the plan does
-  // not name is refused at admission (`input_unknown`). The fixed coding presets
-  // declare all three; a Deliver template reads the brief and writes its own
-  // instructions.
   const declared = declaredInputs(preset);
   const carried = Object.fromEntries(
     Object.entries(inputs).filter(([name]) => Object.hasOwn(declared, name)),
@@ -702,7 +695,10 @@ export function presetBriefInputs(
 }
 
 export function createWorkflowPresetHandlers(
-  options: { budget?: BudgetRuntimeConfig } = {},
+  options: {
+    budget?: BudgetRuntimeConfig;
+    presets?: readonly WorkflowPresetDefinition[];
+  } = {},
 ) {
   return {
     async workflowPresetsList(
@@ -713,7 +709,7 @@ export function createWorkflowPresetHandlers(
       const repositoryId = (input as { repositoryId?: string } | undefined)
         ?.repositoryId;
       const items: WorkflowPresetOutput[] = [];
-      for (const preset of WORKFLOW_PRESETS) {
+      for (const preset of options.presets ?? WORKFLOW_PRESETS) {
         items.push(presetOutput(
           preset,
           await presetActionSteps(preset.spec),

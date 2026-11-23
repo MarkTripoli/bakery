@@ -75,7 +75,6 @@ async function availability(
     ),
     200,
   );
-  // fixed-coding stays first; the reviewed preset and the Deliver templates follow.
   assertEquals(page.items.map((item) => item.id), [
     "fixed-coding",
     "fixed-coding-reviewed",

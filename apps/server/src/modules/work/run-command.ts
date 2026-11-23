@@ -973,8 +973,6 @@ export async function createRunCommand(
   if (preset && input.inputs !== undefined) {
     throw unprocessable(["inputs"], "inputs_not_allowed_with_preset");
   }
-  // The plan sign-off switch is the one input a preset run's request carries,
-  // and only for a preset whose definition declares it.
   if (
     input.gates !== undefined && (!preset || !presetDeclaresGates(preset))
   ) {

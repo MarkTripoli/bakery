@@ -137,8 +137,6 @@ function signoff(id: string, needs: readonly string[], prompt: string): Json {
         Object.freeze({
           id: "approve",
           uses: "human.approval",
-          // No audience: the approver is the workflow's owner, else the person
-          // who started the run (a built-in has no owner).
           with: Object.freeze({ prompt }),
         }),
       ]),

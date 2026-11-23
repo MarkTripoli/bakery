@@ -8,10 +8,6 @@ import {
 import { compileWorkflowDocumentDetailed } from "../../packages/contracts/src/workflow-compiler/compile.ts";
 import { defaultWorkflowCompilerCatalog } from "../../packages/contracts/src/workflow-compiler/default-catalog.ts";
 
-// #429: the four Deliver templates are built only from public primitives
-// (deliver-as-workflow.md section 5.7), compile in the published grammar, and a
-// pasted copy of the definition is the same workflow.
-
 const compile = async (document: unknown) => {
   const { result } = await compileWorkflowDocumentDetailed(document, {
     catalog: defaultWorkflowCompilerCatalog(),
@@ -59,7 +55,6 @@ Deno.test("a pasted copy of a template is the same workflow: same semantic diges
       JSON.parse(JSON.stringify(deliverTemplateDefinition(id))),
     );
     assertEquals(pasted.digest, original.digest, id);
-    // Building it again is the same definition.
     assertEquals(
       (await compile(deliverTemplateDefinition(id))).digest,
       original.digest,
@@ -84,7 +79,6 @@ Deno.test("the template audit: only public primitives, no private engine path (#
       assert(PUBLIC.has(action), `${id} uses ${action}`);
       assert(!action.startsWith("rpi."), `${id} uses a registry-only action`);
     }
-    // Nothing the compiler has no word for, and no call: the shared steps are inlined.
     const keys = keysOf(definition);
     for (const unknown of ["call", "artifactKinds", "checkpoint", "allow"]) {
       assert(!keys.has(unknown), `${id} uses ${unknown}`);
@@ -113,7 +107,6 @@ Deno.test("the variants differ only in their planning prefix and share the build
       id,
     );
   }
-  // The prefixes are what differ.
   const prefixIds = DELIVER_TEMPLATE_IDS.map((id) =>
     (deliverTemplateDefinition(id).steps as readonly { id: string }[])
       .map((s) => s.id).join(",")
@@ -143,7 +136,6 @@ Deno.test("every sign-off is a branch on gates: plan, so the steps after it run 
       );
       assertEquals(branch.else, [], id);
     }
-    // No sign-off is a skippable step: a skipped step skips whatever needs it.
     assert(
       !steps.some((step) => step.uses === "human.approval"),
       `${id} has a bare human.approval step`,
@@ -170,7 +162,6 @@ Deno.test("each Deliver preset's digest is the digest of its definition, so an e
       await sha256Hex(canonicalJson(deliverTemplateDefinition(id))),
       id,
     );
-    // What a person copies is the document the digest covers.
     assertEquals(
       JSON.parse(preset.sourceYaml),
       JSON.parse(JSON.stringify(preset.spec)),
@@ -196,8 +187,6 @@ Deno.test("a template hands a step only the brief or a document an earlier write
   };
   for (const id of DELIVER_TEMPLATE_IDS) {
     for (const from of slotSources(deliverTemplateDefinition(id))) {
-      // $step.<id>.artifacts.versionId would compile but never resolve: a
-      // freeform step's artifacts are a list. A slot reads the one it declared.
       assert(
         from === "$step.brief.artifact.versionId" ||
           /^\$step\.([a-z_]+)\.outputs\.\1$/.test(from),

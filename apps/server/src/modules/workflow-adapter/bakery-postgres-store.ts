@@ -1070,8 +1070,6 @@ async function appendPlanStep(
     iteration: 0,
     actionVersion: context.workflowVersionId,
   });
-  // A human.approval step is settled by the engine, not by a worker: it asks a
-  // person, and the step waits for the answer like a human.approval wait does.
   if (planned.kind === "action" && planned.action === "human.approval") {
     return await appendApprovalWait(transaction, context, activeOwner, planned);
   }
@@ -1222,8 +1220,6 @@ async function appendApprovalWait(
     });
   } catch (error) {
     if (!(error instanceof StandardError)) throw error;
-    // Nobody can answer: the run ends with the store's own reason, never waits
-    // on an approval that could only expire.
     await endPlanRunFailed(
       transaction,
       context,

@@ -11,10 +11,6 @@ import {
   stepName,
 } from "../../apps/web/src/pages/library/workflow-state.ts";
 
-// A built-in page draws the preset's own document, so what a person sees is what
-// a copy contains: a sign-off, a repair loop, and every step's own name are drawn,
-// never flattened, dropped or left as "Custom agent task" (#62, #429).
-
 const preset = (id: string) => {
   const found = WORKFLOW_PRESETS.find((candidate) => candidate.id === id);
   assert(found, id);
@@ -99,7 +95,6 @@ Deno.test("a sign-off on gates: plan is one approval card, and the run's last st
       assert(approval.name?.startsWith("Approve "), `${id}: ${approval.id}`);
       assert(approval.description?.includes("Skipped if"), id);
     }
-    // No Yes / Otherwise box is drawn for a sign-off; the repair loop is the one group.
     assertEquals(groupsOfTree(tree).map((group) => group.label), ["fix"], id);
     const last = steps[steps.length - 1]!;
     assertEquals([last.uses, last.end], ["workflow.stop", true], id);

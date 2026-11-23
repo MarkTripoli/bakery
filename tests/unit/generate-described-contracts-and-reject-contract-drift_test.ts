@@ -892,7 +892,6 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #429 Deliver templates rebind onto main 54fbfe00e: main's own approval (#63 release page by dev-agx1 on 2026-11-23 under the owner's standing ), kept unchanged.
     "sha256:311c017bb0b9c8be85b5d789fa465ad2c2073a917168ca5edbf1130964874590",
     // Displaced by the #63 release page rebind onto main 03305bcbe: main's own approval on 2864ff3cf, kept unchanged.
     "sha256:29f2c36d33afdecc79f3465c7a3cb9e355afab0dd86fa13acfc86dcf154d80de",

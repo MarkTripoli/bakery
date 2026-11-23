@@ -20,11 +20,6 @@ import {
   workflow,
 } from "../helpers/workflow-interpreter.ts";
 
-// #429: a step names the document an earlier step wrote as
-// `$step.<id>.outputs.<slot>`. Only an action that publishes exactly one
-// document can bind a slot, and the compiler and the engine use the same rule,
-// so a reference that compiles is a reference that resolves.
-
 const ARTIFACT = {
   artifactId: "00000000-0000-4000-8000-0000000000c1",
   versionId: "00000000-0000-4000-8000-0000000000c2",
@@ -124,8 +119,6 @@ Deno.test("a read the engine could not resolve is refused when the workflow comp
   ]);
 });
 
-// --- the engine binds the slot with the same rule
-
 const BUILD_INPUTS = {};
 
 async function runtimeOf(document: Awaited<ReturnType<typeof compiled>>) {
@@ -195,8 +188,6 @@ Deno.test("the stored row is not rewritten, and a step that published nothing bi
   const before = JSON.stringify(row);
   ask(runtime, [row]);
   assertEquals(JSON.stringify(row), before);
-  // Nothing is guessed: an unbound slot is null, which pinning the step's
-  // inputs refuses (STEP_INPUT_UNAVAILABLE) rather than follow.
   for (const output of [{ artifacts: [] }, {}, null]) {
     const next = ask(runtime, [planRow(output)]);
     assert(next.kind === "dispatch" && next.step.kind === "action");
