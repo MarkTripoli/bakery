@@ -1489,7 +1489,7 @@ export function artifactVersionsQueryOptions(
       if (!scope.organizationId) {
         throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
       }
-      return unwrap(
+      const page = unwrap(
         await client.listArtifactVersions({
           ...input,
           organizationId: scope.organizationId,
@@ -1497,6 +1497,15 @@ export function artifactVersionsQueryOptions(
           signal,
         }),
       );
+      // The list also carries staged and refused versions (O29). No screen is
+      // designed for them yet and their bytes are never served, so the app
+      // keeps showing the versions a reader can open: current ones.
+      return {
+        ...page,
+        items: page.items.filter((version) =>
+          (version.publicationStatus ?? "current") === "current"
+        ),
+      };
     },
     retry: retryNetworkOnce,
   });
