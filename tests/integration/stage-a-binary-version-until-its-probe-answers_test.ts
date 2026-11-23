@@ -21,7 +21,10 @@ import {
   runProbeTick,
 } from "../../apps/server/src/modules/knowledge/probe-runner.ts";
 import { writeBlobProbe } from "../../apps/server/src/modules/knowledge/blob-probes.ts";
-import { settleStagedVersions } from "../../apps/server/src/modules/knowledge/staged-versions.ts";
+import {
+  refuseStagedVersions,
+  settleStagedVersions,
+} from "../../apps/server/src/modules/knowledge/staged-versions.ts";
 import {
   extractArtifactVersion,
   readArtifactVersionIdentity,
@@ -773,6 +776,151 @@ Deno.test("a subject whose bytes are gone refuses its staged version as bytes-mi
     assertEquals(refused.current_version_id, null);
     const listed = await listedVersionIds(fixture, published.artifactId);
     assertEquals(listed[0].refusedReason, "bytes-missing");
+  }));
+
+/** Points versions at one blob, as a blob upload would, and returns the blob. */
+async function shareOneBlob(fixture: WorkerFixture, versionIds: string[]) {
+  const blob = await fixture.pgDatabase.query<{ id: string }>(
+    `insert into bakery.blobs
+       (organization_id, sha256, size_bytes, media_type, created_by_id)
+     values ($1, $2, 8, 'image/png', $3) returning id`,
+    [fixture.organizationId, "b".repeat(64), fixture.principalId],
+  );
+  await fixture.pgDatabase.query(
+    `update bakery.artifact_versions set blob_id = $3, content = null
+      where organization_id = $1 and id = any($2::uuid[])`,
+    [fixture.organizationId, versionIds, blob.rows[0].id],
+  );
+  return blob.rows[0].id;
+}
+
+Deno.test("refusing a blob subject refuses only its staged versions, never a current or refused sibling", () =>
+  withWorkerFixture(async (fixture) => {
+    const kindVersionId = await publishKind(fixture, IMAGE_KIND_RULES);
+    const seeded = await seedTask(fixture);
+    const one = (name: string) =>
+      publish(fixture, seeded, {
+        artifactType: "image",
+        name,
+        bytes: bytes(`shared blob, ${name}`),
+      });
+    const current = await one("Current sibling");
+    const ruled = await one("Refused sibling");
+    const abandoned = await one("Staged, abandoned");
+    const gone = await one("Staged, bytes gone");
+    const blobId = await shareOneBlob(fixture, [
+      current.versionId,
+      ruled.versionId,
+      abandoned.versionId,
+      gone.versionId,
+    ]);
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_versions
+          set publication_status = 'current', settled_at = now()
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, current.versionId],
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.artifacts set current_version_id = $3
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, current.artifactId, current.versionId],
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_versions
+          set publication_status = 'refused', settled_at = now(),
+              refused_kind_version_id = $3, refused_rule_type = 'maxPixels',
+              refused_reason = 'too many pixels'
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, ruled.versionId, kindVersionId],
+    );
+
+    const siblingsUnchanged = async () => {
+      const kept = await state(fixture, current.artifactId, current.versionId);
+      assertEquals(kept.publication_status, "current");
+      assertEquals(kept.refused_reason, null);
+      assertEquals(kept.current_version_id, current.versionId);
+      const still = await state(fixture, ruled.artifactId, ruled.versionId);
+      assertEquals(still.publication_status, "refused");
+      assertEquals(still.refused_reason, "too many pixels");
+      assertEquals(still.refused_rule_type, "maxPixels");
+      assertEquals(still.refused_kind_version_id, kindVersionId);
+    };
+    const refuse = (reason: string) =>
+      withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          refuseStagedVersions(transaction, {
+            organizationId: fixture.organizationId,
+            subject: { blobId },
+            reason,
+          }),
+      );
+
+    // The abandon case: only the two staged versions are refused.
+    assertEquals(await refuse("probe-abandoned"), 2);
+    await siblingsUnchanged();
+    const first = await state(
+      fixture,
+      abandoned.artifactId,
+      abandoned.versionId,
+    );
+    assertEquals(first.publication_status, "refused");
+    assertEquals(first.refused_reason, "probe-abandoned");
+
+    // The bytes-gone case on a version staged since: it alone is refused, and
+    // the version refused as abandoned keeps that reason.
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_versions
+          set publication_status = 'staged', settled_at = null,
+              refused_reason = null
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, gone.versionId],
+    );
+    assertEquals(await refuse("bytes-missing"), 1);
+    await siblingsUnchanged();
+    const second = await state(fixture, gone.artifactId, gone.versionId);
+    assertEquals(second.publication_status, "refused");
+    assertEquals(second.refused_reason, "bytes-missing");
+    const kept = await state(
+      fixture,
+      abandoned.artifactId,
+      abandoned.versionId,
+    );
+    assertEquals(kept.refused_reason, "probe-abandoned");
+  }));
+
+Deno.test("another organization cannot refuse a staged version", () =>
+  withWorkerFixture(async (fixture) => {
+    await publishKind(fixture, IMAGE_KIND_RULES);
+    const seeded = await seedTask(fixture);
+    const published = await publish(fixture, seeded, {
+      artifactType: "image",
+      name: "Only mine to refuse",
+      bytes: bytes("staged in my organization"),
+    });
+    assertEquals(published.publicationStatus, "staged");
+    const other = await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.organizations (id, slug, name, created_at, updated_at)
+       values (gen_random_uuid(), $1, $1, now(), now()) returning id`,
+      [`refuse-other-${crypto.randomUUID()}`],
+    );
+    const refused = await withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        refuseStagedVersions(transaction, {
+          organizationId: other.rows[0].id,
+          subject: { artifactVersionId: published.versionId },
+          reason: "probe-abandoned",
+        }),
+    );
+    assertEquals(refused, 0);
+    const still = await state(
+      fixture,
+      published.artifactId,
+      published.versionId,
+    );
+    assertEquals(still.publication_status, "staged");
+    assertEquals(still.refused_reason, null);
   }));
 
 /** A storage file over the artifact, so the storage routes can read it. */
