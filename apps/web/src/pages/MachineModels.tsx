@@ -15,7 +15,6 @@ import type { AgentRow } from "./machine-agents.ts";
 import { formatMachineDate } from "./MachinesPage.tsx";
 import {
   agentOfHarness,
-  canSwitch,
   filterModels,
   modelMuted,
   modelNote,
@@ -88,7 +87,7 @@ export function MachineModels(
   const [busyId, setBusyId] = useState<string | null>(null);
   const [problem, setProblem] = useState<"changed" | "failed" | null>(null);
 
-  const served = (list.data?.items ?? []) as unknown as RouteFacts[];
+  const served: readonly RouteFacts[] = list.data?.items ?? [];
   const all: RouteFacts[] = bindings.state === "ready"
     ? modelsForMachine(served, bindings.ids)
     : [];
@@ -201,7 +200,7 @@ export function MachineModels(
     row.status === "revoked" ? null : (
       <UI.Switch
         checked={row.status === "active"}
-        disabled={!canSwitch(row, isAdmin) || busyId !== null}
+        disabled={busyId !== null}
         pending={busyId === row.id}
         onChange={() => void toggle(row)}
       >
@@ -274,7 +273,7 @@ export function MachineModels(
           <>
             {filtering
               ? (
-                <UI.Inline gap="standard">
+                <FilterRow phone={phone}>
                   <UI.SearchField
                     id="machine-models-search"
                     name="machine-models-search"
@@ -300,7 +299,7 @@ export function MachineModels(
                       })),
                     ]}
                   />
-                </UI.Inline>
+                </FilterRow>
               )
               : null}
             {phone
@@ -454,6 +453,22 @@ export function MachineModels(
         )}
     </UI.Stack>
   );
+}
+
+/** The search and the filter: one row on a desktop; on a phone each has the whole column, like every field. */
+function FilterRow(
+  { phone, children }: {
+    readonly phone: boolean;
+    readonly children: ReactNode;
+  },
+) {
+  return phone
+    ? (
+      <UI.Stack gap="standard" data-testid="machine-models-filters">
+        {children}
+      </UI.Stack>
+    )
+    : <UI.Inline gap="standard">{children}</UI.Inline>;
 }
 
 /** The muted line under a model's name: why it is in trouble, or when it last answered. */

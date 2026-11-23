@@ -167,7 +167,7 @@ input:not([type="hidden"], [type="radio"], [type="checkbox"]) {
 @media (min-width: 744px) {
   .ui-field--short,
   .ui-combobox--short {
-    max-inline-size: 320px;
+    max-inline-size: var(--layout-field-short);
   }
 }
 .ui-field--inline {

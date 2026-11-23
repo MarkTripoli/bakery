@@ -7,7 +7,6 @@ import {
 import {
   agentChoosable,
   agentOfHarness,
-  canSwitch,
   createRefusal,
   EMPTY_DRAFT,
   filterModels,
@@ -118,11 +117,7 @@ Deno.test("a model that is not in use is muted, and a revoked one says why it st
   });
 });
 
-Deno.test("only an administrator switches a model, and never a revoked one", () => {
-  assertEquals(canSwitch(route(), true), true);
-  assertEquals(canSwitch(route(), false), false);
-  assertEquals(canSwitch(route({ status: "disabled" }), true), true);
-  assertEquals(canSwitch(route({ status: "revoked" }), true), false);
+Deno.test("a switch turns an active model off and a turned-off one on", () => {
   assertEquals(statusAfterSwitch(route()), "disabled");
   assertEquals(statusAfterSwitch(route({ status: "disabled" })), "active");
 });

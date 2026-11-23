@@ -80,7 +80,6 @@ const structuralLines = [
   /^inline-size: 36px$/, // auth.css:8 .item>.avatar, .item>.icon
   /^padding: 2px 7px$/, // auth.css:8 .badge
   /^max-inline-size: 760px$/, // auth.css:10 .settings-content max-width:840px less its 40px padding (the app shell's <main> gutter)
-  /^max-inline-size: 680px$/, // design-70 model-new-desktop-light: a page that is one form keeps a 680px column
   /^max-inline-size: 520px$/, // auth.css:10 .settings-content>.form-content
   /^gap: 3px$/, // auth.css:8 .item h3 margin:0 0 3px
   /^block-size: 176px$/, // auth.css:22 .totp-qr

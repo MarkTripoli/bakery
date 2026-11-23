@@ -102,6 +102,8 @@ type World = {
   gate: Promise<void> | null;
   /** How many times the list of every model was asked for. */
   listCalls: number;
+  /** While true, the read of this machine's sign-ins fails. */
+  failBindings: boolean;
 };
 
 let nextRoute = 1;
@@ -155,6 +157,7 @@ function world(over: Partial<World> = {}): World {
     refuseCreate: null,
     gate: null,
     listCalls: 0,
+    failBindings: false,
     ...over,
   };
 }
@@ -270,6 +273,7 @@ async function open(
     if (url.pathname.endsWith("/provider-bindings")) {
       if (w.role !== "admin") return r.fulfill(problem(403, "AUTH_FORBIDDEN"));
       if (w.gate !== null) await w.gate;
+      if (w.failBindings) return r.fulfill(problem(500, "INTERNAL"));
       return r.fulfill(
         json({ items: w.bound ? [bindingWire] : [], nextCursor: null }),
       );
@@ -598,6 +602,19 @@ test.describe("machine page: Models tab", () => {
     // "model-1" also matches "model-10", so the rows left are counted rather than named.
     await expect(models(page).locator("[data-model-id]")).toHaveCount(2);
     await expect(models(page)).not.toContainText("model-2");
+    if (onPhone()) {
+      // On a phone the search and the filter each have the whole column, like every other field.
+      const column = (await models(page).getByTestId("machine-models-filters")
+        .boundingBox())!.width;
+      const search = (await page.getByRole("searchbox", {
+        name: "Search by model",
+      }).boundingBox())!.width;
+      // The visible control is the filter's own box, not the select inside it.
+      const filter = (await models(page).locator(".ui-combobox--filter")
+        .boundingBox())!.width;
+      expect(search).toBeGreaterThanOrEqual(column - 2);
+      expect(filter).toBeGreaterThanOrEqual(column - 2);
+    }
     await still(page, "models-search-and-filter");
     await page.getByRole("searchbox", { name: "Search by model" }).fill("");
     await page.getByLabel("Coding agent").selectOption("pi");
@@ -789,6 +806,51 @@ test.describe("machine page: Add a model", () => {
     // The machine page takes the agent from the address and then clears it, so a reload does not
     // start another sign-in: the person ends on the machine page with a clean address.
     await expect(page).toHaveURL(new RegExp(`/machines/${MACHINE_ID}$`));
+  });
+
+  test("while the sign-ins are read, no agent is shown as not signed in", async ({ page }) => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    await open(
+      page,
+      world({ gate, routes: [route({ provider: "acme" })] }),
+      `/machines/${MACHINE_ID}/models/new`,
+    );
+    await expect(page.getByText("Loading").first()).toBeVisible();
+    await expect(page.getByText("Not signed in on this machine.")).toHaveCount(
+      0,
+    );
+    await expect(page.getByRole("radio")).toHaveCount(0);
+    await still(page, "add-model-loading");
+    release();
+    // Once they are read the signed-in agent can be chosen.
+    await expect(page.getByRole("radio", { name: /Claude Code/ }))
+      .toBeEnabled();
+    await expect(page.getByText("Not signed in on this machine.")).toHaveCount(
+      0,
+    );
+  });
+
+  test("when the sign-ins cannot be read, the page says so and does not guess", async ({ page }) => {
+    const w = world({
+      failBindings: true,
+      routes: [route({ provider: "acme" })],
+    });
+    await open(page, w, `/machines/${MACHINE_ID}/models/new`);
+    await expect(page.getByText("Models could not be loaded.")).toBeVisible();
+    await expect(page.getByText("Not signed in on this machine.")).toHaveCount(
+      0,
+    );
+    await expect(page.getByRole("radio")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Add model" })).toHaveCount(
+      0,
+    );
+    await still(page, "add-model-read-failed");
+    // Try again reads them once more, and the form comes up.
+    w.failBindings = false;
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(page.getByRole("radio", { name: /Claude Code/ }))
+      .toBeEnabled();
   });
 
   test("someone who is not an administrator is told they cannot add models", async ({ page }) => {

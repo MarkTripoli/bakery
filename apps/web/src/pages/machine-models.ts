@@ -105,17 +105,9 @@ export function modelsForMachine(
   );
 }
 
-/** A turned-off model that is only turned off can come back; a revoked one never does. */
 /** A row that is not in use is quiet: turned off, or removed for good. */
 export function modelMuted(route: Pick<RouteFacts, "status">): boolean {
   return route.status !== "active";
-}
-
-export function canSwitch(
-  route: Pick<RouteFacts, "status">,
-  isAdmin: boolean,
-): boolean {
-  return isAdmin && route.status !== "revoked";
 }
 
 /** The status a switch asks for when it is pressed. */
@@ -307,10 +299,10 @@ export function validateDraft(
   else if (!looksLikeHttps(endpoint)) errors.endpoint = "address";
   const region = draft.region.trim();
   if (region.length > MAX_REGION) errors.region = "tooLong";
-  if (Object.keys(errors).length > 0 || row?.binding === null || row === null) {
+  const binding = row?.binding;
+  if (Object.keys(errors).length > 0 || !row || !binding) {
     return { ok: false, errors };
   }
-  const binding = row.binding!;
   return {
     ok: true,
     input: {

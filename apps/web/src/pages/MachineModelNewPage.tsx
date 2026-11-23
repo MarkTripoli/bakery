@@ -24,7 +24,6 @@ import {
   type DraftField,
   EMPTY_DRAFT,
   type ModelDraft,
-  type RouteFacts,
   validateDraft,
 } from "./machine-models.ts";
 import { codingAgents } from "./machine-state.ts";
@@ -81,9 +80,7 @@ export function MachineModelNewPage(
   const providers = [
     ...new Set([
       ...(bindings.data?.items ?? []).map((binding) => binding.provider),
-      ...((routes.data?.items ?? []) as unknown as RouteFacts[]).map((route) =>
-        route.provider
-      ),
+      ...(routes.data?.items ?? []).map((route) => route.provider),
     ]),
   ].filter((name) => name !== "").sort();
   const other = draft.provider === ANOTHER_PROVIDER;
@@ -152,7 +149,36 @@ export function MachineModelNewPage(
     }
   };
 
-  const content = access.isPending || worker.isPending
+  // Nothing is drawn from a guess: until the role, the machine and (for an administrator) its coding-agent
+  // sign-ins are read, the page says it is loading, and when one of them cannot be read it says so, instead
+  // of showing every agent as not signed in.
+  const unreadable = access.isError || worker.isError ||
+    (isAdmin && (bindings.isError || components.isError));
+  const reading = access.isPending || worker.isPending ||
+    (isAdmin && (bindings.isLoading || components.isLoading));
+  const content = unreadable
+    ? (
+      <UI.ErrorState
+        title={say("machines.models.loadFailed")}
+        description=""
+        action={
+          <UI.Button
+            variant="secondary"
+            onClick={() => {
+              void access.refetch();
+              void worker.refetch();
+              if (isAdmin) {
+                void bindings.refetch();
+                void components.refetch();
+              }
+            }}
+          >
+            {say("machines.models.retry")}
+          </UI.Button>
+        }
+      />
+    )
+    : reading
     ? (
       <UI.AlertBanner tone="information">
         {say("machines.loading")}
