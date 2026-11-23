@@ -617,6 +617,80 @@ One record backs every binding: the designed `capability_bindings` table, with
 its repository owner generalised to a scope and seats addressed as a workflow
 version plus seat id.
 
+#### What landed (#436)
+
+**The workflow `tools` section.** A workflow names MCP connections and the
+exact tools it may use from each. A seat listed on an entry gets all of the
+entry's tools; a step's `tools` list names an entry (all its tools) or one
+tool of it as `entry.tool`. The compiler refuses a malformed section
+(`workflow_tools_invalid`) and a reference to a missing entry or a tool the
+entry does not allow (`action_tools_invalid`). The section is digest-bearing;
+a workflow without one keeps its digest.
+
+```yaml
+tools:
+  design:
+    connectionId: 4f6c...      # an MCP connection
+    allow: [create_artboard, write_html]
+    seats: [designer]          # every step running as designer gets both
+steps:
+  - id: mock
+    uses: rpi.design
+    role: designer
+  - id: notes
+    uses: workflow.noop
+    tools: [design.write_html] # this step gets one tool
+```
+
+**Pinning.** Publishing a version pins each entry to its connection's latest
+snapshot and writes one `capability_bindings` row per seat (`seat_key`) and
+per step (`step_key`), with the exact tool names. Publication is refused when
+an entry names a connection that is off, personal without its owner's grant,
+or has no snapshot, or allows a tool the server does not offer
+(`tools_tool_unknown`) or an Admin has not enabled (`tools_tool_not_enabled`).
+A tool.call step takes no `tools` list; it pins its one tool as before. A
+version's bindings are never changed or removed: a changed pin is a new
+version.
+
+**Agent bindings.** An Admin grants an agent version exact tools on an
+organization connection with `capabilityBindings.create`
+(`POST /v1/capability-bindings`), lists them with keyset pagination and
+withdraws one with `capabilityBindings.delete`. A withdrawal is its own
+append-only row (`capability_binding_revocations`); the binding row stays, so
+bindings remain select-and-insert only. Wildcards are refused.
+
+**Effective tools.** A session's effective tools are the tools bound by exact
+name to its step, its seat or its agent version, where the connection is
+enabled (and, if personal, usable for this run), the tool is enabled, and the
+binding's pinned snapshot is still the connection's latest. A reviewer-role
+session (the step's role is `reviewer` or its action needs the reviewer
+capability) gets only tools an Admin classified as reads. A bound tool the
+session cannot call is reported with its reason, for example
+`update_available` after drift; nothing re-pins on its own.
+
+**The gateway.** The worker opens a loopback MCP endpoint for each Claude
+freeform session (`apps/worker/src/tool-gateway.ts`), with a random bearer
+that lives as long as the session. It lists what
+`POST /v1/worker/attempts/{id}/effective-tools` returns and sends each call to
+`worker.invokeTool` (`POST /v1/worker/attempts/{id}/tool-invocations`); both
+routes prove the lease, fence and worker session first and read the scope
+from the attempt's own rows. The server's broker sends the call through the
+same pinned-tool door as a `tool.call` step, so the remote credential never
+enters the session. Each call is recorded in `tool_gateway_calls` before it is
+sent: a replayed Idempotency-Key answers what happened, and a write whose
+outcome is unknown stays `sent` and is refused (`tool_call_outcome_unknown`)
+rather than sent twice.
+
+**Paper as a binding.** `rpi.design` no longer needs a worker that advertises
+a `paper` capability. On the Claude harness the design step has its design tool
+exactly when its session's gateway lists a bound tool, so a Paper connection
+bound to the step, its seat or its agent is the design tool.
+
+Not yet served: native integration actions through the gateway (the route
+refuses `integrationConnectionId` with `tool_invocation_integration_unsupported`),
+local stdio servers (slice H), the Pi and Codex harnesses (they still use the
+worker's `paper` capability), a feed item per gateway call and per-call cost.
+
 ### 15.6 Example: a video-production factory
 
 Brief, script, script review (the review loop module), storyboard, a `forEach`
