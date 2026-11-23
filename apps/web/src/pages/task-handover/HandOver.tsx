@@ -4,6 +4,8 @@ import * as UI from "@bakery/ui";
 import { formatDate } from "@bakery/i18n";
 import { useBakeryApi } from "../../api/context.tsx";
 import {
+  artifactQueryOptions,
+  artifactVersionsQueryOptions,
   handoffManifestQueryOptions,
   storageFileAtVersionQueryOptions,
 } from "../../api/query.ts";
@@ -539,22 +541,53 @@ function Documents(
   const scope = useProtectedScope();
   const { translate: t } = useI18n();
   const [all, setAll] = useState(false);
-  const reads = useQueries({
+  // A storage file names itself by its path. Any other artifact is read through
+  // its own artifact and version reads, so it is named too.
+  const files = useQueries({
     queries: refs.map((ref) =>
       storageFileAtVersionQueryOptions(api, scope, ref.versionId)
     ),
   });
-  const known = reads.flatMap((read, index) =>
-    read.data
+  const artifacts = useQueries({
+    queries: refs.map((ref, index) => ({
+      ...artifactQueryOptions(api, scope, ref.artifactId),
+      enabled: files[index]?.isError === true,
+    })),
+  });
+  const versions = useQueries({
+    queries: refs.map((ref, index) => ({
+      ...artifactVersionsQueryOptions(api, scope, ref.artifactId),
+      enabled: files[index]?.isError === true,
+    })),
+  });
+  const known = refs.flatMap((ref, index) => {
+    const file = files[index]?.data;
+    if (file) {
+      return [{
+        versionId: ref.versionId,
+        name: file.file.path.split("/").pop() ?? file.file.path,
+        revision: file.revision,
+      }];
+    }
+    const artifact = artifacts[index]?.data;
+    const version = versions[index]?.data?.items.find((item) =>
+      item.id === ref.versionId
+    );
+    return artifact && version
       ? [{
-        versionId: refs[index]!.versionId,
-        name: read.data.file.path.split("/").pop() ?? read.data.file.path,
-        revision: read.data.revision,
+        versionId: ref.versionId,
+        name: artifact.name,
+        revision: version.revision,
       }]
-      : []
-  );
-  const settled = reads.every((read) => !read.isPending);
-  const hidden = settled ? reads.filter((read) => read.isError).length : 0;
+      : [];
+  });
+  // Only a document that is genuinely not readable counts as no access.
+  const hidden = refs.filter((_, index) => {
+    if (!files[index]?.isError) return false;
+    const error = artifacts[index]?.error;
+    return error?.kind === "problem" &&
+      (error.problem.status === 403 || error.problem.status === 404);
+  }).length;
   const shown = all ? known : known.slice(0, DOCUMENTS_SHOWN);
   return (
     <UI.DescriptionItem

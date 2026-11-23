@@ -49,6 +49,7 @@ const SHA = "a7254e7".padEnd(40, "c");
 const RUN_VERSION = 4;
 const DOC_OPEN = uuid(81);
 const DOC_HIDDEN = uuid(82);
+const DOC_PLAIN = uuid(83);
 
 const run = {
   id: runId,
@@ -160,6 +161,7 @@ function storedManifest(over: Record<string, unknown> = {}) {
       artifactRefs: [
         { artifactId: uuid(92), versionId: DOC_OPEN, sha256: "b".repeat(64) },
         { artifactId: uuid(93), versionId: DOC_HIDDEN, sha256: "c".repeat(64) },
+        { artifactId: uuid(94), versionId: DOC_PLAIN, sha256: "d".repeat(64) },
       ],
     },
     tests: [
@@ -335,6 +337,57 @@ async function open(page: Page, w: World) {
       },
     });
   });
+  // A document that is not a storage file is read through its own artifact and
+  // version reads; one with no artifact access is not readable at all.
+  await page.route(/\/v1\/artifacts\/[^/?]+$/, (r) => {
+    const id = new URL(r.request().url()).pathname.split("/").pop()!;
+    if (id !== uuid(94)) {
+      return problemReply(r, 404, "RESOURCE_NOT_FOUND");
+    }
+    return r.fulfill({
+      json: {
+        id,
+        taskId,
+        artifactType: "research",
+        name: "refund-plan.pdf",
+        currentVersionId: DOC_PLAIN,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        version: 1,
+        pinnedAt: null,
+        pinnedBy: null,
+      },
+    });
+  });
+  await page.route(
+    /\/v1\/artifacts\/[^/]+\/versions(\?.*)?$/,
+    (r) =>
+      r.fulfill({
+        json: page_([{
+          id: DOC_PLAIN,
+          artifactId: uuid(94),
+          revision: 2,
+          runStepId: null,
+          authorId: uuid(5),
+          mediaType: "application/pdf",
+          sizeBytes: 10,
+          sha256: "d".repeat(64),
+          subjectHeadSha: null,
+          subjectBaseSha: null,
+          metadata: {},
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          version: 1,
+          retentionClass: "evidence",
+          expiresAt: null,
+          purgedAt: null,
+          publicationStatus: "current",
+          refusedKindVersionId: null,
+          refusedRuleType: null,
+          refusedReason: null,
+        }]),
+      }),
+  );
   const empty = (route: Route) => route.fulfill({ json: page_([]) });
   for (
     const pattern of [
@@ -417,6 +470,10 @@ test.describe("hand over a running step to a new session", () => {
       given.getByRole("link", { name: "refund-rules.md, version 3" }),
     )
       .toHaveAttribute("href", `/files/versions/${DOC_OPEN}`);
+    // An artifact that is not a storage file is named through its own read.
+    await expect(
+      given.getByRole("link", { name: "refund-plan.pdf, version 2" }),
+    ).toHaveAttribute("href", `/files/versions/${DOC_PLAIN}`);
     await expect(page.getByTestId("handover-documents-hidden")).toHaveText(
       "1 more that you do not have access to.",
     );
