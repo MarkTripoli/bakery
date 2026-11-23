@@ -38250,9 +38250,9 @@ const transportSchemas = {
       "bounds": {
         "filesMaxItems": 256
       },
-      "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version it runs (the version the job names, or the install's current one), fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant.",
+      "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version the job was admitted against, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant.",
       "fieldDescriptions": {
-        "bundleDigest": "SHA-256 of the bundle archive of the plugin version the job runs: the version the job names, or the install's current version when it names none.",
+        "bundleDigest": "SHA-256 of the bundle archive of the plugin version the job was admitted against.",
         "entry": "The path inside the bundle that the job was admitted to run.",
         "files": "Every file of the bundle, at most 256 and 8 MiB in all."
       }
@@ -40365,7 +40365,7 @@ const transportSchemas = {
       "inputFields": {
         "installId": "uuid",
         "entry": "string",
-        "versionId": "uuid?"
+        "versionId": "uuid"
       },
       "outputFields": {
         "resultJson": "string<=65536"
@@ -40373,7 +40373,7 @@ const transportSchemas = {
       "capabilities": [
         "plugin.job.contained"
       ],
-      "description": "Runs one plugin job's code inside a contained runtime with no network. The code comes from the plugin version the job names in versionId, which must be a published version of the install's own package, or from the install's current version when versionId is omitted; the install's status and grants are always the ones checked. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
+      "description": "Runs one plugin job's code inside a contained runtime with no network. The code comes from the plugin version the job names in versionId, which must be a published version of the install's own package. The version is required: it is the pin the job was admitted against, so an install that moves to a newer version never changes the code an in-flight job fetches, and a job that names no version is refused rather than served the install's current one. The install's status and grants are always the ones checked. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
     }
   },
   "workerEvents": {

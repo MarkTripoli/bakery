@@ -103,7 +103,7 @@ function attemptProofHeaders(proof: AttemptProof): Record<string, string> {
 
 const PluginJobFilesSchema = z.object({
   bundleDigest: z.string().regex(/^[0-9a-f]{64}$/).describe(
-    "Lowercase SHA-256 digest of the bundle archive of the plugin version the job runs: the version the job names, or the install's current version when it names none.",
+    "Lowercase SHA-256 digest of the bundle archive of the plugin version the job was admitted against.",
   ),
   entry: z.string().min(1).max(500).describe(
     "The path inside the bundle that the job was admitted to run.",
