@@ -52,9 +52,13 @@ export type DeploymentRead = {
   commitSha: string;
   artifactDigest: string;
   previousDeploymentId: string | null;
+  /** The commit of the release this one replaced: what a rollback restores. */
+  previousCommitSha: string | null;
   status: DeploymentStatus;
   externalEffectId: string | null;
   healthEvidenceId: string | null;
+  /** A rollback of this release ended in `failed`: the environment may not run the release before it. */
+  rollbackFailed: boolean;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -68,9 +72,11 @@ type DeploymentRow = {
   commit_sha: string;
   artifact_digest: string;
   previous_deployment_id: string | null;
+  previous_commit_sha: string | null;
   status: string;
   external_effect_id: string | null;
   health_evidence_id: string | null;
+  rollback_failed: boolean;
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
@@ -78,8 +84,12 @@ type DeploymentRow = {
 };
 
 const COLUMNS = `d.id,d.repository_id,d.run_id,d.environment,d.commit_sha,
-  d.artifact_digest,d.previous_deployment_id,d.status,d.external_effect_id,
-  d.health_evidence_id,d.created_at,d.updated_at,d.version,
+  d.artifact_digest,d.previous_deployment_id,
+  (select p.commit_sha from bakery.deployments p
+    where p.id = d.previous_deployment_id
+      and p.organization_id = d.organization_id) as previous_commit_sha,
+  d.status,d.external_effect_id,
+  d.health_evidence_id,d.rollback_failed,d.created_at,d.updated_at,d.version,
   to_char(d.created_at at time zone 'UTC', '${TIMESTAMP_SQL}')
     as cursor_created_at`;
 
@@ -98,10 +108,12 @@ function deployment(row: DeploymentRow): DeploymentRead {
     commitSha: row.commit_sha,
     artifactDigest: row.artifact_digest,
     previousDeploymentId: row.previous_deployment_id,
+    previousCommitSha: row.previous_commit_sha,
     // A status this code does not know is `unknown`, never a success.
     status: isDeploymentStatus(row.status) ? row.status : "unknown",
     externalEffectId: row.external_effect_id,
     healthEvidenceId: row.health_evidence_id,
+    rollbackFailed: row.rollback_failed,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: row.version,
@@ -409,6 +421,8 @@ export async function advanceDeployment(
     expectedVersion: number;
     externalEffectId?: string;
     healthEvidenceId?: string;
+    /** The move ends a rollback in failure; set once and never cleared. */
+    rollbackFailed?: boolean;
   },
 ): Promise<DeploymentRead> {
   if (!canMove(move.from, move.to)) throw conflict("move_not_allowed");
@@ -417,6 +431,9 @@ export async function advanceDeployment(
         set status = $4,
             external_effect_id = coalesce(d.external_effect_id, $6::uuid),
             health_evidence_id = coalesce(d.health_evidence_id, $7::uuid),
+            rollback_failed = d.rollback_failed
+              or (d.status = 'rolling_back' and $4 = 'failed')
+              or $8::boolean,
             updated_at = now(), version = version + 1
       where d.organization_id = $1 and d.id = $2 and d.status = $3
         and d.version = $5
@@ -429,6 +446,7 @@ export async function advanceDeployment(
       move.expectedVersion,
       move.externalEffectId ?? null,
       move.healthEvidenceId ?? null,
+      move.rollbackFailed ?? false,
     ],
   );
   const row = moved.rows[0];
@@ -447,7 +465,11 @@ function pageSize(value: number | undefined): number {
 function listBinding(
   organizationId: string,
   principalId: string,
-  filters: { repositoryId: string | null; environment: string | null },
+  filters: {
+    repositoryId: string | null;
+    runId: string | null;
+    environment: string | null;
+  },
 ): CursorBinding {
   return {
     action: "deployments.list",
@@ -461,8 +483,8 @@ function listBinding(
 
 /**
  * Lists the organization's deployments, newest first, keyset paginated on
- * (created_at, id). The repository and environment filters narrow the page; the
- * cursor is bound to both and to the caller.
+ * (created_at, id). The repository, run and environment filters narrow the page; the
+ * cursor is bound to all three and to the caller.
  */
 export async function listDeployments(
   transaction: PgTransactionClient,
@@ -471,6 +493,7 @@ export async function listDeployments(
   secret: string,
   query: {
     repositoryId?: string;
+    runId?: string;
     environment?: string;
     cursor?: string;
     limit?: number;
@@ -479,6 +502,7 @@ export async function listDeployments(
   const limit = pageSize(query.limit);
   const filters = {
     repositoryId: query.repositoryId ?? null,
+    runId: query.runId ?? null,
     environment: query.environment ?? null,
   };
   const binding = listBinding(organizationId, principalId, filters);
@@ -488,6 +512,7 @@ export async function listDeployments(
       where d.organization_id = $1
         and ($2::uuid is null or d.repository_id = $2)
         and ($6::text is null or d.environment = $6)
+        and ($7::uuid is null or d.run_id = $7)
         and ($3::timestamptz is null or (d.created_at,d.id) < ($3,$4::uuid))
       order by d.created_at desc,d.id desc
       limit $5`,
@@ -498,6 +523,7 @@ export async function listDeployments(
       position?.id ?? null,
       limit + 1,
       filters.environment,
+      filters.runId,
     ],
   )).rows;
   const items = rows.slice(0, limit);

@@ -4261,6 +4261,29 @@ export const clientManifest = {
     {
       "group": "Access",
       "method": "GET",
+      "path": "/v1/desktop/update",
+      "action": "desktopUpdates.get",
+      "access": "Authenticated",
+      "permission": "identity:read",
+      "input": "DesktopUpdateQuery",
+      "output": "DesktopUpdate",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND"
+      ],
+      "organizationContext": "none",
+      "implemented": true
+    },
+    {
+      "group": "Access",
+      "method": "GET",
       "path": "/v1/me/profile",
       "action": "profile.get",
       "access": "Authenticated",
@@ -7737,7 +7760,7 @@ export const clientManifest = {
       "action": "deployments.list",
       "access": "Developer",
       "permission": "deployment:read",
-      "input": "RepositoryQuery",
+      "input": "DeploymentQuery",
       "output": "Page<Deployment>",
       "event": "",
       "mcp": "bakery_deployments_list",
@@ -20207,6 +20230,7 @@ export const clientManifest = {
             "capabilityBindings.delete",
             "toolGatewayCalls.settle",
             "identity.get",
+            "desktopUpdates.get",
             "profile.get",
             "profile.update",
             "installation.status",
@@ -21380,19 +21404,10 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "repositoryId": {
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases.",
+          "description": "Restrict results to this repository's evaluation cases.",
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "environment": {
-          "description": "Restrict deployment results to one environment: `preview`, `staging`, or `production`.",
-          "type": "string",
-          "enum": [
-            "preview",
-            "staging",
-            "production"
-          ]
         },
         "cursor": {
           "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. RepositoryQuery.cursor must contain at most 512 UTF-8 bytes.",
@@ -21408,7 +21423,48 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Filters for listing pull requests, merge entries, deployments, or evaluation cases scoped to a repository."
+      "description": "Filters for listing evaluation cases scoped to a repository."
+    },
+    "DeploymentQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "description": "Restrict results to this repository's deployments.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "runId": {
+          "description": "Restrict results to the deployments of this workflow run, so a run's release can be read without paging the repository.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "environment": {
+          "description": "Restrict deployment results to one environment: `preview`, `staging`, or `production`.",
+          "type": "string",
+          "enum": [
+            "preview",
+            "staging",
+            "production"
+          ]
+        },
+        "cursor": {
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. DeploymentQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100. DeploymentQuery.limit must be at least 1. DeploymentQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters for listing deployments: by repository, run and environment, with cursor pagination."
     },
     "PullRequestQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -35348,6 +35404,42 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+    },
+    "DesktopUpdateQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "enum": [
+            "linux",
+            "darwin",
+            "windows"
+          ],
+          "description": "Operating system the desktop app runs on, as the app updater names it."
+        },
+        "arch": {
+          "type": "string",
+          "enum": [
+            "x86_64",
+            "aarch64"
+          ],
+          "description": "Processor architecture the desktop app was built for."
+        },
+        "current_version": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$",
+          "description": "Semantic version of the running app; only a strictly newer build is offered. DesktopUpdateQuery.current_version must contain at most 128 characters. DesktopUpdateQuery.current_version must match the pattern ^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$."
+        }
+      },
+      "required": [
+        "target",
+        "arch",
+        "current_version"
+      ],
+      "additionalProperties": false,
+      "description": "The desktop app's own target, architecture and version, sent when it asks the connected server whether a newer signed build exists."
     },
     "PackageExport": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -50209,6 +50301,7 @@ export const clientManifest = {
                   "capabilityBindings.delete",
                   "toolGatewayCalls.settle",
                   "identity.get",
+                  "desktopUpdates.get",
                   "profile.get",
                   "profile.update",
                   "installation.status",
@@ -56531,6 +56624,20 @@ export const clientManifest = {
                 ],
                 "description": "Deployment.previousDeploymentId may be null in this transport value."
               },
+              "previousCommitSha": {
+                "description": "Deployment.previousCommitSha may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Commit SHA of the release this one replaced, the one a rollback restores; null when it replaced nothing."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
               "status": {
                 "type": "string",
                 "enum": [
@@ -56575,6 +56682,10 @@ export const clientManifest = {
                   }
                 ],
                 "description": "Deployment.healthEvidenceId may be null in this transport value."
+              },
+              "rollbackFailed": {
+                "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+                "type": "boolean"
               },
               "createdAt": {
                 "type": "string",
@@ -73341,6 +73452,7 @@ export const clientManifest = {
             "capabilityBindings.delete",
             "toolGatewayCalls.settle",
             "identity.get",
+            "desktopUpdates.get",
             "profile.get",
             "profile.update",
             "installation.status",
@@ -76063,6 +76175,20 @@ export const clientManifest = {
           ],
           "description": "Deployment.previousDeploymentId may be null in this transport value."
         },
+        "previousCommitSha": {
+          "description": "Deployment.previousCommitSha may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Commit SHA of the release this one replaced, the one a rollback restores; null when it replaced nothing."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
         "status": {
           "type": "string",
           "enum": [
@@ -76107,6 +76233,10 @@ export const clientManifest = {
             }
           ],
           "description": "Deployment.healthEvidenceId may be null in this transport value."
+        },
+        "rollbackFailed": {
+          "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+          "type": "boolean"
         },
         "createdAt": {
           "type": "string",
@@ -124354,6 +124484,46 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids."
+    },
+    "DesktopUpdate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Semantic version of the offered build."
+        },
+        "pub_date": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "RFC 3339 time the build was published."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "HTTPS address the app downloads the build from."
+        },
+        "signature": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Minisign signature text the app checks against its built-in release key before installing."
+        },
+        "notes": {
+          "description": "Optional release notes for the offered build.",
+          "type": "string",
+          "maxLength": 65536
+        }
+      },
+      "required": [
+        "version",
+        "pub_date",
+        "url",
+        "signature"
+      ],
+      "additionalProperties": false,
+      "description": "Update manifest in the desktop app updater's shape: the newer signed build this server offers for the caller's target and architecture. A 404 means this server offers no app updates."
     },
     "BakeryPackage": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

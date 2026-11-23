@@ -2,15 +2,13 @@ import type { Translator } from "@bakery/i18n";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import {
-  decidingCheck,
-  evidenceValue,
   issueNumber,
   type IssueRow,
   issueSnapshot,
   type IssueStatus,
   issueStatus,
-  reasonKey,
-  referencedNumber,
+  listedStatus,
+  reasonMessage,
 } from "./issue-state.ts";
 
 const BADGE_TONE = {
@@ -22,8 +20,9 @@ const BADGE_TONE = {
   paused: "danger",
   closed: "neutral",
   unknown: "neutral",
+  needsAnswer: "warning",
 } as const satisfies Record<
-  IssueStatus,
+  IssueStatus | "needsAnswer",
   "neutral" | "success" | "warning" | "danger" | "information"
 >;
 
@@ -33,15 +32,8 @@ export function reasonSentence(
   code: string,
   translate: Translator,
 ): string {
-  const key = reasonKey(code);
-  if (key === "unknown") {
-    return translate("issues.reason.unknown" as never);
-  }
-  const check = decidingCheck(row);
-  return translate(`issues.reason.${key}` as never, {
-    number: referencedNumber(evidenceValue(check, "blocker")) ?? "",
-    label: evidenceValue(check, "label") ?? "",
-  });
+  const message = reasonMessage(row, code);
+  return translate(message.key as never, message.values);
 }
 
 /**
@@ -51,7 +43,9 @@ export function reasonSentence(
  */
 export function issueLine(row: IssueRow, translate: Translator): string {
   const { status, reason } = issueStatus(row);
-  const note = status === "inProgress"
+  const note = listedStatus(row) === "needsAnswer"
+    ? translate("issues.line.needsAnswer" as never)
+    : status === "inProgress"
     ? translate("issues.line.inProgress" as never)
     : reason !== null
     ? reasonSentence(row, reason, translate)
@@ -63,7 +57,7 @@ export function issueLine(row: IssueRow, translate: Translator): string {
 function StatusBadge(
   { row, translate }: { row: IssueRow; translate: Translator },
 ) {
-  const { status } = issueStatus(row);
+  const status = listedStatus(row);
   return (
     <UI.Badge tone={BADGE_TONE[status]}>
       {translate(`issues.status.${status}` as never)}
@@ -110,7 +104,7 @@ function rowName(
   inBatch: boolean,
   translate: Translator,
 ): string {
-  const { status } = issueStatus(row);
+  const status = listedStatus(row);
   const batch = inBatch
     ? `, ${translate("issues.batch.inBatch" as never)}`
     : "";
