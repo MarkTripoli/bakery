@@ -11,21 +11,6 @@
       "owner": "#437",
       "reason": "Workers publish artifacts; direct create arrives with blob-backed artifacts."
     },
-    "capabilityBindings.create": {
-      "state": "unbuilt",
-      "owner": "#436",
-      "reason": "Capability bindings arrive with the worker tool gateway."
-    },
-    "capabilityBindings.delete": {
-      "state": "unbuilt",
-      "owner": "#436",
-      "reason": "Capability bindings arrive with the worker tool gateway."
-    },
-    "capabilityBindings.list": {
-      "state": "unbuilt",
-      "owner": "#436",
-      "reason": "Capability bindings arrive with the worker tool gateway."
-    },
     "channelLinks.create": {
       "state": "unbuilt",
       "owner": "#27",
@@ -260,9 +245,15 @@
       }
     },
     "worker.invokeTool": {
-      "state": "unbuilt",
-      "owner": "#436",
-      "reason": "The tool gateway invocation route is not mounted; session-call serves workers today."
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/tool-invocations.ts",
+        "literal": "/v1/worker/attempts/:id/tool-invocations"
+      },
+      "test": {
+        "file": "tests/integration/tool-gateway-invokes-effective-tools_test.ts",
+        "contains": "tool-invocations"
+      }
     },
     "worker.output.close": {
       "state": "served-outside-registry",
@@ -588,6 +579,10 @@
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0065_exact_budget_accounting_release_evidence.sql"
       },
+      "capability_binding_revocations": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0344_capability_binding_seats.sql"
+      },
       "coordination_lanes": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0120_coordination_plans.sql"
@@ -755,6 +750,10 @@
       "output_transcript_segments": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0076_output_transcript_archive.sql"
+      },
+      "package_imports": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0349_package_imports.sql"
       },
       "passkey": {
         "module": "auth",
@@ -1028,6 +1027,10 @@
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0271_telemetry_destinations.sql"
       },
+      "tool_gateway_calls": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0344_capability_binding_seats.sql"
+      },
       "twoFactor": {
         "module": "auth",
         "migration": "apps/server/src/modules/auth/migrations/provider/0004_two_factor_assurance.sql"
@@ -1135,6 +1138,12 @@
     },
     "tests/e2e/prove-prompt-to-private-plugin-backend-authoring_test.ts": {
       "reason": "The Docker job-runtime case needs Docker and the denoland/deno job image on the host; the other cases always run."
+    },
+    "tests/e2e/run-plugin-job-through-the-worker_test.ts": {
+      "reason": "Needs Docker and an alpine image on the host."
+    },
+    "tests/e2e/run-plugin-jobs-in-bubblewrap_test.ts": {
+      "reason": "Needs bubblewrap with user namespaces, which some hosts refuse."
     }
   }
 }
