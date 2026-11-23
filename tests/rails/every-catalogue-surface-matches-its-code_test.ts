@@ -79,14 +79,14 @@ Deno.test("every worker event the server accepts is in the schema", async () => 
 Deno.test("every standard fault the server can raise is in the schema", async () => {
   // A fault code is what a caller switches on. One raised in code and absent
   // from the schema is a client told its own handler is impossible.
-  const http = await Deno.readTextFile(
-    new URL("packages/contracts/src/http.ts", root),
+  const faults = await Deno.readTextFile(
+    new URL("packages/contracts/src/faults.ts", root),
   );
-  const start = http.indexOf("export const FAULTS");
-  const close = http.indexOf("\n};", start);
+  const start = faults.indexOf("export const FAULTS");
+  const close = faults.indexOf("\n} as const;", start);
   assert(start !== -1 && close !== -1, "FAULTS was not found");
   const raised = [
-    ...http.slice(start, close).matchAll(/^\s{2}([A-Z][A-Z0-9_]+):/gm),
+    ...faults.slice(start, close).matchAll(/^\s{2}([A-Z][A-Z0-9_]+):/gm),
   ]
     .map((match) => match[1]);
   assert(raised.length > 0, "FAULTS raised no codes");

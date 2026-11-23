@@ -2,6 +2,11 @@ import { LOCAL_SERVER_HOST, LOCAL_SERVER_PORT } from "./local-server.ts";
 import { z } from "zod";
 import { readSentryConfig, type SentryConfig } from "./sentry.ts";
 import {
+  DESKTOP_UPDATE_FEED_FILE,
+  type DesktopUpdateFeed,
+  readDesktopUpdateFeed,
+} from "./desktop-update-feed.ts";
+import {
   readTelemetrySinkConfig,
   type TelemetrySinkConfig,
 } from "./telemetry-sink.ts";
@@ -455,6 +460,11 @@ export type RuntimeConfig = {
    * measurements are saved in the app, not configured here.
    */
   telemetry?: TelemetrySinkConfig;
+  /**
+   * Signed desktop builds the server offers (`BAKERY_DESKTOP_UPDATE_FEED_FILE`,
+   * #77); server only. Absent means this server offers no app updates.
+   */
+  desktopUpdateFeed?: DesktopUpdateFeed;
 };
 
 const BUDGET_INSTALLATION_LIMIT =
@@ -1039,6 +1049,14 @@ export function readRuntimeConfig(
       invalidConfig.push("BAKERY_SKILL_FILE_ROOT");
     }
   }
+  let desktopUpdateFeed: DesktopUpdateFeed | undefined;
+  if (kind === "server" && env[DESKTOP_UPDATE_FEED_FILE] !== undefined) {
+    try {
+      desktopUpdateFeed = readDesktopUpdateFeed(env[DESKTOP_UPDATE_FEED_FILE]);
+    } catch {
+      invalidConfig.push(DESKTOP_UPDATE_FEED_FILE);
+    }
+  }
   let probeSpoolDir: ProbeSpoolDirConfig | undefined;
   if (kind === "server" && env.BAKERY_PROBE_SPOOL_DIR !== undefined) {
     try {
@@ -1081,6 +1099,7 @@ export function readRuntimeConfig(
       : {}),
     ...(skillFileRoot ? { skillFileRoot } : {}),
     ...(probeSpoolDir ? { probeSpoolDir } : {}),
+    ...(desktopUpdateFeed ? { desktopUpdateFeed } : {}),
     ...(deliveryTarget ? { deliveryTarget } : {}),
     ...(artifactPreviewOrigin ? { artifactPreviewOrigin } : {}),
     environment,

@@ -15,6 +15,7 @@ import {
 } from "./check-copy.ts";
 import { mergeStepCopy } from "./merge-copy.ts";
 import type { CheckRow, DeliveryModel, FindingRow, Try } from "./model.ts";
+import { releaseDetails } from "./release-copy.ts";
 
 /** At most this many rows show before "Show all". */
 const SHOWN = 5;
@@ -525,7 +526,49 @@ function ChecksTable(
   );
 }
 
-function Details({ model }: Readonly<{ model: DeliveryModel }>) {
+function ReleaseGroup(
+  { goBackButton, known, release }: Readonly<{
+    goBackButton: ReactNode;
+    known: ReturnType<typeof knownCommits>;
+    release: NonNullable<DeliveryModel["release"]>;
+  }>,
+) {
+  const { translate: t } = useI18n();
+  const details = releaseDetails(
+    t,
+    release,
+    (sha) => UI.shortReference("commit", sha),
+  );
+  return (
+    <UI.Stack data-testid="delivery-release-details" gap="compact">
+      <UI.Text variant="strong">
+        {t("tasks.delivery.release.details.title")}
+      </UI.Text>
+      <UI.Text>
+        <UI.Text variant="strong">
+          {t("tasks.delivery.release.details.this")}
+        </UI.Text>{" "}
+        <ReferenceText known={known} text={details.thisRelease} />
+      </UI.Text>
+      {details.before === null ? null : (
+        <UI.Text>
+          <UI.Text variant="strong">
+            {t("tasks.delivery.release.details.before")}
+          </UI.Text>{" "}
+          <ReferenceText known={known} text={details.before} />
+        </UI.Text>
+      )}
+      {goBackButton}
+    </UI.Stack>
+  );
+}
+
+function Details(
+  { goBackButton, model }: Readonly<{
+    model: DeliveryModel;
+    goBackButton: ReactNode;
+  }>,
+) {
   const { translate: t } = useI18n();
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
   useEffect(() => {
@@ -622,6 +665,13 @@ function Details({ model }: Readonly<{ model: DeliveryModel }>) {
       summary={t("tasks.delivery.links.details")}
     >
       <UI.Stack>
+        {model.release === null ? null : (
+          <ReleaseGroup
+            goBackButton={goBackButton}
+            known={known}
+            release={model.release}
+          />
+        )}
         <UI.Text>
           <UI.Text variant="strong">
             {t("tasks.delivery.details.commit")}
@@ -748,7 +798,8 @@ function Details({ model }: Readonly<{ model: DeliveryModel }>) {
  * attention, one settled line, and two closed links. Each fact has one home.
  */
 export function DeliveryBody(
-  { model, onOpenRules }: Readonly<{
+  { goBackButton, model, onOpenRules }: Readonly<{
+    goBackButton: ReactNode;
     model: DeliveryModel;
     onOpenRules: () => void;
   }>,
@@ -757,13 +808,15 @@ export function DeliveryBody(
     <>
       <Attention items={attentionItems(model)} onOpenRules={onOpenRules} />
       <Settled model={model} />
-      {model.checks.rows.length === 0 && model.review === null ? null : (
-        // Two closed links share one row; one that opens takes the whole row.
-        <UI.Inline gap="standard">
-          <Tried commits={model.commits} fixing={model.fixing} />
-          <Details model={model} />
-        </UI.Inline>
-      )}
+      {model.checks.rows.length === 0 && model.review === null &&
+          model.release === null
+        ? null
+        : (
+          <UI.Inline gap="standard">
+            <Tried commits={model.commits} fixing={model.fixing} />
+            <Details goBackButton={goBackButton} model={model} />
+          </UI.Inline>
+        )}
     </>
   );
 }

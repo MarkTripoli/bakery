@@ -1,3 +1,4 @@
+import { FAULTS, isFaultCode } from "./faults.ts";
 import {
   CoordinatorTurnJobInputSchema,
   CoordinatorTurnJobOutputSchema,
@@ -4514,66 +4515,9 @@ export function generateContracts(
         ]
         : openApiParameters(action, schemas, input),
       responses: {
+        ...documentedErrorResponses(action.errors),
+        // A success variant such as 416 for a byte range keeps its own text.
         ...responses,
-        "400": { description: "Malformed request." },
-        "401": { description: "Authentication required." },
-        "403": { description: "Forbidden." },
-        ...(importAction && action.errors.includes("RESOURCE_NOT_FOUND")
-          ? {
-            "404": {
-              description: "Resource not found (RESOURCE_NOT_FOUND).",
-            },
-          }
-          : {}),
-        ...(importAction && action.errors.includes("IDEMPOTENCY_IN_FLIGHT")
-          ? {
-            "409": {
-              description:
-                "Idempotency request still in flight (IDEMPOTENCY_IN_FLIGHT).",
-            },
-          }
-          : {}),
-        ...(importAction && action.errors.includes("PRECONDITION_FAILED")
-          ? {
-            "412": {
-              description:
-                "Parent version precondition failed (PRECONDITION_FAILED).",
-            },
-          }
-          : {}),
-        ...(importAction &&
-            action.errors.includes("UNPROCESSABLE") &&
-            action.errors.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")
-          ? {
-            "422": {
-              description:
-                "Unprocessable import (UNPROCESSABLE) or nonretryable idempotency payload mismatch (IDEMPOTENCY_PAYLOAD_MISMATCH).",
-            },
-          }
-          : {}),
-        ...(importAction && action.errors.includes("PRECONDITION_REQUIRED")
-          ? {
-            "428": {
-              description: "Precondition required (PRECONDITION_REQUIRED).",
-            },
-          }
-          : {}),
-        "500": { description: "Internal server error." },
-        ...(importAction &&
-            action.errors.includes("DEPENDENCY_UNAVAILABLE")
-          ? {
-            "503": {
-              description: "Dependency unavailable (DEPENDENCY_UNAVAILABLE).",
-            },
-          }
-          : {}),
-        ...(importAction && action.errors.includes("DEPENDENCY_TIMEOUT")
-          ? {
-            "504": {
-              description: "Dependency timeout (DEPENDENCY_TIMEOUT).",
-            },
-          }
-          : {}),
       },
     };
     if (
@@ -4613,4 +4557,58 @@ export function generateContracts(
   };
   if (previous) assertCompatible(previous, generated);
   return generated;
+}
+
+const errorStatusTitles: Readonly<Record<number, string>> = {
+  400: "Malformed request",
+  401: "Authentication required",
+  403: "Forbidden",
+  404: "Resource not found",
+  405: "Method not allowed",
+  409: "Conflict",
+  410: "Gone",
+  412: "Precondition failed",
+  413: "Content too large",
+  415: "Unsupported media type",
+  416: "Range not satisfiable",
+  422: "Unprocessable request",
+  426: "Upgrade required",
+  428: "Precondition required",
+  429: "Too many requests",
+  500: "Internal server error",
+  503: "Service unavailable",
+  504: "Gateway timeout",
+};
+
+/**
+ * OpenAPI error responses for an action: 400, 401, 403 and 500 always, plus
+ * the status of every code its catalog entry lists, each description naming
+ * the listed codes. Statuses come from FAULTS, the table the server answers
+ * with.
+ */
+export function documentedErrorResponses(
+  errors: readonly string[],
+): Record<string, { description: string }> {
+  const byStatus = new Map<number, string[]>(
+    [400, 401, 403, 500].map((status) => [status, []]),
+  );
+  for (const code of errors) {
+    if (!isFaultCode(code)) {
+      throw new ContractQualityError(`unknown catalog error code ${code}`);
+    }
+    const status = FAULTS[code][0];
+    byStatus.set(status, [...(byStatus.get(status) ?? []), code]);
+  }
+  return Object.fromEntries(
+    [...byStatus.entries()].sort(([left], [right]) => left - right).map((
+      [status, codes],
+    ) => {
+      const title = errorStatusTitles[status] ?? `HTTP ${status}`;
+      return [String(status), {
+        description: codes.length
+          ? `${title} (${codes.join(", ")}).`
+          : `${title}.`,
+      }];
+    }),
+  );
 }
