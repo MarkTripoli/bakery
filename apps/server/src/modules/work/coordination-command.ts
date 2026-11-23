@@ -46,6 +46,7 @@ import {
   requestDependencyRelease,
   setLaneStatus,
 } from "./coordination-projection.ts";
+import { requestLaneDispatch } from "./coordination-dispatch-request.ts";
 import {
   createTaskCommand,
   loadTaskScope,
@@ -501,6 +502,35 @@ async function createPlan(
     if (error instanceof CoordinationPlanInvalidError) throw planInvalid(error);
     throw error;
   }
+  // A lane that names what it runs must name a workflow the organization has and
+  // has published: a plan is refused now, not when its lane is ready to start.
+  const named = [
+    ...new Set(
+      spec.lanes.flatMap((lane) =>
+        lane.run === undefined ? [] : [lane.run.workflowId]
+      ),
+    ),
+  ];
+  if (named.length > 0) {
+    const known = await transaction.query<{ id: string }>(
+      `select id from bakery.workflow_definitions
+        where organization_id = $1 and id = any($2::uuid[])
+          and enabled and active_version_id is not null`,
+      [facts.organizationId, named],
+    );
+    const published = new Set(known.rows.map((row) => row.id));
+    const missing = spec.lanes.flatMap((lane, index) =>
+      lane.run !== undefined && !published.has(lane.run.workflowId)
+        ? [{
+          path: ["lanes", index, "run", "workflowId"] as const,
+          code: "lane_workflow_unknown" as const,
+        }]
+        : []
+    );
+    if (missing.length > 0) {
+      throw planInvalid(new CoordinationPlanInvalidError(missing));
+    }
+  }
   const budget = normalizeBudget(input.budgetLimitUsd);
   const digest = await coordinationPlanDigest(spec);
 
@@ -926,6 +956,13 @@ export async function materializeCoordinationPlanCommand(
     details: { revision: plan.revision, children: pending.length },
   });
   await reconcileCoordinationPlan(transaction, facts, planId);
+  // The lanes that name what they run are started by the engine, not by whoever
+  // materialized the plan: ask for the dispatcher in this same transaction.
+  await requestLaneDispatch(transaction, {
+    organizationId: facts.organizationId,
+    planId,
+    traceId: facts.traceId,
+  });
   return await loadPlanOutput(transaction, facts.organizationId, planId);
 }
 

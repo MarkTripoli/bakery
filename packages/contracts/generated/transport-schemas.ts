@@ -39024,6 +39024,14 @@ const transportSchemas = {
       "inngestTrigger": "bakery/task.dependency_release_requested.v1",
       "description": "Requests release of the runs blocked on a prerequisite task that ended. Consumers re-read the task and its blocked dependants under their own run locks; a repeat changes nothing."
     },
+    "coordination.lanes_dispatch_requested": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "planId": "uuid"
+      },
+      "inngestTrigger": "bakery/coordination.lanes_dispatch_requested.v1",
+      "description": "Requests that the engine start the ready lanes of a coordination plan that name what they run, up to the plan's concurrency. Consumers re-read the plan and its lanes under their own locks; a repeat starts nothing that is already started."
+    },
     "tasks.created": {
       "schemaVersion": 1,
       "payloadFields": {
