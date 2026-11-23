@@ -3,8 +3,9 @@
 #
 #   run.sh stills <output dir>      screenshots of every named state, size and theme
 #   run.sh policy <output dir>      the content security policy, tried in the real window
+#   run.sh a11y <output dir>        the window read over the accessibility bus, as a screen reader reads it
 set -uo pipefail
-MODE="${1:?stills or policy}"
+MODE="${1:?stills, policy or a11y}"
 OUT="$(realpath -m "${2:?output directory}")"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 APP="$(realpath "$HERE/..")"
@@ -25,6 +26,7 @@ docker run --rm -e CARGO_TARGET_DIR=/cache/target-desktop -e HOST_UID="$(id -u)"
         && APPEND=1 STATES=choose-server-signed-in-no-answer SIZES=400x380 bash e2e/capture.sh /out \
         && python3 e2e/check_stills.py /out ;;
       policy) bash e2e/policy.sh /out ;;
+      a11y) bash e2e/a11y.sh /out ;;
     esac
     status=$?
     chown -R "$HOST_UID:$HOST_GID" /out

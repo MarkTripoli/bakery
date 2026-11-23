@@ -142,6 +142,7 @@ function chooserNode(detail) {
     });
     const text = el("label", "chooser__label", label);
     text.htmlFor = input.id;
+    text.id = `choice-label-${value}`;
     const head = el("div", "chooser__head");
     head.append(input, text);
     row.append(head);
@@ -164,6 +165,8 @@ function chooserNode(detail) {
   box.value = draft.typed;
   box.autocomplete = "off";
   box.spellcheck = false;
+  // The box has no label of its own: it is named by its option's, "Another address".
+  box.setAttribute("aria-labelledby", "choice-label-another");
   box.setAttribute("aria-describedby", "server-address-note");
   box.addEventListener("input", () => {
     draft.typed = box.value;
@@ -343,6 +346,11 @@ function drawLinkDialog(view, _placeholder) {
   if (linkDialogKind === null) beforeLinkDialog = document.activeElement;
   const { scrim, node, title } = linkDialogNode(dialog);
   root.append(scrim);
+  // A modal dialog holds the keyboard: what is behind it can neither be tabbed to nor read (found by the
+  // accessibility check, #77: Tab used to leave the dialog for the panel behind it).
+  for (const child of root.children) {
+    if (child !== scrim) child.inert = true;
+  }
   if (linkDialogKind !== dialog.kind) {
     linkDialogKind = dialog.kind;
     (node.querySelector(".btn--primary") ?? title).focus();

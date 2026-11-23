@@ -1,6 +1,7 @@
 # The image the desktop app's package and update checks run in (docs/runbooks/desktop-packaging.md):
 # the Rust toolchain, the web view and GTK development files the app is built against, and what the
-# checks need to run the app without a screen (a virtual display, a message bus and a secret store).
+# checks need to run the app without a screen (a virtual display, a message bus and a secret store), and the
+# accessibility bus and its Python bindings the accessibility check reads the window with.
 #
 #   docker build -t bakery-spike77-linux apps/desktop/e2e
 FROM debian:bookworm
@@ -11,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     librsvg2-dev libayatana-appindicator3-dev \
     xvfb xauth dbus dbus-x11 gnome-keyring libsecret-tools \
     xdg-utils desktop-file-utils shared-mime-info \
-    procps jq netcat-openbsd python3 \
+    procps jq netcat-openbsd python3 python3-gi at-spi2-core \
   && rm -rf /var/lib/apt/lists/*
 ENV RUSTUP_HOME=/opt/rust/rustup CARGO_HOME=/opt/rust/cargo PATH=/opt/rust/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # rustfmt and clippy are the two checks CI runs on the desktop crates, so they are here too.
