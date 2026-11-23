@@ -1,3 +1,4 @@
+import { FAULTS, isFaultCode } from "./faults.ts";
 import {
   CoordinatorTurnJobInputSchema,
   CoordinatorTurnJobOutputSchema,
@@ -4493,35 +4494,9 @@ export function generateContracts(
         ]
         : openApiParameters(action, schemas, input),
       responses: {
-        ...responses,
-        "400": { description: "Malformed request." },
-        "401": { description: "Authentication required." },
-        "403": { description: "Forbidden." },
-        // Every action that declares RESOURCE_NOT_FOUND documents its 404.
-        ...(action.errors.includes("RESOURCE_NOT_FOUND")
-          ? {
-            "404": {
-              description: "Resource not found (RESOURCE_NOT_FOUND).",
-            },
-          }
-          : {}),
         ...documentedErrorResponses(action.errors),
-        "500": { description: "Internal server error." },
-        ...(importAction &&
-            action.errors.includes("DEPENDENCY_UNAVAILABLE")
-          ? {
-            "503": {
-              description: "Dependency unavailable (DEPENDENCY_UNAVAILABLE).",
-            },
-          }
-          : {}),
-        ...(importAction && action.errors.includes("DEPENDENCY_TIMEOUT")
-          ? {
-            "504": {
-              description: "Dependency timeout (DEPENDENCY_TIMEOUT).",
-            },
-          }
-          : {}),
+        // A success variant such as 416 for a byte range keeps its own text.
+        ...responses,
       },
     };
     if (
@@ -4563,30 +4538,56 @@ export function generateContracts(
   return generated;
 }
 
-/**
- * OpenAPI responses for the error statuses an action's catalog entry
- * declares. Every action that lists one of these codes documents its status.
- */
-const documentedErrorStatuses = [
-  ["409", "Conflict", ["IDEMPOTENCY_IN_FLIGHT"]],
-  ["412", "Precondition failed", ["PRECONDITION_FAILED"]],
-  [
-    "422",
-    "Unprocessable request",
-    ["UNPROCESSABLE", "IDEMPOTENCY_PAYLOAD_MISMATCH"],
-  ],
-  ["428", "Precondition required", ["PRECONDITION_REQUIRED"]],
-] as const;
+const errorStatusTitles: Readonly<Record<number, string>> = {
+  400: "Malformed request",
+  401: "Authentication required",
+  403: "Forbidden",
+  404: "Resource not found",
+  405: "Method not allowed",
+  409: "Conflict",
+  410: "Gone",
+  412: "Precondition failed",
+  413: "Content too large",
+  415: "Unsupported media type",
+  416: "Range not satisfiable",
+  422: "Unprocessable request",
+  426: "Upgrade required",
+  428: "Precondition required",
+  429: "Too many requests",
+  500: "Internal server error",
+  503: "Service unavailable",
+  504: "Gateway timeout",
+};
 
-function documentedErrorResponses(
+/**
+ * OpenAPI error responses for an action: 400, 401, 403 and 500 always, plus
+ * the status of every code its catalog entry lists, each description naming
+ * the listed codes. Statuses come from FAULTS, the table the server answers
+ * with.
+ */
+export function documentedErrorResponses(
   errors: readonly string[],
 ): Record<string, { description: string }> {
-  const responses: Record<string, { description: string }> = {};
-  for (const [status, title, codes] of documentedErrorStatuses) {
-    const listed = codes.filter((code) => errors.includes(code));
-    if (listed.length) {
-      responses[status] = { description: `${title} (${listed.join(", ")}).` };
+  const byStatus = new Map<number, string[]>(
+    [400, 401, 403, 500].map((status) => [status, []]),
+  );
+  for (const code of errors) {
+    if (!isFaultCode(code)) {
+      throw new ContractQualityError(`unknown catalog error code ${code}`);
     }
+    const status = FAULTS[code][0];
+    byStatus.set(status, [...(byStatus.get(status) ?? []), code]);
   }
-  return responses;
+  return Object.fromEntries(
+    [...byStatus.entries()].sort(([left], [right]) => left - right).map((
+      [status, codes],
+    ) => {
+      const title = errorStatusTitles[status] ?? `HTTP ${status}`;
+      return [String(status), {
+        description: codes.length
+          ? `${title} (${codes.join(", ")}).`
+          : `${title}.`,
+      }];
+    }),
+  );
 }
