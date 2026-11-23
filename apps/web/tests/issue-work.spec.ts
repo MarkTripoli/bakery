@@ -566,6 +566,11 @@ for (
       async ({ page }, testInfo) => {
         test.skip(viewport.name !== "phone", "a phone layout");
         await open(page, WITH_RUN);
+        // boundingBox does not wait: Stop work appears once the run's controls
+        // are read, so wait for both buttons before measuring them.
+        await expect(stopButton(page)).toBeVisible();
+        await expect(section(page).getByRole("button", { name: "Open task" }))
+          .toBeVisible();
         const open_ = (await section(page).getByRole("button", {
           name: "Open task",
         }).boundingBox())!;
