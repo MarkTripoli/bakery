@@ -211,11 +211,6 @@ export async function admitHandoffContinuation(
   const used = attempts.filter((attempt) => attempt.job_id === job.id).length;
   if (used >= job.max_attempts) throw refuse("attempt_budget_exhausted");
 
-  // An effect that may or may not have happened is never repeated and never
-  // trusted: the source is still retired and the fence advances, but the job
-  // parks in awaiting_reconciliation instead of queueing, and the coordinator
-  // queues it (as a fresh session) once every effect of the step is settled.
-  // Exact resume reuses the source's native history, so the server decides it
   const { decision, effectsSettled } = await decideManifestResume(transaction, {
     organizationId,
     runId: named.run_id,

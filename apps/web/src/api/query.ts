@@ -1640,7 +1640,7 @@ export function artifactVersionAmongQueryOptions(
         if (!read.nextCursor) return null;
         cursor = read.nextCursor;
       }
-      return null;
+      throw { kind: "invalid-response", status: 200 } satisfies ApiFailure;
     },
     retry: retryNetworkOnce,
   });
