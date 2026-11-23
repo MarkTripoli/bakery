@@ -9,6 +9,25 @@ import {
 // administrator, a switch; adding a model is a page with three sections. The server is stubbed at the
 // API, so every request the page makes is recorded and checked.
 
+// Evidence for the PR: with BAKERY_STILLS_DIR set, the final screen of every passing test is saved, light and dark.
+test.afterEach(async ({ page }, testInfo) => {
+  const dir = process.env.BAKERY_STILLS_DIR;
+  if (!dir || testInfo.status !== "passed") return;
+  const slug = testInfo.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "").slice(0, 60);
+  for (const theme of ["light", "dark"]) {
+    await page.emulateMedia({ colorScheme: theme });
+    await page.evaluate(
+      (value) => document.documentElement.setAttribute("data-theme", value),
+      theme,
+    );
+    await page.waitForTimeout(300);
+    await page.screenshot({
+      path: `${dir}/${slug}-${testInfo.project.name}-${theme}.png`,
+    });
+  }
+});
+
 const MACHINE_ID = "00000000-0000-4000-8000-0000000000a1";
 const BINDING_ID = "00000000-0000-4000-8000-0000000000b1";
 const OTHER_BINDING_ID = "00000000-0000-4000-8000-0000000000b2";
