@@ -6534,5 +6534,7 @@
   "machines.models.note.revoked": "⟦Ïŧ çàññôŧ ƀë ŧûŕñëð ôñ àĝàïñ. Àðð ïŧ àš à ñëŵ ɱôðëļ ŧô ûšë ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "machines.models.line": "⟦{provider} · {agent} · {payment} ŧëšŧ çôþÿ⟧",
   "machines.models.new.intro": "⟦Šàÿ ŵĥïçĥ ɱôðëļ à çôðïñĝ àĝëñŧ ôñ ŧĥïš ɱàçĥïñë ɱàÿ ûšë. Ñôŧĥïñĝ ïš çĥàŕĝëð ôŕ šŵïŧçĥëð ƀÿ àððïñĝ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
-  "machines.models.new.back": "⟦Ɓàçķ ŧô ɱôðëļš ŧë⟧"
+  "machines.models.new.back": "⟦Ɓàçķ ŧô ɱôðëļš ŧë⟧",
+  "machines.models.new.modelHelp": "⟦Ŧĥë ɱôðëļ'š ëẋàçŧ ñàɱë àŧ ŧĥë þŕôṽïðëŕ. ŧëšŧ çôþÿ ŧ⟧",
+  "machines.models.new.regionHelp": "⟦Ļëàṽë ëɱþŧÿ ûñļëšš ŧĥë þŕôṽïðëŕ ĥàš ŕëĝïôñàļ àððŕëššëš. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

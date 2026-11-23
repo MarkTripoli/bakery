@@ -209,19 +209,21 @@ export function MachineModelNewPage(
                   />
                   {!agentChoosable(row)
                     ? (
-                      <UI.Button
-                        variant="secondary"
-                        onClick={() =>
-                          void navigate({
-                            to: "/machines/$machineId",
-                            params: { machineId },
-                            search: { signIn: row.agent },
+                      <UI.Inline variant="flow">
+                        <UI.Button
+                          variant="secondary"
+                          onClick={() =>
+                            void navigate({
+                              to: "/machines/$machineId",
+                              params: { machineId },
+                              search: { signIn: row.agent },
+                            })}
+                        >
+                          {say("machines.models.new.signInAgent", {
+                            agent: say(`machines.agent.${row.agent}`),
                           })}
-                      >
-                        {say("machines.models.new.signInAgent", {
-                          agent: say(`machines.agent.${row.agent}`),
-                        })}
-                      </UI.Button>
+                        </UI.Button>
+                      </UI.Inline>
                     )
                     : null}
                 </UI.Stack>
@@ -229,7 +231,7 @@ export function MachineModelNewPage(
             </UI.Stack>
             {errors.agent
               ? (
-                <UI.Text variant="muted" role="alert">
+                <UI.Text variant="error" role="alert">
                   {fieldError("agent")}
                 </UI.Text>
               )
@@ -243,8 +245,10 @@ export function MachineModelNewPage(
               id="machine-model-provider"
               width="short"
               label={say("machines.models.new.provider")}
-              aria-invalid={errors.provider !== undefined && !other ||
-                undefined}
+              required
+              error={errors.provider && !other
+                ? fieldError("provider")
+                : undefined}
               value={draft.provider}
               onChange={(event) => set({ provider: event.target.value })}
               options={[
@@ -256,13 +260,6 @@ export function MachineModelNewPage(
                 },
               ]}
             />
-            {errors.provider && !other
-              ? (
-                <UI.Text variant="muted" role="alert">
-                  {fieldError("provider")}
-                </UI.Text>
-              )
-              : null}
             {other
               ? (
                 <UI.Field
@@ -287,6 +284,7 @@ export function MachineModelNewPage(
             <UI.Field
               width="short"
               label={say("machines.models.new.model")}
+              hint={say("machines.models.new.modelHelp")}
               htmlFor="machine-model-name"
               error={fieldError("model")}
               required
@@ -321,6 +319,7 @@ export function MachineModelNewPage(
             <UI.Field
               width="short"
               label={say("machines.models.new.region")}
+              hint={say("machines.models.new.regionHelp")}
               htmlFor="machine-model-region"
               error={fieldError("region")}
             >
@@ -339,13 +338,13 @@ export function MachineModelNewPage(
             title={say("machines.models.new.paidSection")}
             variant="stack"
           >
-            <UI.Text>
-              {chosen === null
-                ? say("machines.agents.apiKeyLater")
-                : say("machines.models.new.paidBySubscription", {
+            {chosen === null ? null : (
+              <UI.Text>
+                {say("machines.models.new.paidBySubscription", {
                   agent: say(`machines.agent.${chosen.agent}`),
                 })}
-            </UI.Text>
+              </UI.Text>
+            )}
             <UI.Text variant="muted">
               {say("machines.agents.apiKeyLater")}
             </UI.Text>

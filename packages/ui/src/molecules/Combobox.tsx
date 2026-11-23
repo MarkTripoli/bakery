@@ -1,4 +1,4 @@
-import type { ReactNode, SelectHTMLAttributes } from "react";
+import { type ReactNode, type SelectHTMLAttributes, useId } from "react";
 import { IconGlyph } from "../atoms/IconGlyph.tsx";
 import {
   type SemanticNativeProps,
@@ -22,6 +22,10 @@ export type ComboboxProps =
     /** `short` keeps a field that holds a short choice to 320px instead of the whole column. */
     width?: "default" | "short";
     label: string;
+    /** What is wrong with the choice, in the field's error style under the control. */
+    error?: ReactNode;
+    /** Marks the choice as required, as a field does. */
+    required?: boolean;
     /**
      * A help tip for the control, shown on the label line at the end of the
      * control's width. It sits beside the label, not inside it, because a label
@@ -38,7 +42,9 @@ export function Combobox(
   {
     appearance = "field",
     label,
+    error,
     help,
+    required = false,
     multiple = false,
     options,
     width = "default",
@@ -47,6 +53,7 @@ export function Combobox(
     ...unsafeProps
   }: ComboboxProps,
 ) {
+  const errorId = useId();
   const props = withoutSemanticOwnerProps(unsafeProps);
   const isMultiple = variant === "multiple" || multiple;
   const resolvedState = props.disabled ? "disabled" : state ?? "closed";
@@ -71,13 +78,29 @@ export function Combobox(
         : (
           <>
             {help === undefined
-              ? label
-              : <span className="ui-combobox__label-text">{label}</span>}
+              ? required
+                // The text and its star are one item of the label's grid, so the star stays on the line.
+                ? (
+                  <span>
+                    {label}
+                    <span aria-hidden="true">*</span>
+                  </span>
+                )
+                : label
+              : (
+                <span className="ui-combobox__label-text">
+                  {label}
+                  {required ? <span aria-hidden="true">*</span> : null}
+                </span>
+              )}
             <IconGlyph name="chevron-down" />
           </>
         )}
       <select
         aria-busy={state === "loading" || undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        required={required || undefined}
         multiple={isMultiple}
         {...props}
       >
@@ -94,11 +117,19 @@ export function Combobox(
       {state === "empty" ? <span>No options available.</span> : null}
     </label>
   );
-  if (help === undefined) return control;
+  const helped = help === undefined
+    ? control
+    : (
+      <div className="ui-combobox-help" data-ui-component="comboboxHelp">
+        {control}
+        <span className="ui-combobox__help">{help}</span>
+      </div>
+    );
+  if (!error) return helped;
   return (
-    <div className="ui-combobox-help" data-ui-component="comboboxHelp">
-      {control}
-      <span className="ui-combobox__help">{help}</span>
+    <div className="ui-combobox-field" data-ui-component="comboboxField">
+      {helped}
+      <span id={errorId} className="ui-field__error" role="alert">{error}</span>
     </div>
   );
 }

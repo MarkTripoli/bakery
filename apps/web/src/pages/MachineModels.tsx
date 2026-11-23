@@ -329,7 +329,10 @@ export function MachineModels(
                             status={
                               <UI.Stack gap="compact">
                                 {stateBadge(row)}
-                                {inUse(row)}
+                                {/* Under the badge, at its right edge, so every row's switch is in one place. */}
+                                <UI.Inline variant="end">
+                                  {inUse(row)}
+                                </UI.Inline>
                               </UI.Stack>
                             }
                           >

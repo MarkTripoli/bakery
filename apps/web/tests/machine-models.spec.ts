@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, type Request, test } from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
+  MOCK_PRINCIPAL_ID,
   mockAuthenticatedSession,
 } from "./helpers/mock-session.ts";
 
@@ -22,10 +23,28 @@ async function still(page: Page, name: string) {
       (value) => document.documentElement.setAttribute("data-theme", value),
       theme,
     );
-    await page.waitForTimeout(400);
+    // The whole page from its top: the window is made as tall as the page, so the sidebar and the
+    // top bar frame it instead of being cut part-way down.
+    const width = page.viewportSize()!.width;
+    const tall = await page.evaluate(() => {
+      for (const element of document.querySelectorAll("*")) {
+        if (element.scrollTop) element.scrollTop = 0;
+      }
+      globalThis.scrollTo(0, 0);
+      return Math.max(
+        document.documentElement.scrollHeight,
+        ...Array.from(document.querySelectorAll("main, [data-shell-main]"))
+          .map((element) => element.scrollHeight),
+      );
+    });
+    await page.setViewportSize({
+      width,
+      height: Math.min(Math.max(tall, 900), 4000),
+    });
+    await page.evaluate(() => globalThis.scrollTo(0, 0));
+    await page.waitForTimeout(500);
     await page.screenshot({
       path: `${dir}/${name}-${phone ? "phone" : "desktop"}-${theme}.png`,
-      fullPage: true,
     });
   }
 }
@@ -188,6 +207,22 @@ async function open(
   path = `/machines/${MACHINE_ID}/models`,
 ) {
   await mockAuthenticatedSession(page);
+  if (w.role !== "admin") {
+    // A member is a member in the corner of the screen too, not "Fixture Admin".
+    await page.route("**/v1/me", (r) =>
+      r.fulfill(json({
+        principalId: MOCK_PRINCIPAL_ID,
+        principalType: "human",
+        displayName: "Fixture Developer",
+        locale: "en",
+        timeZone: null,
+        direction: "ltr",
+        catalogVersion: "2",
+        twoFactorEnabled: false,
+        email: "fixture-developer@example.test",
+        backupCodesRemaining: null,
+      })));
+  }
   await page.route(
     `**/v1/organizations/${MOCK_ORGANIZATION_ID}/effective-access`,
     (r) =>
@@ -394,6 +429,13 @@ test.describe("machine page: Models tab", () => {
       await expect(row(page, "fine")).toContainText(
         "acme · Claude Code · Subscription",
       );
+      // Every row's switch is in one place: at the right edge, under the badge.
+      const edges = [];
+      for (const name of ["fine", "wobbly", "down"]) {
+        const found = await row(page, name).getByRole("switch").boundingBox();
+        edges.push(Math.round(found!.x + found!.width));
+      }
+      expect(new Set(edges).size).toBe(1);
     } else {
       // The model column takes the spare width, so a note does not wrap to three lines.
       const cell = row(page, "wobbly").locator("td").first();
@@ -606,6 +648,23 @@ test.describe("machine page: Add a model", () => {
           .toBeLessThanOrEqual(320);
       }
     }
+    await expect(page.getByText("The model's exact name at the provider."))
+      .toBeVisible();
+    await expect(page.getByText(
+      "Leave empty unless the provider has regional addresses.",
+    )).toBeVisible();
+    // With no coding agent chosen, section 3 says once that an API key is not available yet.
+    await expect(page.getByText("Paying with an API key is not available yet."))
+      .toHaveCount(1);
+    if (onPhone()) {
+      // On a phone every field has the column.
+      const address = (await page.locator("#machine-model-endpoint")
+        .boundingBox())!.width;
+      for (const id of ["#machine-model-name", "#machine-model-region"]) {
+        expect((await page.locator(id).boundingBox())!.width)
+          .toBeGreaterThanOrEqual(address - 1);
+      }
+    }
     await expect(page.getByTestId("machine-model-new")).toContainText(
       "A model's details cannot be changed after it is added.",
     );
@@ -647,6 +706,17 @@ test.describe("machine page: Add a model", () => {
       "Choose a coding agent that is signed in.",
     );
     expect(w.creates).toHaveLength(0);
+    // Every error wears the error style, and Provider is marked required.
+    await expect(page.locator(".ui-text--error", {
+      hasText: "Choose a coding agent that is signed in.",
+    })).toBeVisible();
+    await expect(page.locator("#machine-model-provider")).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    await expect(page.locator(".ui-field__error").first()).toBeVisible();
+    await expect(page.locator("label", { hasText: /^Provider\*/ }))
+      .toBeVisible();
     await still(page, "add-model-empty-form-errors");
     await page.getByRole("radio", { name: /Claude Code/ }).check();
     await page.locator("#machine-model-provider").selectOption({
@@ -707,6 +777,13 @@ test.describe("machine page: Add a model", () => {
       .toBeDisabled();
     await expect(page.getByRole("button", { name: "Sign in to Claude Code" }))
       .toBeVisible();
+    if (!onPhone()) {
+      // The button is its label's width, not the column's.
+      const button = await page.getByRole("button", {
+        name: "Sign in to Claude Code",
+      }).boundingBox();
+      expect(button!.width).toBeLessThan(400);
+    }
     await still(page, "add-model-agent-not-signed-in");
     await page.getByRole("button", { name: "Sign in to Claude Code" }).click();
     // The machine page takes the agent from the address and then clears it, so a reload does not

@@ -6534,5 +6534,7 @@
   "machines.models.note.revoked": "It cannot be turned on again. Add it as a new model to use it.",
   "machines.models.line": "{provider} · {agent} · {payment}",
   "machines.models.new.intro": "Say which model a coding agent on this machine may use. Nothing is charged or switched by adding it.",
-  "machines.models.new.back": "Back to models"
+  "machines.models.new.back": "Back to models",
+  "machines.models.new.modelHelp": "The model's exact name at the provider.",
+  "machines.models.new.regionHelp": "Leave empty unless the provider has regional addresses."
 }
