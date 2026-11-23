@@ -179,7 +179,7 @@ Deno.test("each Deliver preset's digest is the digest of its definition, so an e
   }
 });
 
-Deno.test("a template names only references the engine can resolve: the brief is the one artifact a step can be handed (#429)", () => {
+Deno.test("a template hands a step only the brief or a document an earlier writer published under its slot (#429)", () => {
   const slotSources = (value: unknown, found: string[] = []): string[] => {
     if (Array.isArray(value)) value.forEach((v) => slotSources(v, found));
     else if (value !== null && typeof value === "object") {
@@ -196,9 +196,13 @@ Deno.test("a template names only references the engine can resolve: the brief is
   };
   for (const id of DELIVER_TEMPLATE_IDS) {
     for (const from of slotSources(deliverTemplateDefinition(id))) {
-      // A produced artifact of an agent.freeform step is a list, so
-      // $step.<id>.artifacts.versionId compiles but never resolves at run time.
-      assertEquals(from, "$step.brief.artifact.versionId", id);
+      // $step.<id>.artifacts.versionId would compile but never resolve: a
+      // freeform step's artifacts are a list. A slot reads the one it declared.
+      assert(
+        from === "$step.brief.artifact.versionId" ||
+          /^\$step\.([a-z_]+)\.outputs\.\1$/.test(from),
+        `${id}: ${from}`,
+      );
     }
   }
 });

@@ -34,13 +34,6 @@ export const DELIVER_TEMPLATE_AUDIT_GAPS: readonly Readonly<
   { construct: string; design: string; stand_in: string }
 >[] = Object.freeze([
   {
-    construct:
-      "a later step reads the document an earlier step wrote (named slots over a step's produced artifacts)",
-    design: "A1",
-    stand_in:
-      "a slot takes one artifact version id and a freeform step's artifacts are a list, so only the brief is handed on; each writer reads the brief and the repository",
-  },
-  {
     construct: "artifact kinds with validators and facts on a step's output",
     design: "A1/A2",
     stand_in:
@@ -110,13 +103,8 @@ function writer(
     needs: Object.freeze([...needs]),
     uses: "agent.freeform",
     role,
-    // Only the brief can be handed to a step: a produced document is one of a
-    // list of artifacts and no reference picks it, so a slot naming one would
-    // compile and then fail to resolve (see DELIVER_TEMPLATE_AUDIT_GAPS).
     inputs: Object.freeze(
-      from
-        .filter(([, ref]) => ref === BRIEF_REF)
-        .map(([name, ref]) => Object.freeze({ name, from: ref })),
+      from.map(([name, ref]) => Object.freeze({ name, from: ref })),
     ),
     outputs: Object.freeze([Object.freeze({ name: output, kind: output })]),
     with: Object.freeze({
@@ -128,7 +116,8 @@ function writer(
 }
 
 const BRIEF_REF = "$step.brief.artifact.versionId";
-const artifactOf = (id: string) => `$step.${id}.artifacts.versionId`;
+/** The document an earlier writer published under its one output slot, named for the step. */
+const artifactOf = (id: string) => `$step.${id}.outputs.${id}`;
 
 /**
  * A human sign-off that applies only when the run was started with gates: plan.
