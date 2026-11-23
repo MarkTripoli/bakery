@@ -264,7 +264,7 @@ async function pressLinkDialog(dialog, button, node) {
     }, 2000);
     return;
   }
-  await tauri.core.invoke("press", { button: button.id });
+  await tauri.core.invoke("press_button", { button: button.id });
 }
 
 async function press(button) {
@@ -289,7 +289,7 @@ async function press(button) {
     await continueChoosing();
     return;
   }
-  await tauri.core.invoke("press", { button: button.id });
+  await tauri.core.invoke("press_button", { button: button.id });
 }
 
 function panelNode(panel, window) {
