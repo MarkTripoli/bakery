@@ -445,7 +445,7 @@ async function lockAccounts(
   if (result.rows.length !== ids.length) conflict("budget_accounts_missing");
 }
 
-function normalizeReceipt(receipt: ParsedUsageReceipt): UsageReceipt {
+export function normalizeReceipt(receipt: ParsedUsageReceipt): UsageReceipt {
   const inputTokens = receipt.inputTokens ?? null;
   const outputTokens = receipt.outputTokens ?? null;
   const costUsd = receipt.costUsd ?? null;
@@ -1418,12 +1418,12 @@ async function settleWithinLockedScope(
          cost_usd, measurement, provider_call_id, pricing_metadata_snapshot,
          dedupe_key, occurred_at, budget_reservation_id,
          original_input_tokens, original_output_tokens, original_cost_usd,
-         original_measurement, original_occurred_at, provenance,
+         original_measurement, original_occurred_at, provenance, kind,
          created_at, updated_at, version
        ) values (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
-         $27, $28, $29, $30, $31, now(), now(), 1
+         $27, $28, $29, $30, $31, 'model', now(), now(), 1
        )`,
       [
         usageRecordId,

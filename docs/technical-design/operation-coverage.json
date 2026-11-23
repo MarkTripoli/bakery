@@ -751,6 +751,10 @@
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0076_output_transcript_archive.sql"
       },
+      "package_imports": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0349_package_imports.sql"
+      },
       "passkey": {
         "module": "auth",
         "migration": "apps/server/src/modules/auth/migrations/provider/0005_passkey.sql"
@@ -1134,6 +1138,12 @@
     },
     "tests/e2e/prove-prompt-to-private-plugin-backend-authoring_test.ts": {
       "reason": "The Docker job-runtime case needs Docker and the denoland/deno job image on the host; the other cases always run."
+    },
+    "tests/e2e/run-plugin-job-through-the-worker_test.ts": {
+      "reason": "Needs Docker and an alpine image on the host."
+    },
+    "tests/e2e/run-plugin-jobs-in-bubblewrap_test.ts": {
+      "reason": "Needs bubblewrap with user namespaces, which some hosts refuse."
     }
   }
 }

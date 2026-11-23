@@ -49,6 +49,7 @@ import {
   validateWorkflowSourceYaml,
   type WorkflowValidationIssue,
 } from "./validation.ts";
+import { createPackageHandlers, type PackageDependencies } from "./packages.ts";
 import { assertWorkflowSatisfiesRepositoryRules } from "./rule-guard.ts";
 import { readStarts } from "./start-read.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
@@ -119,7 +120,7 @@ export type WorkflowWriteFacts = Readonly<{
   accessTokenId?: string | null;
 }>;
 
-function writeFactsOf(context: ActionContext): WorkflowWriteFacts {
+export function writeFactsOf(context: ActionContext): WorkflowWriteFacts {
   const { organizationId, principalId } = requireWorkTransaction(context);
   const attribution = attributeAction(context, principalId);
   return {
@@ -860,7 +861,7 @@ async function settlePersonalSkillUse(
 }
 
 /** Structural guard only: a JSON object within the size bound. */
-function requireDraftDefinition(definition: unknown): string {
+export function requireDraftDefinition(definition: unknown): string {
   if (
     definition === null || typeof definition !== "object" ||
     Array.isArray(definition)
@@ -1690,13 +1691,17 @@ export async function validateWorkflow(
 
 export function createWorkflowsHandlers(
   secret: string,
+  packageDependencies: PackageDependencies = {},
 ): WorkflowsActionHandlers {
+  const packages = createPackageHandlers(packageDependencies);
   return {
     listWorkflows: createWorkflowDefinitionsListHandler(secret),
     getWorkflow: getWorkflowDefinition,
     createWorkflow: createWorkflowDefinition,
     updateWorkflow: updateWorkflowDefinition,
     copyWorkflow: copyWorkflowDefinition,
+    exportPackage: packages.exportPackage,
+    importPackage: packages.importPackage,
     listVersions: createWorkflowVersionsListHandler(secret),
     getVersion: getWorkflowVersion,
     getVersionSkills: readWorkflowVersionSkills,
