@@ -402,6 +402,15 @@ export async function importPackage(
       )).rows.length > 0;
     } else if (item.kind === "skill") {
       clash = await skillSlugTaken(transaction, organizationId, item.data.slug);
+    } else if (item.kind === "artifactKind") {
+      // A kind is addressed by its key, so importing one that exists is the
+      // same refusal as importing a workflow, agent or skill that exists: it is
+      // not a quiet new revision of someone else's kind.
+      clash = (await transaction.query(
+        `select 1 from bakery.artifact_kinds
+          where organization_id = $1 and key = $2`,
+        [organizationId, item.key],
+      )).rows.length > 0;
     }
     if (clash) {
       taken.push({
