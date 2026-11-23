@@ -207,7 +207,6 @@ export function stepName(
   return key === undefined ? step.uses : translate(key as never);
 }
 
-/** The line under a card's name: the step's own, else its action's, else none. */
 export function stepLine(
   step: TreeStep,
   translate: (key: never, values?: Record<string, string>) => string,
@@ -217,7 +216,6 @@ export function stepLine(
   return key === undefined ? undefined : translate(key as never);
 }
 
-/** The glyph a card carries: a reviewer's step is a shield whatever action it runs. */
 export function stepGlyph(step: TreeStep): string | undefined {
   if (step.uses === "agent.freeform" && step.role === "reviewer") {
     return "shield";

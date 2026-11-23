@@ -544,14 +544,12 @@ export function presetOutput(
   };
 }
 
-/** The inputs a preset's definition declares, by name; a flat preset declares none. */
 function declaredInputs(
   preset: WorkflowPresetDefinition,
 ): Readonly<Record<string, Readonly<{ required: boolean }>>> {
   return isPresetDocument(preset.spec) ? preset.spec.inputs : {};
 }
 
-/** The inputs the server builds from the task, plus the one the run request may carry. */
 const COMPOSER_INPUTS: readonly string[] = Object.freeze([
   "repositoryId",
   "brief",
@@ -559,10 +557,6 @@ const COMPOSER_INPUTS: readonly string[] = Object.freeze([
   "gates",
 ]);
 
-/**
- * Whether a run of the preset can start from the new-task composer: every input
- * its definition requires is built from the task or carried by the run request.
- */
 export function presetStartableFromComposer(
   preset: WorkflowPresetDefinition,
 ): boolean {
@@ -571,18 +565,12 @@ export function presetStartableFromComposer(
   );
 }
 
-/** Whether the preset's definition declares a `gates` input, the plan sign-off switch. */
 export function presetDeclaresGates(
   preset: WorkflowPresetDefinition,
 ): boolean {
   return Object.hasOwn(declaredInputs(preset), "gates");
 }
 
-/**
- * The run inputs of a preset run: the brief the server builds from the task,
- * and for a preset that declares `gates` the sign-off switch the run request
- * chose, which defaults to pausing for the plan's approval.
- */
 export function presetRunInputs(
   preset: WorkflowPresetDefinition,
   task: Parameters<typeof presetBriefInputs>[0],

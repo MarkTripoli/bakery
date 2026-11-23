@@ -17,7 +17,6 @@ const preset = (id: string) => {
   return found.spec as unknown;
 };
 
-/** Every step that runs an action in an authored document, at any depth. */
 function actionsIn(value: unknown): string[] {
   if (Array.isArray(value)) return value.flatMap(actionsIn);
   if (typeof value !== "object" || value === null) return [];

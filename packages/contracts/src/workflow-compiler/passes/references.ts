@@ -65,7 +65,6 @@ function field(type: ValueType, required = true): ObjectField {
   return { type, required, sensitive: false };
 }
 
-/** What a declared output slot resolves to: the one document a step wrote. */
 const ARTIFACT_REFERENCE: ValueType = {
   kind: "object",
   fields: new Map<string, ObjectField>([

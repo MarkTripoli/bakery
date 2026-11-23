@@ -1,22 +1,5 @@
 import type { WorkflowPresetDocument } from "./workflow-presets.ts";
 
-/**
- * The four Deliver templates (#429, docs/technical-design/one-system/
- * deliver-as-workflow.md section 5): `deliver-oneshot`, `deliver-lean`,
- * `deliver-full` and `deliver-prd`. They differ only in their planning prefix
- * and share one build-and-finish tail, written here once and inlined into each
- * variant: until the `call` node ships (#418) the compiler-inlined form is what
- * the engine sees anyway (section 5.1).
- *
- * Every step is a public primitive an organization can author with: the
- * generic `agent.freeform` step with a role and named slots, `human.approval`,
- * the coding and review actions, `repeat` and `workflow.stop`. There is no
- * `rpi.*` registry-only action and no private engine path (D16). What the
- * design asks for and the engine cannot yet express is listed in
- * `DELIVER_TEMPLATE_AUDIT_GAPS`; each entry is a platform gap that helps every
- * customer when it closes, never a reason for a private path.
- */
-
 type Json = Readonly<Record<string, unknown>>;
 
 export const DELIVER_TEMPLATE_IDS = Object.freeze(
@@ -29,7 +12,6 @@ export const DELIVER_TEMPLATE_IDS = Object.freeze(
 );
 export type DeliverTemplateId = typeof DELIVER_TEMPLATE_IDS[number];
 
-/** Section 5.7 of the design, as data: what a template wants and the engine lacks. */
 export const DELIVER_TEMPLATE_AUDIT_GAPS: readonly Readonly<
   { construct: string; design: string; stand_in: string }
 >[] = Object.freeze([
@@ -116,17 +98,8 @@ function writer(
 }
 
 const BRIEF_REF = "$step.brief.artifact.versionId";
-/** The document an earlier writer published under its one output slot, named for the step. */
 const artifactOf = (id: string) => `$step.${id}.outputs.${id}`;
 
-/**
- * A human sign-off that applies only when the run was started with gates: plan.
- *
- * It is a branch, not a step with an `if`: a step that is skipped makes every
- * step that needs it skip too, so a skipped sign-off would silently skip the
- * whole build. A branch completes whichever arm runs, so what follows it runs
- * either way. The step inside is `<id>.approve`.
- */
 function signoff(id: string, needs: readonly string[], prompt: string): Json {
   return Object.freeze({
     id,
@@ -153,7 +126,6 @@ const RESEARCH_BUDGET = {
 } as const;
 const REVIEW_BUDGET = { maxTurns: 40, timeout: "30m", maxCostUsd: 4 } as const;
 
-/** The planning prefix of each variant: the steps before the build, and the step whose artifact is the plan. */
 function prefix(id: DeliverTemplateId): { steps: Json[]; plan: string } {
   const questions = writer(
     "questions",
@@ -341,11 +313,6 @@ function prefix(id: DeliverTemplateId): { steps: Json[]; plan: string } {
   }
 }
 
-/**
- * The build and finish tail every variant shares: build, check, an independent
- * review, a bounded repair loop, then a final check, a final review and a fresh
- * verification, ending the run as done.
- */
 function tail(planStep: string, afterSignoff: string): Json[] {
   return [
     Object.freeze({
@@ -467,7 +434,6 @@ function tail(planStep: string, afterSignoff: string): Json[] {
   ];
 }
 
-/** The same text as each template's `tasks.preset.*.description`: a copy shows the definition's own. */
 export const DELIVER_TEMPLATE_DESCRIPTIONS: Readonly<
   Record<DeliverTemplateId, string>
 > = Object.freeze({
@@ -481,7 +447,6 @@ export const DELIVER_TEMPLATE_DESCRIPTIONS: Readonly<
     "Write requirements, a technical design and a plan, then build, check and review the change, fixing it a limited number of times, and verify the result.",
 });
 
-/** What a writer step is called and says on a card (design-ux, #429 addendum 2). */
 const STEP_WORDS: Readonly<Record<string, readonly [string, string]>> = Object
   .freeze({
     questions: [
@@ -526,7 +491,6 @@ const STEP_WORDS: Readonly<Record<string, readonly [string, string]>> = Object
     ],
   });
 
-/** Words that differ for one template: its research and its one-phase plan. */
 const VARIANT_WORDS: Readonly<
   Record<string, Readonly<Record<string, readonly [string, string]>>>
 > = Object.freeze({
@@ -544,7 +508,6 @@ const VARIANT_WORDS: Readonly<
   },
 });
 
-/** What each sign-off asks a person to approve. */
 const SIGNOFF_SUBJECT: Readonly<Record<string, string>> = Object.freeze({
   plan_signoff: "the plan",
   design_signoff: "the design",
@@ -552,10 +515,6 @@ const SIGNOFF_SUBJECT: Readonly<Record<string, string>> = Object.freeze({
   tdd_signoff: "the technical design",
 });
 
-/**
- * Gives every writer and every sign-off its name and line. A copy carries the
- * authored definition, so the built-in page and the copy say the same thing.
- */
 function present(
   template: DeliverTemplateId,
   steps: readonly Json[],
@@ -596,7 +555,6 @@ function present(
   });
 }
 
-/** The definition of one template in the published grammar. */
 export function deliverTemplateDefinition(
   id: DeliverTemplateId,
 ): WorkflowPresetDocument {

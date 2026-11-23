@@ -65,8 +65,6 @@ export function definitionOf(
         ? node.agentVersionId
         : null;
       const skills = skillsOfNode(node);
-      // A branch, repeat or group has no `uses`; the editor holds it as "" and
-      // does not change it, so it is kept as authored, never given a `uses`.
       const sameAction = node !== undefined &&
         (node.uses === step.uses ||
           (typeof node.uses !== "string" && step.uses === ""));

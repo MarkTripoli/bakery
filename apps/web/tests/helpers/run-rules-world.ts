@@ -196,7 +196,7 @@ export async function openRun(page: Page, world: World = {}) {
           status: "ready",
           reasons: [],
         },
-      }]),
+      }].map(presetRead)),
     );
     await page.route(
       `**/v1/tasks/${TASK_ID}/runs`,

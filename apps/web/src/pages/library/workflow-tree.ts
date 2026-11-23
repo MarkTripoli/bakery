@@ -43,13 +43,9 @@ export type TreeStep = {
    * "Add a step" list does not offer, or a setting the panel cannot show.
    */
   readonly codeOnly?: boolean;
-  /** The step's own name, when its definition gives one; the card shows it over the action's title. */
   readonly name?: string;
-  /** The step's own line, shown under its name in place of the action's line. */
   readonly description?: string;
-  /** The role the step runs as, which picks a reviewer's glyph. */
   readonly role?: string;
-  /** The last step of the workflow when it ends the run: drawn as the End marker, not a card. */
   readonly end?: true;
 };
 
@@ -102,12 +98,6 @@ const record = (value: unknown): Record<string, unknown> =>
 
 const text = (value: unknown): string => typeof value === "string" ? value : "";
 
-/**
- * A node as the drawing reads it. A workflow document names a branch, a repeat,
- * a parallel, a wait or a group of steps by the key it is written under, with
- * no `kind`; here each gets the kind the drawing switches on. A node that
- * already has a kind, or runs an action, is returned as it is.
- */
 function withKind(node: Record<string, unknown>): Record<string, unknown> {
   if (text(node.kind) !== "" || typeof node.uses === "string") return node;
   if (node.branch !== undefined) {
@@ -138,7 +128,6 @@ function withKind(node: Record<string, unknown>): Record<string, unknown> {
   return node;
 }
 
-/** What a node says about itself on a card: its own name, line and role, when it has them. */
 function presentation(
   node: Record<string, unknown>,
 ): Pick<TreeStep, "name" | "description" | "role"> {
@@ -152,15 +141,8 @@ function presentation(
   };
 }
 
-/** The condition of a sign-off that is only asked when a run starts with gates: plan. */
 const PLAN_GATE = '$input.gates == "plan"';
 
-/**
- * The one approval inside a branch that is exactly "ask a person when the run
- * has gates: plan, otherwise nothing", or undefined for any other branch. It is
- * drawn as that approval's card, whose line says when it is skipped, because a
- * "Yes" and an empty "Otherwise" do not say yes to what (design-ux, #429).
- */
 function planGateApproval(
   node: Record<string, unknown>,
 ): Record<string, unknown> | undefined {

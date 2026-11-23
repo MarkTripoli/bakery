@@ -331,7 +331,6 @@ Deno.test("a branch, a repeat and a group the editor holds untouched are saved e
       },
     ],
   };
-  // The editor holds every top-level node by id, with "" for one that runs no action.
   const held = spec.steps.map((node) => ({
     id: node.id,
     uses: "uses" in node ? (node.uses as string) : "",

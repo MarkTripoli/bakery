@@ -15,13 +15,6 @@ import { automationVersionInputs } from "../helpers/automation-fixtures.ts";
 
 const SAMPLE_REPOSITORY_ID = "00000000-0000-4000-8000-000000000000";
 
-/**
- * The presets the shared fixtures pin: the fixture publishes a copy of
- * fixed-coding, and the reviewed preset takes the same inputs. The Deliver
- * templates declare their own (a `gates` switch, no `instructions`) and are
- * never published through these fixtures; their inputs are pinned by
- * start-a-deliver-template-run_test.
- */
 const PINNED_PRESETS = Object.freeze([
   FIXED_CODING_PRESET,
   FIXED_CODING_REVIEWED_PRESET,

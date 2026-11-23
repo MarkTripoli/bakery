@@ -1152,17 +1152,6 @@ async function appendPlanStep(
   return keyOf(planned.key);
 }
 
-/**
- * The row of a `human.approval` step. The engine asks the person itself: it
- * creates the approval (who may decide, the prompt, the seven-day window) and
- * writes a waiting row whose dispatch pins that approval's id, exactly the row a
- * `wait` node on `human.approval.decided` has, so the decide route, the answer
- * poll and the expiry path need no second mechanism. The approvers are the
- * step's audience, else the workflow's owner, else the person who started the
- * run: a workflow nobody owns (a built-in) is answered by whoever ran it, never
- * by an administrator nobody named. Admission is idempotent: a replay finds the
- * row and asks nobody twice.
- */
 async function appendApprovalWait(
   transaction: PgTransactionClient,
   context: RunEndRow,

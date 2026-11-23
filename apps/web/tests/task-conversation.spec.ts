@@ -1,3 +1,4 @@
+import { presetRead } from "./helpers/preset-read.ts";
 import {
   expect,
   type Locator,
@@ -891,7 +892,7 @@ test("Start run right after approving still carries the approval id", async ({ p
           status: "ready",
           reasons: [],
         },
-      }]),
+      }].map(presetRead)),
     }));
   const runs: Record<string, unknown>[] = [];
   await page.route(`**/v1/tasks/${taskId}/runs`, (route) => {
@@ -915,6 +916,9 @@ test("Start run right after approving still carries the approval id", async ({ p
   }
   const start = page.getByRole("button", { name: "Start run", exact: true });
   await expect(start).toBeEnabled();
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
   await start.click();
   await expect.poll(() => runs.length).toBe(1);
   expect(runs[0]).toMatchObject({ approvalId: approval(3).id });
@@ -2770,7 +2774,7 @@ for (
           steps: [{ id: "implement", uses: "harness.implement" }],
           defaultBudgetLimitUsd: "5.00",
           availability: { minimumBudgetLimitUsd: null, ...availability },
-        }]),
+        }].map(presetRead)),
       }));
     await firstRender(
       () => page.goto(`/tasks/${taskId}`),

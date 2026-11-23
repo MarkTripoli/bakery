@@ -126,14 +126,12 @@ Deno.test("a Deliver run's plan sign-off lands in the task's approvals, and a de
       budgetPolicy: presetBudgetPolicy,
     });
 
-    /** Why the engine ended the run, by the stable code it records. */
     const failureOf = async (runId: string) =>
       (await database.query<{ code: string }>(
         `select details->>'code' as code from bakery.audit_events
           where resource_id = $1 and operation = 'workflow.plan_failed'`,
         [runId],
       )).rows.map((row) => row.code).join(",") || "no failure recorded";
-    /** Starts a run of the preset and walks the engine to just past the plan step. */
     const startedAtThePlan = async (extra: Record<string, unknown>) => {
       const task = await createPresetTask(fixture, fixture, repository, {
         title: `signoff ${crypto.randomUUID().slice(0, 8)}`,

@@ -57,10 +57,6 @@ export type CopySource = {
   readonly sourceYaml?: string;
 };
 
-/**
- * A built-in workflow as a definition a copy can start from: the whole document,
- * so a copy keeps every sign-off, repeat and limit the built-in has.
- */
 export function presetSource(
   preset: Pick<WorkflowPresetResponse, "definition" | "revision">,
   copy: { readonly title: string; readonly description: string | null },

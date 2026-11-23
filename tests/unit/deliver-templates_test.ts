@@ -16,7 +16,6 @@ const compile = async (document: unknown) => {
   return result;
 };
 
-/** Every `uses` in a definition, in document order, through groups and repeats. */
 function actionsOf(value: unknown, found: string[] = []): string[] {
   if (Array.isArray(value)) {
     for (const item of value) actionsOf(item, found);

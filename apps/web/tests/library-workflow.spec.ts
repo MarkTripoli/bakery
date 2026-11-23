@@ -1,3 +1,4 @@
+import { presetRead } from "./helpers/preset-read.ts";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import {
   type AgentVersionRow,
@@ -2278,7 +2279,7 @@ for (
                 ],
                 defaultBudgetLimitUsd: "8.00",
                 availability: null,
-              }],
+              }].map(presetRead),
               nextCursor: null,
             },
           }),

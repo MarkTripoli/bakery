@@ -23,11 +23,6 @@ export const WORKFLOW_PRESET_IDS = Object.freeze(
 
 export type WorkflowPresetId = typeof WORKFLOW_PRESET_IDS[number];
 
-/**
- * The presets a ticket source may run. The Deliver templates pause for a
- * sign-off a ticket start has no control for, so ticket admission stays on the
- * two fixed-coding presets (#429).
- */
 export const TICKET_PRESET_IDS = Object.freeze(
   ["fixed-coding", "fixed-coding-reviewed"] as const,
 );
@@ -526,11 +521,6 @@ export const FIXED_CODING_REVIEWED_PRESET: WorkflowPresetDefinition = Object
     stages: FIXED_CODING_STAGES,
   });
 
-/**
- * Lowercase SHA-256 of the canonical JSON of each Deliver template's definition
- * (`deliverTemplateDefinition`); a test recomputes them, so changing a template
- * means changing its revision and digest together.
- */
 const DELIVER_PRESET_DIGESTS: Readonly<Record<DeliverTemplateId, string>> =
   Object.freeze({
     "deliver-oneshot":
@@ -551,12 +541,6 @@ const DELIVER_NAME_KEYS: Readonly<Record<DeliverTemplateId, string>> = Object
     "deliver-prd": "workflowPresets.deliverPrd.name",
   });
 
-/**
- * A Deliver template as a built-in workflow (#429). The source is the
- * definition as JSON, which is YAML: what a person copies is exactly the
- * document the digest covers. The plan approval is the template's own sign-off
- * step, so no stage waits here and the task approval policy does not apply.
- */
 function deliverPreset(id: DeliverTemplateId): WorkflowPresetDefinition {
   const spec = deliverTemplateDefinition(id);
   return Object.freeze({

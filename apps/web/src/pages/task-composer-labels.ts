@@ -36,40 +36,34 @@ export function presetCopy(t: Translator, id: string) {
       return {
         title: t("tasks.preset.fixedCoding.title"),
         description: t("tasks.preset.fixedCoding.description"),
-        line: t("tasks.preset.fixedCoding.line"),
       };
     case "fixed-coding-reviewed":
       return {
         title: t("tasks.preset.fixedCodingReviewed.title"),
         description: t("tasks.preset.fixedCodingReviewed.description"),
-        line: t("tasks.preset.fixedCodingReviewed.line"),
       };
     case "deliver-oneshot":
       return {
         title: t("tasks.preset.deliverOneshot.title"),
         description: t("tasks.preset.deliverOneshot.description"),
-        line: t("tasks.preset.deliverOneshot.line"),
       };
     case "deliver-lean":
       return {
         title: t("tasks.preset.deliverLean.title"),
         description: t("tasks.preset.deliverLean.description"),
-        line: t("tasks.preset.deliverLean.line"),
       };
     case "deliver-full":
       return {
         title: t("tasks.preset.deliverFull.title"),
         description: t("tasks.preset.deliverFull.description"),
-        line: t("tasks.preset.deliverFull.line"),
       };
     case "deliver-prd":
       return {
         title: t("tasks.preset.deliverPrd.title"),
         description: t("tasks.preset.deliverPrd.description"),
-        line: t("tasks.preset.deliverPrd.line"),
       };
     default:
-      return { title: id, description: undefined, line: undefined };
+      return { title: id, description: undefined };
   }
 }
 
@@ -83,6 +77,8 @@ export function composerLabels(
     repository: t("tasks.composer.repository"),
     repositoryPlaceholder: t("tasks.composer.repositoryPlaceholder"),
     preset: t("tasks.composer.preset"),
+    presetNone: t("tasks.composer.presetNone"),
+    presetNoneHint: t("tasks.composer.presetNoneHint"),
     title: t("tasks.composer.title"),
     taskType: t("tasks.composer.taskType"),
     taskTypes: {
@@ -95,6 +91,7 @@ export function composerLabels(
     budget: t("tasks.composer.budget"),
     budgetHint: t("tasks.composer.budgetHint"),
     submit: t("tasks.composer.submit"),
+    submitTask: t("tasks.composer.submitTask"),
     submitting: t("tasks.composer.submitting"),
     retry: t("tasks.composer.retry"),
     discard: t("tasks.composer.discard"),
@@ -107,7 +104,7 @@ export function composerLabels(
     forbidden: t("tasks.composer.forbidden"),
     error: t("tasks.composer.error"),
     setupHeading: t("tasks.composer.setupHeading"),
-    setupBadge: t("tasks.composer.setupBadge"),
+    setupNoWorkflow: t("tasks.composer.setupNoWorkflow"),
     setupUnknown: withLink(
       t("tasks.composer.setup.unknown", { projects: LINK_SLOT }),
       projectsLink(t),

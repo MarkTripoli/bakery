@@ -149,11 +149,6 @@ export type PlanStepRow = Readonly<{
   output: unknown;
 }>;
 
-/**
- * The output slot each step of the document binds a document to, by the step's
- * qualified id: an action that publishes one document and declares one slot.
- * What a step wrote is then readable as `$step.<id>.outputs.<slot>`.
- */
 export function documentSlotsOf(
   document: WorkflowSemanticDocument,
 ): ReadonlyMap<string, string> {
@@ -193,12 +188,6 @@ export function documentSlotsOf(
   return slots;
 }
 
-/**
- * A completed step's output with the document it wrote named by its slot: the
- * step's one published artifact, under `outputs.<slot>`. The stored output is
- * not changed; the binding is read-side, so a replay and a restart derive the
- * same record and an old run is read the same way.
- */
 function withDocumentSlot(
   stepKey: string,
   output: JsonValue,

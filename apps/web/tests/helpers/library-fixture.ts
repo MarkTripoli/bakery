@@ -1,3 +1,4 @@
+import { presetRead } from "./preset-read.ts";
 import type { Page } from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
@@ -642,33 +643,36 @@ export async function libraryFixture(page: Page, options: Options = {}) {
     (url) => url.pathname === "/v1/workflow-presets",
     (route) => {
       seen.presetReads += 1;
-      return answer("presets", [
-        {
-          id: "fixed-coding",
-          revision: 2,
-          digest: "a".repeat(64),
-          nameKey: "workflowPresets.fixedCoding.name",
-          steps: [{ id: "brief", uses: "task.brief" }, {
-            id: "implement",
-            uses: "harness.implement",
-          }],
-          defaultBudgetLimitUsd: "5.00",
-          availability: null,
-        },
-        {
-          id: "fixed-coding-reviewed",
-          revision: 3,
-          digest: "b".repeat(64),
-          nameKey: "workflowPresets.fixedCodingReviewed.name",
-          steps: [
-            { id: "brief", uses: "task.brief" },
-            { id: "implement", uses: "harness.implement" },
-            { id: "review", uses: "agent.review" },
-          ],
-          defaultBudgetLimitUsd: "8.00",
-          availability: null,
-        },
-      ])(route);
+      return answer(
+        "presets",
+        [
+          {
+            id: "fixed-coding",
+            revision: 2,
+            digest: "a".repeat(64),
+            nameKey: "workflowPresets.fixedCoding.name",
+            steps: [{ id: "brief", uses: "task.brief" }, {
+              id: "implement",
+              uses: "harness.implement",
+            }],
+            defaultBudgetLimitUsd: "5.00",
+            availability: null,
+          },
+          {
+            id: "fixed-coding-reviewed",
+            revision: 3,
+            digest: "b".repeat(64),
+            nameKey: "workflowPresets.fixedCodingReviewed.name",
+            steps: [
+              { id: "brief", uses: "task.brief" },
+              { id: "implement", uses: "harness.implement" },
+              { id: "review", uses: "agent.review" },
+            ],
+            defaultBudgetLimitUsd: "8.00",
+            availability: null,
+          },
+        ].map(presetRead),
+      )(route);
     },
   );
   return seen;
