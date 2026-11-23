@@ -54,6 +54,7 @@ async function setup(
       input: {
         installId: options.installId ?? installId,
         entry: options.entry ?? "jobs/nightly.js",
+        versionId: published.versionId,
       },
     },
   );
@@ -272,9 +273,37 @@ Deno.test("a job that names an unpublished version of its own package is handed 
     );
   }));
 
-Deno.test("a job that names no version is handed the install's current version", () =>
+Deno.test("a job that names no version is refused, not served the install's current one", () =>
   withPluginFixture(async (fixture, store) => {
-    const { worker, assignment } = await setup(fixture, store);
+    const { worker, assignment, published } = await setup(fixture, store);
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set input = input - 'versionId' where id = $1`,
+      [assignment.jobId],
+    );
+    await refused(
+      await files(fixture, worker, assignment),
+      "plugin_job_version_unpinned",
+    );
+    await nameVersion(fixture, assignment.jobId, published.versionId);
+    const served = await filesOf(await files(fixture, worker, assignment));
+    assertEquals(served.get("jobs/nightly.js"), JOB_JS);
+  }));
+
+Deno.test("AC3: a leased job keeps the version it was admitted against after the install moves", () =>
+  withPluginFixture(async (fixture, store) => {
+    const { worker, assignment, published } = await setup(fixture, store);
+    const next = await publishWithPages(
+      fixture,
+      store,
+      { name: "nightly-helper", requestedCapabilities: ["jobs.schedule"] },
+      { "jobs/nightly.js": "export default () => ({ upgraded: true });\n" },
+      published.packageId,
+    );
+    assertEquals(next.response.status, 201, await next.response.text());
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_installs set plugin_version_id = $2 where id = $1`,
+      [assignment.installId, next.versionId],
+    );
     const served = await filesOf(await files(fixture, worker, assignment));
     assertEquals(served.get("jobs/nightly.js"), JOB_JS);
   }));
@@ -423,7 +452,11 @@ async function jobFor(
     {
       action: "plugin.job",
       capabilities: ["plugin.job.contained"],
-      input: { installId, entry: "jobs/nightly.js" },
+      input: {
+        installId,
+        entry: "jobs/nightly.js",
+        versionId: published.versionId,
+      },
     },
   );
   const assignment = await claimAssignment(fixture, worker, {

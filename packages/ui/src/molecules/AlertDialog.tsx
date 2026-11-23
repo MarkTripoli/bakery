@@ -21,6 +21,11 @@ export type AlertDialogProps =
     variant?: "destructive" | "security";
   };
 
+const initialFocusSelectors = [
+  "input:not([type=hidden], [type=radio], [type=checkbox], [readonly]):not(:disabled), textarea:not([readonly]):not(:disabled), select:not(:disabled)",
+  ".ui-alert-dialog__safe-action button:not(:disabled)",
+] as const;
+
 /** Requests confirmation for a consequential action. */
 export function AlertDialog(
   {
@@ -54,7 +59,7 @@ export function AlertDialog(
     onOpenChange?.(nextOpen);
   };
 
-  useNativeDialogOpen(dialogRef, isOpen);
+  useNativeDialogOpen(dialogRef, isOpen, initialFocusSelectors);
 
   return (
     <dialog
