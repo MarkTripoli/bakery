@@ -887,11 +887,12 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "59ed9251f7c9dd591571f1c596c9c36b8f79bb98",
   ];
   const approvedDigest =
-    "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0";
+    "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
     // Displaced by the #34 plugin job version pin rebind onto main 59ed9251f: main's own approval, kept unchanged.
     "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
     // Displaced by the #34 plugin job version pin rebind onto main 54fbfe00e: main's own approval, kept unchanged.
@@ -1310,7 +1311,7 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // displaced and the one in force share a digest. They are told apart by the
   // base each was bound to: the displaced base must never pass, even with the
   // live digest.
-  const displacedBase = "54fbfe00ede36e92c15367b5c452087a73ea2ed0";
+  const displacedBase = "59ed9251f7c9dd591571f1c596c9c36b8f79bb98";
   for (const compatibilityDigest of rejectedPriorDigests) {
     const base = compatibilityDigest === approvedDigest
       ? displacedBase

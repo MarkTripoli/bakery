@@ -229618,10 +229618,10 @@
                       "description": "Registered action input entry."
                     },
                     "versionId": {
-                      "description": "Registered action input versionId.",
                       "type": "string",
                       "format": "uuid",
-                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Registered action input versionId."
                     },
                     "repositoryProfile": {
                       "description": "Server-admitted immutable execution context; absent for standalone inspection and cloud-only jobs.",
@@ -231796,7 +231796,8 @@
                   },
                   "required": [
                     "installId",
-                    "entry"
+                    "entry",
+                    "versionId"
                   ],
                   "additionalProperties": false,
                   "description": "Input schema registered for a worker action."
@@ -295984,7 +295985,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:21eafdf2e9aefdfd9cdb54a176cf38d7ad57a423b13e8379c9c6a42fa5d60f04",
+  "compatibilityDigest": "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -468815,10 +468816,10 @@
                   "description": "Registered action input entry."
                 },
                 "versionId": {
-                  "description": "Registered action input versionId.",
                   "type": "string",
                   "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Registered action input versionId."
                 },
                 "repositoryProfile": {
                   "description": "Server-admitted immutable execution context; absent for standalone inspection and cloud-only jobs.",
@@ -470993,7 +470994,8 @@
               },
               "required": [
                 "installId",
-                "entry"
+                "entry",
+                "versionId"
               ],
               "additionalProperties": false,
               "description": "Input schema registered for a worker action."
