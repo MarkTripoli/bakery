@@ -1592,6 +1592,10 @@ a.bakery-application-rail__link:hover {
 .ui-settings-content[data-variant="wide"] {
   max-inline-size: none;
 }
+/* A page that is one form (Add a model): a narrow measure, so the fields do not run the whole page. */
+.ui-settings-content[data-variant="form"] {
+  max-inline-size: var(--layout-form);
+}
 /* Paper keeps 44px controls on these pages regardless of pointer type
    (auth.css:8 .btn/.text-link min-height:44px). Buttons take their width
    from the flex column they sit in (`.btn.full` in a column, `.two-actions>*`

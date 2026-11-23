@@ -48,6 +48,7 @@ import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
+import { MachineModelNewPage } from "./pages/MachineModelNewPage.tsx";
 import { MachineWizardPage } from "./pages/MachineWizardPage.tsx";
 import { TaskCoordinationPage } from "./pages/task-coordination/TaskCoordinationPage.tsx";
 import { WorkflowEditorPage } from "./pages/library/WorkflowEditorPage.tsx";
@@ -512,6 +513,33 @@ export const routeCoverage = [
       "offline",
       "long-copy",
       "detail",
+    ],
+  },
+  {
+    id: "machine-models",
+    path: "/machines/$machineId/models",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "reconnecting",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "machine-model-new",
+    path: "/machines/$machineId/models/new",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "error",
+      "forbidden",
+      "offline",
     ],
   },
   {
@@ -1662,6 +1690,36 @@ const machineDetailRoute = createRoute({
   ),
   errorComponent: ProtectedRouteError,
 });
+
+const machineModelsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/$machineId/models",
+  validateSearch: (search: Record<string, unknown>): { added?: true } =>
+    search.added === true || search.added === "true" ? { added: true } : {},
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <MachineDetailPage
+      machineId={machineModelsRoute.useParams().machineId}
+      tab="models"
+      justAdded={machineModelsRoute.useSearch().added === true}
+    />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const machineModelNewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/$machineId/models/new",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <MachineModelNewPage
+      machineId={machineModelNewRoute.useParams().machineId}
+    />
+  ),
+  errorComponent: ProtectedRouteError,
+});
 const statusRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
@@ -2784,6 +2842,8 @@ const routeTree = rootRoute.addChildren([
   evaluationRunRoute,
   machineNewRoute,
   machineDetailRoute,
+  machineModelsRoute,
+  machineModelNewRoute,
   statusRoute,
   settingsIndexRoute,
   profileRoute,

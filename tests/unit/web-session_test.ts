@@ -154,6 +154,7 @@ function fakeApi(
       get: rejecting,
       check: rejecting,
       request: rejecting,
+      cancelRequest: rejecting,
       list: rejecting,
       sources: rejecting,
       createSource: rejecting,
@@ -185,6 +186,12 @@ function fakeApi(
       replace: rejecting,
     },
     workerComponents: { list: rejecting },
+    providerRoutes: {
+      list: rejecting,
+      health: rejecting,
+      create: rejecting,
+      update: rejecting,
+    },
     workerProviderBindings: { list: rejecting, create: rejecting },
     workerProviderAuth: {
       create: rejecting,

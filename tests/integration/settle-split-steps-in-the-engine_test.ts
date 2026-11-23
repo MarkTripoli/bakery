@@ -45,10 +45,9 @@ async function atTheSplit(
   return { parent, runner, request };
 }
 
-const splitInput = (overrides: Record<string, unknown> = {}) => {
-  const { lanes, maxConcurrency } = fourLaneSpec();
-  return { lanes, maxConcurrency, ...overrides };
-};
+const splitInput = (overrides: Record<string, unknown> = {}) => ({
+  split: { ...fourLaneSpec(), ...overrides },
+});
 
 const plansOf = async (fx: CoordinationFixture, parent: string) =>
   await fx.owner<
@@ -141,7 +140,7 @@ Deno.test("a split step fails with a fixed code when its plan is canceled (#422)
 Deno.test("a split step refuses input that is not a split and a plan that is refused (#422)", async () => {
   const fx = await openCoordinationFixture();
   try {
-    const bad = await atTheSplit(fx, { maxConcurrency: 0 });
+    const bad = await atTheSplit(fx, splitInput({ maxConcurrency: 0 }));
     const invalid = await bad.runner.run(bad.request);
     assertEquals(invalid.kind, "failed");
     assertEquals(
@@ -152,12 +151,11 @@ Deno.test("a split step refuses input that is not a split and a plan that is ref
 
     // A lane that names a workflow the organization does not have is refused
     // before anything is created.
-    const spec = splitInput();
-    const lanes = (spec.lanes as Record<string, unknown>[]).map((lane) => ({
+    const lanes = fourLaneSpec().lanes.map((lane) => ({
       ...lane,
       run: { workflowId: crypto.randomUUID() },
     }));
-    const unknown = await atTheSplit(fx, { ...spec, lanes });
+    const unknown = await atTheSplit(fx, splitInput({ lanes }));
     const refused = await unknown.runner.run(unknown.request);
     assertEquals(refused.kind, "failed");
     assertEquals(

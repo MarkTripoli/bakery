@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
-import type { TicketRequestIntent } from "../api/client.ts";
+import type { TicketPresetId, TicketRequestIntent } from "../api/client.ts";
 import { failureStatus } from "../app/async-state.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { issueNumber, type IssueRow, issueSnapshot } from "./issue-state.ts";
+import { BuiltInWorkflowChoice } from "./BuiltInWorkflowChoice.tsx";
+import { presetCopy } from "./task-composer-labels.ts";
 
 /** What a refused start says, from the server's answer. */
 export type StartRefusal =
@@ -29,12 +32,13 @@ export function startRefusal(error: unknown): StartRefusal {
 
 /**
  * The confirmation before work starts on an issue, shared by the list and the
- * issue page. "Start work" runs the standard coding workflow; "Plan first"
- * writes a plan and waits for approval. A second press, or a second person,
- * finds the work already under way and is shown that, not an error.
+ * issue page. It names the built-in workflow the repository runs and lets the
+ * person run the other one for this issue only; "Plan first" writes a plan and
+ * waits for approval. A second press, or a second person, finds the work
+ * already under way and is shown that, not an error.
  */
 export function StartWorkDialog(
-  { intent, onClose, onDone, onRefused, policyRevision, row }: {
+  { intent, onClose, onDone, onRefused, policyRevision, row, sourcePreset }: {
     readonly intent: TicketRequestIntent;
     readonly onClose: () => void;
     /** The request was made, or the issue was already being worked on. */
@@ -42,6 +46,8 @@ export function StartWorkDialog(
     readonly onRefused: (refusal: StartRefusal) => void;
     readonly policyRevision: number | null;
     readonly row: IssueRow;
+    /** The built-in workflow the repository's saved settings run. */
+    readonly sourcePreset: TicketPresetId;
   },
 ) {
   const { translate } = useI18n();
@@ -50,6 +56,7 @@ export function StartWorkDialog(
   const queryClient = useQueryClient();
   const number = issueNumber(row);
   const { repository } = issueSnapshot(row);
+  const [preset, setPreset] = useState<TicketPresetId>(sourcePreset);
   const start = useMutation({
     mutationKey: ["ticketRequests.create"],
     mutationFn: async () => {
@@ -59,6 +66,8 @@ export function StartWorkDialog(
         intent,
         expectedSourcePolicyRevision: policyRevision as number,
         requirementsDigest: row.requirementsDigest,
+        // Only a different choice is sent: the repository's own runs otherwise.
+        ...(preset === sourcePreset ? {} : { preset }),
         idempotencyKey: crypto.randomUUID(),
       });
       if (!result.ok) throw result.error;
@@ -106,12 +115,32 @@ export function StartWorkDialog(
         </UI.Button>
       }
     >
-      <UI.Text>
-        {translate(
-          (plan ? "issues.start.bodyPlan" : "issues.start.body") as never,
-          { repository },
-        )}
-      </UI.Text>
+      <UI.Stack gap="standard">
+        <UI.Text>
+          {translate(
+            (plan ? "issues.start.bodyPlan" : "issues.start.body") as never,
+            { repository },
+          )}
+        </UI.Text>
+        <UI.Stack gap="compact" data-testid="start-work-workflow">
+          <UI.Text variant="strong">
+            {translate("issues.start.workflow" as never)}
+          </UI.Text>
+          <BuiltInWorkflowChoice
+            disabled={start.isPending}
+            label={translate("issues.start.workflow" as never)}
+            name="start-work-workflow"
+            onChange={setPreset}
+            value={preset}
+          />
+          <UI.Text variant="caption">
+            {translate("issues.start.workflowHelp" as never, {
+              repository,
+              workflow: presetCopy(translate, sourcePreset).title,
+            })}
+          </UI.Text>
+        </UI.Stack>
+      </UI.Stack>
     </UI.AlertDialog>
   );
 }
