@@ -32,6 +32,14 @@ pub enum ButtonId {
     TryServerAgain,
     /// "How to start Bakery": opens the runbook in the browser.
     StartBakeryHelp,
+    /// A link dialog's Copy: the page copies the whole link or address.
+    CopyLink,
+    /// A link dialog's Close or Cancel.
+    Close,
+    /// "Try again" in the dialog for a page the server would not give.
+    TryPageAgain,
+    /// "Open in your browser" in the another-server dialog.
+    OpenLinkInBrowser,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -174,6 +182,7 @@ fn different_server_button() -> Button {
 fn notice_text(ctx: &Context) -> Option<String> {
     ctx.notice.map(|notice| match notice {
         Notice::Switched { address } => format!("Bakery now uses {address}."),
+        Notice::SignInForLink => "Sign in to open the page from your link.".into(),
     })
 }
 
@@ -475,7 +484,11 @@ pub fn press(button: ButtonId) -> Press {
         ButtonId::CopyAddress
         | ButtonId::SetUpKeyring
         | ButtonId::QuitBakery
-        | ButtonId::StartBakeryHelp => Press::Shell(button),
+        | ButtonId::StartBakeryHelp
+        | ButtonId::CopyLink
+        | ButtonId::Close
+        | ButtonId::TryPageAgain
+        | ButtonId::OpenLinkInBrowser => Press::Shell(button),
     }
 }
 

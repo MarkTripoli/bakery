@@ -72,5 +72,25 @@ for (
       await page.mouse.move(700, 700);
       await still(page, "usage-empty");
     });
+
+    test("someone who may not see Usage is shown a not-found page with a headline title", async ({ page }) => {
+      await usageFixture(page, { forbidden: true });
+      await page.goto("/installation/usage");
+      await expect(
+        page.getByRole("heading", { name: "This page was not found" }),
+      ).toBeVisible();
+      await expect(page.locator("[data-ui-component='emptyState']"))
+        .toHaveAttribute("data-title-style", "heading");
+      // Title and line share one start edge.
+      const headline = (await page.getByRole("heading", {
+        name: "This page was not found",
+      }).boundingBox())!;
+      const line = (await page.getByText(
+        "It may not exist, or you may not have access to it.",
+      ).boundingBox())!;
+      expect(Math.abs(headline.x - line.x)).toBeLessThan(2);
+      await page.mouse.move(700, 700);
+      await still(page, "usage-forbidden");
+    });
   });
 }

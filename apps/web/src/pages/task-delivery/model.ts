@@ -565,6 +565,8 @@ export type DeliveryModel = Readonly<{
   /** What the person may do about merging, else null. */
   merge: MergeView | null;
   now: NowCard;
+  /** Every whole commit id the section may name, so a sentence that shows a short one can draw it as a reference. */
+  commits: readonly string[];
 }>;
 
 const STOP_REASONS: ReadonlySet<string> = new Set<StopReason>([
@@ -1024,7 +1026,24 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     unavailable: input.mergeUnavailable,
   });
   const after = afterApproval(input.pullRequests, input.runId);
+  const commits = [
+    ...new Set(
+      [
+        headSha,
+        input.baseSha,
+        evidenceHeadSha,
+        ...input.checks.map((entry) => entry.headSha),
+        ...input.reviews.map((entry) => entry.headSha),
+        ...input.decisions.map((entry) => entry.headSha),
+        merge?.headSha,
+        merge?.approvedSha,
+        merge?.attemptedSha,
+        after.pullRequest?.mergedSha,
+      ].filter((sha): sha is string => typeof sha === "string" && sha !== ""),
+    ),
+  ];
   return {
+    commits,
     visible: headSha !== null || input.checks.length > 0 ||
       input.reviews.length > 0,
     headSha,
