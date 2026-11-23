@@ -9,7 +9,21 @@ export type CssDefect = {
 
 export type DiscoveredStylesheet = { path: string; policy: CssPolicy };
 
-const localVariables = new Set(["--gutter", "--target-min"]);
+const localVariables = new Set([
+  "--gutter",
+  "--target-min",
+  // React Flow's own theme variables, set on the workflow canvas (steps.css) to
+  // our tokens; the library reads them, so the names are not ours to choose.
+  "--xy-attribution-background-color",
+  "--xy-background-color",
+  "--xy-controls-box-shadow",
+  "--xy-controls-button-background-color",
+  "--xy-controls-button-background-color-hover",
+  "--xy-controls-button-border-color",
+  "--xy-controls-button-color",
+  "--xy-edge-stroke",
+  "--xy-edge-stroke-width",
+]);
 const structuralLines = [
   /^block-size: 1px$/,
   /^inline-size: 1px$/,

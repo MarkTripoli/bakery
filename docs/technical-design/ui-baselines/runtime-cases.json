@@ -864,6 +864,13 @@
       ]
     },
     {
+      "id": "ui.canvasFrame.contract.desktop-light-fine",
+      "catalogId": "ui.canvasFrame",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-canvasframe--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.capabilityList.contract.desktop-light-fine",
       "catalogId": "ui.capabilityList",
       "requiredCaseId": "contract",
@@ -875,6 +882,27 @@
       "catalogId": "ui.capacityBanner",
       "requiredCaseId": "contract",
       "storyId": "bakery-molecules-capacitybanner--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.stepGroup.contract.desktop-light-fine",
+      "catalogId": "ui.stepGroup",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stepgroup--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.outlineRow.contract.desktop-light-fine",
+      "catalogId": "ui.outlineRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-outlinerow--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.outlineList.contract.desktop-light-fine",
+      "catalogId": "ui.outlineList",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-outlinelist--contract",
       "context": "desktop-light-fine"
     },
     {
