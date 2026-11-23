@@ -1,0 +1,11 @@
+PASS [repeat] the sign-in window shows first
+PASS [repeat] pressing the button moves to waiting
+PASS [repeat] the app tried to open the browser  [ok=False]
+PASS the person signs in on the web, once  [status 200]
+PASS [repeat] 1: a new-tab link to another site goes to the browser  [[('link_to_browser', {'opened': False}), ('system_dialog', {'kind': 'browser_did_not_open'}), ('system_dialog_answer', {'button': 'close'})]]
+FAIL [repeat] 2: a second new-tab link goes to the browser  [[('system_dialog', {'kind': 'browser_did_not_open'}), ('system_dialog_answer', {'button': 'close'}), ('command', {'eval': True})]]
+FAIL [repeat] 3: a third new-tab link goes to the browser  [[('system_dialog_answer', {'button': 'close'}), ('command', {'eval': True}), ('command', {'eval': True})]]
+FAIL [repeat] 4: a link to a local file is refused with a dialog  [[('command', {'eval': True}), ('command', {'eval': True}), ('command', {'eval': True})]]
+FAIL [repeat] 5: a second link to a local file is refused with a dialog  [[('command', {'eval': True}), ('command', {'eval': True}), ('command', {'eval': True})]]
+FAIL [repeat] 6: a new-tab link still goes to the browser after them  [[('command', {'eval': True}), ('command', {'eval': True}), ('command', {'eval': True})]]
+5 passed, 5 failed
