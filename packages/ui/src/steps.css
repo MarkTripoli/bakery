@@ -667,3 +667,259 @@
 [data-ui-region="workflow-diagram"] > [data-connector]:empty {
   min-block-size: var(--space-0);
 }
+
+/*
+ * A box in the workflow diagram (#67, the canvas on React Flow). The canvas
+ * sizes it from the layout and draws the steps over it, so the frame fills
+ * whatever box it is given. 1px strong border, 8px radius, and a half-clear
+ * surface so the canvas shows through a little.
+ */
+.ui-step-group {
+  background: color-mix(in srgb, var(--color-surface) 50%, transparent);
+  block-size: 100%;
+  border: var(--border-default) solid var(--color-border-strong);
+  border-radius: var(--radius-overlay);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+.ui-step-group--selected {
+  border-color: var(--color-selection);
+  box-shadow: inset 0 0 0 var(--border-emphasis) var(--color-selection);
+}
+/* An arm is a column of an If: a caption over its steps, no frame of its own. */
+.ui-step-group[data-variant="arm"] {
+  background: transparent;
+  border: var(--border-none);
+  box-shadow: none;
+}
+.ui-step-group__top {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+  min-inline-size: 0;
+  padding-block: var(--space-1);
+  padding-inline: var(--space-2);
+}
+.ui-step-group__header {
+  align-items: center;
+  background: transparent;
+  border: var(--border-none);
+  color: var(--color-fg);
+  display: inline-flex;
+  font: var(--type-label);
+  gap: var(--space-2);
+  min-block-size: var(--size-control);
+  min-inline-size: 0;
+  padding: var(--space-0);
+  text-align: start;
+}
+button.ui-step-group__header {
+  cursor: pointer;
+}
+button.ui-step-group__header:focus-visible {
+  outline: var(--border-emphasis) solid var(--color-selection);
+  outline-offset: var(--space-0-5);
+}
+.ui-step-group[data-variant="arm"] .ui-step-group__header {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+}
+.ui-step-group__icon {
+  align-items: center;
+  color: var(--color-fg-muted);
+  display: inline-flex;
+  flex: none;
+}
+.ui-step-group__label {
+  overflow-wrap: anywhere;
+}
+.ui-step-group__limit {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+}
+.ui-step-group__code {
+  align-items: center;
+  color: var(--color-fg-muted);
+  display: inline-flex;
+  flex: none;
+}
+.ui-step-group__empty {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  padding-inline: var(--space-3);
+}
+
+/*
+ * The workflow as a list (#67): nested lists, each row a button 44px tall,
+ * children indented behind a rule, arm captions as muted rows.
+ */
+.ui-outline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: var(--space-0);
+  min-inline-size: 0;
+  padding: var(--space-0);
+}
+.ui-outline .ui-outline {
+  border-inline-start: var(--border-emphasis) solid var(--color-border);
+  margin-inline-start: var(--space-5);
+  padding-inline-start: var(--space-2);
+}
+.ui-outline__item {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.ui-outline__row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+.ui-outline__main {
+  align-items: center;
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  box-sizing: border-box;
+  color: var(--color-fg);
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--space-2);
+  min-block-size: var(--target-coarse);
+  min-inline-size: 0;
+  padding: var(--space-1) var(--space-2);
+  text-align: start;
+}
+button.ui-outline__main {
+  cursor: pointer;
+}
+button.ui-outline__main:hover {
+  border-color: var(--color-border-strong);
+}
+button.ui-outline__main:focus-visible {
+  outline: var(--border-emphasis) solid var(--color-selection);
+  outline-offset: var(--space-0-5);
+}
+.ui-outline__item[data-selected="true"] > .ui-outline__row > .ui-outline__main {
+  border-color: var(--color-selection);
+  box-shadow: inset 0 0 0 var(--border-emphasis) var(--color-selection);
+}
+.ui-outline__item[data-needs-setup="true"] > .ui-outline__row > .ui-outline__main {
+  border-color: var(--color-destructive);
+}
+.ui-outline__icon {
+  align-items: center;
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-control);
+  color: var(--color-fg-muted);
+  display: inline-flex;
+  flex: none;
+  block-size: var(--size-control);
+  inline-size: var(--size-control);
+  justify-content: center;
+}
+.ui-outline__body {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.ui-outline__title {
+  font: var(--type-body);
+  overflow-wrap: anywhere;
+}
+.ui-outline__summary {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  overflow-wrap: anywhere;
+}
+.ui-outline__needs-setup {
+  color: var(--color-destructive);
+  font: var(--type-hint);
+  overflow-wrap: anywhere;
+}
+.ui-outline__code {
+  align-items: center;
+  color: var(--color-fg-muted);
+  display: inline-flex;
+  flex: none;
+}
+.ui-outline__caption {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+  padding-block: var(--space-1);
+}
+.ui-outline__add {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+}
+
+/*
+ * The canvas (#67): React Flow draws on the page's own canvas colour and our
+ * line colour. Its stylesheet lives in an @layer, so these unlayered values
+ * win. Nothing here says "drag me": no dot grid, no handles, no selection box.
+ */
+[data-ui-region="workflow-canvas"] {
+  --xy-attribution-background-color: transparent;
+  --xy-background-color: var(--color-canvas);
+  --xy-controls-box-shadow: var(--shadow-subtle);
+  --xy-controls-button-background-color: var(--color-surface);
+  --xy-controls-button-background-color-hover: var(--color-surface-subtle);
+  --xy-controls-button-border-color: var(--color-border);
+  --xy-controls-button-color: var(--color-fg);
+  --xy-edge-stroke: var(--color-control-border);
+  --xy-edge-stroke-width: 1.5;
+  block-size: 100%;
+  inline-size: 100%;
+}
+[data-ui-region="workflow-canvas"] .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+[data-ui-region="workflow-canvas"] .react-flow__node {
+  /* A node is a step card or a box: its own component draws it. */
+  background: transparent;
+  border: var(--border-none);
+  padding: var(--space-0);
+}
+[data-ui-region="workflow-canvas"] .react-flow__controls-button {
+  block-size: var(--size-control);
+  inline-size: var(--size-control);
+}
+[data-ui-region="workflow-canvas"] .react-flow__attribution {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+}
+/* The "+" belongs to the block above it: it sits on the wire below its node,
+   centred on the wire's middle, so it is in the same Tab stop run as the block. */
+[data-canvas-add] {
+  inset-block-start: 100%;
+  inset-inline-start: 50%;
+  position: absolute;
+  translate: -50% calc((var(--space-12) - var(--target-coarse)) / 2);
+  z-index: var(--layer-tooltip);
+}
+[data-canvas-add]:has(.ui-popover[data-state="open"]) {
+  z-index: var(--layer-popover);
+}
+[data-canvas-frame] {
+  background: var(--color-canvas);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  box-sizing: border-box;
+  inline-size: 100%;
+  overflow: hidden;
+}
+@media (pointer: coarse) {
+  [data-ui-region="workflow-canvas"] .react-flow__controls-button {
+    block-size: var(--target-coarse);
+    inline-size: var(--target-coarse);
+  }
+}

@@ -165,9 +165,13 @@ export function Popover(
         ? (
           <div
             aria-label={label}
+            // `nowheel nopan` keep a pan-and-zoom surface behind the popover (the
+            // workflow canvas) from treating a scroll or drag in it as its own.
             className={[
               "ui-popover__content",
               `ui-popover__content--${variant}`,
+              "nowheel",
+              "nopan",
             ].filter(Boolean).join(" ")}
             id={contentId}
             ref={contentRef}

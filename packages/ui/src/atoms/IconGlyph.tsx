@@ -55,7 +55,8 @@ export type IconGlyphName =
   | "close"
   | "bell"
   | "warning"
-  | "question";
+  | "question"
+  | "code";
 
 // Additional shell glyphs: approved K-0 9VJ-0/9ZB-0 exports; listening bars:
 // AR1-0. Exact paths and viewports, theme-aware ink; never a font substitute.
@@ -505,6 +506,14 @@ const GLYPH_PATHS: Record<IconGlyphName, ReactNode> = {
       <circle cx="12" cy="12" r="9" />
       <path d="M9.5 9.5a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.6" />
       <path d="M12 17h.01" />
+    </>
+  ),
+
+  code: (
+    <>
+      <path d="m8 7-5 5 5 5" />
+      <path d="m16 7 5 5-5 5" />
+      <path d="m13.5 5-3 14" />
     </>
   ),
 };

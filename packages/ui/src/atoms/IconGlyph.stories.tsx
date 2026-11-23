@@ -70,6 +70,7 @@ const ConversationGlyphsStory: StoryObj = {
         "chat",
         "chevron-left",
         "lanes",
+        "code",
       ] as const)
         .map((name) => <IconGlyph key={name} name={name} />)}
     </Inline>
