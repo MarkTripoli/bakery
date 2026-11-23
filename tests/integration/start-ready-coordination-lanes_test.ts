@@ -217,3 +217,88 @@ Deno.test("a lane that names a workflow the organization does not have refuses t
     await fx.close();
   }
 });
+
+Deno.test("a lane that names another organization's published workflow refuses the plan, naming nothing of that organization (#422)", async () => {
+  const fx = await openCoordinationFixture();
+  const otherOrganizationId = crypto.randomUUID();
+  const workflowId = crypto.randomUUID();
+  try {
+    await fx.seedAliases();
+    const now = new Date();
+    await fx.owner`
+      insert into bakery.organizations (id, name, slug, metadata, created_at, updated_at, version)
+      values (${otherOrganizationId}, 'other', ${
+      "other-" + otherOrganizationId
+    }, '{}'::jsonb, ${now}, ${now}, 1)`;
+    // A published, enabled workflow in the other organization: it exists, but
+    // not for this plan's organization, so the lookup must not find it.
+    const versionId = crypto.randomUUID();
+    const spec = {
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
+      name: "lane-free",
+      inputs: {},
+      steps: [{
+        id: "flow",
+        steps: [{ id: "review", uses: "workflow.noop", with: {} }],
+      }],
+    };
+    await fx.owner`
+      insert into bakery.workflow_definitions (id, organization_id, slug, name, enabled, version)
+      values (${workflowId}, ${otherOrganizationId}, ${
+      "lane-" + workflowId.slice(0, 8)
+    }, 'Lane', true, 1)`;
+    await fx.owner`
+      insert into bakery.workflow_versions (
+        id, organization_id, workflow_id, revision, source_yaml, normalized_spec,
+        digest, status, created_by, version
+      ) values (${versionId}, ${otherOrganizationId}, ${workflowId}, 1, '',
+        ${fx.owner.json(spec)}, ${await sha256Hex(canonicalJson(spec))},
+        'published', ${fx.admin.principalId}, 1)`;
+    await fx.owner`
+      update bakery.workflow_definitions set active_version_id = ${versionId}
+       where organization_id = ${otherOrganizationId} and id = ${workflowId}`;
+
+    const parent = await fx.insertTask("another organization's workflow");
+    const response = await createPlan(fx, parent, runningSpec(workflowId));
+    const body = await response.text();
+    assertEquals(response.status, 422, body);
+    assert(body.includes("lane_workflow_unknown"), body);
+    assertEquals(body.includes(otherOrganizationId), false);
+  } finally {
+    await fx.owner`
+      update bakery.workflow_definitions set active_version_id = null
+       where organization_id = ${otherOrganizationId}`;
+    await fx.owner`
+      delete from bakery.workflow_versions where organization_id = ${otherOrganizationId}`;
+    await fx.owner`
+      delete from bakery.workflow_definitions where organization_id = ${otherOrganizationId}`;
+    await fx
+      .owner`delete from bakery.organizations where id = ${otherOrganizationId}`;
+    await fx.close();
+  }
+});
+
+Deno.test("a plan canceled after its dispatch was requested starts no lane (#422)", async () => {
+  const fx = await openCoordinationFixture();
+  try {
+    await fx.seedAliases();
+    const workflowId = await publishFreeWorkflow(fx);
+    const parent = await fx.insertTask("canceled before dispatch");
+    const plan = await materialize(
+      fx,
+      (await planOf(await createPlan(fx, parent, runningSpec(workflowId)))).id,
+    );
+    await fx.owner`
+      update bakery.coordination_plans set status = 'canceled'
+       where organization_id = ${fx.organizationId} and id = ${plan.id}`;
+    const delivered = await deliverLaneDispatches(fx);
+    assert(delivered.requests >= 1, "a dispatch request must exist to deliver");
+    assertEquals(delivered.started, []);
+    for (const key of ["contract", "web", "mobile", "integration"]) {
+      assertEquals((await taskRun(fx, childOf(plan, key))).runId, null, key);
+    }
+  } finally {
+    await fx.close();
+  }
+});
