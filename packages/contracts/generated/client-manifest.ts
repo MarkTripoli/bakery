@@ -4155,6 +4155,31 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Extensions",
+      "method": "POST",
+      "path": "/v1/tool-gateway-calls/{id}/settlement",
+      "action": "toolGatewayCalls.settle",
+      "access": "Admin",
+      "permission": "capabilityBinding:manage",
+      "input": "ToolGatewayCallSettle",
+      "output": "ToolGatewayCall",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Access",
       "method": "GET",
       "path": "/v1/me",
@@ -20121,6 +20146,7 @@ export const clientManifest = {
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
+            "toolGatewayCalls.settle",
             "identity.get",
             "profile.get",
             "profile.update",
@@ -32793,6 +32819,39 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "ToolGatewayCallSettle": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "The outcome an Admin records for a gateway call whose result never came back: completed when the tool's effect is confirmed to have happened, failed when it is confirmed not to have happened."
+        },
+        "failureCode": {
+          "description": "ToolGatewayCallSettle.failureCode may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100,
+              "description": "Short machine-readable reason recorded with a failed settlement, such as not_applied; refused with completed, and defaults to settled_failed when a failed settlement omits it. ToolGatewayCallSettle.failureCode must contain at most 100 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "An Admin's settlement of one tool gateway call left in status sent because its outcome was unknown, so a replay of its idempotency key answers the recorded outcome instead of staying unresolved; the call is never sent again."
     },
     "McpUseGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -49810,6 +49869,7 @@ export const clientManifest = {
                   "capabilityBindings.create",
                   "capabilityBindings.list",
                   "capabilityBindings.delete",
+                  "toolGatewayCalls.settle",
                   "identity.get",
                   "profile.get",
                   "profile.update",
@@ -72887,6 +72947,7 @@ export const clientManifest = {
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
+            "toolGatewayCalls.settle",
             "identity.get",
             "profile.get",
             "profile.update",
@@ -77235,6 +77296,7 @@ export const clientManifest = {
             "enum": [
               "model",
               "web",
+              "paper",
               "git",
               "shell",
               "browser",
@@ -77397,6 +77459,7 @@ export const clientManifest = {
                   "enum": [
                     "model",
                     "web",
+                    "paper",
                     "git",
                     "shell",
                     "browser",
@@ -77793,6 +77856,7 @@ export const clientManifest = {
                   "enum": [
                     "model",
                     "web",
+                    "paper",
                     "git",
                     "shell",
                     "browser",
@@ -111053,6 +111117,97 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant."
+    },
+    "ToolGatewayCall": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the recorded call."
+        },
+        "attemptId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The job attempt whose session made the call."
+        },
+        "mcpConnectionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The MCP connection the call was sent to."
+        },
+        "toolName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The tool's name in the connection's pinned snapshot."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "Whether the tool was classified read, so the call changed nothing outside Bakery."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "sent",
+            "completed",
+            "failed",
+            "refused"
+          ],
+          "description": "sent while the outcome is unknown; completed or failed once known; refused when the provider rejected it before any effect."
+        },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Machine-readable reason of a failed call, or null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ToolGatewayCall.failureCode may be null in the safe projection."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the call was recorded, before it was sent."
+        },
+        "settledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the outcome was recorded, or null while the call is still sent."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ToolGatewayCall.settledAt may be null in the safe projection."
+        }
+      },
+      "required": [
+        "id",
+        "attemptId",
+        "mcpConnectionId",
+        "toolName",
+        "readOnly",
+        "status",
+        "failureCode",
+        "createdAt",
+        "settledAt"
+      ],
+      "additionalProperties": false,
+      "description": "One call an agent session made through its worker's tool gateway, as recorded before it was sent: the audit of the call and the at-most-once record of a write. Its tool result is not returned here."
     },
     "StorageEntry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

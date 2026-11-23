@@ -352,6 +352,73 @@ Deno.test("a write whose outcome is unknown is never sent a second time (#436)",
     assertEquals(server.calls.length, 1);
   }));
 
+Deno.test("an Admin settles a write whose outcome is unknown, once, and it is audited (#436)", () =>
+  withGateway(async (fixture, server) => {
+    const s = await session(fixture);
+    await bind(fixture, s, { stepKey: "worker" }, ["create_note"]);
+    server.answerWith(() => null);
+    const key = crypto.randomUUID();
+    const first = await invoke(fixture, s, "create_note", { text: "x" }, key);
+    assertEquals(await problemCode(first), "STATE_CONFLICT");
+    const sent = await fixture.pgDatabase.query<{ id: string; status: string }>(
+      `select id, status from bakery.tool_gateway_calls
+        where organization_id = $1 and attempt_id = $2`,
+      [fixture.organizationId, s.assignment.attemptId],
+    );
+    assertEquals(sent.rows.map((row) => row.status), ["sent"]);
+    const callId = sent.rows[0]!.id;
+    const path = `/v1/tool-gateway-calls/${callId}/settlement`;
+
+    // A completed settlement carries no failure code.
+    const mixed = await adminRequest(fixture, path, {
+      status: "completed",
+      failureCode: "nope",
+    }, { idempotencyKey: crypto.randomUUID() });
+    assertEquals(await problemCode(mixed), "UNPROCESSABLE");
+    const unknown = await adminRequest(
+      fixture,
+      `/v1/tool-gateway-calls/${crypto.randomUUID()}/settlement`,
+      { status: "completed" },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(await problemCode(unknown), "RESOURCE_NOT_FOUND");
+
+    const settled = await adminRequest(fixture, path, { status: "completed" }, {
+      idempotencyKey: crypto.randomUUID(),
+    });
+    assertEquals(settled.status, 201, await settled.clone().text());
+    const call = await settled.json() as {
+      id: string;
+      status: string;
+      failureCode: string | null;
+      settledAt: string | null;
+      toolName: string;
+    };
+    assertEquals(call.id, callId);
+    assertEquals(call.status, "completed");
+    assertEquals(call.failureCode, null);
+    assertEquals(call.toolName, "create_note");
+    assert(call.settledAt !== null);
+
+    // Settled once: a second settlement, either way, is refused.
+    const again = await adminRequest(fixture, path, { status: "failed" }, {
+      idempotencyKey: crypto.randomUUID(),
+    });
+    assertEquals(await problemCode(again), "STATE_CONFLICT");
+
+    const audit = await fixture.pgDatabase.query<
+      { details: { status: string } }
+    >(
+      `select details from bakery.audit_events
+        where organization_id = $1 and operation = 'toolGatewayCalls.settle'
+          and resource_id = $2`,
+      [fixture.organizationId, callId],
+    );
+    assertEquals(audit.rows.map((row) => row.details.status), ["completed"]);
+    // Settling records the outcome; nothing is sent to the server again.
+    assertEquals(server.calls.length, 1);
+  }));
+
 Deno.test("an Admin binds an agent version to exact tools, lists and withdraws it; a version's pins stay (#436)", () =>
   withGateway(async (fixture) => {
     const s = await session(fixture);

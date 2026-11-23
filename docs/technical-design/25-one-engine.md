@@ -679,12 +679,17 @@ same pinned-tool door as a `tool.call` step, so the remote credential never
 enters the session. Each call is recorded in `tool_gateway_calls` before it is
 sent: a replayed Idempotency-Key answers what happened, and a write whose
 outcome is unknown stays `sent` and is refused (`tool_call_outcome_unknown`)
-rather than sent twice.
+rather than sent twice. An Admin who has checked the outside system settles
+such a call with `toolGatewayCalls.settle`
+(`POST /v1/tool-gateway-calls/{id}/settlement`, `completed` or `failed`):
+only a `sent` call, only once, scoped to the organization and audited.
 
-**Paper as a binding.** `rpi.design` no longer needs a worker that advertises
-a `paper` capability. On the Claude harness the design step has its design tool
-exactly when its session's gateway lists a bound tool, so a Paper connection
-bound to the step, its seat or its agent is the design tool.
+**Paper as a binding.** `rpi.design` still requires `paper`, and a host meets
+it with `paper` or with `tool-gateway`, which a worker running the Claude
+harness advertises (`HOST_CAPABILITY_SUBSTITUTES`). On the Claude harness the
+design step has its design tool exactly when its session's gateway lists a
+bound tool, so a Paper connection bound to the step, its seat or its agent is
+the design tool. A Pi or Codex host without `paper` never claims the step.
 
 Not yet served: native integration actions through the gateway (the route
 refuses `integrationConnectionId` with `tool_invocation_integration_unsupported`),

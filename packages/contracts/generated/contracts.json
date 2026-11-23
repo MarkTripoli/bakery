@@ -4224,6 +4224,31 @@
       "implemented": true
     },
     {
+      "group": "Extensions",
+      "method": "POST",
+      "path": "/v1/tool-gateway-calls/{id}/settlement",
+      "action": "toolGatewayCalls.settle",
+      "access": "Admin",
+      "permission": "capabilityBinding:manage",
+      "input": "ToolGatewayCallSettle",
+      "output": "ToolGatewayCall",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Access",
       "method": "GET",
       "path": "/v1/me",
@@ -15316,6 +15341,7 @@
     "capabilityBindings.list",
     "capabilityBindings.create",
     "capabilityBindings.delete",
+    "toolGatewayCalls.settle",
     "batches.list",
     "batches.startable",
     "batches.get",
@@ -26328,6 +26354,70 @@
             },
             "500": {
               "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/tool-gateway-calls/{id}/settlement": {
+        "post": {
+          "operationId": "toolGatewayCalls.settle",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ToolGatewayCall"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolGatewayCallSettle"
+                }
+              }
             }
           }
         }
@@ -59626,6 +59716,7 @@
                 "capabilityBindings.create",
                 "capabilityBindings.list",
                 "capabilityBindings.delete",
+                "toolGatewayCalls.settle",
                 "identity.get",
                 "profile.get",
                 "profile.update",
@@ -64053,9 +64144,9 @@
               "items": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. Each array item follows this format."
+                "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. A substitute capability meets the action capability it stands for: tool-gateway, which a worker running the Claude harness advertises because it serves each session its bound tools through a local MCP gateway, meets paper, so such a host may claim rpi.design; a Pi or Codex host must advertise paper itself. Each array item follows this format."
               },
-              "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. WorkerClaim.capabilities must contain at most 100 items."
+              "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. A substitute capability meets the action capability it stands for: tool-gateway, which a worker running the Claude harness advertises because it serves each session its bound tools through a local MCP gateway, meets paper, so such a host may claim rpi.design; a Pi or Codex host must advertise paper itself. WorkerClaim.capabilities must contain at most 100 items."
             },
             "supportedActions": {
               "description": "Optional exact action allow-list for this executor; the server never assigns an action outside it. WorkerClaim.supportedActions must contain at most 100 items.",
@@ -82541,6 +82632,39 @@
           ],
           "additionalProperties": false,
           "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+        },
+        "ToolGatewayCallSettle": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "completed",
+                "failed"
+              ],
+              "description": "The outcome an Admin records for a gateway call whose result never came back: completed when the tool's effect is confirmed to have happened, failed when it is confirmed not to have happened."
+            },
+            "failureCode": {
+              "description": "ToolGatewayCallSettle.failureCode may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100,
+                  "description": "Short machine-readable reason recorded with a failed settlement, such as not_applied; refused with completed, and defaults to settled_failed when a failed settlement omits it. ToolGatewayCallSettle.failureCode must contain at most 100 characters."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "An Admin's settlement of one tool gateway call left in status sent because its outcome was unknown, so a replay of its idempotency key answers the recorded outcome instead of staying unresolved; the call is never sent again."
         },
         "McpUseGrantCreate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -111847,6 +111971,7 @@
                 "capabilityBindings.create",
                 "capabilityBindings.list",
                 "capabilityBindings.delete",
+                "toolGatewayCalls.settle",
                 "identity.get",
                 "profile.get",
                 "profile.update",
@@ -112545,6 +112670,7 @@
                 "capabilityBindings.create",
                 "capabilityBindings.list",
                 "capabilityBindings.delete",
+                "toolGatewayCalls.settle",
                 "identity.get",
                 "profile.get",
                 "profile.update",
@@ -113243,6 +113369,7 @@
                 "capabilityBindings.create",
                 "capabilityBindings.list",
                 "capabilityBindings.delete",
+                "toolGatewayCalls.settle",
                 "identity.get",
                 "profile.get",
                 "profile.update",
@@ -159480,6 +159607,7 @@
                       "capabilityBindings.create",
                       "capabilityBindings.list",
                       "capabilityBindings.delete",
+                      "toolGatewayCalls.settle",
                       "identity.get",
                       "profile.get",
                       "profile.update",
@@ -181462,6 +181590,7 @@
                 "enum": [
                   "model",
                   "web",
+                  "paper",
                   "git",
                   "shell",
                   "browser",
@@ -181624,6 +181753,7 @@
                       "enum": [
                         "model",
                         "web",
+                        "paper",
                         "git",
                         "shell",
                         "browser",
@@ -181877,6 +182007,7 @@
                 "enum": [
                   "model",
                   "web",
+                  "paper",
                   "git",
                   "shell",
                   "browser",
@@ -182151,6 +182282,7 @@
                       "enum": [
                         "model",
                         "web",
+                        "paper",
                         "git",
                         "shell",
                         "browser",
@@ -270900,6 +271032,97 @@
           "additionalProperties": false,
           "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant."
         },
+        "ToolGatewayCall": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID identifying the recorded call."
+            },
+            "attemptId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The job attempt whose session made the call."
+            },
+            "mcpConnectionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The MCP connection the call was sent to."
+            },
+            "toolName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The tool's name in the connection's pinned snapshot."
+            },
+            "readOnly": {
+              "type": "boolean",
+              "description": "Whether the tool was classified read, so the call changed nothing outside Bakery."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "sent",
+                "completed",
+                "failed",
+                "refused"
+              ],
+              "description": "sent while the outcome is unknown; completed or failed once known; refused when the provider rejected it before any effect."
+            },
+            "failureCode": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Machine-readable reason of a failed call, or null otherwise."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "ToolGatewayCall.failureCode may be null in the safe projection."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the call was recorded, before it was sent."
+            },
+            "settledAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when the outcome was recorded, or null while the call is still sent."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "ToolGatewayCall.settledAt may be null in the safe projection."
+            }
+          },
+          "required": [
+            "id",
+            "attemptId",
+            "mcpConnectionId",
+            "toolName",
+            "readOnly",
+            "status",
+            "failureCode",
+            "createdAt",
+            "settledAt"
+          ],
+          "additionalProperties": false,
+          "description": "One call an agent session made through its worker's tool gateway, as recorded before it was sent: the audit of the call and the at-most-once record of a write. Its tool result is not returned here."
+        },
         "StorageEntry": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -289539,7 +289762,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:0061a57e9f06a2c4fc8f49da6ff2f436815d71e41fa77002285281b6bb07c81f",
+  "compatibilityDigest": "sha256:50f5d0325927f3dc0f46f7b7ec4b909ec978c1386b782970f3993f74bb4b3e2c",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -297033,6 +297256,7 @@
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
+            "toolGatewayCalls.settle",
             "identity.get",
             "profile.get",
             "profile.update",
@@ -301470,9 +301694,9 @@
           "items": {
             "type": "string",
             "maxLength": 65536,
-            "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. Each array item follows this format."
+            "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. A substitute capability meets the action capability it stands for: tool-gateway, which a worker running the Claude harness advertises because it serves each session its bound tools through a local MCP gateway, meets paper, so such a host may claim rpi.design; a Pi or Codex host must advertise paper itself. Each array item follows this format."
           },
-          "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. WorkerClaim.capabilities must contain at most 100 items."
+          "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. A substitute capability meets the action capability it stands for: tool-gateway, which a worker running the Claude harness advertises because it serves each session its bound tools through a local MCP gateway, meets paper, so such a host may claim rpi.design; a Pi or Codex host must advertise paper itself. WorkerClaim.capabilities must contain at most 100 items."
         },
         "supportedActions": {
           "description": "Optional exact action allow-list for this executor; the server never assigns an action outside it. WorkerClaim.supportedActions must contain at most 100 items.",
@@ -320018,6 +320242,39 @@
       ],
       "additionalProperties": false,
       "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "ToolGatewayCallSettle": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "The outcome an Admin records for a gateway call whose result never came back: completed when the tool's effect is confirmed to have happened, failed when it is confirmed not to have happened."
+        },
+        "failureCode": {
+          "description": "ToolGatewayCallSettle.failureCode may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100,
+              "description": "Short machine-readable reason recorded with a failed settlement, such as not_applied; refused with completed, and defaults to settled_failed when a failed settlement omits it. ToolGatewayCallSettle.failureCode must contain at most 100 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "An Admin's settlement of one tool gateway call left in status sent because its outcome was unknown, so a replay of its idempotency key answers the recorded outcome instead of staying unresolved; the call is never sent again."
     },
     "McpUseGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -349434,6 +349691,7 @@
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
+            "toolGatewayCalls.settle",
             "identity.get",
             "profile.get",
             "profile.update",
@@ -350132,6 +350390,7 @@
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
+            "toolGatewayCalls.settle",
             "identity.get",
             "profile.get",
             "profile.update",
@@ -350830,6 +351089,7 @@
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
+            "toolGatewayCalls.settle",
             "identity.get",
             "profile.get",
             "profile.update",
@@ -397217,6 +397477,7 @@
                   "capabilityBindings.create",
                   "capabilityBindings.list",
                   "capabilityBindings.delete",
+                  "toolGatewayCalls.settle",
                   "identity.get",
                   "profile.get",
                   "profile.update",
@@ -419239,6 +419500,7 @@
             "enum": [
               "model",
               "web",
+              "paper",
               "git",
               "shell",
               "browser",
@@ -419401,6 +419663,7 @@
                   "enum": [
                     "model",
                     "web",
+                    "paper",
                     "git",
                     "shell",
                     "browser",
@@ -419654,6 +419917,7 @@
             "enum": [
               "model",
               "web",
+              "paper",
               "git",
               "shell",
               "browser",
@@ -419928,6 +420192,7 @@
                   "enum": [
                     "model",
                     "web",
+                    "paper",
                     "git",
                     "shell",
                     "browser",
@@ -508776,6 +509041,97 @@
       ],
       "additionalProperties": false,
       "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant."
+    },
+    "ToolGatewayCall": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the recorded call."
+        },
+        "attemptId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The job attempt whose session made the call."
+        },
+        "mcpConnectionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The MCP connection the call was sent to."
+        },
+        "toolName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The tool's name in the connection's pinned snapshot."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "Whether the tool was classified read, so the call changed nothing outside Bakery."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "sent",
+            "completed",
+            "failed",
+            "refused"
+          ],
+          "description": "sent while the outcome is unknown; completed or failed once known; refused when the provider rejected it before any effect."
+        },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Machine-readable reason of a failed call, or null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ToolGatewayCall.failureCode may be null in the safe projection."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the call was recorded, before it was sent."
+        },
+        "settledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the outcome was recorded, or null while the call is still sent."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ToolGatewayCall.settledAt may be null in the safe projection."
+        }
+      },
+      "required": [
+        "id",
+        "attemptId",
+        "mcpConnectionId",
+        "toolName",
+        "readOnly",
+        "status",
+        "failureCode",
+        "createdAt",
+        "settledAt"
+      ],
+      "additionalProperties": false,
+      "description": "One call an agent session made through its worker's tool gateway, as recorded before it was sent: the audit of the call and the at-most-once record of a write. Its tool result is not returned here."
     },
     "StorageEntry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

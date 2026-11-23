@@ -19,6 +19,8 @@ import {
   mcpConnectionImplementedActions,
   McpServerImplementedAction as Action,
   mcpServerImplementedActions,
+  ToolGatewayCallImplementedAction as GatewayCallAction,
+  toolGatewayCallImplementedActions,
 } from "@bakery/contracts/implemented-actions";
 import { createApiRouter, StandardError } from "@bakery/contracts/http";
 import type { ActionContext } from "@bakery/contracts/action-registry";
@@ -42,6 +44,7 @@ import {
   createCapabilityBindingsListHandler,
   deleteCapabilityBinding,
 } from "./binding-commands.ts";
+import { settleToolGatewayCall } from "./gateway-call-commands.ts";
 import {
   createMcpUseGrant,
   listMcpUseGrants,
@@ -269,11 +272,23 @@ export function createMcpActionRegistry(
     policy: admin,
     handler: deleteCapabilityBinding,
   });
+  // A gateway write whose outcome is unknown stays sent until an Admin who
+  // checked the outside system records what happened (#436).
+  registry.register({
+    name: GatewayCallAction.ToolGatewayCallsSettle,
+    method: HttpMethod.Post,
+    path: "/v1/tool-gateway-calls/:id/settlement",
+    input: contractSchemas.ToolGatewayCallSettle,
+    output: contractSchemas.ToolGatewayCall,
+    policy: admin,
+    handler: settleToolGatewayCall,
+  });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
     ...capabilityBindingImplementedActions,
+    ...toolGatewayCallImplementedActions,
   ]);
   return registry;
 }
@@ -293,6 +308,7 @@ export function createMcpManagementRoutes(options: {
       "/v1/mcp-servers",
       "/v1/mcp-connections",
       "/v1/capability-bindings",
+      "/v1/tool-gateway-calls",
     ]
   ) {
     app.use(path, options.session);

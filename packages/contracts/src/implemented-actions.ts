@@ -627,6 +627,19 @@ export const capabilityBindingImplementedActions = Object.freeze(
   Object.values(CapabilityBindingImplementedAction),
 );
 
+/**
+ * Tool gateway calls (#436): an Admin settles a write whose outcome the
+ * gateway could not learn, so it is never sent again and never left unknown.
+ */
+export const ToolGatewayCallImplementedAction = Object.freeze(
+  {
+    ToolGatewayCallsSettle: "toolGatewayCalls.settle",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const toolGatewayCallImplementedActions = Object.freeze(
+  Object.values(ToolGatewayCallImplementedAction),
+);
+
 /** Registered workflow action discovery served by the handwritten Hono routes. */
 export const WorkflowActionDiscoveryImplementedAction = Object.freeze(
   {
@@ -1047,6 +1060,7 @@ export const implementedActions = Object.freeze(
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
     ...capabilityBindingImplementedActions,
+    ...toolGatewayCallImplementedActions,
     ...batchImplementedActions,
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
