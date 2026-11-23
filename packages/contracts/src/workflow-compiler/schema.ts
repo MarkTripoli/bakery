@@ -11,6 +11,13 @@ const IDENTIFIER = /^[a-z][a-z0-9_]{1,63}$/;
 const FIELD_SEGMENT = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** A tools section entry name: a plain identifier, so `name.tool` splits once. */
+export const WORKFLOW_TOOL_ENTRY_NAME = /^[a-z][a-z0-9_]{0,63}$/;
+/** An MCP tool name as a server declares it. */
+export const WORKFLOW_MCP_TOOL_NAME = /^[A-Za-z0-9_][A-Za-z0-9_.\-]{0,127}$/;
+/** A step's reference into the tools section: `entry` or `entry.tool`. */
+export const WORKFLOW_STEP_TOOL_REFERENCE =
+  /^[a-z][a-z0-9_]{0,63}(?:\.[A-Za-z0-9_][A-Za-z0-9_.\-]{0,127})?$/;
 
 function described<T extends z.ZodType>(schema: T, description: string): T {
   return schema.describe(description) as T;
@@ -307,6 +314,11 @@ export type WorkflowActionNode = {
   skills?: string[] | undefined;
   /** Role (seat) this step runs as, when it declares one. */
   role?: string | undefined;
+  /**
+   * Tools from the workflow's tools section this step's session may call:
+   * `name` for every tool the entry allows, `name.tool` for one of them.
+   */
+  tools?: string[] | undefined;
   /** Named input slots, in authored order, each binding the bytes it pins. */
   inputs?: WorkflowInputSlot[] | undefined;
   /** Named output slots the step must publish when it completes. */
@@ -444,6 +456,14 @@ const actionNodeSchema = z.object({
     .describe(
       "Role (seat) this step runs as; a step role is declared per step and never implies a grant.",
     ),
+  tools: z.array(
+    described(
+      z.string().regex(WORKFLOW_STEP_TOOL_REFERENCE),
+      "A tools section entry name, or an entry name and one of its tools joined by a dot.",
+    ),
+  ).max(32).optional().describe(
+    "Sorted, duplicate-free references into the workflow tools section: the MCP tools this step's session may call through its tool gateway; digest-affecting.",
+  ),
   inputs: z.array(
     z.object({
       name: nameSchema,
@@ -669,6 +689,28 @@ const inputSchema = z.object({
     ),
 }).strict().describe("Declared workflow input.");
 
+/** One named connection and the tools a workflow may use from it (25-one-engine.md 15.5). */
+export const WorkflowToolsEntrySchema = z.object({
+  connectionId: z.string().regex(UUID).describe(
+    "Lower-case MCP connection the entry's tools are called on; pinned to its capability snapshot when the version is published.",
+  ),
+  allow: z.array(
+    described(
+      z.string().regex(WORKFLOW_MCP_TOOL_NAME),
+      "Exact tool name as the server declares it; never a wildcard.",
+    ),
+  ).min(1).max(64).describe(
+    "Sorted, duplicate-free tool names the workflow may call on the connection; steps and seats narrow from these.",
+  ),
+  seats: z.array(
+    described(z.string().regex(IDENTIFIER), "Seat (step role) name."),
+  ).max(32).optional().describe(
+    "Sorted, duplicate-free seats whose every step gets all of the entry's allowed tools.",
+  ),
+}).strict().describe(
+  "A named connection in the workflow tools section, with the tools it allows and the seats that get them.",
+);
+
 export const WorkflowSemanticDocumentSchema = z.object({
   compilerVersion: z.literal(2).describe(
     "Compiler semantics version; changing it changes every digest.",
@@ -704,6 +746,12 @@ export const WorkflowSemanticDocumentSchema = z.object({
   ),
   cancel: z.enum(["stop-started-actions"]).optional().describe(
     "Cancellation policy for started actions.",
+  ),
+  tools: z.record(
+    described(z.string().regex(WORKFLOW_TOOL_ENTRY_NAME), "Tools entry name."),
+    WorkflowToolsEntrySchema,
+  ).optional().describe(
+    "The workflow tools section: named MCP connections with their allowed tools, referenced by steps and seats; digest-affecting.",
   ),
   steps: z.array(
     described(z.lazy(() => WorkflowNodeSchema), "Top-level workflow node."),

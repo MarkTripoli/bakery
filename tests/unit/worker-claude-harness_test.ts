@@ -7,6 +7,7 @@ import {
   createClaudeHarnessExecutor,
   selectClaudeResumeSession,
 } from "../../apps/worker/src/claude-harness.ts";
+import type { ToolGatewayFactory } from "../../apps/worker/src/tool-gateway.ts";
 import { outcomeResult } from "../../apps/worker/src/supervisor-support.ts";
 import {
   contractSchemas,
@@ -915,8 +916,10 @@ function freeformExecutor(
   executable: string,
   published: Uint8Array[],
   timeLimitMs = 5_000,
+  toolGateway?: ToolGatewayFactory,
 ) {
   return createClaudeHarnessExecutor({
+    ...(toolGateway === undefined ? {} : { toolGateway }),
     publishFor: () => async (request) => {
       published.push(request.bytes);
       return {
@@ -1277,6 +1280,72 @@ ${[INIT, assistant("done"), resultLine()].join("\n")}`,
       1,
       "nothing published for the refused attempt",
     );
+  },
+});
+
+// #436: with a tool gateway, the design tool is a capability binding. A design
+// step whose session lists no tool has no design tool; one that lists a tool
+// (a Paper connection bound to the step, its seat or its agent) has one.
+Deno.test({
+  name:
+    "with a tool gateway, rpi.design has its design tool exactly when the session lists a bound tool",
+  ...RUN_PERMISSIONS,
+  fn: async () => {
+    const scratch = await prepareScratchRepository("bakery-claude-gateway-");
+    const opened: string[] = [];
+    const closed: string[] = [];
+    const gatewayListing = (names: string[]): ToolGatewayFactory =>
+    (
+      assignment,
+    ) => {
+      opened.push(assignment.attemptId);
+      return Promise.resolve({
+        url: "http://127.0.0.1:1/mcp",
+        token: "t",
+        tools: names.map((name) => ({
+          name,
+          toolName: name,
+          connectionId: crypto.randomUUID(),
+          description: "",
+          inputSchema: { type: "object" },
+          readOnly: false,
+        })),
+        mcpConfig: () => ({}),
+        close: () => {
+          closed.push(assignment.attemptId);
+          return Promise.resolve();
+        },
+      });
+    };
+    const design = async (factory: ToolGatewayFactory) => {
+      const outcome = await freeformExecutor(
+        scratch.dir,
+        `${scratch.dir}/never-run`,
+        [],
+        5_000,
+        factory,
+      ).execute(
+        {
+          ...freeformAssignment(),
+          action: "rpi.design",
+          input: { researchArtifact: crypto.randomUUID() },
+        } as unknown as JobAssignment,
+        new AbortController().signal,
+      );
+      return (outcome as unknown as { fault: { code: string } }).fault.code;
+    };
+    assertEquals(
+      await design(gatewayListing([])),
+      "RPI_CAPABILITY_UNAVAILABLE",
+    );
+    // The design tool is there; the step fails next for its missing input.
+    assertEquals(
+      await design(gatewayListing(["write_html"])),
+      "RPI_INPUT_MISSING",
+    );
+    // Every gateway the harness opened is closed when the step ends.
+    assertEquals(closed, opened);
+    assertEquals(opened.length, 2);
   },
 });
 

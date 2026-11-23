@@ -1494,6 +1494,16 @@ const transportSchemas = {
           "description": "Filters to bindings scoped to this workflow step key; only meaningful together with workflowVersionId, since a step-scoped binding always belongs to a workflow version."
         },
         {
+          "name": "seatKey",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Filters to bindings owned by this seat of a workflow version; only meaningful together with workflowVersionId."
+        },
+        {
           "name": "allowedOperations",
           "type": "string[]",
           "required": false,
@@ -1540,8 +1550,14 @@ const transportSchemas = {
         {
           "name": "integrationConnectionId",
           "type": "uuid",
-          "required": true,
-          "description": "Binds this invocation to one configured provider account; the server resolves its external account identity."
+          "required": false,
+          "description": "Integration connection the invocation runs on; exactly one of integrationConnectionId and mcpConnectionId is set."
+        },
+        {
+          "name": "mcpConnectionId",
+          "type": "uuid",
+          "required": false,
+          "description": "MCP server connection whose pinned tool the session calls through its tool gateway; exactly one of integrationConnectionId and mcpConnectionId is set."
         },
         {
           "name": "leaseToken",
@@ -1560,6 +1576,18 @@ const transportSchemas = {
             "min": 0
           },
           "description": "Monotonic fence value bound to the current attempt; the server rejects the invocation once a newer attempt has advanced this job's fence."
+        },
+        {
+          "name": "workerSessionId",
+          "type": "uuid",
+          "required": false,
+          "description": "Worker session that holds the attempt; required for protocol v2 hosts."
+        },
+        {
+          "name": "workerSessionGeneration",
+          "type": "decimalString",
+          "required": false,
+          "description": "Generation of that worker session; required with workerSessionId."
         },
         {
           "name": "toolName",
@@ -1591,7 +1619,7 @@ const transportSchemas = {
           "description": "Milliseconds the server allows the brokered provider call to run before the invocation is failed; defaults to 60000, at most 300000. A timed-out call that may have reached the provider is recorded as an uncertain effect and reconciled, not retried blindly."
         }
       ],
-      "description": "Envelope a worker attempt uses to invoke one brokered integration tool mid-run under its current lease; the server checks the capability grant, repository/run budget caps and provider quota before executing, then reconciles the resulting effect."
+      "description": "Envelope a worker attempt uses to invoke one tool from its session's effective tools mid-run under its current lease; the server checks the lease, the capability binding of the attempt's agent, seat or step, the connection's pin and drift before sending, and records the call."
     },
     "CapabilityBindingCreate": {
       "fields": [
@@ -1639,6 +1667,16 @@ const transportSchemas = {
             "maxLength": 200
           },
           "description": "Identifies the specific workflow step this binding scopes to within its owning workflow version; omit to bind at the whole-workflow level rather than one step."
+        },
+        {
+          "name": "seatKey",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Seat (the role a step runs as) that owns this binding inside a workflow version; requires workflowVersionId, and every step of that version running as this seat gets the bound tools in its tool gateway."
         },
         {
           "name": "mcpConnectionId",
@@ -4862,7 +4900,7 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 100
           },
-          "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs."
+          "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. A substitute capability meets the action capability it stands for: tool-gateway, which a worker running the Claude harness advertises because it serves each session its bound tools through a local MCP gateway, meets paper, so such a host may claim rpi.design; a Pi or Codex host must advertise paper itself."
         },
         {
           "name": "supportedActions",
@@ -13372,6 +13410,35 @@ const transportSchemas = {
         "the tool must be in the connection's current snapshot"
       ],
       "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "ToolGatewayCallSettle": {
+      "fields": [
+        {
+          "name": "status",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "The outcome an Admin records for a gateway call whose result never came back: completed when the tool's effect is confirmed to have happened, failed when it is confirmed not to have happened."
+        },
+        {
+          "name": "failureCode",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Short machine-readable reason recorded with a failed settlement, such as not_applied; refused with completed, and defaults to settled_failed when a failed settlement omits it."
+        }
+      ],
+      "rules": [
+        "only a call still in status sent can be settled",
+        "failureCode is refused when status is completed"
+      ],
+      "description": "An Admin's settlement of one tool gateway call left in status sent because its outcome was unknown, so a replay of its idempotency key answers the recorded outcome instead of staying unresolved; the call is never sent again."
     },
     "McpUseGrantCreate": {
       "fields": [
@@ -24677,6 +24744,7 @@ const transportSchemas = {
         "skillVersionOwnerId",
         "automationVersionId",
         "stepKey",
+        "seatKey",
         "mcpConnectionId",
         "integrationConnectionId",
         "skillVersionId",
@@ -24694,6 +24762,7 @@ const transportSchemas = {
         "skillVersionOwnerId": "uuid|null",
         "automationVersionId": "uuid|null",
         "stepKey": "string|null",
+        "seatKey": "string|null",
         "mcpConnectionId": "uuid|null",
         "integrationConnectionId": "uuid|null",
         "skillVersionId": "uuid|null",
@@ -24710,6 +24779,7 @@ const transportSchemas = {
         "skillVersionOwnerId",
         "automationVersionId",
         "stepKey",
+        "seatKey",
         "mcpConnectionId",
         "integrationConnectionId",
         "skillVersionId"
@@ -24723,6 +24793,7 @@ const transportSchemas = {
         "skillVersionOwnerId": "Stable UUID linking this record to the related skill version owner entity.",
         "automationVersionId": "Stable UUID linking this record to the related automation version entity.",
         "stepKey": "Stable key identifying the workflow step within the run.",
+        "seatKey": "Seat (step role) of the owning workflow version that holds this binding; null when the owner is not a seat.",
         "mcpConnectionId": "Stable UUID linking this record to the related mcp connection entity.",
         "integrationConnectionId": "Stable UUID linking this record to the related integration connection entity.",
         "skillVersionId": "Stable UUID linking this record to the related skill version entity.",
@@ -35150,6 +35221,46 @@ const transportSchemas = {
       "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant.",
       "fieldDescriptions": {
         "items": "The connection's grants, newest first."
+      }
+    },
+    "ToolGatewayCall": {
+      "fields": [
+        "id",
+        "attemptId",
+        "mcpConnectionId",
+        "toolName",
+        "readOnly",
+        "status",
+        "failureCode",
+        "createdAt",
+        "settledAt"
+      ],
+      "nullableFields": [
+        "failureCode",
+        "settledAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "attemptId": "uuid",
+        "mcpConnectionId": "uuid",
+        "toolName": "string",
+        "readOnly": "boolean",
+        "status": "enum(sent|completed|failed|refused)",
+        "failureCode": "string",
+        "createdAt": "timestamp",
+        "settledAt": "timestamp"
+      },
+      "description": "One call an agent session made through its worker's tool gateway, as recorded before it was sent: the audit of the call and the at-most-once record of a write. Its tool result is not returned here.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the recorded call.",
+        "attemptId": "The job attempt whose session made the call.",
+        "mcpConnectionId": "The MCP connection the call was sent to.",
+        "toolName": "The tool's name in the connection's pinned snapshot.",
+        "readOnly": "Whether the tool was classified read, so the call changed nothing outside Bakery.",
+        "status": "sent while the outcome is unknown; completed or failed once known; refused when the provider rejected it before any effect.",
+        "failureCode": "Machine-readable reason of a failed call, or null otherwise.",
+        "createdAt": "UTC timestamp when the call was recorded, before it was sent.",
+        "settledAt": "UTC timestamp when the outcome was recorded, or null while the call is still sent."
       }
     },
     "StorageEntry": {
