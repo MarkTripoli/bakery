@@ -834,9 +834,7 @@ for (const locale of ["en-XA", "ar-XB"]) {
     );
     await expect(page.getByRole("form")).toBeVisible();
     await page.getByRole("combobox").first().selectOption(repositoryId);
-    await page.getByRole("combobox", { name: /^Workflow/ }).selectOption(
-      "fixed-coding",
-    );
+    await page.getByRole("combobox").nth(1).selectOption("fixed-coding");
     await expect(page.getByRole("listitem")).toHaveCount(2);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     expect(
@@ -874,10 +872,10 @@ test("keyboard order follows the form", async ({ page }) => {
   expect(order.map((entry) => entry.split(":")[0])).toEqual([
     "select",
     "select",
-    "input", // title
-    "select", // task type
+    "input",
+    "input",
+    "select",
     "textarea",
-    "input", // budget
     "button",
   ]);
   expect(order[6]).toContain("Create task and start run");

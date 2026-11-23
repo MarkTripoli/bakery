@@ -804,7 +804,6 @@
   "tasks.preset.fixedCoding.description": "⟦Ŵŕïŧë ŧĥë ŧàšķ ƀŕïëƒ, ŧĥëñ ŕûñ ŧĥë çôðïñĝ àĝëñŧ ôñçë. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "tasks.session.subtitle": "⟦{preset} · {repository} · profile r{revision} — ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.session.state.loading": "⟦Loading the run from the server… — ŧëšŧ çôþÿ⟧",
-  "tasks.session.state.empty": "⟦This task has no run yet. Start a run to see its timeline. — ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.timeline.label": "⟦Run timeline — ŧëšŧ⟧",
   "tasks.timeline.queued": "⟦Run queued — ŧëšŧ⟧",
   "tasks.timeline.blockedReason": "⟦Waiting for task {task} to finish. — ŧëšŧ çôþÿ ŧëšŧ⟧",

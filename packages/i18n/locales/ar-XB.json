@@ -806,7 +806,6 @@
   "tasks.preset.fixedCoding.description": "⟪Write the task brief, then run the coding agent once.⟫",
   "tasks.session.subtitle": "⟪{preset} · {repository} · profile r{revision}⟫",
   "tasks.session.state.loading": "⟪Loading the run from the server…⟫",
-  "tasks.session.state.empty": "⟪This task has no run yet. Start a run to see its timeline.⟫",
   "tasks.timeline.label": "⟪Run timeline⟫",
   "tasks.timeline.queued": "⟪Run queued⟫",
   "tasks.timeline.blockedReason": "⟪Waiting for task {task} to finish.⟫",

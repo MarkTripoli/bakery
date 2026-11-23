@@ -1570,7 +1570,6 @@
   "tasks.preset.deliverPrd.description": "Write requirements, a technical design and a plan, then build, check and review the change, fixing it a limited number of times, and verify the result.",
   "tasks.session.subtitle": "{preset} · {repository} · profile r{revision}",
   "tasks.session.state.loading": "Loading the run…",
-  "tasks.session.state.empty": "This task has no run yet. Start a run to see its timeline.",
   "tasks.timeline.label": "Run timeline",
   "tasks.timeline.queued": "Run queued",
   "tasks.timeline.blockedReason": "Waiting for task {task} to finish.",
