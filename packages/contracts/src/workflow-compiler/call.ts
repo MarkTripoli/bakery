@@ -625,6 +625,18 @@ export function inlineWorkflowCalls(
       if (!mapped) return undefined;
       given[name] = mapped;
     }
+    // The call's own condition is read in the scope the call was written in
+    // too: it may read what an earlier call declares and nothing of its inside.
+    let callCondition: WorkflowExpressionNode | undefined;
+    if (call.if) {
+      callCondition = mapExpression(
+        call.if,
+        external,
+        here(),
+        (_pointer, code) => collector.add(here(), code),
+      );
+      if (!callCondition) return undefined;
+    }
 
     let refused = false;
     const refuse: Refusal = (_pointer, code) => {
@@ -701,7 +713,7 @@ export function inlineWorkflowCalls(
       needs: call.needs,
       steps: stamped,
     };
-    if (call.if) sequence.if = call.if;
+    if (callCondition) sequence.if = callCondition;
     for (const step of stamped) reassign(step);
     locations.set(sequence, where);
     return { call, sequence, callee: { qualified, outputs } };
