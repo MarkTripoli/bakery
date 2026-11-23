@@ -10,6 +10,9 @@ Issue/PR descriptions: use the repo-local `bakery-authoring` skill. Templates
 and enforcement: [.github/AUTHORING.md](../.github/AUTHORING.md). Description
 checks never authorize execution, prove tests or replace independent review.
 
+The why of a change goes in the commit message and the PR description, not in
+code comments (hard rule 6 in [AGENTS.md](../AGENTS.md)).
+
 Create and edit a PR body with `scripts/authoring/pr-body.ts` (`publish` and
 `verify`): it runs the real validator first and sends nothing to GitHub when the
 body has a format error. A format error fails the `pull-request` check. A
