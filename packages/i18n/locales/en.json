@@ -1108,7 +1108,7 @@
   "tasks.run.handover.outsideUnconfirmedBody": "Bakery does not know yet whether they happened.",
   "tasks.run.handover.loading": "Reading the saved point",
   "tasks.run.handover.readFailed": "Bakery could not read the saved point. The session is still working on this step.",
-  "tasks.run.handover.readOffline": "You are offline, so the saved point cannot be read. It is read again by itself when you are back online.",
+  "tasks.run.handover.readOffline": "The saved point is read again by itself when you are back online.",
   "tasks.run.handover.gone": "This step has no saved point to hand over from yet.",
   "tasks.run.handover.offline": "You are offline.",
   "tasks.run.handover.done.exact": "{name} handed this step to a new session. It picked up exactly where it stopped.",

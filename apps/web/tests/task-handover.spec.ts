@@ -746,13 +746,27 @@ test.describe("hand over a running step to a new session", () => {
     await context.setOffline(true);
     await button(page).click();
     await expect(page.getByTestId("handover-read-failed")).toHaveText(
-      "You are offline, so the saved point cannot be read. It is read again by itself when you are back online.",
+      "The saved point is read again by itself when you are back online.",
     );
     await expect(page.getByTestId("handover-retry")).toHaveCount(0);
     await expect(card(page).getByRole("progressbar")).toHaveCount(0);
     await still(page, "read-offline");
     await context.setOffline(false);
     await expect(page.getByTestId("handover-way")).toBeVisible();
+  });
+
+  test("back online, the card does not take focus from where the person is", async ({ page, context }) => {
+    const w = world();
+    await open(page, w);
+    await expect(button(page)).toBeVisible();
+    await context.setOffline(true);
+    await button(page).click();
+    await expect(page.getByTestId("handover-read-failed")).toBeVisible();
+    const composer = page.getByPlaceholder("Message this task…");
+    await composer.focus();
+    await context.setOffline(false);
+    await expect(page.getByTestId("handover-way")).toBeVisible();
+    await expect(composer).toBeFocused();
   });
 
   test.describe("refusals", () => {

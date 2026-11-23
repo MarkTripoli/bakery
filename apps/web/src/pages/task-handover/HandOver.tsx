@@ -303,10 +303,18 @@ function Card(
 ) {
   const { translate: t, locale, timeZone } = useI18n();
   const phone = useShellViewport() === "phone";
+  const opened = useRef(true);
   useEffect(() => {
     const heading = document.getElementById("handover-heading");
-    heading?.setAttribute("tabindex", "-1");
-    heading?.focus();
+    if (heading === null) return;
+    const focused = document.activeElement;
+    const stays = opened.current || focused === null ||
+      focused === document.body ||
+      heading.closest('[data-testid="handover-card"]')?.contains(focused) ===
+        true;
+    opened.current = false;
+    heading.setAttribute("tabindex", "-1");
+    if (stays) heading.focus();
   }, [loading, readState]);
   const when = savedAt === null ? "" : formatDate(new Date(savedAt), locale, {
     timeZone,
