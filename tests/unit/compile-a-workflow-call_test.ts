@@ -375,3 +375,68 @@ Deno.test("a called workflow cannot use tool.call", async () => {
   );
   assertEquals(codes(result), ["call_action_unsupported"]);
 });
+
+Deno.test("a call's own condition reads only what an earlier call declares (#418)", async () => {
+  const second = (condition: string) => ({
+    id: "second",
+    needs: ["research"],
+    if: condition,
+    call: { workflow: CHILD, with: { topic: "$input.subject" } },
+  });
+  const workflows = { [CHILD]: child };
+
+  // An inner step of another call is not on offer, exactly as for an action step.
+  const inner = await compile(
+    parent([callResearch, second('$step.research.write.summary == "x"')]),
+    workflows,
+  );
+  assertEquals(inner.ok, false);
+  assert(
+    codes(inner).includes("call_output_unknown"),
+    JSON.stringify(codes(inner)),
+  );
+
+  // A declared output is, and the condition then reads the step that made it.
+  const declared = await compile(
+    parent([callResearch, second('$step.research.summary == "x"')]),
+    workflows,
+  );
+  assert(declared.ok, JSON.stringify(codes(declared)));
+  const sequence = declared.document.steps[1] as Extract<
+    WorkflowNode,
+    { kind: "sequence" }
+  >;
+  assertEquals(sequence.id, "second");
+  assertEquals(sequence.if, {
+    kind: "compare",
+    op: "eq",
+    left: {
+      kind: "ref",
+      root: "step",
+      path: ["research", "write", "summary"],
+    },
+    right: { kind: "literal", value: "x" },
+  });
+
+  // The same two conditions on an action step behave the same way.
+  const onAction = (condition: string) => ({
+    id: "act",
+    needs: ["research"],
+    if: condition,
+    uses: "workflow.noop",
+    with: {},
+  });
+  assertEquals(
+    (await compile(
+      parent([callResearch, onAction('$step.research.write.summary == "x"')]),
+      workflows,
+    )).ok,
+    false,
+  );
+  assert(
+    (await compile(
+      parent([callResearch, onAction('$step.research.summary == "x"')]),
+      workflows,
+    )).ok,
+  );
+});
