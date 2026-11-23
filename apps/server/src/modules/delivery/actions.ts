@@ -23,7 +23,7 @@ import type { PgDatabase } from "../../platform/database.ts";
 
 type CursorQuery = z.output<typeof contractSchemas.CursorQuery>;
 type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
-type RepositoryQuery = z.output<typeof contractSchemas.RepositoryQuery>;
+type DeploymentQuery = z.output<typeof contractSchemas.DeploymentQuery>;
 type RepairAllowanceCreate = z.output<
   typeof contractSchemas.RepairAllowanceCreate
 >;
@@ -103,7 +103,7 @@ export type DeliveryActionHandlers = {
   ) => Promise<z.output<typeof contractSchemas.MergeReconciliation>>;
   deploymentsList: (
     context: ActionContext,
-    input: RepositoryQuery,
+    input: DeploymentQuery,
   ) => Promise<z.output<typeof contractSchemas["Page<Deployment>"]>>;
   deploymentsCreate: (
     context: ActionContext,
@@ -296,7 +296,7 @@ export function createDeliveryActionRegistry(
     name: DeliveryImplementedAction.DeploymentsList,
     method: HttpMethod.Get,
     path: "/v1/deployments",
-    input: contractSchemas.RepositoryQuery,
+    input: contractSchemas.DeploymentQuery,
     output: contractSchemas["Page<Deployment>"],
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,

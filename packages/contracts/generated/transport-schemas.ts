@@ -3466,7 +3466,48 @@ const transportSchemas = {
           "name": "repositoryId",
           "type": "uuid",
           "required": false,
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases."
+          "description": "Restrict results to this repository's evaluation cases."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Filters for listing evaluation cases scoped to a repository."
+    },
+    "DeploymentQuery": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to this repository's deployments."
+        },
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to the deployments of this workflow run, so a run's release can be read without paging the repository."
         },
         {
           "name": "environment",
@@ -3504,7 +3545,7 @@ const transportSchemas = {
       "rules": [
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Filters for listing pull requests, merge entries, deployments, or evaluation cases scoped to a repository."
+      "description": "Filters for listing deployments: by repository, run and environment, with cursor pagination."
     },
     "PullRequestQuery": {
       "fields": [
@@ -25503,9 +25544,11 @@ const transportSchemas = {
         "commitSha",
         "artifactDigest",
         "previousDeploymentId",
+        "previousCommitSha",
         "status",
         "externalEffectId",
         "healthEvidenceId",
+        "rollbackFailed",
         "createdAt",
         "updatedAt",
         "version"
@@ -25518,17 +25561,24 @@ const transportSchemas = {
         "commitSha": "string",
         "artifactDigest": "string",
         "previousDeploymentId": "uuid|null",
+        "previousCommitSha": "string|null",
         "status": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)",
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
+        "rollbackFailed": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
       },
       "nullableFields": [
         "previousDeploymentId",
+        "previousCommitSha",
         "externalEffectId",
         "healthEvidenceId"
+      ],
+      "optionalFields": [
+        "previousCommitSha",
+        "rollbackFailed"
       ],
       "description": "One attempt to release a specific commit/artifact to a named environment for a repository, tracked from `queued` through `deploying`/`verifying` to `healthy`, `failed`, or a rollback; only one deployment per environment is in flight at a time, and `previousDeploymentId` links a rollback to the release it reverts. Created by POST /v1/deployments; reverted by POST /v1/deployments/{id}/rollbacks.",
       "fieldDescriptions": {
@@ -25539,9 +25589,11 @@ const transportSchemas = {
         "commitSha": "Commit SHA deployed by the record.",
         "artifactDigest": "Digest of the artifact deployed by the record.",
         "previousDeploymentId": "Stable UUID linking this record to the related previous deployment entity.",
+        "previousCommitSha": "Commit SHA of the release this one replaced, the one a rollback restores; null when it replaced nothing.",
         "status": "Current lifecycle status of the record.",
         "externalEffectId": "Stable UUID linking this record to the related external effect entity.",
         "healthEvidenceId": "Stable UUID linking this record to the related health evidence entity.",
+        "rollbackFailed": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
