@@ -116,7 +116,9 @@ export {
 } from "./plan.ts";
 export type { PlanStep, WorkflowPlan } from "./plan.ts";
 export {
+  boundStepConnections,
   DEFAULT_STEP_FILES,
+  MAX_STEP_BOUND_CONNECTIONS,
   OMITTED_STEP_FILES_WRITE,
   readsOnlyInputs,
   resolveStepFiles,

@@ -1,5 +1,6 @@
 export {
   type ActionRef,
+  type ActionStepOptions,
   type Bindings,
   booleanInput,
   defineAction,
@@ -11,6 +12,7 @@ export {
   type InputValue,
   integerInput,
   type LoopItem,
+  type StepFiles,
   type StepHandle,
   type StepsBuilder,
   stringInput,

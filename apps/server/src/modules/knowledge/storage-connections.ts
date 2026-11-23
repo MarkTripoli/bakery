@@ -36,6 +36,7 @@ import type { ExternalEffectRow } from "../effects/schema.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { sha256Bytes } from "./bytes.ts";
 import { commitArtifactVersion } from "./persistence.ts";
+import { connectionMountKey } from "./agent-file-scope.ts";
 import { createLocalDiskStorageProvider } from "./local-disk-storage.ts";
 import { readableEntry, type StorageReader } from "./storage-reads.ts";
 import {
@@ -144,7 +145,7 @@ function providerAnswerInvalid(cause: unknown): never {
 
 /** The system key of a connection's mount folder under /connections. */
 export function mountSystemKey(connectionId: string): string {
-  return "connection:" + connectionId;
+  return connectionMountKey(connectionId);
 }
 
 /**
@@ -351,6 +352,65 @@ export async function openConnectionPath(
     binding: bindingFor(deps, input.organizationId, connection),
     remotePath: split.remotePath,
   };
+}
+
+/**
+ * Refuses a run whose steps bind a storage connection (O44) the starter may
+ * not use: one that is not mounted in this organization (another
+ * organization's included), whose mount folder the starter cannot read, or
+ * that is disabled or archived. The provider is not consulted: a binding
+ * names a connection, and a provider that is missing at read time answers
+ * STORAGE_PROVIDER_UNAVAILABLE then.
+ */
+export async function assertConnectionsBindable(
+  context: Pick<ActionContext, "agentSession" | "sessionScopes">,
+  tx: PgTransactionClient,
+  reader: StorageReader,
+  input: Readonly<{
+    organizationId: string;
+    principalId: string;
+    connectionIds: readonly string[];
+  }>,
+): Promise<void> {
+  const unbindable = (connectionId: string): never => {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: {
+        issues: [{
+          path: ["files", "connections"],
+          message: "storage_connection_not_bindable: " + connectionId,
+          code: "storage_connection_not_bindable",
+        }],
+      },
+    });
+  };
+  for (const connectionId of input.connectionIds) {
+    if (!UUID.test(connectionId)) unbindable(connectionId);
+    const mount = await tx.query<{ entry_id: string }>(
+      "select entry_id from bakery.storage_connection_mounts" +
+        " where organization_id = $1 and connection_id = $2",
+      [input.organizationId, connectionId],
+    );
+    const entryId = mount.rows[0]?.entry_id;
+    if (entryId === undefined) unbindable(connectionId);
+    try {
+      await readableEntry(
+        context,
+        tx,
+        input.organizationId,
+        input.principalId,
+        reader,
+        entryId,
+      );
+    } catch (error) {
+      if (
+        error instanceof StandardError &&
+        (error.code === "RESOURCE_NOT_FOUND" || error.code === "AUTH_FORBIDDEN")
+      ) unbindable(connectionId);
+      throw error;
+    }
+    await liveConnection(tx, input.organizationId, connectionId);
+  }
 }
 
 /** One child of a mounted folder, as the tree shows it. */

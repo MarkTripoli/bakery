@@ -76,9 +76,14 @@ import {
   resolvePlanAdmission,
 } from "./plan-run-admission.ts";
 import {
+  assertConnectionsBindable,
   ingestConnectionInput,
   type StorageConnectionDeps,
 } from "../knowledge/storage-connections.ts";
+import {
+  boundStepConnections,
+  buildWorkflowPlan,
+} from "@bakery/contracts/workflow-compiler";
 import {
   ensurePresetWorkflowVersion,
   fixedPolicyDeniesSteps,
@@ -1097,6 +1102,21 @@ export async function createRunCommand(
       profileAgentBindings: profile?.config.agentBindings,
     },
   );
+
+  // A step that binds storage connections (O44, #452) reads them through its
+  // agent's session; each must be this organization's, live, and readable by
+  // the person starting the run, or nothing is admitted.
+  await assertConnectionsBindable(context, transaction, { isAdmin: false }, {
+    organizationId,
+    principalId,
+    connectionIds: [
+      ...new Set(
+        buildWorkflowPlan(planAdmission.document).steps.flatMap((step) =>
+          boundStepConnections(step.files)
+        ),
+      ),
+    ],
+  });
 
   // A plan binds a repository through its inputs, and that binding is only
   // meaningful if the run is actually bound to that repository. Without this

@@ -16,6 +16,8 @@ import { WORKFLOW_ACTION_REGISTRY_VERSION } from "../../workflow-action-registry
 import { WORKFLOW_STRUCTURED_INPUT_TYPES } from "../schema.ts";
 import {
   DEFAULT_STEP_FILES,
+  isBoundConnectionId,
+  MAX_STEP_BOUND_CONNECTIONS,
   OMITTED_STEP_FILES_WRITE,
   SEALED_STEP_FILES,
   sealedByDefault,
@@ -353,7 +355,11 @@ function readInputSlots(
 }
 
 /** Reads named output slots; `kind` is optional but never invented. */
-const FILES_KEYS: ReadonlySet<string> = new Set(["read", "write"]);
+const FILES_KEYS: ReadonlySet<string> = new Set([
+  "read",
+  "write",
+  "connections",
+]);
 
 /**
  * Reads one axis of a files section: a list of known areas, each once. The
@@ -483,7 +489,48 @@ function readStepFiles(
     )
     : [...OMITTED_STEP_FILES_WRITE];
   if (read === null || write === null) return null;
-  return { read, write };
+  if (!Object.hasOwn(raw, "connections")) return { read, write };
+  const connections = readBoundConnections(
+    context,
+    raw["connections"],
+    [...path, "connections"],
+  );
+  if (connections === null) return null;
+  // A binding opens /connections only for a step that reads that area.
+  if (!read.includes("connections")) {
+    report(context, [...path, "connections"], "action_files_invalid");
+    return null;
+  }
+  return { read, write, connections };
+}
+
+/**
+ * Reads the storage connections a files section binds: one to
+ * MAX_STEP_BOUND_CONNECTIONS UUIDs, each once, returned lower-cased and
+ * sorted so two documents binding the same connections share a digest.
+ */
+function readBoundConnections(
+  context: Context,
+  raw: unknown,
+  path: Path,
+): string[] | null {
+  if (
+    !Array.isArray(raw) || raw.length === 0 ||
+    raw.length > MAX_STEP_BOUND_CONNECTIONS
+  ) {
+    report(context, path, "action_files_invalid");
+    return null;
+  }
+  const seen = new Set<string>();
+  for (const [index, item] of raw.entries()) {
+    const id = typeof item === "string" ? item.toLowerCase() : undefined;
+    if (!isBoundConnectionId(id) || seen.has(id)) {
+      report(context, [...path, index], "action_files_invalid");
+      return null;
+    }
+    seen.add(id);
+  }
+  return [...seen].sort();
 }
 
 function readOutputSlots(

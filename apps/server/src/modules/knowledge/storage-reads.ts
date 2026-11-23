@@ -38,7 +38,11 @@ import {
   agentDeclaredReadAreas,
   agentFileReadFor,
 } from "./agent-file-guard.ts";
-import { agentRootKeys } from "./agent-file-scope.ts";
+import {
+  agentRootKeys,
+  boundConnectionsOf,
+  connectionMountKey,
+} from "./agent-file-scope.ts";
 import {
   hiddenEntryIds,
   hiddenFromReviewer,
@@ -358,7 +362,11 @@ export async function listStorageRoots(
   // An agent sees only the top-level areas its step's files section reaches,
   // never its principal's personal folder, /trash or /system.
   const declared = agentDeclaredReadAreas(context);
-  const keys = declared === null ? everyKey : agentRootKeys(everyKey, declared);
+  const keys = declared === null ? everyKey : agentRootKeys(
+    everyKey,
+    declared,
+    boundConnectionsOf(context.sessionScopes),
+  );
   const found = await tx.query<ListedRow>(
     LISTED_SELECT +
       " where e.organization_id = $1 and e.system_key = any($2::text[])",
@@ -454,7 +462,19 @@ export function createFolderLister(secret: string) {
       organizationId,
       page.map((row) => row.id),
     );
-    const rows = page.filter((row) => !hidden.has(row.id));
+    // An agent listing /connections sees only the mounts its step binds
+    // (O44); another connection's folder is not named to it.
+    const bound = context.agentSession === undefined ||
+        folder.system_key !== "connections"
+      ? null
+      : new Set(
+        boundConnectionsOf(context.sessionScopes).map(connectionMountKey),
+      );
+    const rows = page.filter((row) =>
+      !hidden.has(row.id) &&
+      (bound === null ||
+        (row.system_key !== null && bound.has(row.system_key)))
+    );
     // An agent's listing joins its step's read set (O46). A listing shows the
     // folder as it is now, so it is never pinned.
     const stepReader = await stepReaderOf(tx, context, organizationId);

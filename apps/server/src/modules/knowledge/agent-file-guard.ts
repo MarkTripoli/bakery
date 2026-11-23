@@ -23,7 +23,9 @@ import {
   AgentTreeArea,
   agentTreeAreaOf,
   type AgentWrite,
+  boundConnectionsOf,
   type ChainEntry,
+  connectionMountKey,
   declaredTreeAreas,
   grantRefusal,
   pathSpellingRefusal,
@@ -296,7 +298,24 @@ export type AgentFileReadScope = Readonly<{
    * authority still decide.
    */
   reviewedOutput?: boolean;
+  /** The storage connections the step binds (O44), from its scopes. */
+  boundConnections?: readonly string[];
 }>;
+
+/**
+ * Whether an entry under /connections is open to a step through its
+ * bindings: /connections itself, to find the mounts, or anything under the
+ * mount of a connection the step binds.
+ */
+function underBoundConnection(
+  entries: readonly ChainEntry[],
+  bound: readonly string[],
+): boolean {
+  if (bound.length === 0) return false;
+  if (entries.length === 1) return true;
+  const mountKey = entries[1]?.systemKey;
+  return bound.some((id) => connectionMountKey(id) === mountKey);
+}
 
 /**
  * Judges one agent read, with the layers a write has: storage scoping (an
@@ -345,6 +364,8 @@ export async function assertAgentFileRead(
       declared: scope.declared,
       liveGrant: decision.grant,
       personalOwnerId: personalOwnerOf(entries),
+      boundConnection: area === AgentTreeArea.Connections &&
+        underBoundConnection(entries, scope.boundConnections ?? []),
     });
   if (refusal !== undefined) forbidden(refusal);
   // Layer 4: never beyond the person the agent acts for.
@@ -384,6 +405,7 @@ export async function agentFileReadFor(
     workflowId: origin.workflowId,
     target: scope.target,
     declared: declaredTreeAreas(context.sessionScopes, AgentFileAccess.Read),
+    boundConnections: boundConnectionsOf(context.sessionScopes),
     own: await ownPlaces(tx, scope.organizationId, origin.taskId),
     now: scope.now ?? new Date(),
     reviewedOutput: await reviewerDeclaredOutput(

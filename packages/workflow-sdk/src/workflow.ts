@@ -88,6 +88,25 @@ export type ForEachOptions = {
   readonly needs?: readonly { readonly id: string }[];
 };
 
+/**
+ * A step's files section (chapter 25 section 17.6): the storage areas its
+ * agent reads and writes, and the storage connections it binds. A definition
+ * only narrows the defaults; `connections` opens /connections/<connection>
+ * for exactly the connections named, and needs `connections` in `read`.
+ */
+export type StepFiles = {
+  readonly read?: readonly string[];
+  readonly write?: readonly string[];
+  /** Ids of the organization's storage connections the step's agent reads. */
+  readonly connections?: readonly string[];
+};
+
+/** Options of one action step. */
+export type ActionStepOptions = {
+  readonly needs?: readonly { readonly id: string }[];
+  readonly files?: StepFiles;
+};
+
 /** Adds steps to one list of steps: the workflow's own, or a forEach body. */
 export type StepsBuilder = {
   /** Adds an action step with typed bindings. */
@@ -95,14 +114,14 @@ export type StepsBuilder = {
     id: string,
     action: ActionRef<In, Out>,
     bindings: Bindings<In>,
-    options?: { readonly needs?: readonly { readonly id: string }[] },
+    options?: ActionStepOptions,
   ): StepHandle<Out>;
   /** Adds a step for an action known only by name; nothing is type-checked. */
   action(
     id: string,
     action: string,
     bindings: Readonly<Record<string, unknown>>,
-    options?: { readonly needs?: readonly { readonly id: string }[] },
+    options?: ActionStepOptions,
   ): StepHandle<Record<string, unknown>>;
   /**
    * Adds a bounded, sequential forEach: `body` declares the steps that run
@@ -130,6 +149,7 @@ export type WorkflowDefinitionStep =
     readonly uses: string;
     readonly needs?: readonly string[];
     readonly with?: Readonly<Record<string, unknown>>;
+    readonly files?: StepFiles;
     readonly forEach?: never;
   }
   | {
@@ -209,10 +229,21 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
+/** A plain copy of a files section, keeping only the axes it names. */
+function copyFiles(files: StepFiles): StepFiles {
+  return {
+    ...(files.read === undefined ? {} : { read: [...files.read] }),
+    ...(files.write === undefined ? {} : { write: [...files.write] }),
+    ...(files.connections === undefined
+      ? {}
+      : { connections: [...files.connections] }),
+  };
+}
+
 type BuiltStep =
   & { id: string; needs?: string[] }
   & (
-    | { uses: string; with?: Record<string, unknown> }
+    | { uses: string; with?: Record<string, unknown>; files?: StepFiles }
     | {
       forEach: { items: unknown; max: number; as: string; steps: BuiltStep[] };
     }
@@ -328,7 +359,7 @@ export function defineWorkflow<const I extends WorkflowInputs>(
       id: string,
       action: string | { readonly id: string },
       bindings: Readonly<Record<string, unknown>>,
-      stepOptions: { readonly needs?: readonly { readonly id: string }[] } = {},
+      stepOptions: ActionStepOptions = {},
     ) => {
       current();
       checkStepId(container, id);
@@ -344,6 +375,9 @@ export function defineWorkflow<const I extends WorkflowInputs>(
       };
       if (needs.length > 0) step.needs = needs;
       if (Object.keys(bindings).length > 0) step.with = { ...bindings };
+      if (stepOptions.files !== undefined) {
+        step.files = copyFiles(stepOptions.files);
+      }
       container.steps.push(step);
       return stepHandle([...container.prefix, id].join("."), id);
     };

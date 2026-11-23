@@ -6,6 +6,7 @@
  */
 
 import {
+  boundStepConnections,
   buildWorkflowPlan,
   DEFAULT_STEP_FILES,
   OMITTED_STEP_FILES_WRITE,
@@ -24,6 +25,12 @@ import {
 export type ResolvedStepFiles = Readonly<{
   read: readonly WorkflowFileReadArea[];
   write: readonly WorkflowFileWriteArea[];
+  /**
+   * The storage connections the step binds (O44, #452): the only ones its
+   * agent reads under /connections. Empty means /connections stays closed
+   * without a person's grant, and then `read` never names it.
+   */
+  connections: readonly string[];
 }>;
 
 /**
@@ -33,13 +40,15 @@ export type ResolvedStepFiles = Readonly<{
  * no section reads the tree areas O44 names, writes only its own outputs and
  * workspace, and reaches the storage write tools only through a declared
  * section or a person's grant (#448). /connections is left out: O44 opens
- * only the connections a definition binds, and no binding is recorded yet.
+ * only the connections a definition binds, and a step with no section binds
+ * none.
  */
 export const UNDECLARED_STEP_FILES: ResolvedStepFiles = Object.freeze({
   read: Object.freeze(
     DEFAULT_STEP_FILES.read.filter((area) => area !== "connections"),
   ),
   write: OMITTED_STEP_FILES_WRITE,
+  connections: Object.freeze([]),
 });
 
 /**
@@ -50,6 +59,7 @@ export const UNDECLARED_STEP_FILES: ResolvedStepFiles = Object.freeze({
 export const INPUTS_ONLY_STEP_FILES: ResolvedStepFiles = Object.freeze({
   read: Object.freeze(["inputs"] as const),
   write: Object.freeze(["outputs"] as const),
+  connections: Object.freeze([]),
 });
 
 /**
@@ -79,20 +89,16 @@ export function stepFilesFromSnapshot(
   );
   if (!step) return INPUTS_ONLY_STEP_FILES;
   if (step.files === undefined) return UNDECLARED_STEP_FILES;
-  return withoutUnboundConnections(resolveStepFiles(step.files));
-}
-
-/**
- * A declared section keeps its areas, except /connections: a read there opens
- * only for connections the definition binds (O44), and none is recorded yet.
- */
-function withoutUnboundConnections(
-  files: ResolvedStepFiles,
-): ResolvedStepFiles {
-  if (!files.read.includes("connections")) return files;
+  const resolved = resolveStepFiles(step.files);
+  const connections = boundStepConnections(step.files);
   return {
-    read: files.read.filter((area) => area !== "connections"),
-    write: files.write,
+    // /connections opens only for the connections the step binds (O44): a
+    // section that names the area and binds none reads no connection.
+    read: connections.length > 0
+      ? resolved.read
+      : resolved.read.filter((area) => area !== "connections"),
+    write: resolved.write,
+    connections,
   };
 }
 
