@@ -662,7 +662,10 @@ for (
       await expect(reference.locator(".ui-reference__plain")).toBeFocused();
       await expect(card).toHaveCount(0);
       await page.mouse.move(5, 5);
+      // The still is the open card: leave the id and come back to it.
+      await reference.locator(".ui-reference__plain").blur();
       await reference.locator(".ui-reference__plain").focus();
+      await expect(card).toBeVisible();
       await still(page, "updates-release-card");
     });
 
