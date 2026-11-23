@@ -131,6 +131,8 @@ function machine() {
     failedCheckIds: [],
     lastHeartbeatAt: new Date().toISOString(),
     credentialGeneration: 1,
+    archivedAt: null,
+    cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     version: 1,
@@ -459,7 +461,7 @@ test.describe("machine page: Add a model", () => {
     await page.locator("#machine-model-provider").selectOption({
       label: "acme",
     });
-    await page.getByLabel("Model", { exact: true }).fill(
+    await page.getByLabel(/^Model\*?$/).fill(
       over.model ?? "acme-large",
     );
     await page.getByLabel("Provider address").fill(
@@ -513,7 +515,7 @@ test.describe("machine page: Add a model", () => {
       label: "Another provider",
     });
     await page.getByLabel("Provider name").fill("newco");
-    await page.getByLabel("Model", { exact: true }).fill("m1");
+    await page.getByLabel(/^Model\*?$/).fill("m1");
     await page.getByLabel("Provider address").fill("https://api.newco.example");
     await page.getByRole("button", { name: "Add model" }).click();
     await expect.poll(() => w.creates.length).toBe(1);
@@ -527,8 +529,11 @@ test.describe("machine page: Add a model", () => {
         status: 422,
         code: "UNPROCESSABLE",
         extra: {
-          issueCodes: ["provider_endpoint_invalid"],
-          issues: [{ path: "/endpoint", code: "provider_endpoint_invalid" }],
+          issues: [{
+            path: "/endpoint",
+            code: "provider_endpoint_invalid",
+            message: "Refused.",
+          }],
         },
       },
     });
@@ -561,9 +566,9 @@ test.describe("machine page: Add a model", () => {
     await expect(page.getByRole("radio", { name: /Claude Code/ }))
       .toBeDisabled();
     await page.getByRole("button", { name: "Sign in to Claude Code" }).click();
-    await expect(page).toHaveURL(
-      new RegExp(`/machines/${MACHINE_ID}\\?signIn=claude$`),
-    );
+    // The machine page takes the agent from the address and then clears it, so a reload does not
+    // start another sign-in: the person ends on the machine page with a clean address.
+    await expect(page).toHaveURL(new RegExp(`/machines/${MACHINE_ID}$`));
   });
 
   test("someone who is not an administrator is told they cannot add models", async ({ page }) => {
