@@ -884,14 +884,16 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "86bcb19f90ccaef41757840967d8dbf000214a23",
+    "505de09bdb580680a7686a25a00c61433969fd1f",
   ];
   const approvedDigest =
-    "sha256:5dde3eae9c99876345ec310354e42e5952314e881a10159b86c296236215b0ee";
+    "sha256:38b8419cbaa4b99737bde6ed4e44ba09abf44c7bf98cd12829d734510a03ec64";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced by the #436 tool gateway rebind onto main 505de09bd: main's own #435 tool.call approval, kept unchanged.
+    "sha256:5dde3eae9c99876345ec310354e42e5952314e881a10159b86c296236215b0ee",
     // Displaced by the #435 tool.call rebind onto main 86bcb19f9: main's own #74 skill reads approval, kept unchanged.
     "sha256:aba04c851659afd475038e58d642529fc7bf47e8bfa80794a91e89dfeb8e7d4f",
     // Displaced by the #74 skill reads rebind onto main fa5a18a8b: #427 offline runs (slice S1) by dev-server on ...

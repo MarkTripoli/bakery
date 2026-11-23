@@ -612,6 +612,21 @@ export const mcpConnectionImplementedActions = Object.freeze(
   Object.values(McpConnectionImplementedAction),
 );
 
+/**
+ * Capability bindings (#436): an Admin grants an agent version exact MCP tools;
+ * a workflow version's own bindings are written at publish.
+ */
+export const CapabilityBindingImplementedAction = Object.freeze(
+  {
+    CapabilityBindingsList: "capabilityBindings.list",
+    CapabilityBindingsCreate: "capabilityBindings.create",
+    CapabilityBindingsDelete: "capabilityBindings.delete",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const capabilityBindingImplementedActions = Object.freeze(
+  Object.values(CapabilityBindingImplementedAction),
+);
+
 /** Registered workflow action discovery served by the handwritten Hono routes. */
 export const WorkflowActionDiscoveryImplementedAction = Object.freeze(
   {
@@ -1031,6 +1046,7 @@ export const implementedActions = Object.freeze(
     ...integrationClientCredentialsImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
+    ...capabilityBindingImplementedActions,
     ...batchImplementedActions,
     ...blobUploadImplementedActions,
     ...storageImplementedActions,

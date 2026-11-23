@@ -1483,6 +1483,16 @@
           "description": "Filters to bindings scoped to this workflow step key; only meaningful together with workflowVersionId, since a step-scoped binding always belongs to a workflow version."
         },
         {
+          "name": "seatKey",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Filters to bindings owned by this seat of a workflow version; only meaningful together with workflowVersionId."
+        },
+        {
           "name": "allowedOperations",
           "type": "string[]",
           "required": false,
@@ -1529,8 +1539,14 @@
         {
           "name": "integrationConnectionId",
           "type": "uuid",
-          "required": true,
-          "description": "Binds this invocation to one configured provider account; the server resolves its external account identity."
+          "required": false,
+          "description": "Integration connection the invocation runs on; exactly one of integrationConnectionId and mcpConnectionId is set."
+        },
+        {
+          "name": "mcpConnectionId",
+          "type": "uuid",
+          "required": false,
+          "description": "MCP server connection whose pinned tool the session calls through its tool gateway; exactly one of integrationConnectionId and mcpConnectionId is set."
         },
         {
           "name": "leaseToken",
@@ -1549,6 +1565,18 @@
             "min": 0
           },
           "description": "Monotonic fence value bound to the current attempt; the server rejects the invocation once a newer attempt has advanced this job's fence."
+        },
+        {
+          "name": "workerSessionId",
+          "type": "uuid",
+          "required": false,
+          "description": "Worker session that holds the attempt; required for protocol v2 hosts."
+        },
+        {
+          "name": "workerSessionGeneration",
+          "type": "decimalString",
+          "required": false,
+          "description": "Generation of that worker session; required with workerSessionId."
         },
         {
           "name": "toolName",
@@ -1580,7 +1608,7 @@
           "description": "Milliseconds the server allows the brokered provider call to run before the invocation is failed; defaults to 60000, at most 300000. A timed-out call that may have reached the provider is recorded as an uncertain effect and reconciled, not retried blindly."
         }
       ],
-      "description": "Envelope a worker attempt uses to invoke one brokered integration tool mid-run under its current lease; the server checks the capability grant, repository/run budget caps and provider quota before executing, then reconciles the resulting effect."
+      "description": "Envelope a worker attempt uses to invoke one tool from its session's effective tools mid-run under its current lease; the server checks the lease, the capability binding of the attempt's agent, seat or step, the connection's pin and drift before sending, and records the call."
     },
     "CapabilityBindingCreate": {
       "fields": [
@@ -1628,6 +1656,16 @@
             "maxLength": 200
           },
           "description": "Identifies the specific workflow step this binding scopes to within its owning workflow version; omit to bind at the whole-workflow level rather than one step."
+        },
+        {
+          "name": "seatKey",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Seat (the role a step runs as) that owns this binding inside a workflow version; requires workflowVersionId, and every step of that version running as this seat gets the bound tools in its tool gateway."
         },
         {
           "name": "mcpConnectionId",
@@ -24628,6 +24666,7 @@
         "skillVersionOwnerId",
         "automationVersionId",
         "stepKey",
+        "seatKey",
         "mcpConnectionId",
         "integrationConnectionId",
         "skillVersionId",
@@ -24645,6 +24684,7 @@
         "skillVersionOwnerId": "uuid|null",
         "automationVersionId": "uuid|null",
         "stepKey": "string|null",
+        "seatKey": "string|null",
         "mcpConnectionId": "uuid|null",
         "integrationConnectionId": "uuid|null",
         "skillVersionId": "uuid|null",
@@ -24661,6 +24701,7 @@
         "skillVersionOwnerId",
         "automationVersionId",
         "stepKey",
+        "seatKey",
         "mcpConnectionId",
         "integrationConnectionId",
         "skillVersionId"
@@ -24674,6 +24715,7 @@
         "skillVersionOwnerId": "Stable UUID linking this record to the related skill version owner entity.",
         "automationVersionId": "Stable UUID linking this record to the related automation version entity.",
         "stepKey": "Stable key identifying the workflow step within the run.",
+        "seatKey": "Seat (step role) of the owning workflow version that holds this binding; null when the owner is not a seat.",
         "mcpConnectionId": "Stable UUID linking this record to the related mcp connection entity.",
         "integrationConnectionId": "Stable UUID linking this record to the related integration connection entity.",
         "skillVersionId": "Stable UUID linking this record to the related skill version entity.",
