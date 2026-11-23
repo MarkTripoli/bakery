@@ -49,6 +49,7 @@ import {
   RepositoryProfileObservationPayloadSchema,
   type RepositoryVersionedProfileConfig,
   RepositoryVersionedProfileConfigSchema,
+  type RunPlacement,
 } from "@bakery/contracts/repository-inspection";
 import {
   SecretIdentityReadInputSchema,
@@ -1498,6 +1499,36 @@ export function repositoryExecutionRequirements(
       ]),
     ],
     ...(observed ? { platform: observed.platform } : {}),
+  });
+}
+
+/**
+ * Adds a run's recorded placement to one job's requirements. Placement only
+ * adds gates: the job's capabilities stay, the run's join them, and a platform
+ * the two disagree on is a conflict no host can satisfy, so it refuses.
+ */
+export function withRunPlacement(
+  requirements: RepositoryExecutionRequirements,
+  placement: RunPlacement | null,
+): RepositoryExecutionRequirements {
+  const added = placement?.requirements;
+  if (!added) return requirements;
+  if (
+    added.platform !== undefined && requirements.platform !== undefined &&
+    added.platform !== requirements.platform
+  ) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "placement_platform_conflict" },
+    });
+  }
+  const platform = requirements.platform ?? added.platform;
+  return RepositoryExecutionRequirementsSchema.parse({
+    ...requirements,
+    capabilities: [
+      ...new Set([...requirements.capabilities, ...added.capabilities]),
+    ],
+    ...(platform === undefined ? {} : { platform }),
   });
 }
 
