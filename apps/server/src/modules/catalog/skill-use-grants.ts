@@ -470,6 +470,156 @@ export async function listSkillUseGrants(
 }
 
 /**
+ * Allows a workflow to use a personal skill again at one step, after its owner
+ * stopped it: records a fresh grant for the exact version the step names.
+ *
+ * This is the owner's own act, the same as the confirmation that made the first
+ * grant, so an agent is refused and only the skill's owner may ask. The step
+ * must name this version in a version of the workflow, so a grant can never
+ * cover a step that does not use the skill. Asking for a grant that is already
+ * live answers with that grant and records nothing new.
+ */
+export async function createSkillUseGrant(
+  context: ActionContext,
+  request: { workflowId: string; skillVersionId: string; stepPath: string },
+) {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  // The database stores ids in lower case and a step names them that way too.
+  const input = {
+    ...request,
+    workflowId: request.workflowId.toLowerCase(),
+    skillVersionId: request.skillVersionId.toLowerCase(),
+  };
+  const skillId = context.params.id;
+  if (!skillId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (attributeAction(context, principalId).actorKind !== "person") {
+    throw new StandardError({
+      code: "AUTH_FORBIDDEN",
+      params: { reason: "personal_skill_use_requires_person" },
+    });
+  }
+  // Only the owner of a personal skill may let a workflow use it. Anyone else,
+  // including an Admin, gets not found so the answer does not reveal the skill.
+  const version = await transaction.query<{
+    skill_id: string;
+    revision: number;
+    digest: string;
+  }>(
+    `select version.skill_id, version.revision, version.digest
+       from bakery.skill_versions as version
+       join bakery.skills as skill
+         on skill.organization_id = version.organization_id
+        and skill.id = version.skill_id
+      where version.organization_id = $1 and version.id = $2
+        and skill.id = $3 and skill.scope = 'personal'
+        and skill.owner_principal_id = $4::uuid`,
+    [organizationId, input.skillVersionId, skillId, principalId],
+  );
+  const found = version.rows[0];
+  if (!found) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const workflow = await transaction.query<{ normalized_spec: unknown }>(
+    `select workflow_version.normalized_spec
+       from bakery.workflow_definitions as workflow
+       join bakery.workflow_versions as workflow_version
+         on workflow_version.organization_id = workflow.organization_id
+        and workflow_version.workflow_id = workflow.id
+      where workflow.organization_id = $1 and workflow.id = $2
+        and position($3 in workflow_version.normalized_spec::text) > 0`,
+    [organizationId, input.workflowId, input.skillVersionId],
+  );
+  const exists = workflow.rows.length > 0 || (await transaction.query(
+        `select 1 from bakery.workflow_definitions
+          where organization_id = $1 and id = $2`,
+        [organizationId, input.workflowId],
+      )).rows.length === 1;
+  if (!exists) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const named = workflow.rows.some((row) =>
+    collectStepSkills(row.normalized_spec).some((ref) =>
+      ref.versionId === input.skillVersionId &&
+      stepPointer(ref.segments) === input.stepPath
+    )
+  );
+  if (!named) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: {
+        issues: [{
+          path: ["stepPath"],
+          code: "step_does_not_use_skill_version",
+          message:
+            "No version of this workflow uses this skill version at this step.",
+        }],
+      },
+    });
+  }
+  const id = crypto.randomUUID();
+  const inserted = await transaction.query<{ id: string }>(
+    `insert into bakery.skill_use_grants (
+       id, organization_id, skill_id, skill_version_id, workflow_id,
+       step_path, granted_by, revision, revision_digest
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     on conflict (organization_id, workflow_id, skill_version_id, step_path)
+       do nothing
+     returning id`,
+    [
+      id,
+      organizationId,
+      skillId,
+      input.skillVersionId,
+      input.workflowId,
+      input.stepPath,
+      principalId,
+      found.revision,
+      found.digest,
+    ],
+  );
+  if (inserted.rows.length === 1) {
+    await appendAudit(transaction, {
+      organizationId,
+      principalId,
+      operation: "skills.useGrants.create",
+      resourceType: "skill_use_grant",
+      resourceId: id,
+      requestId: context.requestId,
+      traceId: context.traceId,
+      details: {
+        skillId,
+        skillVersionId: input.skillVersionId,
+        workflowId: input.workflowId,
+        stepPath: input.stepPath,
+      },
+    });
+    await appendDomainEvent(transaction, {
+      organizationId,
+      eventType: "skillUseGrant.created",
+      aggregateId: id,
+      aggregateVersion: 1,
+      payload: { resourceId: id, resourceVersion: 1 },
+      traceId: context.traceId,
+    });
+  }
+  const row = await transaction.query<GrantRow>(
+    `select grant_row.id, grant_row.skill_id, grant_row.skill_version_id,
+            grant_row.revision, grant_row.revision_digest,
+            grant_row.workflow_id, workflow.name as workflow_name,
+            grant_row.step_path, grant_row.granted_by, grant_row.created_at,
+            '' as cursor_created_at, grant_row.version
+       from bakery.skill_use_grants as grant_row
+       join bakery.workflow_definitions as workflow
+         on workflow.organization_id = grant_row.organization_id
+        and workflow.id = grant_row.workflow_id
+      where grant_row.organization_id = $1 and grant_row.workflow_id = $2
+        and grant_row.skill_version_id = $3 and grant_row.step_path = $4`,
+    [organizationId, input.workflowId, input.skillVersionId, input.stepPath],
+  );
+  const grant = row.rows[0];
+  if (!grant) throw new Error("SKILL_USE_GRANT_INSERT_FAILED");
+  return toGrant(grant);
+}
+
+/**
  * Stops a workflow using a personal skill: deletes the grant. Stopping is the
  * owner's own act, so an agent is refused. The audit log keeps the grant and
  * the stop; what a stopped grant refuses is decided where runs are admitted.
