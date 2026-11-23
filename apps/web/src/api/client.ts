@@ -264,6 +264,9 @@ export type TicketPreviewResultResponse =
   ClientOutputMap["TicketPreviewResult"];
 export type TicketRequestResponse = ClientOutputMap["TicketRequest"];
 export type TicketRequestIntent = "start" | "plan";
+
+/** The built-in workflows a start request can run (#61): the same two the source policy names. */
+export type TicketPresetId = "fixed-coding" | "fixed-coding-reviewed";
 export type TicketTaskLinkResponse = ClientOutputMap["TicketTaskLink"];
 export type TicketTaskLinkListResponse =
   ClientOutputMap["Page<TicketTaskLink>"];
@@ -1191,9 +1194,23 @@ export type BakeryApiClient = {
       readonly intent: TicketRequestIntent;
       readonly expectedSourcePolicyRevision: number;
       readonly requirementsDigest: string;
+      /** The built-in workflow for this issue only; omitted, the repository's own runs. */
+      readonly preset?: TicketPresetId;
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<TicketRequestResponse>>;
+    /**
+     * `POST /v1/ticket-requests/{id}/cancellations`: stops a start request that
+     * has no run yet. A request with a run is stopped with `controlRun`.
+     */
+    readonly cancelRequest: (options: {
+      readonly organizationId: string;
+      readonly requestId: string;
+      /** The request's version, sent as the precondition. */
+      readonly version: number;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketRequestViewResponse>>;
     /** `GET /v1/ticket-sources`: the repositories Bakery takes issues from. */
     readonly sources: (options: {
       readonly organizationId: string;
@@ -3370,7 +3387,21 @@ export function createBakeryApiClient({
               expectedSourcePolicyRevision:
                 options.expectedSourcePolicyRevision,
               requirementsDigest: options.requirementsDigest,
+              ...(options.preset === undefined
+                ? {}
+                : { preset: options.preset }),
             }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      cancelRequest(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketRequests.cancel"]({ id: options.requestId }, {
+              ifMatch: versionEtag(options.version),
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),

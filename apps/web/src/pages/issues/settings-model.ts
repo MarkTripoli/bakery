@@ -1,5 +1,9 @@
-import type { TicketSourceResponse } from "../../api/client.ts";
-import { DEFAULT_HOLD_LABEL, DEFAULT_START_LABEL } from "../issue-sources.ts";
+import type { TicketPresetId, TicketSourceResponse } from "../../api/client.ts";
+import {
+  DEFAULT_HOLD_LABEL,
+  DEFAULT_START_LABEL,
+  presetOfPolicy,
+} from "../issue-sources.ts";
 import { ageOf, type SourceHealth, troubleOf } from "../issue-state.ts";
 
 /**
@@ -43,6 +47,8 @@ export type SettingsForm = {
   /** The Bakery member automatic starts run as. */
   readonly principalId: string | null;
   readonly people: readonly TriggerPerson[];
+  /** The built-in workflow the repository runs; the Workflow section changes it, and Save sends it with the rest of the policy. */
+  readonly preset: TicketPresetId;
 };
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -98,6 +104,7 @@ export function formOf(source: TicketSourceResponse | null): SettingsForm {
         typeof id === "string" ? [{ id, login: null }] : []
       )
       : [],
+    preset: presetOfPolicy(policy),
   };
 }
 
@@ -170,6 +177,7 @@ export function isDirty(
     form.hold !== saved.hold ||
     form.requireAcceptanceCriteria !== saved.requireAcceptanceCriteria ||
     form.approval !== saved.approval ||
+    form.preset !== saved.preset ||
     form.automatic !== saved.automatic ||
     (form.automatic &&
       (form.principalId !== saved.principalId ||
@@ -195,7 +203,7 @@ export function policyOfForm(form: SettingsForm): {
   readonly automatic: { readonly enabled: boolean };
   readonly readiness: { readonly requireAcceptanceCriteria: boolean };
   readonly approval: { readonly plan: "human_approval" | "automatic" };
-  readonly preset: "fixed-coding";
+  readonly preset: TicketPresetId;
 } {
   const delegation = form.automatic && form.principalId !== null &&
       form.people.length > 0
@@ -215,7 +223,7 @@ export function policyOfForm(form: SettingsForm): {
     automatic: { enabled: form.automatic },
     readiness: { requireAcceptanceCriteria: form.requireAcceptanceCriteria },
     approval: { plan: form.approval },
-    preset: "fixed-coding",
+    preset: form.preset,
   };
 }
 
@@ -273,6 +281,11 @@ export type PreviewCounts = {
   readonly canStart: number;
   readonly waiting: number;
   readonly cannotStart: number;
+  /**
+   * Issues that wait only because their label was on before automatic starts
+   * were turned on: a person's Start work admits them (the server's count).
+   */
+  readonly labeledBeforeWindow: number;
   /** The oldest evaluation the counts rest on, or null when nothing was read. */
   readonly evaluatedAt: string | null;
 };
@@ -300,6 +313,7 @@ export function verdictOf(issue: CountableIssue): Verdict | null {
  */
 export function countsOf(
   issues: readonly CountableIssue[],
+  labeledBeforeWindow = 0,
 ): PreviewCounts {
   let canStart = 0;
   let waiting = 0;
@@ -318,5 +332,11 @@ export function countsOf(
       oldest = evaluatedAt;
     }
   }
-  return { canStart, waiting, cannotStart, evaluatedAt: oldest };
+  return {
+    canStart,
+    waiting,
+    cannotStart,
+    labeledBeforeWindow,
+    evaluatedAt: oldest,
+  };
 }
