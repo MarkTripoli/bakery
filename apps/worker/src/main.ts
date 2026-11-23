@@ -18,6 +18,7 @@ import { createEvaluationExecutor } from "./evaluation-executor.ts";
 import { createPiHarnessExecutor } from "./pi-harness.ts";
 import { designToolAvailableFrom } from "./harness-rpi.ts";
 import { createClaudeHarnessExecutor } from "./claude-harness.ts";
+import { createToolGatewayFactory } from "./tool-gateway.ts";
 import { createCodexHarnessExecutor } from "./codex-harness.ts";
 import { withSessionCredentialFile } from "./session-credential-file.ts";
 import { createReviewerExecutor } from "./reviewer.ts";
@@ -373,7 +374,22 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         redactionSecrets: config.outputRedactionSecrets,
         authSourceDir: config.claudeAuthSourceDir ?? join(home!, ".claude"),
         readAttemptContext,
-        designToolAvailable: designToolAvailableFrom(config.capabilities),
+        // The design tool is a capability binding (#436): a Paper connection
+        // bound to the step, its seat or its agent reaches the session through
+        // the tool gateway, so the worker's own capability list no longer
+        // decides it for the Claude harness.
+        toolGateway: createToolGatewayFactory(client, async () => {
+          const registration = await registrationStore.load();
+          return registration?.workerSessionId === undefined ||
+              registration.workerSessionGeneration === undefined
+            ? null
+            : {
+              workerSessionId: registration.workerSessionId,
+              workerSessionGeneration: String(
+                registration.workerSessionGeneration,
+              ),
+            };
+        }),
         inner: checkedExecutor,
       })
       : codingHarness?.name === "pi"

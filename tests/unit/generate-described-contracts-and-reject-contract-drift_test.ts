@@ -884,15 +884,21 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "0a4d1eb165ac9949938bc0267797f13459891e1b",
+    "3168f1fe748788dccf820aa9f82f9414c2120211",
   ];
   const approvedDigest =
-    "sha256:ddfe4f10fc4788483a7d7a450eef99600ebfb80ffea3bf0e53a440728a4af951";
+    "sha256:8629bb2d416ffdea01d9b410359e50ddb54ca346a360d9f7bab4f0872f04d88f";
   // Every approval this one displaced, in order. They are history: none of
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
-    // Displaced by the #34 plugin job version pin rebind onto main 0a4d1eb16: #435 tool.call, kept unchanged.
+    // Displaced by the #34 plugin job version pin rebind onto main 3168f1fe7: #436 tool gateway, kept unchanged.
+    "sha256:ccdb73044818cceadc5b2cedb97217d7abce69ddff1583f50487aa5bae49b6f1",
+    // Displaced by the #436 tool gateway rebind onto main 37a0f9585: the earlier #436 approval on c81df5445.
+    "sha256:cffc2bff0b920ddee9258f8aad12988d9b3f7715c4a5d237faa2f4a23f24fbe7",
+    // Displaced by the #436 tool gateway rebind onto main c81df5445: the earlier #436 approval on d800f8e4e.
+    "sha256:0061a57e9f06a2c4fc8f49da6ff2f436815d71e41fa77002285281b6bb07c81f",
+    // Displaced by the #436 tool gateway rebind onto main d800f8e4e: main's own #435 tool.call approval, kept unchanged.
     "sha256:5dde3eae9c99876345ec310354e42e5952314e881a10159b86c296236215b0ee",
     // Displaced by the #435 tool.call rebind onto main 86bcb19f9: main's own #74 skill reads approval, kept unchanged.
     "sha256:aba04c851659afd475038e58d642529fc7bf47e8bfa80794a91e89dfeb8e7d4f",

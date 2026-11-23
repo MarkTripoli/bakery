@@ -1,13 +1,43 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "0a4d1eb165ac9949938bc0267797f13459891e1b"
+    "3168f1fe748788dccf820aa9f82f9414c2120211"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:ddfe4f10fc4788483a7d7a450eef99600ebfb80ffea3bf0e53a440728a4af951",
-  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 0a4d1eb165ac9949938bc0267797f13459891e1b: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker now refuses a job without a pin as plugin_job_version_unpinned, and the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id. No other contract shape changed.",
+  "targetCompatibilityDigest": "sha256:8629bb2d416ffdea01d9b410359e50ddb54ca346a360d9f7bab4f0872f04d88f",
+  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 3168f1fe748788dccf820aa9f82f9414c2120211: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker now refuses a job without a pin as plugin_job_version_unpinned, and the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id. No other contract shape changed.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "0a4d1eb165ac9949938bc0267797f13459891e1b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:ccdb73044818cceadc5b2cedb97217d7abce69ddff1583f50487aa5bae49b6f1",
+      "reason": "Displaced by the #34 plugin job version pin rebind onto main 3168f1fe7: #436 tool gateway, kept unchanged. It approved main 0a4d1eb16 before workerActions['plugin.job'] made versionId required (#34, B14.03)."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "c81df5445636edd8be02801211e90d3288520a32"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:cffc2bff0b920ddee9258f8aad12988d9b3f7715c4a5d237faa2f4a23f24fbe7",
+      "reason": "#436 tool gateway and capability bindings by dev-server on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main c81df5445636edd8be02801211e90d3288520a32: CapabilityBinding gains seatKey (a seat is a workflow version plus the role a step runs as, 25-one-engine.md 15.5) and CapabilityBindingCreate and BindingQuery gain it as an optional field; BrokerToolInvocation (worker.invokeTool, never served before this change) makes integrationConnectionId optional beside a new mcpConnectionId and gains the worker session pair; capabilityBindings.create, list and delete declare their required organization context; the paper workflow action capability is removed, because rpi.design reaches its design tool through a capability binding (a Paper connection bound to the step, seat or agent) and no longer needs a worker that advertises paper. No client called worker.invokeTool or the capability binding routes before, since none was mounted. Main's own approval is preserved unchanged first below."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "d800f8e4ee0662d4cbc8212fddaab0b1d664518a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:0061a57e9f06a2c4fc8f49da6ff2f436815d71e41fa77002285281b6bb07c81f",
+      "reason": "Displaced by the #436 tool gateway rebind onto main c81df5445: the earlier #436 approval bound to main d800f8e4e, kept unchanged. #436 tool gateway and capability bindings by dev-server on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main d800f8e4ee0662d4cbc8212fddaab0b1d664518a: CapabilityBinding gains seatKey (a seat is a workflow version plus the role a step runs as, 25-one-engine.md 15.5) and CapabilityBindingCreate and BindingQuery gain it as an optional field; BrokerToolInvocation (worker.invokeTool, never served before this change) makes integrationConnectionId optional beside a new mcpConnectionId and gains the worker session pair; capabilityBindings.create, list and delete declare their required organization context; the paper workflow action capability is removed, because rpi.design reaches its design tool through a capability binding (a Paper connection bound to the step, seat or agent) and no longer needs a worker that advertises paper. No client called worker.invokeTool or the capability binding routes before, since none was mounted. Main's own approval is preserved unchanged first below."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
@@ -16,7 +46,7 @@
       "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:5dde3eae9c99876345ec310354e42e5952314e881a10159b86c296236215b0ee",
-      "reason": "Displaced by the #34 plugin job version pin rebind onto main 0a4d1eb16: #435 tool.call, kept unchanged. It approved main 86bcb19f9 before workerActions['plugin.job'] made versionId required (#34, B14.03)."
+      "reason": "Displaced by the #436 tool gateway rebind onto main d800f8e4e: main's own approval, kept unchanged. #435 tool.call step by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 86bcb19f90ccaef41757840967d8dbf000214a23: tool.call replaces integration.action (the one-engine design, 25-one-engine.md 15.4). The workflow action name integration.action and its IntegrationActionInput and IntegrationActionOutput step contracts are replaced by tool.call with ToolCallInput (connectionId, tool, toolVersion, resourceId, arguments) and ToolCallOutput (the ActionResult shape); no server runtime or worker ever ran integration.action (it had no execution table entry), so no stored run or definition can have used it. Main's own approval is preserved unchanged first below."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
