@@ -3293,3 +3293,124 @@ test("before the merge, or with no release, the headline is the one it was", asy
   await expect(nowCard(page)).not.toContainText("Released to");
   await expect(releaseSection(page)).toHaveCount(0);
 });
+
+// Stills of the release (#63), for design-ux: 1440x900 and 390x844 viewports,
+// the run finished and the side panel stubbed so nothing unrelated shows.
+const RELEASE_STILLS: [
+  string,
+  Parameters<typeof deploymentRow>,
+  Pick<Scenario, "role">,
+][] = [
+  ["releasing", ["queued"], {}],
+  ["checking", ["verifying"], {}],
+  ["healthy", ["healthy"], {}],
+  ["degraded", ["degraded"], {}],
+  ["degraded-viewer", ["degraded"], { role: "viewer" }],
+  ["failed", ["failed"], {}],
+  ["failed-rollback", ["failed", { rollbackFailed: true }], {}],
+  ["unknown", ["unknown"], {}],
+  ["going-back", ["rolling_back"], {}],
+  ["went-back", ["rolled_back"], {}],
+  ["preview-environment", ["healthy", { environment: "preview" }], {}],
+];
+
+async function openReleaseStill(
+  page: Page,
+  deployment: ReturnType<typeof deploymentRow>,
+  role?: Scenario["role"],
+) {
+  await mockRun(page);
+  await mockDelivery(page, {
+    ...CLEAN,
+    pullRequests: merged(),
+    deployments: [deployment],
+    ...(role === undefined ? {} : { role }),
+  });
+  await mockApprovals(page, [approvedRow()]);
+  await stubStillsPage(page);
+  // A released change belongs to a finished task, so no stage reads as current.
+  await page.route(
+    `**/v1/tasks/${id}`,
+    (route) => route.fulfill({ json: { ...task, status: "completed" } }),
+  );
+  await page.goto(`/tasks/${id}`);
+  await expect(nowCard(page)).toBeVisible();
+}
+
+/** The viewport, scrolled so the Delivery section starts at its top. */
+async function releaseStill(page: Page, file: string) {
+  await page.getByTestId("delivery-section").evaluate((element) =>
+    element.scrollIntoView({ block: "start" })
+  );
+  // No hover card from the pointer that opened Details, and no focus ring.
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${STILLS}/${file}`, animations: "disabled" });
+}
+
+for (const [name, args, scenario] of RELEASE_STILLS) {
+  for (const scheme of ["light", "dark"] as const) {
+    for (const [size, width, height] of STILL_SIZES) {
+      test(`still: release, ${name}, ${size} ${scheme}`, async ({ page }) => {
+        test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+        test.setTimeout(laneBudgetMs(90_000));
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height });
+        await openReleaseStill(page, deploymentRow(...args), scenario.role);
+        await releaseStill(page, `release-${name}-${size}-${scheme}.png`);
+        if (name === "healthy") {
+          // Details open: both rows and the outline button.
+          await openLink(
+            page.getByTestId("delivery-section"),
+            "delivery-details",
+          );
+          await expect(goBackButton(page)).toBeVisible();
+          await releaseStill(
+            page,
+            `release-healthy-details-${size}-${scheme}.png`,
+          );
+        }
+      });
+    }
+  }
+}
+
+const DIALOG_STILLS = [
+  ["not-current", { status: 409, reason: "not_current_release" }],
+  ["outcome-unknown", { status: 409, reason: "outcome_unknown" }],
+  ["forbidden", { status: 403, code: "AUTH_FORBIDDEN" }],
+  ["error", { status: 422, code: "UNPROCESSABLE" }],
+  ["no-answer", { status: 500, code: "INTERNAL_ERROR" }],
+] as const;
+
+for (const [size, width, height] of STILL_SIZES) {
+  test(`still: release, dialog, ${size} light`, async ({ page }) => {
+    test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+    test.setTimeout(laneBudgetMs(120_000));
+    await page.setViewportSize({ width, height });
+    await openReleaseStill(page, deploymentRow("degraded"));
+    await button(nowCard(page), "Go back to the last release").click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toBeVisible();
+    await page.waitForTimeout(300);
+    await page.screenshot({
+      path: `${STILLS}/release-dialog-before-${size}-light.png`,
+      animations: "disabled",
+    });
+    await dialog.getByLabel(/Why are you going back/).fill(
+      "p95 latency doubled",
+    );
+    for (const [notice, reply] of DIALOG_STILLS) {
+      await mockGoBack(page, reply);
+      await dialog.getByRole("button", { name: "Go back", exact: true })
+        .click();
+      await expect(dialog.getByTestId("delivery-go-back-notice")).toBeVisible();
+      await page.waitForTimeout(300);
+      await page.screenshot({
+        path: `${STILLS}/release-dialog-${notice}-${size}-light.png`,
+        animations: "disabled",
+      });
+    }
+  });
+}

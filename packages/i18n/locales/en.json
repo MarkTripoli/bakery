@@ -6579,5 +6579,5 @@
   "tasks.delivery.release.dialog.unknown": "Bakery cannot tell whether the release finished, so it cannot go back yet.",
   "tasks.delivery.release.dialog.forbidden": "You do not have permission to deploy this repository. Ask an administrator.",
   "tasks.delivery.release.dialog.error": "Bakery could not go back to the last release. Try again.",
-  "tasks.delivery.release.dialog.noAnswer": "Bakery did not answer, so going back may have started. Check the release before you try again."
+  "tasks.delivery.release.dialog.noAnswer": "Bakery did not answer, so it may already be going back. You can press Go back again; it repeats the same request."
 }
