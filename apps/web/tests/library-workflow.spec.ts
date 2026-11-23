@@ -14,12 +14,6 @@ import { shot } from "./helpers/real-api.ts";
 import { still, windowStill } from "./helpers/stills.ts";
 import { expectPanelUsable } from "./helpers/floating-panel.ts";
 
-/**
- * The text of every step card whose box lies inside this group's box. In the
- * canvas the steps of a group are drawn over its frame rather than inside its
- * markup, and in the outline they are nested in its row: the box says it for
- * both, which is also what a person sees.
- */
 async function cardsInside(group: Locator): Promise<string[]> {
   return await group.evaluate((element) => {
     const frame = element.getBoundingClientRect();
@@ -180,8 +174,6 @@ for (
       await expect(steps.getByRole("button", { name: "Add a step" }))
         .toHaveCount(0);
       await expect(steps).not.toContainText("Remove");
-      // The diagram's path runs to the end and stops there; the outline a
-      // phone shows is a list and has no end mark.
       if (viewport.name === "desktop") {
         await expect(steps.locator("[data-canvas-end]")).toHaveText("End");
       }
@@ -258,8 +250,6 @@ for (
         .toHaveCount(0);
       await expect(steps).not.toContainText("Move");
       await expect(steps).not.toContainText("Remove");
-      // The diagram's path runs from the first card to the last and stops;
-      // the outline a phone shows has no end mark.
       if (viewport.name === "desktop") {
         await expect(steps.locator("[data-canvas-end]")).toHaveText("End");
       }
@@ -859,9 +849,6 @@ for (
           "true",
         );
       } else {
-        // The menu is as tall as its rows when the canvas has room for them, and
-        // then nothing is hidden and nothing fades. A short window leaves less
-        // room than the rows need, so the list scrolls inside the menu.
         await page.setViewportSize({ width: viewport.width, height: 520 });
         // Just opened: rows are hidden below, so only the bottom edge fades.
         await expect(list).toHaveAttribute("data-picker-fade-bottom", "true");
@@ -883,8 +870,6 @@ for (
         // `shot` resets the viewport per viewport, which resets the scroll, so
         // capture the end state directly at the evidence viewport instead.
         if (process.env.BAKERY_EVIDENCE_DIR) {
-          // Capture in the short window that made the list scroll, at 1440 wide
-          // like the other desktop stills.
           await page.setViewportSize({ width: 1440, height: 520 });
           await page.evaluate(() =>
             new Promise((resolve) => requestAnimationFrame(resolve))
@@ -1029,9 +1014,6 @@ test("the diagram is drawn only once the measured sizes are in, and cards in a b
       },
     ],
   });
-  // Note the gap between the two cards the moment the canvas first says it is
-  // ready, not later: a three-line card is taller than the size ELK is first
-  // given, so a canvas that says "ready" too early shows them nearly touching.
   await page.addInitScript(() => {
     const w = globalThis as unknown as { __gapAtReady?: number };
     new MutationObserver(() => {
@@ -1060,7 +1042,6 @@ test("the diagram is drawn only once the measured sizes are in, and cards in a b
   ).toBeGreaterThanOrEqual(12);
 });
 
-/** A draft whose steps are straight lines, so every wire has a "+". */
 const flatDraft = (steps: { id: string; uses: string }[]): Options => ({
   ...WORLD,
   versions: [
@@ -1072,7 +1053,6 @@ const flatDraft = (steps: { id: string; uses: string }[]): Options => ({
   ],
 });
 const editorUrl = `/library/workflows/${WORKFLOW.id}/edit`;
-/** A step's own sentence: on a card, or on a row of the outline (a phone). */
 const SUMMARY = ".ui-step-card__summary, .ui-outline__summary";
 
 test.describe("the workflow canvas on a wide window", () => {
@@ -1090,7 +1070,6 @@ test.describe("the workflow canvas on a wide window", () => {
     await page.goto(editorUrl);
     await expect(page.locator('[data-ui-region="workflow-canvas"]'))
       .toHaveAttribute("data-layout", "ready");
-    // Where focus is, as the block it is on or the block whose "+" it is.
     const here = () =>
       page.evaluate(() => {
         const active = document.activeElement;
@@ -1118,8 +1097,6 @@ test.describe("the workflow canvas on a wide window", () => {
       "card:rev",
       "plus:rev",
     ]);
-    // Enter on a "+" opens the add menu; Escape closes it and focus is back on
-    // that same "+", named for the step above it.
     await page.locator("[data-connector='add'] button").focus();
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("step-picker")).toBeVisible();
@@ -1153,7 +1130,6 @@ test.describe("the workflow canvas on a wide window", () => {
         .toHaveAttribute("data-layout", "ready");
       const top = async (selector: string) =>
         (await page.locator(selector).first().boundingBox())!.y;
-      // The frames of the two arms, and the captions in them, share one top.
       expect(
         Math.abs(
           (await top("[data-group='yes']")) -
@@ -1180,14 +1156,12 @@ test.describe("the workflow canvas on a wide window", () => {
     await expect(canvas).toHaveAttribute("data-layout", "ready");
     const menu = page.getByTestId("step-picker");
     const dialog = page.getByRole("dialog");
-    // Near the top: the menu has room below it.
     await page.locator("[data-connector='s0'] button").click();
     await expect(menu).toBeVisible();
     await expectPanelUsable(dialog, canvas);
     await page.mouse.move(5, 5);
     await windowStill(page, "canvas-add-menu-top");
     await page.keyboard.press("Escape");
-    // Near the bottom of what is showing: the menu opens above its +.
     const edge = (await canvas.boundingBox())!;
     const lows = await page.locator("[data-canvas-add] button").evaluateAll(
       (buttons, limit) =>
@@ -1210,7 +1184,6 @@ test.describe("the workflow canvas on a wide window", () => {
   });
 
   test("a canvas that cannot be fetched falls back to the outline, says so, and Try again brings the diagram", async ({ page }) => {
-    // The page loads twice, the second time from a cold dev server.
     test.setTimeout(laneBudgetMs(90_000));
     await libraryFixture(
       page,
@@ -1233,8 +1206,6 @@ test.describe("the workflow canvas on a wide window", () => {
     await page.mouse.move(5, 5);
     await windowStill(page, "canvas-failed");
     refuse = false;
-    // Try again loads the page afresh: the dev server needs longer than the
-    // default wait to serve it again.
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(page.locator('[data-ui-region="workflow-canvas"]'))
       .toHaveAttribute("data-layout", "ready", { timeout: 30000 });
@@ -1251,14 +1222,12 @@ test.describe("Publish and the save", () => {
         { id: "brief", uses: "task.brief" },
         { id: "add", uses: "harness.implement" },
       ]),
-      // The save takes a second, so the order of events can be seen.
       saveDelayMs: 1200,
     });
     let published = "";
     await page.route(
       (url) => /\/versions\/[^/]+\/publish$/.test(url.pathname),
       (route) => {
-        // The digest rides in If-Match, and may also be in the body.
         published = JSON.stringify({
           ifMatch: route.request().headers()["if-match"] ?? "",
           body: route.request().postData() ?? "",
@@ -1277,10 +1246,8 @@ test.describe("Publish and the save", () => {
     await page.locator("[data-pick-step='review.independent']").click();
     const publish = page.getByRole("button", { name: "Publish" });
     await publish.click();
-    // The change is not saved yet: no dialog, the button is busy.
     await expect(publish).toHaveAttribute("aria-busy", "true");
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
-    // When the dialog opens the save has landed, with the step in it.
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toBeVisible();
     expect(seen.draftSaves.length).toBeGreaterThanOrEqual(1);
@@ -1288,11 +1255,8 @@ test.describe("Publish and the save", () => {
       "review.independent",
     );
     await expect(saveStatus(page)).toContainText("Saved");
-    // Publishing names the draft the save returned, not the one the page opened
-    // with: a stale digest would publish an older version.
     await dialog.getByRole("button", { name: "Publish only" }).click();
     await expect.poll(() => published).not.toBe("");
-    // The draft's own version rides in If-Match: without it the server refuses.
     expect(JSON.parse(published).ifMatch).not.toBe("");
     expect(published).toContain(SAVED_DIGEST);
     expect(published).not.toContain("04".repeat(32));
@@ -1311,13 +1275,14 @@ test.describe("Publish and the save", () => {
         hasText: "Your latest changes are not saved. Press Try again first.",
       }),
     ).toBeVisible();
-    // Playwright will not click what is aria-disabled unless it is forced.
     await publish.click({ force: true });
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
     await page.mouse.move(5, 5);
     await publish.focus();
     await windowStill(page, "publish-not-saved");
-    // With nothing wrong, the failed save still hides "Ready to publish".
+  });
+
+  test("a failed save with nothing wrong hides Ready to publish", async ({ page }) => {
     await libraryFixture(page, WORLD);
     await page.goto(editorUrl + "?state=save-failed");
     await expect(saveStatus(page)).toContainText("Not saved");
@@ -1337,16 +1302,13 @@ test.describe("the editor header on a phone", () => {
     await libraryFixture(page, WORLD);
     await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
     await expect(saveStatus(page)).toContainText("Saved");
-    // The title bar keeps the menu, the name and the bell: no action in it.
     await expect(
       page.locator('[data-ui-component="topBar"]').getByRole("button", {
         name: /Publish|View as code/,
       }),
     ).toHaveCount(0);
-    // The state and the problems chip are in the header's subtitle.
     await expect(header(page).getByTestId("editor-problems")).toBeVisible();
     await expect(header(page)).toContainText("Saved");
-    // The two actions are one row of equal halves, Publish on the right.
     const code = await actions(page).getByRole("button", {
       name: "View as code",
     })
@@ -1368,7 +1330,6 @@ test.describe("the editor header on a phone", () => {
     await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
     const chip = header(page).getByTestId("editor-problems");
     await expect(chip).toHaveText("2 problems");
-    // 44px is the touch target: a coarse pointer gets it, a mouse need not.
     const coarse = await page.evaluate(() =>
       globalThis.matchMedia("(pointer: coarse)").matches
     );
@@ -1390,8 +1351,6 @@ test.describe("the editor header on a phone", () => {
       .first()
       .boundingBox();
     for (const one of [bell, menu]) {
-      // The band ends in a 1px rule; the air above and below the 44px row is
-      // the same, give or take the rule.
       const above = one!.y - band!.y;
       const below = band!.y + band!.height - 1 - (one!.y + one!.height);
       expect(Math.abs(above - below)).toBeLessThanOrEqual(1);
@@ -1408,7 +1367,6 @@ test.describe("the editor header on a phone", () => {
     await expect(header(page).getByRole("button", { name: "Try again" }))
       .toBeVisible();
     await expect(actions(page).getByRole("button")).toHaveCount(2);
-    // Publish cannot run ahead of the save, and "Ready to publish" is gone.
     await expect(actions(page).getByRole("button", { name: "Publish" }))
       .toHaveAttribute("aria-disabled", "true");
     await expect(page.getByText("Ready to publish")).toHaveCount(0);
@@ -1604,9 +1562,6 @@ for (
       await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
       const brief = page.locator("[data-card='brief']");
       await expect(brief).toContainText("Write the task brief");
-      // The step keeps its own sentence; that it is in code is the mark right of
-      // its name, said in words once (the tooltip and the card's name), never
-      // as the step's line.
       await expect(brief.locator(SUMMARY)).toContainText(
         "Writes down what the task is",
       );
@@ -1649,8 +1604,6 @@ for (
         0,
       );
       if (viewport.name === "desktop") {
-        // The panel narrowed the canvas: the wide If box is not left half
-        // behind it, because the diagram keeps its place around the middle.
         await expect.poll(async () => {
           const canvas = await page.locator(
             '[data-ui-region="workflow-canvas"]',

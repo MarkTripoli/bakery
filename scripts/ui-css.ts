@@ -12,8 +12,6 @@ export type DiscoveredStylesheet = { path: string; policy: CssPolicy };
 const localVariables = new Set([
   "--gutter",
   "--target-min",
-  // React Flow's own theme variables, set on the workflow canvas (steps.css) to
-  // our tokens; the library reads them, so the names are not ours to choose.
   "--xy-attribution-background-color",
   "--xy-background-color",
   "--xy-controls-box-shadow",

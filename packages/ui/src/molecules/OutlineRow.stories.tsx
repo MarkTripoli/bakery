@@ -7,10 +7,6 @@ const meta = {
 } satisfies Meta;
 export default meta;
 
-/**
- * Every state of one row of the outline: ordinary, selected, one the editor
- * cannot read, one written in code, and the caption that heads an If's arm.
- */
 export const Contract: StoryObj = {
   render: () => (
     <div style={{ maxWidth: "360px" }}>

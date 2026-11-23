@@ -7,10 +7,6 @@ const meta = {
 } satisfies Meta;
 export default meta;
 
-/**
- * The frame around steps that belong together: a box with a limit, a selected
- * box, an empty one, a box written in code, and one arm of an If.
- */
 export const Contract: StoryObj = {
   render: () => (
     <div style={{ display: "grid", gap: "16px", maxWidth: "360px" }}>

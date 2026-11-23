@@ -7,11 +7,6 @@ const meta = {
 } satisfies Meta;
 export default meta;
 
-/**
- * The box a workflow diagram is drawn in. `page` is a framed block of a given
- * height; `fill` fits what is left of the window. Both are shown with plain
- * text standing in for the diagram.
- */
 export const Contract: StoryObj = {
   render: () => (
     <div style={{ display: "grid", gap: "16px", maxWidth: "480px" }}>

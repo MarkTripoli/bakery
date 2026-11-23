@@ -5,38 +5,21 @@ import "../steps.css";
 export type OutlineRowProps =
   & SemanticNativeProps<Omit<LiHTMLAttributes<HTMLLIElement>, "title">>
   & {
-    /** The step's or box's name. */
     title: ReactNode;
-    /** The one muted line under the name. */
     summary?: ReactNode;
-    /** The step type's icon, decorative and hidden from screen readers. */
     icon?: ReactNode;
-    /** Whether the panel beside the list is showing this row. */
     selected?: boolean;
-    /** The id of the panel the row opens. */
     controls?: string;
-    /** The step cannot be read, or is a kind the editor does not know. */
     needsSetup?: boolean;
-    /** The words for the needs-setup state, translated by the caller. */
     needsSetupLabel?: ReactNode;
-    /** The mark that says the row is written in code, outside the row's button. */
     codeMark?: ReactNode;
-    /** The row's accessible name, when more than its text is worth saying. */
     selectLabel?: string;
-    /** Select the row. When absent the row is text. */
     onSelect?: () => void;
-    /**
-     * A caption row: the muted word that heads one arm of an If. It has no
-     * icon and cannot be selected.
-     */
     caption?: boolean;
-    /** The rows inside a box: a nested `OutlineList`. */
     children?: ReactNode;
-    /** The control that adds a step after this row, drawn between rows. */
     add?: ReactNode;
   };
 
-/** One step, box or arm caption in the outline. */
 export function OutlineRow(
   {
     add,

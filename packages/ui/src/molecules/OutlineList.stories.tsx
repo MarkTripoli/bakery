@@ -7,7 +7,6 @@ const meta = {
 } satisfies Meta;
 export default meta;
 
-/** A workflow as a list: steps, and a box holding its steps as a nested list. */
 export const Contract: StoryObj = {
   render: () => (
     <div style={{ maxWidth: "360px" }}>

@@ -1,12 +1,5 @@
 import { expect, type Locator } from "@playwright/test";
 
-/**
- * A panel that hangs from a control inside a clipping surface (the add menu on
- * the workflow canvas) must be seen whole: inside the surface that holds its
- * trigger and inside the window, on all four sides, and the thing a person
- * types in must be the thing a click at its centre reaches (a canvas edge or a
- * rail painted over the panel hides a field the box checks call fine).
- */
 export async function expectPanelUsable(panel: Locator, boundary: Locator) {
   const edge = await boundary.boundingBox();
   const seen = await panel.evaluate((element) => {

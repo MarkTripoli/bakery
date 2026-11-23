@@ -80,12 +80,6 @@ export type DiagramProps = {
    * agent a step runs, and whether that could be read. The editor passes none.
    */
   readonly detail?: (uses: string, id: string) => ReactNode;
-  /**
-   * How the steps are drawn: the diagram, or the same workflow as a list. The
-   * page owns the choice (it is in the address as `?view=outline`) and its
-   * switch; a phone always gets the list, and the diagram's code is then not
-   * loaded at all.
-   */
   readonly view?: "diagram" | "outline";
 };
 
@@ -99,7 +93,6 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   wait: "library.editor.group.wait",
 };
 
-/** The glyph in a box's header, where one says more than the label. */
 const GROUP_ICON: Readonly<Partial<Record<GroupLabel, string>>> = {
   together: "lanes",
   repeat: "refresh",
@@ -177,9 +170,6 @@ export function WorkflowDiagram(
     // A narrower search changes what is hidden; re-measure after that render.
     measureListFade(listEl.current);
   }, [measureListFade, pickQuery]);
-  // The menu is placed by measurement and can change height after it opens (the
-  // window or the canvas resizes, a pan moves its "+"): the list is measured
-  // again whenever its own box changes, not only when it scrolls.
   const listWatch = useRef<ResizeObserver | null>(null);
   const setListEl = useCallback((node: HTMLElement | null) => {
     listWatch.current?.disconnect();
@@ -245,8 +235,6 @@ export function WorkflowDiagram(
       ),
     [graph],
   );
-  // The outermost box that is written in code carries the code mark, once: the
-  // steps and boxes inside it are in code too, and saying so again is noise.
   const marked = useMemo(() => {
     const out = new Set<string>();
     const byId = new Map(graph.blocks.map((block) => [block.id, block]));
@@ -275,9 +263,6 @@ export function WorkflowDiagram(
       0,
     );
 
-  // The "+" a person presses to add a step after a step (or after the start):
-  // it opens the picker, as a popover beside it and a bottom sheet on a phone,
-  // so it never pushes the diagram down. Null where nothing can be added.
   const addControl = (afterId: string | null): ReactNode => {
     if (!editable || !canManage) return null;
     const open = pickerAt !== undefined && pickerAt === afterId;
@@ -336,23 +321,15 @@ export function WorkflowDiagram(
       total: stepNumber.size,
     });
 
-  // What one step says, for its card and for its row in the outline. A step with
-  // a problem wears the red outline and says "Needs setup" in place of its
-  // usual line; the sentence is never loose text under it, it belongs to the
-  // panel and the problem list (#67 UX ruling 6932934119 fixes 2 and 3). On a
-  // read-only page a known step shows its usual line, not "Edited in code".
   const stepFacts = (node: TreeStep) => {
     const drawing = node.problem !== undefined ||
       problems.get(node.id) !== undefined;
     const codeOnly = node.codeOnly === true && !drawing;
     const glyph = drawing ? "info" : ACTION_ICONS[node.uses];
-    // A step written in code keeps its own sentence; that it is in code is the
-    // mark right of its name, said in words once, in the panel.
     const summary = drawing ? undefined : line(node.uses);
     const extra = drawing ? undefined : detail?.(node.uses, node.id);
     return { codeOnly, drawing, extra, glyph, summary };
   };
-  // A step inside a box is in code because the box is, and the box says so.
   const insideBox = useMemo(
     () =>
       new Set(
@@ -362,7 +339,6 @@ export function WorkflowDiagram(
       ),
     [graph],
   );
-  /** The words for a step's mark, added to its name for a screen reader. */
   const markedName = (node: TreeStep, marked: boolean): string =>
     marked && editedInCode !== undefined
       ? `${stepName(node)} ${editedInCode}.`
@@ -412,7 +388,6 @@ export function WorkflowDiagram(
     </div>
   );
 
-  /** The mark that says a box is written in code; its words are the same for a screen reader. */
   const codeMark = (): ReactNode =>
     editedInCode === undefined ? undefined : (
       <UI.Tooltip content={editedInCode}>
@@ -438,7 +413,6 @@ export function WorkflowDiagram(
   };
   const wordFor = (label: GroupLabel): string =>
     translate(GROUP_LABEL[label] as never);
-  /** "For each item, at most 5 items. 2 steps inside. Edited in code." */
   const groupName = (
     label: string,
     limit: string | undefined,
@@ -467,7 +441,6 @@ export function WorkflowDiagram(
       : <UI.IconGlyph name={name as never} size="small" />;
   };
 
-  // ---- the diagram: what each block of the canvas looks like ----
   const renderBlock = (block: CanvasBlock): ReactNode => {
     switch (block.kind) {
       case "start":
@@ -520,7 +493,6 @@ export function WorkflowDiagram(
       }
     }
   };
-  /** The "+" sits inside the block above it, so Tab reaches it right after that block. */
   const renderAdd = (block: CanvasBlock): ReactNode => {
     if (block.kind !== "start" && block.kind !== "step") return null;
     const afterId = block.kind === "start" ? null : block.id;
@@ -534,7 +506,6 @@ export function WorkflowDiagram(
       );
   };
 
-  // ---- the outline: the same workflow as a list ----
   const outlineAdd = (afterId: string | null): ReactNode => {
     const control = addControl(afterId);
     return control === null
@@ -606,7 +577,6 @@ export function WorkflowDiagram(
         rows.push(stepRow(node, inCode));
         continue;
       }
-      // The two arms of a branch are consecutive in the tree: one If row.
       const next = held[index + 1];
       if (
         node.label === "yes" && next !== undefined && next.kind === "group" &&
@@ -660,8 +630,6 @@ export function WorkflowDiagram(
     </UI.OutlineList>
   );
 
-  // The canvas is a separate chunk. If it cannot be fetched the same workflow
-  // is drawn as the outline, with a notice and a way to try again.
   const [failed, setFailed] = useState(false);
   const Canvas = useMemo(
     () => lazy(() => import("./WorkflowCanvas.tsx")),
@@ -703,10 +671,6 @@ export function WorkflowDiagram(
               action={
                 <UI.Button
                   variant="secondary"
-                  // A browser remembers a module that failed to load, so asking
-                  // again for the same file answers with the same failure: the
-                  // only way to the diagram is a fresh page. Saves are
-                  // debounced and the list above is the same workflow.
                   onClick={() => globalThis.location.reload()}
                 >
                   {translate("library.editor.canvas.retry" as never)}
@@ -754,7 +718,6 @@ export function WorkflowDiagram(
   );
 }
 
-/** Catches a canvas chunk that could not be fetched, so the page can fall back to the outline. */
 class CanvasBoundary extends Component<
   { children: ReactNode; onFail: () => void },
   { failed: boolean }

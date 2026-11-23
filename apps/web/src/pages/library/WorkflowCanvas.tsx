@@ -37,27 +37,11 @@ import {
   WIRE_LENGTH,
 } from "./canvas-graph.ts";
 
-/**
- * The workflow drawn on React Flow (#67, design-ux's "workflow canvas on React
- * Flow"). Bakery lays it out, top to bottom, with ELK in a worker; nobody
- * drags a block or draws a wire. Everything a block looks like and says comes
- * from the caller as render functions, so the picker, the cards and the words
- * stay where they are today and this module only places and moves them.
- *
- * This module is loaded lazily: it is the only place React Flow and ELK are
- * imported, so a page that never draws a diagram (a phone shows the outline)
- * never downloads them.
- */
-
 export type WorkflowCanvasProps = Readonly<{
   graph: CanvasGraph;
-  /** `page` reads the workflow; `editor` pans and zooms it. */
   mode: "page" | "editor";
-  /** What a block looks like: a step card, a box, the start card or the end pill. */
   renderBlock: (block: CanvasBlock) => ReactNode;
-  /** The "+" that adds a step after a block, drawn inside that block; null for none. */
   renderAdd: (block: CanvasBlock) => ReactNode;
-  /** The block whose panel is open, brought into view when it changes. */
   selectedId: string | null;
   labels: Readonly<
     { canvas: string; zoomIn: string; zoomOut: string; fit: string }
@@ -70,16 +54,13 @@ const RenderContext = createContext<Render>({
   renderAdd: () => null,
 });
 
-/** Room around the diagram inside its frame, in pixels. */
 const PAD = 16;
-/** The smallest a diagram is scaled to on the workflow page before Outline is offered. */
 const PAGE_MIN_ZOOM = 0.6;
 
 const isContainer = (block: CanvasBlock) =>
   block.kind === "box" || block.kind === "if" || block.kind === "arm";
 
 let engine: InstanceType<typeof ELK> | undefined;
-/** ELK in a Web Worker, created on first use. */
 function elk(): InstanceType<typeof ELK> {
   engine ??= new ELK({
     workerFactory: () =>
@@ -92,7 +73,6 @@ type BlockData = { block: CanvasBlock };
 
 const ignoreNodeClick = () => {};
 
-/** One block: its drawing, its "+" below it, and the hidden ports the wires meet at. */
 function CanvasNode({ data }: NodeProps<Node<BlockData>>) {
   const { renderBlock, renderAdd } = useContext(RenderContext);
   const { block } = data;
@@ -107,7 +87,6 @@ function CanvasNode({ data }: NodeProps<Node<BlockData>>) {
 }
 const NODE_TYPES = { step: CanvasNode, box: CanvasNode };
 
-/** A rough height before the layout has answered, so the frame does not jump much. */
 function estimatedHeight(graph: CanvasGraph): number {
   const drawn = graph.blocks.filter((block) => !isContainer(block)).length;
   return drawn * (STEP_SIZE.height + WIRE_LENGTH) + 2 * PAD;
@@ -129,8 +108,6 @@ function Surface(props: WorkflowCanvasProps) {
   );
   const [sizes, setSizes] = useState<ReadonlyMap<string, Size>>(new Map());
   const [laid, setLaid] = useState<readonly Placement[] | null>(null);
-  // The block sizes the current `laid` was computed from, and whether the
-  // measured sizes agree with them: only then is the drawing final.
   const [laidKey, setLaidKey] = useState<string | null>(null);
   const [stable, setStable] = useState(false);
   const passes = useRef(0);
@@ -142,7 +119,6 @@ function Surface(props: WorkflowCanvasProps) {
     [sizes],
   );
 
-  // Layout: ELK answers from the block sizes known so far.
   useEffect(() => {
     let live = true;
     elk().layout(elkGraph(graph, sizes)).then((result) => {
@@ -164,7 +140,6 @@ function Surface(props: WorkflowCanvasProps) {
     [laid],
   );
 
-  // Second pass: once the blocks are drawn, their real heights replace the guesses.
   const measured = useNodesStore((state) => {
     let out = "";
     for (const [id, node] of state.nodeLookup) {
@@ -207,13 +182,10 @@ function Surface(props: WorkflowCanvasProps) {
       setStable(true);
     }
   }, [measured, laidKey]);
-  // A block that never reports a size must not leave the canvas clear for good.
   useEffect(() => {
     const timer = globalThis.setTimeout(() => setStable(true), 3000);
     return () => globalThis.clearTimeout(timer);
   }, [signature]);
-  // Until the measured sizes have replaced the guesses the blocks sit where the
-  // guesses put them, so the canvas stays clear instead of showing that jump.
   const settled = stable && laid !== null && laidKey === sizesKey;
 
   const nodes = useMemo<Node<BlockData>[]>(
@@ -252,7 +224,6 @@ function Surface(props: WorkflowCanvasProps) {
     [graph],
   );
 
-  // The diagram's size, from the top-level blocks (their positions are absolute).
   const bounds = useMemo(() => {
     let w = 0;
     let h = 0;
@@ -266,12 +237,10 @@ function Surface(props: WorkflowCanvasProps) {
     return { w, h };
   }, [graph, placed]);
 
-  // A page scales a wide diagram down to fit its frame, not below 60%.
   const zoom = mode === "page" && width > 0 && bounds.w + 2 * PAD > width
     ? Math.max(PAGE_MIN_ZOOM, width / (bounds.w + 2 * PAD))
     : 1;
 
-  // Centre it, at the top. The editor does this once, so a person's own pan stays.
   const centred = useRef(false);
   useEffect(() => {
     if (laid === null || width === 0 || bounds.w === 0) return;
@@ -284,9 +253,6 @@ function Surface(props: WorkflowCanvasProps) {
     });
   }, [laid, width, bounds.w, zoom, mode]);
 
-  // The canvas gets narrower when the panel opens and wider when it closes.
-  // Keep the diagram where it was relative to the middle of the canvas, so a
-  // wide box is not left half behind the panel, and a person's own pan stays.
   const lastWidth = useRef(0);
   useEffect(() => {
     const before = lastWidth.current;
@@ -302,7 +268,6 @@ function Surface(props: WorkflowCanvasProps) {
     });
   }, [width]);
 
-  // A block that is selected or added is brought into view.
   useEffect(() => {
     if (mode !== "editor" || selectedId === null || laid === null) return;
     const node = stores.nodesStore.getState().nodeLookup.get(selectedId);
@@ -362,10 +327,6 @@ function Surface(props: WorkflowCanvasProps) {
           nodesConnectable={false}
           nodesDraggable={false}
           nodesFocusable={false}
-          // React Flow switches pointer events off, inline, on a node nobody can
-          // drag, select or click, and that would also switch off the "+" inside
-          // it. A click handler is its documented way to keep them on; it does
-          // nothing, and selection stays off.
           onNodeClick={ignoreNodeClick}
           nodeTypes={NODE_TYPES}
           panOnDrag={mode === "editor"}
@@ -377,7 +338,6 @@ function Surface(props: WorkflowCanvasProps) {
         >
           {mode === "editor" && larger
             ? (
-              // One horizontal group: zoom out, zoom in, then Fit with its word.
               <Controls
                 aria-label={labels.canvas}
                 orientation="horizontal"
@@ -419,7 +379,6 @@ function Surface(props: WorkflowCanvasProps) {
   );
 }
 
-/** The workflow canvas; its own provider so the page needs no React Flow state. */
 export default function WorkflowCanvas(props: WorkflowCanvasProps) {
   return (
     <ReactFlowProvider>

@@ -50,17 +50,7 @@ export type TreeGroup = {
   readonly kind: "group";
   /** A stable id for the group, so selecting it opens its panel. */
   readonly id: string;
-  /**
-   * What the group is called: "Yes", "Otherwise", "At the same time", "Repeat",
-   * "Fix until it passes" (a repeat that repairs and reviews), "For each item"
-   * (a forEach) or "Wait".
-   */
   readonly label: GroupLabel;
-  /**
-   * The most tries a "fix" group makes, or the most items a "each" group
-   * loops over; set only when `label` is `fix` or `each` and the definition
-   * states a limit the drawing can read.
-   */
   readonly max?: number;
   /** The nodes inside it, drawn under the label. */
   readonly children: readonly TreeNode[];
@@ -158,11 +148,6 @@ function fixLimitOf(node: Record<string, unknown>): number | undefined {
     : undefined;
 }
 
-/**
- * The most items a forEach loops over, or undefined when `max` is not a whole
- * number of 1 or more: the block then goes without a caption, because it would
- * otherwise name a limit it cannot state.
- */
 function eachLimitOf(node: Record<string, unknown>): number | undefined {
   const max = node.max;
   return typeof max === "number" && Number.isInteger(max) && max >= 1
@@ -308,7 +293,6 @@ function drawNode(
     }];
   }
   if (kind === "forEach") {
-    // The list (`items`) and the item name (`as`) are code names: not drawn.
     const max = eachLimitOf(node);
     return [{
       kind: "group",

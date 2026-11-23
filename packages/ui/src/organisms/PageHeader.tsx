@@ -27,17 +27,7 @@ export type PageHeaderProps = {
   description?: ReactNode;
   /** `split` only: right-aligned summary, such as a status and counts. */
   summary?: ReactNode;
-  /**
-   * `list` only: how `actions` sit on a phone. `stack` (the default) makes
-   * each one a full-width row. `row` puts them side by side at equal width,
-   * for a primary action and its partner, in the order given.
-   */
   actionsLayout?: "stack" | "row";
-  /**
-   * `list` only: a control at the right end of the title row, such as the
-   * switch between two views of the page. It is not drawn on a phone unless the
-   * caller passes one there.
-   */
   aside?: ReactNode;
   /**
    * `list` only: no inline inset, so the title, its line and anything under

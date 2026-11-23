@@ -33,11 +33,6 @@ export type StepCardProps =
     needsSetupLabel?: ReactNode;
     /** What the definition states, when the step could not be read. */
     writtenInCode?: ReactNode;
-    /**
-     * The mark, right of the name, that says the step is written in code. The
-     * caller names it for a screen reader in the card's own label, so it adds
-     * no tab stop and no second announcement.
-     */
     codeMark?: ReactNode;
     /**
      * One further line inside the card, under the summary: on a read-only page,

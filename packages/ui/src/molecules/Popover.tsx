@@ -20,14 +20,6 @@ export type PopoverProps =
      * `end`, or a 360px panel hangs past the viewport edge.
      */
     align?: "start" | "end";
-    /**
-     * `floating` draws the content in the document body and places it by
-     * measurement: below its trigger, or above it when that is the side with
-     * room, and inside the nearest ancestor marked `data-popover-boundary` (else
-     * the window), on all four sides. For a trigger inside a surface that clips
-     * or scales what it holds, such as a pan-and-zoom canvas, where an absolutely
-     * placed panel is cut off at the surface's edge.
-     */
     floating?: boolean;
     label: string;
     onOpenChange?: (open: boolean) => void;
@@ -101,8 +93,6 @@ export function Popover(
     };
   }, [isOpen]);
 
-  // A floating panel is placed on every frame while it is open: the surface it
-  // hangs from can pan or zoom under it, and the trigger moves with it.
   const [floatingStyle, setFloatingStyle] = useState<CSSProperties>({
     position: "fixed",
     visibility: "hidden",
@@ -214,8 +204,6 @@ export function Popover(
     ? (
       <div
         aria-label={label}
-        // `nowheel nopan` keep a pan-and-zoom surface behind the popover (the
-        // workflow canvas) from treating a scroll or drag in it as its own.
         className={[
           "ui-popover__content",
           `ui-popover__content--${variant}`,

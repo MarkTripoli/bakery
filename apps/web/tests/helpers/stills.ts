@@ -91,11 +91,6 @@ export async function still(
   }
 }
 
-/**
- * Like `still`, but the window is left as it is: for a screen whose pane is
- * window-high on purpose (the workflow canvas fills what is left of the
- * window), where growing the window to the page's height would stretch it.
- */
 export async function windowStill(page: Page, name: string): Promise<void> {
   const directory = process.env.BAKERY_EVIDENCE_DIR ??
     process.env.BAKERY_STILLS_DIR;

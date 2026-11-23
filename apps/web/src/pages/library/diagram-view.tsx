@@ -3,11 +3,6 @@ import * as UI from "@bakery/ui";
 import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 
-/**
- * How a workflow's steps are drawn (#67): the diagram, or the same workflow as
- * an outline list. The choice is in the address as `?view=outline` so a link,
- * a reload and the back button keep it; the diagram is the default.
- */
 export type DiagramView = "diagram" | "outline";
 
 export function useDiagramView(): readonly [
@@ -28,10 +23,6 @@ export function useDiagramView(): readonly [
   }];
 }
 
-/**
- * The Diagram / Outline switch. A phone only ever has the outline, so there it
- * is not drawn and nothing is left to choose.
- */
 export function DiagramViewSwitch(
   { onChange, view }: Readonly<
     { onChange: (next: DiagramView) => void; view: DiagramView }

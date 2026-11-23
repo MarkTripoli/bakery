@@ -7,7 +7,6 @@ import {
 } from "../../apps/web/src/pages/library/canvas-graph.ts";
 import { treeOf } from "../../apps/web/src/pages/library/workflow-tree.ts";
 
-// The layout's shape, from the model itself: the test needs no import from elkjs.
 type ElkNode = ReturnType<typeof elkGraph>;
 
 const step = (id: string, uses = "task.brief") => ({
@@ -53,7 +52,6 @@ Deno.test("a repeat is a box that holds its steps, drawn where it stands in the 
     block,
   ) => block.id);
   assertEquals(inside, ["b", "c"]);
-  // Parents come before their children; neighbours at one level are joined.
   assertEquals(ids.indexOf(box!.id) < ids.indexOf("b"), true);
   assertEquals(graph.edges.map((edge) => edge.id).includes("b->c"), true);
   assertEquals(
@@ -120,7 +118,6 @@ Deno.test("placements list every block once, parents before children", () => {
     treeOf({ steps: [{ kind: "repeat", max: 2, steps: [step("b")] }] }),
   );
   const laid = elkGraph(graph);
-  // A stand-in for the computed layout: ELK fills x, y and the box's own size.
   const fake: ElkNode = structuredClone(laid);
   let at = 0;
   const fill = (held: ElkNode[]) =>
@@ -145,7 +142,6 @@ Deno.test("the arms of an If hang from the same top, whichever one is taller", (
   }));
   const fake: ElkNode = structuredClone(elkGraph(graph));
   const iff = fake.children?.find((child) => child.id.startsWith("if-"));
-  // ELK centred the shorter arm: 24px lower than the taller one.
   const [yes, otherwise] = iff?.children ?? [];
   yes.x = 0;
   yes.y = 40;

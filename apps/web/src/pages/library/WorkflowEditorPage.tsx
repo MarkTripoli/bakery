@@ -232,9 +232,6 @@ export function WorkflowEditorPage(
   const [saveState, setSaveState] = useState<SaveState>({ kind: "saved" });
   const [codeOpen, setCodeOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
-  // Publish pressed while a change is still waiting to save or being saved: the
-  // save finishes first, then the dialog opens. Publish sends the saved draft's
-  // id and digest, so it must never run ahead of what is on screen.
   const [publishAfterSave, setPublishAfterSave] = useState(false);
   const [problemsOpen, setProblemsOpen] = useState(false);
   // The step just deleted, by name, while its Undo is offered.
@@ -244,8 +241,6 @@ export function WorkflowEditorPage(
   const lastSaved = useRef<string | null>(null);
   // The version the last save returned: a second edit made while the draft is
   // still being read again must send this one, not the one it last read.
-  // The newest save's record version and digest: what Publish must name, as the
-  // list of versions it was read from may not have caught up with the save yet.
   const savedVersion = useRef<
     { id: string; version: number; digest: string } | null
   >(null);
@@ -339,7 +334,6 @@ export function WorkflowEditorPage(
     mutationKey: ["workflowVersions.publish"],
     mutationFn: async (alsoUse: boolean) => {
       if (draft === null) throw new Error("no draft version");
-      // The draft as last saved, never an older read of it.
       const latest = savedVersion.current?.id === draft.id &&
           savedVersion.current.version > draft.version
         ? savedVersion.current
@@ -530,8 +524,6 @@ export function WorkflowEditorPage(
     resolving,
   ]);
 
-  // Once the save Publish waited for has landed the dialog opens; if it failed
-  // there is no dialog and the header says "Not saved".
   useEffect(() => {
     if (!publishAfterSave) return;
     if (saveState.kind === "failed") {
@@ -970,7 +962,6 @@ export function WorkflowEditorPage(
     </UI.Stack>
   );
 
-  // The Diagram / Outline switch belongs to the title row whenever steps show.
   const showsSteps = !forbidden && !missing && !offline && !loading &&
     draft !== null;
   const body = forbidden
@@ -1051,7 +1042,6 @@ export function WorkflowEditorPage(
       </UI.Inline>
     );
 
-  // The state and the two actions belong to a person who can change the draft.
   const editing = canManage && draft !== null;
   const tryAgain = (variant: "secondary" | "quiet") => (
     shownSave.kind === "failed"
@@ -1062,8 +1052,6 @@ export function WorkflowEditorPage(
       )
       : null
   );
-  // After a failed save the draft on screen is not the saved one, so "Ready to
-  // publish" would promise something the save has not delivered. Problems stay.
   const notSaved = shownSave.kind === "failed";
   const problems = problemCount === 0
     ? notSaved ? null : (
@@ -1094,7 +1082,6 @@ export function WorkflowEditorPage(
       setPublishAfterSave(true);
     } else setPublishOpen(true);
   };
-  // After a failed save Publish stays focusable but does nothing, and says why.
   const publishCore = (
     <UI.Button
       aria-disabled={notSaved ? true : undefined}
@@ -1118,11 +1105,6 @@ export function WorkflowEditorPage(
 
   return (
     <>
-      {
-        /* Beside the title bar on a screen with room. On a phone the title bar
-          keeps the menu, the name and the bell, and the page header below
-          carries all of this (#67 UX design 7091569309). */
-      }
       {editing && !phone
         ? (
           <ShellSlot name="actions">
