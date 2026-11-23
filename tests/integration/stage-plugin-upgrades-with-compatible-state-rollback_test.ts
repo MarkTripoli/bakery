@@ -476,9 +476,13 @@ Deno.test("AC3: a restore racing a state write leaves one whole outcome, never a
     assertEquals(restored.status, 200, await restored.clone().text());
     const writeStatus = written.status;
     await written.body?.cancel();
+    // 200 when it landed whole; 409 when it reached the state after the restore
+    // and its number was stale; 422 when it landed while the install was still
+    // on the newer schema, which refuses a write at the older one. Nothing else
+    // is a state this test calls whole.
     assert(
-      writeStatus === 200 || writeStatus === 409,
-      `a racing write answers 200 or 409, not ${writeStatus}`,
+      [200, 409, 422].includes(writeStatus),
+      `a racing write answers 200, 409 or 422, not ${writeStatus}`,
     );
     assertEquals((await restored.json()).pluginVersionId, first.versionId);
 
