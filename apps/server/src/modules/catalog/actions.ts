@@ -145,6 +145,11 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.IdPath>,
   ) => Promise<null>;
+  /** Allow again: a fresh grant for a step its owner stopped. */
+  createSkillUseGrant: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillUseGrantCreate>,
+  ) => Promise<z.output<typeof contractSchemas.SkillUseGrant>>;
   copySkill: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.SkillCopy>,
@@ -522,6 +527,19 @@ export function createCatalogActionRegistry(
     // A DELETE only reads If-Match when the action says it needs one.
     explicitIdempotency: "key-and-if-match",
     handler: handlers.deleteSkillUseGrant,
+  });
+  registry.register({
+    name: CatalogImplementedAction.SkillUseGrantsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/use-grants",
+    input: contractSchemas.SkillUseGrantCreate,
+    output: contractSchemas.SkillUseGrant,
+    successStatus: 201,
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
+    },
+    handler: handlers.createSkillUseGrant,
   });
   registry.register({
     name: CatalogImplementedAction.LibrarySearch,

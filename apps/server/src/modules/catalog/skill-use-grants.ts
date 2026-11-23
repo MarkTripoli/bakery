@@ -120,6 +120,8 @@ type PersonalVersionRow = {
   version_id: string;
   skill_id: string;
   owner_principal_id: string;
+  revision: number;
+  digest: string;
 };
 
 function issue(
@@ -128,6 +130,80 @@ function issue(
   message: string,
 ) {
   return { path: ["definition", ...segments, "skills"], code, message };
+}
+
+/**
+ * Refuses a run whose version names a personal skill its owner has stopped
+ * allowing at that step.
+ *
+ * A grant is deleted when its owner presses Stop allowing, and until this check
+ * existed nothing that admits a run read the grants table at all: only publishing
+ * and the draft check did. So a stopped grant removed a row and the next run went
+ * ahead with the skill, which made the confirmation's own sentence false. The
+ * owner's act now takes effect at the next run, which is what the sentence says.
+ *
+ * It refuses rather than dropping the skill: a step compiled to use a named
+ * version and silently given nothing would answer a different question than the
+ * one its author asked. The code is the one publishing already answers, because
+ * the sentence to a person is the same one: its owner does not allow this
+ * workflow to use that skill.
+ *
+ * Published versions are untouched: a run already going finishes with the version
+ * it started with, and this only looks at admission.
+ */
+export async function assertStepSkillsAllowed(
+  transaction: PgTransactionClient,
+  facts: Readonly<{
+    organizationId: string;
+    workflowId: string;
+    definition: unknown;
+  }>,
+): Promise<void> {
+  const refs = collectStepSkills(facts.definition);
+  if (refs.length === 0) return;
+  const versionIds = [...new Set(refs.map((ref) => ref.versionId))];
+  // Only a personal version needs a grant; a shared one is visible to everyone
+  // in the organization and withholding it here would refuse runs that published
+  // perfectly well before this check existed.
+  const personal = await transaction.query<{ version_id: string }>(
+    `select version.id as version_id
+       from bakery.skill_versions as version
+       join bakery.skills as skill
+         on skill.organization_id = version.organization_id
+        and skill.id = version.skill_id
+      where version.organization_id = $1
+        and version.id = any($2::uuid[])
+        and skill.scope = 'personal'`,
+    [facts.organizationId, versionIds],
+  );
+  const maybePersonal = new Set(personal.rows.map((row) => row.version_id));
+  const wanted = refs.filter((ref) => maybePersonal.has(ref.versionId));
+  if (wanted.length === 0) return;
+  const granted = await transaction.query<{
+    skill_version_id: string;
+    step_path: string;
+  }>(
+    `select skill_version_id, step_path from bakery.skill_use_grants
+      where organization_id = $1 and workflow_id = $2
+        and skill_version_id = any($3::uuid[])`,
+    [facts.organizationId, facts.workflowId, [...maybePersonal]],
+  );
+  const live = new Set(
+    granted.rows.map((row) => `${row.step_path}#${row.skill_version_id}`),
+  );
+  const stopped = wanted.find((ref) =>
+    !live.has(`${stepPointer(ref.segments)}#${ref.versionId}`)
+  );
+  if (stopped === undefined) return;
+  throw new StandardError({
+    code: "STATE_CONFLICT",
+    params: {
+      reason: "step_skill_stopped",
+      // The step, so an editor can point at the one that stopped the run.
+      step: stepPointer(stopped.segments),
+      skillVersionId: stopped.versionId,
+    },
+  });
 }
 
 /**
@@ -152,7 +228,7 @@ export async function reconcilePersonalSkillUse(
   const versionIds = [...new Set(refs.map((ref) => ref.versionId))];
   const personal = await transaction.query<PersonalVersionRow>(
     `select version.id as version_id, skill.id as skill_id,
-            skill.owner_principal_id
+            skill.owner_principal_id, version.revision, version.digest
        from bakery.skill_versions as version
        join bakery.skills as skill
          on skill.organization_id = version.organization_id
@@ -218,11 +294,14 @@ export async function reconcilePersonalSkillUse(
   for (const { ref, row } of toGrant) {
     const id = crypto.randomUUID();
     const pointer = stepPointer(ref.segments);
+    // The revision and its digest are copied from the immutable version row at
+    // this moment, so the grant records what the owner was shown rather than
+    // what a later read of the version happens to say.
     await transaction.query(
       `insert into bakery.skill_use_grants (
          id, organization_id, skill_id, skill_version_id, workflow_id,
-         step_path, granted_by
-       ) values ($1, $2, $3, $4, $5, $6, $7)`,
+         step_path, granted_by, revision, revision_digest
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         id,
         facts.organizationId,
@@ -231,6 +310,8 @@ export async function reconcilePersonalSkillUse(
         facts.workflowId,
         pointer,
         facts.principalId,
+        row.revision,
+        row.digest,
       ],
     );
     await appendAudit(transaction, {
@@ -266,6 +347,7 @@ type GrantRow = {
   skill_id: string;
   skill_version_id: string;
   revision: number;
+  revision_digest: string;
   workflow_id: string;
   workflow_name: string;
   step_path: string;
@@ -281,6 +363,7 @@ function toGrant(row: GrantRow) {
     skillId: row.skill_id,
     skillVersionId: row.skill_version_id,
     revision: row.revision,
+    revisionDigest: row.revision_digest,
     workflowId: row.workflow_id,
     workflowName: row.workflow_name,
     stepPath: row.step_path,
@@ -350,7 +433,7 @@ export async function listSkillUseGrants(
   const limit = input.limit ?? 25;
   const result = await transaction.query<GrantRow>(
     `select grant_row.id, grant_row.skill_id, grant_row.skill_version_id,
-            version.revision,
+            grant_row.revision, grant_row.revision_digest,
             grant_row.workflow_id, workflow.name as workflow_name,
             grant_row.step_path, grant_row.granted_by, grant_row.created_at,
             to_char(grant_row.created_at at time zone 'UTC',
@@ -360,9 +443,6 @@ export async function listSkillUseGrants(
        join bakery.workflow_definitions as workflow
          on workflow.organization_id = grant_row.organization_id
         and workflow.id = grant_row.workflow_id
-       join bakery.skill_versions as version
-         on version.organization_id = grant_row.organization_id
-        and version.id = grant_row.skill_version_id
       where grant_row.organization_id = $1 and grant_row.skill_id = $2
         and ($3::timestamptz is null
           or (grant_row.created_at, grant_row.id) < ($3, $4::uuid))
@@ -387,6 +467,156 @@ export async function listSkillUseGrants(
       })
       : null,
   };
+}
+
+/**
+ * Allows a workflow to use a personal skill again at one step, after its owner
+ * stopped it: records a fresh grant for the exact version the step names.
+ *
+ * This is the owner's own act, the same as the confirmation that made the first
+ * grant, so an agent is refused and only the skill's owner may ask. The step
+ * must name this version in a version of the workflow, so a grant can never
+ * cover a step that does not use the skill. Asking for a grant that is already
+ * live answers with that grant and records nothing new.
+ */
+export async function createSkillUseGrant(
+  context: ActionContext,
+  request: { workflowId: string; skillVersionId: string; stepPath: string },
+) {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  // The database stores ids in lower case and a step names them that way too.
+  const input = {
+    ...request,
+    workflowId: request.workflowId.toLowerCase(),
+    skillVersionId: request.skillVersionId.toLowerCase(),
+  };
+  const skillId = context.params.id;
+  if (!skillId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (attributeAction(context, principalId).actorKind !== "person") {
+    throw new StandardError({
+      code: "AUTH_FORBIDDEN",
+      params: { reason: "personal_skill_use_requires_person" },
+    });
+  }
+  // Only the owner of a personal skill may let a workflow use it. Anyone else,
+  // including an Admin, gets not found so the answer does not reveal the skill.
+  const version = await transaction.query<{
+    skill_id: string;
+    revision: number;
+    digest: string;
+  }>(
+    `select version.skill_id, version.revision, version.digest
+       from bakery.skill_versions as version
+       join bakery.skills as skill
+         on skill.organization_id = version.organization_id
+        and skill.id = version.skill_id
+      where version.organization_id = $1 and version.id = $2
+        and skill.id = $3 and skill.scope = 'personal'
+        and skill.owner_principal_id = $4::uuid`,
+    [organizationId, input.skillVersionId, skillId, principalId],
+  );
+  const found = version.rows[0];
+  if (!found) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const workflow = await transaction.query<{ normalized_spec: unknown }>(
+    `select workflow_version.normalized_spec
+       from bakery.workflow_definitions as workflow
+       join bakery.workflow_versions as workflow_version
+         on workflow_version.organization_id = workflow.organization_id
+        and workflow_version.workflow_id = workflow.id
+      where workflow.organization_id = $1 and workflow.id = $2
+        and position($3 in workflow_version.normalized_spec::text) > 0`,
+    [organizationId, input.workflowId, input.skillVersionId],
+  );
+  const exists = workflow.rows.length > 0 || (await transaction.query(
+        `select 1 from bakery.workflow_definitions
+          where organization_id = $1 and id = $2`,
+        [organizationId, input.workflowId],
+      )).rows.length === 1;
+  if (!exists) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const named = workflow.rows.some((row) =>
+    collectStepSkills(row.normalized_spec).some((ref) =>
+      ref.versionId === input.skillVersionId &&
+      stepPointer(ref.segments) === input.stepPath
+    )
+  );
+  if (!named) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: {
+        issues: [{
+          path: ["stepPath"],
+          code: "step_does_not_use_skill_version",
+          message:
+            "No version of this workflow uses this skill version at this step.",
+        }],
+      },
+    });
+  }
+  const id = crypto.randomUUID();
+  const inserted = await transaction.query<{ id: string }>(
+    `insert into bakery.skill_use_grants (
+       id, organization_id, skill_id, skill_version_id, workflow_id,
+       step_path, granted_by, revision, revision_digest
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     on conflict (organization_id, workflow_id, skill_version_id, step_path)
+       do nothing
+     returning id`,
+    [
+      id,
+      organizationId,
+      skillId,
+      input.skillVersionId,
+      input.workflowId,
+      input.stepPath,
+      principalId,
+      found.revision,
+      found.digest,
+    ],
+  );
+  if (inserted.rows.length === 1) {
+    await appendAudit(transaction, {
+      organizationId,
+      principalId,
+      operation: "skills.useGrants.create",
+      resourceType: "skill_use_grant",
+      resourceId: id,
+      requestId: context.requestId,
+      traceId: context.traceId,
+      details: {
+        skillId,
+        skillVersionId: input.skillVersionId,
+        workflowId: input.workflowId,
+        stepPath: input.stepPath,
+      },
+    });
+    await appendDomainEvent(transaction, {
+      organizationId,
+      eventType: "skillUseGrant.created",
+      aggregateId: id,
+      aggregateVersion: 1,
+      payload: { resourceId: id, resourceVersion: 1 },
+      traceId: context.traceId,
+    });
+  }
+  const row = await transaction.query<GrantRow>(
+    `select grant_row.id, grant_row.skill_id, grant_row.skill_version_id,
+            grant_row.revision, grant_row.revision_digest,
+            grant_row.workflow_id, workflow.name as workflow_name,
+            grant_row.step_path, grant_row.granted_by, grant_row.created_at,
+            '' as cursor_created_at, grant_row.version
+       from bakery.skill_use_grants as grant_row
+       join bakery.workflow_definitions as workflow
+         on workflow.organization_id = grant_row.organization_id
+        and workflow.id = grant_row.workflow_id
+      where grant_row.organization_id = $1 and grant_row.workflow_id = $2
+        and grant_row.skill_version_id = $3 and grant_row.step_path = $4`,
+    [organizationId, input.workflowId, input.skillVersionId, input.stepPath],
+  );
+  const grant = row.rows[0];
+  if (!grant) throw new Error("SKILL_USE_GRANT_INSERT_FAILED");
+  return toGrant(grant);
 }
 
 /**
