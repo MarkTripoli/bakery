@@ -7,12 +7,14 @@ import {
   approvalsQueryOptions,
   artifactsListQueryOptions,
   artifactVersionsQueryOptions,
+  effectiveAccessQueryOptions,
   mergeAttemptsQueryOptions,
   mergeEntriesQueryOptions,
   pullRequestsQueryOptions,
   reviewFindingsQueryOptions,
   runChecksQueryOptions,
   runDeliveryDecisionsQueryOptions,
+  runDeploymentsQueryOptions,
   runOutputStepIdsQueryOptions,
   runReviewsQueryOptions,
 } from "../../api/query.ts";
@@ -27,6 +29,7 @@ import {
 } from "./model.ts";
 import { useMerge } from "./use-merge.ts";
 import { useApprovalDecision } from "./use-approval-decision.ts";
+import { useGoBack } from "./use-go-back.ts";
 import {
   DeliverySectionView,
   type DeliveryViewState,
@@ -194,6 +197,19 @@ export function DeliverySection(
     refetchInterval: 5000,
   });
 
+  const merged = chosen?.status === "merged" && chosen.mergedSha !== null;
+  const deployments = useQuery({
+    ...runDeploymentsQueryOptions(api, scope, runId),
+    enabled: enabled && merged,
+    refetchInterval: 5000,
+  });
+  const access = useQuery({
+    ...effectiveAccessQueryOptions(api, scope),
+    enabled: enabled && merged,
+  });
+  const mayDeploy = access.data?.role === "admin" ||
+    access.data?.role === "developer";
+
   const reads = [checks, reviews, decisions];
   const failed = [...reads, findings].find((read) => read.isError);
   const state: DeliveryViewState = failed !== undefined
@@ -225,6 +241,14 @@ export function DeliverySection(
       // A refusal means this person cannot see approvals, so none is shown;
       // any other failure means one may be waiting that could not be read.
       approvalsUnavailable: approvals.isError && !forbidden(approvals.error),
+      deployments: merged && !deployments.isError
+        ? (deployments.data?.items ?? []).map((item) => ({
+          ...item,
+          previousCommitSha: item.previousCommitSha ?? null,
+          rollbackFailed: item.rollbackFailed ?? false,
+        }))
+        : [],
+      mayDeploy,
       revisionHeadSha,
       baseSha,
       paused,
@@ -240,7 +264,11 @@ export function DeliverySection(
       mergeEntries.refetch(),
     ]);
   }, [pullRequests.refetch, mergeAttempts.refetch, mergeEntries.refetch]);
+  const refreshRelease = useCallback(async () => {
+    await deployments.refetch();
+  }, [deployments.refetch]);
   const mergeAction = useMerge(refreshMerge);
+  const goBackAction = useGoBack(refreshRelease);
   const decision = useApprovalDecision(
     model?.approval ?? null,
     refreshDecision,
@@ -268,7 +296,10 @@ export function DeliverySection(
       mergeTarget={mergeAction.target}
       onCheckAgain={mergeAction.checkAgain}
       onClearMerge={mergeAction.clear}
+      goBackPhase={goBackAction.phase}
+      onClearGoBack={goBackAction.clear}
       onDecide={decision.decide}
+      onGoBack={goBackAction.goBack}
       onMerge={mergeAction.merge}
       onOpenRules={onOpenRules}
       onRetryApprovals={() => void approvals.refetch()}
