@@ -1,0 +1,4 @@
+copied 5 foundation files and 4 font files to apps/desktop/web
+    Finished `dev` profile [unoptimized] target(s) in 11.38s
+PASS [motion] with animations on the waiting spinner turns
+PASS [motion] with reduced motion the waiting window is perfectly still
