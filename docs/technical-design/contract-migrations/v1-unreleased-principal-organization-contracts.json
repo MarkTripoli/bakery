@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "505de09bdb580680a7686a25a00c61433969fd1f"
+    "d800f8e4ee0662d4cbc8212fddaab0b1d664518a"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:38b8419cbaa4b99737bde6ed4e44ba09abf44c7bf98cd12829d734510a03ec64",
-  "reason": "#436 tool gateway and capability bindings by dev-server on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 505de09bdb580680a7686a25a00c61433969fd1f: CapabilityBinding gains seatKey (a seat is a workflow version plus the role a step runs as, 25-one-engine.md 15.5) and CapabilityBindingCreate and BindingQuery gain it as an optional field; BrokerToolInvocation (worker.invokeTool, never served before this change) makes integrationConnectionId optional beside a new mcpConnectionId and gains the worker session pair; capabilityBindings.create, list and delete declare their required organization context. No client called worker.invokeTool or the capability binding routes before, since none was mounted. Main's own approval is preserved unchanged first below.",
+  "targetCompatibilityDigest": "sha256:0061a57e9f06a2c4fc8f49da6ff2f436815d71e41fa77002285281b6bb07c81f",
+  "reason": "#436 tool gateway and capability bindings by dev-server on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main d800f8e4ee0662d4cbc8212fddaab0b1d664518a: CapabilityBinding gains seatKey (a seat is a workflow version plus the role a step runs as, 25-one-engine.md 15.5) and CapabilityBindingCreate and BindingQuery gain it as an optional field; BrokerToolInvocation (worker.invokeTool, never served before this change) makes integrationConnectionId optional beside a new mcpConnectionId and gains the worker session pair; capabilityBindings.create, list and delete declare their required organization context; the paper workflow action capability is removed, because rpi.design reaches its design tool through a capability binding (a Paper connection bound to the step, seat or agent) and no longer needs a worker that advertises paper. No client called worker.invokeTool or the capability binding routes before, since none was mounted. Main's own approval is preserved unchanged first below.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
@@ -16,7 +16,7 @@
       "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:5dde3eae9c99876345ec310354e42e5952314e881a10159b86c296236215b0ee",
-      "reason": "Displaced by the #436 tool gateway rebind onto main 505de09bd: main's own approval, kept unchanged. #435 tool.call step by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 86bcb19f90ccaef41757840967d8dbf000214a23: tool.call replaces integration.action (the one-engine design, 25-one-engine.md 15.4). The workflow action name integration.action and its IntegrationActionInput and IntegrationActionOutput step contracts are replaced by tool.call with ToolCallInput (connectionId, tool, toolVersion, resourceId, arguments) and ToolCallOutput (the ActionResult shape); no server runtime or worker ever ran integration.action (it had no execution table entry), so no stored run or definition can have used it. Main's own approval is preserved unchanged first below."
+      "reason": "Displaced by the #436 tool gateway rebind onto main d800f8e4e: main's own approval, kept unchanged. #435 tool.call step by dev-workflows on 2026-11-22 under the owner's standing breaking-change authorization (2026-10-09), main 86bcb19f90ccaef41757840967d8dbf000214a23: tool.call replaces integration.action (the one-engine design, 25-one-engine.md 15.4). The workflow action name integration.action and its IntegrationActionInput and IntegrationActionOutput step contracts are replaced by tool.call with ToolCallInput (connectionId, tool, toolVersion, resourceId, arguments) and ToolCallOutput (the ActionResult shape); no server runtime or worker ever ran integration.action (it had no execution table entry), so no stored run or definition can have used it. Main's own approval is preserved unchanged first below."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",

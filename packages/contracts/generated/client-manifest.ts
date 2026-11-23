@@ -77235,7 +77235,6 @@ export const clientManifest = {
             "enum": [
               "model",
               "web",
-              "paper",
               "git",
               "shell",
               "browser",
@@ -77398,7 +77397,6 @@ export const clientManifest = {
                   "enum": [
                     "model",
                     "web",
-                    "paper",
                     "git",
                     "shell",
                     "browser",
@@ -77795,7 +77793,6 @@ export const clientManifest = {
                   "enum": [
                     "model",
                     "web",
-                    "paper",
                     "git",
                     "shell",
                     "browser",

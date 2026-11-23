@@ -181462,7 +181462,6 @@
                 "enum": [
                   "model",
                   "web",
-                  "paper",
                   "git",
                   "shell",
                   "browser",
@@ -181625,7 +181624,6 @@
                       "enum": [
                         "model",
                         "web",
-                        "paper",
                         "git",
                         "shell",
                         "browser",
@@ -181879,7 +181877,6 @@
                 "enum": [
                   "model",
                   "web",
-                  "paper",
                   "git",
                   "shell",
                   "browser",
@@ -182154,7 +182151,6 @@
                       "enum": [
                         "model",
                         "web",
-                        "paper",
                         "git",
                         "shell",
                         "browser",
@@ -289543,7 +289539,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:38b8419cbaa4b99737bde6ed4e44ba09abf44c7bf98cd12829d734510a03ec64",
+  "compatibilityDigest": "sha256:0061a57e9f06a2c4fc8f49da6ff2f436815d71e41fa77002285281b6bb07c81f",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -419243,7 +419239,6 @@
             "enum": [
               "model",
               "web",
-              "paper",
               "git",
               "shell",
               "browser",
@@ -419406,7 +419401,6 @@
                   "enum": [
                     "model",
                     "web",
-                    "paper",
                     "git",
                     "shell",
                     "browser",
@@ -419660,7 +419654,6 @@
             "enum": [
               "model",
               "web",
-              "paper",
               "git",
               "shell",
               "browser",
@@ -419935,7 +419928,6 @@
                   "enum": [
                     "model",
                     "web",
-                    "paper",
                     "git",
                     "shell",
                     "browser",

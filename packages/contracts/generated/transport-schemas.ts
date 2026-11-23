@@ -25840,7 +25840,7 @@ const transportSchemas = {
         "version": "integer",
         "input": "string",
         "output": "string",
-        "capabilities": "enum(model|web|paper|git|shell|browser|reviewer|integration|delivery|storage|secret.identity)[]",
+        "capabilities": "enum(model|web|git|shell|browser|reviewer|integration|delivery|storage|secret.identity)[]",
         "cancel": "enum(immediate|cooperative|cooperative_fenced)",
         "retry": "WorkflowActionRetry",
         "effectPolicy": "enum(artifact_only|repository_revision|evidence_only|review_evidence|external_effect_keyed_reconcile|projection_only|external_prepare|external_effect_keyed|none|memory_write|evaluation_write)",
@@ -25886,7 +25886,7 @@ const transportSchemas = {
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
         "digest": "sha256|null",
-        "requiredCapabilities": "enum(model|web|paper|git|shell|browser|reviewer|integration|delivery|storage|secret.identity)[]",
+        "requiredCapabilities": "enum(model|web|git|shell|browser|reviewer|integration|delivery|storage|secret.identity)[]",
         "modelBillingRequired": "boolean"
       },
       "description": "Effective agent binding of one top-level workflow step as resolved by validation: which level supplied the agent version, which immutable version it is, and what the step requires of it. It never carries agent configuration, model, billing, prompt or provider.",
@@ -39856,8 +39856,7 @@ const transportSchemas = {
       "outputSchema": "ArtifactOutput",
       "schemaSource": "06-workflows-delivery-and-acceptance.md action schema registry",
       "capabilities": [
-        "model",
-        "paper"
+        "model"
       ]
     },
     "rpi.plan": {

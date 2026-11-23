@@ -567,7 +567,7 @@ The machine-readable registry metadata is:
 ```json
 {
   "rpi.research": {"input":"ResearchInput","output":"ResearchOutput","capabilities":["model","web"],"cancel":"cooperative","retry":{"maxAttempts":2,"backoff":"30s","faults":["DEPENDENCY_TIMEOUT","DEPENDENCY_UNAVAILABLE"]},"effectPolicy":"artifact_only"},
-  "rpi.design": {"input":"DesignInput","output":"ArtifactOutput","capabilities":["model","paper"],"cancel":"cooperative","retry":{"maxAttempts":2,"backoff":"30s","faults":["DEPENDENCY_TIMEOUT"]},"effectPolicy":"artifact_only"},
+  "rpi.design": {"input":"DesignInput","output":"ArtifactOutput","capabilities":["model"],"cancel":"cooperative","retry":{"maxAttempts":2,"backoff":"30s","faults":["DEPENDENCY_TIMEOUT"]},"effectPolicy":"artifact_only"},
   "rpi.plan": {"input":"PlanInput","output":"ArtifactOutput","capabilities":["model"],"cancel":"cooperative","retry":{"maxAttempts":2,"backoff":"30s","faults":["DEPENDENCY_TIMEOUT"]},"effectPolicy":"artifact_only"},
   "harness.implement": {"input":"ImplementInput","output":"HarnessOutput","capabilities":["git","shell","web","model"],"cancel":"cooperative_fenced","retry":{"maxAttempts":1,"backoff":"0s","faults":["WORKER_UNAVAILABLE"]},"effectPolicy":"repository_revision"},
   "harness.repair": {"input":"RepairInput","output":"HarnessOutput","capabilities":["git","shell","model"],"cancel":"cooperative_fenced","retry":{"maxAttempts":1,"backoff":"0s","faults":["WORKER_UNAVAILABLE"]},"effectPolicy":"repository_revision"},

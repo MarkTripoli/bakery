@@ -4,6 +4,7 @@ import {
   RepositoryInspectionSourceChunkSchema,
 } from "../../../packages/contracts/src/repository-inspection.ts";
 import { z } from "zod";
+import { GatewayToolSchema } from "./tool-gateway.ts";
 import {
   WORKER_SKILL_READ_HEADERS,
   WORKER_SKILL_RESPONSE_HEADERS,
@@ -86,6 +87,30 @@ export type Fetcher = (
   input: RequestInfo | URL,
   init?: RequestInit,
 ) => Promise<Response>;
+
+/** What the effective-tools route answers (#436). */
+const EffectiveToolsResponseSchema = z.object({
+  tools: z.array(GatewayToolSchema).max(500).describe(
+    "Tools the session's gateway lists, each callable through worker.invokeTool.",
+  ),
+  unavailable: z.array(
+    z.object({
+      toolName: z.string().describe("Tool a binding names."),
+      connectionId: z.uuid().describe("Its connection."),
+      reason: z.string().describe("Why the session cannot call it now."),
+    }).describe("A bound tool the session cannot call now."),
+  ).max(500).describe("Bound tools the session cannot call, with why."),
+}).describe("The effective tools of one agent session.");
+
+/** What worker.invokeTool answers: the tool's own outcome. */
+const BrokerToolResultSchema = z.object({
+  toolName: z.string().describe("Tool the broker called."),
+  content: z.array(z.unknown().describe("One MCP content block.")).describe(
+    "The tool's content blocks.",
+  ),
+  isError: z.boolean().describe("Whether the tool reported a failure."),
+  fault: z.unknown().describe("A redacted broker connection failure, or null."),
+}).describe("Result of one brokered tool call.");
 
 type RequestOptions = {
   body?: unknown;
@@ -1321,6 +1346,79 @@ export class WorkerApiClient {
       ),
       replayed: response.replayed,
     };
+  }
+
+  /**
+   * The effective tools of the attempt's agent session (#436): what its tool
+   * gateway lists. The lease proof travels in the body, as for every attempt
+   * mutation, and the server reads the session's bindings from its own rows.
+   */
+  async effectiveTools(
+    attemptId: string,
+    proof: SecretIdentityInvocationProof,
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<z.infer<typeof EffectiveToolsResponseSchema>>> {
+    const response = await this.request<unknown>(
+      "POST",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/effective-tools`,
+      {
+        body: {
+          leaseToken: proof.leaseToken,
+          fence: proof.fence,
+          workerSessionId: proof.workerSessionId,
+          workerSessionGeneration: proof.workerSessionGeneration,
+        },
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponseEnvelope(
+      EffectiveToolsResponseSchema,
+      response,
+      "WORKER_RESPONSE_EFFECTIVE_TOOLS_INVALID",
+    );
+  }
+
+  /**
+   * `worker.invokeTool`: one call a session made through its gateway. The key
+   * is the call's: a replay answers what happened instead of sending again.
+   */
+  async invokeTool(
+    attemptId: string,
+    input: Readonly<{
+      mcpConnectionId: string;
+      toolName: string;
+      arguments: Record<string, unknown>;
+      idempotencyKey: string;
+    }>,
+    proof: SecretIdentityInvocationProof,
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<z.infer<typeof BrokerToolResultSchema>>> {
+    const response = await this.request<unknown>(
+      "POST",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/tool-invocations`,
+      {
+        body: {
+          mcpConnectionId: input.mcpConnectionId,
+          leaseToken: proof.leaseToken,
+          fence: proof.fence,
+          workerSessionId: proof.workerSessionId,
+          workerSessionGeneration: proof.workerSessionGeneration,
+          toolName: input.toolName,
+          arguments: input.arguments,
+        },
+        idempotencyKey: input.idempotencyKey,
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponseEnvelope(
+      BrokerToolResultSchema,
+      response,
+      "WORKER_RESPONSE_TOOL_RESULT_INVALID",
+    );
   }
 
   async invokePreparedSecretTool(

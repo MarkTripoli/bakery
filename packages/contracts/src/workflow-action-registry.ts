@@ -33,7 +33,6 @@ export type WorkflowActionName = typeof WORKFLOW_ACTION_NAMES[number];
 export type WorkflowActionCapability =
   | "model"
   | "web"
-  | "paper"
   | "git"
   | "shell"
   | "browser"
@@ -107,7 +106,11 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
     "rpi.design": metadata({
       input: "DesignInput",
       output: "ArtifactOutput",
-      capabilities: ["model", "paper"],
+      // The design tool is a capability binding (#436, 25-one-engine.md 15.7
+      // slice B): a Paper connection bound to the step, its seat or its agent
+      // reaches the session through the worker's tool gateway, so the step no
+      // longer needs a worker that advertises a paper capability.
+      capabilities: ["model"],
       cancel: "cooperative",
       retry: { maxAttempts: 2, backoff: "30s", faults: ["DEPENDENCY_TIMEOUT"] },
       effectPolicy: "artifact_only",
