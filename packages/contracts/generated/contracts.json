@@ -4171,10 +4171,12 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -4193,10 +4195,11 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -4218,10 +4221,37 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Extensions",
+      "method": "POST",
+      "path": "/v1/tool-gateway-calls/{id}/settlement",
+      "action": "toolGatewayCalls.settle",
+      "access": "Admin",
+      "permission": "capabilityBinding:manage",
+      "input": "ToolGatewayCallSettle",
+      "output": "ToolGatewayCall",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Access",
@@ -15337,6 +15367,10 @@
     "mcpUseGrants.list",
     "mcpUseGrants.create",
     "mcpUseGrants.revoke",
+    "capabilityBindings.list",
+    "capabilityBindings.create",
+    "capabilityBindings.delete",
+    "toolGatewayCalls.settle",
     "batches.list",
     "batches.startable",
     "batches.get",
@@ -27431,7 +27465,20 @@
       "/v1/capability-bindings": {
         "post": {
           "operationId": "capabilityBindings.create",
-          "parameters": [],
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
           "responses": {
             "200": {
               "description": "Successful response",
@@ -27444,13 +27491,13 @@
               }
             },
             "400": {
-              "description": "Malformed request."
+              "description": "Malformed request (MALFORMED_REQUEST)."
             },
             "401": {
               "description": "Authentication required (AUTH_REQUIRED)."
             },
             "403": {
-              "description": "Forbidden (AUTH_FORBIDDEN)."
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
             },
             "404": {
               "description": "Resource not found (RESOURCE_NOT_FOUND)."
@@ -27653,6 +27700,25 @@
               }
             },
             {
+              "name": "seatKey",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "BindingQuery.seatKey may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "Filters to bindings owned by this seat of a workflow version; only meaningful together with workflowVersionId. BindingQuery.seatKey must contain at most 64 characters."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              }
+            },
+            {
               "name": "allowedOperations",
               "in": "query",
               "required": false,
@@ -27697,6 +27763,18 @@
                 "minimum": 1,
                 "maximum": 100
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -27717,7 +27795,7 @@
               "description": "Authentication required (AUTH_REQUIRED)."
             },
             "403": {
-              "description": "Forbidden (AUTH_FORBIDDEN)."
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
             },
             "404": {
               "description": "Resource not found (RESOURCE_NOT_FOUND)."
@@ -27742,6 +27820,18 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -27756,13 +27846,13 @@
               }
             },
             "400": {
-              "description": "Malformed request."
+              "description": "Malformed request (MALFORMED_REQUEST)."
             },
             "401": {
               "description": "Authentication required (AUTH_REQUIRED)."
             },
             "403": {
-              "description": "Forbidden (AUTH_FORBIDDEN)."
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
             },
             "404": {
               "description": "Resource not found (RESOURCE_NOT_FOUND)."
@@ -27778,6 +27868,79 @@
             },
             "500": {
               "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/tool-gateway-calls/{id}/settlement": {
+        "post": {
+          "operationId": "toolGatewayCalls.settle",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ToolGatewayCall"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolGatewayCallSettle"
+                }
+              }
             }
           }
         }
@@ -60435,6 +60598,20 @@
                 }
               ]
             },
+            "seatKey": {
+              "description": "BindingQuery.seatKey may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64,
+                  "description": "Filters to bindings owned by this seat of a workflow version; only meaningful together with workflowVersionId. BindingQuery.seatKey must contain at most 64 characters."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
             "allowedOperations": {
               "description": "Filters to bindings that permit at least one of these operation names on their bound target. BindingQuery.allowedOperations must contain at most 100 items.",
               "maxItems": 100,
@@ -60470,10 +60647,16 @@
           "type": "object",
           "properties": {
             "integrationConnectionId": {
+              "description": "Integration connection the invocation runs on; exactly one of integrationConnectionId and mcpConnectionId is set.",
               "type": "string",
               "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Binds this invocation to one configured provider account; the server resolves its external account identity."
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "mcpConnectionId": {
+              "description": "MCP server connection whose pinned tool the session calls through its tool gateway; exactly one of integrationConnectionId and mcpConnectionId is set.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             },
             "leaseToken": {
               "type": "string",
@@ -60486,6 +60669,17 @@
               "pattern": "^(?:0|[1-9][0-9]*)$",
               "description": "BrokerToolInvocation.fence is a bounded decimal string.",
               "x-bigint-minimum": "0"
+            },
+            "workerSessionId": {
+              "description": "Worker session that holds the attempt; required for protocol v2 hosts.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "workerSessionGeneration": {
+              "description": "Generation of that worker session; required with workerSessionId.",
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$"
             },
             "toolName": {
               "type": "string",
@@ -60540,14 +60734,13 @@
             }
           },
           "required": [
-            "integrationConnectionId",
             "leaseToken",
             "fence",
             "toolName",
             "arguments"
           ],
           "additionalProperties": false,
-          "description": "Envelope a worker attempt uses to invoke one brokered integration tool mid-run under its current lease; the server checks the capability grant, repository/run budget caps and provider quota before executing, then reconciles the resulting effect."
+          "description": "Envelope a worker attempt uses to invoke one tool from its session's effective tools mid-run under its current lease; the server checks the lease, the capability binding of the attempt's agent, seat or step, the connection's pin and drift before sending, and records the call."
         },
         "BrokerToolInvocation____schema0": {
           "description": "JSON value node.",
@@ -60746,6 +60939,20 @@
                   "type": "string",
                   "maxLength": 200,
                   "description": "Identifies the specific workflow step this binding scopes to within its owning workflow version; omit to bind at the whole-workflow level rather than one step. CapabilityBindingCreate.stepKey must contain at most 200 characters."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "seatKey": {
+              "description": "CapabilityBindingCreate.seatKey may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64,
+                  "description": "Seat (the role a step runs as) that owns this binding inside a workflow version; requires workflowVersionId, and every step of that version running as this seat gets the bound tools in its tool gateway. CapabilityBindingCreate.seatKey must contain at most 64 characters."
                 },
                 {
                   "type": "null",
@@ -64290,6 +64497,7 @@
                 "capabilityBindings.create",
                 "capabilityBindings.list",
                 "capabilityBindings.delete",
+                "toolGatewayCalls.settle",
                 "identity.get",
                 "desktopUpdates.get",
                 "profile.get",
@@ -68718,9 +68926,9 @@
               "items": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. Each array item follows this format."
+                "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. A substitute capability meets the action capability it stands for: tool-gateway, which a worker running the Claude harness advertises because it serves each session its bound tools through a local MCP gateway, meets paper, so such a host may claim rpi.design; a Pi or Codex host must advertise paper itself. Each array item follows this format."
               },
-              "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. WorkerClaim.capabilities must contain at most 100 items."
+              "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. A substitute capability meets the action capability it stands for: tool-gateway, which a worker running the Claude harness advertises because it serves each session its bound tools through a local MCP gateway, meets paper, so such a host may claim rpi.design; a Pi or Codex host must advertise paper itself. WorkerClaim.capabilities must contain at most 100 items."
             },
             "supportedActions": {
               "description": "Optional exact action allow-list for this executor; the server never assigns an action outside it. WorkerClaim.supportedActions must contain at most 100 items.",
@@ -87206,6 +87414,39 @@
           ],
           "additionalProperties": false,
           "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+        },
+        "ToolGatewayCallSettle": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "completed",
+                "failed"
+              ],
+              "description": "The outcome an Admin records for a gateway call whose result never came back: completed when the tool's effect is confirmed to have happened, failed when it is confirmed not to have happened."
+            },
+            "failureCode": {
+              "description": "ToolGatewayCallSettle.failureCode may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100,
+                  "description": "Short machine-readable reason recorded with a failed settlement, such as not_applied; refused with completed, and defaults to settled_failed when a failed settlement omits it. ToolGatewayCallSettle.failureCode must contain at most 100 characters."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            }
+          },
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "An Admin's settlement of one tool gateway call left in status sent because its outcome was unknown, so a replay of its idempotency key answers the recorded outcome instead of staying unresolved; the call is never sent again."
         },
         "McpUseGrantCreate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -115835,6 +116076,20 @@
               ],
               "description": "CapabilityBinding.stepKey may be null in this transport value."
             },
+            "seatKey": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Seat (step role) of the owning workflow version that holds this binding; null when the owner is not a seat."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "CapabilityBinding.seatKey may be null in this transport value."
+            },
             "mcpConnectionId": {
               "anyOf": [
                 {
@@ -115950,6 +116205,7 @@
             "skillVersionOwnerId",
             "automationVersionId",
             "stepKey",
+            "seatKey",
             "mcpConnectionId",
             "integrationConnectionId",
             "skillVersionId",
@@ -116533,6 +116789,7 @@
                 "capabilityBindings.create",
                 "capabilityBindings.list",
                 "capabilityBindings.delete",
+                "toolGatewayCalls.settle",
                 "identity.get",
                 "desktopUpdates.get",
                 "profile.get",
@@ -117232,6 +117489,7 @@
                 "capabilityBindings.create",
                 "capabilityBindings.list",
                 "capabilityBindings.delete",
+                "toolGatewayCalls.settle",
                 "identity.get",
                 "desktopUpdates.get",
                 "profile.get",
@@ -117931,6 +118189,7 @@
                 "capabilityBindings.create",
                 "capabilityBindings.list",
                 "capabilityBindings.delete",
+                "toolGatewayCalls.settle",
                 "identity.get",
                 "desktopUpdates.get",
                 "profile.get",
@@ -163766,6 +164025,20 @@
                     ],
                     "description": "CapabilityBinding.stepKey may be null in this transport value."
                   },
+                  "seatKey": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Seat (step role) of the owning workflow version that holds this binding; null when the owner is not a seat."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "CapabilityBinding.seatKey may be null in this transport value."
+                  },
                   "mcpConnectionId": {
                     "anyOf": [
                       {
@@ -163881,6 +164154,7 @@
                   "skillVersionOwnerId",
                   "automationVersionId",
                   "stepKey",
+                  "seatKey",
                   "mcpConnectionId",
                   "integrationConnectionId",
                   "skillVersionId",
@@ -164258,6 +164532,7 @@
                       "capabilityBindings.create",
                       "capabilityBindings.list",
                       "capabilityBindings.delete",
+                      "toolGatewayCalls.settle",
                       "identity.get",
                       "desktopUpdates.get",
                       "profile.get",
@@ -275735,6 +276010,97 @@
           "additionalProperties": false,
           "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant."
         },
+        "ToolGatewayCall": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID identifying the recorded call."
+            },
+            "attemptId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The job attempt whose session made the call."
+            },
+            "mcpConnectionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The MCP connection the call was sent to."
+            },
+            "toolName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The tool's name in the connection's pinned snapshot."
+            },
+            "readOnly": {
+              "type": "boolean",
+              "description": "Whether the tool was classified read, so the call changed nothing outside Bakery."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "sent",
+                "completed",
+                "failed",
+                "refused"
+              ],
+              "description": "sent while the outcome is unknown; completed or failed once known; refused when the provider rejected it before any effect."
+            },
+            "failureCode": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Machine-readable reason of a failed call, or null otherwise."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "ToolGatewayCall.failureCode may be null in the safe projection."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the call was recorded, before it was sent."
+            },
+            "settledAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when the outcome was recorded, or null while the call is still sent."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the projected value is unavailable."
+                }
+              ],
+              "description": "ToolGatewayCall.settledAt may be null in the safe projection."
+            }
+          },
+          "required": [
+            "id",
+            "attemptId",
+            "mcpConnectionId",
+            "toolName",
+            "readOnly",
+            "status",
+            "failureCode",
+            "createdAt",
+            "settledAt"
+          ],
+          "additionalProperties": false,
+          "description": "One call an agent session made through its worker's tool gateway, as recorded before it was sent: the audit of the call and the at-most-once record of a write. Its tool result is not returned here."
+        },
         "StorageEntry": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -294414,7 +294780,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:f16f312b2952aefb19d9a49f4ddf92118e6d6c15509a5cf8733ee8bf1e2abbab",
+  "compatibilityDigest": "sha256:511f6fdf8dbc20ec6957e4b3752ce29671b5b8c1947d62ac75c21d30022bf334",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -297983,6 +298349,20 @@
             }
           ]
         },
+        "seatKey": {
+          "description": "BindingQuery.seatKey may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Filters to bindings owned by this seat of a workflow version; only meaningful together with workflowVersionId. BindingQuery.seatKey must contain at most 64 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
         "allowedOperations": {
           "description": "Filters to bindings that permit at least one of these operation names on their bound target. BindingQuery.allowedOperations must contain at most 100 items.",
           "maxItems": 100,
@@ -298018,10 +298398,16 @@
       "type": "object",
       "properties": {
         "integrationConnectionId": {
+          "description": "Integration connection the invocation runs on; exactly one of integrationConnectionId and mcpConnectionId is set.",
           "type": "string",
           "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Binds this invocation to one configured provider account; the server resolves its external account identity."
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "mcpConnectionId": {
+          "description": "MCP server connection whose pinned tool the session calls through its tool gateway; exactly one of integrationConnectionId and mcpConnectionId is set.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "leaseToken": {
           "type": "string",
@@ -298034,6 +298420,17 @@
           "pattern": "^(?:0|[1-9][0-9]*)$",
           "description": "BrokerToolInvocation.fence is a bounded decimal string.",
           "x-bigint-minimum": "0"
+        },
+        "workerSessionId": {
+          "description": "Worker session that holds the attempt; required for protocol v2 hosts.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "workerSessionGeneration": {
+          "description": "Generation of that worker session; required with workerSessionId.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$"
         },
         "toolName": {
           "type": "string",
@@ -298088,14 +298485,13 @@
         }
       },
       "required": [
-        "integrationConnectionId",
         "leaseToken",
         "fence",
         "toolName",
         "arguments"
       ],
       "additionalProperties": false,
-      "description": "Envelope a worker attempt uses to invoke one brokered integration tool mid-run under its current lease; the server checks the capability grant, repository/run budget caps and provider quota before executing, then reconciles the resulting effect.",
+      "description": "Envelope a worker attempt uses to invoke one tool from its session's effective tools mid-run under its current lease; the server checks the lease, the capability binding of the attempt's agent, seat or step, the connection's pin and drift before sending, and records the call.",
       "$defs": {
         "__schema0": {
           "description": "JSON value node.",
@@ -298296,6 +298692,20 @@
               "type": "string",
               "maxLength": 200,
               "description": "Identifies the specific workflow step this binding scopes to within its owning workflow version; omit to bind at the whole-workflow level rather than one step. CapabilityBindingCreate.stepKey must contain at most 200 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "seatKey": {
+          "description": "CapabilityBindingCreate.seatKey may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 64,
+              "description": "Seat (the role a step runs as) that owns this binding inside a workflow version; requires workflowVersionId, and every step of that version running as this seat gets the bound tools in its tool gateway. CapabilityBindingCreate.seatKey must contain at most 64 characters."
             },
             {
               "type": "null",
@@ -301864,6 +302274,7 @@
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
+            "toolGatewayCalls.settle",
             "identity.get",
             "desktopUpdates.get",
             "profile.get",
@@ -306302,9 +306713,9 @@
           "items": {
             "type": "string",
             "maxLength": 65536,
-            "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. Each array item follows this format."
+            "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. A substitute capability meets the action capability it stands for: tool-gateway, which a worker running the Claude harness advertises because it serves each session its bound tools through a local MCP gateway, meets paper, so such a host may claim rpi.design; a Pi or Codex host must advertise paper itself. Each array item follows this format."
           },
-          "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. WorkerClaim.capabilities must contain at most 100 items."
+          "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. A substitute capability meets the action capability it stands for: tool-gateway, which a worker running the Claude harness advertises because it serves each session its bound tools through a local MCP gateway, meets paper, so such a host may claim rpi.design; a Pi or Codex host must advertise paper itself. WorkerClaim.capabilities must contain at most 100 items."
         },
         "supportedActions": {
           "description": "Optional exact action allow-list for this executor; the server never assigns an action outside it. WorkerClaim.supportedActions must contain at most 100 items.",
@@ -324850,6 +325261,39 @@
       ],
       "additionalProperties": false,
       "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
+    },
+    "ToolGatewayCallSettle": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "The outcome an Admin records for a gateway call whose result never came back: completed when the tool's effect is confirmed to have happened, failed when it is confirmed not to have happened."
+        },
+        "failureCode": {
+          "description": "ToolGatewayCallSettle.failureCode may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 100,
+              "description": "Short machine-readable reason recorded with a failed settlement, such as not_applied; refused with completed, and defaults to settled_failed when a failed settlement omits it. ToolGatewayCallSettle.failureCode must contain at most 100 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "An Admin's settlement of one tool gateway call left in status sent because its outcome was unknown, so a replay of its idempotency key answers the recorded outcome instead of staying unresolved; the call is never sent again."
     },
     "McpUseGrantCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -353587,6 +354031,20 @@
           ],
           "description": "CapabilityBinding.stepKey may be null in this transport value."
         },
+        "seatKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Seat (step role) of the owning workflow version that holds this binding; null when the owner is not a seat."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "CapabilityBinding.seatKey may be null in this transport value."
+        },
         "mcpConnectionId": {
           "anyOf": [
             {
@@ -353702,6 +354160,7 @@
         "skillVersionOwnerId",
         "automationVersionId",
         "stepKey",
+        "seatKey",
         "mcpConnectionId",
         "integrationConnectionId",
         "skillVersionId",
@@ -354287,6 +354746,7 @@
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
+            "toolGatewayCalls.settle",
             "identity.get",
             "desktopUpdates.get",
             "profile.get",
@@ -354986,6 +355446,7 @@
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
+            "toolGatewayCalls.settle",
             "identity.get",
             "desktopUpdates.get",
             "profile.get",
@@ -355685,6 +356146,7 @@
             "capabilityBindings.create",
             "capabilityBindings.list",
             "capabilityBindings.delete",
+            "toolGatewayCalls.settle",
             "identity.get",
             "desktopUpdates.get",
             "profile.get",
@@ -401668,6 +402130,20 @@
                 ],
                 "description": "CapabilityBinding.stepKey may be null in this transport value."
               },
+              "seatKey": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Seat (step role) of the owning workflow version that holds this binding; null when the owner is not a seat."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "CapabilityBinding.seatKey may be null in this transport value."
+              },
               "mcpConnectionId": {
                 "anyOf": [
                   {
@@ -401783,6 +402259,7 @@
               "skillVersionOwnerId",
               "automationVersionId",
               "stepKey",
+              "seatKey",
               "mcpConnectionId",
               "integrationConnectionId",
               "skillVersionId",
@@ -402162,6 +402639,7 @@
                   "capabilityBindings.create",
                   "capabilityBindings.list",
                   "capabilityBindings.delete",
+                  "toolGatewayCalls.settle",
                   "identity.get",
                   "desktopUpdates.get",
                   "profile.get",
@@ -513778,6 +514256,97 @@
       ],
       "additionalProperties": false,
       "description": "The use grants of a personal connection, newest first, live and revoked. Always empty for an organization connection, which needs no grant."
+    },
+    "ToolGatewayCall": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the recorded call."
+        },
+        "attemptId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The job attempt whose session made the call."
+        },
+        "mcpConnectionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The MCP connection the call was sent to."
+        },
+        "toolName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The tool's name in the connection's pinned snapshot."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "Whether the tool was classified read, so the call changed nothing outside Bakery."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "sent",
+            "completed",
+            "failed",
+            "refused"
+          ],
+          "description": "sent while the outcome is unknown; completed or failed once known; refused when the provider rejected it before any effect."
+        },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Machine-readable reason of a failed call, or null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ToolGatewayCall.failureCode may be null in the safe projection."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the call was recorded, before it was sent."
+        },
+        "settledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the outcome was recorded, or null while the call is still sent."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "ToolGatewayCall.settledAt may be null in the safe projection."
+        }
+      },
+      "required": [
+        "id",
+        "attemptId",
+        "mcpConnectionId",
+        "toolName",
+        "readOnly",
+        "status",
+        "failureCode",
+        "createdAt",
+        "settledAt"
+      ],
+      "additionalProperties": false,
+      "description": "One call an agent session made through its worker's tool gateway, as recorded before it was sent: the audit of the call and the at-most-once record of a write. Its tool result is not returned here."
     },
     "StorageEntry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
