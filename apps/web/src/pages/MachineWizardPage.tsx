@@ -80,6 +80,20 @@ function systemName(row: SystemRow, translate: Translator): string {
   }`;
 }
 
+/** One line for a person who does not know their processor: drawn only when the choices differ in processor alone. */
+function SystemHelp({ translate }: { translate: Translator }) {
+  const supported = SYSTEM_ROWS.filter((row) => row.supported);
+  if (supported.length < 2) return null;
+  if (new Set(supported.map((row) => row.os)).size !== 1) return null;
+  return (
+    <UI.Text variant="muted" id="machine-wizard-system-help">
+      {translate("machines.wizard.systemCheck" as never, {
+        command: "uname -m",
+      })}
+    </UI.Text>
+  );
+}
+
 /** The one line naming the systems that cannot be chosen; not drawn when every system can. */
 function UnsupportedSystems({ translate }: { translate: Translator }) {
   const unsupported = SYSTEM_ROWS.filter((row) => !row.supported);
@@ -104,7 +118,7 @@ function SystemChoice(
   },
 ) {
   const phone = useShellViewport() === "phone";
-  const chosen = systemRow(answers.os, answers.architecture)?.id ?? null;
+  const chosen = systemRow(answers.os ?? "", answers.architecture)?.id ?? null;
   // Only supported systems are drawn, so every row can be chosen; the agent follows only if the row has it.
   const rows = SYSTEM_ROWS.filter((row) => row.supported);
   const choose = (row: SystemRow) => {
@@ -205,7 +219,9 @@ function SystemStep(
   },
 ) {
   const problems = showProblems ? systemProblems(answers) : [];
-  const nameProblem = problems.find((problem) => problem !== "slotsInvalid");
+  const nameProblem = problems.find((problem) =>
+    problem === "nameRequired" || problem === "nameTooLong"
+  );
   return (
     <UI.Stack gap="standard">
       <UI.Field
@@ -241,6 +257,18 @@ function SystemStep(
           onChange={onChange}
           translate={translate}
         />
+        {problems.includes("systemRequired")
+          ? (
+            <UI.Text
+              variant="error"
+              role="alert"
+              id="machine-wizard-system-error"
+            >
+              {translate("machines.wizard.systemRequired" as never)}
+            </UI.Text>
+          )
+          : null}
+        <SystemHelp translate={translate} />
         <UnsupportedSystems translate={translate} />
       </UI.Stack>
       <UI.Field
@@ -278,7 +306,8 @@ function AgentStep(
   },
 ) {
   const question = translate("machines.wizard.agent.question" as never);
-  const agents = systemRow(answers.os, answers.architecture)?.agents ?? [];
+  const agents = systemRow(answers.os ?? "", answers.architecture)?.agents ??
+    [];
   return (
     <UI.Stack gap="standard">
       <UI.Heading level="section" rank={2}>
@@ -603,8 +632,17 @@ export function MachineWizardPage(
   const toList = () => void navigate({ to: "/machines" });
   const next = () => {
     if (step === "system") {
-      if (systemProblems(answers).length > 0) {
+      const problems = systemProblems(answers);
+      if (problems.length > 0) {
         setShowProblems(true);
+        // With only the system missing, the first row takes focus; a missing name comes first.
+        if (problems[0] === "systemRequired") {
+          queueMicrotask(() =>
+            document.querySelector<HTMLInputElement>(
+              'input[name="machine-wizard-system"]',
+            )?.focus()
+          );
+        }
         return;
       }
       setShowProblems(false);

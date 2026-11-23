@@ -4016,6 +4016,8 @@
   "machines.wizard.nameTooLong": "Use {max} characters or fewer.",
   "machines.wizard.system": "System",
   "machines.wizard.systemHint": "Choose the computer you are adding.",
+  "machines.wizard.systemRequired": "Choose the system of the computer you are adding.",
+  "machines.wizard.systemCheck": "Not sure? Run {command} on the machine: aarch64 is arm64.",
   "machines.wizard.systemFootnote": "Not supported yet: {systems}.",
   "machines.wizard.column.system": "System",
   "machines.wizard.column.processor": "Processor",

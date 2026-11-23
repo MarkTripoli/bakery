@@ -6358,5 +6358,7 @@
   "machines.agents.banner.notHeard.body": "⟦Ɓàķëŕÿ ĥàš ñôŧ ĥëàŕð ƒŕôɱ {agent} ôñ ŧĥïš ɱàçĥïñë ÿëŧ. Ÿôû çàñ šïĝñ ïñ ĥëŕë ŵĥëñ ïŧ ĥàš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "machines.banner.body.offline": "⟦Çĥëçķ ŧĥàŧ ŧĥë ɱàçĥïñë ïš ôñ àñð ŧĥë Ɓàķëŕÿ ŵôŕķëŕ ïš ŕûññïñĝ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "machines.wizard.systemHint": "⟦Çĥôôšë ŧĥë çôɱþûŧëŕ ÿôû àŕë àððïñĝ. ŧëšŧ çôþÿŧ⟧",
-  "machines.wizard.systemFootnote": "⟦Ñôŧ šûþþôŕŧëð ÿëŧ: {systems}. ŧëšŧ çôþ⟧"
+  "machines.wizard.systemFootnote": "⟦Ñôŧ šûþþôŕŧëð ÿëŧ: {systems}. ŧëšŧ çôþ⟧",
+  "machines.wizard.systemRequired": "⟦Çĥôôšë ŧĥë šÿšŧëɱ ôƒ ŧĥë çôɱþûŧëŕ ÿôû àŕë àððïñĝ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "machines.wizard.systemCheck": "⟦Ñôŧ šûŕë? Ŕûñ {command} ôñ ŧĥë ɱàçĥïñë: ààŕçĥ64 ïš àŕɱ64. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

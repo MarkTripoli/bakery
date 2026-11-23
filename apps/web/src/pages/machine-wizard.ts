@@ -16,19 +16,20 @@ export type WizardStep = (typeof WIZARD_STEPS)[number];
 
 export type WizardAnswers = Readonly<{
   name: string;
-  os: MachineSystem;
+  /** Null until a system is chosen: with two or more supported rows none is chosen for the person. */
+  os: MachineSystem | null;
   architecture: string;
   slots: string;
   agent: CodingAgent | null;
 }>;
 
-/** The system chosen when the page opens: the only supported row (see `machine-systems.ts`). */
+/** The system chosen when the page opens: the only supported row, or none when there are several (see `machine-systems.ts`). */
 export function initialAnswers(): WizardAnswers {
   const row = defaultSystemRow();
   return {
     name: "",
-    os: row?.os ?? "linux",
-    architecture: row?.architecture ?? "arm64",
+    os: row?.os ?? null,
+    architecture: row?.architecture ?? "",
     slots: "1",
     agent: null,
   };
@@ -37,7 +38,17 @@ export function initialAnswers(): WizardAnswers {
 export const NAME_MAX = 200;
 export const SLOTS_MAX = 100;
 
-export type SystemProblem = "nameRequired" | "nameTooLong" | "slotsInvalid";
+export type SystemProblem =
+  | "nameRequired"
+  | "nameTooLong"
+  | "systemRequired"
+  | "slotsInvalid";
+
+/** Whether the answers name a system Bakery can set up. */
+export function systemChosen(answers: WizardAnswers): boolean {
+  return answers.os !== null &&
+    isSupportedSystem(answers.os, answers.architecture);
+}
 
 /** What is wrong with the first step's answers, in the order the fields are shown. */
 export function systemProblems(answers: WizardAnswers): SystemProblem[] {
@@ -45,6 +56,7 @@ export function systemProblems(answers: WizardAnswers): SystemProblem[] {
   const name = answers.name.trim();
   if (name.length === 0) problems.push("nameRequired");
   else if (name.length > NAME_MAX) problems.push("nameTooLong");
+  if (!systemChosen(answers)) problems.push("systemRequired");
   if (parsedSlots(answers.slots) === null) problems.push("slotsInvalid");
   return problems;
 }
@@ -78,7 +90,7 @@ export function enrollmentInput(
   const slots = parsedSlots(answers.slots);
   if (
     systemProblems(answers).length > 0 || slots === null ||
-    answers.agent === null ||
+    answers.agent === null || answers.os === null ||
     !isSupportedSystem(answers.os, answers.architecture)
   ) return null;
   return {

@@ -649,20 +649,21 @@ test("P3 worker: Machines UI enrollment, token reveal, worker start, truthful re
   await axeClean(page, "/machines/new");
   // The enrollment's system and processor must be the ones the worker
   // registers with: the server refuses a mismatch (it treats x86_64 and x64 as
-  // one). The wizard offers only a supported system, Linux arm64 today. On an
-  // arm64 host the journey uses the wizard; on any other host (x64) it makes the
-  // setup through the API with the host's processor and finishes it on the
-  // wizard's own page, so the same steps are proved. BAKERY_M1_ENROLL_VIA_API=1
-  // takes that path on an arm64 host too.
+  // one). The wizard offers Linux arm64 and Linux x86_64 and chooses neither for
+  // the person, so the journey chooses the row that is the host's own.
+  // BAKERY_M1_ENROLL_VIA_API=1 makes the setup through the API instead and
+  // finishes it on the wizard's own page, so the same steps are proved.
   const hostProcessor = process.arch === "arm64" ? "arm64" : "x64";
-  const viaWizard = hostProcessor === "arm64" &&
-    process.env.BAKERY_M1_ENROLL_VIA_API !== "1";
+  const viaWizard = process.env.BAKERY_M1_ENROLL_VIA_API !== "1";
   let enrollmentId: string;
   if (viaWizard) {
     await page.getByLabel("Name").fill("m1-claude-worker");
-    // The chosen row is the host's own.
-    await expect(page.getByRole("radio", { name: /Linux.*arm64/ }))
-      .toBeChecked();
+    // Nothing is chosen for the person: choose the host's own row.
+    const hostRow = page.getByRole("radio", {
+      name: hostProcessor === "arm64" ? /Linux.*arm64/ : /Linux.*x86_64/,
+    });
+    await hostRow.check({ force: true });
+    await expect(hostRow).toBeChecked();
     await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("radio", { name: /Claude Code/ }).check({
       force: true,

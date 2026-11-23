@@ -532,14 +532,9 @@ test.describe("machine page: mode and Retire", () => {
     )
       .toBeVisible();
     await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
-    // Linux on x86_64 has no recorded run yet, but the machine keeps its steps:
-    // a warning says why, and the steps are the ones it was set up with.
-    await expect(
-      setup.getByRole("status").filter({
-        hasText:
-          "Linux x86_64 is not a supported system yet. These are the same steps this machine was set up with.",
-      }),
-    ).toBeVisible();
+    // Linux on x86_64 is a supported system, so its steps carry no warning.
+    await expect(setup.getByText("is not a supported system yet"))
+      .toHaveCount(0);
     await expect(
       setup.getByText(
         "The Bakery worker is the program that runs agents on this machine.",
@@ -603,14 +598,16 @@ test.describe("machine page: mode and Retire", () => {
       .toHaveCount(0);
   });
 
-  test("a retired Linux x86_64 machine has one banner, with the system warning as a plain line under the heading", async ({ page }) => {
-    const f = fixture({ status: "revoked", desiredMode: "revoked" });
+  test("a retired Linux machine on an unlisted processor has one banner, with the warning as a plain line under the heading", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      system: { os: "linux", architecture: "riscv64" },
+    });
     await page.clock.install();
     await open(page, f);
     await banner(page).getByRole("button", { name: "Set up again" }).click();
     const setup = page.getByTestId("machine-repair");
     const warning = setup.getByText(
-      "Linux x86_64 is not a supported system yet. These are the same steps this machine was set up with.",
+      "Linux riscv64 is not a supported system yet. These are the same steps this machine was set up with.",
     );
     await expect(warning).toBeVisible();
     // A line of text, not a second banner.

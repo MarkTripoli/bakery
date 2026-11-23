@@ -5,10 +5,10 @@ import type { CodingAgent } from "./machine-state.ts";
  * first table, its coding-agent step and its install step all read, and the
  * machine page reads for a machine that needs its setup again.
  *
- * A row is `supported` only with a recorded real run of the installer on that
- * system. Today that is Linux on arm64 alone (`scripts/deploy/bootstrap-host.sh`,
- * `scripts/deploy/release.mjs`); the rest are listed, muted, and can never be
- * chosen for a new machine.
+ * A row is `supported` only when the native support matrix
+ * (`docs/backend-delivery/native-support-matrix.json`) records its worker-target
+ * as verified on a real host. Today that is Linux on x86_64 and arm64; the macOS
+ * rows are named in one line and can never be chosen for a new machine.
  *
  * Having `steps` is a separate fact: a Linux machine on any processor is set up
  * the same way, so a machine that is already enrolled keeps its set-up-again
@@ -56,10 +56,10 @@ export const SYSTEM_ROWS: readonly SystemRow[] = [
     architecture: "x64",
     processor: "x86_64",
     processorNote: null,
-    installedAs: null,
+    installedAs: "systemd",
     steps: "systemd",
-    agents: [],
-    supported: false,
+    agents: CODING_AGENTS,
+    supported: true,
   },
   {
     id: "macos-arm64",
@@ -107,6 +107,11 @@ export function normalizeArchitecture(value: string): string {
   }
 }
 
+/** The system as the table names it: trimmed and lower-case, as `systemRow` and `hasSetupSteps` both read it. */
+function normalizeOs(os: string): string {
+  return os.trim().toLowerCase();
+}
+
 /** The row for a system and processor, or null for one the table does not list. */
 export function systemRow(
   os: string,
@@ -114,7 +119,7 @@ export function systemRow(
 ): SystemRow | null {
   const processor = normalizeArchitecture(architecture);
   return SYSTEM_ROWS.find((row) =>
-    row.os === os.trim().toLowerCase() && row.architecture === processor
+    row.os === normalizeOs(os) && row.architecture === processor
   ) ?? null;
 }
 
@@ -130,7 +135,8 @@ export function processorLabel(os: string, architecture: string): string {
 
 /** Whether a machine on this system has set-up steps to follow, on any processor. */
 export function hasSetupSteps(os: string): boolean {
-  return SYSTEM_ROWS.some((row) => row.os === os && row.steps !== null);
+  const name = normalizeOs(os);
+  return SYSTEM_ROWS.some((row) => row.os === name && row.steps !== null);
 }
 
 /** The supported rows, in table order. */

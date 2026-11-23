@@ -6358,5 +6358,7 @@
   "machines.agents.banner.notHeard.body": "⟪Bakery has not heard from {agent} on this machine yet. You can sign in here when it has.⟫",
   "machines.banner.body.offline": "⟪Check that the machine is on and the Bakery worker is running.⟫",
   "machines.wizard.systemHint": "⟪Choose the computer you are adding.⟫",
-  "machines.wizard.systemFootnote": "⟪Not supported yet: {systems}.⟫"
+  "machines.wizard.systemFootnote": "⟪Not supported yet: {systems}.⟫",
+  "machines.wizard.systemRequired": "⟪Choose the system of the computer you are adding.⟫",
+  "machines.wizard.systemCheck": "⟪Not sure? Run {command} on the machine: aarch64 is arm64.⟫"
 }

@@ -106,6 +106,16 @@ test.describe("machines touch targets on a coarse phone", () => {
     await expect(page.getByText("Step 1 of 3 · Name and system")).toBeVisible();
     expect(undersized(await measureTargets(page))).toEqual([]);
     await page.getByLabel("Name").fill("touch-target-new");
+    // Nothing is chosen for the person: Continue says so, then a system is chosen.
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(
+      page.getByText("Choose the system of the computer you are adding."),
+    ).toBeVisible();
+    expect(undersized(await measureTargets(page))).toEqual([]);
+    await page.getByRole("radio", { name: /Linux.*arm64/ }).check({
+      force: true,
+    });
+    expect(undersized(await measureTargets(page))).toEqual([]);
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Step 2 of 3 · Coding agent")).toBeVisible();
     expect(undersized(await measureTargets(page))).toEqual([]);

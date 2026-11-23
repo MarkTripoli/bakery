@@ -17,16 +17,21 @@ import {
 // #70 slice 1: the add-a-machine wizard asks three questions and makes one
 // enrollment from the answers.
 
-Deno.test("the answers start on the one supported system, valid except for the name and the agent", () => {
+Deno.test("with two supported systems none is chosen at first, and the first step says so", () => {
   const answers = initialAnswers();
-  assertEquals([answers.os, answers.architecture], ["linux", "arm64"]);
+  assertEquals([answers.os, answers.architecture], [null, ""]);
   assertEquals(answers.slots, "1");
   assertEquals(answers.agent, null);
-  assertEquals(systemProblems(answers), ["nameRequired"]);
+  assertEquals(systemProblems(answers), ["nameRequired", "systemRequired"]);
 });
 
 Deno.test("the first step refuses an empty or oversized name and any slots but a whole number from 1 to 100", () => {
-  const ok = { ...initialAnswers(), name: "build-mac-01" };
+  const ok = {
+    ...initialAnswers(),
+    name: "build-mac-01",
+    os: "linux" as const,
+    architecture: "arm64",
+  };
   assertEquals(systemProblems(ok), []);
   assertEquals(systemProblems({ ...ok, name: "   " }), ["nameRequired"]);
   assertEquals(systemProblems({ ...ok, name: "x".repeat(201) }), [
@@ -53,6 +58,27 @@ Deno.test("the first step refuses an empty or oversized name and any slots but a
   ]);
 });
 
+Deno.test("a system is required: none chosen, or one Bakery cannot set up, is the same problem", () => {
+  const ok = {
+    ...initialAnswers(),
+    name: "build-box-01",
+    os: "linux" as const,
+    architecture: "x64",
+  };
+  assertEquals(systemProblems(ok), []);
+  assertEquals(systemProblems({ ...ok, os: null, architecture: "" }), [
+    "systemRequired",
+  ]);
+  assertEquals(systemProblems({ ...ok, os: "macos", architecture: "arm64" }), [
+    "systemRequired",
+  ]);
+  // Shown in the order the fields are: name, system, tasks at once.
+  assertEquals(
+    systemProblems({ ...ok, name: "", os: null, architecture: "", slots: "0" }),
+    ["nameRequired", "systemRequired", "slotsInvalid"],
+  );
+});
+
 Deno.test("the enrollment is made only from complete answers, with the capabilities a coding machine needs and the chosen agent", () => {
   const complete = {
     name: "  build-arm-01 ",
@@ -72,10 +98,19 @@ Deno.test("the enrollment is made only from complete answers, with the capabilit
   assertEquals(enrollmentInput({ ...complete, name: "" }), null);
   assertEquals(enrollmentInput({ ...complete, slots: "0" }), null);
   assertEquals(enrollmentInput({ ...complete, architecture: "  " }), null);
+  assertEquals(
+    enrollmentInput({ ...complete, os: null, architecture: "" }),
+    null,
+  );
+  // Linux on x86_64 is supported: the row's stored form is x64.
+  assertEquals(
+    enrollmentInput({ ...complete, architecture: "x64" })?.architecture,
+    "x64",
+  );
   // A system without an installer never makes a setup, whatever else is filled in.
   for (
     const [os, architecture] of [
-      ["linux", "x86_64"],
+      ["linux", "riscv64"],
       ["macos", "arm64"],
       ["macos", "x86_64"],
       ["windows", "x86_64"],
