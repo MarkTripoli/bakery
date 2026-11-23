@@ -988,6 +988,7 @@ export type ContractInputName =
   | "DependencyPath"
   | "DeployInput"
   | "DeploymentCreate"
+  | "DeploymentQuery"
   | "DeploymentRollback"
   | "DesignInput"
   | "DesktopHandoffCreate"

@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "6f5e7b6ec00203ea3351be7b66d6bd8550b741b6"
+    "54fbfe00ede36e92c15367b5c452087a73ea2ed0"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:3dec69b5417cf7b11b815fa9480e62b4ff135847e6f62f3e05b74a82d116a9af",
-  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 6f5e7b6ec00203ea3351be7b66d6bd8550b741b6: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker refuses a job without a pin as plugin_job_version_unpinned, and the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id. No other contract shape changed.",
+  "targetCompatibilityDigest": "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
+  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 54fbfe00ede36e92c15367b5c452087a73ea2ed0: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker refuses a job without a pin as plugin_job_version_unpinned, and the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id. No other contract shape changed.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "03305bcbe2fbaabfd28f6220e4fc291506b1c0f3"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:311c017bb0b9c8be85b5d789fa465ad2c2073a917168ca5edbf1130964874590",
+      "reason": "Displaced by the #34 plugin job version pin rebind onto main 54fbfe00e: main's own approval, kept unchanged. It approved main 03305bcbe before workerActions['plugin.job'] made versionId required (#34, B14.03)."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
@@ -16,7 +26,7 @@
       "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:29f2c36d33afdecc79f3465c7a3cb9e355afab0dd86fa13acfc86dcf154d80de",
-      "reason": "Displaced by the #34 plugin job version pin rebind onto main 6f5e7b6ec: main's own approval, kept unchanged. It approved main 2864ff3cf before workerActions['plugin.job'] made versionId required (#34, B14.03)."
+      "reason": "Displaced by the #63 rebind onto main 03305bcbe2fbaabfd28f6220e4fc291506b1c0f3: main's own approval, kept unchanged. #422 PR B (the bakery.split fact) by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 2864ff3cf9bd4cdf9a2c3f2d802339415d682013: SplitInput replaces its lanes and maxConcurrency fields with one split field, the plan spec as a bakery.split fact; the coordination.split step exists only in #940 and is unreleased, so no caller sends the old shape."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
