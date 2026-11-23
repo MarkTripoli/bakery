@@ -5,6 +5,7 @@ import {
   type NextStep,
   nextStep,
   nextStepWithGroups,
+  nextStepWithLoopBounds,
   nextStepWithLoops,
   type RunState,
 } from "./interpret.ts";
@@ -22,7 +23,8 @@ export type InterpreterRevision = (
  * removed while a run pinned to it can still resume. A change in behavior is a
  * new entry. Revision 1's behavior is held in place by a conformance test;
  * revision 2 is revision 1 plus parallel groups; revision 3 is revision 2 plus
- * bounded sequential forEach loops.
+ * bounded sequential forEach loops; revision 4 is revision 3 plus a repeat's
+ * `min` and `allow`.
  */
 export const INTERPRETER_REVISIONS: Readonly<
   Record<string, InterpreterRevision>
@@ -30,14 +32,15 @@ export const INTERPRETER_REVISIONS: Readonly<
   "1": nextStep,
   "2": nextStepWithGroups,
   "3": nextStepWithLoops,
+  "4": nextStepWithLoopBounds,
 });
 
 /**
- * The revision a run admitted now is pinned to: revision 3 (forEach loops),
- * which gives revision 2's answers for a plan without a loop. Runs already
- * pinned to revision 1 or 2 resume on it.
+ * The revision a run admitted now is pinned to: revision 4 (loop bounds), which
+ * gives revision 3's answers for a plan whose repeats name no `min` or `allow`.
+ * Runs already pinned to an earlier revision resume on it.
  */
-export const CURRENT_INTERPRETER_REVISION = "3";
+export const CURRENT_INTERPRETER_REVISION = "4";
 
 /**
  * What a run freezes at admission so a later deploy cannot change how it runs:

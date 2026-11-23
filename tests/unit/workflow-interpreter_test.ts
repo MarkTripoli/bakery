@@ -11,6 +11,8 @@ import {
   type JsonValue,
   type NextStep,
   nextStep,
+  nextStepWithGroups,
+  nextStepWithLoopBounds,
   readFields,
   type StepRecord,
   WorkflowInterpreterError,
@@ -607,6 +609,176 @@ Deno.test("the host may allow a repeat more iterations than its document holds, 
   const satisfied = await compiled([counter({ max: 2 })]);
   assertEquals(
     drive(satisfied, bump, { repeatExtra: { loop: 3 } }).trace,
+    ["loop@1.bump", "loop@2.bump"],
+  );
+});
+
+Deno.test("repeat.min runs that many rounds even when until already holds, and asks until only from then on (#419)", async () => {
+  const report = noop("report", {
+    with: { i: "$step.loop.iterations", o: "$step.loop.outcome" },
+  });
+  // A seed that satisfies until: no min runs nothing, min 2 runs two rounds.
+  const none = await compiled([
+    counter({ seed: { currentCandidate: { n: 5 } } }),
+    report,
+  ]);
+  assertEquals(drive(none, bump, {}, nextStepWithLoopBounds).trace, ["report"]);
+  const two = await compiled([
+    counter({ seed: { currentCandidate: { n: 5 } }, min: 2 }),
+    report,
+  ]);
+  const ran = drive(two, bump, {}, nextStepWithLoopBounds);
+  assertEquals(ran.trace, ["loop@1.bump", "loop@2.bump", "report"]);
+  assertEquals((ran.dispatched[2] as ActionDispatch).input, {
+    i: 2,
+    o: "completed",
+  });
+  // A loop whose until holds only after round 3 is not cut short by a smaller min,
+  // and one whose until holds after round 2 still stops at 2 under min 1.
+  const later = await compiled([counter({ min: 1 })]);
+  assertEquals(drive(later, bump, {}, nextStepWithLoopBounds).trace, [
+    "loop@1.bump",
+    "loop@2.bump",
+  ]);
+  // min equal to max is a fixed number of rounds.
+  const fixed = await compiled([
+    counter({ seed: { currentCandidate: { n: 5 } }, min: 3 }),
+  ]);
+  assertEquals(drive(fixed, bump, {}, nextStepWithLoopBounds).trace, [
+    "loop@1.bump",
+    "loop@2.bump",
+    "loop@3.bump",
+  ]);
+});
+
+Deno.test("repeat.allow pauses the run below max for a limit decision, and no allowance goes past max (#419)", async () => {
+  const never = (extra: Step = {}) =>
+    counter({ until: "$repeat.currentCandidate.n >= 99", max: 5, ...extra });
+  const document = await compiled([
+    never({ allow: 2 }),
+    noop("after", { needs: ["loop"] }),
+  ]);
+  const held = drive(document, bump, {}, nextStepWithLoopBounds);
+  assertEquals(held.trace, ["loop@1.bump", "loop@2.bump"]);
+  assertEquals(held.next, {
+    kind: "paused",
+    key: "loop",
+    iterations: 2,
+    allowed: 2,
+    max: 5,
+  });
+  // The same answer on every call, and nothing after the repeat runs.
+  assert(!held.trace.includes("after"));
+  // The host's allowance extends the soft cap, and pauses again below max.
+  const more = drive(
+    document,
+    bump,
+    { repeatExtra: { loop: 2 } },
+    nextStepWithLoopBounds,
+  );
+  assertEquals(more.trace.length, 4);
+  assertEquals(more.next, {
+    kind: "paused",
+    key: "loop",
+    iterations: 4,
+    allowed: 4,
+    max: 5,
+  });
+  // An allowance past max is cut at max: the loop is exhausted there, not paused.
+  const capped = drive(
+    document,
+    bump,
+    { repeatExtra: { loop: 10 } },
+    nextStepWithLoopBounds,
+  );
+  assertEquals(capped.trace, [
+    "loop@1.bump",
+    "loop@2.bump",
+    "loop@3.bump",
+    "loop@4.bump",
+    "loop@5.bump",
+    "after",
+  ]);
+  assertEquals(capped.next, { kind: "finished" });
+  // allow equal to max never pauses: reaching it is exhaustion.
+  const atMax = await compiled([never({ allow: 5 })]);
+  assertEquals(drive(atMax, bump).next, { kind: "finished" });
+  // A satisfied until ends the loop before the soft cap.
+  const satisfied = await compiled([counter({ max: 5, allow: 3 })]);
+  assertEquals(drive(satisfied, bump, {}, nextStepWithLoopBounds).next, {
+    kind: "finished",
+  });
+  // Without allow the host's allowance still goes past the document's max.
+  const legacy = await compiled([never({ max: 2 })]);
+  assertEquals(
+    drive(legacy, bump, { repeatExtra: { loop: 1 } }, nextStepWithLoopBounds)
+      .trace.length,
+    3,
+  );
+});
+
+Deno.test("a repeat that pauses inside another repeat's body pauses the run, not the outer round (#419)", async () => {
+  const document = await compiled([{
+    id: "outer",
+    repeat: {
+      max: 2,
+      seed: { currentCandidate: { total: 0 } },
+      until: "$repeat.currentCandidate.total >= 99",
+      steps: [{
+        id: "inner",
+        repeat: {
+          max: 4,
+          allow: 1,
+          seed: {
+            currentCandidate: { total: "$repeat.currentCandidate.total" },
+          },
+          until: "$repeat.currentCandidate.total >= 99",
+          steps: [
+            noop("step", { with: { t: "$repeat.currentCandidate.total" } }),
+          ],
+          outputs: {
+            currentCandidate: { total: "$step.outer.inner.step.next" },
+          },
+        },
+      }],
+      outputs: {
+        currentCandidate: { total: "$step.outer.inner.currentCandidate.total" },
+      },
+    },
+  }]);
+  const run = drive(
+    document,
+    (step) =>
+      completed({
+        next: ((step as ActionDispatch).input as { t: number }).t + 1,
+      }),
+    {},
+    nextStepWithLoopBounds,
+  );
+  assertEquals(run.trace, ["outer@1.inner@1.step"]);
+  assertEquals(run.next, {
+    kind: "paused",
+    key: "outer@1.inner",
+    iterations: 1,
+    allowed: 1,
+    max: 4,
+  });
+});
+
+Deno.test("revisions 1 and 2 ignore a repeat's min and allow, so no pinned run changes (#419)", async () => {
+  const document = await compiled([
+    counter({
+      seed: { currentCandidate: { n: 5 } },
+      min: 2,
+      max: 5,
+      allow: 2,
+    }),
+  ]);
+  for (const earlier of [nextStep, nextStepWithGroups]) {
+    assertEquals(drive(document, bump, {}, earlier).trace, []);
+  }
+  assertEquals(
+    drive(document, bump, {}, nextStepWithLoopBounds).trace,
     ["loop@1.bump", "loop@2.bump"],
   );
 });

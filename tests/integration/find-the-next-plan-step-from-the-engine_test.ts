@@ -153,6 +153,35 @@ Deno.test("a failed repeat iteration is an outcome, not the end of the run", () 
     assertEquals((await rows(fixture, seeded)).length, 2);
   }));
 
+Deno.test("a repeat that uses its allow below its max stops the run with limit_reached, and goes no further (#419)", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedPlanRun(
+      fixture,
+      await compiled([{
+        id: "loop",
+        repeat: {
+          max: 3,
+          allow: 1,
+          seed: { currentCandidate: { n: 0 } },
+          until: "$repeat.currentCandidate.n >= 99",
+          steps: [noop("bump", { with: { n: "$repeat.currentCandidate.n" } })],
+          outputs: { currentCandidate: { n: "$step.loop.bump.next" } },
+        },
+      }, noop("report", { with: { outcome: "$step.loop.outcome" } })]),
+    );
+    // Round 1 completes; the soft cap of one is used with until still false.
+    await setRow(fixture, seeded, seeded.firstKey, "completed", { next: 1 });
+    assertEquals(
+      await seeded.repository.findNext(seeded.job.runId, seeded.owner),
+      undefined,
+    );
+    const end = await state(fixture, seeded);
+    assertEquals(end.run.status, "failed");
+    assertEquals(await audit(fixture, seeded), ["limit_reached"]);
+    // Nothing after the repeat was appended.
+    assertEquals((await rows(fixture, seeded)).length, 1);
+  }));
+
 Deno.test("an event wait is not run yet: the run fails with a stable code in the audit log", () =>
   withWorkerFixture(async (fixture) => {
     const seeded = await seedPlanRun(
