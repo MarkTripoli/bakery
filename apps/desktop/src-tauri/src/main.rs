@@ -50,6 +50,7 @@ async fn press_button(
         }
         Press::Shell(ButtonId::QuitBakery) => app.exit(0),
         Press::Shell(ButtonId::Close) => shell.close_link_dialog(),
+        Press::Shell(ButtonId::TryPageAgain) => shell.inner().try_page_again().await,
         Press::Shell(ButtonId::OpenLinkInBrowser) => {
             if let Some(target) = shell.link_dialog_target() {
                 if app.opener().open_url(&target, None::<&str>).is_ok() {

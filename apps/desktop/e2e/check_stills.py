@@ -71,7 +71,7 @@ for state, size, theme, result in rows:
     if abs(left - right) > 2:
         failures.append(f"{name}: the panel is not centred (left {left}, right {right})")
     # Under 480 wide the panel fills the window less 16 on each side; at the default size it is 420 wide.
-    panel = 460 if state in ("link-cant-open", "link-not-web", "link-other-server", "link-browser-did-not-open") else 420
+    panel = 460 if state in ("link-cant-open", "link-not-web", "link-other-server", "link-browser-did-not-open", "link-handoff-failed") else 420
     want = 16 if int(size.split("x")[0]) < 480 else (int(size.split("x")[0]) - panel) // 2
     if abs(left - want) > 2:
         failures.append(f"{name}: margin is {left}, the design says {want}")

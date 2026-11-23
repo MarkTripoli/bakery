@@ -36,6 +36,8 @@ pub enum ButtonId {
     CopyLink,
     /// A link dialog's Close or Cancel.
     Close,
+    /// "Try again" in the dialog for a page the server would not give.
+    TryPageAgain,
     /// "Open in your browser" in the another-server dialog.
     OpenLinkInBrowser,
 }
@@ -485,6 +487,7 @@ pub fn press(button: ButtonId) -> Press {
         | ButtonId::StartBakeryHelp
         | ButtonId::CopyLink
         | ButtonId::Close
+        | ButtonId::TryPageAgain
         | ButtonId::OpenLinkInBrowser => Press::Shell(button),
     }
 }

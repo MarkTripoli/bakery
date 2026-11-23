@@ -875,7 +875,61 @@ def phase_web_repeat_links():
     press(4, "a link to a local file is refused with a dialog", "file:///etc/hostname", "", "system_dialog", kind="not_web")
     press(5, "a second link to a local file is refused with a dialog", "file:///etc/hosts", "", "system_dialog", kind="not_web")
     press(6, "a new-tab link still goes to the browser after them", "https://example.com/6", new_tab, "link_to_browser")
+    # A good link whose handoff the server will not give is never dropped without a word.
+    check("[repeat] the server is stopped", server_flag("stop"))
+    before = count("system_dialog", kind="handoff_failed")
+    deliver("bakery://open?path=%2F%3Fretry%3D1")
+    check("[repeat] 7: a link the server will not open says so", wait_until(lambda: count("system_dialog", kind="handoff_failed") > before, timeout=40),
+          str([(e["event"], e["data"]) for e in reports(p)][-3:]))
+    check("[repeat] the server is started again", server_flag("start"))
     shot("repeat-links-end")
+
+
+def phase_web_handoff_retry():
+    """design-ux (#77): when the server will not give a page, the app says so with Try again. A press while the
+    server is still down brings the dialog back (never a stack); a press once it answers opens the page."""
+    web = os.environ.get("BAKERY_WEB", "")
+    if not web:
+        return
+    p = os.path.join(OUT, "r-retry")
+    clear_store()
+    clear_store(web)
+    # No answer chosen in advance: the system's dialog opens and Try again is pressed with a click.
+    start_app(p, server=web)
+    assert wait_window(p, "sign_in") is not None
+    url = sign_in_to_waiting(p, "[retry]")
+    if not url:
+        return
+    deliver(confirm(request_id_of(url), session_cookie()))
+    if not wait_report(p, "server_page_opened", 1, timeout=40):
+        check("[retry] the server's page opens", False)
+        return
+    time.sleep(6)
+
+    def count(event, **match):
+        return sum(1 for e in reports(p) if e["event"] == event
+                   and all(e["data"].get(k) == v for k, v in match.items()))
+
+    check("[retry] the server is stopped", server_flag("stop"))
+    before = count("system_dialog", kind="handoff_failed")
+    deliver("bakery://open?path=%2Ftasks%2F7")
+    check("[retry] a good link the server will not give says so",
+          wait_until(lambda: count("system_dialog", kind="handoff_failed") > before, timeout=40))
+    time.sleep(2)
+    before = count("system_dialog", kind="handoff_failed")
+    x_click(135, 146)
+    check("[retry] Try again with the server still down shows the dialog again, once",
+          wait_until(lambda: count("system_dialog", kind="handoff_failed") == before + 1, timeout=40))
+    time.sleep(3)
+    check("[retry] the server is started again", server_flag("start"))
+    time.sleep(3)
+    opened = count("server_page_opened")
+    x_click(135, 146)
+    check("[retry] Try again once the server answers opens the page",
+          wait_until(lambda: count("server_page_opened") > opened, timeout=40),
+          str([(e["event"], e["data"]) for e in reports(p)][-3:]))
+    check("[retry] and it is the page the link named",
+          [e["data"].get("path") for e in reports(p) if e["event"] == "server_page_opened"][-1] == "/tasks/7")
 
 
 def phase_record_flow():
@@ -1124,6 +1178,7 @@ def phase_web_shots():
             ("dialog-not-web", env, "file"),
             ("dialog-other-server", env, "bakery://open?path=%2Ftasks&server=https%3A%2F%2Fother.example"),
             ("dialog-browser-did-not-open", env, "browser"),
+            ("dialog-handoff-failed", env, "handoff"),
             ("menu-open", env, "menu"),
         ]
         for name, case_env, how in cases:
@@ -1168,7 +1223,15 @@ def phase_web_shots():
                 eval_in_window(p, "location.href = 'https://example.org/docs'")
                 wait_report(p, "system_dialog", 1, timeout=20)
                 time.sleep(2)
+            elif how == "handoff":
+                # The server does not answer when a good link arrives: the app says it could not get the page.
+                server_flag("stop")
+                deliver("bakery://open?path=%2Ftasks%2F7")
+                wait_report(p, "system_dialog", 1, timeout=40)
+                time.sleep(2)
             shot(f"{name}-{theme}")
+            if how == "handoff":
+                server_flag("start")
             stop_app()
 
 
@@ -1178,7 +1241,7 @@ def main():
     for phase in (phase_cold_sign_in, phase_restart, phase_cancel_then_late_answer, phase_bogus_answers,
                   phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring, phase_address_spelling,
                   phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back,
-                  phase_open_links, phase_menu, phase_web_pages, phase_web_repeat_links, phase_record_flow, phase_web_download, phase_web_shots):
+                  phase_open_links, phase_menu, phase_web_pages, phase_web_repeat_links, phase_web_handoff_retry, phase_record_flow, phase_web_download, phase_web_shots):
         if only and not any(s in phase.__name__ for s in only):
             continue
         try:

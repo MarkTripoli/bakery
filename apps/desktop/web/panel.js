@@ -220,12 +220,17 @@ function linkDialogNode(dialog) {
   for (const paragraph of dialog.text) {
     node.append(el("p", "panel__text", paragraph));
   }
-  const box = el("div", "detail");
-  if (dialog.box_label) {
-    box.append(el("span", "detail__label", dialog.box_label));
+  // The dialog for a page that did not open has no link to show, so no box.
+  if (dialog.shown !== "") {
+    const box = el("div", "detail");
+    if (dialog.box_label) {
+      box.append(el("span", "detail__label", dialog.box_label));
+    }
+    box.append(
+      el("span", "detail__value detail__value--address", dialog.shown),
+    );
+    node.append(box);
   }
-  box.append(el("span", "detail__value detail__value--address", dialog.shown));
-  node.append(box);
   const row = el("div", "buttons buttons--dialog");
   for (const button of dialog.buttons) {
     const b = el(

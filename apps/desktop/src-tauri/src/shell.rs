@@ -247,6 +247,7 @@ impl Shell {
             message.push(' ');
         }
         message.push_str(&view.shown);
+        let message = message.trim_end().to_string();
         let primary = view.buttons.iter().find(|b| b.primary).cloned();
         let other = view.buttons.iter().find(|b| !b.primary).cloned();
         let (Some(primary), Some(other)) = (primary, other) else {
@@ -291,6 +292,15 @@ impl Shell {
         use bakery_desktop_core::copy::ButtonId;
         self.report("system_dialog_answer", json!({ "button": pressed }));
         match pressed {
+            Some(ButtonId::TryPageAgain) => {
+                if let LinkDialog::HandoffFailed { path, over_page } = dialog {
+                    let shell = Arc::clone(self);
+                    let (path, over_page) = (path.clone(), *over_page);
+                    tauri::async_runtime::spawn(async move {
+                        shell.retry_page(path, over_page).await;
+                    });
+                }
+            }
             Some(ButtonId::CopyLink) => {
                 use tauri_plugin_clipboard_manager::ClipboardExt;
                 let _ = self.app.clipboard().write_text(dialog.full().to_string());
@@ -630,6 +640,8 @@ impl Shell {
                 }
                 self.report("handoff_failed", json!({}));
             }
+            // Never dropped without a word: the person sees that the link did not open.
+            self.handoff_failed_dialog(&path);
             return;
         }
         *self.pending_open.lock().unwrap() = Some(path);
@@ -639,6 +651,44 @@ impl Shell {
             self.window_page.lock().unwrap().tried = false;
         }
         self.dispatch(Event::OpenLinkArrived).await;
+    }
+
+    /// The app could not get a page from the server (a link's, or Work after a sign-in): say so, so the
+    /// person is never left with nothing. When the not-answering window already says the server is not
+    /// there, that window wins and this dialog stays away.
+    fn handoff_failed_dialog(self: &Arc<Self>, path: &str) {
+        let not_answering = matches!(
+            self.state.lock().unwrap().session.window(),
+            bakery_desktop_core::session::Window::NotAnswering
+        );
+        if not_answering {
+            return;
+        }
+        let over_page = self.window_page.lock().unwrap().on_server;
+        self.show_link_dialog(LinkDialog::HandoffFailed {
+            path: path.to_string(),
+            over_page,
+        });
+    }
+
+    /// The dialog's Try again: asks the server again for the same page, the link's or Work. A second failure
+    /// shows the dialog again, never a stack of them.
+    pub async fn try_page_again(self: &Arc<Self>) {
+        let dialog = self.state.lock().unwrap().facts.link_dialog.take();
+        self.push();
+        if let Some(LinkDialog::HandoffFailed { path, over_page }) = dialog {
+            self.retry_page(path, over_page).await;
+        }
+    }
+
+    async fn retry_page(self: &Arc<Self>, path: String, over_page: bool) {
+        if over_page {
+            self.open_link(path).await;
+        } else {
+            // On the signed-in window: the kept link, or Work, is asked for again.
+            self.window_page.lock().unwrap().tried = false;
+            self.sync_window().await;
+        }
     }
 
     /// Brings the window forward: every link that reaches the app does, as the design says.
@@ -817,10 +867,12 @@ impl Shell {
                 None => {
                     // The signed-in panel stays; the page is asked for again at the next sign-in or the
                     // next link, and a link that was waiting is kept for that try.
+                    self.report("handoff_failed", json!({}));
+                    // Said with a dialog, link or not: after a sign-in too, never nothing.
+                    self.handoff_failed_dialog(&path);
                     if had_link {
                         *self.pending_open.lock().unwrap() = Some(path);
                     }
-                    self.report("handoff_failed", json!({}));
                 }
             }
         } else if !signed_in {

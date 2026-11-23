@@ -19,6 +19,10 @@ pub enum LinkDialog {
     OtherServer { server: String, link: String },
     /// The system browser could not be opened.
     BrowserDidNotOpen { address: String },
+    /// The app could not get a page from the server (the one-use handoff failed), for a link or after a
+    /// sign-in. `path` is the page Try again asks for again: the link's page, or Work (`/`) when there was
+    /// no link. `over_page` is true when a server page is showing, which then has not changed.
+    HandoffFailed { path: String, over_page: bool },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -43,6 +47,7 @@ impl LinkDialog {
             | Self::NotWeb { link, .. }
             | Self::OtherServer { link, .. } => link,
             Self::BrowserDidNotOpen { address } => address,
+            Self::HandoffFailed { path, .. } => path,
         }
     }
 }
@@ -113,6 +118,29 @@ pub fn view(dialog: &LinkDialog, server: &str) -> LinkDialogView {
                 button(ButtonId::OpenLinkInBrowser, "Open in your browser", true),
             ],
         },
+        // design-ux, #77: a fifth link dialog. It has no box: there is no link to show.
+        LinkDialog::HandoffFailed { over_page, .. } => LinkDialogView {
+            kind: "handoff_failed",
+            title: "Bakery could not open the page".into(),
+            text: vec![
+                format!(
+                    "The app could not get the page from the server, so nothing was opened.{}",
+                    if *over_page {
+                        format!(" {page_kept}")
+                    } else {
+                        String::new()
+                    }
+                ),
+                "If it keeps happening, sign out from the Bakery menu and sign in again.".into(),
+            ],
+            box_label: None,
+            shown: String::new(),
+            full: String::new(),
+            buttons: vec![
+                button(ButtonId::Close, "Close", false),
+                button(ButtonId::TryPageAgain, "Try again", true),
+            ],
+        },
         LinkDialog::BrowserDidNotOpen { .. } => LinkDialogView {
             kind: "browser_did_not_open",
             title: "Bakery could not open your browser".into(),
@@ -179,6 +207,40 @@ mod tests {
         );
         assert_eq!(browser.title, "Bakery could not open your browser");
         assert_eq!(labels(&browser), ["Close", "Copy the address"]);
+        // A page the server would not give: no box, and the page kept line only over a server page.
+        let over = view(
+            &LinkDialog::HandoffFailed {
+                path: "/tasks/7".into(),
+                over_page: true,
+            },
+            SERVER,
+        );
+        assert_eq!(over.kind, "handoff_failed");
+        assert_eq!(over.title, "Bakery could not open the page");
+        assert_eq!(
+            over.text,
+            [
+                "The app could not get the page from the server, so nothing was opened. The page you had open has not changed.",
+                "If it keeps happening, sign out from the Bakery menu and sign in again."
+            ]
+        );
+        assert_eq!(over.shown, "");
+        assert_eq!(labels(&over), ["Close", "Try again"]);
+        let panel = view(
+            &LinkDialog::HandoffFailed {
+                path: "/".into(),
+                over_page: false,
+            },
+            SERVER,
+        );
+        assert_eq!(
+            panel.text[0],
+            "The app could not get the page from the server, so nothing was opened."
+        );
+        assert!(panel
+            .buttons
+            .iter()
+            .any(|b| b.primary && b.label == "Try again"));
     }
 
     #[test]

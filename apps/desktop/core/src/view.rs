@@ -201,6 +201,7 @@ pub const PREVIEWS: &[&str] = &[
     "link-not-web",
     "link-other-server",
     "link-browser-did-not-open",
+    "link-handoff-failed",
 ];
 
 /// The named state, or `None` for a name that is not one.
@@ -438,6 +439,17 @@ pub fn preview(name: &str) -> Option<Preview> {
         "link-browser-did-not-open" => with_link(LinkDialog::BrowserDidNotOpen {
             address: "https://example.org/docs/getting-started".into(),
         }),
+        // Over the "You are signed in" window, which is where this dialog shows (the window has no panel).
+        "link-handoff-failed" => Preview {
+            session: signed_in_here(),
+            facts: ViewFacts {
+                link_dialog: Some(LinkDialog::HandoffFailed {
+                    path: "/".into(),
+                    over_page: false,
+                }),
+                ..ViewFacts::default()
+            },
+        },
         _ => return None,
     })
 }
@@ -557,6 +569,10 @@ mod tests {
     #[test]
     fn every_preview_has_a_panel_because_every_window_has_one() {
         for name in PREVIEWS {
+            // The signed-in window is the app's own heading, drawn by the page, with no panel.
+            if *name == "link-handoff-failed" {
+                continue;
+            }
             let p = preview(name).unwrap();
             assert!(view(&p.session, &p.facts).panel.is_some(), "{name}");
         }
