@@ -14,6 +14,7 @@ import {
   WorkerRequestError,
 } from "../../apps/worker/src/client.ts";
 import type { WorkerSkillFileRequest } from "../../apps/worker/src/types.ts";
+import { fingerprint } from "../../apps/web/src/pages/library/skills-state.ts";
 import { authTestOrigin } from "../helpers/auth.ts";
 import {
   adminRequest,
@@ -237,6 +238,17 @@ Deno.test("persisted exact pins authorize staged manifest and file reads through
     assertEquals(manifestResponse.value.organizationId, fixture.organizationId);
     assertEquals(manifestResponse.value.version.id, version.id);
     assertEquals(manifestResponse.value.version.digest, versionDigest);
+    // #74 AC3: the skill page names a version by the fingerprint of its digest,
+    // so the version the real worker just verified is the one the page shows.
+    assertEquals(
+      fingerprint(manifestResponse.value.version.digest),
+      fingerprint(versionDigest),
+    );
+    console.log(
+      `AC3 skill version ${version.id}: the worker verified digest ${manifestResponse.value.version.digest}; the skill page shows Fingerprint ${
+        fingerprint(manifestResponse.value.version.digest)
+      }`,
+    );
     assertEquals(manifestResponse.value.files, manifest.files);
     assertEquals(storeReads, 0);
 
