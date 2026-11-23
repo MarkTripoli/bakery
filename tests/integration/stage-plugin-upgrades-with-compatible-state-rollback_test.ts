@@ -454,13 +454,6 @@ Deno.test("AC3: a restore racing a state write leaves one whole outcome, never a
       versionId: second.versionId,
     });
 
-    // The restore and the write are two requests with no ordering between them.
-    // Whichever lands second must see the other whole: a write either lands
-    // before the restore and is discarded with the rest of what the second
-    // version saved, or after it and lives beside the restored rows with a
-    // number above theirs. A mix - the restored value overwritten, a row half
-    // applied, or a row the restore deleted coming back with its old number -
-    // is the failure this pins.
     const [restored, written] = await Promise.all([
       patchInstall(fixture, first.installId, {
         versionId: first.versionId,
@@ -476,10 +469,6 @@ Deno.test("AC3: a restore racing a state write leaves one whole outcome, never a
     assertEquals(restored.status, 200, await restored.clone().text());
     const writeStatus = written.status;
     await written.body?.cancel();
-    // 200 when it landed whole; 409 when it reached the state after the restore
-    // and its number was stale; 422 when it landed while the install was still
-    // on the newer schema, which refuses a write at the older one. Nothing else
-    // is a state this test calls whole.
     assert(
       [200, 409, 422].includes(writeStatus),
       `a racing write answers 200, 409 or 422, not ${writeStatus}`,
@@ -488,22 +477,16 @@ Deno.test("AC3: a restore racing a state write leaves one whole outcome, never a
 
     const live = await stateRows(fixture, first.installId);
     const theme = live.find((row) => row.key === "theme");
-    // The restored value is the one the first version left, never the one the
-    // second version wrote after it.
     assertEquals(theme?.value, { theme: "dark" });
     assertEquals(theme?.schema_version, 1);
     const layout = live.find((row) => row.key === "layout");
     if (layout !== undefined) {
-      // It landed after the restore, so it carries a number the restore did not
-      // hand out and cannot overwrite the restored row.
       assert(
         layout.cas_version > theme!.cas_version,
         "a write that survived the restore is numbered after it",
       );
       assert(writeStatus === 200, "a write that is in the state answered 200");
     }
-    // Whatever the order, the install holds no row the restore dropped and no
-    // duplicate: the restore is one whole state, not a merge.
     assertEquals(new Set(live.map((row) => row.key)).size, live.length);
     const snapshot = await snapshotOf(fixture, first.installId);
     assert(snapshot !== null);

@@ -884,7 +884,7 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // The approval currently in force: the base it was bound to, and the digest
   // of the tree it authorises.
   const approvedBases = [
-    "54fbfe00ede36e92c15367b5c452087a73ea2ed0",
+    "59ed9251f7c9dd591571f1c596c9c36b8f79bb98",
   ];
   const approvedDigest =
     "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0";
@@ -892,6 +892,8 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   // them may pass again, or a stale digest would silently re-authorise a delta
   // nobody reviewed.
   const rejectedPriorDigests = [
+    // Displaced by the #34 plugin job version pin rebind onto main 59ed9251f: main's own approval, kept unchanged.
+    "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
     // Displaced by the #34 plugin job version pin rebind onto main 54fbfe00e: main's own approval, kept unchanged.
     "sha256:311c017bb0b9c8be85b5d789fa465ad2c2073a917168ca5edbf1130964874590",
     // Displaced by the #63 release page rebind onto main 03305bcbe: main's own approval on 2864ff3cf, kept unchanged.
@@ -1304,10 +1306,20 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     }),
     false,
   );
+  // A rebind that changes no contract keeps the same digest, so the approval it
+  // displaced and the one in force share a digest. They are told apart by the
+  // base each was bound to: the displaced base must never pass, even with the
+  // live digest.
+  const displacedBase = "54fbfe00ede36e92c15367b5c452087a73ea2ed0";
   for (const compatibilityDigest of rejectedPriorDigests) {
+    const base = compatibilityDigest === approvedDigest
+      ? displacedBase
+      : approvedBases[0];
     assertEquals(
       isApprovedCompatibilityMigration(migration, {
         ...options,
+        baseRef: base,
+        resolvedBaseRef: base,
         compatibilityDigest,
       }),
       false,

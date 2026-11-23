@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "54fbfe00ede36e92c15367b5c452087a73ea2ed0"
+    "59ed9251f7c9dd591571f1c596c9c36b8f79bb98"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
-  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 54fbfe00ede36e92c15367b5c452087a73ea2ed0: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker refuses a job without a pin as plugin_job_version_unpinned, and the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id. No other contract shape changed.",
+  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 59ed9251f7c9dd591571f1c596c9c36b8f79bb98: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker refuses a job without a pin as plugin_job_version_unpinned, and the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id. No other contract shape changed.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "54fbfe00ede36e92c15367b5c452087a73ea2ed0"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
+      "reason": "Displaced by the #34 plugin job version pin rebind onto main 59ed9251f: main's own approval, kept unchanged. It approved main 54fbfe00e before workerActions['plugin.job'] made versionId required (#34, B14.03)."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

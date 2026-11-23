@@ -11,9 +11,8 @@ import type { ExecutionRouteOptions } from "./shared.ts";
  * `GET /v1/worker/attempts/{id}/plugin-job-files` (#29, B14.02).
  *
  * Hands a contained job its code: the files of the bundle of the version the
- * job was admitted with, or of the install's current version when it named
- * none, for the install the job names. A named version must be a published
- * version of the install's own package. The worker proves the lease and fence as for
+ * job was admitted with, for the install the job names. That version must be a
+ * published version of the install's own package. The worker proves the lease and fence as for
  * the broker relay. The bundle is read from the store by its recorded digest
  * and parsed by the server's own archive reader, so the worker writes plain
  * files and never unpacks an archive. A disabled install, or one without the
