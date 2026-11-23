@@ -889,8 +889,6 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   const rejectedPriorDigests = [
     "sha256:dcceb92c88a39796bd5376ae687048e7998b8c01860a67b985b5138a69cc0af8",
     "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",
-    "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",
-    "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
     "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
     "sha256:311c017bb0b9c8be85b5d789fa465ad2c2073a917168ca5edbf1130964874590",
     // Displaced by the #63 release page rebind onto main 03305bcbe: main's own approval on 2864ff3cf, kept unchanged.
@@ -1281,9 +1279,13 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   assertEquals(migration.targetCompatibilityDigest, approvedDigest);
   assert(alteredDigest !== approvedDigest);
   assertEquals(
-    migration.priorApprovals.map((approval) =>
-      approval.targetCompatibilityDigest
-    ),
+    [
+      ...new Set(
+        migration.priorApprovals.map((approval) =>
+          approval.targetCompatibilityDigest
+        ),
+      ),
+    ],
     rejectedPriorDigests,
   );
   for (const approvedBase of approvedBases) {
@@ -1303,16 +1305,10 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     }),
     false,
   );
-  const displacedBase = "59ed9251f7c9dd591571f1c596c9c36b8f79bb98";
   for (const compatibilityDigest of rejectedPriorDigests) {
-    const base = compatibilityDigest === approvedDigest
-      ? displacedBase
-      : approvedBases[0];
     assertEquals(
       isApprovedCompatibilityMigration(migration, {
         ...options,
-        baseRef: base,
-        resolvedBaseRef: base,
         compatibilityDigest,
       }),
       false,

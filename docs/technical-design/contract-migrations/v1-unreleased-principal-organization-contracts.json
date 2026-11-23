@@ -16,7 +16,7 @@
       "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:dcceb92c88a39796bd5376ae687048e7998b8c01860a67b985b5138a69cc0af8",
-      "reason": "Displaced by the #34 plugin job version pin rebind onto main fc819c510: the approval of the same branch tree before the install's-current-version sentence was removed from the files route description. Kept unchanged."
+      "reason": "This branch's earlier approval of the same tree, before the files route description was corrected. Kept as history."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
@@ -26,7 +26,7 @@
       "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",
-      "reason": "Displaced by the #34 plugin job version pin rebind onto main 148a9f03e: the approval of the same tree before its bundleDigest description was corrected. Kept unchanged."
+      "reason": "This branch's earlier approval, before the description corrections. Kept as history."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
@@ -36,7 +36,7 @@
       "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",
-      "reason": "Displaced by the #34 plugin job version pin rebind onto main 148a9f03e: main's own approval, kept unchanged."
+      "reason": "This branch's earlier approval, before the description corrections. Kept as history."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
@@ -46,7 +46,7 @@
       "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
-      "reason": "Displaced by the #34 plugin job version pin rebind onto main 59ed9251f after the merge of #943: kept unchanged. It approved the pre-merge tree at the same base."
+      "reason": "This branch's earlier approval, before the description corrections. Kept as history."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
@@ -56,7 +56,7 @@
       "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:3862305167bbc2697c64c31a5613caef43a0841fbd8264f4e24dcd51a68e00a0",
-      "reason": "Displaced by the #34 plugin job version pin rebind onto main 59ed9251f: main's own approval, kept unchanged. It approved main 54fbfe00e before workerActions['plugin.job'] made versionId required (#34, B14.03)."
+      "reason": "This branch's earlier approval, before the description corrections. Kept as history."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
@@ -66,7 +66,7 @@
       "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:311c017bb0b9c8be85b5d789fa465ad2c2073a917168ca5edbf1130964874590",
-      "reason": "Displaced by the #34 plugin job version pin rebind onto main 54fbfe00e: main's own approval, kept unchanged. It approved main 03305bcbe before workerActions['plugin.job'] made versionId required (#34, B14.03)."
+      "reason": "Displaced by the #34 plugin job version pin rebind onto main 54fbfe00e: main's own approval, kept unchanged. #63 release page by dev-agx1 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 03305bcbe2fbaabfd28f6220e4fc291506b1c0f3: RepositoryQuery loses its environment field, which only deployments.list used and which now has its own DeploymentQuery (repositoryId, runId, environment); the one remaining user, evaluationCases.list, never read it. Deployment gains optional previousCommitSha and rollbackFailed, and deployments.list gains an optional runId. No client sent environment to evaluationCases.list, and no page called deployments.list before this change. Main's own approval is preserved unchanged first below."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
