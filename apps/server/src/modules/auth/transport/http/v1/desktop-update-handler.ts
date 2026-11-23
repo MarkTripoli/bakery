@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import {
   type ActionContext,
   type ActionDefinition,
@@ -9,18 +10,10 @@ import { ActionAccess, contractSchemas } from "@bakery/contracts/contracts";
 import { requirePrincipal } from "./handlers.ts";
 import { StandardError } from "@bakery/contracts/http";
 import {
-  type DesktopUpdateArch,
   type DesktopUpdateFeed,
   type DesktopUpdateRelease,
-  type DesktopUpdateTarget,
   selectDesktopUpdate,
 } from "@bakery/config/desktop-update-feed";
-
-export type DesktopUpdateQuery = {
-  target: DesktopUpdateTarget;
-  arch: DesktopUpdateArch;
-  current_version: string;
-};
 
 /**
  * The desktop app's update manifest (#77). No feed configured: 404, this
@@ -29,7 +22,7 @@ export type DesktopUpdateQuery = {
  */
 export function desktopUpdatesGet(
   _context: ActionContext,
-  input: DesktopUpdateQuery,
+  input: z.output<typeof contractSchemas.DesktopUpdateQuery>,
   feed: DesktopUpdateFeed | undefined,
 ): DesktopUpdateRelease | null {
   if (!feed) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
@@ -46,7 +39,7 @@ export function desktopUpdatesGet(
  */
 export function desktopUpdatesGetAction(
   feed: DesktopUpdateFeed | undefined,
-): ActionDefinition {
+): ActionDefinition<typeof contractSchemas.DesktopUpdateQuery> {
   return {
     name: AuthImplementedAction.DesktopUpdatesGet,
     method: HttpMethod.Get,
@@ -62,7 +55,6 @@ export function desktopUpdatesGetAction(
         requirePrincipal(context.principal);
       },
     },
-    handler: (context, input) =>
-      desktopUpdatesGet(context, input as DesktopUpdateQuery, feed),
+    handler: (context, input) => desktopUpdatesGet(context, input, feed),
   };
 }
