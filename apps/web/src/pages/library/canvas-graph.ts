@@ -195,7 +195,7 @@ export function elkGraph(
         ),
         // The layers of a box are its rows: ELK's own default is 20.
         ...(block.kind === "if"
-          ? { "elk.alignment": "TOP" }
+          ? {}
           : { "elk.layered.spacing.nodeNodeBetweenLayers": String(BOX_GAP) }),
       },
       // An empty box still has room for its one line and its "+".
@@ -239,18 +239,26 @@ export type Placement = Readonly<{
 /** What ELK computed, flattened in the graph's own order. */
 export function placements(laid: ElkNode): readonly Placement[] {
   const out: Placement[] = [];
-  const walk = (held: readonly ElkNode[] | undefined) => {
+  const walk = (
+    held: readonly ElkNode[] | undefined,
+    inRow: boolean,
+  ) => {
+    // The arms of an If are laid out in a row, and ELK centres the shorter arm
+    // against the taller. Both hang from the same top instead.
+    const rowTop = inRow
+      ? Math.min(...(held ?? []).map((child) => child.y ?? 0))
+      : 0;
     for (const child of held ?? []) {
       out.push({
         id: child.id,
         x: child.x ?? 0,
-        y: child.y ?? 0,
+        y: inRow ? rowTop : child.y ?? 0,
         width: child.width ?? 0,
         height: child.height ?? 0,
       });
-      walk(child.children);
+      walk(child.children, child.layoutOptions?.["elk.direction"] === "RIGHT");
     }
   };
-  walk(laid.children);
+  walk(laid.children, false);
   return out;
 }

@@ -1129,6 +1129,46 @@ test.describe("the workflow canvas on a wide window", () => {
     await expect(page.locator("[data-connector='add'] button")).toBeFocused();
   });
 
+  test("the two arms of an If start at the same height, whichever one holds the steps", async ({ page }) => {
+    const brief = { kind: "action", id: "brief", uses: "task.brief" };
+    const review = { kind: "action", id: "rev", uses: "agent.review" };
+    for (
+      const [yes, otherwise] of [
+        [[review], []],
+        [[], [review]],
+      ]
+    ) {
+      await libraryFixture(page, {
+        ...WORLD,
+        versions: [
+          ...VERSIONS.filter((row) => row.status !== "draft"),
+          {
+            ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+            spec: [brief, { kind: "branch", then: yes, else: otherwise }],
+          },
+        ],
+      });
+      await page.goto(editorUrl);
+      await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+        .toHaveAttribute("data-layout", "ready");
+      const top = async (selector: string) =>
+        (await page.locator(selector).first().boundingBox())!.y;
+      // The frames of the two arms, and the captions in them, share one top.
+      expect(
+        Math.abs(
+          (await top("[data-group='yes']")) -
+            (await top("[data-group='otherwise']")),
+        ),
+      ).toBeLessThanOrEqual(1);
+      expect(
+        Math.abs(
+          (await top("[data-group='yes'] .ui-step-group__label")) -
+            (await top("[data-group='otherwise'] .ui-step-group__label")),
+        ),
+      ).toBeLessThanOrEqual(1);
+    }
+  });
+
   test("the add menu stays whole inside the canvas, from a + near the top and one near the bottom", async ({ page }) => {
     const steps = Array.from({ length: 12 }, (_, index) => ({
       id: "s" + index,

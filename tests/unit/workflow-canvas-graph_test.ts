@@ -138,3 +138,25 @@ Deno.test("placements list every block once, parents before children", () => {
     tabOrder(graph),
   );
 });
+
+Deno.test("the arms of an If hang from the same top, whichever one is taller", () => {
+  const graph = canvasGraph(treeOf({
+    steps: [{ kind: "branch", then: [step("y")], else: [] }],
+  }));
+  const fake: ElkNode = structuredClone(elkGraph(graph));
+  const iff = fake.children?.find((child) => child.id.startsWith("if-"));
+  // ELK centred the shorter arm: 24px lower than the taller one.
+  const [yes, otherwise] = iff?.children ?? [];
+  yes.x = 0;
+  yes.y = 40;
+  yes.height = 136;
+  otherwise.x = 400;
+  otherwise.y = 64;
+  otherwise.height = 88;
+  const put = placements(fake);
+  const at = (id: string) => put.find((placement) => placement.id === id)!;
+  assertEquals(at(yes.id).y, 40);
+  assertEquals(at(otherwise.id).y, 40);
+  assertEquals(at(otherwise.id).x, 400);
+  assertEquals(at(otherwise.id).height, 88);
+});
