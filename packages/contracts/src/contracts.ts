@@ -4497,7 +4497,8 @@ export function generateContracts(
         "400": { description: "Malformed request." },
         "401": { description: "Authentication required." },
         "403": { description: "Forbidden." },
-        ...(importAction && action.errors.includes("RESOURCE_NOT_FOUND")
+        // Every action that declares RESOURCE_NOT_FOUND documents its 404.
+        ...(action.errors.includes("RESOURCE_NOT_FOUND")
           ? {
             "404": {
               description: "Resource not found (RESOURCE_NOT_FOUND).",
