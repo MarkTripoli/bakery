@@ -290810,7 +290810,7 @@
             "bundleDigest": {
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
-              "description": "SHA-256 of the bundle archive of the plugin version the job runs: the version the job names, or the install's current version when it names none."
+              "description": "SHA-256 of the bundle archive of the plugin version the job was admitted against."
             },
             "entry": {
               "type": "string",
@@ -295985,7 +295985,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",
+  "compatibilityDigest": "sha256:dcceb92c88a39796bd5376ae687048e7998b8c01860a67b985b5138a69cc0af8",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -530108,7 +530108,7 @@
         "bundleDigest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "SHA-256 of the bundle archive of the plugin version the job runs: the version the job names, or the install's current version when it names none."
+          "description": "SHA-256 of the bundle archive of the plugin version the job was admitted against."
         },
         "entry": {
           "type": "string",
