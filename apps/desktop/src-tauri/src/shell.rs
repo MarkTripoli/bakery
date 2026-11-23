@@ -727,7 +727,9 @@ impl Shell {
         let update = self.updating_state();
         let st = self.state.lock().unwrap();
         let mut facts = st.facts.clone();
-        facts.update = update;
+        if !self.previewing {
+            facts.update = update;
+        }
         view(&st.session, &facts)
     }
 
