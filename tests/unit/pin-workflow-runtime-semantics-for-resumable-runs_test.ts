@@ -143,11 +143,11 @@ Deno.test("AC3: a deployed revision change leaves a run pinned to the old revisi
   const before = await resolveWorkflowRuntime(pin, document);
   const baseline = drive(document, (step) => grow(step), {}, before);
 
-  // After a later deploy: a revision 3 exists that behaves differently from 1
+  // After a later deploy: a revision 4 exists that behaves differently from 1
   // (here it just says the run is done at once). The old run is still pinned
   // to 1, so it resolves to 1 and runs exactly as before.
   const stopsImmediately = (): NextStep => ({ kind: "finished" });
-  const deployed = { ...INTERPRETER_REVISIONS, "3": stopsImmediately };
+  const deployed = { ...INTERPRETER_REVISIONS, "4": stopsImmediately };
   const after = await resolveWorkflowRuntime(pin, document, deployed);
   const resumed = drive(document, (step) => grow(step), {}, after);
   assertEquals(resumed.trace, baseline.trace);
@@ -155,9 +155,9 @@ Deno.test("AC3: a deployed revision change leaves a run pinned to the old revisi
   assertEquals(resumed.next, baseline.next);
   assertNotEquals(baseline.trace.length, 0);
 
-  // A run admitted after the deploy and pinned to 3 gets 3's behavior.
+  // A run admitted after the deploy and pinned to 4 gets 4's behavior.
   const newer = await resolveWorkflowRuntime(
-    { ...pin, interpreterRevision: "3" },
+    { ...pin, interpreterRevision: "4" },
     document,
     deployed,
   );
@@ -183,7 +183,7 @@ Deno.test("AC3: a mid-run resume asks the pinned revision and gets the same next
 Deno.test("a pin to a revision that is no longer deployed is refused, never run on the current one", async () => {
   const document = await sample();
   const pin = await pinWorkflowRuntime(document);
-  const retired = { "3": () => ({ kind: "finished" }) as NextStep };
+  const retired = { "4": () => ({ kind: "finished" }) as NextStep };
   const error = await assertRejects(() =>
     resolveWorkflowRuntime(pin, document, retired)
   );
@@ -201,7 +201,7 @@ Deno.test("the deployed revision registry cannot be changed at run time (#212)",
   const revisionOne = registry["1"];
   assert(Object.isFrozen(INTERPRETER_REVISIONS));
   assertThrows(() => {
-    registry["3"] = nextStep;
+    registry["4"] = nextStep;
   }, TypeError);
   assertThrows(() => {
     registry["1"] = nextStep;
@@ -211,7 +211,7 @@ Deno.test("the deployed revision registry cannot be changed at run time (#212)",
   }, TypeError);
   assertEquals(Object.keys(registry), before);
   assert(registry["1"] === revisionOne, "revision 1 was replaced");
-  assertEquals("3" in registry, false);
+  assertEquals("4" in registry, false);
 });
 
 Deno.test("inherited names are not revisions", async () => {

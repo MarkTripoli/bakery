@@ -19,7 +19,7 @@ Deno.test("the usage ledger names a compute kind beside model usage", () => {
 Deno.test("the model path names its kind and the ledger migration states no rule", async () => {
   const root = new URL("../../apps/server/src/modules/work/", import.meta.url);
   const sql = await Deno.readTextFile(
-    new URL("migrations/bakery/0336_usage_records_kind.sql", root),
+    new URL("migrations/bakery/0351_usage_records_kind.sql", root),
   );
   assertEquals(/\bcheck\s*\(/i.test(sql), false);
   const budget = await Deno.readTextFile(new URL("budget.ts", root));

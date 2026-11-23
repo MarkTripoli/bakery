@@ -545,6 +545,7 @@ const runtimeSet = [
   "rpi.research",
   "secret.identity.read",
   "task.brief",
+  "tool.call",
   "workflow.noop",
   "workflow.stop",
 ];
@@ -584,7 +585,7 @@ Deno.test("worker-dispatched declarations pin outputSchema to the registry and t
     if (
       name === "workflow.noop" || name === "rpi.plan" ||
       name === "workflow.stop" || name === "human.approval" ||
-      name.startsWith("delivery.")
+      name === "tool.call" || name.startsWith("delivery.")
     ) continue;
     const metadata = WORKFLOW_ACTION_METADATA[name as "quality.check"];
     const { handler } = runtime.get(name as "quality.check");
@@ -673,4 +674,30 @@ Deno.test("a delivery step handler validates its input and never runs the step i
     // An input that is not the action's shape fails validation first.
     assertThrows(() => handle({ extra: true }));
   }
+});
+
+Deno.test("tool.call handler validates its input and never makes the call itself (#435)", () => {
+  const { handle } = createWorkflowActionRuntime().get("tool.call").handler;
+  const connectionId = "00000000-0000-4000-8000-0000000000a1";
+  const error = assertThrows(() =>
+    handle({
+      connectionId,
+      tool: "chat.post",
+      toolVersion: 1,
+      resourceId: connectionId,
+      arguments: { text: "hi" },
+    })
+  );
+  assertEquals(
+    (error as { params?: { reason?: string } }).params?.reason,
+    "workflow_tool_call_settled_by_engine",
+  );
+  // Only the registered input: no connection, no call; no unknown fields.
+  assertThrows(() => handle({ tool: "chat.post", arguments: {} }));
+  assertThrows(() =>
+    handle({ connectionId, tool: "chat.post", arguments: {}, model: "x" })
+  );
+  assertThrows(() =>
+    handle({ connectionId: "not-a-uuid", tool: "chat.post", arguments: {} })
+  );
 });

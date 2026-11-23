@@ -72,7 +72,8 @@ export function MentionPicker(
     <div
       className="ui-mention-picker"
       {...props}
-      data-state={state}
+      // The rows are the catalog's "default" state; the prop calls them "options".
+      data-state={state === "options" ? "default" : state}
       data-ui-component="mentionPicker"
       data-variant="default"
     >

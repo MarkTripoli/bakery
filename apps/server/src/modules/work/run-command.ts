@@ -1,3 +1,4 @@
+import { toRunEnvironment } from "./run-environment.ts";
 import { z } from "zod";
 import { type ActionContext } from "@bakery/contracts/action-registry";
 import {
@@ -206,6 +207,7 @@ type RunBaseRow = {
   inngest_run_id: string | null;
   status: string;
   budget_limit_usd: string | number;
+  environment: string;
   started_at: Date | string | null;
   finished_at: Date | string | null;
   created_at: Date | string;
@@ -531,6 +533,7 @@ export function toRun(
     inngestRunId: row.inngest_run_id,
     status: row.status as RunOutput["status"],
     budgetLimitUsd: String(row.budget_limit_usd),
+    environment: toRunEnvironment(row.environment),
     startedAt: row.started_at === null ? null : toIso(row.started_at),
     finishedAt: row.finished_at === null ? null : toIso(row.finished_at),
     createdAt: toIso(row.created_at),
@@ -1256,16 +1259,17 @@ export async function createRunCommand(
        repository_profile_id, requested_by, status, snapshot,
        budget_limit_usd, application_id, repository_id,
        repository_profile_revision, repository_profile_digest,
-       observation_id, observation_digest, base_sha, placement, version
+       observation_id, observation_digest, base_sha, environment, placement,
+       version
      ) values (
-       $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16,
-       $17::jsonb, 1
+       $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16, $17,
+       $18::jsonb, 1
      )
      returning id, kind, task_id, workflow_version_id, skill_source_id,
        repository_profile_id, repository_profile_revision,
        repository_profile_digest, observation_id, observation_digest, base_sha,
        null::text as workspace_base_sha,
-       requested_by, inngest_run_id, status, budget_limit_usd,
+       requested_by, inngest_run_id, status, budget_limit_usd, environment,
        started_at, finished_at, created_at, updated_at, version`,
     [
       runId,
@@ -1284,6 +1288,7 @@ export async function createRunCommand(
       profile?.observationId ?? null,
       profile?.observationDigest ?? null,
       profile?.baseSha ?? null,
+      input.environment ?? "live",
       JSON.stringify(RunPlacementSchema.parse(options.placement ?? {})),
     ],
   );

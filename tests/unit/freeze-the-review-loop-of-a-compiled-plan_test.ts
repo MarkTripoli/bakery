@@ -1,6 +1,9 @@
 import { assertEquals } from "@std/assert";
 import { REVIEW_LOOP_LIMITS } from "../../packages/contracts/src/review-evidence.ts";
-import { planReviewLoopLimits } from "../../apps/server/src/modules/review-loop/limits.ts";
+import {
+  planReviewLoopLimits,
+  planReviewRepeatKey,
+} from "../../apps/server/src/modules/review-loop/limits.ts";
 import { compiled } from "../helpers/workflow-interpreter.ts";
 
 // #397. A compiled plan freezes the review loop's bounds at admission when it
@@ -129,4 +132,22 @@ Deno.test("the repair count is the plan's own repeat bound, capped at the ceilin
     );
     assertEquals(planReviewLoopLimits(document)?.maxRepairCycles, expected);
   }
+});
+Deno.test("a review inside a forEach is not in a repair loop: the list's bound is not a cycle bound (#417)", async () => {
+  const document = await compiled([
+    implement,
+    test,
+    {
+      id: "phases",
+      needs: ["test"],
+      forEach: {
+        items: "$step.test.checkRunIds",
+        max: 6,
+        as: "phase",
+        steps: [{ ...review, needs: [] }],
+      },
+    },
+  ], INPUTS);
+  assertEquals(planReviewLoopLimits(document)?.maxRepairCycles, 0);
+  assertEquals(planReviewRepeatKey(document), null);
 });

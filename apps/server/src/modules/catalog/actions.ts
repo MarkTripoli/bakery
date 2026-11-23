@@ -1,4 +1,8 @@
 import type { z } from "zod";
+import { StandardError } from "@bakery/contracts/http";
+import type { CatalogPermissionKey } from "@bakery/contracts/contracts";
+import type { AuthorizedActionContext } from "../auth/application/authority.ts";
+import { authorize } from "../auth/application/authorize.ts";
 import {
   type ActionAuthorityRunner,
   type ActionContext,
@@ -20,6 +24,21 @@ import {
   CatalogImplementedAction,
   catalogImplementedActions,
 } from "@bakery/contracts/implemented-actions";
+
+/**
+ * One file's verified bytes and the facts that describe them.
+ *
+ * Named because two places need it: the handler that produces it and the route
+ * that turns it into a raw response. The route used to carry its own copy of
+ * this shape, which is a cast that compiles until someone adds a field.
+ */
+export type SkillFileContent = {
+  readonly path: string;
+  readonly contentType: string;
+  readonly contentLength: number;
+  readonly contentDigest: string;
+  readonly content: Uint8Array;
+};
 
 export type CatalogActionHandlers = {
   listSources: (
@@ -138,6 +157,19 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.LocalSkillVersion>,
   ) => Promise<z.output<typeof contractSchemas.SkillVersion>>;
+  /** One version by id, for a page that already knows which one it shows. */
+  getSkillVersion: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillVersionPath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillVersion>>;
+  /**
+   * One file's verified bytes and the facts that describe them. The route builds
+   * the raw response from this; a JSON handler would have to base64 the bytes.
+   */
+  readSkillFile: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillFilePath>,
+  ) => Promise<SkillFileContent>;
   searchLibrary: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.LibrarySearchQuery>,
@@ -499,6 +531,52 @@ export function createCatalogActionRegistry(
     output: contractSchemas["Page<LibrarySearchHit>"],
     policy: queryPolicy,
     handler: handlers.searchLibrary,
+  });
+  // Reading one version, and one file's bytes, are the reads a skill page needs;
+  // a worker reaches the same two actions under a pinned version and a lease,
+  // which is why the catalog gives them that access policy rather than plain
+  // Developer. The file read is registered here too: the bytes come from the
+  // store this handler holds, and the route below builds the raw response.
+  const pinnedReadPolicy = (permission: CatalogPermissionKey) =>
+    ({
+      ...queryPolicy,
+      access: ActionAccess.DeveloperOrWorkerPinnedVersionAndCurrentLease,
+      // The access names the worker that reads the same path under a lease, and
+      // the registry therefore asks for a guard of its own. A person arrives
+      // through a session, so the guard asks exactly the permission the catalog
+      // gives this action; which versions that person may see is the handler's
+      // answer, told by the same visibility rule the listing uses.
+      authorize: (context: ActionContext) => {
+        const authority = (context as Partial<AuthorizedActionContext>)
+          .authority;
+        if (authority === undefined || !("organizationId" in authority)) {
+          throw new StandardError({ code: "AUTH_FORBIDDEN" });
+        }
+        authorize(authority, permission, {});
+      },
+    }) as const;
+  registry.register({
+    name: CatalogImplementedAction.SkillVersionsGet,
+    method: HttpMethod.Get,
+    path: "/v1/skill-versions/:id",
+    input: contractSchemas.SkillVersionPath,
+    output: contractSchemas.SkillVersion,
+    policy: pinnedReadPolicy("skillVersion:readPinned"),
+    handler: handlers.getSkillVersion,
+  });
+  // A file's bytes are a raw response the route builds under this action's
+  // authority, so the registered handler is never called; an agent's session
+  // call is answered by the route too, not by a base64 envelope.
+  registry.register({
+    name: CatalogImplementedAction.SkillFilesGet,
+    method: HttpMethod.Get,
+    path: "/v1/skill-versions/:id/files/:path",
+    input: contractSchemas.SkillFilePath,
+    output: contractSchemas.BinarySkillFile,
+    policy: pinnedReadPolicy("skillFile:read"),
+    handler: () => {
+      throw new StandardError({ code: "INTERNAL" });
+    },
   });
   if (options.includeSkillVersionPublication !== false) {
     registry.register(skillCopyDefinition(handlers.copySkill));

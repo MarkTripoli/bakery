@@ -34,3 +34,26 @@ export type EngineStepRunner = Readonly<{
    */
   run(request: EngineStepRequest): Promise<EngineStepResult>;
 }>;
+
+/**
+ * One runner over several: each action goes to the runner that owns it, so a pack
+ * (delivery) and the neutral kernel (tool.call) can each hand the engine theirs.
+ */
+export function composeEngineStepRunners(
+  runners: readonly EngineStepRunner[],
+): EngineStepRunner {
+  return {
+    handles: (action) => runners.some((runner) => runner.handles(action)),
+    run(request) {
+      const owner = runners.find((runner) => runner.handles(request.action));
+      if (owner === undefined) {
+        return Promise.resolve({
+          kind: "failed",
+          code: "ENGINE_STEP_UNAVAILABLE",
+          message: "No runner owns this step's action.",
+        });
+      }
+      return owner.run(request);
+    },
+  };
+}

@@ -50,6 +50,15 @@ import {
   writeBlobProbe,
 } from "./blob-probes.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
+import { withPgTransaction } from "@bakery/persistence";
+import {
+  BYTES_MISSING_REASON,
+  hasStagedVersions,
+  PROBE_ABANDONED_REASON,
+  refuseStagedVersions,
+  settlesStagedVersion,
+  settleStagedVersions,
+} from "./staged-versions.ts";
 import {
   type ArtifactProbeOptions,
   probeArtifactAttempt,
@@ -145,13 +154,24 @@ export async function enqueueProbeSubject(
       | { entryId: string; revision: number }
       | { artifactVersionId: string }
     ),
+  options: {
+    /**
+     * Ask again even when a terminal request is on record. A staged version
+     * (O29) waits on an answer, so a subject the runner gave up on before it
+     * was staged has to be retried rather than left undecided for ever.
+     */
+    readonly reopen?: boolean;
+  } = {},
 ): Promise<void> {
+  const onConflict = options.reopen === true
+    ? "do update set attempts = 0, last_error = null"
+    : "do nothing";
   if ("blobId" in input) {
     await database.query(
       `insert into bakery.probe_requests (organization_id, blob_id)
        values ($1, $2)
        on conflict (organization_id, blob_id) where blob_id is not null
-       do nothing`,
+       ${onConflict}`,
       [input.organizationId, input.blobId],
     );
     return;
@@ -162,7 +182,7 @@ export async function enqueueProbeSubject(
        values ($1, $2)
        on conflict (organization_id, artifact_version_id)
          where artifact_version_id is not null
-       do nothing`,
+       ${onConflict}`,
       [input.organizationId, input.artifactVersionId],
     );
     return;
@@ -315,7 +335,7 @@ export async function claimProbeRequests(
 
 /** Deletes a request whose answer is stored, or that nobody can answer. */
 export async function completeProbeRequest(
-  database: Pick<PgDatabase, "query">,
+  database: Pick<PgTransactionClient, "query">,
   id: string,
 ): Promise<void> {
   await database.query("delete from bakery.probe_requests where id = $1", [id]);
@@ -334,7 +354,7 @@ export async function completeProbeRequest(
  * real.
  */
 export async function failProbeRequest(
-  database: Pick<PgDatabase, "query">,
+  database: Pick<PgTransactionClient, "query">,
   input: { id: string; attempts: number; error: string },
 ): Promise<"retry" | "abandoned"> {
   if (input.attempts + 1 >= PROBE_MAX_ATTEMPTS) {
@@ -363,7 +383,7 @@ export async function failProbeRequest(
  * subject is finished.
  */
 export async function giveUpProbeRequest(
-  database: Pick<PgDatabase, "query">,
+  database: Pick<PgTransactionClient, "query">,
   id: string,
 ): Promise<void> {
   await database.query(
@@ -439,11 +459,7 @@ export async function runProbeTick(
       // The class goes to stderr because the row keeps only `probe-failed`, and a
       // deferred subject whose reason is discarded cannot be diagnosed anywhere --
       // not by an operator reading the table, and not by the person who reported it.
-      const outcome = await failProbeRequest(database, {
-        id: request.id,
-        attempts: request.attempts,
-        error: "probe-failed",
-      });
+      const outcome = await failAndSettleAbandoned(database, request);
       deps.log?.(
         `bakery: probe request ${request.id} failed (${
           error instanceof Error ? error.constructor.name : typeof error
@@ -453,13 +469,15 @@ export async function runProbeTick(
       else deferred++;
       continue;
     }
-    if (stored === "answered") {
-      await completeProbeRequest(database, request.id);
+    if (stored === "cleared") {
+      // Stored, settled and deleted in one transaction (storeSettleAndClear).
       answered++;
     } else if (stored === "gone") {
       // The bytes are gone: there is nothing to ask about and never will be. The
-      // row stays, terminal, so the backfill does not queue it again.
-      await giveUpProbeRequest(database, request.id);
+      // row stays, terminal, so the backfill does not queue it again, and every
+      // version still staged on the subject is refused in the same transaction:
+      // a terminal request is never claimed again, so nothing else would.
+      await giveUpAndRefuseStaged(database, request);
     } else if (stored === "unavailable") {
       // No store on this server, so a blob-backed subject cannot be read at all.
       // Leaving that row untouched is the only honest answer: the file is fine,
@@ -496,6 +514,60 @@ export async function runProbeTick(
   };
 }
 
+/**
+ * Counts a failed attempt, and when that reaches the ceiling refuses every
+ * version still staged on the subject as `probe-abandoned`, in one transaction
+ * under the request's row lock. A terminal request is never claimed again, so
+ * a version left staged then would wait for an answer nothing will ever give.
+ */
+async function failAndSettleAbandoned(
+  database: PgDatabase,
+  request: RequestRow,
+): Promise<"retry" | "abandoned"> {
+  return await withPgTransaction(database, async (transaction) => {
+    await transaction.query(
+      "select id from bakery.probe_requests where id = $1 for update",
+      [request.id],
+    );
+    const outcome = await failProbeRequest(transaction, {
+      id: request.id,
+      attempts: request.attempts,
+      error: "probe-failed",
+    });
+    if (outcome === "abandoned") {
+      await refuseStagedVersions(transaction, {
+        organizationId: request.organization_id,
+        subject: subjectOf(request),
+        reason: PROBE_ABANDONED_REASON,
+      });
+    }
+    return outcome;
+  });
+}
+
+/**
+ * Gives up on a subject whose bytes are gone and refuses every version still
+ * staged on it as `bytes-missing`, in one transaction under the request's row
+ * lock.
+ */
+async function giveUpAndRefuseStaged(
+  database: PgDatabase,
+  request: RequestRow,
+): Promise<void> {
+  await withPgTransaction(database, async (transaction) => {
+    await transaction.query(
+      "select id from bakery.probe_requests where id = $1 for update",
+      [request.id],
+    );
+    await giveUpProbeRequest(transaction, request.id);
+    await refuseStagedVersions(transaction, {
+      organizationId: request.organization_id,
+      subject: subjectOf(request),
+      reason: BYTES_MISSING_REASON,
+    });
+  });
+}
+
 /** Both seals, for the same reason the probe asks both before touching bytes. */
 async function sandboxAvailable(
   options: ArtifactProbeOptions | undefined,
@@ -516,7 +588,7 @@ async function probeOne(
   database: PgDatabase,
   request: RequestRow,
   deps: ProbeRunnerDeps,
-): Promise<"answered" | "host-gone" | "gone" | "unavailable"> {
+): Promise<"cleared" | "host-gone" | "gone" | "unavailable"> {
   const subject = subjectOf(request);
   const bytes = "blobId" in subject
     ? await deps.readBlobBytes(request.organization_id, subject.blobId)
@@ -538,7 +610,22 @@ async function probeOne(
     organizationId: request.organization_id,
     ...subject,
   });
-  if (existing !== null) return "answered";
+  if (existing !== null) {
+    // The answer is already on record -- the bytes were probed for an earlier
+    // version that shares them -- so a version staged since is settled on it.
+    //
+    // Unless that answer is a host limit (timeout, memory) stored while nothing
+    // waited: it cannot settle a version, and clearing the request on it would
+    // leave the version staged for ever. Then the stored row is ignored and the
+    // bytes are probed again, below.
+    const cleared = await storeSettleAndClear(database, request, subject, {
+      result: existing.result,
+      store: false,
+      hostLimit: false,
+      onlyIfSettled: true,
+    });
+    if (cleared) return "cleared";
+  }
   const attempt = await probeArtifactAttempt({
     readBytes: () => Promise.resolve(bytes.bytes),
     sizeBytes: bytes.sizeBytes,
@@ -546,12 +633,82 @@ async function probeOne(
   // The only unstorable answer is a refusal about the host: the sandbox is not
   // there. That is not this request's fault and must not count against it.
   if (!isStorable(attempt.result)) return "host-gone";
-  await writeBlobProbe(database, {
-    organizationId: request.organization_id,
-    ...subject,
+  await storeSettleAndClear(database, request, subject, {
     result: attempt.result,
+    store: true,
+    // A host-side answer (a launcher that failed, a timeout) or a memory cap is
+    // a limit of this host's probe, not a verdict on the file.
+    hostLimit: attempt.about === "host" ||
+      !settlesStagedVersion(attempt.result),
   });
-  return "answered";
+  return "cleared";
+}
+
+/**
+ * Stores the answer, settles the staged versions it decides and deletes the
+ * request, in one transaction that first locks the request row.
+ *
+ * The lock is what closes the race with a publisher staging a version on the
+ * same subject: the publisher's enqueue (an upsert on this row) either commits
+ * first, so this transaction sees the staged version and settles it, or waits
+ * until this one has deleted the row and then queues a fresh request, which the
+ * next tick settles on the stored answer. Without it, a version staged between
+ * the settle and the delete would lose its request and stay staged for ever.
+ *
+ * While a staged version waits, a host limit stores nothing: stored, it would
+ * clear the request and leave the version undecided. The attempt counts against
+ * the request's ceiling instead.
+ *
+ * Answers true when the request was cleared, false when `onlyIfSettled` left it.
+ */
+async function storeSettleAndClear(
+  database: PgDatabase,
+  request: RequestRow,
+  subject: ProbeSubject,
+  input: {
+    readonly result: ArtifactProbeResult;
+    readonly store: boolean;
+    readonly hostLimit: boolean;
+    /**
+     * Leave everything untouched and answer false when a staged version waits
+     * and this result cannot settle it, so the caller can probe again.
+     */
+    readonly onlyIfSettled?: boolean;
+  },
+): Promise<boolean> {
+  return await withPgTransaction(database, async (transaction) => {
+    await transaction.query(
+      "select id from bakery.probe_requests where id = $1 for update",
+      [request.id],
+    );
+    const waiting = await hasStagedVersions(
+      transaction,
+      request.organization_id,
+      subject,
+    );
+    if (waiting && input.hostLimit) throw new ProbeHostFault(input.result);
+    // Checked under the row lock, so a version staged a moment ago is seen.
+    if (
+      waiting && input.onlyIfSettled === true &&
+      !settlesStagedVersion(input.result)
+    ) return false;
+    if (input.store) {
+      await writeBlobProbe(transaction, {
+        organizationId: request.organization_id,
+        ...subject,
+        result: input.result,
+      });
+    }
+    if (waiting) {
+      await settleStagedVersions(transaction, {
+        organizationId: request.organization_id,
+        subject,
+        result: input.result,
+      });
+    }
+    await completeProbeRequest(transaction, request.id);
+    return true;
+  });
 }
 
 /**
@@ -570,6 +727,15 @@ function subjectOf(request: RequestRow): ProbeSubject {
     entryId: request.entry_id as string,
     revision: Number(request.revision),
   };
+}
+
+/** A host limit hit while a staged version waits: retried, never stored. */
+class ProbeHostFault extends Error {
+  constructor(result: ArtifactProbeResult) {
+    super(
+      result.status === "refused" ? `probe-${result.code}` : "probe-host",
+    );
+  }
 }
 
 /** A result about the host is not an answer, and `about` is what says so. */

@@ -113,8 +113,8 @@ const asSequence = (value: unknown): readonly unknown[] =>
 
 /**
  * Child step sequences of the container shapes the compiler grammar uses:
- * `branch: {then, else}`, `repeat: {steps, seed: {steps}}` and
- * `parallel: {branches: [{steps}]}`.
+ * `branch: {then, else}`, `repeat: {steps, seed: {steps}}`,
+ * `forEach: {steps}` and `parallel: {branches: [{steps}]}`.
  */
 function containerSequences(step: Record<string, unknown>): unknown[][] {
   const sequences: unknown[][] = [];
@@ -127,6 +127,8 @@ function containerSequences(step: Record<string, unknown>): unknown[][] {
     sequences.push([...asSequence(repeat.steps)]);
     if (record(repeat.seed)) sequences.push([...asSequence(repeat.seed.steps)]);
   }
+  const loop = step.forEach;
+  if (record(loop)) sequences.push([...asSequence(loop.steps)]);
   const parallel = step.parallel;
   if (record(parallel) && Array.isArray(parallel.branches)) {
     for (const lane of parallel.branches) {

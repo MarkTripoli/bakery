@@ -4,9 +4,9 @@ import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { compiled, noop } from "../helpers/workflow-interpreter.ts";
 import { seedPlanRun, setRow } from "../helpers/plan-run.ts";
 
-// #428. Placement is data on the run (migration 0335): the requirements it
+// #428. Placement is data on the run (migration 0350): the requirements it
 // records join every job's own when the engine admits a step. The ledger
-// migration (0336) adds a kind beside model usage. Both run on a fresh
+// migration (0351) adds a kind beside model usage. Both run on a fresh
 // database, because the fixture applies every migration to an empty one.
 
 const plan = () =>
@@ -83,7 +83,7 @@ Deno.test("the run's recorded placement is merged into the job's requirements at
     assertEquals(requirements.platform, "linux");
   }));
 
-Deno.test("migration 0336 adds a kind that defaults to model and frees model and provider_call_id for other kinds", () =>
+Deno.test("migration 0351 adds a kind that defaults to model and frees model and provider_call_id for other kinds", () =>
   withWorkerFixture(async (fixture) => {
     const columns = (await fixture.pgDatabase.query<{
       column_name: string;
