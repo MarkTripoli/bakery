@@ -536,6 +536,7 @@ export function createApp(options: {
     publicBaseUrl: options.config.publicBaseUrl,
     secret: options.config.auth.secret,
     artifactPreviewOrigin: previewOrigin,
+    storageLocalRoot: options.config.storageLocalRoot?.root,
     // Absent when no object store is configured; completion then fails closed
     // rather than recording a blob whose bytes exist nowhere.
     ...(skillFileStore
@@ -547,6 +548,7 @@ export function createApp(options: {
       createWorkTaskHandlers(options.config.auth.secret, {
         budget: options.config.budget,
         agentSpawn: options.config.agentSpawn,
+        storageLocalRoot: options.config.storageLocalRoot?.root,
       }),
     {
       authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
@@ -810,6 +812,7 @@ export function createApp(options: {
         : {}),
       artifactPreviewOrigin: previewOrigin,
       artifactActions,
+      storageLocalRoot: options.config.storageLocalRoot?.root,
       integrations,
       ticketNoteWriter,
       ticketLabelWriter,
@@ -1168,6 +1171,7 @@ export function createApp(options: {
       secretsFetch: options.secretsFetch,
       pluginBroker,
       artifactPreviewOrigin: previewOrigin,
+      storageLocalRoot: options.config.storageLocalRoot?.root,
     }),
   );
 

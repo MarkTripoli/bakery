@@ -295,6 +295,37 @@ export function readProbeSpoolDirConfig(
   return parsed.data;
 }
 
+export const StorageLocalRootConfigSchema = z.object({
+  root: z.string().min(1).max(4096).regex(/^\//).refine(
+    (value) =>
+      Array.from(value).every((character) =>
+        character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127
+      ),
+    "Invalid local storage root.",
+  ).describe(
+    "Absolute Linux path under which each local-disk storage connection reads and writes its own folder, <root>/<organization>/<connection>.",
+  ),
+}).strict().describe(
+  "Server-only root of the local-disk storage provider; absent, the provider is not deployed.",
+);
+export type StorageLocalRootConfig = z.infer<
+  typeof StorageLocalRootConfigSchema
+>;
+
+/**
+ * The local-disk storage root (`BAKERY_STORAGE_LOCAL_ROOT`), which is never
+ * created here: a connection whose folder is missing reads as empty-handed
+ * (not found), the same answer a remote provider gives for a missing path.
+ */
+export function readStorageLocalRootConfig(
+  value: string | undefined,
+): StorageLocalRootConfig | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  const parsed = StorageLocalRootConfigSchema.safeParse({ root: value.trim() });
+  if (!parsed.success) throw new Error("STORAGE_LOCAL_ROOT_INVALID");
+  return parsed.data;
+}
+
 const ABSOLUTE_PATH = z.string().min(1).max(4096).regex(/^\//).refine(
   (value) =>
     Array.from(value).every((character) =>
@@ -427,6 +458,11 @@ export type RuntimeConfig = {
    * reported `sandbox-unavailable` rather than described by other means.
    */
   probeSpoolDir?: ProbeSpoolDirConfig;
+  /**
+   * Root of the local-disk storage provider (`BAKERY_STORAGE_LOCAL_ROOT`);
+   * server only. Absent means no local-disk connection binds.
+   */
+  storageLocalRoot?: StorageLocalRootConfig;
   /** The local deployment target of the delivery steps (`BAKERY_DELIVERY_*`); server only. Absent means delivery steps fail with a stable code. */
   deliveryTarget?: DeliveryTargetConfig;
   auth?: ServerAuthConfig;
@@ -1047,6 +1083,16 @@ export function readRuntimeConfig(
       invalidConfig.push("BAKERY_PROBE_SPOOL_DIR");
     }
   }
+  let storageLocalRoot: StorageLocalRootConfig | undefined;
+  if (kind === "server" && env.BAKERY_STORAGE_LOCAL_ROOT !== undefined) {
+    try {
+      storageLocalRoot = readStorageLocalRootConfig(
+        env.BAKERY_STORAGE_LOCAL_ROOT,
+      );
+    } catch {
+      invalidConfig.push("BAKERY_STORAGE_LOCAL_ROOT");
+    }
+  }
   let deliveryTarget: DeliveryTargetConfig | undefined;
   if (
     kind === "server" &&
@@ -1081,6 +1127,7 @@ export function readRuntimeConfig(
       : {}),
     ...(skillFileRoot ? { skillFileRoot } : {}),
     ...(probeSpoolDir ? { probeSpoolDir } : {}),
+    ...(storageLocalRoot ? { storageLocalRoot } : {}),
     ...(deliveryTarget ? { deliveryTarget } : {}),
     ...(artifactPreviewOrigin ? { artifactPreviewOrigin } : {}),
     environment,

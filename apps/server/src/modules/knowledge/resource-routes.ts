@@ -148,6 +148,8 @@ export type ArtifactResourceRouteOptions = {
    * ones, which is none until a hosted storage provider ships.
    */
   storageConnections?: StorageConnectionDeps;
+  /** The operator's local-disk storage root, from `RuntimeConfig`. */
+  storageLocalRoot?: string;
   /** A registry already built for MCP; omitted, the routes build their own. */
   artifactActions?: ArtifactActions;
   /** Where completed uploads put their bytes; absent fails completion closed. */
@@ -796,7 +798,10 @@ export function createArtifactActions(
     registry,
     options.secret,
     options.storageConnections ??
-      defaultStorageConnections(options.blobStore),
+      defaultStorageConnections({
+        blobStore: options.blobStore,
+        storageLocalRoot: options.storageLocalRoot,
+      }),
   );
   registerCommentActions(registry, options.secret, options.blobStore);
   registerArtifactAccessActions(registry, options.secret);

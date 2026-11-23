@@ -109,6 +109,8 @@ export type ExecutionRoutesOptions = ExecutionRouteOptions & {
   ticketLabelWriter?: TicketLabelWriter;
   /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
   engineSteps?: EngineStepRunner;
+  /** The operator's local-disk storage root, from `RuntimeConfig`; absent, no local-disk connection binds. */
+  storageLocalRoot?: string;
   /** Validated artifact preview origin; absent fails previews closed. */
   artifactPreviewOrigin?: string;
   /** Artifact registry shared with the MCP catalog tools. */
@@ -222,6 +224,7 @@ export function createExecutionRoutes(
       ticketNoteWriter: options.ticketNoteWriter,
       ticketLabelWriter: options.ticketLabelWriter,
       engineSteps: options.engineSteps,
+      storageLocalRoot: options.storageLocalRoot,
     });
     app.all("/api/inngest", inngest);
     app.all("/api/inngest/*", inngest);

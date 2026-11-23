@@ -36,6 +36,7 @@ import type { ExternalEffectRow } from "../effects/schema.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { sha256Bytes } from "./bytes.ts";
 import { commitArtifactVersion } from "./persistence.ts";
+import { createLocalDiskStorageProvider } from "./local-disk-storage.ts";
 import { readableEntry, type StorageReader } from "./storage-reads.ts";
 import {
   ensureChildFolder,
@@ -92,8 +93,8 @@ export type StorageConnectionFacts = Readonly<{
 
 /**
  * Binds a connection to its storage port, or answers undefined when its
- * provider serves no storage family. No hosted storage provider is deployed
- * yet, so production resolves nothing; tests bind an in-process provider.
+ * provider serves no storage family. Production deploys the local-disk
+ * provider when the operator sets its root; tests may bind an in-process one.
  */
 export type StorageProviderResolver = (
   connection: StorageConnectionFacts,
@@ -1346,7 +1347,10 @@ export async function runStorageExport(
 export type StorageProviderEntry = Readonly<{
   /** The integration_connections.provider value this entry serves. */
   provider: string;
-  bind(connection: StorageConnectionFacts): StorageConnectionBinding;
+  /** The connection's binding, or undefined when this entry cannot serve it. */
+  bind(
+    connection: StorageConnectionFacts,
+  ): StorageConnectionBinding | undefined;
 }>;
 
 /**
@@ -1363,21 +1367,40 @@ export function createStorageProviderRegistry(
   return (connection) => byProvider.get(connection.provider)?.bind(connection);
 }
 
+/** What the deployed storage providers are configured from. */
+export type DeployedStorageOptions = Readonly<{
+  /** Where completed ingests put their bytes; absent, they are stored inline. */
+  blobStore?: OrganizationBlobStore;
+  /**
+   * The operator's local-disk root (`BAKERY_STORAGE_LOCAL_ROOT` through
+   * `RuntimeConfig`); absent, the local-disk provider is not deployed.
+   */
+  storageLocalRoot?: string;
+}>;
+
 /**
- * The storage providers this installation deploys. Empty until a hosted
- * storage provider ships, so every storage connection answers
- * STORAGE_PROVIDER_UNAVAILABLE rather than failing silently.
+ * The storage providers this installation deploys: the local-disk provider
+ * when the operator set its root, and nothing else yet. A connection whose
+ * provider is not deployed answers STORAGE_PROVIDER_UNAVAILABLE rather than
+ * failing silently.
  */
-export const deployedStorageProviders: readonly StorageProviderEntry[] = Object
-  .freeze([]);
+export function deployedStorageProviders(
+  options: DeployedStorageOptions = {},
+): readonly StorageProviderEntry[] {
+  return options.storageLocalRoot === undefined
+    ? []
+    : [createLocalDiskStorageProvider(options.storageLocalRoot)];
+}
 
 /** The storage connection dependencies the server runs with. */
 export function defaultStorageConnections(
-  blobStore?: OrganizationBlobStore,
+  options: DeployedStorageOptions = {},
 ): StorageConnectionDeps {
   return {
-    resolver: createStorageProviderRegistry(deployedStorageProviders),
-    ...(blobStore === undefined ? {} : { blobStore }),
+    resolver: createStorageProviderRegistry(deployedStorageProviders(options)),
+    ...(options.blobStore === undefined
+      ? {}
+      : { blobStore: options.blobStore }),
   };
 }
 

@@ -24,7 +24,12 @@ import { createWorkflowPresetHandlers } from "./workflow-presets.ts";
 import type { AgentSpawnConfig, BudgetRuntimeConfig } from "@bakery/config";
 export function createWorkTaskHandlers(
   secret: string,
-  options: { budget?: BudgetRuntimeConfig; agentSpawn?: AgentSpawnConfig } = {},
+  options: {
+    budget?: BudgetRuntimeConfig;
+    agentSpawn?: AgentSpawnConfig;
+    /** The operator's local-disk storage root, from `RuntimeConfig`. */
+    storageLocalRoot?: string;
+  } = {},
 ) {
   return {
     ...createWorkflowPresetHandlers(options),
@@ -43,7 +48,9 @@ export function createWorkTaskHandlers(
         input: Parameters<typeof createRunCommand>[1],
       ) =>
         createRunCommand(context, input, {
-          storageConnections: defaultStorageConnections(),
+          storageConnections: defaultStorageConnections({
+            storageLocalRoot: options.storageLocalRoot,
+          }),
         }),
       options.agentSpawn ?? DEFAULT_AGENT_SPAWN,
     ),

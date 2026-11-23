@@ -141,6 +141,8 @@ export function createDefaultInngestFunctions(options: {
   coordinatorExecutor?: CoordinatorTurnExecutor;
   /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
   engineSteps?: EngineStepRunner;
+  /** The operator's local-disk storage root, from `RuntimeConfig`; absent, no local-disk connection binds. */
+  storageLocalRoot?: string;
 }): readonly unknown[] {
   const coordinatorExecutor = options.coordinatorExecutor ??
     readCoordinatorExecutor(readCoordinatorEnv(), {
@@ -235,17 +237,22 @@ export function createDefaultInngestFunctions(options: {
           client: options.client,
           database: options.database,
         }),
-        // The deployed storage providers (#452); none until a hosted one
-        // ships, so a recorded sync or export counts as failed.
+        // The deployed storage providers (#452): local disk when the
+        // operator set its root; a sync or export of any other provider
+        // counts as failed.
         createStorageConnectionSyncWorkflow({
           client: options.client,
           database: options.database,
-          storage: defaultStorageConnections(),
+          storage: defaultStorageConnections({
+            storageLocalRoot: options.storageLocalRoot,
+          }),
         }),
         createStorageExportWorkflow({
           client: options.client,
           database: options.database,
-          storage: defaultStorageConnections(),
+          storage: defaultStorageConnections({
+            storageLocalRoot: options.storageLocalRoot,
+          }),
         }),
         createIntegrationFactSweep({
           client: options.client,
@@ -368,6 +375,7 @@ export function createInngestHttpHandler(options: {
   ticketNoteWriter?: TicketNoteWriter;
   ticketLabelWriter?: TicketLabelWriter;
   engineSteps?: EngineStepRunner;
+  storageLocalRoot?: string;
 }): (context: unknown) => Promise<Response> {
   const client = (options.client ?? new Inngest({
     id: "bakery-server",
@@ -388,6 +396,7 @@ export function createInngestHttpHandler(options: {
         ticketNoteWriter: options.ticketNoteWriter,
         ticketLabelWriter: options.ticketLabelWriter,
         engineSteps: options.engineSteps,
+        storageLocalRoot: options.storageLocalRoot,
       })
       : [])) as ServeOptions["functions"];
   const officialHandler = serve({
