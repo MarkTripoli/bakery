@@ -59,3 +59,15 @@ export {
   IntegrationContractError,
 } from "./src/errors.ts";
 export type { IntegrationDefect } from "./src/errors.ts";
+export { COMPUTE_PROVIDERS, USAGE_RECORD_KINDS } from "./src/compute-port.ts";
+export type {
+  ComputeCostReport,
+  ComputeEnvironment,
+  ComputeOutputs,
+  ComputePort,
+  ComputeProvider,
+  ComputeProvisionRequest,
+  ComputeRunRequest,
+  ComputeWorkspacePin,
+  UsageRecordKind,
+} from "./src/compute-port.ts";
