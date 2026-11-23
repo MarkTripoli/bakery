@@ -610,22 +610,22 @@ mapping from port verbs to tools.
   absolute command path, its arguments and the SHA-256 of the command file
   (`artifactDigest`). The worker runs exactly that command, never through a
   shell or `PATH`, and refuses a file whose digest differs.
-- **Placement.** A `stdio` connection names its `workerHostId` at create: a
-  host of the same organization that advertises every capability the server
-  requires. A remote connection names no host (`worker_host_not_for_remote`), a
-  `stdio` one must (`worker_host_required`), and a host outside the
-  organization is `worker_host_unknown`. Placement is fixed at create; moving a
-  server to another host means creating a new connection there.
+- **Placement.** A `stdio` connection names its `workerHostId` at create: a host
+  of the same organization that advertises every capability the server requires.
+  A remote connection names no host (`worker_host_not_for_remote`), a `stdio`
+  one must (`worker_host_required`), and a host outside the organization is
+  `worker_host_unknown`. Placement is fixed at create; moving a server to
+  another host means creating a new connection there.
 - **Discovery.** Only the placed host lists the connection, launches it and
   reports its `tools/list` for the server to pin as the snapshot; another host
   neither sees it nor may report for it.
 - **Sandbox or allowlist.** The worker launches a third-party server under the
   T1 sandbox. An operator may instead allowlist a launch by its artifact digest,
-  and then the worker runs it outside the sandbox; the digest, not the path,
-  is what is trusted.
+  and then the worker runs it outside the sandbox; the digest, not the path, is
+  what is trusted.
 - **Sessions.** A session gets a local tool only on the placed host, with its
-  pinned launch. On any other host the tool is listed as unavailable with
-  reason `host_not_placed`, and a call is refused.
+  pinned launch. On any other host the tool is listed as unavailable with reason
+  `host_not_placed`, and a call is refused.
 - **Calls.** The broker never sends a local call. The worker first opens the
   call through `local-tool-calls`, where the server checks the grant and the
   pinned input schema and records it; the worker then sends it to the process
@@ -648,20 +648,20 @@ version plus seat id.
 
 #### What landed (#436)
 
-**The workflow `tools` section.** A workflow names MCP connections and the
-exact tools it may use from each. A seat listed on an entry gets all of the
-entry's tools; a step's `tools` list names an entry (all its tools) or one
-tool of it as `entry.tool`. The compiler refuses a malformed section
+**The workflow `tools` section.** A workflow names MCP connections and the exact
+tools it may use from each. A seat listed on an entry gets all of the entry's
+tools; a step's `tools` list names an entry (all its tools) or one tool of it as
+`entry.tool`. The compiler refuses a malformed section
 (`workflow_tools_invalid`) and a reference to a missing entry or a tool the
-entry does not allow (`action_tools_invalid`). The section is digest-bearing;
-a workflow without one keeps its digest.
+entry does not allow (`action_tools_invalid`). The section is digest-bearing; a
+workflow without one keeps its digest.
 
 ```yaml
 tools:
   design:
-    connectionId: 4f6c...      # an MCP connection
+    connectionId: 4f6c... # an MCP connection
     allow: [create_artboard, write_html]
-    seats: [designer]          # every step running as designer gets both
+    seats: [designer] # every step running as designer gets both
 steps:
   - id: mock
     uses: rpi.design
@@ -672,14 +672,13 @@ steps:
 ```
 
 **Pinning.** Publishing a version pins each entry to its connection's latest
-snapshot and writes one `capability_bindings` row per seat (`seat_key`) and
-per step (`step_key`), with the exact tool names. Publication is refused when
-an entry names a connection that is off, personal without its owner's grant,
-or has no snapshot, or allows a tool the server does not offer
-(`tools_tool_unknown`) or an Admin has not enabled (`tools_tool_not_enabled`).
-A tool.call step takes no `tools` list; it pins its one tool as before. A
-version's bindings are never changed or removed: a changed pin is a new
-version.
+snapshot and writes one `capability_bindings` row per seat (`seat_key`) and per
+step (`step_key`), with the exact tool names. Publication is refused when an
+entry names a connection that is off, personal without its owner's grant, or has
+no snapshot, or allows a tool the server does not offer (`tools_tool_unknown`)
+or an Admin has not enabled (`tools_tool_not_enabled`). A tool.call step takes
+no `tools` list; it pins its one tool as before. A version's bindings are never
+changed or removed: a changed pin is a new version.
 
 **Agent bindings.** An Admin grants an agent version exact tools on an
 organization connection with `capabilityBindings.create`
@@ -689,41 +688,42 @@ append-only row (`capability_binding_revocations`); the binding row stays, so
 bindings remain select-and-insert only. Wildcards are refused.
 
 **Effective tools.** A session's effective tools are the tools bound by exact
-name to its step, its seat or its agent version, where the connection is
-enabled (and, if personal, usable for this run), the tool is enabled, and the
-binding's pinned snapshot is still the connection's latest. A reviewer-role
-session (the step's role is `reviewer` or its action needs the reviewer
-capability) gets only tools an Admin classified as reads. A bound tool the
-session cannot call is reported with its reason, for example
-`update_available` after drift; nothing re-pins on its own.
+name to its step, its seat or its agent version, where the connection is enabled
+(and, if personal, usable for this run), the tool is enabled, and the binding's
+pinned snapshot is still the connection's latest. A reviewer-role session (the
+step's role is `reviewer` or its action needs the reviewer capability) gets only
+tools an Admin classified as reads. A bound tool the session cannot call is
+reported with its reason, for example `update_available` after drift; nothing
+re-pins on its own.
 
 **The gateway.** The worker opens a loopback MCP endpoint for each Claude
-freeform session (`apps/worker/src/tool-gateway.ts`), with a random bearer
-that lives as long as the session. It lists what
+freeform session (`apps/worker/src/tool-gateway.ts`), with a random bearer that
+lives as long as the session. It lists what
 `POST /v1/worker/attempts/{id}/effective-tools` returns and sends each call to
 `worker.invokeTool` (`POST /v1/worker/attempts/{id}/tool-invocations`); both
-routes prove the lease, fence and worker session first and read the scope
-from the attempt's own rows. The server's broker sends the call through the
-same pinned-tool door as a `tool.call` step, so the remote credential never
-enters the session. Each call is recorded in `tool_gateway_calls` before it is
-sent: a replayed Idempotency-Key answers what happened, and a write whose
-outcome is unknown stays `sent` and is refused (`tool_call_outcome_unknown`)
-rather than sent twice. An Admin who has checked the outside system settles
-such a call with `toolGatewayCalls.settle`
-(`POST /v1/tool-gateway-calls/{id}/settlement`, `completed` or `failed`):
-only a `sent` call, only once, scoped to the organization and audited.
+routes prove the lease, fence and worker session first and read the scope from
+the attempt's own rows. The server's broker sends the call through the same
+pinned-tool door as a `tool.call` step, so the remote credential never enters
+the session. Each call is recorded in `tool_gateway_calls` before it is sent: a
+replayed Idempotency-Key answers what happened, and a write whose outcome is
+unknown stays `sent` and is refused (`tool_call_outcome_unknown`) rather than
+sent twice. An Admin who has checked the outside system settles such a call with
+`toolGatewayCalls.settle` (`POST /v1/tool-gateway-calls/{id}/settlement`,
+`completed` or `failed`): only a `sent` call, only once, scoped to the
+organization and audited.
 
-**Paper as a binding.** `rpi.design` still requires `paper`, and a host meets
-it with `paper` or with `tool-gateway`, which a worker running the Claude
-harness advertises (`HOST_CAPABILITY_SUBSTITUTES`). On the Claude harness the
-design step has its design tool exactly when its session's gateway lists a
-bound tool, so a Paper connection bound to the step, its seat or its agent is
-the design tool. A Pi or Codex host without `paper` never claims the step.
+**Paper as a binding.** `rpi.design` still requires `paper`, and a host meets it
+with `paper` or with `tool-gateway`, which a worker running the Claude harness
+advertises (`HOST_CAPABILITY_SUBSTITUTES`). On the Claude harness the design
+step has its design tool exactly when its session's gateway lists a bound tool,
+so a Paper connection bound to the step, its seat or its agent is the design
+tool. A Pi or Codex host without `paper` never claims the step.
 
 Not yet served: native integration actions through the gateway (the route
-refuses `integrationConnectionId` with `tool_invocation_integration_unsupported`),
-local stdio servers (slice H), the Pi and Codex harnesses (they still use the
-worker's `paper` capability), a feed item per gateway call and per-call cost.
+refuses `integrationConnectionId` with
+`tool_invocation_integration_unsupported`), local stdio servers (slice H), the
+Pi and Codex harnesses (they still use the worker's `paper` capability), a feed
+item per gateway call and per-call cost.
 
 ### 15.6 Example: a video-production factory
 
