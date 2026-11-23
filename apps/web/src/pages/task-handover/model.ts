@@ -229,3 +229,49 @@ export function outcomeUnknown(
   const { status, retryable } = failure.problem;
   return retryable || status >= 500 || status === 408;
 }
+
+/**
+ * What the server recorded about a hand-over that already happened, for the
+ * line on the timeline. It reads the stored fields, never the reader, so every
+ * person who opens the page sees the same line. Null until the step was handed
+ * over.
+ */
+export function recordedHandover(
+  record: Pick<
+    HandoffManifestResponse,
+    | "status"
+    | "manifest"
+    | "continuedMode"
+    | "continuedFreshReason"
+    | "continuedByName"
+    | "continuedAt"
+  >,
+):
+  | Readonly<{
+    at: string;
+    byName: string | null;
+    outcome: "exact" | "fresh" | "waiting";
+    reason: FreshReason | "unknown";
+    unconfirmedEffects: number;
+  }>
+  | null {
+  if (
+    record.status !== "continued" || !record.continuedMode ||
+    !record.continuedAt
+  ) return null;
+  const unconfirmed = viewManifest(record.manifest)?.unconfirmedEffects ?? 0;
+  const reason = record.continuedFreshReason;
+  return {
+    at: record.continuedAt,
+    byName: record.continuedByName ?? null,
+    outcome: outcomeKey(
+      { mode: record.continuedMode, freshReason: reason },
+      unconfirmed,
+    ),
+    reason: reason !== null && reason !== undefined &&
+        FRESH_REASONS.includes(reason)
+      ? reason
+      : "unknown",
+    unconfirmedEffects: unconfirmed,
+  };
+}

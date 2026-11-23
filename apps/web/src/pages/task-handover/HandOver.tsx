@@ -8,7 +8,6 @@ import {
   storageFileAtVersionQueryOptions,
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
-import { useSession } from "../../app/session-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { stepTitle } from "../task-timeline.ts";
 import {
@@ -48,7 +47,7 @@ const DOCUMENTS_SHOWN = 5;
  * domain state: every answer here is the server's.
  */
 export function HandOver(
-  { taskId, runId, runVersion, steps, canControl, online, onReceipt }: {
+  { taskId, runId, runVersion, steps, canControl, online }: {
     readonly taskId: string;
     readonly runId: string;
     readonly runVersion: number;
@@ -56,14 +55,12 @@ export function HandOver(
     /** The person may control this run (the same access as pausing it). */
     readonly canControl: boolean;
     readonly online: boolean;
-    readonly onReceipt: (event: UI.RunTimelineEvent) => void;
   },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const cache = useQueryClient();
-  const session = useSession();
-  const { translate: t, locale, timeZone } = useI18n();
+  const { translate: t } = useI18n();
   const [openStep, setOpenStep] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -159,7 +156,6 @@ export function HandOver(
     pending.current = { signature, key };
     setWorking(true);
     setProblem(null);
-    const stepName = stepTitle(t, open.stepKey);
     const result = await api.continueHandoff({
       organizationId,
       manifestId,
@@ -170,35 +166,11 @@ export function HandOver(
     setWorking(false);
     if (result.ok) {
       closeCard();
-      const outcome = outcomeKey(result.data, view.unconfirmedEffects);
-      const name = session.identity?.displayName ?? "";
-      const description = outcome === "exact"
-        ? t("tasks.run.handover.done.exact", { name })
-        : outcome === "fresh"
-        ? t("tasks.run.handover.done.fresh", {
-          name,
-          reason: t(
-            reasonKey(
-              (result.data.freshReason ?? "unknown") as Parameters<
-                typeof reasonKey
-              >[0],
-            ) as never,
-            { count: view.unconfirmedEffects },
-          ),
-        })
-        : t("tasks.run.handover.done.waiting", {
-          count: view.unconfirmedEffects,
-        });
-      onReceipt({
-        id: `handover:${key}`,
-        scope: "control",
-        title: `${
-          formatDate(new Date(), locale, { timeZone, timeStyle: "short" })
-        } — ${stepName}`,
-        description,
-      });
+      // The line on the timeline is drawn from what the server recorded once
+      // the page reads it again; only a step that now waits for an outside
+      // action also says so here, on the step, until it starts.
       setNotice(
-        outcome === "waiting"
+        outcomeKey(result.data, view.unconfirmedEffects) === "waiting"
           ? {
             stepId: open.id,
             tone: "information",
@@ -270,6 +242,7 @@ export function HandOver(
                   savedAt={step.handoffManifest?.status === "pending"
                     ? manifest.data?.createdAt ?? null
                     : null}
+                  machine={manifest.data?.machineName ?? null}
                   view={view}
                   way={way}
                   online={online}
@@ -302,6 +275,7 @@ function Card(
     loading,
     gone,
     savedAt,
+    machine,
     view,
     way,
     online,
@@ -314,6 +288,7 @@ function Card(
     readonly loading: boolean;
     readonly gone: boolean;
     readonly savedAt: string | null;
+    readonly machine: string | null;
     readonly view: ManifestView | null;
     readonly way: CarryOn | null;
     readonly online: boolean;
@@ -371,7 +346,11 @@ function Card(
       <UI.Heading level="subsection" rank={3} id="handover-heading">
         {t("tasks.run.handover.title", { step: stepName })}
       </UI.Heading>
-      <UI.Text>{t("tasks.run.handover.leadNoMachine")}</UI.Text>
+      <UI.Text>
+        {machine === null
+          ? t("tasks.run.handover.leadNoMachine")
+          : t("tasks.run.handover.lead", { machine })}
+      </UI.Text>
       <UI.InlineNotice
         data-testid="handover-way"
         data-way={way.kind}

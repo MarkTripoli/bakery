@@ -1062,6 +1062,7 @@
   "tasks.waiting.payment.subscription.inline": "the subscription on a machine",
   "tasks.waiting.payment.api_metered.inline": "an API key charged per use",
   "tasks.waiting.payment.local.inline": "a model running on a machine",
+  "tasks.run.handover.someone": "Someone",
   "tasks.run.handover.button": "Hand over to a new session",
   "tasks.run.handover.title": "Hand over \"{step}\" to a new session",
   "tasks.run.handover.lead": "The session on {machine} stops and a new one carries on with this step. Only one session works on a step at a time, so anything the old one sends afterwards is refused.",

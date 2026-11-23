@@ -433,6 +433,17 @@ Deno.test("the manifest read says an exact resume will be tried, and the admit t
     const before = await body(await readManifest(fixture, String(record.id)));
     assertEquals(before.decisionMode, "exact_harness_resume");
     assertEquals(before.freshReason, null);
+    // The machine the source session ran on is named, and nothing is said yet
+    // about a hand-over.
+    const host = await fixture.pgDatabase.query<{ name: string }>(
+      `select h.name from bakery.job_attempts a
+         join bakery.worker_hosts h on h.id = a.worker_host_id
+        where a.id = $1`,
+      [live.assignment.attemptId],
+    );
+    assertEquals(before.machineName, host.rows[0].name);
+    assertEquals(before.continuedByName, null);
+    assertEquals(before.continuedAt, null);
     // A read admits nothing and moves nothing.
     assertEquals((await state(fixture, live)).attempt, "leased");
     const response = await continueManifest(
@@ -447,6 +458,19 @@ Deno.test("the manifest read says an exact resume will be tried, and the admit t
     assertEquals(after.status, "continued");
     assertEquals(after.decisionMode, null);
     assertEquals(after.freshReason, null);
+    // Who handed the step over is what the server recorded, for any reader.
+    const admitter = await fixture.pgDatabase.query<{ display_name: string }>(
+      `select p.display_name from bakery.handoff_continuations c
+         join bakery.principals p on p.id = c.admitted_by_principal_id
+        where c.manifest_id = $1`,
+      [record.id],
+    );
+    assert(admitter.rows[0].display_name.length > 0);
+    assertEquals(after.continuedByName, admitter.rows[0].display_name);
+    assertEquals(after.continuedMode, "exact_harness_resume");
+    assertEquals(after.continuedFreshReason, null);
+    assert(typeof after.continuedAt === "string");
+    assertEquals(after.machineName, host.rows[0].name);
   }));
 
 Deno.test("the manifest read gives the reason a continuation would start fresh, the one the admit then records", () =>

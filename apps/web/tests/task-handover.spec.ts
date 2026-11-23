@@ -184,6 +184,8 @@ type World = {
   stepHasManifest: boolean;
   canControl: boolean;
   continues: { key: string; body: Record<string, unknown> }[];
+  /** Who the server recorded as having handed the step over, once it is. */
+  continuedBy: string | null;
   reply?: (route: Route) => Promise<void>;
   reads: number;
 };
@@ -197,6 +199,7 @@ function world(over: Partial<World> = {}): World {
     stepHasManifest: true,
     canControl: true,
     continues: [],
+    continuedBy: "Ana Silva",
     reads: 0,
     ...over,
   };
@@ -258,7 +261,17 @@ async function open(page: Page, w: World) {
         status: w.status,
         manifest: w.manifest,
         createdAt: "2026-01-01T00:00:30.000Z",
-        ...w.decision,
+        machineName: "build-box-01",
+        ...(w.status === "continued"
+          ? {
+            decisionMode: null,
+            freshReason: null,
+            continuedMode: w.decision.decisionMode ?? "fresh_session",
+            continuedFreshReason: w.decision.freshReason,
+            continuedByName: w.continuedBy,
+            continuedAt: "2026-01-01T00:05:00.000Z",
+          }
+          : w.decision),
       },
     });
   });
@@ -270,6 +283,8 @@ async function open(page: Page, w: World) {
         body: r.request().postDataJSON() as Record<string, unknown>,
       });
       if (w.reply) return await w.reply(r);
+      // The server records the hand-over: the step's saved point is now used.
+      w.status = "continued";
       await r.fulfill({
         status: 201,
         json: {
@@ -368,6 +383,9 @@ test.describe("hand over a running step to a new session", () => {
         name: 'Hand over "Implement" to a new session',
       }),
     ).toBeVisible();
+    await expect(card(page)).toContainText(
+      "The session on build-box-01 stops and a new one carries on with this step.",
+    );
     await expect(page.getByTestId("handover-way")).toHaveAttribute(
       "data-way",
       "exact",
@@ -417,7 +435,7 @@ test.describe("hand over a running step to a new session", () => {
     expect(w.continues[0]!.key).toBeTruthy();
     // The timeline says what happened, and by whom.
     await expect(page.getByText(
-      "Fixture Admin handed this step to a new session. It picked up exactly where it stopped.",
+      "Ana Silva handed this step to a new session. It picked up exactly where it stopped.",
     )).toBeVisible();
   });
 
@@ -439,7 +457,7 @@ test.describe("hand over a running step to a new session", () => {
     await still(page, "handover-fresh");
     await page.getByTestId("handover-confirm").click();
     await expect(page.getByText(
-      "Fixture Admin handed this step to a new session. It started fresh from a summary: The saved session does not match the code, the agent version or the machine it stopped on.",
+      "Ana Silva handed this step to a new session. It started fresh from a summary: The saved session does not match the code, the agent version or the machine it stopped on.",
     )).toBeVisible();
   });
 
@@ -469,6 +487,36 @@ test.describe("hand over a running step to a new session", () => {
     await expect(page.getByTestId("handover-notice")).toContainText(
       "Handed over. The old session has stopped. The new one starts when Bakery knows whether 2 outside actions happened.",
     );
+  });
+
+  test("a later reader sees who the server recorded, not their own name", async ({ page }) => {
+    // The page is opened after the hand-over: nothing was done in this tab.
+    await open(
+      page,
+      world({
+        status: "continued",
+        decision: {
+          decisionMode: "fresh_session",
+          freshReason: "boundary_unsafe",
+        },
+      }),
+    );
+    await expect(page.getByText(
+      "Ana Silva handed this step to a new session. It started fresh from a summary:",
+      { exact: false },
+    )).toBeVisible();
+    await expect(page.getByText("Fixture Admin handed", { exact: false }))
+      .toHaveCount(0);
+    // No button: the saved point is already used.
+    await expect(button(page)).toHaveCount(0);
+  });
+
+  test("a hand-over by someone who has no name now reads as Someone", async ({ page }) => {
+    await open(page, world({ status: "continued", continuedBy: null }));
+    await expect(page.getByText(
+      "Someone handed this step to a new session.",
+      { exact: false },
+    )).toBeVisible();
   });
 
   test("Keep this session closes the card and sends nothing", async ({ page }) => {

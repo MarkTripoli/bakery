@@ -41,6 +41,7 @@ import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
 import { focusMessageField } from "./task-delivery/focus-message.ts";
 import { HandOver } from "./task-handover/HandOver.tsx";
+import { useHandoverEvents } from "./task-handover/use-handover-events.ts";
 import { RouteWaiting } from "./task-waiting/RouteWaiting.tsx";
 import { stepRowCopy } from "./task-waiting/model.ts";
 import { useWaitingOffers } from "./task-waiting/use-waiting-offers.ts";
@@ -441,6 +442,11 @@ export function TaskRunSection(
   })();
   // A step list is drawn newest first. A finished, failed or paused run folds
   // everything past the newest three under one link; a running one shows all.
+  // Steps handed to a new session, drawn from what the server recorded.
+  const handoverEvents = useHandoverEvents(
+    steps.data?.items ?? [],
+    activeRun && !invalidSteps,
+  );
   const stepEvents =
     validRun && run.data && !steps.isPending && !steps.isError &&
       !invalidSteps && steps.data && steps.data.items.length > 0
@@ -460,6 +466,7 @@ export function TaskRunSection(
               timeStyle: "short",
             }),
         ),
+        ...handoverEvents,
         ...(receipts.authority === authority ? receipts.events : []),
       ].reverse()
       : null;
@@ -557,16 +564,6 @@ export function TaskRunSection(
                   item.canRequest
                 ) === true}
                 online={online}
-                onReceipt={(event) =>
-                  setReceipts((current) => ({
-                    authority,
-                    events: [
-                      ...(current.authority === authority
-                        ? current.events
-                        : []),
-                      event,
-                    ],
-                  }))}
               />
             )
             : null}

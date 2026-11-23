@@ -5,6 +5,7 @@ import {
   outcomeKey,
   outcomeUnknown,
   reasonKey,
+  recordedHandover,
   refusalOf,
   viewManifest,
 } from "../../apps/web/src/pages/task-handover/model.ts";
@@ -214,4 +215,43 @@ Deno.test("a lost answer may have gone through, so the same key is sent again; a
     }),
     false,
   );
+});
+
+Deno.test("a hand-over already made reads from what the server recorded, the same for every reader", () => {
+  const recorded = (over: Record<string, unknown> = {}) => ({
+    status: "continued" as const,
+    manifest: manifest(),
+    continuedMode: "exact_harness_resume" as const,
+    continuedFreshReason: null,
+    continuedByName: "Ana Silva",
+    continuedAt: "2026-01-01T00:05:00.000Z",
+    ...over,
+  });
+  const exact = recordedHandover(recorded())!;
+  assertEquals(
+    [exact.outcome, exact.byName, exact.at],
+    ["exact", "Ana Silva", "2026-01-01T00:05:00.000Z"],
+  );
+  const fresh = recordedHandover(recorded({
+    continuedMode: "fresh_session",
+    continuedFreshReason: "boundary_unsafe",
+  }))!;
+  assertEquals([fresh.outcome, fresh.reason], ["fresh", "boundary_unsafe"]);
+  const waiting = recordedHandover(recorded({
+    continuedMode: "fresh_session",
+    continuedFreshReason: "effects_unresolved",
+    manifest: manifest({
+      pendingEffects: [{ effectId: UUID, state: "uncertain" }],
+    }),
+  }))!;
+  assertEquals([waiting.outcome, waiting.unconfirmedEffects], ["waiting", 1]);
+  // No recorded person reads as null, so the page says "Someone", not the reader.
+  assertEquals(
+    recordedHandover(recorded({ continuedByName: null }))!.byName,
+    null,
+  );
+  // Nothing before a hand-over, or from a manifest still pending.
+  assertEquals(recordedHandover(recorded({ status: "pending" })), null);
+  assertEquals(recordedHandover(recorded({ continuedAt: null })), null);
+  assertEquals(recordedHandover(recorded({ continuedMode: null })), null);
 });
