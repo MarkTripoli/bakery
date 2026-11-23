@@ -137,7 +137,7 @@ function base(): Def {
       {
         id: "design",
         needs: ["research"],
-        uses: "integration.action",
+        uses: "tool.call",
         with: {
           integrationId: "$input.repositoryId",
           arguments: { description: "a", name: "x" },
@@ -225,7 +225,7 @@ steps:
     timeout: 30m
   - id: design
     needs: [research]
-    uses: integration.action
+    uses: tool.call
     with:
       integrationId: $input.repositoryId
       arguments: {description: a, name: x}
@@ -287,7 +287,7 @@ steps:
 // Compiler version 2. The version is part of the digest: this document at
 // version 1 hashed to c7c1e23e…, and the version is the only difference.
 const PINNED_BASE_DIGEST =
-  "f3c185f2d74ba2211d080b0e1aa44f1ec6dc9a4c64e7295603c5ee897da3c41f";
+  "53690667877bd3fa31bd1d8606d86b546e9aa6b021c54dd3c55d6533fa261a38";
 
 async function digestOf(definition: unknown): Promise<string> {
   const result = await compileWorkflowDocument(

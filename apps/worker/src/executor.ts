@@ -29,6 +29,7 @@ import {
   removeRepositoryInspectionDirectory,
 } from "./repository-inspection-source.ts";
 import type { NativeOutputChannel, NativeOutputSink } from "./native-output.ts";
+import { executePluginJob, type PluginJobDeps } from "./plugin-job-executor.ts";
 import {
   executeTaskBrief,
   type PublishArtifact,
@@ -201,6 +202,13 @@ export type NativeExecutorOptions = {
   readonly publishArtifactFor?: (
     assignment: JobAssignment,
   ) => PublishArtifact;
+  /**
+   * Builds the dependencies of one `plugin.job` attempt (#29). Present only
+   * when this host proved a containment runtime at startup; absent, the
+   * executor neither advertises nor runs the action, so a job is never run
+   * without its boundary.
+   */
+  readonly pluginJobFor?: (assignment: JobAssignment) => PluginJobDeps;
   readonly terminationGraceMs?: number;
   readonly probeIntervalMs?: number;
   readonly loadInspectionSource?: (
@@ -385,6 +393,47 @@ const NATIVE_ENVIRONMENT = Object.freeze({
   PATH: "/usr/bin:/bin",
   DENO_DIR: "/tmp/deno-cache",
 });
+
+/**
+ * The `bakery` command in the session image (#404).
+ *
+ * Baked into the image, never mounted from the host: the same binary exists on
+ * every worker that runs the image, and a session carries no part of the machine
+ * it happens to run on. The sandbox binds only this file, read-only, at the path
+ * the binary expects, so a session that was never granted the command cannot find
+ * the rest of the tree either.
+ */
+export const SESSION_CLI_PATH = "/opt/bakery/bin/bakery";
+
+/**
+ * Whether this host has the baked command, decided once by looking.
+ *
+ * An image without it is not an error: the sandbox just does not offer a command
+ * that is not there, and the session runs exactly as it did before. Pretending
+ * the path exists would make bwrap fail the whole mount.
+ */
+let sessionCliPresent: boolean | undefined;
+async function sessionCliAvailable(): Promise<boolean> {
+  if (sessionCliPresent !== undefined) return sessionCliPresent;
+  const info = await Deno.lstat(SESSION_CLI_PATH).catch(() => null);
+  sessionCliPresent = info !== null && info.isFile && !info.isSymlink;
+  return sessionCliPresent;
+}
+
+/**
+ * What the sandbox needs for the command, when the image has it.
+ *
+ * Only the binary is mounted, and only at its own path: `PATH` already names
+ * its directory, and a sandbox path that is mounted but absent from the image
+ * would fail the whole spawn rather than leaving the command out.
+ */
+async function sessionCliSandbox(): Promise<
+  Readonly<{ readOnlyPaths: readonly string[] }>
+> {
+  return await sessionCliAvailable()
+    ? { readOnlyPaths: [SESSION_CLI_PATH] }
+    : { readOnlyPaths: [] };
+}
 export const NATIVE_SKILL_ROOTS_ENV = "BAKERY_WORKER_SKILL_ROOTS";
 const NATIVE_SKILL_ROOTS_MAX_BYTES = 32_000;
 const SKILL_CACHE_DIRECTORY = "skill-materialization-v1";
@@ -816,25 +865,50 @@ export function nativeSandboxArguments(spec: NativeSandboxSpec): string[] {
   return args;
 }
 
+/**
+ * The environment a native action's sandbox gets, derived here and nowhere else.
+ *
+ * It is a closed map on purpose, and this is the function that says so: an action
+ * is Bakery's own tool, not a session, so it carries no session credential and no
+ * gateway address. The baked `bakery` command is mounted and on `PATH`, and it
+ * refuses there for want of those two variables - which is the intended answer,
+ * not a gap. Exported so a test can pin the closed map instead of trusting a
+ * reader to notice an added key.
+ */
+export function nativeActionEnvironment(
+  serializedSkillRoots: string | undefined,
+): Readonly<Record<string, string>> {
+  if (serializedSkillRoots === undefined) return NATIVE_ENVIRONMENT;
+  const skillRoots = JSON.parse(serializedSkillRoots) as string[];
+  if (skillRoots.length === 0) return NATIVE_ENVIRONMENT;
+  return Object.freeze({
+    ...NATIVE_ENVIRONMENT,
+    [NATIVE_SKILL_ROOTS_ENV]: serializedSkillRoots,
+  });
+}
+
 function actionSandboxSpec(
   definition: NativeActionDefinition,
   serializedSkillRoots: string | undefined,
   runtimePaths: readonly NativeRuntimeMount[],
+  sessionCli: Readonly<{ readOnlyPaths: readonly string[] }>,
 ): NativeSandboxSpec {
   const skillRoots = serializedSkillRoots === undefined
     ? []
     : JSON.parse(serializedSkillRoots) as string[];
-  const environment = skillRoots.length === 0
-    ? NATIVE_ENVIRONMENT
-    : Object.freeze({
-      ...NATIVE_ENVIRONMENT,
-      [NATIVE_SKILL_ROOTS_ENV]: serializedSkillRoots,
-    });
+  const environment = nativeActionEnvironment(serializedSkillRoots);
   return {
     executable: definition.executable,
     args: [...definition.args],
     runtimePaths,
-    readOnlyPaths: [...(definition.readOnlyPaths ?? []), ...skillRoots],
+    // The baked command is mounted beside the action's own read-only paths: the
+    // sandbox has no host path in it either way, so a session can read the
+    // binary and nothing around it.
+    readOnlyPaths: [
+      ...(definition.readOnlyPaths ?? []),
+      ...skillRoots,
+      ...sessionCli.readOnlyPaths,
+    ],
     environment,
     forwardStdin: false,
   };
@@ -2041,6 +2115,7 @@ export function createNativeExecutor(
       ...actions.map((definition) => definition.action),
       "repository.inspect",
       ...(options.publishArtifactFor ? ["task.brief"] : []),
+      ...(options.pluginJobFor ? ["plugin.job"] : []),
     ]),
     initialize: () => ready,
     async execute(
@@ -2065,6 +2140,24 @@ export function createNativeExecutor(
           );
         }
         return await executeInspection(assignment, signal, output);
+      }
+      if (assignment.action === "plugin.job") {
+        // It runs the install's code in a contained runtime, so it takes no
+        // sandbox, skills or secrets of its own: none are given to the job.
+        if (
+          !options.pluginJobFor ||
+          assignment.skillRefs.length > 0 ||
+          (preparedSkills?.roots.length ?? 0) > 0
+        ) {
+          throw new NativeExecutorError(
+            "PREPARED_SKILL_ROOTS_UNSUPPORTED:plugin.job",
+          );
+        }
+        return await executePluginJob(
+          assignment,
+          signal,
+          options.pluginJobFor(assignment),
+        );
       }
       if (assignment.action === "task.brief") {
         // It renders server-frozen text and runs no untrusted code, so it
@@ -2184,6 +2277,7 @@ export function createNativeExecutor(
           );
         }
         serializedSkillRoots = currentSkillRoots;
+        const sessionCli = await sessionCliSandbox();
         if (signal.aborted) {
           await cleanBoundary(
             identity,
@@ -2201,6 +2295,7 @@ export function createNativeExecutor(
           definition,
           serializedSkillRoots,
           currentRuntime.mounts,
+          sessionCli,
         );
         child = new Deno.Command(Deno.execPath(), {
           args: nativeBootstrapArgs(sandbox),

@@ -7,6 +7,7 @@ import {
   type McpTransport,
 } from "@bakery/contracts/mcp-capabilities";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
+import { checkAgainstSchema } from "./schema-check.ts";
 
 /**
  * Invoking a pinned external MCP tool (issue #20, criterion 1).
@@ -38,6 +39,8 @@ export type McpPinnedState = Readonly<{
       digest: string;
       /** Tool names in the pinned snapshot, so a new tool cannot be invoked. */
       toolNames: readonly string[];
+      /** Each tool's declared input schema in the pinned snapshot, by tool name. */
+      inputSchemas?: Readonly<Record<string, unknown>>;
     }>
     | null;
   /** The snapshot the connection currently points at, or null if none. */
@@ -77,9 +80,10 @@ export type McpPinnedStatePort = {
     actorRef: string;
     /**
      * The host dispatching this call. Its eligibility is read from the host's
-     * own row inside the store; the caller only says which host it is.
+     * own row inside the store; the caller only says which host it is. Null is
+     * the server's own broker, which has no worker row.
      */
-    hostId: string;
+    hostId: string | null;
     /**
      * The ownership the caller is invoking as. A binding owned by a different
      * workflow, agent, step, repository, skill version or automation version
@@ -100,9 +104,16 @@ export type McpPinnedStatePort = {
 /** The transport that actually sends the call once the checks pass. */
 export type McpToolTransport = {
   invoke(input: {
+    organizationId: string;
     connectionId: string;
     toolName: string;
     arguments: Record<string, unknown>;
+    /**
+     * Aborts the call when the caller's own deadline passes, whatever the
+     * transport's. A caller that settles the outcome itself (the effect ledger)
+     * passes it so the send cannot outlive that deadline and land afterwards.
+     */
+    signal?: AbortSignal;
   }): Promise<unknown>;
 };
 
@@ -119,9 +130,11 @@ export type McpInvokeInput =
     /**
      * The worker host dispatching this call. Only the dispatch path knows which
      * host it is, so it is supplied; whether that host may run MCP work is NOT
-     * taken from the caller and is read from `worker_hosts` instead.
+     * taken from the caller and is read from `worker_hosts` instead. Null is the
+     * server's own broker, which calls a remote server itself: it is eligible for
+     * every transport but `stdio`, whose process lives on one worker host.
      */
-    hostId: string;
+    hostId: string | null;
     /**
      * The ownership the call is made for, when it is made for one. A binding
      * owned by a different workflow, agent, step, repository, skill version or
@@ -142,6 +155,8 @@ export type McpInvokeInput =
      * it. An organization connection does not read this.
      */
     startedByPrincipalId?: string | null;
+    /** The caller's deadline: aborting it aborts the call to the server. */
+    signal?: AbortSignal;
   }>;
 
 export type McpInvokeResult = Readonly<{
@@ -260,7 +275,7 @@ export function mcpInvocationDenial(
     !mcpHostEligible(
       { transport: state.transport, boundHostId: state.workerHostId },
       {
-        hostId: input.hostId,
+        hostId: input.hostId ?? "",
         eligible: state.dispatchingHostEligible,
       },
     )
@@ -347,7 +362,7 @@ export async function invokeMcpTool(
   // context parsed alongside it is merged back here rather than being dropped.
   const input = {
     ...parsed.data,
-    hostId: rawInput.hostId,
+    hostId: rawInput.hostId ?? null,
     startedByPrincipalId: rawInput.startedByPrincipalId ?? null,
   };
 
@@ -381,10 +396,27 @@ export async function invokeMcpTool(
     throw mcpInvocationRefusal(denial.denial, denial.detail);
   }
 
+  // The arguments are checked against the schema the tool declared when it was
+  // pinned, before anything is sent: a call the pinned schema refuses never
+  // reaches the server. A tool that declared no usable schema is not checked.
+  const schema = state.pinnedSnapshot!.inputSchemas?.[input.toolName];
+  if (schema !== undefined) {
+    const problem = checkAgainstSchema(schema, input.arguments);
+    if (problem !== null) {
+      throw new StandardError({
+        code: "UNPROCESSABLE",
+        detail: "the arguments do not match the pinned tool schema",
+        params: { reason: "mcp_arguments_invalid", path: problem },
+      });
+    }
+  }
+
   const output = await deps.transport.invoke({
+    organizationId: rawInput.organizationId,
     connectionId: input.connectionId,
     toolName: input.toolName,
     arguments: input.arguments,
+    signal: rawInput.signal,
   });
   return {
     toolName: input.toolName,

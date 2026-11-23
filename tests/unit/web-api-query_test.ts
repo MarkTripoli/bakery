@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import type { BakeryApiClient } from "../../apps/web/src/api/client.ts";
 import { protectedQueryKey } from "../../apps/web/src/app/query-scope.ts";
 import {
+  artifactVersionsQueryOptions,
   readAllPages,
   readinessQueryOptions,
   runControlCapabilitiesQueryOptions,
@@ -425,4 +426,31 @@ Deno.test("readAllPages keeps the cursor still owed when its bound cuts the read
   assertEquals(reads, 50);
   assertEquals(all.items.length, 50);
   assertEquals(all.nextCursor, "cursor-50");
+});
+
+Deno.test("the app's artifact versions query keeps current versions only", async () => {
+  const listed = [
+    { id: "v-current", publicationStatus: "current" },
+    { id: "v-legacy" },
+    { id: "v-staged", publicationStatus: "staged" },
+    { id: "v-refused", publicationStatus: "refused" },
+  ];
+  const versionsClient = {
+    listArtifactVersions: () =>
+      Promise.resolve({
+        ok: true as const,
+        data: { items: listed, nextCursor: "next" },
+      }),
+  } as unknown as Pick<BakeryApiClient, "listArtifactVersions">;
+  const query = artifactVersionsQueryOptions(
+    versionsClient,
+    { sessionGeneration: 1, organizationId: "org-a" },
+    "artifact-a",
+  );
+  if (typeof query.queryFn !== "function") throw new Error("missing query fn");
+  const page = await query.queryFn(
+    { signal: new AbortController().signal } as never,
+  );
+  assertEquals(page.items.map((item) => item.id), ["v-current", "v-legacy"]);
+  assertEquals(page.nextCursor, "next");
 });

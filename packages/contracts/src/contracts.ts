@@ -1900,12 +1900,12 @@ const actionSpecs: Record<
 const actionOutputTypes = new Set(Object.keys(actionSpecs));
 /**
  * Action output names that are another contract under the action's own name:
- * doc 06 defines `IntegrationActionOutput = ActionResult (read or confirmed
- * write)`, so the action resolves to the one result shape the connection
- * routes already return instead of a second copy that could drift.
+ * doc 06 defines `ToolCallOutput = ActionResult (read or confirmed write)`, so
+ * the action resolves to the one result shape the connection routes already
+ * return instead of a second copy that could drift.
  */
 const actionOutputAliases: Readonly<Record<string, string>> = {
-  IntegrationActionOutput: "ActionResult",
+  ToolCallOutput: "ActionResult",
 };
 
 function actionOutput(name: string): Schema {
@@ -2031,10 +2031,14 @@ export function registeredWorkerActionInputSchema(action: string): z.ZodType {
   if (record(definition.inputFields)) {
     const shape: Record<string, Schema> = {};
     for (const [field, type] of Object.entries(definition.inputFields)) {
-      shape[field] = eventPrimitive(
-        String(type),
+      // A trailing `?` marks a field the caller may leave out, as in
+      // `versionId: "uuid?"` on plugin.job.
+      const optional = String(type).endsWith("?");
+      const primitive = eventPrimitive(
+        optional ? String(type).slice(0, -1) : String(type),
         `workerActions.${action}.input.${field}`,
       );
+      shape[field] = optional ? primitive.optional() : primitive;
     }
     return described(
       strictObject(shape),

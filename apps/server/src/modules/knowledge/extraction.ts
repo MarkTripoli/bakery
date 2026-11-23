@@ -201,6 +201,8 @@ export async function readArtifactVersionIdentity(
          on t.organization_id=v.organization_id and t.id=v.task_id
       where v.organization_id=$1
         and v.id=$2
+        -- Only a published version is extracted; staged and refused (O29) are missing.
+        and v.publication_status='current'
         and (
           v.run_step_id is null or exists (
             select 1
@@ -252,6 +254,8 @@ async function loadArtifactExtractionRow(
          on t.organization_id=v.organization_id and t.id=v.task_id
       where v.organization_id=$1
         and v.id=$2
+        -- Only a published version is extracted; staged and refused (O29) are missing.
+        and v.publication_status='current'
         and (
           v.run_step_id is null or exists (
             select 1

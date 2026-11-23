@@ -98,7 +98,7 @@ export function resolveEndpoint(template: string, config: unknown): string {
 }
 
 /** The JSON-RPC message with `id` from a JSON or event-stream response body. */
-function rpcMessage(
+export function rpcMessage(
   contentType: string,
   body: string,
   id: number,
@@ -128,7 +128,7 @@ function rpcMessage(
   return found;
 }
 
-function failureFor(result: McpHttpResult): DiscoveryFailure | null {
+export function failureFor(result: McpHttpResult): DiscoveryFailure | null {
   switch (result.kind) {
     case "timeout":
       return "timeout";
