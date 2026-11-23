@@ -1,4 +1,5 @@
 import { basename, join, relative, resolve } from "node:path";
+import { sessionEnvironment } from "./session-credential-file.ts";
 import { withStepNotes } from "./step-notes-prompt.ts";
 import {
   prepareHarnessContext,
@@ -147,6 +148,14 @@ export const CLAUDE_EFFORT_LEVELS = Object.freeze(
 );
 
 export type ClaudeHarnessOptions = {
+  /**
+   * Where this worker reaches Bakery (#404).
+   *
+   * The `bakery` command inside a session needs an address, and a session's
+   * child environment carries no secret to find one with: the worker passes this
+   * and the credential *file's* path, nothing more.
+   */
+  readonly gatewayUrl?: string;
   /**
    * Whether this worker has the design tool `rpi.design` declares (the
    * `paper` capability). Off unless set: a worker without it refuses the step as
@@ -1501,7 +1510,13 @@ async function executeClaudeHarness(
         "The Claude Code harness could not complete the bounded task",
       );
     }
-    const childEnvironment = claudeChildEnvironment(config, assignment);
+    const childEnvironment = {
+      ...claudeChildEnvironment(config, assignment),
+      // The session's credential is a path and the gateway's address, never
+      // the credential itself: the worker writes the value to an owner-only
+      // file and the `bakery` command inside the session reads that.
+      ...sessionEnvironment(options.stateDir, options.gatewayUrl, assignment),
+    };
     const claudeExecutable = options.claudeExecutable ?? "claude";
     const versionProbe = await probeHarnessVersion(
       claudeExecutable,
@@ -1698,6 +1713,12 @@ async function executeClaudeHarness(
       gitFailurePrefix: "CLAUDE_HARNESS",
       secrets: [
         assignment.leaseToken,
+        // The session credential is a bearer for this attempt and reaches the
+        // child through a file it can read, so anything it prints must be
+        // redacted exactly as the lease token is.
+        ...(assignment.sessionCredential === undefined
+          ? []
+          : [assignment.sessionCredential]),
         ...(options.redactionSecrets ?? []),
         ...credentialSecrets,
         ...refreshedSecrets,
@@ -1866,7 +1887,13 @@ async function runClaudeFreeform(
         "The Claude Code harness could not complete the bounded task",
       );
     }
-    const childEnvironment = claudeChildEnvironment(config, assignment);
+    const childEnvironment = {
+      ...claudeChildEnvironment(config, assignment),
+      // The session's credential is a path and the gateway's address, never
+      // the credential itself: the worker writes the value to an owner-only
+      // file and the `bakery` command inside the session reads that.
+      ...sessionEnvironment(options.stateDir, options.gatewayUrl, assignment),
+    };
     const claudeExecutable = options.claudeExecutable ?? "claude";
     const versionProbe = await probeHarnessVersion(
       claudeExecutable,
@@ -2016,6 +2043,12 @@ async function runClaudeFreeform(
     for (
       const secret of [
         assignment.leaseToken,
+        // The session credential is a bearer for this attempt and reaches the
+        // child through a file it can read, so anything it prints must be
+        // redacted exactly as the lease token is.
+        ...(assignment.sessionCredential === undefined
+          ? []
+          : [assignment.sessionCredential]),
         ...credentialSecrets,
         ...(
           options.redactionSecrets ?? []

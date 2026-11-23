@@ -20,6 +20,7 @@ import { designToolAvailableFrom } from "./harness-rpi.ts";
 import { createClaudeHarnessExecutor } from "./claude-harness.ts";
 import { createToolGatewayFactory } from "./tool-gateway.ts";
 import { createCodexHarnessExecutor } from "./codex-harness.ts";
+import { withSessionCredentialFile } from "./session-credential-file.ts";
 import { createReviewerExecutor } from "./reviewer.ts";
 import {
   createNativeExecutor,
@@ -42,6 +43,13 @@ import {
   workerShutdownReceiptPath,
 } from "./shutdown-receipt.ts";
 import { acquireStateLock, ensurePrivateDirectory } from "./storage.ts";
+import type { PluginJobDeps } from "./plugin-job-executor.ts";
+import {
+  jobCommand,
+  PLUGIN_JOB_CAPABILITY,
+  selectPluginRuntime,
+  workerOwnedPaths,
+} from "./plugin-job-select.ts";
 import {
   WorkerShutdownQuiescenceError,
   WorkerSupervisor,
@@ -140,8 +148,85 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
           workerSessionGeneration: String(assignment.workerSessionGeneration),
         });
       };
+    // Plugin jobs run only where a containment runtime proved its boundary just
+    // now. Off unless an operator enables a runtime; an enabled runtime that
+    // fails its probe leaves the capability unadvertised and logs why.
+    const pluginEnv = {
+      BAKERY_PLUGIN_JOBS_DOCKER: optionalEnvironmentValue(
+        "BAKERY_PLUGIN_JOBS_DOCKER",
+      ),
+      BAKERY_PLUGIN_JOBS_BWRAP: optionalEnvironmentValue(
+        "BAKERY_PLUGIN_JOBS_BWRAP",
+      ),
+      BAKERY_PLUGIN_JOB_IMAGE: optionalEnvironmentValue(
+        "BAKERY_PLUGIN_JOB_IMAGE",
+      ),
+      BAKERY_PLUGIN_JOB_COMMAND: optionalEnvironmentValue(
+        "BAKERY_PLUGIN_JOB_COMMAND",
+      ),
+    };
+    const pluginRuntime = options.executor
+      ? { kind: "none", reasons: [] } as const
+      : await selectPluginRuntime(pluginEnv, {}, {
+        hide: workerOwnedPaths(config),
+      });
+    if (pluginRuntime.kind === "selected") {
+      if (!config.capabilities.includes(PLUGIN_JOB_CAPABILITY)) {
+        config.capabilities.push(PLUGIN_JOB_CAPABILITY);
+      }
+    } else if (pluginRuntime.reasons.length > 0) {
+      console.warn(JSON.stringify({
+        component: "worker",
+        event: "plugin_jobs_unavailable",
+        reasons: pluginRuntime.reasons,
+      }));
+    }
+    const pluginJobFor = pluginRuntime.kind === "selected"
+      ? (assignment: JobAssignment): PluginJobDeps => {
+        if (
+          assignment.workerSessionId === undefined ||
+          assignment.workerSessionGeneration === undefined
+        ) throw new Error("PLUGIN_JOB_SESSION_MISSING");
+        const proof = {
+          leaseToken: assignment.leaseToken,
+          fence: String(assignment.fence),
+          workerSessionId: assignment.workerSessionId,
+          workerSessionGeneration: String(assignment.workerSessionGeneration),
+        };
+        return {
+          runtime: pluginRuntime.runtime,
+          codeParent: `${config.stateDir}/plugin-jobs`,
+          command: (entry, mount) => jobCommand(pluginEnv, entry, mount),
+          fetchFiles: async (signal) =>
+            (await client.getPluginJobFiles(
+              assignment.attemptId,
+              proof,
+              signal,
+            ))
+              .value,
+          relay: async (call, signal) => {
+            const answer = (await client.callPluginBroker(
+              assignment.attemptId,
+              proof,
+              call,
+              signal,
+            )).value;
+            return answer.ok
+              ? { ok: true as const, result: answer.result }
+              : { ok: false as const, denial: answer.denial };
+          },
+        };
+      }
+      : undefined;
+    if (pluginJobFor) {
+      await Deno.mkdir(`${config.stateDir}/plugin-jobs`, {
+        recursive: true,
+        mode: 0o700,
+      });
+    }
     const nativeExecutor = options.executor ?? createNativeExecutor({
       publishArtifactFor,
+      pluginJobFor,
       cgroupRoot: config.nativeCgroupRoot,
       stateDir: config.stateDir,
       supervisorSecretPaths: [
@@ -285,6 +370,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         coordinatorTimeLimitMs: config.claudeCoordinatorTimeLimitMs,
         coordinatorEffort: config.claudeCoordinatorEffort,
         stateDir: config.stateDir,
+        gatewayUrl: config.serverUrl,
         redactionSecrets: config.outputRedactionSecrets,
         authSourceDir: config.claudeAuthSourceDir ?? join(home!, ".claude"),
         readAttemptContext,
@@ -316,6 +402,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         model: codingHarness.model,
         effort: codingHarness.effort,
         stateDir: config.stateDir,
+        gatewayUrl: config.serverUrl,
         piAgentSourceDir: piAgentSourceDir!,
         redactionSecrets: config.outputRedactionSecrets,
         capabilities: config.adapterCapabilities,
@@ -331,6 +418,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         timeLimitMs: codingHarness.timeLimitMs,
         codexExecutable: codingHarness.executable,
         stateDir: config.stateDir,
+        gatewayUrl: config.serverUrl,
         authSourceDir: config.codexAuthSourceDir ?? join(home!, ".codex"),
         redactionSecrets: config.outputRedactionSecrets,
         readAttemptContext,
@@ -358,7 +446,15 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         credentialPaths,
       })
       : harnessExecutor;
-    await workerExecutor.initialize?.();
+    // One wrapper around every adapter (#404): the session's operation
+    // credential is written to an owner-only file for exactly as long as the
+    // attempt runs, and the child environment is given its path, never the
+    // value. Doing it here rather than per adapter is what keeps "does this
+    // harness clean up" from being a per-harness question.
+    const sessionAwareExecutor = withSessionCredentialFile(workerExecutor, {
+      stateDir: config.stateDir,
+    });
+    await sessionAwareExecutor.initialize?.();
     const skillMaterializer = new SkillMaterializer(
       new SkillCache(config.stateDir),
       client,
@@ -383,7 +479,9 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
       config,
       client,
       registrationStore,
-      executor: workerExecutor,
+      // The wrapper, not the adapter chain: every attempt that holds a session
+      // credential gets its file and loses it here.
+      executor: sessionAwareExecutor,
       preparedSecretInvoker: createPreparedSecretInvoker(client),
       skillMaterializer,
       spool,

@@ -1,4 +1,6 @@
 import { createFilesApi, describeFailure, type FilesApi } from "./api.ts";
+import { SessionFileMismatch } from "./session-files.ts";
+import { SessionRefusal } from "./session-call.ts";
 import { type CliConfig, readConfig, UsageError } from "./config.ts";
 import {
   cat,
@@ -28,6 +30,7 @@ Usage:
   bakery files pin <path>                keep a record file's versions (administrators; needs artifact:manage)
   bakery files unpin <path>              let retention apply to it again
   bakery files search [text] [--in path] [--kind kind] [--type media-type]
+  bakery tools                           what this session may call (sessions only)
 
 A <ref> is a path (/projects/web/plan.md), a path at one revision
 (/projects/web/plan.md@3), or one saved version (@<version id>).
@@ -43,6 +46,11 @@ Options:
 Settings (environment): BAKERY_URL, BAKERY_ORGANIZATION, and BAKERY_TOKEN
 or BAKERY_TOKEN_FILE (an access token from Settings). There is no --token
 flag, so a token never lands in shell history.
+
+Inside a session there is no access token: the worker writes this attempt's
+session operation credential to BAKERY_SESSION_CREDENTIAL_FILE, and the same
+commands go through the tool gateway as the person the run is for. The tools
+command lists what that credential may call. Nothing here can exceed it.
 `;
 
 type Parsed = Readonly<{
@@ -94,12 +102,18 @@ export function parseArguments(argv: readonly string[]): Parsed {
     } else positionals.push(argument);
   }
   const [group, command, ...rest] = positionals;
-  if (group !== undefined && group !== "files") {
+  if (group !== undefined && group !== "files" && group !== "tools") {
     throw new UsageError(`Unknown command "${group}". Try --help.`);
   }
   return {
-    command: command ?? null,
-    positionals: rest,
+    // `tools` is its own one-word command: it takes no sub-command and no
+    // positionals, so its group name is carried as the command.
+    command: group === "tools" ? "tools" : command ?? null,
+    positionals: group === "tools"
+      ? [command, ...rest].filter(
+        (item) => item !== undefined,
+      ) as string[]
+      : rest,
     help: help || group === undefined,
     flags: {
       url: values.get("--url"),
@@ -126,6 +140,25 @@ export type Runtime = Readonly<{
   error: (line: string) => void;
   createApi?: (config: CliConfig) => FilesApi;
   readFileText?: (path: string) => Promise<string>;
+  /**
+   * True when the command runs inside a session (#404).
+   *
+   * Decided by the caller from what the environment holds, not by a flag: a
+   * session has no access token, so `readConfig` would refuse it before any
+   * command could explain why. The transport is chosen once, here.
+   */
+  inSession?: true;
+  /** The session transport; required exactly when `inSession` is set. */
+  createSessionApi?: (
+    flags: Readonly<{
+      url?: string;
+      organization?: string;
+    }>,
+  ) => Promise<FilesApi>;
+  /** What this session may call, for `bakery tools`. */
+  listSessionTools?: () => Promise<
+    readonly { name: string; method: string; path: string; scope: string }[]
+  >;
 }>;
 
 function single(parsed: Parsed, what: string): string {
@@ -150,15 +183,54 @@ export async function run(
       runtime.output.text(HELP.trimEnd());
       return parsed.help ? 0 : 2;
     }
-    const config = await readConfig({
-      environment: runtime.environment,
-      flags: parsed.flags,
-      readFileText: runtime.readFileText,
-    });
-    const api = (runtime.createApi ?? ((c: CliConfig) => createFilesApi(c)))(
-      config,
-    );
     const { options, command } = parsed;
+    // `tools` answers before any transport is built: it is a question about the
+    // credential, not a call made with it.
+    if (command === "tools") {
+      if (parsed.positionals.length > 0) {
+        throw new UsageError("tools takes no arguments.");
+      }
+      if (
+        runtime.inSession !== true || runtime.listSessionTools === undefined
+      ) {
+        throw new UsageError(
+          "tools lists what a session may call; run it inside one.",
+        );
+      }
+      const tools = await runtime.listSessionTools();
+      if (options.json) {
+        runtime.output.text(JSON.stringify(tools, null, 2));
+        return 0;
+      }
+      if (tools.length === 0) {
+        runtime.output.text("This session may call nothing yet.");
+        return 0;
+      }
+      for (const tool of tools) {
+        runtime.output.text(
+          `${tool.name}  ${tool.method} ${tool.path}  (${tool.scope})`,
+        );
+      }
+      return 0;
+    }
+    let api: FilesApi;
+    if (runtime.inSession === true) {
+      if (runtime.createSessionApi === undefined) {
+        throw new UsageError(
+          "This session has no tool gateway configured, so no command can run.",
+        );
+      }
+      api = await runtime.createSessionApi(parsed.flags);
+    } else {
+      const config = await readConfig({
+        environment: runtime.environment,
+        flags: parsed.flags,
+        readFileText: runtime.readFileText,
+      });
+      api = (runtime.createApi ?? ((c: CliConfig) => createFilesApi(c)))(
+        config,
+      );
+    }
     switch (command) {
       case "ls": {
         if (parsed.positionals.length > 1) {
@@ -227,6 +299,17 @@ export async function run(
       return 2;
     }
     if (error instanceof CommandError) {
+      runtime.error(error.message);
+      return 1;
+    }
+    if (error instanceof SessionRefusal) {
+      // Two lines, because a refusal has two halves: what the server decided
+      // and what the person or agent can do about it.
+      runtime.error(error.message);
+      runtime.error(error.advice);
+      return 1;
+    }
+    if (error instanceof SessionFileMismatch) {
       runtime.error(error.message);
       return 1;
     }

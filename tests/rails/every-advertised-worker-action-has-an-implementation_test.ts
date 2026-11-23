@@ -35,13 +35,13 @@ const root = new URL("../../", import.meta.url);
  */
 const ADVERTISED_WITHOUT_WORKER: Readonly<Record<string, string>> = {
   "mcp.discover": "#441",
-  "plugin.job": "#29",
   "session.call": "#436",
   "session.tools": "#436",
 };
 
 /** Named by string because the worker declares them inline rather than exporting them. */
 const INLINE_ACTIONS = [
+  "plugin.job",
   "quality.check",
   "repository.inspect",
   "secret.identity.read",
