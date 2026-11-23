@@ -2,6 +2,10 @@ import { z } from "zod";
 import {
   COORDINATION_KEY_PATTERN,
   type CoordinationPlanSpec,
+  jsonBytes,
+  MAX_AUTHORED_EXPORTS_BYTES,
+  MAX_AUTHORED_STEPS,
+  MAX_AUTHORED_STEPS_BYTES,
   MAX_COORDINATION_CONCURRENCY,
   MAX_COORDINATION_LANES,
 } from "./coordination-plan.ts";
@@ -224,12 +228,16 @@ export function lowerParallelNode(
     }
     const lines: string[] = [`Workflow lane ${lane.id}, steps in order:`];
     renderSteps(lane.steps, lines, 0);
-    const authoredSteps = JSON.stringify(lane.steps).length;
-    const authoredExports = JSON.stringify(node.outputs[lane.id] ?? {}).length;
-    if (authoredSteps > 32_768 || authoredExports > 8_192) {
+    // The same bounds, measured the same way, as the schema the lowered lane
+    // must then pass: a lane over them is refused here, never cut.
+    const stepsTooBig = lane.steps.length > MAX_AUTHORED_STEPS ||
+      jsonBytes(lane.steps) > MAX_AUTHORED_STEPS_BYTES;
+    const exportsTooBig =
+      jsonBytes(node.outputs[lane.id] ?? {}) > MAX_AUTHORED_EXPORTS_BYTES;
+    if (stepsTooBig || exportsTooBig) {
       throw new WorkflowMappingError(
         "workflow_node_exceeds_coordination_limits",
-        ["lanes", index, authoredSteps > 32_768 ? "steps" : "outputs"],
+        ["lanes", index, stepsTooBig ? "steps" : "outputs"],
       );
     }
     const instructions = lines.join("\n");

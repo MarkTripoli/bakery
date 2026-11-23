@@ -62,9 +62,18 @@ export const CoordinationLaneRunSpecSchema = z.object({
   "What a lane runs: a published workflow and the inputs it starts with. A lane that names it is started by the engine once its prerequisites are done and the plan has room; a lane that does not leaves its child task for someone to start.",
 );
 
-const MAX_AUTHORED_STEPS_BYTES = 32_768;
-const MAX_AUTHORED_EXPORTS_BYTES = 8_192;
-const jsonBytes = (value: unknown) =>
+/** Most authored steps one lane of a lowered parallel node may keep. */
+export const MAX_AUTHORED_STEPS = 200;
+/** Most UTF-8 bytes of JSON the authored steps of one lane may take. */
+export const MAX_AUTHORED_STEPS_BYTES = 32_768;
+/** Most UTF-8 bytes of JSON the authored exports of one lane may take. */
+export const MAX_AUTHORED_EXPORTS_BYTES = 8_192;
+/**
+ * The size of a value as the authored bounds measure it: UTF-8 bytes of its
+ * JSON, not characters. The lowering and the schema both use this one measure,
+ * so a lane the mapper accepts is a lane the schema accepts.
+ */
+export const jsonBytes = (value: unknown) =>
   new TextEncoder().encode(JSON.stringify(value)).length;
 
 export const CoordinationLaneAuthoredSchema = z.object({
@@ -72,9 +81,12 @@ export const CoordinationLaneAuthoredSchema = z.object({
     "Identifier of the lane as the author wrote it in the workflow, before it was normalized into the lane key; raising the split back to a workflow gives the lane this identifier.",
   ),
   steps: z.array(z.unknown().describe("One authored workflow step node."))
-    .max(200).refine((value) => jsonBytes(value) <= MAX_AUTHORED_STEPS_BYTES, {
-      message: "authored lane steps must be at most 32 KiB",
-    }).describe(
+    .max(MAX_AUTHORED_STEPS).refine(
+      (value) => jsonBytes(value) <= MAX_AUTHORED_STEPS_BYTES,
+      {
+        message: "authored lane steps must be at most 32 KiB",
+      },
+    ).describe(
       "The lane's steps exactly as the compiled workflow holds them, in authored order, so lowering a parallel node loses nothing the instructions leave out.",
     ),
   exports: z.record(

@@ -144,29 +144,68 @@ Deno.test("a split composed without a workflow raises to a node with its keys fo
   assertEquals(Object.keys(raised.outputs), ["contract", "web", "mobile"]);
 });
 
-Deno.test("a lane whose authored steps are over the bound is refused, never cut", () => {
-  const big = [{
+Deno.test("a lane whose authored steps or exports are over the bound is refused, never cut; one at the bound passes the schema too (#422)", () => {
+  const nodeWith = (steps: unknown[], outputs: Record<string, unknown> = {}) =>
+    findParallelNode({
+      steps: [{
+        kind: "parallel",
+        id: "p",
+        maxConcurrency: 1,
+        join: "all-required",
+        failurePolicy: "stop-dependent",
+        lanes: [{ id: "a", needs: [], repository: "api", steps }],
+        outputs,
+      }],
+    }, "p");
+  const step = (extra: Record<string, unknown> = {}) => ({
     kind: "action",
     id: "x",
     action: "workflow.noop",
-    pad: "a".repeat(33_000),
-  }];
-  const huge = findParallelNode({
-    steps: [{
-      kind: "parallel",
-      id: "p",
-      maxConcurrency: 1,
-      join: "all-required",
-      failurePolicy: "stop-dependent",
-      lanes: [{ id: "a", needs: [], repository: "api", steps: big }],
-      outputs: {},
-    }],
-  }, "p");
-  const error = assertThrows(
-    () => lowerParallelNode(huge),
-    WorkflowMappingError,
+    ...extra,
+  });
+  const refused = (node: ReturnType<typeof nodeWith>) => {
+    const error = assertThrows(
+      () => lowerParallelNode(node),
+      WorkflowMappingError,
+    );
+    assertEquals(error.code, "workflow_node_exceeds_coordination_limits");
+    return error.path;
+  };
+
+  // Over 32 KiB of JSON in plain text.
+  assertEquals(
+    refused(nodeWith([step({ pad: "a".repeat(33_000) })])).slice(-1),
+    ["steps"],
   );
-  assertEquals(error.code, "workflow_node_exceeds_coordination_limits");
+  // The bound is bytes, not characters: 12,000 three-byte characters are 36,000
+  // bytes of JSON, far under 32,768 characters.
+  assertEquals(
+    refused(nodeWith([step({ pad: "\u3042".repeat(12_000) })])).slice(-1),
+    ["steps"],
+  );
+  // More than 200 steps, each tiny.
+  assertEquals(
+    refused(nodeWith(Array.from({ length: 201 }, () => step()))).slice(-1),
+    ["steps"],
+  );
+  // Exports are measured in bytes too: 3,000 three-byte characters are 9,000
+  // bytes against 8,192.
+  assertEquals(
+    refused(nodeWith([], {
+      a: { big: { kind: "literal", value: "\u3042".repeat(3_000) } },
+    })).slice(-1),
+    ["outputs"],
+  );
+
+  // What the mapper accepts the schema accepts: exactly 200 steps lowers, and
+  // the lowered spec parses.
+  const atTheBound = lowerParallelNode(
+    nodeWith(Array.from({ length: 200 }, () => step())),
+  );
+  assert(
+    CoordinationPlanSpecSchema.safeParse(atTheBound).success,
+    "a lane at the bound must pass the schema the mapper feeds",
+  );
 });
 
 Deno.test("the mapper normalizes ids and export names and refuses what it cannot map", () => {
