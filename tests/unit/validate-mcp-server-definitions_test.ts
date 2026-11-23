@@ -99,7 +99,31 @@ const valid = {
 
 Deno.test("a definition that is not remote, or carries what only a local one carries, is refused before any write", async () => {
   const cases: [string, Partial<typeof valid>, string][] = [
-    ["stdio", { transport: "stdio" as never }, "transport_not_supported_yet"],
+    [
+      "stdio without a launch spec",
+      { transport: "stdio" as never },
+      "launch_spec_required",
+    ],
+    [
+      "stdio with a shell string for a launch",
+      {
+        transport: "stdio" as never,
+        launchSpec: { command: "npx some-server" } as never,
+        endpointTemplate: null as never,
+      },
+      "launch_spec_invalid",
+    ],
+    [
+      "stdio with an endpoint",
+      {
+        transport: "stdio" as never,
+        launchSpec: {
+          command: "/usr/local/bin/mcp-files",
+          artifactDigest: "a".repeat(64),
+        } as never,
+      },
+      "endpoint_not_for_stdio",
+    ],
     [
       "a launch spec",
       { launchSpec: { command: "x" } as never },
@@ -166,4 +190,66 @@ Deno.test("an update names something to change, keeps a remote server's capabili
     );
     assertEquals(error.code, "PRECONDITION_REQUIRED");
   }
+});
+
+Deno.test("a local stdio definition stores its pinned launch and required capabilities, and no endpoint (#441)", async () => {
+  const statements: { sql: string; values: unknown[] }[] = [];
+  const row = {
+    id: "44444444-4444-4444-8444-444444444444",
+    slug: "files",
+    name: "Files",
+    transport: "stdio",
+    launch_spec: {
+      command: "/usr/local/bin/mcp-files",
+      args: ["--root", "/srv"],
+      artifactDigest: "a".repeat(64),
+    },
+    endpoint_template: null,
+    config_schema: { type: "object" },
+    required_capabilities: ["mcp-files"],
+    source_revision: "v1",
+    enabled: false,
+    created_at: new Date(0),
+    updated_at: new Date(0),
+    version: 1,
+  };
+  const { context } = stand();
+  (context as unknown as { transaction: unknown }).transaction = {
+    query: (sql: string, values: unknown[] = []) => {
+      statements.push({ sql, values });
+      if (sql.includes("insert into bakery.mcp_servers")) {
+        return Promise.resolve({ rows: [{ id: row.id }], rowCount: 1 });
+      }
+      if (sql.includes("from bakery.mcp_servers")) {
+        return Promise.resolve({ rows: [row], rowCount: 1 });
+      }
+      return Promise.resolve({ rows: [{ next: 1 }], rowCount: 1 });
+    },
+  };
+  await createMcpServer(context, {
+    ...valid,
+    slug: "files",
+    name: "Files",
+    transport: "stdio" as never,
+    endpointTemplate: null as never,
+    launchSpec: {
+      command: "/usr/local/bin/mcp-files",
+      args: ["--root", "/srv"],
+      artifactDigest: "a".repeat(64),
+    } as never,
+    requiredCapabilities: ["mcp-files"],
+  }).catch(() => undefined);
+  const insert = statements.find((s) =>
+    s.sql.includes("insert into bakery.mcp_servers")
+  )!;
+  assertEquals(insert.values.slice(3, 6), [
+    "stdio",
+    JSON.stringify({
+      command: "/usr/local/bin/mcp-files",
+      args: ["--root", "/srv"],
+      artifactDigest: "a".repeat(64),
+    }),
+    null,
+  ]);
+  assertEquals(insert.values[7], JSON.stringify(["mcp-files"]));
 });
