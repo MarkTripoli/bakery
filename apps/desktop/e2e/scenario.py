@@ -118,6 +118,7 @@ class Recorder:
         os.makedirs(self.dir, exist_ok=True)
         self.every = every
         self.count = 0
+        self.started = time.time()
         self.halt = threading.Event()
         self.thread = threading.Thread(target=self.run, daemon=True)
         ACTIVE_RECORDER = self
@@ -145,7 +146,7 @@ class Recorder:
             os.remove(os.path.join(self.dir, "now.xwd"))
         except OSError:
             pass
-        print(f"VIDEO {self.dir}: {self.count} frames", flush=True)
+        print(f"VIDEO {self.dir}: {self.count} frames in {time.time() - self.started:.1f} seconds", flush=True)
         ACTIVE_RECORDER = None
 
 
@@ -877,6 +878,67 @@ def phase_web_repeat_links():
     shot("repeat-links-end")
 
 
+def phase_record_flow():
+    """The recording design-ux asked for (#860): one run of the real app on a real server page. Sign in and land
+    on a page, press a link to another site, press a link to a local file and close its dialog, then save a
+    file through to "Saved" and press Show in folder. Only with E2E_VIDEO: it is slow, and only evidence."""
+    web = os.environ.get("BAKERY_WEB", "")
+    if not web or not os.environ.get("E2E_VIDEO"):
+        return
+    drop = os.path.join(OUT, "downloads-flow")
+    os.makedirs(drop, exist_ok=True)
+    p = os.path.join(OUT, "r-flow")
+    clear_store()
+    clear_store(web)
+    # No answer chosen in advance: the system's own dialogs open and are closed by a click, as a person would.
+    start_app(p, server=web, extra={"BAKERY_DESKTOP_DOWNLOAD_TO": drop})
+    Recorder("flow")
+    assert wait_window(p, "sign_in") is not None
+    time.sleep(3)
+    url = sign_in_to_waiting(p, "[flow]")
+    if not url:
+        return
+    time.sleep(2)
+    deliver(confirm(request_id_of(url), session_cookie()))
+    check("[flow] the app opens the server's page", wait_report(p, "server_page_opened", 1, timeout=40))
+    time.sleep(6)
+
+    def count(event, **match):
+        return sum(1 for e in reports(p) if e["event"] == event
+                   and all(e["data"].get(k) == v for k, v in match.items()))
+
+    def link(href, attrs=""):
+        eval_in_window(p, "(() => { const a = document.createElement('a'); a.href = '%s'; %s a.textContent = 'link'; "
+                          "document.body.appendChild(a); a.click(); })()" % (href, attrs))
+
+    def close_dialog(label, x, y):
+        before = count("system_dialog_answer")
+        time.sleep(3)
+        x_click(x, y)
+        check("[flow] " + label + " is closed by a click on Close",
+              wait_until(lambda: count("system_dialog_answer") > before, timeout=20))
+        time.sleep(2)
+
+    before = count("link_to_browser")
+    link("https://example.org/docs", "a.target = '_blank';")
+    check("[flow] a link to another site goes to the browser", wait_until(lambda: count("link_to_browser") > before, timeout=20))
+    close_dialog("the browser's dialog", 358, 128)
+    before = count("system_dialog", kind="not_web")
+    link("file:///etc/hostname")
+    check("[flow] a link to a local file brings up the dialog",
+          wait_until(lambda: count("system_dialog", kind="not_web") > before, timeout=20))
+    close_dialog("the file link's dialog", 133, 146)
+    eval_in_window(p, "(() => { const a = document.createElement('a'); a.href = '/favicon.svg'; "
+                      "a.download = 'bakery-flow.svg'; document.body.appendChild(a); a.click(); })()")
+    check("[flow] the file is saved", wait_until(lambda: os.path.exists(os.path.join(drop, "bakery-flow.svg")), timeout=20))
+    check("[flow] a notice says it was saved", wait_report(p, "toast", 1, timeout=20))
+    time.sleep(4)
+    eval_in_window(p, "for (const b of document.querySelectorAll('[data-bakery-toast] button')) "
+                      "{ if (b.textContent === 'Show in folder') b.click(); }")
+    check("[flow] Show in folder reaches the app", wait_report(p, "toast_action", 1, timeout=20))
+    time.sleep(4)
+
+
 def phase_web_download():
     """Builder question 5: a file a page offers is saved only where the person says, never silently
     into the folder the app was started from. A run cannot answer the system's dialog, so it is run
@@ -1116,7 +1178,7 @@ def main():
     for phase in (phase_cold_sign_in, phase_restart, phase_cancel_then_late_answer, phase_bogus_answers,
                   phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring, phase_address_spelling,
                   phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back,
-                  phase_open_links, phase_menu, phase_web_pages, phase_web_repeat_links, phase_web_download, phase_web_shots):
+                  phase_open_links, phase_menu, phase_web_pages, phase_web_repeat_links, phase_record_flow, phase_web_download, phase_web_shots):
         if only and not any(s in phase.__name__ for s in only):
             continue
         try:

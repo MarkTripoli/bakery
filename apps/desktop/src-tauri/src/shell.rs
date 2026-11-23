@@ -374,6 +374,7 @@ impl Shell {
                 tooltip: None,
                 actions: vec![],
                 goes_after: None,
+                dismissable: false,
             }),
             "failed" => self.save_failed(
                 id,
@@ -423,6 +424,7 @@ impl Shell {
                     tooltip: None,
                     actions: vec![],
                     goes_after: None,
+                    dismissable: false,
                 });
             }
         });
@@ -513,6 +515,7 @@ impl Shell {
                     tooltip: folder,
                     actions: vec![(saved_file::SHOW_IN_FOLDER.into(), "show")],
                     goes_after: Some(saved_file::SAVED_NOTICE_SECONDS),
+                    dismissable: true,
                 });
                 self.report("download_saved", json!({ "name": name }));
             }
@@ -546,6 +549,7 @@ impl Shell {
             tooltip: None,
             actions: vec![(saved_file::TRY_AGAIN.into(), "retry")],
             goes_after: None,
+            dismissable: true,
         });
     }
 

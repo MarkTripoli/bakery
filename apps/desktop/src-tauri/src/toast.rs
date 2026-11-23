@@ -30,6 +30,9 @@ pub struct Toast {
     pub actions: Vec<(String, &'static str)>,
     /// Seconds after which it goes, unless the pointer or focus is on it. None: stays until closed.
     pub goes_after: Option<u64>,
+    /// Whether it carries a close button. "Saving…" has none: the design gives it no button, and it goes
+    /// by itself when the save ends.
+    pub dismissable: bool,
 }
 
 fn quoted(text: &str) -> String {
@@ -60,6 +63,7 @@ pub fn show_script(toast: &Toast, nonce: &str) -> String {
   const tooltip = {tooltip};
   const actions = {actions};
   const goesAfter = {goes_after};
+  const dismissable = {dismissable};
   let host = document.getElementById("bakery-toasts");
   if (!host) {{
     host = document.createElement("div");
@@ -105,13 +109,15 @@ pub fn show_script(toast: &Toast, nonce: &str) -> String {
     }}
     toast.append(row);
   }}
-  const close = document.createElement("button");
-  close.type = "button";
-  close.className = "ui-feedback-dismiss";
-  close.setAttribute("aria-label", "Dismiss notification");
-  close.textContent = "×";
-  close.addEventListener("click", () => toast.remove());
-  toast.append(close);
+  if (dismissable) {{
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "ui-feedback-dismiss";
+    close.setAttribute("aria-label", "Dismiss notification");
+    close.textContent = "×";
+    close.addEventListener("click", () => toast.remove());
+    toast.append(close);
+  }}
   host.prepend(toast);
   if (goesAfter) {{
     let timer = null;
@@ -141,6 +147,7 @@ pub fn show_script(toast: &Toast, nonce: &str) -> String {
             .unwrap_or_else(|| "null".into()),
         actions = serde_json::Value::Array(actions),
         goes_after = toast.goes_after.unwrap_or(0),
+        dismissable = toast.dismissable,
         scheme = ACTION_SCHEME,
     )
 }
@@ -149,4 +156,34 @@ pub fn show_script(toast: &Toast, nonce: &str) -> String {
 /// is tested.
 pub fn parse_action(url: &url::Url, nonce: &str) -> Option<(String, u64)> {
     bakery_desktop_core::links::toast_action(url.as_str(), nonce)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn toast(dismissable: bool) -> Toast {
+        Toast {
+            id: 1,
+            tone: Tone::Information,
+            text: "Saving report.pdf…".into(),
+            detail: None,
+            tooltip: None,
+            actions: vec![],
+            goes_after: None,
+            dismissable,
+        }
+    }
+
+    #[test]
+    fn a_saving_notice_is_drawn_without_a_close_button() {
+        let script = show_script(&toast(false), "n0nce");
+        assert!(script.contains("const dismissable = false;"));
+        assert!(script.contains("if (dismissable) {"));
+    }
+
+    #[test]
+    fn a_notice_that_may_be_closed_says_so() {
+        assert!(show_script(&toast(true), "n0nce").contains("const dismissable = true;"));
+    }
 }
