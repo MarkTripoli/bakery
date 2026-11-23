@@ -295,6 +295,11 @@ export type WorkerProviderBindingResponse =
   ClientOutputMap["WorkerProviderBinding"];
 export type WorkerProviderBindingCreate =
   ClientInputMap["WorkerProviderBindingCreate"];
+export type ProviderRouteListResponse = ClientOutputMap["Page<ProviderRoute>"];
+export type ProviderRouteResponse = ClientOutputMap["ProviderRoute"];
+export type RouteHealthResponse = ClientOutputMap["RouteHealth"];
+export type ProviderRouteCreate = ClientInputMap["ProviderRouteCreate"];
+export type ProviderRouteUpdate = ClientInputMap["ProviderRouteUpdate"];
 export type WorkerEnrollmentCreate = ClientInputMap["WorkerEnrollmentCreate"];
 export type WorkerUpdate = ClientInputMap["WorkerUpdate"];
 
@@ -1344,6 +1349,37 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerResponse>>;
+  };
+  /** The models work may be sent to (`/v1/provider-routes`). The server lists them for the whole organization. */
+  readonly providerRoutes: {
+    readonly list: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<ProviderRouteListResponse>>;
+    /** Why a model is in trouble, and since when. */
+    readonly health: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<RouteHealthResponse>>;
+    /** Administrators only. A new model starts turned on and not yet tried. */
+    readonly create: (options: {
+      readonly organizationId: string;
+      readonly input: ProviderRouteCreate;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<ProviderRouteResponse>>;
+    /** Administrators only: turn a model on or off. `version` is the one last read (`If-Match`). */
+    readonly update: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly input: ProviderRouteUpdate;
+      readonly version?: number;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<ProviderRouteResponse>>;
   };
   readonly machines: {
     readonly dispatchBlockers: (options: {
@@ -3571,6 +3607,53 @@ export function createBakeryApiClient({
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
+        );
+      },
+    },
+    providerRoutes: {
+      list(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["providerRoutes.list"]({
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      health(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["providerRoutes.health"]({ id: options.id }, {
+              signal: options.signal,
+            }),
+        );
+      },
+      create(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["providerRoutes.create"](options.input, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      update(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["providerRoutes.update"](
+              { id: options.id, ...options.input },
+              {
+                ifMatch: options.version === undefined
+                  ? undefined
+                  : versionEtag(options.version),
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
         );
       },
     },
