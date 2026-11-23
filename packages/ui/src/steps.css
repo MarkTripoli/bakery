@@ -816,6 +816,11 @@ button.ui-outline__main:focus-visible {
   block-size: 100%;
   inline-size: 100%;
 }
+/* The first answer uses guessed block sizes; the drawing appears once the
+   measured sizes have replaced them, so it does not jump on first paint. */
+[data-ui-region="workflow-canvas"][data-layout="settling"] .react-flow {
+  opacity: 0;
+}
 [data-ui-region="workflow-canvas"] .react-flow__handle {
   opacity: 0;
   pointer-events: none;

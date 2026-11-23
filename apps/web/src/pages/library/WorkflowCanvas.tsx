@@ -128,6 +128,10 @@ function Surface(props: WorkflowCanvasProps) {
   );
   const [sizes, setSizes] = useState<ReadonlyMap<string, Size>>(new Map());
   const [laid, setLaid] = useState<readonly Placement[] | null>(null);
+  // The block sizes the current `laid` was computed from, and whether the
+  // measured sizes agree with them: only then is the drawing final.
+  const [laidKey, setLaidKey] = useState<string | null>(null);
+  const [stable, setStable] = useState(false);
   const passes = useRef(0);
   const sizesKey = useMemo(
     () =>
@@ -141,7 +145,9 @@ function Surface(props: WorkflowCanvasProps) {
   useEffect(() => {
     let live = true;
     elk().layout(elkGraph(graph, sizes)).then((result) => {
-      if (live) setLaid(placements(result));
+      if (!live) return;
+      setLaid(placements(result));
+      setLaidKey(sizesKey);
     });
     return () => {
       live = false;
@@ -149,6 +155,7 @@ function Surface(props: WorkflowCanvasProps) {
   }, [signature, sizesKey]);
   useEffect(() => {
     passes.current = 0;
+    setStable(false);
   }, [signature]);
 
   const placed = useMemo(
@@ -165,14 +172,22 @@ function Surface(props: WorkflowCanvasProps) {
     return out;
   });
   useEffect(() => {
-    if (laid === null || passes.current >= 6) return;
+    if (laid === null || laidKey !== sizesKey) return;
+    if (passes.current >= 6) {
+      setStable(true);
+      return;
+    }
     const next = new Map(sizes);
     let changed = false;
+    let unmeasured = false;
     for (const block of graph.blocks) {
       if (isContainer(block)) continue;
       const found = stores.nodesStore.getState().nodeLookup.get(block.id)
         ?.measured;
-      if (found?.width === undefined || found.height === undefined) continue;
+      if (found?.width === undefined || found.height === undefined) {
+        unmeasured = true;
+        continue;
+      }
       const known = sizes.get(block.id) ??
         (block.kind === "end" ? END_SIZE : STEP_SIZE);
       if (
@@ -185,9 +200,20 @@ function Surface(props: WorkflowCanvasProps) {
     }
     if (changed) {
       passes.current += 1;
+      setStable(false);
       setSizes(next);
+    } else if (!unmeasured) {
+      setStable(true);
     }
-  }, [measured]);
+  }, [measured, laidKey]);
+  // A block that never reports a size must not leave the canvas clear for good.
+  useEffect(() => {
+    const timer = globalThis.setTimeout(() => setStable(true), 3000);
+    return () => globalThis.clearTimeout(timer);
+  }, [signature]);
+  // Until the measured sizes have replaced the guesses the blocks sit where the
+  // guesses put them, so the canvas stays clear instead of showing that jump.
+  const settled = stable && laid !== null && laidKey === sizesKey;
 
   const nodes = useMemo<Node<BlockData>[]>(
     () =>
@@ -308,6 +334,7 @@ function Surface(props: WorkflowCanvasProps) {
   return (
     <RenderContext.Provider value={{ renderBlock, renderAdd }}>
       <UI.CanvasFrame
+        data-layout={settled ? "ready" : "settling"}
         data-ui-region="workflow-canvas"
         height={frameHeight}
         variant={mode === "editor" ? "fill" : "page"}

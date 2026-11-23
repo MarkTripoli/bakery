@@ -1004,6 +1004,55 @@ test("a draft that matches the version in use has nothing to publish", async ({ 
   await nothing.getByRole("button", { name: "Close" }).click();
 });
 
+test("the diagram is drawn only once the measured sizes are in, and cards in a box have room", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await libraryFixture(page, {
+    ...WORLD,
+    versions: [
+      ...VERSIONS.filter((row) => row.status !== "draft"),
+      {
+        ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+        spec: [{
+          kind: "repeat",
+          steps: [
+            { kind: "action", id: "fix", uses: "harness.implement" },
+            { kind: "action", id: "check", uses: "agent.review" },
+          ],
+        }],
+      },
+    ],
+  });
+  // Note the gap between the two cards the moment the canvas first says it is
+  // ready, not later: a three-line card is taller than the size ELK is first
+  // given, so a canvas that says "ready" too early shows them nearly touching.
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as { __gapAtReady?: number };
+    new MutationObserver(() => {
+      const canvas = document.querySelector(
+        '[data-ui-region="workflow-canvas"][data-layout="ready"]',
+      );
+      const a = document.querySelector("[data-card='fix']");
+      const b = document.querySelector("[data-card='check']");
+      if (canvas && a && b && w.__gapAtReady === undefined) {
+        w.__gapAtReady = b.getBoundingClientRect().top -
+          a.getBoundingClientRect().bottom;
+      }
+    }).observe(document, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+  });
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+  await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+    .toHaveAttribute("data-layout", "ready");
+  await expect.poll(() =>
+    page.evaluate(() =>
+      (globalThis as unknown as { __gapAtReady?: number }).__gapAtReady
+    )
+  ).toBeGreaterThanOrEqual(12);
+});
+
 test.describe("the editor header on a phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
