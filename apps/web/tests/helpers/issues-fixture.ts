@@ -693,6 +693,8 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         workspaceBaseSha: null,
         requestedBy: MOCK_PRINCIPAL_ID,
         inngestRunId: null,
+        // Required since #921: the run's pinned environment.
+        environment: "live",
         status: "running",
         budgetLimitUsd: "10.00",
         startedAt: stamp,
