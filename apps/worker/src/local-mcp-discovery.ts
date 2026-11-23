@@ -1,16 +1,6 @@
 import type { McpStdioLaunchSpec } from "@bakery/contracts/mcp-capabilities";
 import { launchStdioMcpServer, StdioMcpError } from "./stdio-mcp.ts";
 
-/**
- * Discovers the local (`stdio`) MCP servers placed on this host (#441). A
- * stdio connection names one worker host, and only that host can launch its
- * server, so the worker, not the server, asks it what tools it has. Each
- * server is launched from its pinned command (under the T1 sandbox unless the
- * operator allowlisted its digest), asked tools/list, closed, and the answer
- * is reported for the server to validate and pin. One server failing never
- * stops the others.
- */
-
 export const LOCAL_MCP_DISCOVERY_INTERVAL_MS = 10 * 60_000;
 
 type DiscoveryClient = Readonly<{

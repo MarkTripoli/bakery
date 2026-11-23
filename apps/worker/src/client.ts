@@ -170,7 +170,6 @@ const BrokerToolResultSchema = z.object({
   fault: z.unknown().describe("A redacted broker connection failure, or null."),
 }).describe("Result of one brokered tool call.");
 
-/** What the local-mcp-connections route answers (#441). */
 const LocalMcpConnectionsResponseSchema = z.object({
   items: z.array(
     z.object({
@@ -1587,10 +1586,6 @@ export class WorkerApiClient {
     };
   }
 
-  /**
-   * The enabled local (stdio) MCP connections placed on this host (#441),
-   * keyset-paged by connection id: what this worker launches and discovers.
-   */
   async localMcpConnections(
     after: string | null,
     signal?: AbortSignal,
@@ -1614,7 +1609,6 @@ export class WorkerApiClient {
     );
   }
 
-  /** Reports what a local server's tools/list answered; the server pins it. */
   async reportLocalMcpSnapshot(
     connectionId: string,
     report: Readonly<{ protocolVersion: string; tools: readonly unknown[] }>,
@@ -1639,10 +1633,6 @@ export class WorkerApiClient {
     );
   }
 
-  /**
-   * Asks the server to check and record one local tool call before the worker
-   * sends it (#441). A replayed key answers what happened instead.
-   */
   async openLocalToolCall(
     attemptId: string,
     input: Readonly<{
@@ -1680,7 +1670,6 @@ export class WorkerApiClient {
     );
   }
 
-  /** Records how a local tool call ended; only a call still sent settles. */
   async settleLocalToolCall(
     attemptId: string,
     callId: string,

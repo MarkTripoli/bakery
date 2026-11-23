@@ -63,10 +63,6 @@ export type EffectiveMcpTool = Readonly<{
   readOnly: boolean;
   /** Which owner granted it: the most specific binding wins. */
   grantedBy: "step" | "seat" | "agent";
-  /**
-   * The pinned launch of a local (stdio) server, which the session's own
-   * worker runs (#441); null for a remote server the broker calls.
-   */
   launchSpec: McpStdioLaunchSpec | null;
 }>;
 
@@ -233,11 +229,6 @@ function strings(value: unknown): string[] {
 
 const SPECIFICITY = { step: 3, seat: 2, agent: 1 } as const;
 
-/**
- * The MCP tools one session may call, and the bound ones it cannot, with why.
- * `hostId` is the worker host the session runs on: a local (stdio) tool is
- * effective only on the host its connection is placed on (#441).
- */
 export async function effectiveMcpTools(
   transaction: PgTransactionClient,
   organizationId: string,
@@ -371,8 +362,6 @@ export async function effectiveMcpTools(
         refuse("connection_off");
         continue;
       }
-      // A local server runs only where its connection is placed; a launch
-      // spec that no longer parses is refused the same way rather than run.
       const launch = row.transport === "stdio"
         ? McpStdioLaunchSpecSchema.safeParse(row.launch_spec)
         : null;

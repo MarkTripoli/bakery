@@ -12,14 +12,6 @@ import {
   type WorkerAssignment,
 } from "../helpers/worker-execution/scenarios.ts";
 
-/**
- * #441 on a real database: local (stdio) MCP servers. A stdio connection is
- * placed on one worker host. Only that host lists it for discovery and may
- * report its snapshot; only sessions on that host see its tools, with the
- * pinned launch; and its calls are checked and recorded by the server through
- * local-tool-calls before the worker sends them, never sent by the broker.
- */
-
 const LAUNCH = {
   command: "/usr/local/bin/mcp-files",
   args: ["--root", "/srv"],
@@ -46,7 +38,6 @@ type Local = {
 
 type Json = Record<string, unknown>;
 
-/** An Admin's own request, as the web app sends it. */
 function asAdmin(
   fixture: WorkerFixture,
   method: string,
@@ -82,7 +73,6 @@ async function problemField(response: Response): Promise<string[]> {
   return text.match(/"[a-z_]+"/g)?.map((m) => m.slice(1, -1)) ?? [];
 }
 
-/** A server definition made and switched on through the API. */
 async function server(
   fixture: WorkerFixture,
   definition: Json,
@@ -111,7 +101,6 @@ async function server(
   return created.id as string;
 }
 
-/** A stdio connection placed on `hostId` through mcpConnections.create. */
 async function placedConnection(
   fixture: WorkerFixture,
   hostId: string,
@@ -135,7 +124,6 @@ async function placedConnection(
   return created.id as string;
 }
 
-/** Changes a connection through mcpConnections.update, at its current version. */
 async function updateConnection(
   fixture: WorkerFixture,
   connectionId: string,
@@ -154,7 +142,6 @@ async function updateConnection(
   );
 }
 
-/** Enables the discovered echo tool, as a person does after discovery. */
 async function enableEcho(fixture: WorkerFixture, connectionId: string) {
   await json(
     await updateConnection(fixture, connectionId, {
@@ -187,11 +174,6 @@ async function local(fixture: WorkerFixture): Promise<Local> {
   };
 }
 
-/**
- * The fixture removes worker hosts before the organization, and a placed
- * connection holds its host (on delete restrict), so a test unplaces its
- * connections on the way out.
- */
 function withLocal(body: (fixture: WorkerFixture) => Promise<void>) {
   return withWorkerFixture(async (fixture) => {
     try {
@@ -255,6 +237,7 @@ function openCall(
   s: Local,
   args: Record<string, unknown>,
   idempotencyKey: string = crypto.randomUUID(),
+  toolName = "echo",
 ) {
   return workerRequest(
     fixture,
@@ -263,7 +246,7 @@ function openCall(
     {
       ...lease(s),
       mcpConnectionId: s.connectionId,
-      toolName: "echo",
+      toolName,
       arguments: args,
     },
     { idempotencyKey },
@@ -313,13 +296,11 @@ Deno.test("only the host a stdio connection is placed on discovers it and pins i
       [s.connectionId],
     )).rows[0]!;
     assertEquals(row.current_snapshot_id, pinned.snapshotId);
-    // The same answer again keeps the same snapshot.
     assertEquals(
       (await reportSnapshot(fixture, s)).snapshotId,
       pinned.snapshotId,
     );
 
-    // Another host neither sees the connection nor may report for it.
     const other = await registeredWorker(fixture, { slots: 1 });
     const otherList = await discoveryRequest(
       fixture,
@@ -336,7 +317,6 @@ Deno.test("only the host a stdio connection is placed on discovers it and pins i
     );
     assertEquals(otherReport.status, 404);
 
-    // A malformed report is refused and pins nothing.
     const bad = await discoveryRequest(
       fixture,
       s.credential,
@@ -367,7 +347,6 @@ Deno.test("a local tool is listed with its launch, checked and recorded by local
       LAUNCH,
     ]]);
 
-    // The broker's door refuses a local tool: it cannot reach the process.
     const brokered = await workerRequest(
       fixture,
       s.credential,
@@ -382,7 +361,6 @@ Deno.test("a local tool is listed with its launch, checked and recorded by local
     );
     assertEquals(brokered.status, 422);
 
-    // Arguments the pinned schema refuses are refused before the worker sends.
     const refused = await openCall(fixture, s, { text: 5 });
     assertEquals(refused.status, 422);
 
@@ -391,7 +369,6 @@ Deno.test("a local tool is listed with its launch, checked and recorded by local
     assertEquals(opened.status, 200);
     const open = await opened.json() as { callId: string; status: string };
     assertEquals(open.status, "open");
-    // Opened but not settled: a replay must not send it again.
     assertEquals((await openCall(fixture, s, { text: "hi" }, key)).status, 409);
 
     const settled = await settleCall(fixture, s, open.callId, {
@@ -400,7 +377,6 @@ Deno.test("a local tool is listed with its launch, checked and recorded by local
       isError: false,
     });
     assertEquals(settled.status, 200);
-    // Once only.
     const again = await settleCall(fixture, s, open.callId, {
       status: "failed",
       failureCode: "late",
@@ -416,6 +392,9 @@ Deno.test("a local tool is listed with its launch, checked and recorded by local
     };
     assertEquals(answered.status, "completed");
     assertEquals(answered.result.content, [{ type: "text", text: "hi" }]);
+    const otherTool = await openCall(fixture, s, { text: "hi" }, key, "probe");
+    assertEquals(otherTool.status, 422);
+    assertEquals(await problemCode(otherTool), "IDEMPOTENCY_PAYLOAD_MISMATCH");
     const calls = await fixture.pgDatabase.query<{ status: string }>(
       `select status from bakery.tool_gateway_calls
         where attempt_id = $1 order by created_at`,
@@ -429,7 +408,6 @@ Deno.test("a session on another host does not get a local tool placed elsewhere 
     const s = await local(fixture);
     const snapshot = await reportSnapshot(fixture, s);
     await enableEcho(fixture, s.connectionId);
-    // Move the placement to another host of the organization.
     const other = await registeredWorker(fixture, { slots: 1 });
     const otherHost = (await fixture.pgDatabase.query<{ id: string }>(
       `select id from bakery.worker_hosts
@@ -438,9 +416,6 @@ Deno.test("a session on another host does not get a local tool placed elsewhere 
       [fixture.organizationId, s.hostId],
     )).rows[0]!.id;
     assert(other.credential !== s.credential);
-    // Placement is fixed at create: the API moves a connection by recreating it
-    // on the other host. Here the row is moved directly so the same pinned
-    // snapshot and binding show what a session on the old host sees.
     await fixture.pgDatabase.query(
       "update bakery.mcp_connections set worker_host_id = $2 where id = $1",
       [s.connectionId, otherHost],
@@ -472,7 +447,6 @@ Deno.test("create refuses a placement on an unknown host, a missing one, or a re
       [s.connectionId],
     )).rows[0]!.version;
 
-    // A host that is not this organization's is unknown.
     const stranger = crypto.randomUUID();
     const stdioServer = await server(fixture, {
       transport: "stdio",
@@ -493,14 +467,12 @@ Deno.test("create refuses a placement on an unknown host, a missing one, or a re
         }),
       )).includes("worker_host_unknown"),
     );
-    // A stdio connection must name its host.
     assert(
       (await problemField(
         await asAdmin(fixture, "POST", "/v1/mcp-connections", stdioInput),
       )).includes("worker_host_required"),
     );
 
-    // A remote connection runs on no host: placing it is refused.
     const remoteServer = await server(fixture, {
       transport: "streamable_http",
       endpointTemplate: "https://mcp.example.com/mcp",
@@ -520,7 +492,6 @@ Deno.test("create refuses a placement on an unknown host, a missing one, or a re
         }),
       )).includes("worker_host_not_for_remote"),
     );
-    // Nothing above moved the placed connection.
     const row = (await fixture.pgDatabase.query<{
       worker_host_id: string;
       version: number;

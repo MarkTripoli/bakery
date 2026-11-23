@@ -214,7 +214,6 @@ Deno.test("a config schema is enforced when it can be, and refused when it canno
   );
 });
 
-/** A transaction that answers the server and host reads of a connection create. */
 function placementStand(
   server: { transport: string; required_capabilities: string[] },
   host: { capabilities: string[] } | null,
@@ -293,12 +292,11 @@ Deno.test("a local stdio connection is placed on one host of the organization th
       name,
     );
   }
-  // A host that has it: the connection row names the host.
   const { context, statements } = placementStand(stdio, {
     capabilities: ["git", "mcp-files"],
   });
   await create(context, { ...valid, workerHostId: HOST } as never).catch(
-    () => undefined, // the stand has no row to read back; the insert is what counts
+    () => undefined,
   );
   const insert = statements.find((s) =>
     s.sql.includes("insert into bakery.mcp_connections")

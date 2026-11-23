@@ -1,7 +1,4 @@
 #!/bin/sh
-# A minimal stdio MCP server for tests (#441). Tools: "echo" returns its text;
-# "probe" reports whether a host path is visible and whether the network is
-# reachable, so a test can tell the T1 sandbox from an allowlisted launch.
 exec /usr/bin/node -e '
 const fs = require("node:fs");
 const net = require("node:net");
@@ -16,6 +13,7 @@ rl.on("line", async (line) => {
   if (m.id === undefined) return;
   if (m.method === "initialize") return send({ id: m.id, result: { protocolVersion: "2026-07-28", capabilities: { tools: {} }, serverInfo: { name: "fixture", version: "1" } } });
   if (m.method === "tools/list") return send({ id: m.id, result: { tools } });
+  if (m.method === "tools/call" && m.params.name === "exit") process.exit(0);
   if (m.method === "tools/call" && m.params.name === "echo") return send({ id: m.id, result: { content: [{ type: "text", text: String(m.params.arguments.text) }] } });
   if (m.method === "tools/call" && m.params.name === "probe") {
     const network = await new Promise((resolve) => {

@@ -226,7 +226,6 @@ Deno.test("a local stdio definition stores its pinned launch and required capabi
       return Promise.resolve({ rows: [{ next: 1 }], rowCount: 1 });
     },
   };
-  // The stand has no event clock; the insert is what this test reads.
   await createMcpServer(context, {
     ...valid,
     slug: "files",

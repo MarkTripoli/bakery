@@ -1,9 +1,23 @@
-import { assert, assertEquals, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
+import { createHash, randomBytes } from "node:crypto";
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  truncate,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   parseStdioAllowlist,
+  pinStdioCommand,
   STDIO_SANDBOX_COMMAND,
   stdioIsolation,
   StdioLaunchSpecSchema,
+  StdioMcpError,
   stdioSandboxArguments,
 } from "../../apps/worker/src/stdio-mcp.ts";
 import { readWorkerConfig } from "../../apps/worker/src/config.ts";
@@ -101,7 +115,6 @@ Deno.test("the T1 sandbox has no network, no host home and only the pinned copy"
       "--new-session",
     ]
   ) assert(args.includes(flag), flag);
-  // Only /usr, ld.so.cache and the pinned copy come from the host, read-only.
   const binds: string[] = [];
   args.forEach((arg, index) => {
     if (arg === "--bind" || arg === "--dev-bind") binds.push(args[index + 1]!);
@@ -116,4 +129,72 @@ Deno.test("the T1 sandbox has no network, no host home and only the pinned copy"
   ]);
   assert(!args.includes("--bind"));
   assertEquals(args.slice(-3), ["--", STDIO_SANDBOX_COMMAND, "--flag"]);
+});
+
+async function pinRefusal(command: string, workDir: string): Promise<string> {
+  const error = await assertRejects(
+    () =>
+      pinStdioCommand({ command, args: [], artifactDigest: DIGEST }, {
+        allowlist: [],
+        workDir,
+      }),
+    StdioMcpError,
+  );
+  return error.code;
+}
+
+Deno.test("the pinned copy refuses a device, an oversized file and a missing one", async () => {
+  const workDir = await mkdtemp(join(tmpdir(), "bakery-pin-refusals-"));
+  try {
+    const oversized = join(workDir, "oversized");
+    await writeFile(oversized, "");
+    await truncate(oversized, 256 * 1024 * 1024 + 1);
+    assertEquals(
+      await pinRefusal("/dev/zero", workDir),
+      "STDIO_MCP_COMMAND_NOT_A_FILE",
+    );
+    assertEquals(
+      await pinRefusal(oversized, workDir),
+      "STDIO_MCP_COMMAND_TOO_LARGE",
+    );
+    assertEquals(
+      await pinRefusal(join(workDir, "absent"), workDir),
+      "STDIO_MCP_COMMAND_MISSING",
+    );
+    assertEquals(await readdir(workDir), ["oversized"]);
+  } finally {
+    await rm(workDir, { recursive: true, force: true });
+  }
+});
+
+Deno.test("the pinned copy is the checked file, byte for byte, across copy chunks", async () => {
+  const workDir = await mkdtemp(join(tmpdir(), "bakery-pin-copy-"));
+  try {
+    const command = join(workDir, "server");
+    const bytes = randomBytes(2 * 1024 * 1024 + 7);
+    await writeFile(command, bytes);
+    const artifactDigest = createHash("sha256").update(bytes).digest("hex");
+    const pinned = await pinStdioCommand(
+      { command, args: [], artifactDigest },
+      { allowlist: [artifactDigest], workDir },
+    );
+    assertEquals(
+      new Uint8Array(await readFile(pinned.path)),
+      new Uint8Array(bytes),
+    );
+    assertEquals((await stat(pinned.path)).mode & 0o777, 0o500);
+    assertEquals(pinned.isolation, "allowlisted");
+    await assertRejects(
+      () =>
+        pinStdioCommand({ command, args: [], artifactDigest: DIGEST }, {
+          allowlist: [],
+          workDir,
+        }),
+      StdioMcpError,
+      "STDIO_MCP_ARTIFACT_MISMATCH",
+    );
+    await rm(pinned.directory, { recursive: true, force: true });
+  } finally {
+    await rm(workDir, { recursive: true, force: true });
+  }
 });

@@ -1,9 +1,13 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { createServer } from "node:net";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   launchStdioMcpServer,
+  pinStdioCommand,
   StdioMcpError,
 } from "../../apps/worker/src/stdio-mcp.ts";
 
@@ -103,5 +107,30 @@ Deno.test(
       StdioMcpError,
     );
     assertEquals(error.code, "STDIO_MCP_ARTIFACT_MISMATCH");
+  },
+);
+
+Deno.test(
+  "a FIFO named as the command is refused at once, without waiting for a writer",
+  RUN,
+  async () => {
+    const workDir = await mkdtemp(join(tmpdir(), "bakery-pin-fifo-"));
+    try {
+      const fifo = join(workDir, "fifo");
+      execFileSync("mkfifo", [fifo]);
+      await assertRejects(
+        () =>
+          pinStdioCommand({
+            command: fifo,
+            args: [],
+            artifactDigest: "a".repeat(64),
+          }, { allowlist: [], workDir }),
+        StdioMcpError,
+        "STDIO_MCP_COMMAND_NOT_A_FILE",
+      );
+      assertEquals(await readdir(workDir), ["fifo"]);
+    } finally {
+      await rm(workDir, { recursive: true, force: true });
+    }
   },
 );

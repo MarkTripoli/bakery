@@ -286,13 +286,6 @@ export async function loadServerForConnection(
   };
 }
 
-/**
- * Where a connection's server runs (#441). A remote server runs nowhere in
- * particular and names no host. A local (`stdio`) server runs on exactly one
- * worker host, which is a placement requirement: the connection names a host of
- * this organization that advertises every capability the server requires, and
- * a call is dispatched only there.
- */
 export async function requirePlacement(
   transaction: PgTransactionClient,
   organizationId: string,

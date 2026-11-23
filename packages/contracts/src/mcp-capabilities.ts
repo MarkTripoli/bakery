@@ -27,12 +27,6 @@ export type McpTransport = typeof MCP_TRANSPORTS[number];
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 
-/**
- * The pinned launch of a local (`stdio`) MCP server (#441), as stored in
- * `mcp_servers.launch_spec`. The worker runs exactly this command with exactly
- * these arguments, never through a shell or PATH, and only when the command
- * file's SHA-256 is `artifactDigest`.
- */
 export const McpStdioLaunchSpecSchema = z.strictObject({
   command: z.string().min(2).max(1024)
     .regex(/^\/[^\0]*$/, "an absolute path")

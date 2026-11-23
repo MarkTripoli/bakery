@@ -514,8 +514,6 @@ export function createExecutionRoutes(
         (context) => localMcpSnapshotRoute(context, options),
       ),
     );
-    // Local stdio servers (#441): the worker that runs one asks first and
-    // reports after; the server checks and records every call.
     const localToolCall = createLocalToolCallRoute(toolGateway);
     app.post(
       LOCAL_TOOL_CALLS_PATH,

@@ -11,17 +11,6 @@ import {
   workerTransaction,
 } from "./shared.ts";
 
-/**
- * Local (`stdio`) MCP servers, discovered where they run (#441,
- * docs/technical-design/25-one-engine.md 15.4). A stdio connection is placed on
- * one worker host; only that host can launch the server, so only that host
- * discovers it. The worker lists the connections placed on it, launches each
- * from its pinned command (under the T1 sandbox unless the operator allowlisted
- * it) and reports what tools/list answered. The server validates the report
- * with the same bounds and digest as a remote discovery and pins it the same
- * way: nothing is enabled and no binding's pin moves.
- */
-
 export const LOCAL_MCP_CONNECTIONS_PATH = "/v1/worker/local-mcp-connections";
 export const LOCAL_MCP_SNAPSHOTS_PATH =
   "/v1/worker/local-mcp-connections/:id/snapshots";
@@ -57,7 +46,6 @@ type PlacedRow = {
   current_digest: string | null;
 };
 
-/** `POST /v1/worker/local-mcp-connections`: what this host should discover. */
 export async function localMcpConnectionsRoute(
   context: Context,
   options: ExecutionRouteOptions,
@@ -97,7 +85,6 @@ export async function localMcpConnectionsRoute(
   return jsonResponse({
     items: page.flatMap((row) => {
       const launch = McpStdioLaunchSpecSchema.safeParse(row.launch_spec);
-      // A stored launch that no longer parses is never handed to a worker.
       return launch.success
         ? [{
           connectionId: row.id,
@@ -110,7 +97,6 @@ export async function localMcpConnectionsRoute(
   }, 200);
 }
 
-/** `POST /v1/worker/local-mcp-connections/{id}/snapshots`: pin what the host saw. */
 export async function localMcpSnapshotRoute(
   context: Context,
   options: ExecutionRouteOptions,
@@ -149,8 +135,6 @@ export async function localMcpSnapshotRoute(
             and server.enabled and server.transport = 'stdio'`,
         [identity.host.organization_id, connectionId.data, identity.host.id],
       )).rows[0];
-      // Another host's connection, a remote one, or one switched off: this
-      // host has nothing to report for it.
       if (placed === undefined) {
         throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       }

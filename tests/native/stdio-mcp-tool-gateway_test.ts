@@ -9,36 +9,38 @@ import { discoverLocalMcpServers } from "../../apps/worker/src/local-mcp-discove
 import {
   launchStdioMcpServer,
   type StdioIsolation,
+  StdioMcpError,
 } from "../../apps/worker/src/stdio-mcp.ts";
-
-/**
- * #441 with a real local server under bubblewrap: a session's gateway calls a
- * local (stdio) tool only after the server opened the call, launches the pinned
- * server on that first call (sandboxed unless allowlisted), and reports how it
- * ended; the host discovers its placed servers and reports what they list.
- */
 
 const FIXTURE = new URL(
   "../fixtures/stdio-mcp/fixture-server.sh",
+  import.meta.url,
+).pathname;
+const EXITS_DURING_INITIALIZE = new URL(
+  "../fixtures/stdio-mcp/exits-during-initialize.sh",
   import.meta.url,
 ).pathname;
 const RUN = { sanitizeResources: false, sanitizeOps: false } as const;
 const CONNECTION = "66666666-6666-4666-8666-666666666666";
 const CALL = "77777777-7777-4777-8777-777777777777";
 
-async function launchSpec(digest?: string) {
+async function launchSpec(digest?: string, command = FIXTURE) {
   return {
-    command: FIXTURE,
+    command,
     args: [],
     artifactDigest: digest ??
-      createHash("sha256").update(await readFile(FIXTURE)).digest("hex"),
+      createHash("sha256").update(await readFile(command)).digest("hex"),
   };
 }
 
-function tool(spec: GatewayTool["launchSpec"], readOnly = false): GatewayTool {
+function tool(
+  spec: GatewayTool["launchSpec"],
+  readOnly = false,
+  name = "echo",
+): GatewayTool {
   return {
-    name: "echo",
-    toolName: "echo",
+    name,
+    toolName: name,
     connectionId: CONNECTION,
     description: "Echoes text.",
     inputSchema: { type: "object" },
@@ -140,7 +142,6 @@ Deno.test(
       });
       assertEquals(first.content[0]!.text, "one");
       assertEquals(second.content[0]!.text, "two");
-      // One sandboxed process for the session, launched on the first call.
       assertEquals(launches, ["sandbox"]);
       assertEquals(fake.remoteCalls(), 0);
       assertEquals(fake.opened.map((input) => input.toolName), [
@@ -317,6 +318,125 @@ Deno.test(
       assertEquals(fake.settled, []);
     } finally {
       await gateway.close();
+    }
+  },
+);
+
+Deno.test(
+  "a local write whose server exits during initialize is settled failed, not left sent",
+  RUN,
+  async () => {
+    const spec = await launchSpec(undefined, EXITS_DURING_INITIALIZE);
+    const fake = fakeClient([tool(spec)]);
+    const gateway = await createToolGatewayFactory(fake.client, authority, {
+      stdioAllowlist: [],
+    })(assignment);
+    try {
+      const answer = await call(gateway.url, gateway.token, "echo", {
+        text: "x",
+      });
+      assert(answer.isError);
+      assertEquals(fake.settled, [{
+        callId: CALL,
+        outcome: { status: "failed", failureCode: "stdio_mcp_exited" },
+      }]);
+    } finally {
+      await gateway.close();
+    }
+  },
+);
+
+Deno.test(
+  "a local server that exits is launched again for the next call",
+  RUN,
+  async () => {
+    let launched = 0;
+    const spec = await launchSpec();
+    const fake = fakeClient([tool(spec), tool(spec, false, "exit")]);
+    const gateway = await createToolGatewayFactory(fake.client, authority, {
+      stdioAllowlist: [],
+      launch: (launchedSpec, options) => {
+        launched++;
+        return launchStdioMcpServer(launchedSpec, options);
+      },
+    })(assignment);
+    try {
+      const lost = await call(gateway.url, gateway.token, "exit", {});
+      assert(lost.isError);
+      assertEquals(fake.settled, []);
+      const after = await call(gateway.url, gateway.token, "echo", {
+        text: "after",
+      });
+      assertEquals(after.content[0]!.text, "after");
+      assertEquals(launched, 2);
+      assertEquals(fake.settled.map((s) => s.outcome.status), ["completed"]);
+    } finally {
+      await gateway.close();
+    }
+  },
+);
+
+Deno.test(
+  "a local write the server never received is settled failed",
+  RUN,
+  async () => {
+    const fake = fakeClient([tool(await launchSpec())]);
+    const gateway = await createToolGatewayFactory(fake.client, authority, {
+      stdioAllowlist: [],
+      launch: async (spec, options) => {
+        const server = await launchStdioMcpServer(spec, options);
+        return {
+          ...server,
+          callTool: () =>
+            Promise.reject(
+              new StdioMcpError("STDIO_MCP_EXITED", undefined, false),
+            ),
+        };
+      },
+    })(assignment);
+    try {
+      const answer = await call(gateway.url, gateway.token, "echo", {
+        text: "x",
+      });
+      assert(answer.isError);
+      assertEquals(fake.settled, [{
+        callId: CALL,
+        outcome: { status: "failed", failureCode: "stdio_mcp_exited" },
+      }]);
+    } finally {
+      await gateway.close();
+    }
+  },
+);
+
+Deno.test(
+  "a call to a local server that has exited is marked never written",
+  RUN,
+  async () => {
+    const spec = await launchSpec();
+    const server = await launchStdioMcpServer(spec, {
+      allowlist: [spec.artifactDigest],
+    });
+    try {
+      const lost = await server.callTool("exit", {}).then(
+        () => null,
+        (error: StdioMcpError) => error,
+      );
+      assertEquals([lost?.code, lost?.requestWritten], [
+        "STDIO_MCP_EXITED",
+        true,
+      ]);
+      await server.exited;
+      const unsent = await server.callTool("echo", { text: "x" }).then(
+        () => null,
+        (error: StdioMcpError) => error,
+      );
+      assertEquals([unsent?.code, unsent?.requestWritten], [
+        "STDIO_MCP_EXITED",
+        false,
+      ]);
+    } finally {
+      await server.close();
     }
   },
 );

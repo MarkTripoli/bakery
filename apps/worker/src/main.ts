@@ -505,9 +505,6 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     };
     Deno.addSignalListener("SIGTERM", drainForSigterm);
     Deno.addSignalListener("SIGINT", drainForSigint);
-    // Local stdio MCP servers placed on this host are discovered here (#441).
-    // Only a Claude-harness host serves sessions their tools, so only it
-    // looks; the first pass waits for registration to settle.
     const localDiscovery = codingHarness?.name === "claude"
       ? startLocalMcpDiscovery(client, config.mcpStdioAllowlist ?? [])
       : undefined;
@@ -548,7 +545,6 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
   }
 }
 
-/** Runs local MCP discovery a minute after start, then every ten minutes. */
 function startLocalMcpDiscovery(
   client: WorkerApiClient,
   allowlist: readonly string[],
@@ -556,22 +552,18 @@ function startLocalMcpDiscovery(
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const pass = async () => {
-    try {
-      const outcomes = await discoverLocalMcpServers(client, {
-        allowlist,
-        signal: controller.signal,
-      });
-      for (const outcome of outcomes) {
-        if (outcome.failure !== null) {
-          console.error(JSON.stringify({
-            event: "local_mcp_discovery_failed",
-            connectionId: outcome.connectionId,
-            code: outcome.failure,
-          }));
-        }
+    const outcomes = await discoverLocalMcpServers(client, {
+      allowlist,
+      signal: controller.signal,
+    }).catch(() => []);
+    for (const outcome of outcomes) {
+      if (outcome.failure !== null) {
+        console.error(JSON.stringify({
+          event: "local_mcp_discovery_failed",
+          connectionId: outcome.connectionId,
+          code: outcome.failure,
+        }));
       }
-    } catch {
-      // Not registered yet, or the server is away: the next pass tries again.
     }
     if (!controller.signal.aborted) {
       timer = setTimeout(pass, LOCAL_MCP_DISCOVERY_INTERVAL_MS);

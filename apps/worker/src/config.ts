@@ -97,11 +97,6 @@ export type WorkerConfig = {
   spoolMaxRecords: number;
   spoolMaxBytes: number;
   outputRedactionSecrets?: string[];
-  /**
-   * Artifact digests of local stdio MCP servers the operator trusts to run
-   * outside the T1 sandbox (`BAKERY_WORKER_MCP_STDIO_ALLOWLIST`, #441). Every
-   * other local server runs sandboxed.
-   */
   mcpStdioAllowlist?: string[];
   shutdownReceiptLaunchId?: string;
   /** Test-only directory the scripted harness uses for its start and release files. */

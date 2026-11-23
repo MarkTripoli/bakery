@@ -191,8 +191,6 @@ export function createMcpDiscoverer(dependencies: McpDiscoveryDependencies) {
       [organizationId, connection.server_id],
     )).rows[0];
     if (!server) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-    // A local server runs only on its connection's host; that worker discovers
-    // it and reports the snapshot (#441), never the server.
     if (server.transport === "stdio") {
       throw new StandardError({
         code: "STATE_CONFLICT",
@@ -242,13 +240,6 @@ export function createMcpDiscoverer(dependencies: McpDiscoveryDependencies) {
   };
 }
 
-/**
- * Pins what a discovery found, under the connection row's lock the caller
- * already holds: an unchanged digest keeps the latest snapshot, a changed one
- * writes a new immutable snapshot and moves the connection's current pointer.
- * Nothing is enabled and no binding's pin moves. Shared by the server's own
- * discovery of a remote server and a worker's report for a local one (#441).
- */
 export async function pinDiscoveredSnapshot(
   transaction: PgTransactionClient,
   input: Readonly<{
@@ -325,7 +316,6 @@ export async function pinDiscoveredSnapshot(
       unchanged,
       reportedBy: input.reportedBy,
       toolCount: found.manifest.tools.length,
-      // Names only, bounded: what changed, never a schema or a description.
       added: changes.added.slice(0, 50),
       removed: changes.removed.slice(0, 50),
       changed: changes.changed.slice(0, 50),

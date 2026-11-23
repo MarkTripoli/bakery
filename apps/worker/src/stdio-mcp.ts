@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmod, copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { constants } from "node:fs";
+import { chmod, type FileHandle, mkdtemp, open, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -8,33 +9,13 @@ import {
   McpStdioLaunchSpecSchema,
 } from "@bakery/contracts/mcp-capabilities";
 
-/**
- * Local (`stdio`) MCP servers (#441, docs/technical-design/25-one-engine.md
- * 15.4 "Local or remote", slice H).
- *
- * A stdio server is launched by the worker from a pinned command, never by the
- * server and never by the agent session. The launch is pinned twice: the
- * definition names the command, its arguments and the SHA-256 of the command
- * file. The worker copies the command into a private directory, hashes the
- * copy and runs the copy, so the file that runs is the file that was checked.
- *
- * A third-party server runs under the T1 sandbox: bubblewrap with fresh user,
- * PID, IPC, UTS and network namespaces, the system `/usr` read-only, a private
- * `/tmp`, and nothing of the worker's home, state, credentials or
- * environment. An operator who trusts a server puts its artifact digest on the
- * host's allowlist (`BAKERY_WORKER_MCP_STDIO_ALLOWLIST`); only then does it
- * run outside the sandbox, still with a cleared environment.
- *
- * Tools only (O31): the client offers no sampling, elicitation or roots, and
- * answers any request the server makes with "method not found".
- */
-
 export const STDIO_SANDBOX_EXECUTABLE = "/usr/bin/bwrap";
-/** Where the pinned command sits inside the sandbox. */
 export const STDIO_SANDBOX_COMMAND = "/opt/bakery-mcp/server";
 const PROTOCOL_VERSION = "2026-07-28";
 const MAX_LINE_BYTES = 4 * 1024 * 1024;
 const MAX_STDERR_BYTES = 8 * 1024;
+const MAX_COMMAND_BYTES = 256 * 1024 * 1024;
+const COPY_CHUNK_BYTES = 1024 * 1024;
 const MAX_PAGES = 20;
 const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -44,21 +25,22 @@ const STDIO_ENVIRONMENT = Object.freeze({
   LANG: "C.UTF-8",
 });
 
-/** The pinned launch of a stdio server, as an `mcp_servers.launch_spec`. */
 export const StdioLaunchSpecSchema = McpStdioLaunchSpecSchema;
 export type StdioLaunchSpec = McpStdioLaunchSpec;
 
-/** How a launch runs: the T1 sandbox, or outside it because the operator allowlisted it. */
 export type StdioIsolation = "sandbox" | "allowlisted";
 
 export class StdioMcpError extends Error {
-  constructor(readonly code: string, readonly diagnostic?: string) {
+  constructor(
+    readonly code: string,
+    readonly diagnostic?: string,
+    readonly requestWritten = true,
+  ) {
     super(code);
     this.name = "StdioMcpError";
   }
 }
 
-/** Reads `BAKERY_WORKER_MCP_STDIO_ALLOWLIST`: comma-separated artifact digests. */
 export function parseStdioAllowlist(value: string | undefined): string[] {
   const entries = (value ?? "").split(",").map((entry) => entry.trim())
     .filter((entry) => entry !== "");
@@ -70,7 +52,6 @@ export function parseStdioAllowlist(value: string | undefined): string[] {
   return [...new Set(entries)];
 }
 
-/** The isolation a launch gets: allowlisted only by its exact artifact digest. */
 export function stdioIsolation(
   spec: Pick<StdioLaunchSpec, "artifactDigest">,
   allowlist: readonly string[],
@@ -78,7 +59,6 @@ export function stdioIsolation(
   return allowlist.includes(spec.artifactDigest) ? "allowlisted" : "sandbox";
 }
 
-/** The bubblewrap arguments that run the pinned copy under the T1 sandbox. */
 export function stdioSandboxArguments(
   pinnedCopy: string,
   args: readonly string[],
@@ -129,11 +109,46 @@ export function stdioSandboxArguments(
   ];
 }
 
-function sha256Hex(bytes: Uint8Array): string {
-  return createHash("sha256").update(bytes).digest("hex");
+async function copyAndHash(source: string, target: string): Promise<string> {
+  let input: FileHandle;
+  try {
+    input = await open(source, constants.O_RDONLY | constants.O_NONBLOCK);
+  } catch {
+    throw new StdioMcpError("STDIO_MCP_COMMAND_MISSING");
+  }
+  try {
+    const info = await input.stat();
+    if (!info.isFile()) throw new StdioMcpError("STDIO_MCP_COMMAND_NOT_A_FILE");
+    if (info.size > MAX_COMMAND_BYTES) {
+      throw new StdioMcpError("STDIO_MCP_COMMAND_TOO_LARGE");
+    }
+    const output = await open(target, "wx", 0o600);
+    try {
+      const hash = createHash("sha256");
+      const buffer = new Uint8Array(COPY_CHUNK_BYTES);
+      let copied = 0;
+      for (;;) {
+        const { bytesRead } = await input.read(buffer, 0, buffer.length, null);
+        if (bytesRead === 0) return hash.digest("hex");
+        copied += bytesRead;
+        if (copied > MAX_COMMAND_BYTES) {
+          throw new StdioMcpError("STDIO_MCP_COMMAND_TOO_LARGE");
+        }
+        const chunk = buffer.subarray(0, bytesRead);
+        hash.update(chunk);
+        let written = 0;
+        while (written < chunk.length) {
+          written += (await output.write(chunk, written)).bytesWritten;
+        }
+      }
+    } finally {
+      await output.close();
+    }
+  } finally {
+    await input.close();
+  }
 }
 
-/** A pinned copy of the command, checked against the definition's digest. */
 export type PinnedStdioCommand = Readonly<{
   path: string;
   directory: string;
@@ -142,10 +157,6 @@ export type PinnedStdioCommand = Readonly<{
   args: readonly string[];
 }>;
 
-/**
- * Copies the command into a private directory and checks the copy's digest.
- * The copy is what runs, so a command file changed after the check cannot run.
- */
 export async function pinStdioCommand(
   spec: StdioLaunchSpec,
   options: Readonly<{ allowlist: readonly string[]; workDir?: string }>,
@@ -155,12 +166,7 @@ export async function pinStdioCommand(
   );
   const path = join(directory, "server");
   try {
-    try {
-      await copyFile(spec.command, path);
-    } catch {
-      throw new StdioMcpError("STDIO_MCP_COMMAND_MISSING");
-    }
-    const digest = sha256Hex(await readFile(path));
+    const digest = await copyAndHash(spec.command, path);
     if (digest !== spec.artifactDigest) {
       throw new StdioMcpError("STDIO_MCP_ARTIFACT_MISMATCH");
     }
@@ -183,13 +189,11 @@ export async function pinStdioCommand(
   });
 }
 
-/** A tool as the local server listed it, before the server validates it. */
 export type StdioListedTools = Readonly<{
   protocolVersion: string;
   tools: readonly unknown[];
 }>;
 
-/** One running local server, initialized and ready for tools/list and tools/call. */
 export type StdioMcpServer = Readonly<{
   isolation: StdioIsolation;
   protocolVersion: string;
@@ -199,19 +203,28 @@ export type StdioMcpServer = Readonly<{
     args: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<{ content: unknown[]; isError: boolean }>;
+  exited: Promise<void>;
   close(): Promise<void>;
 }>;
+
+function parseProtocolMessage(line: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(line) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+const ignoreBrokenPipe = () => undefined;
 
 type Pending = {
   resolve: (value: Record<string, unknown>) => void;
   reject: (error: Error) => void;
 };
 
-/**
- * Launches a pinned stdio server and completes the MCP handshake. Newline
- * delimited JSON-RPC on stdin and stdout; stderr is kept only as a bounded
- * diagnostic.
- */
 export async function launchStdioMcpServer(
   spec: StdioLaunchSpec,
   options: Readonly<{
@@ -245,8 +258,9 @@ export async function launchStdioMcpServer(
     for (const waiter of pending.values()) waiter.reject(error);
     pending.clear();
   };
+  const isRunning = () => exited === null && child.stdin !== null;
   const write = (message: Record<string, unknown>) => {
-    if (exited !== null || child.stdin === null) {
+    if (!isRunning() || child.stdin === null) {
       throw exited ?? new StdioMcpError("STDIO_MCP_EXITED");
     }
     child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`);
@@ -254,14 +268,8 @@ export async function launchStdioMcpServer(
   const onMessage = (message: Record<string, unknown>) => {
     const id = message.id;
     if (typeof message.method === "string") {
-      // A request from the server (sampling, elicitation, roots): offered
-      // nothing, so refused. A notification needs no answer.
-      if (id !== undefined && id !== null) {
-        try {
-          write({ id, error: { code: -32601, message: "Method not found." } });
-        } catch {
-          // The process is gone; its pending requests are already failing.
-        }
+      if (id !== undefined && id !== null && isRunning()) {
+        write({ id, error: { code: -32601, message: "Method not found." } });
       }
       return;
     }
@@ -285,14 +293,8 @@ export async function launchStdioMcpServer(
       const line = buffered.slice(0, newline).trim();
       buffered = buffered.slice(newline + 1);
       if (line === "") continue;
-      try {
-        const parsed = JSON.parse(line) as unknown;
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          onMessage(parsed as Record<string, unknown>);
-        }
-      } catch {
-        // Not a protocol message (a stray log line); ignored.
-      }
+      const message = parseProtocolMessage(line);
+      if (message !== null) onMessage(message);
     }
   });
   child.stderr!.setEncoding("utf8");
@@ -313,9 +315,7 @@ export async function launchStdioMcpServer(
       resolve();
     });
   });
-  child.stdin!.on("error", () => {
-    // EPIPE after the process exited; the close handler reports it.
-  });
+  child.stdin!.on("error", ignoreBrokenPipe);
 
   const close = async () => {
     if (closed) return;
@@ -347,7 +347,11 @@ export async function launchStdioMcpServer(
         clearTimeout(timer);
         reject(new StdioMcpError("STDIO_MCP_ABORTED"));
       };
-      if (signal?.aborted) return abort();
+      if (signal?.aborted) {
+        clearTimeout(timer);
+        reject(new StdioMcpError("STDIO_MCP_ABORTED", undefined, false));
+        return;
+      }
       signal?.addEventListener("abort", abort, { once: true });
       pending.set(id, {
         resolve: (message) => {
@@ -375,10 +379,11 @@ export async function launchStdioMcpServer(
       } catch (error) {
         pending.delete(id);
         clearTimeout(timer);
+        signal?.removeEventListener("abort", abort);
         reject(
-          error instanceof Error
-            ? error
-            : new StdioMcpError("STDIO_MCP_EXITED"),
+          error instanceof StdioMcpError
+            ? new StdioMcpError(error.code, error.diagnostic, false)
+            : new StdioMcpError("STDIO_MCP_EXITED", undefined, false),
         );
       }
     });
@@ -436,6 +441,7 @@ export async function launchStdioMcpServer(
         isError: result.isError === true,
       };
     },
+    exited: exit,
     close,
   });
 }

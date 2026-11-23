@@ -621,7 +621,9 @@ mapping from port verbs to tools.
 - **Definition.** A `stdio` server definition carries a pinned launch: an
   absolute command path, its arguments and the SHA-256 of the command file
   (`artifactDigest`). The worker runs exactly that command, never through a
-  shell or `PATH`, and refuses a file whose digest differs.
+  shell or `PATH`, and refuses a file whose digest differs. The command must be
+  a regular file of at most 256 MiB; the worker hashes it while copying it into
+  a private directory and runs the copy.
 - **Placement.** A `stdio` connection names its `workerHostId` at create: a host
   of the same organization that advertises every capability the server requires.
   A remote connection names no host (`worker_host_not_for_remote`), a `stdio`
@@ -640,10 +642,14 @@ mapping from port verbs to tools.
   `host_not_placed`, and a call is refused.
 - **Calls.** The broker never sends a local call. The worker first opens the
   call through `local-tool-calls`, where the server checks the grant and the
-  pinned input schema and records it; the worker then sends it to the process
-  and settles the outcome once. A call opened but never settled has an unknown
-  outcome: replaying it is refused rather than sent again, so a write is never
-  retried blind.
+  pinned input schema and records it under its Idempotency-Key, bound to the
+  connection, the tool and the arguments, as a remote call is; the worker then
+  sends it to the process and settles the outcome once. A failure before the
+  request reached the process (the launch, the handshake, or a request never
+  written) settles the call as failed. A write that may have reached it stays
+  sent with an unknown outcome: replaying it is refused rather than sent again,
+  so a write is never retried blind. A process that exits is dropped and
+  launched again on the session's next allowed call.
 
 ### 15.5 Skills, integrations and MCP tools in a workflow
 

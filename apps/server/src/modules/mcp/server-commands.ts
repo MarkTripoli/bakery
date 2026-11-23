@@ -22,21 +22,6 @@ import { postgresErrorCode } from "../../platform/postgres-errors.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 
-/**
- * MCP server definitions (#434, chapter 25 section 15.4).
- *
- * A server is the shared, organization-scoped record of what a remote MCP server
- * is: its transport, where it lives and what it requires. It holds no credential
- * and grants nothing. A connection (a separate group) is one use of it, and
- * discovery pins what the server offers.
- *
- * A `stdio` server (#441) is local: it carries a pinned launch (command,
- * arguments and the command file's digest) and the host capabilities it needs,
- * and no endpoint. A worker on the host a connection names launches it; a
- * third-party one runs under the T1 sandbox unless that host's operator
- * allowlisted its digest (docs/technical-design/25-one-engine.md 15.4).
- */
-
 type ServerOutput = z.output<typeof contractSchemas.McpServer>;
 type ServerCreate = z.output<typeof contractSchemas.McpServerCreate>;
 type ServerUpdate = z.output<typeof contractSchemas.McpServerUpdate>;
@@ -136,7 +121,6 @@ export function endpointTemplateProblem(template: string): string | null {
   return null;
 }
 
-/** What a local (stdio) definition must carry, as a field problem. */
 function localProblem(
   input: {
     launchSpec?: unknown;
@@ -339,10 +323,6 @@ export function createMcpServersListHandler(cursorSecret: string) {
   };
 }
 
-/**
- * `mcpServers.create`: Admin. Remote (`streamable_http`) or local (`stdio`); a
- * definition starts disabled, so registering one never makes it usable on its own.
- */
 export async function createMcpServer(
   context: ActionContext,
   input: ServerCreate,
