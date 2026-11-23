@@ -829,6 +829,54 @@ def phase_web_pages():
     stop_app()
 
 
+def phase_web_repeat_links():
+    """QA (#860): on a real server page a link that asks for a new tab, or a link to a local file, must work every
+    time it is pressed, not only the first. Each press here is a new link, as a page's own links are."""
+    web = os.environ.get("BAKERY_WEB", "")
+    if not web:
+        print("SKIP the repeat-links phase: no built web app (run with E2E_WEB=1)", flush=True)
+        return
+    host = web.split("//", 1)[1].split(":")[0]
+    p = os.path.join(OUT, "q-repeat")
+    clear_store()
+    clear_store(web)
+    start_app(p, server=web, extra={"BAKERY_DESKTOP_DIALOG_ANSWER": "Close"})
+    assert wait_window(p, "sign_in") is not None
+    url = sign_in_to_waiting(p, "[repeat]")
+    if not url:
+        return
+    deliver(confirm(request_id_of(url), session_cookie()))
+    if not wait_report(p, "server_page_opened", 1, timeout=40):
+        check("[repeat] the server's page opens", False)
+        return
+    end = time.time() + 40
+    while time.time() < end and not any(h == host and not (pth or "").startswith("/sign-in") for h, pth in page_loads(p)):
+        time.sleep(1)
+    time.sleep(5)
+
+    def count(event, **match):
+        return sum(1 for e in reports(p) if e["event"] == event
+                   and all(e["data"].get(k) == v for k, v in match.items()))
+
+    def press(n, label, href, attrs, event, **match):
+        before = count(event, **match)
+        # Its own function scope: a second `const a` at the page's top level is a SyntaxError that stops the
+        # script without a word, and looks like a link that did nothing.
+        eval_in_window(p, "(() => { const a = document.createElement('a'); a.href = '%s'; %s a.textContent = 'link'; "
+                          "document.body.appendChild(a); a.click(); })()" % (href, attrs))
+        check("[repeat] %d: %s" % (n, label), wait_until(lambda: count(event, **match) > before, timeout=20),
+              str([(e["event"], e["data"]) for e in reports(p)][-3:]))
+
+    new_tab = "a.target = '_blank';"
+    press(1, "a new-tab link to another site goes to the browser", "https://example.com/1", new_tab, "link_to_browser")
+    press(2, "a second new-tab link goes to the browser", "https://example.com/2", new_tab, "link_to_browser")
+    press(3, "a third new-tab link goes to the browser", "https://example.com/3", new_tab, "link_to_browser")
+    press(4, "a link to a local file is refused with a dialog", "file:///etc/hostname", "", "system_dialog", kind="not_web")
+    press(5, "a second link to a local file is refused with a dialog", "file:///etc/hosts", "", "system_dialog", kind="not_web")
+    press(6, "a new-tab link still goes to the browser after them", "https://example.com/6", new_tab, "link_to_browser")
+    shot("repeat-links-end")
+
+
 def phase_web_download():
     """Builder question 5: a file a page offers is saved only where the person says, never silently
     into the folder the app was started from. A run cannot answer the system's dialog, so it is run
@@ -1066,7 +1114,7 @@ def main():
     for phase in (phase_cold_sign_in, phase_restart, phase_cancel_then_late_answer, phase_bogus_answers,
                   phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring, phase_address_spelling,
                   phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back,
-                  phase_open_links, phase_menu, phase_web_pages, phase_web_download, phase_web_shots):
+                  phase_open_links, phase_menu, phase_web_pages, phase_web_repeat_links, phase_web_download, phase_web_shots):
         if only and not any(s in phase.__name__ for s in only):
             continue
         try:

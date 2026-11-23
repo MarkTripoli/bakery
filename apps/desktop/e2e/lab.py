@@ -197,6 +197,20 @@ base = count("system_dialog", kind="not_web")
 click_it("a link to a local file is refused with a dialog", 160, lambda: count("system_dialog", kind="not_web") > base)
 base = count("system_dialog", kind="not_web")
 click_it("a local file link that asks for a new tab is refused with a dialog", 210, lambda: count("system_dialog", kind="not_web") > base)
+# The same link pressed again and again on one page, as a person does: QA (#860) found that only the first
+# press of a link that asks for a new tab, or of a local file, did anything.
+def repeat_it(name, script, event, **match):
+    for turn in (1, 2, 3):
+        base = count(event, **match)
+        try_it(f"{name}, press {turn} of 3", script, lambda: count(event, **match) > base)
+
+
+repeat_it("a link that asks for a new tab, another site, goes to the browser each time",
+          "document.getElementById('blank').click()", "link_to_browser")
+repeat_it("a local file link is refused with a dialog each time",
+          "document.getElementById('file').click()", "system_dialog", kind="not_web")
+repeat_it("a local file link that asks for a new tab is refused each time",
+          "document.getElementById('fileblank').click()", "system_dialog", kind="not_web")
 print(f"{sum(results)} of {len(results)} passed", flush=True)
 app.terminate()
 sys.exit(0 if all(results) else 1)
