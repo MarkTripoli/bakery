@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "148a9f03e4a47506c2f1ab7abb1d1ef93b84d9d4"
+    "fc819c510e55999f77dd9ec034e279926afa03f0"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:dcceb92c88a39796bd5376ae687048e7998b8c01860a67b985b5138a69cc0af8",
-  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 148a9f03e4a47506c2f1ab7abb1d1ef93b84d9d4: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker refuses a job without a pin as plugin_job_version_unpinned, the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id, and the bundleDigest description now says only the version the job was admitted against. No other contract shape changed by this branch.",
+  "targetCompatibilityDigest": "sha256:d1c89fac9f7cfc3f9f9eb7fe5e1cb3ddb2ac1aa8d61a8a77337ccc4c718f1044",
+  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main fc819c510e55999f77dd9ec034e279926afa03f0: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker refuses a job without a pin as plugin_job_version_unpinned, the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id, and every description that offered the install's current version now names only the version the job was admitted against. No other contract shape changed by this branch.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "148a9f03e4a47506c2f1ab7abb1d1ef93b84d9d4"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:dcceb92c88a39796bd5376ae687048e7998b8c01860a67b985b5138a69cc0af8",
+      "reason": "Displaced by the #34 plugin job version pin rebind onto main fc819c510: the approval of the same branch tree before the install's-current-version sentence was removed from the files route description. Kept unchanged."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

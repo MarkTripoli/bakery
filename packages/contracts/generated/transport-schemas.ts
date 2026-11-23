@@ -38250,7 +38250,7 @@ const transportSchemas = {
       "bounds": {
         "filesMaxItems": 256
       },
-      "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version it runs (the version the job names, or the install's current one), fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant.",
+      "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version the job was admitted against, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant.",
       "fieldDescriptions": {
         "bundleDigest": "SHA-256 of the bundle archive of the plugin version the job was admitted against.",
         "entry": "The path inside the bundle that the job was admitted to run.",
