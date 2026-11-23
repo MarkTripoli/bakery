@@ -56,7 +56,7 @@ Deno.test("a placement whose platform no host shares fails the step with its rea
       const admission = await engine.admit(key, owner);
       assertEquals(admission.jobId, undefined, "no job is dispatched");
       const step = (await fixture.pgDatabase.query<
-        { status: string; error: string | null }
+        { status: string; error: { code: string; message: string } | null }
       >(
         `select status, error from bakery.run_steps
           where run_id = $1 and step_key = $2`,
@@ -64,8 +64,10 @@ Deno.test("a placement whose platform no host shares fails the step with its rea
       )).rows[0];
       assertEquals(step.status, "failed");
       assert(
-        step.error?.includes("placement_conflict:placement_platform_conflict"),
-        `the reason is kept: ${step.error}`,
+        step.error?.message.includes(
+          "placement_conflict:placement_platform_conflict",
+        ),
+        `the reason is kept: ${JSON.stringify(step.error)}`,
       );
     } finally {
       await engine.releaseEngineOwner(owner);
