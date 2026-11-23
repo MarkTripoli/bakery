@@ -621,68 +621,68 @@ export async function issuesFixture(page: Page, options: Options = {}) {
     updatedAt: stamp,
     version: 3,
   });
+  /** The start request the issue's work is, as the server reads it now. */
+  const requestRow = () => ({
+    id: uuid(8700),
+    externalTicketId: issueId,
+    ticketTaskLinkId: linkId,
+    intent: "start",
+    origin: work.origin ?? "manual",
+    requestedByPrincipalId: (work.origin ?? "manual") === "webhook" ||
+        (work.origin ?? "manual") === "poll"
+      ? null
+      : work.byMe === "unlisted"
+      ? uuid(8801)
+      : work.byMe === false
+      ? uuid(8800)
+      : MOCK_PRINCIPAL_ID,
+    triggerLabelName: work.triggerLabel ?? null,
+    disposition: stoppedNow()
+      ? "canceled"
+      : seen.runBegan
+      ? "active"
+      : work.progress === "active"
+      ? "active"
+      : work.progress,
+    dispositionReasonCode: work.reason ?? null,
+    pausedAt: work.pausedReason ? stamp : null,
+    pausedReason: work.pausedReason ?? null,
+    progress: stoppedNow()
+      ? "canceled"
+      : seen.runBegan
+      ? "active"
+      : work.progress,
+    workflowRunId: work.run || seen.runBegan ? RUN_ID : null,
+    stoppedByPrincipalId: stoppedNow() || work.progress === "canceled"
+      ? (work.stoppedBy === undefined || work.stoppedBy === null
+        ? null
+        : work.stoppedByMe
+        ? MOCK_PRINCIPAL_ID
+        : uuid(8800))
+      : null,
+    stoppedByName: stoppedNow() || work.progress === "canceled"
+      ? work.stoppedBy ?? null
+      : null,
+    presetId: work.preset?.id ?? "fixed-coding",
+    presetRevision: work.preset?.revision ?? 1,
+    createdAt: new Date(Date.now() - 12 * 60_000).toISOString(),
+    updatedAt: stamp,
+    version: 1,
+    targets: targets.map((target) => ({
+      repositoryId: target.repositoryId,
+      role: target.role,
+      routingRuleId: null,
+      routingRuleVersion: null,
+      childTaskId: target.childTaskId,
+    })),
+  });
   await page.route(
     (url) => url.pathname === "/v1/ticket-requests",
     (route) => {
       const asked = new URL(route.request().url()).searchParams.get(
         "externalTicketId",
       );
-      const items = work && exists() && asked === issueId
-        ? [{
-          id: uuid(8700),
-          externalTicketId: issueId,
-          ticketTaskLinkId: linkId,
-          intent: "start",
-          origin: work.origin ?? "manual",
-          requestedByPrincipalId: (work.origin ?? "manual") === "webhook" ||
-              (work.origin ?? "manual") === "poll"
-            ? null
-            : work.byMe === "unlisted"
-            ? uuid(8801)
-            : work.byMe === false
-            ? uuid(8800)
-            : MOCK_PRINCIPAL_ID,
-          triggerLabelName: work.triggerLabel ?? null,
-          disposition: stoppedNow()
-            ? "canceled"
-            : seen.runBegan
-            ? "active"
-            : work.progress === "active"
-            ? "active"
-            : work.progress,
-          dispositionReasonCode: work.reason ?? null,
-          pausedAt: work.pausedReason ? stamp : null,
-          pausedReason: work.pausedReason ?? null,
-          progress: stoppedNow()
-            ? "canceled"
-            : seen.runBegan
-            ? "active"
-            : work.progress,
-          workflowRunId: work.run || seen.runBegan ? RUN_ID : null,
-          stoppedByPrincipalId: stoppedNow() || work.progress === "canceled"
-            ? (work.stoppedBy === undefined || work.stoppedBy === null
-              ? null
-              : work.stoppedByMe
-              ? MOCK_PRINCIPAL_ID
-              : uuid(8800))
-            : null,
-          stoppedByName: stoppedNow() || work.progress === "canceled"
-            ? work.stoppedBy ?? null
-            : null,
-          presetId: work.preset?.id ?? "fixed-coding",
-          presetRevision: work.preset?.revision ?? 1,
-          createdAt: new Date(Date.now() - 12 * 60_000).toISOString(),
-          updatedAt: stamp,
-          version: 1,
-          targets: targets.map((target) => ({
-            repositoryId: target.repositoryId,
-            role: target.role,
-            routingRuleId: null,
-            routingRuleVersion: null,
-            childTaskId: target.childTaskId,
-          })),
-        }]
-        : [];
+      const items = work && exists() && asked === issueId ? [requestRow()] : [];
       return route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -726,7 +726,8 @@ export async function issuesFixture(page: Page, options: Options = {}) {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: "{}",
+        // The request as it reads after the stop, so the page does not call it a failure.
+        body: JSON.stringify(requestRow()),
       });
     },
   );

@@ -709,6 +709,8 @@ for (
       }).click();
       const work = section(page);
       await expect(work.getByText("Stopped", { exact: true })).toBeVisible();
+      // The server's answer is accepted: nothing says the stop failed.
+      await expect(work.getByText("Work could not be stopped.")).toHaveCount(0);
       // One cancellation of the request, with its own key and its version; no run was asked.
       expect(seen.cancels).toHaveLength(1);
       expect(seen.cancels[0]!.key).toMatch(/^[0-9a-f-]{36}$/);
