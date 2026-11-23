@@ -7,7 +7,7 @@
  * runner, with a stub launcher standing in for the sandbox, stores the answer
  * and in the same transaction promotes the version to current or refuses it.
  */
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { readRuntimeConfig } from "@bakery/config";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
@@ -18,6 +18,11 @@ import { forgetSandboxPreflight } from "../../apps/server/src/modules/knowledge/
 import { runProbeTick } from "../../apps/server/src/modules/knowledge/probe-runner.ts";
 import { writeBlobProbe } from "../../apps/server/src/modules/knowledge/blob-probes.ts";
 import { settleStagedVersions } from "../../apps/server/src/modules/knowledge/staged-versions.ts";
+import {
+  extractArtifactVersion,
+  readArtifactVersionIdentity,
+} from "../../apps/server/src/modules/knowledge/extraction.ts";
+import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
 import { probeRunnerDeps } from "../../apps/server/src/platform/probe-runner-task.ts";
 import {
   READ_ONLY,
@@ -561,7 +566,7 @@ Deno.test("the runner settles under the request's row lock, so an enqueue in fli
     assertEquals(await openRequests(fixture, published.versionId), 0);
   }));
 
-// ---- QA PROBES (qapool-qa2, not part of the PR) ----
+/** Reads the content route of one version as the fixture's admin. */
 async function getContent(
   fixture: WorkerFixture,
   versionId: string,
@@ -581,36 +586,33 @@ async function getContent(
   );
 }
 
-Deno.test("QA PROBE: the bytes of a staged version are not served by the content route", () =>
+Deno.test("the content route does not serve the bytes of a staged version", () =>
   withWorkerFixture(async (fixture) => {
     await publishKind(fixture, IMAGE_KIND_RULES);
     const seeded = await seedTask(fixture);
     const published = await publish(fixture, seeded, {
       artifactType: "image",
-      name: "Staged probe",
+      name: "Staged content",
       bytes: bytes("staged bytes that no one vetted"),
     });
     assertEquals(published.publicationStatus, "staged");
     const full = await getContent(fixture, published.versionId);
-    const text = await full.text();
-    console.log(
-      `QAPROBE staged content status=${full.status} len=${text.length}`,
-    );
+    await full.body?.cancel();
     const ranged = await getContent(fixture, published.versionId, "bytes=0-3");
-    console.log(`QAPROBE staged ranged status=${ranged.status}`);
+    await ranged.body?.cancel();
     assert(
       full.status !== 200 && ranged.status !== 206 && ranged.status !== 200,
       `staged bytes served: full=${full.status} range=${ranged.status}`,
     );
   }));
 
-Deno.test("QA PROBE: the bytes of a refused version are not served by the content route", () =>
+Deno.test("the content route does not serve the bytes of a refused version", () =>
   withWorkerFixture(async (fixture) => {
     await publishKind(fixture, IMAGE_KIND_RULES);
     const seeded = await seedTask(fixture);
     const published = await publish(fixture, seeded, {
       artifactType: "image",
-      name: "Refused probe",
+      name: "Refused content",
       bytes: bytes("pretend png, too many pixels"),
     });
     const result = await tick(
@@ -621,45 +623,8 @@ Deno.test("QA PROBE: the bytes of a refused version are not served by the conten
     const row = await state(fixture, published.artifactId, published.versionId);
     assertEquals(row.publication_status, "refused");
     const full = await getContent(fixture, published.versionId);
-    const text = await full.text();
-    console.log(
-      `QAPROBE refused content status=${full.status} len=${text.length}`,
-    );
+    await full.body?.cancel();
     assert(full.status !== 200, `refused bytes served: ${full.status}`);
-  }));
-
-Deno.test("QA PROBE: a staged version cannot be given a preview grant", () =>
-  withWorkerFixture(async (fixture) => {
-    await publishKind(fixture, IMAGE_KIND_RULES);
-    const seeded = await seedTask(fixture);
-    const published = await publish(fixture, seeded, {
-      artifactType: "image",
-      name: "Preview probe",
-      bytes: bytes("staged bytes for preview"),
-    });
-    const response = await fixture.app.fetch(
-      new Request(
-        `${fixture.config.publicBaseUrl}/v1/artifact-versions/${published.versionId}/preview-grants`,
-        {
-          method: "POST",
-          headers: {
-            Origin: fixture.config.publicBaseUrl,
-            "Bakery-Organization-Id": fixture.organizationId,
-            Cookie: fixture.adminCookie,
-          },
-        },
-      ),
-    );
-    const body = await response.text();
-    console.log(
-      `QAPROBE staged preview-grant status=${response.status} body=${
-        body.slice(0, 120)
-      }`,
-    );
-    assert(
-      response.status >= 400,
-      `preview grant issued for a staged version: ${response.status}`,
-    );
   }));
 
 /** A storage file over the artifact, so the storage routes can read it. */
@@ -745,4 +710,115 @@ Deno.test("a staged version is not in a storage file's history and is not read b
       `/v1/storage/files/${fileId}/probe?revision=${staged}&organizationId=${fixture.organizationId}`,
     );
     assertEquals(probeRead.status, 404, await probeRead.text());
+  }));
+
+/** A current version and, after the kind gains a probe-backed rule, a staged one. */
+async function currentAndStaged(fixture: WorkerFixture, name: string) {
+  const seeded = await seedTask(fixture);
+  const current = await publish(fixture, seeded, {
+    artifactType: "image",
+    name,
+    bytes: bytes("published bytes"),
+  });
+  assertEquals(current.publicationStatus, "current");
+  await publishKind(fixture, IMAGE_KIND_RULES);
+  const staged = await publish(fixture, seeded, {
+    artifactType: "image",
+    name,
+    bytes: bytes("staged bytes"),
+  });
+  assertEquals(staged.publicationStatus, "staged");
+  return { current: current.versionId, staged: staged.versionId };
+}
+
+for (
+  const [label, suffix] of [
+    ["the comments list", "comments"],
+    ["extraction", "extract"],
+    ["mention candidates", "mention-candidates"],
+  ] as const
+) {
+  Deno.test(`${label} does not find a staged version, and finds the current one`, () =>
+    withWorkerFixture(async (fixture) => {
+      const versions = await currentAndStaged(fixture, "Reader " + suffix);
+      const staged = await getStorage(
+        fixture,
+        `/v1/artifact-versions/${versions.staged}/${suffix}`,
+      );
+      const current = await getStorage(
+        fixture,
+        `/v1/artifact-versions/${versions.current}/${suffix}`,
+      );
+      await staged.body?.cancel();
+      await current.body?.cancel();
+      assertEquals(staged.status, 404);
+      assert(
+        current.status !== 404,
+        `the current version must be found (${current.status})`,
+      );
+    }));
+}
+
+Deno.test("extraction's identity read does not find a staged version", () =>
+  withWorkerFixture(async (fixture) => {
+    const versions = await currentAndStaged(fixture, "Identity read");
+    await withPgTransaction(fixture.pgDatabase, async (transaction) => {
+      const found = await readArtifactVersionIdentity(
+        transaction,
+        fixture.organizationId,
+        versions.current,
+      );
+      assertEquals(found.id, versions.current);
+      const missing = await assertRejects(() =>
+        readArtifactVersionIdentity(
+          transaction,
+          fixture.organizationId,
+          versions.staged,
+        )
+      );
+      assertEquals((missing as { code?: string }).code, "RESOURCE_NOT_FOUND");
+    });
+  }));
+
+Deno.test("a version refused between extraction's identity read and its byte read is not extracted", () =>
+  withWorkerFixture(async (fixture) => {
+    const versions = await currentAndStaged(fixture, "Refused mid-read");
+    await withPgTransaction(fixture.pgDatabase, async (transaction) => {
+      // The probe runner refuses the version once the identity read has passed,
+      // so only the byte read's own filter stands between it and the caller.
+      let refused = false;
+      const racing = new Proxy(transaction, {
+        get(target, property, receiver) {
+          if (property !== "query") {
+            return Reflect.get(target, property, receiver);
+          }
+          return async (...args: Parameters<typeof transaction.query>) => {
+            const result = await target.query(...args);
+            if (
+              !refused && String(args[0]).includes("v.purged_at,v.artifact_id")
+            ) {
+              refused = true;
+              await target.query(
+                "update bakery.artifact_versions set publication_status = 'refused' where id = $1",
+                [versions.current],
+              );
+            }
+            return result;
+          };
+        },
+      });
+      const context = {
+        params: { id: versions.current },
+        authority: {
+          organizationId: fixture.organizationId,
+          subject: { principalId: fixture.principalId },
+        },
+        transaction: racing,
+      } as unknown as ActionContext;
+      const error = await assertRejects(() =>
+        extractArtifactVersion(context, { startByte: 0, maxBytes: 64 })
+      );
+      assert(refused, "the identity read never ran");
+      assertEquals((error as { code?: string }).code, "RESOURCE_NOT_FOUND");
+    });
   }));
