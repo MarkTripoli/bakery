@@ -25,6 +25,7 @@ import { loadWorkerIdentity, withPgTransaction } from "@bakery/persistence";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { reconcileFailedLifecycleTasks } from "../work/coordination-projection.ts";
 import type { SessionToolRegistry } from "./session-registry.ts";
+import type { McpInvokeDeps } from "../mcp/invoke.ts";
 
 const ENROLLMENT_TTL_MS = 10 * 60 * 1000;
 
@@ -158,6 +159,12 @@ type ExecutionRouteOptions = {
    * closed.
    */
   pluginBundles?: Pick<ScopedOrganizationBlobStore, "stat" | "read">;
+  /**
+   * The pinned-tool door the worker tool gateway sends MCP calls through
+   * (#436). Absent leaves `worker.invokeTool` and the effective-tools listing
+   * unmounted.
+   */
+  toolGateway?: McpInvokeDeps;
 };
 
 type HostRow = {

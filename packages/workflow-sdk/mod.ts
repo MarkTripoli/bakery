@@ -2,6 +2,7 @@ export {
   type ActionRef,
   type Bindings,
   booleanInput,
+  type CallHandle,
   defineAction,
   defineWorkflow,
   type ForEachHandle,

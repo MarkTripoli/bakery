@@ -1,3 +1,5 @@
+import { hostSatisfiedCapabilities } from "@bakery/contracts/workflow-action-registry";
+
 /**
  * The one rule deciding whether a worker host may run a job (#52 AC2).
  *
@@ -8,7 +10,8 @@
  * free capacity it has: an iOS build needs a Mac, so with every Mac offline the
  * job stays queued rather than landing on a Linux host. The claim query applies
  * the same rule in SQL; the claim and the attempt start recheck it here against
- * the admitted requirements.
+ * the admitted requirements. A host capability that substitutes for an action
+ * capability meets it (`tool-gateway` meets `paper`, #436).
  */
 export function hostMeetsJobRequirements(
   requirements: {
@@ -17,9 +20,10 @@ export function hostMeetsJobRequirements(
   },
   host: { readonly os: string; readonly capabilities: readonly string[] },
 ): boolean {
+  const satisfied = hostSatisfiedCapabilities(host.capabilities);
   if (
     requirements.capabilities.some((capability) =>
-      !host.capabilities.includes(capability)
+      !satisfied.includes(capability)
     )
   ) return false;
   return requirements.platform === undefined ||

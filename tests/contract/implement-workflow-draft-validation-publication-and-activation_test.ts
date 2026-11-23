@@ -289,6 +289,8 @@ const implementedWorkflowActions = [
   "agentPowerGrants.delete",
   "definitionPublishGrants.create",
   "definitionPublishGrants.delete",
+  "packages.export",
+  "packages.import",
   "workflowActivations.create",
   "workflowDefinitionProposalDecisions.create",
   "workflowDefinitionProposals.get",
@@ -307,7 +309,7 @@ const implementedWorkflowActions = [
   "workflows.validate",
 ];
 
-Deno.test("workflows registry implements exactly the seventeen definition, read, draft, publish, activate, validate, copy, listing, proposal and publish-grant actions", () => {
+Deno.test("workflows registry implements exactly the nineteen definition, read, draft, publish, activate, validate, copy, listing, proposal, publish-grant and package actions", () => {
   const unavailable = () => Promise.reject(new Error("not called"));
   const registry = createWorkflowsActionRegistry(
     {} as PgDatabase,
@@ -317,6 +319,8 @@ Deno.test("workflows registry implements exactly the seventeen definition, read,
       createWorkflow: unavailable,
       updateWorkflow: unavailable,
       copyWorkflow: unavailable,
+      exportPackage: unavailable,
+      importPackage: unavailable,
       listVersions: unavailable,
       getVersion: unavailable,
       createVersion: unavailable,

@@ -1,6 +1,11 @@
 import type { DiagnosticCollector } from "./diagnostics.ts";
 import { indexWorkflowNodes } from "./passes/index.ts";
 import { type NodeLocations, shapeWorkflow } from "./passes/shape.ts";
+import {
+  type ChildWorkflows,
+  inlineWorkflowCalls,
+  type ShapeChild,
+} from "./call.ts";
 import type { WorkflowSemanticDocument } from "./schema.ts";
 
 export type NormalizeResult = {
@@ -17,10 +22,29 @@ export type NormalizeResult = {
 export function normalizeWorkflow(
   snapshot: unknown,
   collector: DiagnosticCollector,
+  calls?: {
+    readonly children: ChildWorkflows;
+    readonly shapeChild: ShapeChild;
+  },
 ): NormalizeResult {
   const before = collector.size;
   const shaped = shapeWorkflow(snapshot, collector);
   if (!shaped.document || collector.size > before) {
+    return { document: undefined, locations: shaped.locations };
+  }
+  // A call is replaced by the called workflow's steps before anything else
+  // reads the document; with no versions to call, any call is unavailable.
+  inlineWorkflowCalls(
+    shaped.document,
+    shaped.locations,
+    calls?.children ?? new Map(),
+    calls?.shapeChild ?? (() => ({
+      document: undefined,
+      locations: shaped.locations,
+    })),
+    collector,
+  );
+  if (collector.size > before) {
     return { document: undefined, locations: shaped.locations };
   }
   indexWorkflowNodes(shaped.document, shaped.locations, collector);
