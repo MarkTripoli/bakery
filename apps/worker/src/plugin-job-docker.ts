@@ -1,3 +1,8 @@
+import {
+  judgeProbeOutput,
+  PROBE_PROGRAM,
+  startProcessJob,
+} from "./plugin-job-process.ts";
 import type {
   ContainmentProbe,
   ContainmentRuntime,
@@ -70,9 +75,6 @@ export type DockerRuntimeOptions = Readonly<{
   hardening?: typeof hardeningArgs;
 }>;
 
-const encoder = new TextEncoder();
-const byteLength = (text: string) => encoder.encode(text).byteLength;
-
 type Output = { code: number; stdout: string; stderr: string };
 
 async function docker(bin: string, args: string[]): Promise<Output> {
@@ -87,20 +89,6 @@ async function docker(bin: string, args: string[]): Promise<Output> {
     stderr: new TextDecoder().decode(output.stderr),
   };
 }
-
-/**
- * Runs inside the probe container, in plain `sh` so any job image works. It
- * counts network interfaces other than loopback and reads whether the root
- * filesystem is mounted read-only, then reports both. The mount table is the
- * proof, not a write attempt: a job's user usually cannot write `/` anyway, so
- * a failed write would pass even when `--read-only` was dropped.
- */
-const PROBE_PROGRAM = [
-  "extra=$(tail -n +3 /proc/net/dev | cut -d: -f1 | tr -d ' ' | grep -v '^lo$' | wc -l | tr -d ' ')",
-  `opts=$(awk '$2=="/" {o=$4} END {print o}' /proc/mounts)`,
-  'case ",$opts," in *,ro,*) ro=true;; *) ro=false;; esac',
-  'echo "{\\"extra\\":$extra,\\"readOnlyRoot\\":$ro}"',
-].join("\n");
 
 export function createDockerRuntime(
   options: DockerRuntimeOptions = {},
@@ -125,6 +113,7 @@ export function createDockerRuntime(
 
   return {
     name: "docker",
+    codeMount: "/code",
     async probe() {
       if (env[DOCKER_FLAG] !== "1") {
         return unsupported(
@@ -155,23 +144,7 @@ export function createDockerRuntime(
       if (run.code !== 0) {
         return unsupported("the containment probe could not run");
       }
-      let seen: { extra?: unknown; readOnlyRoot?: unknown };
-      try {
-        seen = JSON.parse(run.stdout.trim().split("\n").pop() ?? "");
-      } catch {
-        return unsupported("the containment probe gave no readable answer");
-      }
-      if (seen.extra !== 0) {
-        return unsupported(
-          "a job could reach a network interface, so jobs are refused",
-        );
-      }
-      if (seen.readOnlyRoot !== true) {
-        return unsupported(
-          "the root filesystem is not read-only, so jobs are refused",
-        );
-      }
-      return { supported: true, runtime: "docker" };
+      return judgeProbeOutput("docker", run.stdout);
     },
 
     async start(spec: PluginJobSpec): Promise<RunningPluginJob> {
@@ -204,32 +177,11 @@ export function createDockerRuntime(
         await docker(bin, ["rm", "-fv", name]).catch(() => undefined);
         throw new Error("PLUGIN_JOB_CREATE_FAILED");
       }
-      const child = new Deno.Command(bin, {
+      return startProcessJob({
+        bin,
         args: ["start", "-a", "-i", name],
-        stdin: "piped",
-        stdout: "piped",
-        stderr: "null",
-      }).spawn();
-      const writer = child.stdin.getWriter();
-      const encoder = new TextEncoder();
-      const reader = child.stdout
-        .pipeThrough(new TextDecoderStream())
-        .getReader();
-      let removal: Promise<void> | null = null;
-      let oomKilled = false;
-      // Every caller gets the same promise, so one that arrives while the
-      // removal is still running waits for it instead of returning early.
-      const kill = (): Promise<void> => {
-        removal ??= (async () => {
-          // End the docker client first. A job that floods stdout leaves it
-          // blocked on a full pipe nobody reads, and a blocked client stalls
-          // the container's removal as well.
-          try {
-            child.kill("SIGKILL");
-          } catch {
-            // Already gone.
-          }
-          await reader.cancel().catch(() => undefined);
+        limits: spec.limits,
+        async cleanup() {
           // Read the memory-kill flag before the container goes away.
           const inspected = await docker(bin, [
             "inspect",
@@ -237,49 +189,10 @@ export function createDockerRuntime(
             "{{.State.OOMKilled}}",
             name,
           ]).catch(() => null);
-          oomKilled = inspected?.stdout.trim() === "true";
           await docker(bin, ["rm", "-fv", name]).catch(() => undefined);
-        })();
-        return removal;
-      };
-      async function* lines(): AsyncGenerator<string> {
-        let pending = "";
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          pending += value;
-          // A line the job never ends is cut off by the host's line cap.
-          if (
-            byteLength(pending) > spec.limits.lineBytes &&
-            !pending.includes("\n")
-          ) {
-            yield pending;
-            return;
-          }
-          let at: number;
-          while ((at = pending.indexOf("\n")) >= 0) {
-            yield pending.slice(0, at);
-            pending = pending.slice(at + 1);
-          }
-        }
-        if (pending.length > 0) yield pending;
-      }
-      return {
-        write: async (line) => {
-          try {
-            await writer.write(encoder.encode(`${line}\n`));
-          } catch {
-            // The job already ended; the host reads that from `exited`.
-          }
+          return { oomKilled: inspected?.stdout.trim() === "true" };
         },
-        lines: lines(),
-        exited: (async () => {
-          const status = await child.status;
-          await kill();
-          return { code: status.code, oomKilled };
-        })(),
-        kill,
-      };
+      });
     },
   };
 }

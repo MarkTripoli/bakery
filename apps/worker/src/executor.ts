@@ -29,6 +29,7 @@ import {
   removeRepositoryInspectionDirectory,
 } from "./repository-inspection-source.ts";
 import type { NativeOutputChannel, NativeOutputSink } from "./native-output.ts";
+import { executePluginJob, type PluginJobDeps } from "./plugin-job-executor.ts";
 import {
   executeTaskBrief,
   type PublishArtifact,
@@ -201,6 +202,13 @@ export type NativeExecutorOptions = {
   readonly publishArtifactFor?: (
     assignment: JobAssignment,
   ) => PublishArtifact;
+  /**
+   * Builds the dependencies of one `plugin.job` attempt (#29). Present only
+   * when this host proved a containment runtime at startup; absent, the
+   * executor neither advertises nor runs the action, so a job is never run
+   * without its boundary.
+   */
+  readonly pluginJobFor?: (assignment: JobAssignment) => PluginJobDeps;
   readonly terminationGraceMs?: number;
   readonly probeIntervalMs?: number;
   readonly loadInspectionSource?: (
@@ -2107,6 +2115,7 @@ export function createNativeExecutor(
       ...actions.map((definition) => definition.action),
       "repository.inspect",
       ...(options.publishArtifactFor ? ["task.brief"] : []),
+      ...(options.pluginJobFor ? ["plugin.job"] : []),
     ]),
     initialize: () => ready,
     async execute(
@@ -2131,6 +2140,24 @@ export function createNativeExecutor(
           );
         }
         return await executeInspection(assignment, signal, output);
+      }
+      if (assignment.action === "plugin.job") {
+        // It runs the install's code in a contained runtime, so it takes no
+        // sandbox, skills or secrets of its own: none are given to the job.
+        if (
+          !options.pluginJobFor ||
+          assignment.skillRefs.length > 0 ||
+          (preparedSkills?.roots.length ?? 0) > 0
+        ) {
+          throw new NativeExecutorError(
+            "PREPARED_SKILL_ROOTS_UNSUPPORTED:plugin.job",
+          );
+        }
+        return await executePluginJob(
+          assignment,
+          signal,
+          options.pluginJobFor(assignment),
+        );
       }
       if (assignment.action === "task.brief") {
         // It renders server-frozen text and runs no untrusted code, so it
