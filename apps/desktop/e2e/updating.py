@@ -303,6 +303,7 @@ check("[after] the note is used once: the next start says nothing",
       not os.path.exists(os.path.join(OUT, "h-after", "config", "after-update.json")))
 
 
+WINDOW_SIZE = "960x640"
 SHOTS = os.environ.get("SHOTS")
 VIDEO = os.environ.get("VIDEO")
 
@@ -311,7 +312,7 @@ def screen_picture(name):
     os.makedirs(os.path.join(OUT, "shots"), exist_ok=True)
     xwd = os.path.join(OUT, "shots", name + ".xwd")
     shutil.copyfile("/tmp/xfb/Xvfb_screen0", xwd)
-    subprocess.run(["python3", "/app/e2e/xwd2png.py", xwd, os.path.join(OUT, "shots", name + ".png")], capture_output=True)
+    subprocess.run(["python3", "/app/e2e/xwd2png.py", xwd, os.path.join(OUT, "shots", name + ".png"), WINDOW_SIZE], capture_output=True)
     os.remove(xwd)
 
 
@@ -352,7 +353,7 @@ class Recording:
             try:
                 shutil.copyfile("/tmp/xfb/Xvfb_screen0", xwd)
                 png = os.path.join(self.directory, "frame%05d.png" % self.count)
-                subprocess.run(["python3", "/app/e2e/xwd2png.py", xwd, png], capture_output=True)
+                subprocess.run(["python3", "/app/e2e/xwd2png.py", xwd, png, WINDOW_SIZE], capture_output=True)
                 if os.path.exists(png):
                     self.count += 1
             except OSError:
@@ -463,8 +464,8 @@ if VIDEO:
     time.sleep(3)
     MODE["download"] = "normal"
     p = start("flow", "204", tick=600000, extra={"APPIMAGE": APPIMAGE_STAND_IN})
-    toast_starting(p, "Bakery was updated to version")
-    time.sleep(5)
+    check("[flow] the updated notice shows after the restart", toast_starting(p, "Bakery was updated to version"))
+    time.sleep(8)
     recording.finish()
     stop()
 

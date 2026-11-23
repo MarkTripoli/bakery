@@ -387,6 +387,7 @@ impl Shell {
                 actions: vec![],
                 goes_after: None,
                 dismissable: false,
+                first_button_is_primary: false,
             }),
             "failed" => self.save_failed(
                 id,
@@ -439,6 +440,7 @@ impl Shell {
                     actions: vec![],
                     goes_after: None,
                     dismissable: false,
+                    first_button_is_primary: false,
                 });
             }
         });
@@ -551,6 +553,7 @@ impl Shell {
                     actions: vec![(saved_file::SHOW_IN_FOLDER.into(), "show")],
                     goes_after: Some(saved_file::SAVED_NOTICE_SECONDS),
                     dismissable: true,
+                    first_button_is_primary: false,
                 });
                 self.report("download_saved", json!({ "name": name }));
             }
@@ -585,6 +588,7 @@ impl Shell {
             actions: vec![(saved_file::TRY_AGAIN.into(), "retry")],
             goes_after: None,
             dismissable: true,
+            first_button_is_primary: false,
         });
     }
 

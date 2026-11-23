@@ -263,9 +263,10 @@ pub fn panel_line(state: &State) -> Option<String> {
             folder.as_deref().unwrap_or("its folder")
         )),
         State::Downloading { version, percent } => Some(downloading(version, *percent)),
-        State::NotVerified { .. } => {
-            Some("An update could not be verified and was not installed.".into())
-        }
+        State::NotVerified { .. } => Some(
+            "An update could not be verified and was not installed. If you see this again, tell whoever runs your Bakery server."
+                .into(),
+        ),
         State::NoFeed { .. } => Some(
             "This server does not offer app updates. Ask whoever runs it how to get the new version."
                 .into(),
@@ -668,7 +669,7 @@ mod tests {
         let unverified = State::NotVerified { tried: NOW };
         assert_eq!(
             panel_line(&unverified).as_deref(),
-            Some("An update could not be verified and was not installed.")
+            Some("An update could not be verified and was not installed. If you see this again, tell whoever runs your Bakery server.")
         );
         for state in [
             State::Never,

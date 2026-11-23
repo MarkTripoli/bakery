@@ -4,7 +4,9 @@
 Reads 24-bit true-colour dumps (what a virtual display gives) and writes an 8-bit RGB PNG. Also
 prints the mean brightness (0 to 255) so a capture can be checked for light or dark.
 
-    xwd2png.py in.xwd out.png
+    xwd2png.py in.xwd out.png [WIDTHxHEIGHT]
+
+With a size, only that part of the screen, from its top left corner, is written.
 """
 import struct
 import sys
@@ -71,9 +73,14 @@ def mean_brightness(rows):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) not in (3, 4):
         raise SystemExit(__doc__)
     header, pixels = read_xwd(sys.argv[1])
     rows = to_rows(header, pixels)
-    write_png(sys.argv[2], header["width"], header["height"], rows)
-    print(f"{header['width']}x{header['height']} brightness={mean_brightness(rows):.1f}")
+    width, height = header["width"], header["height"]
+    if len(sys.argv) == 4:
+        want_width, want_height = (int(part) for part in sys.argv[3].split("x"))
+        width, height = min(width, want_width), min(height, want_height)
+        rows = [row[:width * 3] for row in rows[:height]]
+    write_png(sys.argv[2], width, height, rows)
+    print(f"{width}x{height} brightness={mean_brightness(rows):.1f}")

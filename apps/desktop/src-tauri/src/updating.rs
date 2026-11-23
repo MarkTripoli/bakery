@@ -196,6 +196,10 @@ impl Shell {
         let ends_by_itself = matches!(say, Say::DownloadingAsked { .. });
         let close_only =
             notice.buttons.is_empty() && notice.goes_after.is_none() && !ends_by_itself;
+        let first_button_is_primary = matches!(
+            notice.buttons.first(),
+            Some(words::Button::RestartToUpdate | words::Button::ShowInFolder)
+        );
         let toast = Toast {
             id: UPDATE_TOAST,
             tone: tone(notice.tone),
@@ -209,6 +213,7 @@ impl Shell {
                 .collect(),
             goes_after: notice.goes_after,
             dismissable: close_only,
+            first_button_is_primary,
         };
         self.show_toast(toast);
     }
