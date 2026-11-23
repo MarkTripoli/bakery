@@ -13727,7 +13727,7 @@ const transportSchemas = {
           "name": "intent",
           "type": "enum(fyi|review|approve|answer|take_over)",
           "required": true,
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer name the questionId they concern, review names the artifactVersionId, and take_over names the stepKey; each gives the person asked the right to do that one thing, until the request expires."
         },
         {
           "name": "stepKey",
@@ -13737,7 +13737,7 @@ const transportSchemas = {
             "minLength": 1,
             "maxLength": 200
           },
-          "description": "The step the request concerns, or omitted for the run as a whole."
+          "description": "The step the request concerns, or omitted for the run as a whole. Required for take_over, which gives the right to steer and take over that one step."
         },
         {
           "name": "note",
@@ -13761,6 +13761,12 @@ const transportSchemas = {
           "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
         },
         {
+          "name": "artifactVersionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The artifact version of this run the request asks someone to review. Required for review and refused for the other intents. The person asked is given the right to comment on that one version, until the request expires."
+        },
+        {
           "name": "recipientRoleKey",
           "type": "string",
           "required": false,
@@ -13782,7 +13788,7 @@ const transportSchemas = {
         "Name exactly one recipient: recipientId, recipientRoleKey or recipientGroupId (request_recipient_required). A role or group nobody else holds is request_audience_empty, one only the asker holds is request_self, an unknown one is request_audience_not_found. One with more than 50 people to ask is refused whole with STATE_CONFLICT request_audience_too_large, and nobody is asked.",
         "An agent asks only on the run its session belongs to (AUTH_FORBIDDEN agent_ask_own_run_only) and only a role or group a live ask grant on its workflow names (agent_ask_audience_not_granted; no ask grant at all is agent_power_requires_grant, a lapsed one agent_power_grant_expired). The response is the first member's request; runRequests.list shows each member's."
       ],
-      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."
+      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve, answer, review and take_over, to do that one thing until the request ends."
     },
     "StorageFileContentQuery": {
       "fields": [
@@ -35882,7 +35888,8 @@ const transportSchemas = {
         "updatedAt",
         "version",
         "questionId",
-        "audience"
+        "audience",
+        "artifactVersionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -35902,7 +35909,8 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "questionId": "uuid|null",
-        "audience": "RunRequestAudience|null"
+        "audience": "RunRequestAudience|null",
+        "artifactVersionId": "uuid|null"
       },
       "nullableFields": [
         "stepKey",
@@ -35911,7 +35919,8 @@ const transportSchemas = {
         "neededBy",
         "fallbackForName",
         "questionId",
-        "audience"
+        "audience",
+        "artifactVersionId"
       ],
       "description": "A request: one person asked for one thing on one run, with how it stands.",
       "fieldDescriptions": {
@@ -35932,11 +35941,13 @@ const transportSchemas = {
         "updatedAt": "UTC time it last changed.",
         "version": "Optimistic-concurrency version used as If-Match.",
         "questionId": "The approval or question the request asks about, or null when it asks for none.",
-        "audience": "The role or group this request was asked of, or null when one person was asked."
+        "audience": "The role or group this request was asked of, or null when one person was asked.",
+        "artifactVersionId": "The artifact version the request asks someone to review, or null when it asks for none."
       },
       "optionalFields": [
         "questionId",
-        "audience"
+        "audience",
+        "artifactVersionId"
       ]
     },
     "RunRequests": {

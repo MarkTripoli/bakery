@@ -33,14 +33,20 @@ Deno.test("a run grant reaches exactly the run, its steps, its task, its deliver
  * approval. A new action has to be added here, in review, with its own refusal
  * test.
  */
-Deno.test("a power grant reaches exactly the get and the one act on its row", () => {
+Deno.test("a power grant reaches exactly the get and the one act on its target", () => {
   assertEquals(
-    Object.entries(RUN_POWER_ACTIONS).sort(([a], [b]) => a < b ? -1 : 1),
+    Object.entries(RUN_POWER_ACTIONS).sort(([a], [b]) => a < b ? -1 : 1).map((
+      [action, entry],
+    ) => [action, entry!.power, entry!.target]),
     [
-      ["approvals.decide", "approve"],
-      ["approvals.get", "approve"],
-      ["questions.answer", "answer"],
-      ["questions.get", "answer"],
+      ["approvals.decide", "approve", "question"],
+      ["approvals.get", "approve", "question"],
+      ["artifactComments.create", "review", "artifactVersion"],
+      ["questions.answer", "answer", "question"],
+      ["questions.get", "answer", "question"],
+      ["runSteps.note", "take_over", "step"],
+      ["runSteps.takeOver", "take_over", "step"],
+      ["sessions.steer", "take_over", "session"],
     ],
   );
 });

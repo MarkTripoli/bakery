@@ -63,12 +63,29 @@ const AVAILABLE_INTENTS: readonly RequestIntent[] = [
   "fyi",
   "approve",
   "answer",
+  "review",
+  "take_over",
 ];
 
-/** The intents that give one expiring power on one question row (#456 2a). */
+/** The intents that give one expiring power on one thing (#456 2a and 2b). */
 const POWER_OF_INTENT: Readonly<Partial<Record<RequestIntent, RunPower>>> = {
   approve: "approve",
   answer: "answer",
+  review: "review",
+  take_over: "take_over",
+};
+
+/**
+ * Which column of run_power_grants holds an intent's target, and the kind it is
+ * recorded under. The columns are real foreign keys; exactly one is set.
+ */
+const GRANT_TARGET: Readonly<
+  Record<RunPower, { kind: string; column: string }>
+> = {
+  approve: { kind: "question", column: "question_id" },
+  answer: { kind: "question", column: "question_id" },
+  review: { kind: "artifact_version", column: "artifact_version_id" },
+  take_over: { kind: "run_step", column: "run_step_id" },
 };
 
 const NO_TARGET = "00000000-0000-0000-0000-000000000000";
@@ -131,7 +148,11 @@ function toRunRequest(row: RequestRow) {
     id: row.id,
     runId: row.run_id,
     stepKey: row.step_key,
-    questionId: row.target_id,
+    // The target is one id; which kind it is follows from the intent.
+    questionId: row.intent === "approve" || row.intent === "answer"
+      ? row.target_id
+      : null,
+    artifactVersionId: row.intent === "review" ? row.target_id : null,
     intent: row.intent,
     recipient: {
       principalId: row.recipient_id,
@@ -343,6 +364,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     intent: RequestIntent;
     stepKey?: string;
     questionId?: string;
+    artifactVersionId?: string;
     note?: string;
     neededBy?: string;
   };
@@ -372,21 +394,30 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     unprocessable(
       ["intent"],
       "request_intent_unavailable",
-      "Only a request to let someone know, approve or answer can be made yet",
+      "That request cannot be made",
     );
   }
-  // An approval or a question is asked about by name: the person asked is
-  // given the right to act on that one row, so it has to exist, be open and be
-  // on this run, and be the kind the intent says.
+  // Each power is about one named thing: the person asked is given the right to
+  // act on exactly that, so it has to exist, belong to this run and still be
+  // open to act on. targetId is that thing's id (null for "just let them know").
   const power = POWER_OF_INTENT[value.intent];
-  if (power === undefined && value.questionId !== undefined) {
+  const asksQuestion = value.intent === "approve" || value.intent === "answer";
+  if (!asksQuestion && value.questionId !== undefined) {
     unprocessable(
       ["questionId"],
       "request_question_unexpected",
       "Only an approve or answer request names a question",
     );
   }
-  if (power !== undefined) {
+  if (value.intent !== "review" && value.artifactVersionId !== undefined) {
+    unprocessable(
+      ["artifactVersionId"],
+      "request_artifact_version_unexpected",
+      "Only a review request names an artifact version",
+    );
+  }
+  let targetId: string | null = null;
+  if (asksQuestion) {
     if (value.questionId === undefined) {
       unprocessable(
         ["questionId"],
@@ -434,6 +465,62 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
         "That approval or question is no longer open",
       );
     }
+    targetId = value.questionId;
+  } else if (value.intent === "review") {
+    if (value.artifactVersionId === undefined) {
+      unprocessable(
+        ["artifactVersionId"],
+        "request_artifact_version_required",
+        "Name the artifact version the request asks someone to review",
+      );
+    }
+    // Only a version a step of this run produced: another run's, or one no run
+    // produced, is not this run's to hand out.
+    const produced = await transaction.query(
+      `select 1 from bakery.artifact_versions version
+         join bakery.run_steps step
+           on step.organization_id = version.organization_id
+          and step.id = version.run_step_id
+        where version.organization_id = $1 and version.id = $2
+          and step.run_id = $3`,
+      [organizationId, value.artifactVersionId, run.id],
+    );
+    if (produced.rows.length === 0) {
+      unprocessable(
+        ["artifactVersionId"],
+        "request_artifact_version_not_found",
+        "No such artifact version on this run",
+      );
+    }
+    targetId = value.artifactVersionId;
+  } else if (value.intent === "take_over") {
+    if (value.stepKey === undefined) {
+      unprocessable(
+        ["stepKey"],
+        "request_step_required",
+        "Name the step the request asks someone to take over",
+      );
+    }
+    // The latest iteration of the step, and only while it can still be taken
+    // over; a finished step has nothing left to take.
+    const step = await transaction.query<{ id: string; status: string }>(
+      `select id, status from bakery.run_steps
+        where organization_id = $1 and run_id = $2 and step_key = $3
+        order by iteration desc limit 1`,
+      [organizationId, run.id, value.stepKey],
+    );
+    const found = step.rows[0];
+    if (!found) {
+      unprocessable(["stepKey"], "request_step_not_found", "No such step");
+    }
+    if (!["pending", "running", "waiting"].includes(found.status)) {
+      unprocessable(
+        ["stepKey"],
+        "request_step_finished",
+        "That step is already finished",
+      );
+    }
+    targetId = found.id;
   }
   const note = value.note?.trim() ?? "";
   if (note.length > REQUEST_NOTE_MAX) {
@@ -547,7 +634,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
       run,
       intent: value.intent,
       stepKey: value.stepKey ?? null,
-      questionId: value.questionId ?? null,
+      targetId,
       power,
       note: note === "" ? null : note,
       neededBy,
@@ -745,7 +832,7 @@ async function askOne(
     run: RunFacts;
     intent: RequestIntent;
     stepKey: string | null;
-    questionId: string | null;
+    targetId: string | null;
     power: RunPower | undefined;
     note: string | null;
     neededBy: Date | null;
@@ -787,7 +874,7 @@ async function askOne(
       ask.intent,
       ask.stepKey ?? "",
       NO_TARGET,
-      ask.questionId,
+      ask.targetId,
     ],
   );
   if (open.rows[0]) {
@@ -858,7 +945,7 @@ async function askOne(
       ask.note,
       ask.neededBy,
       REQUEST_LIFETIME_DAYS,
-      ask.questionId,
+      ask.targetId,
       audience?.roleKey ?? null,
       audience?.groupId ?? null,
       audience?.name ?? null,
@@ -871,22 +958,25 @@ async function askOne(
   // is given whatever role the person already has: observe says nothing about
   // doing, and the gate asks the grant only when the role refuses.
   if (ask.power !== undefined) {
+    const target = GRANT_TARGET[ask.power];
     await transaction.query(
       `insert into bakery.run_power_grants (
          organization_id, run_id, principal_id, power, target_kind,
-         question_id, source_request_id, expires_at)
-       select $1, $2, $3, $4, 'question', $5, $6, expires_at
+         ${target.column}, source_request_id, expires_at)
+       select $1, $2, $3, $4, $5, $6, $7, expires_at
          from bakery.person_requests
-        where organization_id = $1 and id = $6
+        where organization_id = $1 and id = $7
        on conflict (
-         organization_id, principal_id, power, question_id
+         organization_id, principal_id, power,
+         (coalesce(question_id, artifact_version_id, run_step_id))
        ) where revoked_at is null do nothing`,
       [
         organizationId,
         run.id,
         recipientId,
         ask.power,
-        ask.questionId,
+        target.kind,
+        ask.targetId,
         requestId,
       ],
     );
@@ -1112,5 +1202,46 @@ export async function completeRequestsOnQuestion(
         set revoked_at = now(), revoked_by = $3, version = version + 1
       where organization_id = $1 and question_id = $2 and revoked_at is null`,
     [organizationId, questionId, principalId],
+  );
+}
+
+/**
+ * A comment on a reviewed version, or the take-over of a step, ends the request
+ * that asked for it (#456 slice 2b). The right to act stays until the request
+ * expires or is withdrawn, because a review can take several comments and a
+ * taken-over step several steers; only the request says it is handled.
+ */
+export async function handleRequestsOnTarget(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  intent: "review" | "take_over",
+  targetId: string,
+): Promise<void> {
+  await transaction.query(
+    `update bakery.person_requests
+        set status = 'handled', responded_at = now(), updated_at = now(),
+            version = version + 1
+      where organization_id = $1 and recipient_id = $2 and target_id = $3
+        and intent = $4 and status = 'open'`,
+    [organizationId, principalId, targetId, intent],
+  );
+}
+
+/** The same for a take-over: the request names the step by run and step key. */
+export async function handleTakeOverRequests(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  runId: string,
+  stepKey: string,
+): Promise<void> {
+  await transaction.query(
+    `update bakery.person_requests
+        set status = 'handled', responded_at = now(), updated_at = now(),
+            version = version + 1
+      where organization_id = $1 and recipient_id = $2 and run_id = $3
+        and step_key = $4 and intent = 'take_over' and status = 'open'`,
+    [organizationId, principalId, runId, stepKey],
   );
 }
