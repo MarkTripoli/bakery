@@ -3354,7 +3354,6 @@
   "tasks.delivery.afterApproval.merge.copy": "⟪Copy⟫",
   "tasks.delivery.afterApproval.merge.copied": "⟪Copied⟫",
   "tasks.delivery.afterApproval.merge.copyFailed": "⟪Could not copy⟫",
-  "tasks.delivery.afterApproval.earlierRow": "⟪#{number}⟫",
   "tasks.delivery.afterApproval.status.open": "⟪Open⟫",
   "tasks.delivery.afterApproval.status.merged": "⟪Merged⟫",
   "tasks.delivery.afterApproval.status.closed": "⟪Closed⟫",
@@ -6262,7 +6261,6 @@
   "tasks.delivery.settled.acceptedLead": "⟪Review accepted anyway⟫",
   "tasks.delivery.settled.acceptedBy": "⟪by {name} on {date}: “{reason}”⟫",
   "tasks.delivery.settled.acceptedNoName": "⟪on {date}: “{reason}”⟫",
-  "tasks.delivery.settled.pullRequest": "⟪Pull request #{number}⟫",
   "tasks.delivery.links.tried": "⟪What Bakery tried⟫",
   "tasks.delivery.links.details": "⟪Details⟫",
   "tasks.delivery.details.commit": "⟪Commit⟫",
@@ -6452,5 +6450,6 @@
   "installation.updates.held.row": "⟪{count} held since {date}⟫",
   "installation.updates.held.action": "⟪Action⟫",
   "installation.updates.held.count": "⟪How many⟫",
-  "installation.updates.held.since": "⟪Held since⟫"
+  "installation.updates.held.since": "⟪Held since⟫",
+  "core.reference.close": "⟪Close⟫"
 }

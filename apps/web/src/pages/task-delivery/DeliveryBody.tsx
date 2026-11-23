@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import * as UI from "@bakery/ui";
 import { knownCommits, ReferenceText } from "../../app/ReferenceText.tsx";
+import { ReferenceLink } from "../../app/ReferenceLink.tsx";
 import { formatDate, formatList, type MessageKey } from "@bakery/i18n";
 import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
@@ -329,11 +330,15 @@ function Settled({ model }: Readonly<{ model: DeliveryModel }>) {
   if (pullRequest !== null) {
     lines.push(
       <Line done key="pull-request" testId="delivery-pull-request-line">
-        <UI.Link href={pullRequest.url} variant="external">
-          {t("tasks.delivery.settled.pullRequest", {
-            number: pullRequest.providerNumber,
-          })}
-        </UI.Link>
+        <UI.Text>
+          {t("core.reference.kind.pullRequest")}{" "}
+          <ReferenceLink
+            external
+            href={pullRequest.url}
+            kind="pullRequest"
+            value={`#${pullRequest.providerNumber}`}
+          />
+        </UI.Text>
       </Line>,
     );
   }
@@ -715,11 +720,12 @@ function Details({ model }: Readonly<{ model: DeliveryModel }>) {
                       key={other.providerNumber}
                       role="listitem"
                     >
-                      <UI.Link href={other.url} variant="external">
-                        {t("tasks.delivery.afterApproval.earlierRow", {
-                          number: other.providerNumber,
-                        })}
-                      </UI.Link>
+                      <ReferenceLink
+                        external
+                        href={other.url}
+                        kind="pullRequest"
+                        value={`#${other.providerNumber}`}
+                      />
                       <UI.Text variant="muted">
                         {t(
                           `tasks.delivery.afterApproval.status.${other.status}` as MessageKey,

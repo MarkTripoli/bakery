@@ -3358,7 +3358,6 @@
   "tasks.delivery.afterApproval.merge.copy": "⟦Çôþÿ⟧",
   "tasks.delivery.afterApproval.merge.copied": "⟦Çôþïëð…⟧",
   "tasks.delivery.afterApproval.merge.copyFailed": "⟦Çôûļð ñôŧ çôþÿ ŧë⟧",
-  "tasks.delivery.afterApproval.earlierRow": "⟦#{number} ŧ⟧",
   "tasks.delivery.afterApproval.status.open": "⟦Ôþëñ⟧",
   "tasks.delivery.afterApproval.status.merged": "⟦Ṁëŕĝëð…⟧",
   "tasks.delivery.afterApproval.status.closed": "⟦Çļôšëð…⟧",
@@ -6262,7 +6261,6 @@
   "tasks.delivery.settled.acceptedLead": "⟦Ŕëṽïëŵ àççëþŧëð àñÿŵàÿ ŧëšŧŧ⟧",
   "tasks.delivery.settled.acceptedBy": "⟦ƀÿ {name} ôñ {date}: “{reason}” ŧëšŧ çôþ⟧",
   "tasks.delivery.settled.acceptedNoName": "⟦ôñ {date}: “{reason}” ŧëšŧŧ⟧",
-  "tasks.delivery.settled.pullRequest": "⟦Þûļļ ŕëǫûëšŧ #{number} ŧëšŧŧ⟧",
   "tasks.delivery.links.tried": "⟦Ŵĥàŧ Ɓàķëŕÿ ŧŕïëð ŧëš⟧",
   "tasks.delivery.links.details": "⟦Ðëŧàïļš…⟧",
   "tasks.delivery.details.commit": "⟦Çôɱɱïŧ…⟧",
@@ -6452,5 +6450,6 @@
   "installation.updates.held.row": "⟦{count} ĥëļð šïñçë {date} ŧëšŧ ç⟧",
   "installation.updates.held.action": "⟦Àçŧïôñ…⟧",
   "installation.updates.held.count": "⟦Ĥôŵ ɱàñÿ…⟧",
-  "installation.updates.held.since": "⟦Ĥëļð šïñçë ŧ⟧"
+  "installation.updates.held.since": "⟦Ĥëļð šïñçë ŧ⟧",
+  "core.reference.close": "⟦Çļôšë⟧"
 }

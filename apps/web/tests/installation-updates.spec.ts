@@ -658,6 +658,9 @@ for (
       );
       await page.keyboard.press("Escape");
       await expect(card).toHaveCount(0);
+      // Focus goes back to the id, and it does not open the card again.
+      await expect(reference.locator(".ui-reference__plain")).toBeFocused();
+      await expect(card).toHaveCount(0);
       await page.mouse.move(5, 5);
       await reference.locator(".ui-reference__plain").focus();
       await still(page, "updates-release-card");

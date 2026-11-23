@@ -20,6 +20,8 @@ export type ReferenceLabels = {
   readonly copied: string;
   /** Said when the clipboard refuses. */
   readonly copyFailed: string;
+  /** The phone sheet's second button: "Close". */
+  readonly close: string;
   /** Read by assistive technology after an outside link: "(opens in a new tab)". */
   readonly opensNewTab: string;
   /** Said in the card when the link opens outside Bakery: "Opens on GitHub in a new tab.". */
@@ -115,6 +117,9 @@ export function Reference(
   const cardId = useId();
   const root = useRef<HTMLSpanElement>(null);
   const cardEl = useRef<HTMLSpanElement>(null);
+  // Set while focus is being handed back to the reference after Escape, so the
+  // focus does not open the card again.
+  const handingBack = useRef(false);
   const [open, setOpen] = useState(defaultOpen);
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
   const timers = useRef<{
@@ -178,6 +183,17 @@ export function Reference(
     place();
     globalThis.addEventListener("resize", place);
     return () => globalThis.removeEventListener("resize", place);
+  }, [open]);
+
+  // A tap or click anywhere outside the reference closes its card, so the phone
+  // sheet never has to be hunted down by tapping the id again.
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node | null)) setOpen(false);
+    };
+    globalThis.document.addEventListener("pointerdown", away);
+    return () => globalThis.document.removeEventListener("pointerdown", away);
   }, [open]);
 
   // A card that closes forgets it said Copied.
@@ -253,6 +269,10 @@ export function Reference(
         }
       }}
       onFocus={(event) => {
+        if (handingBack.current) {
+          handingBack.current = false;
+          return;
+        }
         // Keyboard focus opens the card; a touch tap on a link just follows it.
         if (
           hasCard && (event.target as HTMLElement).matches(":focus-visible")
@@ -261,7 +281,22 @@ export function Reference(
       onKeyDown={(event) => {
         if (event.key === "Escape" && open) {
           event.stopPropagation();
+          // Focus on Copy would vanish with the card and fall to the page, so
+          // it goes back to the id the card belongs to.
+          const inside = cardEl.current?.contains(
+            globalThis.document.activeElement,
+          ) ?? false;
           setOpen(false);
+          if (inside) {
+            const target = root.current?.querySelector<HTMLElement>(
+              "a, .ui-reference__plain",
+            );
+            if (target) {
+              handingBack.current = true;
+              target.focus();
+              handingBack.current = false;
+            }
+          }
         }
       }}
       onPointerEnter={(event) => {
@@ -307,6 +342,11 @@ export function Reference(
               <Button onClick={copyValue} variant="secondary">
                 {copy === "copied" ? labels.copied : labels.copy}
               </Button>
+              <span className="ui-reference__close">
+                <Button onClick={() => setOpen(false)} variant="secondary">
+                  {labels.close}
+                </Button>
+              </span>
             </span>
             {copy === "failed"
               ? <Text variant="caption">{labels.copyFailed}</Text>

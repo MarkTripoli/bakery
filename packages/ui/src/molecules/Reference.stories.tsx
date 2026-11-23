@@ -12,6 +12,7 @@ const labels = (kind: string): ReferenceLabels => ({
   copy: "Copy",
   copied: "Copied",
   copyFailed: "Could not copy. Select the id above.",
+  close: "Close",
   opensNewTab: "(opens in a new tab)",
   destination: "Opens on GitHub in a new tab.",
 });

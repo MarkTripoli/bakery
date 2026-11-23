@@ -43,6 +43,17 @@
   overflow-wrap: anywhere;
 }
 
+.ui-reference__copy {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+/* Close is drawn only where the card is the phone sheet; the desktop card
+   closes with Escape or by moving away. */
+.ui-reference__close {
+  display: none;
+}
+
 /* On a phone the card is a sheet at the bottom of the window, so a long id
    never runs off the screen. */
 @media (max-width: 743px) {
@@ -53,8 +64,18 @@
     max-inline-size: none;
     position: fixed;
   }
-}
-
-.ui-reference__copy {
-  display: inline-flex;
+  /* Copy and Close share one row, equal widths, thumb-height. */
+  .ui-reference__copy {
+    display: flex;
+    inline-size: 100%;
+  }
+  .ui-reference__copy > *,
+  .ui-reference__close {
+    display: flex;
+    flex: 1 1 0;
+  }
+  .ui-reference__copy .ui-button {
+    inline-size: 100%;
+    min-block-size: var(--target-coarse);
+  }
 }

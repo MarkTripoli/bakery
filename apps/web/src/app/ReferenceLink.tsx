@@ -29,6 +29,7 @@ export function ReferenceLink(
         copy: translate("core.reference.copy"),
         copied: translate("core.reference.copied"),
         copyFailed: translate("core.reference.copyFailed"),
+        close: translate("core.reference.close"),
         opensNewTab: translate("core.reference.opensNewTab"),
         ...(props.external === true
           ? { destination: translate("core.reference.opensOutside") }
