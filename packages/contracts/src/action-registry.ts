@@ -209,6 +209,12 @@ export type ActionDefinition<
    */
   successStatus?: 200 | 201 | 202;
   /**
+   * A query whose handler may return null to answer 204 with no body; any
+   * other result is validated against the output and answered 200. Declare
+   * the 204 as an httpVariant of the output in the transport schemas.
+   */
+  noContentWhenNull?: true;
+  /**
    * Strong validator a query returns in the ETag header, derived from its
    * validated output; the If-Match value a later command must send.
    */
@@ -760,6 +766,10 @@ export class ActionRegistry {
         }) as ActionContext
         : authorizedContext;
       const result = await action.handler(handlerContext, normalizedInput);
+      if (
+        result === null && action.noContentWhenNull &&
+        action.policy.type === ActionKind.Query
+      ) return null;
       const validated = output.safeParse(result);
       if (!validated.success) {
         throw new ActionRegistryError(
