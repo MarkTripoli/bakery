@@ -127,7 +127,7 @@ Deno.test("a declared input reads pinned after a newer version lands; a non-inpu
       workerRequest(
         fixture,
         worker.credential,
-        "/v1/worker/attempts/" + assignment.attemptId + "/session-call",
+        "/v1/session/call",
         { tool: "storageFiles.content", arguments: args },
         { headers: { "x-session-credential": token } },
       );
