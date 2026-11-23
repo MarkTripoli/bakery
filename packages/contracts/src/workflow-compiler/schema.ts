@@ -747,6 +747,12 @@ export const WorkflowSemanticDocumentSchema = z.object({
   cancel: z.enum(["stop-started-actions"]).optional().describe(
     "Cancellation policy for started actions.",
   ),
+  outputs: z.record(
+    nameSchema,
+    referenceNodeSchema,
+  ).optional().describe(
+    "Named outputs a calling workflow may read, each a reference to a step output; absent when none are declared, which leaves every existing digest unchanged.",
+  ),
   tools: z.record(
     described(z.string().regex(WORKFLOW_TOOL_ENTRY_NAME), "Tools entry name."),
     WorkflowToolsEntrySchema,
