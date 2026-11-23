@@ -530,6 +530,7 @@ Deno.test("WorkflowStepBinding publishes four sources and a bare sha256 digest",
 
 const runtimeSet = [
   "agent.freeform",
+  "coordination.split",
   "delivery.deploy",
   "delivery.health",
   "delivery.prepare",
@@ -585,7 +586,8 @@ Deno.test("worker-dispatched declarations pin outputSchema to the registry and t
     if (
       name === "workflow.noop" || name === "rpi.plan" ||
       name === "workflow.stop" || name === "human.approval" ||
-      name === "tool.call" || name.startsWith("delivery.")
+      name === "tool.call" || name === "coordination.split" ||
+      name.startsWith("delivery.")
     ) continue;
     const metadata = WORKFLOW_ACTION_METADATA[name as "quality.check"];
     const { handler } = runtime.get(name as "quality.check");

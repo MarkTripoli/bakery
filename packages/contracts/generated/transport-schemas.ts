@@ -7405,6 +7405,45 @@ const transportSchemas = {
       ],
       "description": "Input to the tool.call workflow action: which connection, which pinned tool and version, on which resource, with what arguments. One deterministic call, run by the server for the person who started the run."
     },
+    "SplitInput": {
+      "fields": [
+        {
+          "name": "lanes",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 262144
+          },
+          "description": "The plan's lanes, as the coordination plan spec defines them: each names its repository alias, title, instructions, prerequisites, typed outputs and inputs, and may name what it runs (a published workflow and its inputs) so the engine starts it. Validated as a plan before anything is created."
+        },
+        {
+          "name": "maxConcurrency",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 16
+          },
+          "description": "Most lanes running at once; the engine starts a ready lane only while fewer than this many of the plan's lane children have a live run."
+        },
+        {
+          "name": "budgetLimitUsd",
+          "type": "decimal",
+          "required": false,
+          "bounds": {
+            "min": 0,
+            "max": 200
+          },
+          "description": "Shared ceiling in USD across every child run of the plan; omit for no plan-scoped ceiling."
+        }
+      ],
+      "rules": [
+        "A step with no agent. The organization, the parent task and the acting person come from the run, never from this payload.",
+        "The step creates the plan once, keyed by the run and the step, so a step looked at again finds its own plan instead of creating a second one.",
+        "The step completes only when the plan's projection is completed. A plan that fails, is partially delivered or is canceled fails the step with a fixed code; a plan still running leaves it waiting."
+      ],
+      "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows."
+    },
     "IntegrationEffectQuery": {
       "fields": [
         {
@@ -9259,7 +9298,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -15281,6 +15320,72 @@ const transportSchemas = {
         "Skill author. Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft). The file keeps its content, type and runnable mark."
       ],
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+    },
+    "PackageExport": {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": "Display name of the package, at most 120 characters, written into the package and shown wherever an import of it is listed."
+        },
+        {
+          "name": "workflowIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Workflow definitions to export, at most 50 across all four lists. Each must have an active published version; that version's definition is what travels, with personal skills replaced by open slots."
+        },
+        {
+          "name": "artifactKindKeys",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Keys of the artifact kinds to export, at most 50 across all four lists. The latest published version of each kind travels."
+        },
+        {
+          "name": "skillIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Organization skills to export, at most 50 across all four lists. Each must have a published active version; its manifest and files travel. A personal or global skill is refused: neither belongs to the organization's library."
+        },
+        {
+          "name": "agentIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Agents to export, at most 50 across all four lists. Each must have an active version. Billing never travels, and every skill an agent binds must be in skillIds."
+        }
+      ],
+      "description": "Names the workflows, artifact kinds, skills and agents to write into one T0 package. A package is validated data only: it never carries grants, credentials, connections, repository bindings, run history or active starts, and at least one item must be named."
+    },
+    "PackageImport": {
+      "fields": [
+        {
+          "name": "package",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 5000000
+          },
+          "description": "A BakeryPackage exactly as an export wrote it. Every item digest and the package digest are checked, every workflow slug must be free in this organization, and every definition is validated before anything is written; the import then happens whole or not at all."
+        }
+      ],
+      "configSchema": "package: { formatVersion: 1, name: <=120, items: [{ kind: workflow|artifactKind, key, digest: sha256, data }] 1..50, packageDigest: sha256 }. The strict BakeryPackageSchema in @bakery/contracts/library-packages enforces it; unknown members are refused.",
+      "description": "Imports a T0 package into this organization as ordinary drafts (workflows) and new kind versions (artifact kinds), and records where each came from. Nothing is switched on: starts stay off until someone uses a version."
     }
   },
   "projections": {
@@ -25903,7 +26008,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -25948,7 +26053,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -38417,6 +38522,52 @@ const transportSchemas = {
         "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
         "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
       }
+    },
+    "BakeryPackage": {
+      "fields": [
+        "formatVersion",
+        "name",
+        "items",
+        "packageDigest"
+      ],
+      "fieldTypes": {
+        "formatVersion": "integer",
+        "name": "string",
+        "items": "json[]",
+        "packageDigest": "sha256"
+      },
+      "bounds": {
+        "itemsMaxItems": 50
+      },
+      "description": "A T0 package: validated data addressed by digest, free of grants, credentials, connections, repository bindings, run history and active starts.",
+      "fieldDescriptions": {
+        "formatVersion": "The package format version; an importer refuses a version it does not know.",
+        "name": "Display name of the package.",
+        "items": "The exported items, each with its kind, key, digest and data.",
+        "packageDigest": "SHA-256 of the canonical JSON of the item digests, in order."
+      }
+    },
+    "PackageImportResult": {
+      "fields": [
+        "packageDigest",
+        "imported",
+        "openBindings"
+      ],
+      "fieldTypes": {
+        "packageDigest": "sha256",
+        "imported": "json[]",
+        "openBindings": "json[]"
+      },
+      "bounds": {
+        "importedMaxItems": 50,
+        "openBindingsMaxItems": 512
+      },
+      "description": "What an import created: one entry per item naming its kind, key, item digest and the id of what it became, plus the bindings still left to make.",
+      "fieldDescriptions": {
+        "packageDigest": "The digest of the imported package, which the lineage rows record.",
+        "imported": "One entry per imported item, in package order.",
+        "openBindings": "What a person still has to bind by hand: skills and agents a workflow named that the package did not carry, and the billing of each imported agent."
+      }
     }
   },
   "pageEnvelope": {
@@ -39172,6 +39323,14 @@ const transportSchemas = {
       },
       "inngestTrigger": "bakery/task.dependency_release_requested.v1",
       "description": "Requests release of the runs blocked on a prerequisite task that ended. Consumers re-read the task and its blocked dependants under their own run locks; a repeat changes nothing."
+    },
+    "coordination.lanes_dispatch_requested": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "planId": "uuid"
+      },
+      "inngestTrigger": "bakery/coordination.lanes_dispatch_requested.v1",
+      "description": "Requests that the engine start the ready lanes of a coordination plan that name what they run, up to the plan's concurrency. Consumers re-read the plan and its lanes under their own locks; a repeat starts nothing that is already started."
     },
     "tasks.created": {
       "schemaVersion": 1,
