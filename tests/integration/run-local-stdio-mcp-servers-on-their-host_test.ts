@@ -44,25 +44,124 @@ type Local = {
   connectionId: string;
 };
 
+type Json = Record<string, unknown>;
+
+/** An Admin's own request, as the web app sends it. */
+function asAdmin(
+  fixture: WorkerFixture,
+  method: string,
+  path: string,
+  body: unknown,
+  ifMatch?: number,
+): Promise<Response> {
+  return Promise.resolve(fixture.app.fetch(
+    new Request(fixture.config.publicBaseUrl + path, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Origin: fixture.config.publicBaseUrl,
+        "Bakery-Organization-Id": fixture.organizationId,
+        Cookie: fixture.adminCookie,
+        "Idempotency-Key": crypto.randomUUID(),
+        ...(ifMatch === undefined ? {} : { "If-Match": '"' + ifMatch + '"' }),
+      },
+      body: JSON.stringify(body),
+    }),
+  ));
+}
+
+async function json(response: Response, status: number): Promise<Json> {
+  const text = await response.text();
+  assertEquals(response.status, status, text);
+  return JSON.parse(text) as Json;
+}
+
+async function problemField(response: Response): Promise<string[]> {
+  const text = await response.text();
+  assertEquals(response.status, 422, text);
+  return text.match(/"[a-z_]+"/g)?.map((m) => m.slice(1, -1)) ?? [];
+}
+
+/** A server definition made and switched on through the API. */
+async function server(
+  fixture: WorkerFixture,
+  definition: Json,
+): Promise<string> {
+  const created = await json(
+    await asAdmin(fixture, "POST", "/v1/mcp-servers", {
+      slug: "f-" + crypto.randomUUID().slice(0, 8),
+      name: "Files",
+      configSchema: { type: "object" },
+      requiredCapabilities: [],
+      sourceRevision: "rev",
+      ...definition,
+    }),
+    201,
+  );
+  await json(
+    await asAdmin(
+      fixture,
+      "PATCH",
+      "/v1/mcp-servers/" + created.id,
+      { enabled: true },
+      created.version as number,
+    ),
+    200,
+  );
+  return created.id as string;
+}
+
+/** A stdio connection placed on `hostId` through mcpConnections.create. */
 async function placedConnection(
   fixture: WorkerFixture,
   hostId: string,
 ): Promise<string> {
-  const db = fixture.pgDatabase;
-  const org = fixture.organizationId;
-  const serverId = crypto.randomUUID();
-  const connectionId = crypto.randomUUID();
-  await db.query(
-    `insert into bakery.mcp_servers (id, organization_id, slug, name, transport, launch_spec, endpoint_template, config_schema, required_capabilities, source_revision, enabled, version)
-     values ($1, $2, $3, 'Files', 'stdio', $4::jsonb, null, '{}'::jsonb, '[]'::jsonb, 'rev', true, 1)`,
-    [serverId, org, `f-${serverId.slice(0, 8)}`, JSON.stringify(LAUNCH)],
+  const serverId = await server(fixture, {
+    transport: "stdio",
+    launchSpec: LAUNCH,
+  });
+  const created = await json(
+    await asAdmin(fixture, "POST", "/v1/mcp-connections", {
+      serverId,
+      label: "Files",
+      config: {},
+      enabledCapabilities: [],
+      scope: "organization",
+      workerHostId: hostId,
+    }),
+    201,
   );
-  await db.query(
-    `insert into bakery.mcp_connections (id, organization_id, server_id, label, config, enabled_capabilities, status, worker_host_id, version)
-     values ($1, $2, $3, 'Files', '{}'::jsonb, '["echo"]'::jsonb, 'enabled', $4, 1)`,
-    [connectionId, org, serverId, hostId],
+  assertEquals(created.workerHostId, hostId);
+  return created.id as string;
+}
+
+/** Changes a connection through mcpConnections.update, at its current version. */
+async function updateConnection(
+  fixture: WorkerFixture,
+  connectionId: string,
+  patch: Json,
+): Promise<Response> {
+  const { version } = (await fixture.pgDatabase.query<{ version: number }>(
+    "select version from bakery.mcp_connections where id = $1",
+    [connectionId],
+  )).rows[0]!;
+  return await asAdmin(
+    fixture,
+    "PATCH",
+    "/v1/mcp-connections/" + connectionId,
+    patch,
+    version,
   );
-  return connectionId;
+}
+
+/** Enables the discovered echo tool, as a person does after discovery. */
+async function enableEcho(fixture: WorkerFixture, connectionId: string) {
+  await json(
+    await updateConnection(fixture, connectionId, {
+      enabledCapabilities: ["echo"],
+    }),
+    200,
+  );
 }
 
 async function local(fixture: WorkerFixture): Promise<Local> {
@@ -250,7 +349,9 @@ Deno.test("only the host a stdio connection is placed on discovers it and pins i
 Deno.test("a local tool is listed with its launch, checked and recorded by local-tool-calls, and never sent by the broker (#441)", () =>
   withLocal(async (fixture) => {
     const s = await local(fixture);
-    await bindStep(fixture, s, await reportSnapshot(fixture, s));
+    const pinned = await reportSnapshot(fixture, s);
+    await enableEcho(fixture, s.connectionId);
+    await bindStep(fixture, s, pinned);
     const listed = await workerRequest(
       fixture,
       s.credential,
@@ -327,6 +428,7 @@ Deno.test("a session on another host does not get a local tool placed elsewhere 
   withLocal(async (fixture) => {
     const s = await local(fixture);
     const snapshot = await reportSnapshot(fixture, s);
+    await enableEcho(fixture, s.connectionId);
     // Move the placement to another host of the organization.
     const other = await registeredWorker(fixture, { slots: 1 });
     const otherHost = (await fixture.pgDatabase.query<{ id: string }>(
@@ -336,6 +438,9 @@ Deno.test("a session on another host does not get a local tool placed elsewhere 
       [fixture.organizationId, s.hostId],
     )).rows[0]!.id;
     assert(other.credential !== s.credential);
+    // Placement is fixed at create: the API moves a connection by recreating it
+    // on the other host. Here the row is moved directly so the same pinned
+    // snapshot and binding show what a session on the old host sees.
     await fixture.pgDatabase.query(
       "update bakery.mcp_connections set worker_host_id = $2 where id = $1",
       [s.connectionId, otherHost],
@@ -357,4 +462,71 @@ Deno.test("a session on another host does not get a local tool placed elsewhere 
       "host_not_placed",
     ]]);
     assertEquals((await openCall(fixture, s, { text: "hi" })).status, 403);
+  }));
+
+Deno.test("create refuses a placement on an unknown host, a missing one, or a remote connection (#441)", () =>
+  withLocal(async (fixture) => {
+    const s = await local(fixture);
+    const before = (await fixture.pgDatabase.query<{ version: number }>(
+      "select version from bakery.mcp_connections where id = $1",
+      [s.connectionId],
+    )).rows[0]!.version;
+
+    // A host that is not this organization's is unknown.
+    const stranger = crypto.randomUUID();
+    const stdioServer = await server(fixture, {
+      transport: "stdio",
+      launchSpec: LAUNCH,
+    });
+    const stdioInput = {
+      serverId: stdioServer,
+      label: "Files",
+      config: {},
+      enabledCapabilities: [],
+      scope: "organization",
+    };
+    assert(
+      (await problemField(
+        await asAdmin(fixture, "POST", "/v1/mcp-connections", {
+          ...stdioInput,
+          workerHostId: stranger,
+        }),
+      )).includes("worker_host_unknown"),
+    );
+    // A stdio connection must name its host.
+    assert(
+      (await problemField(
+        await asAdmin(fixture, "POST", "/v1/mcp-connections", stdioInput),
+      )).includes("worker_host_required"),
+    );
+
+    // A remote connection runs on no host: placing it is refused.
+    const remoteServer = await server(fixture, {
+      transport: "streamable_http",
+      endpointTemplate: "https://mcp.example.com/mcp",
+    });
+    const remoteInput = {
+      serverId: remoteServer,
+      label: "Docs",
+      config: {},
+      enabledCapabilities: [],
+      scope: "organization",
+    };
+    assert(
+      (await problemField(
+        await asAdmin(fixture, "POST", "/v1/mcp-connections", {
+          ...remoteInput,
+          workerHostId: s.hostId,
+        }),
+      )).includes("worker_host_not_for_remote"),
+    );
+    // Nothing above moved the placed connection.
+    const row = (await fixture.pgDatabase.query<{
+      worker_host_id: string;
+      version: number;
+    }>(
+      "select worker_host_id, version from bakery.mcp_connections where id = $1",
+      [s.connectionId],
+    )).rows[0]!;
+    assertEquals(row, { worker_host_id: s.hostId, version: before });
   }));
