@@ -3466,18 +3466,7 @@ const transportSchemas = {
           "name": "repositoryId",
           "type": "uuid",
           "required": false,
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases."
-        },
-        {
-          "name": "environment",
-          "type": "enum",
-          "required": false,
-          "enum": [
-            "preview",
-            "staging",
-            "production"
-          ],
-          "description": "Restrict deployment results to one environment: `preview`, `staging`, or `production`."
+          "description": "Restrict results to this repository's evaluation cases."
         },
         {
           "name": "cursor",
@@ -3504,7 +3493,7 @@ const transportSchemas = {
       "rules": [
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Filters for listing pull requests, merge entries, deployments, or evaluation cases scoped to a repository."
+      "description": "Filters for listing evaluation cases scoped to a repository."
     },
     "DeploymentQuery": {
       "fields": [
@@ -3512,7 +3501,7 @@ const transportSchemas = {
           "name": "repositoryId",
           "type": "uuid",
           "required": false,
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases."
+          "description": "Restrict results to this repository's deployments."
         },
         {
           "name": "runId",

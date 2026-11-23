@@ -21380,19 +21380,10 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "repositoryId": {
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases.",
+          "description": "Restrict results to this repository's evaluation cases.",
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-        },
-        "environment": {
-          "description": "Restrict deployment results to one environment: `preview`, `staging`, or `production`.",
-          "type": "string",
-          "enum": [
-            "preview",
-            "staging",
-            "production"
-          ]
         },
         "cursor": {
           "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly. RepositoryQuery.cursor must contain at most 512 UTF-8 bytes.",
@@ -21408,14 +21399,14 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Filters for listing pull requests, merge entries, deployments, or evaluation cases scoped to a repository."
+      "description": "Filters for listing evaluation cases scoped to a repository."
     },
     "DeploymentQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
         "repositoryId": {
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases.",
+          "description": "Restrict results to this repository's deployments.",
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
