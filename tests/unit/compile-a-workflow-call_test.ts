@@ -326,3 +326,52 @@ Deno.test("a document with no calls and no outputs keeps the digest it always ha
   assert(withOutputsKey.ok && without.ok);
   assertEquals(withOutputsKey.digest, without.digest);
 });
+
+Deno.test("a value that cannot stand in a condition is refused where the child reads the input", async () => {
+  const guarded = {
+    ...base,
+    inputs: { topic: { type: "string", required: true } },
+    steps: [{
+      id: "write",
+      if: '$input.topic == "a"',
+      uses: "workflow.noop",
+      with: {},
+    }],
+  };
+  const result = await compile(
+    parent([{
+      id: "research",
+      call: { workflow: CHILD, with: { topic: { nested: { a: 1 } } } },
+    }]),
+    { [CHILD]: guarded },
+  );
+  assertEquals(codes(result), ["call_input_unusable"]);
+  const fine = await compile(
+    parent([{
+      id: "research",
+      call: { workflow: CHILD, with: { topic: "a" } },
+    }]),
+    { [CHILD]: guarded },
+  );
+  assert(fine.ok, JSON.stringify(codes(fine)));
+});
+
+Deno.test("a called workflow cannot use tool.call", async () => {
+  const tooling = {
+    ...base,
+    steps: [{
+      id: "reach",
+      uses: "tool.call",
+      with: {
+        connectionId: "77777777-7777-4777-8777-777777777777",
+        tool: "search",
+        arguments: {},
+      },
+    }],
+  };
+  const result = await compile(
+    parent([{ id: "research", call: { workflow: CHILD } }]),
+    { [CHILD]: tooling },
+  );
+  assertEquals(codes(result), ["call_action_unsupported"]);
+});
