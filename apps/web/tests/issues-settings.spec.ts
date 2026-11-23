@@ -628,7 +628,7 @@ for (
       await openSettings(page);
       await expect(workflowBox(page).getByLabel("Workflow")).toHaveValue("");
       await expect(workflowBox(page)).toContainText(
-        "People choose a workflow each time they start work. Start automatically needs one.",
+        "People choose a workflow each time they start work.",
       );
       await still(page, "issue-settings-workflow-none", undefined, {
         scrollTo: workflowBox(page),
@@ -647,11 +647,19 @@ for (
       await openSettings(page);
       await automaticSwitch(page).click();
       await expect(page.getByText(
-        "Choose a workflow above first. Work that starts by itself needs one.",
+        "Start automatically needs a workflow. Choose one above.",
       )).toBeVisible();
       await expect(automaticSwitch(page)).not.toBeChecked();
       await expect(page.getByText("Start work automatically?"))
         .toHaveCount(0);
+      const needsWorkflow = page.getByRole("alert").filter({
+        hasText: "Start automatically needs a workflow.",
+      });
+      await expect(needsWorkflow).toHaveAttribute("data-variant", "error");
+      await expect(automaticSwitch(page)).toHaveAttribute(
+        "aria-describedby",
+        (await needsWorkflow.getAttribute("id")) ?? "",
+      );
       await still(page, "issue-settings-automatic-needs-workflow", undefined, {
         scrollTo: page.getByTestId("issue-settings-automatic"),
       });
@@ -676,9 +684,12 @@ for (
       await expect(automaticSwitch(page)).toBeChecked();
       await workflowBox(page).getByLabel("Workflow").selectOption("");
       await expect(automaticSwitch(page)).not.toBeChecked();
-      await expect(page.getByText(
-        "Start automatically was turned off because no workflow is chosen.",
-      )).toBeVisible();
+      await expect(
+        page.getByRole("status").filter({
+          hasText:
+            "Start automatically was turned off because no workflow is chosen.",
+        }),
+      ).toHaveAttribute("data-variant", "information");
       await still(page, "issue-settings-automatic-turned-off", undefined, {
         scrollTo: page.getByTestId("issue-settings-automatic"),
       });

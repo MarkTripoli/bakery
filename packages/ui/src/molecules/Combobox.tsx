@@ -1,5 +1,6 @@
 import { type ReactNode, type SelectHTMLAttributes, useId } from "react";
 import { IconGlyph } from "../atoms/IconGlyph.tsx";
+import { VisuallyHidden } from "../atoms/VisuallyHidden.tsx";
 import {
   type SemanticNativeProps,
   withoutSemanticOwnerProps,
@@ -22,6 +23,8 @@ export type ComboboxProps =
     /** `short` keeps a field that holds a short choice to 320px instead of the whole column. */
     width?: "default" | "short";
     label: string;
+    /** Keeps `label` as the accessible name and draws no visible label, for a field a heading above already names. */
+    labelHidden?: boolean;
     /** What is wrong with the choice, in the field's error style under the control. */
     error?: ReactNode;
     /** Marks the choice as required, as a field does. */
@@ -42,6 +45,7 @@ export function Combobox(
   {
     appearance = "field",
     label,
+    labelHidden = false,
     error,
     help,
     required = false,
@@ -56,6 +60,9 @@ export function Combobox(
   const errorId = useId();
   const props = withoutSemanticOwnerProps(unsafeProps);
   const isMultiple = variant === "multiple" || multiple;
+  const fieldLabel = labelHidden
+    ? <VisuallyHidden>{label}</VisuallyHidden>
+    : label;
   const resolvedState = props.disabled ? "disabled" : state ?? "closed";
   const control = (
     <label
@@ -82,14 +89,14 @@ export function Combobox(
                 // The text and its star are one item of the label's grid, so the star stays on the line.
                 ? (
                   <span>
-                    {label}
+                    {fieldLabel}
                     <span aria-hidden="true">*</span>
                   </span>
                 )
-                : label
+                : fieldLabel
               : (
                 <span className="ui-combobox__label-text">
-                  {label}
+                  {fieldLabel}
                   {required ? <span aria-hidden="true">*</span> : null}
                 </span>
               )}

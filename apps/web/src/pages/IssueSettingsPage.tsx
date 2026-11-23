@@ -158,6 +158,7 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
   >(null);
   const [confirming, setConfirming] = useState(false);
   const [workflowError, setWorkflowError] = useState(false);
+  const needsWorkflowId = useId();
   const [turnedOff, setTurnedOff] = useState(false);
   const [showingIssues, setShowingIssues] = useState(false);
 
@@ -605,6 +606,7 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                       <UI.Combobox
                         disabled={save.isPending}
                         label={translate("issues.settings.workflow.title")}
+                        labelHidden
                         onChange={(event) => {
                           const chosen =
                             TICKET_PRESETS.find((id) =>
@@ -654,6 +656,9 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                   {translate("issues.settings.automatic.title")}
                 </UI.Heading>
                 <UI.Switch
+                  aria-describedby={workflowError && shown.preset === null
+                    ? needsWorkflowId
+                    : undefined}
                   checked={shown.automatic}
                   disabled={labelsDisabled}
                   onChange={(event) => {
@@ -674,16 +679,20 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                 </UI.Switch>
                 {workflowError && shown.preset === null
                   ? (
-                    <UI.Text role="alert" variant="muted">
+                    <UI.InlineNotice
+                      id={needsWorkflowId}
+                      role="alert"
+                      tone="error"
+                    >
                       {translate("issues.settings.automatic.needsWorkflow")}
-                    </UI.Text>
+                    </UI.InlineNotice>
                   )
                   : null}
-                {turnedOff && !shown.automatic
+                {turnedOff && !shown.automatic && dirty
                   ? (
-                    <UI.Text role="status" variant="muted">
+                    <UI.InlineNotice role="status" tone="information">
                       {translate("issues.settings.automatic.turnedOff")}
-                    </UI.Text>
+                    </UI.InlineNotice>
                   )
                   : null}
                 {shown.automatic

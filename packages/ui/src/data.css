@@ -1260,10 +1260,15 @@
   color: var(--color-selection);
   font: var(--type-control);
 }
-/* The field combobox draws its own chevron only where a page asks for the
-   mock's select (`preferences` settings pages). */
+.ui-combobox--field {
+  position: relative;
+}
 .ui-combobox--field > .ui-icon {
-  display: none;
+  display: block;
+  inset-block-end: var(--space-3);
+  inset-inline-end: var(--space-3);
+  pointer-events: none;
+  position: absolute;
 }
 .ui-appearance-preview__row .ui-status-badge {
   align-items: center;
@@ -1871,15 +1876,15 @@
   padding: var(--space-0);
 }
 
-/* A combobox that is a form field looks like the text fields beside it: the
-   same height, border, type and width. */
 .ui-combobox--field select {
+  appearance: none;
   box-sizing: border-box;
   color: var(--color-fg);
   font: var(--type-field);
   inline-size: 100%;
   min-block-size: max(var(--size-control), var(--target-coarse));
-  padding: var(--space-2) var(--space-3);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3) var(--space-8);
 }
 /* A combobox that failed validation has the same destructive border as a text field. */
 .ui-combobox select[aria-invalid="true"] {
