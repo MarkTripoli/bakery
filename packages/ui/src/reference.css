@@ -43,6 +43,13 @@
   overflow-wrap: anywhere;
 }
 
+/* The card's own lines are spans, never paragraphs: a reference sits inside
+   running text, which may itself be a paragraph. */
+.ui-reference__note {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+}
+
 .ui-reference__copy {
   display: inline-flex;
   gap: var(--space-2);

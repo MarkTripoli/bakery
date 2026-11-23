@@ -791,6 +791,8 @@ for (
       await expect(plain).toHaveAttribute("aria-expanded", "true");
       const card = reference.getByRole("group", { name: "Release" });
       await expect(card).toBeVisible();
+      // The card sits inside a sentence, so it holds no paragraph.
+      await expect(card.locator("p")).toHaveCount(0);
       await expect(plain).toHaveAttribute(
         "aria-controls",
         (await card.getAttribute("id")) ?? "",

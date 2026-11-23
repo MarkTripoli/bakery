@@ -5,7 +5,6 @@ import { Button } from "../atoms/Button.tsx";
 import { DataText } from "../atoms/DataText.tsx";
 import { IconGlyph } from "../atoms/IconGlyph.tsx";
 import { Link } from "../atoms/Link.tsx";
-import { Text } from "../atoms/Text.tsx";
 import { VisuallyHidden } from "../atoms/VisuallyHidden.tsx";
 import { type ReferenceKind, shortReference } from "./reference-short.ts";
 import "../reference.css";
@@ -345,10 +344,10 @@ export function Reference(
             ref={cardEl}
             role="group"
           >
-            <Text variant="caption">{labels.kind}</Text>
+            <span className="ui-reference__note">{labels.kind}</span>
             <DataText variant="identifier">{value}</DataText>
             {external && labels.destination !== undefined
-              ? <Text variant="caption">{labels.destination}</Text>
+              ? <span className="ui-reference__note">{labels.destination}</span>
               : null}
             <span className="ui-reference__copy">
               <Button onClick={copyValue} variant="secondary">
@@ -361,7 +360,7 @@ export function Reference(
               </span>
             </span>
             {copy === "failed"
-              ? <Text variant="caption">{labels.copyFailed}</Text>
+              ? <span className="ui-reference__note">{labels.copyFailed}</span>
               : null}
             <VisuallyHidden role="status">
               {copy === "copied"
