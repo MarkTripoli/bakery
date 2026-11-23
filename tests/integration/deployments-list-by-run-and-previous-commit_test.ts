@@ -5,6 +5,7 @@ import {
   advanceDeployment,
   createDeployment,
   listDeployments,
+  rollbackDeployment,
 } from "../../apps/server/src/modules/delivery/deployments.ts";
 import { seedFundedModelJob } from "../helpers/funded-model-job.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
@@ -18,7 +19,7 @@ const SECRET = "deployments-cursor-secret-for-tests";
 const SHA = (n: number) => n.toString(16).padStart(40, "0");
 const DIGEST = (n: number) => `sha256:${n.toString(16).padStart(64, "0")}`;
 
-Deno.test("deployments.list narrows to one run and each release names the commit it replaced (#63)", () =>
+Deno.test("deployments.list narrows to one run, names the commit each release replaced and flags a failed rollback (#63)", () =>
   withWorkerFixture(async (fixture) => {
     const database = fixture.pgDatabase;
     const organizationId = fixture.organizationId;
@@ -131,6 +132,33 @@ Deno.test("deployments.list narrows to one run and each release names the commit
       StandardError,
       undefined,
       "a cursor from one run's list is refused for another's",
+    );
+
+    // A rollback that ends in failed is told apart from a deploy that failed.
+    assertEquals(two.rollbackFailed, false);
+    await settle(two.id);
+    const rolling = await run((transaction) =>
+      rollbackDeployment(transaction, organizationId, principal, two.id, {
+        requestId: `request-${crypto.randomUUID()}`,
+        traceId: TRACE,
+        reason: "the release is unhealthy",
+      })
+    );
+    assertEquals(rolling.status, "rolling_back");
+    assertEquals(rolling.rollbackFailed, false, "not failed yet");
+    const failed = await run((transaction) =>
+      advanceDeployment(transaction, organizationId, two.id, {
+        from: "rolling_back",
+        to: "failed",
+        expectedVersion: rolling.version,
+      })
+    );
+    assertEquals(failed.status, "failed");
+    assertEquals(failed.rollbackFailed, true);
+    const after = await list({ runId: job.runId });
+    assertEquals(
+      after.items.map((item) => [item.id, item.rollbackFailed]),
+      [[two.id, true], [one.id, false]],
     );
 
     await database.query(

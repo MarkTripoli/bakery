@@ -25357,6 +25357,7 @@ const transportSchemas = {
         "status",
         "externalEffectId",
         "healthEvidenceId",
+        "rollbackFailed",
         "createdAt",
         "updatedAt",
         "version"
@@ -25373,6 +25374,7 @@ const transportSchemas = {
         "status": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)",
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
+        "rollbackFailed": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
@@ -25384,7 +25386,8 @@ const transportSchemas = {
         "healthEvidenceId"
       ],
       "optionalFields": [
-        "previousCommitSha"
+        "previousCommitSha",
+        "rollbackFailed"
       ],
       "description": "One attempt to release a specific commit/artifact to a named environment for a repository, tracked from `queued` through `deploying`/`verifying` to `healthy`, `failed`, or a rollback; only one deployment per environment is in flight at a time, and `previousDeploymentId` links a rollback to the release it reverts. Created by POST /v1/deployments; reverted by POST /v1/deployments/{id}/rollbacks.",
       "fieldDescriptions": {
@@ -25399,6 +25402,7 @@ const transportSchemas = {
         "status": "Current lifecycle status of the record.",
         "externalEffectId": "Stable UUID linking this record to the related external effect entity.",
         "healthEvidenceId": "Stable UUID linking this record to the related health evidence entity.",
+        "rollbackFailed": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."

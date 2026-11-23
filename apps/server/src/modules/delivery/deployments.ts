@@ -57,6 +57,8 @@ export type DeploymentRead = {
   status: DeploymentStatus;
   externalEffectId: string | null;
   healthEvidenceId: string | null;
+  /** A rollback of this release ended in `failed`: the environment may not run the release before it. */
+  rollbackFailed: boolean;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -74,6 +76,7 @@ type DeploymentRow = {
   status: string;
   external_effect_id: string | null;
   health_evidence_id: string | null;
+  rollback_failed: boolean;
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
@@ -86,7 +89,7 @@ const COLUMNS = `d.id,d.repository_id,d.run_id,d.environment,d.commit_sha,
     where p.id = d.previous_deployment_id
       and p.organization_id = d.organization_id) as previous_commit_sha,
   d.status,d.external_effect_id,
-  d.health_evidence_id,d.created_at,d.updated_at,d.version,
+  d.health_evidence_id,d.rollback_failed,d.created_at,d.updated_at,d.version,
   to_char(d.created_at at time zone 'UTC', '${TIMESTAMP_SQL}')
     as cursor_created_at`;
 
@@ -110,6 +113,7 @@ function deployment(row: DeploymentRow): DeploymentRead {
     status: isDeploymentStatus(row.status) ? row.status : "unknown",
     externalEffectId: row.external_effect_id,
     healthEvidenceId: row.health_evidence_id,
+    rollbackFailed: row.rollback_failed,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: row.version,
@@ -425,6 +429,8 @@ export async function advanceDeployment(
         set status = $4,
             external_effect_id = coalesce(d.external_effect_id, $6::uuid),
             health_evidence_id = coalesce(d.health_evidence_id, $7::uuid),
+            rollback_failed = d.rollback_failed
+              or (d.status = 'rolling_back' and $4 = 'failed'),
             updated_at = now(), version = version + 1
       where d.organization_id = $1 and d.id = $2 and d.status = $3
         and d.version = $5

@@ -125540,6 +125540,10 @@
               ],
               "description": "Deployment.healthEvidenceId may be null in this transport value."
             },
+            "rollbackFailed": {
+              "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+              "type": "boolean"
+            },
             "createdAt": {
               "type": "string",
               "format": "date-time",
@@ -166566,6 +166570,10 @@
                       }
                     ],
                     "description": "Deployment.healthEvidenceId may be null in this transport value."
+                  },
+                  "rollbackFailed": {
+                    "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+                    "type": "boolean"
                   },
                   "createdAt": {
                     "type": "string",
@@ -289646,7 +289654,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:9c76800416903d7cea7ecf66c6f95ecd89deae88604075b427462fd7bf879306",
+  "compatibilityDigest": "sha256:ba9fdaf3ae1370c7e3b0683a87581fab5e27de45727d827ddc75b3cbd1981868",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -363312,6 +363320,10 @@
           ],
           "description": "Deployment.healthEvidenceId may be null in this transport value."
         },
+        "rollbackFailed": {
+          "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+          "type": "boolean"
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -404474,6 +404486,10 @@
                   }
                 ],
                 "description": "Deployment.healthEvidenceId may be null in this transport value."
+              },
+              "rollbackFailed": {
+                "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+                "type": "boolean"
               },
               "createdAt": {
                 "type": "string",

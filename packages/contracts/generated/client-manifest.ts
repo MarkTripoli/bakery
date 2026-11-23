@@ -55453,6 +55453,10 @@ export const clientManifest = {
                 ],
                 "description": "Deployment.healthEvidenceId may be null in this transport value."
               },
+              "rollbackFailed": {
+                "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+                "type": "boolean"
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -74641,6 +74645,10 @@ export const clientManifest = {
             }
           ],
           "description": "Deployment.healthEvidenceId may be null in this transport value."
+        },
+        "rollbackFailed": {
+          "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+          "type": "boolean"
         },
         "createdAt": {
           "type": "string",
