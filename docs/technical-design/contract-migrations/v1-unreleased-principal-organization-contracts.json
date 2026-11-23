@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "59ed9251f7c9dd591571f1c596c9c36b8f79bb98"
+    "fc819c510e55999f77dd9ec034e279926afa03f0"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:653df1ab54af2edb6dcf477a3858b187c3e33df7cddd2178573fe79576f84b23",
-  "reason": "#429 Deliver templates by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 59ed9251f7c9dd591571f1c596c9c36b8f79bb98: WorkflowPreset gains a required definition (the workflow document as authored, with its step names) and a required startableFromComposer flag so a person can read and copy a built-in template; RunCreate gains an optional gates field (plan or none) that only a preset declaring a gates input accepts; the four Deliver templates are new preset ids. No client has been released that builds a WorkflowPreset, so no caller sends the old shape.",
+  "reason": "#429 Deliver templates by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main fc819c510e55999f77dd9ec034e279926afa03f0: WorkflowPreset gains a required definition (the workflow document as authored, with its step names) and a required startableFromComposer flag so a person can read and copy a built-in template; RunCreate gains an optional gates field (plan or none) that only a preset declaring a gates input accepts; the four Deliver templates are new preset ids. No client has been released that builds a WorkflowPreset, so no caller sends the old shape.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
