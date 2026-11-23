@@ -22,6 +22,32 @@ const NEW = "91d0aa3".padEnd(40, "b");
 const BASE = "a7254e7".padEnd(40, "c");
 const sha = (digit: string) => digit.repeat(64);
 
+/** The card must be seen whole: inside the window and inside every ancestor that clips sideways. A long id never runs off the screen or into a rail's edge. */
+async function expectInsideWindow(page: Page, card: Locator) {
+  const view = page.viewportSize();
+  expect(view).not.toBeNull();
+  const edges = await card.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    let left = 0;
+    let right = document.documentElement.clientWidth;
+    for (let node = element.parentElement; node; node = node.parentElement) {
+      if (getComputedStyle(node).overflowX === "visible") continue;
+      const clip = node.getBoundingClientRect();
+      left = Math.max(left, clip.left);
+      right = Math.min(right, clip.right);
+    }
+    return { box: [box.left, box.right, box.top], left, right };
+  });
+  const [boxLeft, boxRight, boxTop] = edges.box;
+  expect(boxLeft, "card starts inside what clips it").toBeGreaterThanOrEqual(
+    edges.left - 0.5,
+  );
+  expect(boxRight, "card ends inside what clips it").toBeLessThanOrEqual(
+    edges.right + 0.5,
+  );
+  expect(boxTop, "card top is inside the window").toBeGreaterThanOrEqual(0);
+}
+
 const run = {
   id: runId,
   taskId: id,
@@ -661,9 +687,22 @@ test("a clean run says nothing is waiting, offers no buttons and lists nothing t
   await page.keyboard.press("Shift");
   await head.locator(".ui-reference__plain").focus();
   await expect(head.getByRole("group", { name: "Commit" })).toContainText(NEW);
+  const refCard = head.getByRole("group", { name: "Commit" });
+  await expectInsideWindow(page, refCard);
+  if ((page.viewportSize()?.width ?? 1440) <= 743) {
+    // On a phone the card is the sheet: it rests on the bottom of the window.
+    const box = await refCard.boundingBox();
+    const height = page.viewportSize()?.height ?? 0;
+    expect(box).not.toBeNull();
+    expect(height - ((box?.y ?? 0) + (box?.height ?? 0))).toBeLessThanOrEqual(
+      24,
+    );
+  }
   if (STILLS !== undefined) {
     const phone = (page.viewportSize()?.width ?? 1440) <= 743;
-    await details.screenshot({
+    // The whole window, not a crop: on a phone the card is a sheet fixed to the
+    // window's bottom, which a crop of the Details block would not contain.
+    await page.screenshot({
       path: `${STILLS}/delivery-reference-card-${
         phone ? "phone" : "desktop"
       }-light.png`,

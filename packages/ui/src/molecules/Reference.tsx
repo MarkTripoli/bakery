@@ -1,5 +1,5 @@
 import type { HTMLAttributes } from "react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { SemanticNativeProps } from "../foundations/semantic-native-props.ts";
 import { Button } from "../atoms/Button.tsx";
 import { DataText } from "../atoms/DataText.tsx";
@@ -47,6 +47,29 @@ export type ReferenceProps =
 
 /** How long the pointer rests on a reference before its card opens. */
 const HOVER_OPEN_MS = 300;
+/** The least room kept between an open card and what clips it, in pixels. */
+const EDGE_GAP = 8;
+
+/**
+ * The left and right edges the card can be seen between: the window, narrowed
+ * by every ancestor that clips sideways (a rail that scrolls or hides its
+ * overflow). A card past such an edge is cut off even inside the window.
+ */
+function clipBounds(card: HTMLElement): readonly [number, number] {
+  let left = 0;
+  let right = globalThis.document.documentElement.clientWidth;
+  for (
+    let node = card.parentElement;
+    node !== null;
+    node = node.parentElement
+  ) {
+    if (globalThis.getComputedStyle(node).overflowX === "visible") continue;
+    const box = node.getBoundingClientRect();
+    left = Math.max(left, box.left);
+    right = Math.min(right, box.right);
+  }
+  return [left, right];
+}
 /** How long "Copied" stays. */
 const COPIED_MS = 2500;
 
@@ -73,6 +96,7 @@ export function Reference(
   const linked = href !== undefined;
   const cardId = useId();
   const root = useRef<HTMLSpanElement>(null);
+  const cardEl = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(defaultOpen);
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
   const timers = useRef<{
@@ -87,6 +111,41 @@ export function Reference(
       globalThis.clearTimeout(held.copied);
     };
   }, []);
+
+  // The card opens under the reference and reads from its start. Where that
+  // would run past the edge of what clips it (the window, or a rail that
+  // scrolls), it is measured once it is in place and shifted back inside, and
+  // narrowed when the room is smaller than the card. Written on the element,
+  // not in state: a measurement must not render again. The phone sheet is
+  // fixed to the window and sizes itself.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const card = cardEl.current;
+      if (card === null) return;
+      card.style.insetInlineStart = "";
+      card.style.maxInlineSize = "";
+      if (globalThis.getComputedStyle(card).position === "fixed") return;
+      const [left, right] = clipBounds(card);
+      const room = right - left - 2 * EDGE_GAP;
+      let box = card.getBoundingClientRect();
+      if (box.width > room) {
+        card.style.maxInlineSize = `${Math.max(room, 0)}px`;
+        box = card.getBoundingClientRect();
+      }
+      let shift = 0;
+      if (box.right > right - EDGE_GAP) shift = right - EDGE_GAP - box.right;
+      if (box.left + shift < left + EDGE_GAP) {
+        shift = left + EDGE_GAP - box.left;
+      }
+      if (shift === 0) return;
+      const rtl = globalThis.getComputedStyle(card).direction === "rtl";
+      card.style.insetInlineStart = `${rtl ? -shift : shift}px`;
+    };
+    place();
+    globalThis.addEventListener("resize", place);
+    return () => globalThis.removeEventListener("resize", place);
+  }, [open]);
 
   // A card that closes forgets it said Copied.
   useEffect(() => {
@@ -203,6 +262,7 @@ export function Reference(
             aria-label={labels.kind}
             className="ui-reference__card"
             id={cardId}
+            ref={cardEl}
             role="group"
           >
             <Text variant="caption">{labels.kind}</Text>
