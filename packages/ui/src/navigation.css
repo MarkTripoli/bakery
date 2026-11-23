@@ -2395,6 +2395,15 @@ a.bakery-application-rail__link:hover {
     inline-size: 100%;
     min-block-size: var(--target-coarse);
   }
+  /* Two actions side by side at equal width, the primary one last. */
+  .bakery-page-header--list .bakery-page-header__actions[data-layout="row"] {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .bakery-page-header--list .bakery-page-header__actions[data-layout="row"] > * {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
 }
 .bakery-inspector-panel--sections .bakery-inspector-panel__header > :first-child {
   flex: 1 1 auto;

@@ -28,6 +28,12 @@ export type PageHeaderProps = {
   /** `split` only: right-aligned summary, such as a status and counts. */
   summary?: ReactNode;
   /**
+   * `list` only: how `actions` sit on a phone. `stack` (the default) makes
+   * each one a full-width row. `row` puts them side by side at equal width,
+   * for a primary action and its partner, in the order given.
+   */
+  actionsLayout?: "stack" | "row";
+  /**
    * `list` only: no inline inset, so the title, its line and anything under
    * them start at the same left edge as the section headings and field labels
    * of the page below (a main-rail page in the shell's own gutter), instead of
@@ -40,6 +46,7 @@ export type PageHeaderProps = {
 export function PageHeader(
   {
     actions,
+    actionsLayout = "stack",
     description,
     flush,
     meta,
@@ -74,7 +81,14 @@ export function PageHeader(
           ? <div className="bakery-page-header__summary">{summary}</div>
           : null}
         {variant === "list" && actions
-          ? <div className="bakery-page-header__actions">{actions}</div>
+          ? (
+            <div
+              className="bakery-page-header__actions"
+              data-layout={actionsLayout}
+            >
+              {actions}
+            </div>
+          )
           : null}
       </div>
     );

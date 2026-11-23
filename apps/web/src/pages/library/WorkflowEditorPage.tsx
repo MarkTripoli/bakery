@@ -14,6 +14,7 @@ import { asyncKindForError, failureStatus } from "../../app/async-state.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { RouterLink } from "../../app/router-link.tsx";
+import { useShellViewport } from "../../app/responsive.ts";
 import { ShellSlot } from "../../shell/shell-slots.tsx";
 import { WORK_HOME } from "../../shell/breadcrumb-paths.ts";
 import {
@@ -131,6 +132,7 @@ export function WorkflowEditorPage(
   const queryClient = useQueryClient();
   const { translate } = useI18n();
   const [diagramView, setDiagramView] = useDiagramView();
+  const phone = useShellViewport() === "phone";
 
   const workflow = useQuery(workflowQueryOptions(api, scope, workflowId));
   const versions = useQuery(
@@ -1013,52 +1015,67 @@ export function WorkflowEditorPage(
       </UI.Inline>
     );
 
+  // The state and the two actions belong to a person who can change the draft.
+  const editing = canManage && draft !== null;
+  const tryAgain = (variant: "secondary" | "quiet") => (
+    shownSave.kind === "failed"
+      ? (
+        <UI.Button variant={variant} onClick={() => save.mutate(steps)}>
+          {translate("library.editor.save.tryAgain" as never)}
+        </UI.Button>
+      )
+      : null
+  );
+  const problems = problemCount === 0
+    ? (
+      <span data-testid="editor-problems">
+        <UI.Badge tone="neutral">{problemWord}</UI.Badge>
+      </span>
+    )
+    : (
+      <UI.Button
+        variant="quiet"
+        data-testid="editor-problems"
+        onClick={() => setProblemsOpen(true)}
+      >
+        <UI.Badge tone="danger">{problemWord}</UI.Badge>
+      </UI.Button>
+    );
+  const viewAsCodeButton = (
+    <UI.Button
+      variant="secondary"
+      onClick={() => setCodeOpen(true)}
+    >
+      {translate("library.editor.viewAsCode" as never)}
+    </UI.Button>
+  );
+  const publishButton = (
+    <UI.Button
+      variant="primary"
+      onClick={() => setPublishOpen(true)}
+    >
+      {translate("library.editor.publish" as never)}
+    </UI.Button>
+  );
+
   return (
     <>
-      {canManage && draft !== null
+      {
+        /* Beside the title bar on a screen with room. On a phone the title bar
+          keeps the menu, the name and the bell, and the page header below
+          carries all of this (#67 UX design 7091569309). */
+      }
+      {editing && !phone
         ? (
           <ShellSlot name="actions">
             <UI.Inline gap="compact">
-              {shownSave.kind === "failed"
-                ? (
-                  <UI.Button
-                    variant="secondary"
-                    onClick={() => save.mutate(steps)}
-                  >
-                    {translate("library.editor.save.tryAgain" as never)}
-                  </UI.Button>
-                )
-                : null}
+              {tryAgain("secondary")}
               <UI.Text variant="muted" role="status">
                 {stateWord}
               </UI.Text>
-              {problemCount === 0
-                ? (
-                  <span data-testid="editor-problems">
-                    <UI.Badge tone="neutral">{problemWord}</UI.Badge>
-                  </span>
-                )
-                : (
-                  <UI.Button
-                    variant="quiet"
-                    data-testid="editor-problems"
-                    onClick={() => setProblemsOpen(true)}
-                  >
-                    <UI.Badge tone="danger">{problemWord}</UI.Badge>
-                  </UI.Button>
-                )}
-              <UI.Button
-                variant="secondary"
-                onClick={() => setCodeOpen(true)}
-              >
-                {translate("library.editor.viewAsCode" as never)}
-              </UI.Button>
-              <UI.Button
-                variant="primary"
-                onClick={() => setPublishOpen(true)}
-              >
-                {translate("library.editor.publish" as never)}
-              </UI.Button>
+              {problems}
+              {viewAsCodeButton}
+              {publishButton}
             </UI.Inline>
           </ShellSlot>
         )
@@ -1091,8 +1108,28 @@ export function WorkflowEditorPage(
                 {translate("library.editor.memberOnly" as never)}
               </UI.Text>
             )}
+            {editing && phone
+              ? (
+                <UI.Inline gap="compact">
+                  <UI.Text variant="muted" role="status">
+                    {stateWord}
+                  </UI.Text>
+                  {tryAgain("quiet")}
+                  {problems}
+                </UI.Inline>
+              )
+              : null}
           </UI.Stack>
         }
+        actions={editing && phone
+          ? (
+            <>
+              {viewAsCodeButton}
+              {publishButton}
+            </>
+          )
+          : null}
+        actionsLayout="row"
       />
       {breadcrumbs}
       {body}

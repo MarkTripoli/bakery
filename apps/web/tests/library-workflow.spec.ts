@@ -1004,6 +1004,77 @@ test("a draft that matches the version in use has nothing to publish", async ({ 
   await nothing.getByRole("button", { name: "Close" }).click();
 });
 
+test.describe("the editor header on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  const header = (page: Page) =>
+    page.locator('[data-ui-component="pageHeader"]');
+  const actions = (page: Page) =>
+    header(page).locator(".bakery-page-header__actions");
+
+  test("the state sits under the title and View as code and Publish share one row", async ({ page }) => {
+    await libraryFixture(page, WORLD);
+    await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+    await expect(saveStatus(page)).toContainText("Saved");
+    // The title bar keeps the menu, the name and the bell: no action in it.
+    await expect(
+      page.locator('[data-ui-component="topBar"]').getByRole("button", {
+        name: /Publish|View as code/,
+      }),
+    ).toHaveCount(0);
+    // The state and the problems chip are in the header's subtitle.
+    await expect(header(page).getByTestId("editor-problems")).toBeVisible();
+    await expect(header(page)).toContainText("Saved");
+    // The two actions are one row of equal halves, Publish on the right.
+    const code = await actions(page).getByRole("button", {
+      name: "View as code",
+    })
+      .boundingBox();
+    const publish = await actions(page).getByRole("button", { name: "Publish" })
+      .boundingBox();
+    expect(code).not.toBeNull();
+    expect(publish).not.toBeNull();
+    expect(Math.abs(code!.y - publish!.y)).toBeLessThan(2);
+    expect(publish!.x).toBeGreaterThan(code!.x + code!.width - 1);
+    expect(Math.abs(code!.width - publish!.width)).toBeLessThan(2);
+    expect(code!.height).toBeGreaterThanOrEqual(44);
+    await page.mouse.move(5, 5);
+    await still(page, "editor-header-saved");
+  });
+
+  test("with problems the chip stays a 44px button in the subtitle", async ({ page }) => {
+    await libraryFixture(page, { ...WORLD, validation: "errors" });
+    await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+    const chip = header(page).getByTestId("editor-problems");
+    await expect(chip).toHaveText("2 problems");
+    const box = await chip.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await page.mouse.move(5, 5);
+    await still(page, "editor-header-problems");
+  });
+
+  test("a failed save puts Try again beside the state, not in the actions", async ({ page }) => {
+    await libraryFixture(page, WORLD);
+    await page.goto(`/library/workflows/${WORKFLOW.id}/edit?state=save-failed`);
+    await expect(saveStatus(page)).toContainText("Not saved");
+    await expect(header(page).getByRole("button", { name: "Try again" }))
+      .toBeVisible();
+    await expect(actions(page).getByRole("button")).toHaveCount(2);
+    await page.mouse.move(5, 5);
+    await still(page, "editor-header-save-failed");
+  });
+
+  test("a member sees the title and the sentences, and no actions", async ({ page }) => {
+    await libraryFixture(page, { ...WORLD, role: "member" });
+    await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+    await expect(header(page)).toContainText("Version 3 is in use");
+    await expect(actions(page)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Publish" })).toHaveCount(0);
+    await page.mouse.move(5, 5);
+    await still(page, "editor-header-member");
+  });
+});
+
 test("the state selector shows the save states a spec cannot force", async ({ page }) => {
   // The saved state is the real one; the two forced states exist so a failed or
   // in-flight save can be seen without breaking the network on purpose (design's
