@@ -77,3 +77,23 @@ Deno.test("a failure that is not a namespace refusal is not reported as one", ()
   );
   assertStringIncludes(refusalReason(""), "said nothing");
 });
+
+Deno.test("the boundary always unshares user, pid, net, ipc and uts and drops every capability", () => {
+  const args = boundaryArgs({ exists: () => false });
+  for (
+    const flag of [
+      "--die-with-parent",
+      "--new-session",
+      "--unshare-user",
+      "--unshare-pid",
+      "--unshare-net",
+      "--unshare-ipc",
+      "--unshare-uts",
+    ]
+  ) assertEquals(args.includes(flag), true, flag);
+  const drop = args.indexOf("--cap-drop");
+  assertEquals(drop >= 0 && args[drop + 1] === "ALL", true);
+  // The root is read-only: a job gets no writable view of the host.
+  const root = args.indexOf("--ro-bind");
+  assertEquals([args[root + 1], args[root + 2]], ["/", "/"]);
+});

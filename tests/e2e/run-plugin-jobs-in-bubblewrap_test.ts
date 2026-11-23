@@ -20,6 +20,7 @@ import {
 
 const ENV = { [BWRAP_FLAG]: "1" };
 const MOUNT = BWRAP_CODE_MOUNT;
+const BOMB_BUDGET_MS = 90_000;
 const LIMITS: PluginJobLimits = {
   cpus: 1,
   memoryBytes: 256 * 1024 * 1024,
@@ -148,7 +149,11 @@ bwrapTest(
           ].join("\n"),
         ),
         command: ["bash", `${MOUNT}/main.sh`],
-        limits: LIMITS,
+        // Bash retries a fork the process limit refuses, with a wait that
+        // doubles each time, so the loop ends well after its last real fork.
+        // The budget is sized for those waits; what the test asserts is the
+        // limit it reaches, not how fast it gets there.
+        limits: { ...LIMITS, timeoutMs: BOMB_BUDGET_MS },
       },
       relay: () => Promise.resolve({ ok: false as const, denial: "x" }),
       identity: "i:j:3",
@@ -200,9 +205,19 @@ bwrapTest(
   },
 );
 
-async function readsStateFile(hide: readonly string[], dir: string) {
+/**
+ * A directory the boundary does not hide by default and any lane can read,
+ * standing in for the worker's state directory. The test cannot write a real
+ * one where it would be visible to the job: the lane writes only under its
+ * temporary directory, which the boundary always hides. So it asks the real
+ * question of a directory that exists, whatever it holds: can the job read it?
+ */
+const STAND_IN_STATE_DIR = "/etc";
+const STAND_IN_FILE = "/etc/passwd";
+
+async function readsStateFile(hide: readonly string[]) {
   const code = await job(
-    `if cat "${dir}/registration.json" >/dev/null 2>&1; then r=read; else r=hidden; fi; echo "{\\"result\\":{\\"state\\":\\"$r\\"}}"`,
+    `if cat "${STAND_IN_FILE}" >/dev/null 2>&1; then r=read; else r=hidden; fi; echo "{\\"result\\":{\\"state\\":\\"$r\\"}}"`,
   );
   const end = await runPluginJob({
     runtime: createBwrapRuntime({ env: ENV, hide }),
@@ -221,19 +236,42 @@ async function readsStateFile(hide: readonly string[], dir: string) {
 }
 
 bwrapTest(
-  "the worker's state directory, outside /home, is hidden from a job",
+  "a directory named to hide, such as the worker's state directory, is hidden from a job",
   async () => {
-    const dir = await Deno.makeTempDir({ dir: "/var/tmp", prefix: "state-" })
-      .catch(() => null);
-    if (dir === null) return;
-    try {
-      await Deno.writeTextFile(`${dir}/registration.json`, "{}");
-      // Without the directory in the hide list the file is readable, which is
-      // what makes the next assertion mean something.
-      assertEquals(await readsStateFile([], dir), "read");
-      assertEquals(await readsStateFile([dir], dir), "hidden");
-    } finally {
-      await Deno.remove(dir, { recursive: true });
-    }
+    await Deno.stat(STAND_IN_FILE);
+    // Not hidden by default, so the job reads it. This is what keeps the next
+    // assertion from passing for the wrong reason.
+    assertEquals(await readsStateFile([]), "read");
+    assertEquals(await readsStateFile([STAND_IN_STATE_DIR]), "hidden");
+  },
+);
+
+bwrapTest(
+  "a job has its own process table and holds no capabilities",
+  async () => {
+    const dir = await job(
+      [
+        `procs=$(ls /proc | grep -c '^[0-9][0-9]*$')`,
+        `caps=$(grep '^CapEff:' /proc/self/status | tr -d '[:space:]' | cut -d: -f2)`,
+        `echo "{\\"result\\":{\\"procs\\":$procs,\\"caps\\":\\"$caps\\"}}"`,
+      ].join("\n"),
+    );
+    const end = await runPluginJob({
+      runtime: createBwrapRuntime({ env: ENV }),
+      spec: {
+        name: "ns",
+        codeDir: dir,
+        command: ["sh", `${MOUNT}/main.sh`],
+        limits: LIMITS,
+      },
+      relay: () => Promise.resolve({ ok: false as const, denial: "x" }),
+      identity: "i:j:ns",
+      sink: memoryResultSink(),
+    });
+    assertEquals(end.kind, "result");
+    const seen = (end as { value: { procs: number; caps: string } }).value;
+    // Its own PID namespace: the shell, the tools it runs, and not the host's.
+    assert(seen.procs < 12, `the job saw ${seen.procs} processes`);
+    assertEquals(seen.caps, "0000000000000000");
   },
 );
