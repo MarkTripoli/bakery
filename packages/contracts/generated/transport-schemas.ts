@@ -15352,6 +15352,34 @@ const transportSchemas = {
       ],
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
     },
+    "DesktopUpdateQuery": {
+      "fields": [
+        {
+          "name": "target",
+          "type": "enum(linux|darwin|windows)",
+          "required": true,
+          "description": "Operating system the desktop app runs on, as the app updater names it."
+        },
+        {
+          "name": "arch",
+          "type": "enum(x86_64|aarch64)",
+          "required": true,
+          "description": "Processor architecture the desktop app was built for."
+        },
+        {
+          "name": "current_version",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 128,
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$"
+          },
+          "description": "Semantic version of the running app; only a strictly newer build is offered."
+        }
+      ],
+      "transport": "query",
+      "description": "The desktop app's own target, architecture and version, sent when it asks the connected server whether a newer signed build exists."
+    },
     "PackageExport": {
       "fields": [
         {
@@ -38599,6 +38627,43 @@ const transportSchemas = {
         "skillId": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill.",
         "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
         "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+      }
+    },
+    "DesktopUpdate": {
+      "fields": [
+        "version",
+        "pub_date",
+        "url",
+        "signature",
+        "notes"
+      ],
+      "fieldTypes": {
+        "version": "string",
+        "pub_date": "timestamp",
+        "url": "uri",
+        "signature": "string",
+        "notes": "string?"
+      },
+      "nullableFields": [],
+      "httpVariants": [
+        {
+          "status": 200,
+          "body": "DesktopUpdate",
+          "description": "A newer signed build is offered for this target and architecture."
+        },
+        {
+          "status": 204,
+          "body": null,
+          "description": "No newer build: the offered build is the same or older, or none is offered for this target and architecture."
+        }
+      ],
+      "description": "Update manifest in the desktop app updater's shape: the newer signed build this server offers for the caller's target and architecture. A 404 means this server offers no app updates.",
+      "fieldDescriptions": {
+        "version": "Semantic version of the offered build.",
+        "pub_date": "RFC 3339 time the build was published.",
+        "url": "HTTPS address the app downloads the build from.",
+        "signature": "Minisign signature text the app checks against its built-in release key before installing.",
+        "notes": "Optional release notes for the offered build."
       }
     },
     "BakeryPackage": {
