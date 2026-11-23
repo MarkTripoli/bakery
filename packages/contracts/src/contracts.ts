@@ -4505,39 +4505,7 @@ export function generateContracts(
             },
           }
           : {}),
-        ...(importAction && action.errors.includes("IDEMPOTENCY_IN_FLIGHT")
-          ? {
-            "409": {
-              description:
-                "Idempotency request still in flight (IDEMPOTENCY_IN_FLIGHT).",
-            },
-          }
-          : {}),
-        ...(importAction && action.errors.includes("PRECONDITION_FAILED")
-          ? {
-            "412": {
-              description:
-                "Parent version precondition failed (PRECONDITION_FAILED).",
-            },
-          }
-          : {}),
-        ...(importAction &&
-            action.errors.includes("UNPROCESSABLE") &&
-            action.errors.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")
-          ? {
-            "422": {
-              description:
-                "Unprocessable import (UNPROCESSABLE) or nonretryable idempotency payload mismatch (IDEMPOTENCY_PAYLOAD_MISMATCH).",
-            },
-          }
-          : {}),
-        ...(importAction && action.errors.includes("PRECONDITION_REQUIRED")
-          ? {
-            "428": {
-              description: "Precondition required (PRECONDITION_REQUIRED).",
-            },
-          }
-          : {}),
+        ...documentedErrorResponses(action.errors),
         "500": { description: "Internal server error." },
         ...(importAction &&
             action.errors.includes("DEPENDENCY_UNAVAILABLE")
@@ -4593,4 +4561,32 @@ export function generateContracts(
   };
   if (previous) assertCompatible(previous, generated);
   return generated;
+}
+
+/**
+ * OpenAPI responses for the error statuses an action's catalog entry
+ * declares. Every action that lists one of these codes documents its status.
+ */
+const documentedErrorStatuses = [
+  ["409", "Conflict", ["IDEMPOTENCY_IN_FLIGHT"]],
+  ["412", "Precondition failed", ["PRECONDITION_FAILED"]],
+  [
+    "422",
+    "Unprocessable request",
+    ["UNPROCESSABLE", "IDEMPOTENCY_PAYLOAD_MISMATCH"],
+  ],
+  ["428", "Precondition required", ["PRECONDITION_REQUIRED"]],
+] as const;
+
+function documentedErrorResponses(
+  errors: readonly string[],
+): Record<string, { description: string }> {
+  const responses: Record<string, { description: string }> = {};
+  for (const [status, title, codes] of documentedErrorStatuses) {
+    const listed = codes.filter((code) => errors.includes(code));
+    if (listed.length) {
+      responses[status] = { description: `${title} (${listed.join(", ")}).` };
+    }
+  }
+  return responses;
 }
