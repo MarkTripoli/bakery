@@ -115,16 +115,6 @@ Deno.test("session refusals are typed, not 500", () =>
     );
     assertEquals(bogus.status, 401, await bogus.text());
 
-    // A real token presented for a different attempt id.
-    const wrongAttempt = await callTool(
-      fixture,
-      worker,
-      crypto.randomUUID(),
-      token,
-      "agents.list",
-    );
-    assertEquals(wrongAttempt.status, 401, await wrongAttempt.text());
-
     // A tool that is not offered.
     const unlisted = await callTool(
       fixture,

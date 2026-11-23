@@ -22,6 +22,7 @@ import {
   gateArtifactPublication,
   resolveArtifactKindBinding,
 } from "../artifact-kinds/publication-gate.ts";
+import { hasProbeBackedRules } from "@bakery/contracts/artifact-kinds";
 import { assertActiveLease, lockAttempt } from "../execution/events.ts";
 import {
   assertAttemptMutationSession,
@@ -159,6 +160,10 @@ export async function commitArtifactVersion(
     artifactType: typeRow.rows[0]?.artifact_type ?? "",
     boundKindVersionId: typeRow.rows[0]?.kind_version_id ?? null,
   });
+  // A kind with a rule only the probe can answer (O29) cannot judge the version
+  // here: the non-probe rules still run below, the version is written staged,
+  // and the probe runner promotes or refuses it when the probe answers.
+  const staged = binding !== null && hasProbeBackedRules(binding.definition);
   if (binding !== null) {
     gateArtifactPublication(binding, {
       content: version.content,
@@ -208,7 +213,7 @@ export async function commitArtifactVersion(
     id: string;
     created_at: Date | string;
   }>(
-    `insert into bakery.artifact_versions (organization_id, artifact_id, task_id, run_step_id, revision, author_id, subject_head_sha, subject_base_sha, step_key, metadata, content, blob_id, sha256, size_bytes, media_type, retention_class, expires_at, run_id, attempt_id, agent_session_id, acting_for_principal_id) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) returning id, created_at`,
+    `insert into bakery.artifact_versions (organization_id, artifact_id, task_id, run_step_id, revision, author_id, subject_head_sha, subject_base_sha, step_key, metadata, content, blob_id, sha256, size_bytes, media_type, retention_class, expires_at, run_id, attempt_id, agent_session_id, acting_for_principal_id, publication_status) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) returning id, created_at`,
     [
       scope.organizationId,
       parent.id,
@@ -231,6 +236,7 @@ export async function commitArtifactVersion(
       args.provenance?.attemptId ?? null,
       args.provenance?.agentSessionId ?? null,
       args.provenance?.actingForPrincipalId ?? null,
+      staged ? "staged" : "current",
     ],
   );
   const versionRow = versionResult.rows[0];
@@ -248,6 +254,9 @@ export async function commitArtifactVersion(
         artifactVersionId: versionRow.id,
       }
       : { organizationId: scope.organizationId, blobId },
+    // A staged version cannot become current without an answer, so a subject the
+    // runner had given up on is asked again rather than left staged for ever.
+    { reopen: staged },
   );
   const createdAt = iso(versionRow.created_at);
   const response = {
@@ -268,6 +277,10 @@ export async function commitArtifactVersion(
     createdAt,
     updatedAt: createdAt,
     version: 1,
+    publicationStatus: staged ? "staged" : "current",
+    refusedKindVersionId: null,
+    refusedRuleType: null,
+    refusedReason: null,
   };
   assertArtifactVersionResponse(response);
   const resourceVersion = parent.version + 1;
@@ -292,34 +305,45 @@ export async function commitArtifactVersion(
   }
   const promoted = promotion.kind === "worker"
     ? await transaction.query(
-      `update bakery.artifacts set current_version_id=$1, revision=revision+1, updated_at=now(), version=version+1 where organization_id=$2 and id=$3 and current_version_id is not distinct from $4 and exists (select 1 from bakery.job_attempts where organization_id=$2 and id=$5 and lease_expires_at > clock_timestamp())`,
+      `update bakery.artifacts set current_version_id=(case when $6::boolean then current_version_id else $1::uuid end), revision=revision+1, updated_at=now(), version=version+1 where organization_id=$2 and id=$3 and current_version_id is not distinct from $4 and exists (select 1 from bakery.job_attempts where organization_id=$2 and id=$5 and lease_expires_at > clock_timestamp())`,
       [
         versionRow.id,
         scope.organizationId,
         parent.id,
         parent.currentVersionId,
         promotion.attemptId,
+        staged,
       ],
     )
     : promotion.kind === "execution-output"
     ? await transaction.query(
-      `update bakery.artifacts set current_version_id=$1, revision=revision+1, updated_at=now(), version=version+1 where organization_id=$2 and id=$3 and current_version_id is not distinct from $4 and exists (select 1 from bakery.session_output_finalizations where organization_id=$2 and id=$5 and state in ('pending','retryable'))`,
+      `update bakery.artifacts set current_version_id=(case when $6::boolean then current_version_id else $1::uuid end), revision=revision+1, updated_at=now(), version=version+1 where organization_id=$2 and id=$3 and current_version_id is not distinct from $4 and exists (select 1 from bakery.session_output_finalizations where organization_id=$2 and id=$5 and state in ('pending','retryable'))`,
       [
         versionRow.id,
         scope.organizationId,
         parent.id,
         parent.currentVersionId,
         promotion.grantId,
+        staged,
       ],
     )
     : await transaction.query(
-      `update bakery.artifacts set current_version_id=$1, revision=revision+1, updated_at=now(), version=version+1 where organization_id=$2 and id=$3 and current_version_id is not distinct from $4`,
-      [versionRow.id, scope.organizationId, parent.id, parent.currentVersionId],
+      `update bakery.artifacts set current_version_id=(case when $5::boolean then current_version_id else $1::uuid end), revision=revision+1, updated_at=now(), version=version+1 where organization_id=$2 and id=$3 and current_version_id is not distinct from $4`,
+      [
+        versionRow.id,
+        scope.organizationId,
+        parent.id,
+        parent.currentVersionId,
+        staged,
+      ],
     );
   if (promoted.rowCount !== 1) {
     if (promotion.kind !== "human") await promotion.assertAuthority();
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
+  // A staged version is not current yet: the probe runner reconciles when it
+  // promotes it.
+  if (staged) return response;
   // A new committed version can make a dependant lane's consumed input stale;
   // keep the coordination plan projection current in the same transaction.
   await reconcileCoordinationForCommittedOutput(transaction, {
