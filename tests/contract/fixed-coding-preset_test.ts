@@ -67,6 +67,8 @@ void unknownPreset;
 
 const ID = "00000000-0000-4000-8000-000000000001";
 const preset = {
+  definition: JSON.parse(JSON.stringify(FIXED_CODING_PRESET.spec)),
+  startableFromComposer: true,
   id: "fixed-coding",
   revision: FIXED_CODING_PRESET.revision,
   digest: FIXED_CODING_PRESET.digest,
