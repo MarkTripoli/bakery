@@ -8,6 +8,8 @@ import {
 } from "../../packages/config/src/desktop-update-feed.ts";
 import { readRuntimeConfig } from "../../packages/config/src/env.ts";
 import { desktopUpdatesGetAction } from "../../apps/server/src/modules/auth/transport/http/v1/desktop-update-handler.ts";
+import { createApp } from "../../apps/server/src/app.ts";
+import { signSessionCookie } from "../helpers/auth.ts";
 
 const PRINCIPAL_ID = "00000000-0000-4000-8000-000000000077";
 
@@ -224,6 +226,90 @@ Deno.test("RuntimeConfig carries the feed and refuses a bad one at start-up", as
       readRuntimeConfig(base, "server").desktopUpdateFeed,
       undefined,
     );
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+// The tests above build the route by hand. This one goes through the app the
+// server runs: the feed comes from RuntimeConfig, and the caller is known only
+// through the session middleware. Dropping either hand-off fails it.
+Deno.test("the running app serves the configured feed to a signed-in caller only", async () => {
+  const directory = await Deno.makeTempDir();
+  try {
+    const feedFile = `${directory}/feed.json`;
+    await Deno.writeTextFile(feedFile, JSON.stringify(feed));
+    const secret = "d".repeat(32);
+    const token = "desktop-update-session";
+    const expiresAt = new Date(Date.now() + 60_000);
+    const noDatabase = () =>
+      Promise.reject(new Error("no database in this test"));
+    const runningApp = (env: Record<string, string>) =>
+      createApp({
+        config: readRuntimeConfig({
+          BAKERY_APP_DATABASE_URL: "postgres://app@127.0.0.1:5432/bakery",
+          BETTER_AUTH_SECRET: secret,
+          ...env,
+        }, "server"),
+        database: {} as never,
+        pgDatabase: { query: noDatabase, connect: noDatabase } as never,
+        auth: {
+          api: {
+            getSession: ({ headers }: { headers: Headers }) =>
+              Promise.resolve(
+                headers.has("cookie")
+                  ? {
+                    session: { expiresAt },
+                    user: {
+                      id: "u-77",
+                      name: "Ana",
+                      email: "ana@example.test",
+                    },
+                  }
+                  : null,
+              ),
+          },
+          handler: () => new Response(null, { status: 404 }),
+        } as never,
+        authPersistence: {
+          findSessionState: () =>
+            Promise.resolve({
+              id: token,
+              expiresAt,
+              twoFactorEnabled: false,
+              factorVerifiedAt: null,
+            }),
+          loadEnabledPrincipal: () =>
+            Promise.resolve({
+              principalId: PRINCIPAL_ID,
+              principalType: "human",
+              displayName: "Ana",
+            }),
+        } as never,
+        installationSettings: { current: noDatabase } as never,
+      });
+    const url =
+      "http://localhost:8000/v1/desktop/update?target=linux&arch=x86_64&current_version=1.3.2";
+    const cookie = await signSessionCookie(token, secret);
+
+    const configured = runningApp({
+      BAKERY_DESKTOP_UPDATE_FEED_FILE: feedFile,
+    });
+    const signedIn = await configured.fetch(
+      new Request(url, { headers: { cookie } }),
+    );
+    assertEquals(signedIn.status, 200);
+    assertEquals(await signedIn.json(), release);
+
+    const anonymous = await configured.fetch(new Request(url));
+    assertEquals(anonymous.status, 401);
+    await anonymous.body?.cancel();
+
+    const unconfigured = await runningApp({}).fetch(
+      new Request(url, { headers: { cookie } }),
+    );
+    assertEquals(unconfigured.status, 404);
+    await unconfigured.body?.cancel();
   } finally {
     await Deno.remove(directory, { recursive: true });
   }

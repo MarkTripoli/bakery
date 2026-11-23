@@ -659,6 +659,7 @@ export type CatalogPermissionKey =
   | "coordinationPlan:write"
   | "deployment:promote"
   | "deployment:read"
+  | "desktopUpdate:read"
   | "draft:read"
   | "draft:write"
   | "draftCheckpoint:read"
