@@ -13,7 +13,7 @@ import type { PgTransactionClient } from "../../platform/database.ts";
  * - a capability binding grants it by exact name to the session's agent version,
  *   its seat (the workflow version plus the role the step runs as) or its step;
  * - the connection is enabled, and a personal connection is usable for this run
- *   (its owner started it, or granted the workflow; never unattended, O27);
+ *   (its owner started it, or granted the workflow, O27);
  * - an Admin enabled the tool on the connection;
  * - the binding's pinned snapshot is still the connection's latest and still
  *   holds the tool. Drift does not re-pin: the tool is listed as unavailable
@@ -38,7 +38,8 @@ export type SessionToolScope = Readonly<{
   agentVersionId: string | null;
   /** Reviewer sessions are offered read tools only. */
   reviewer: boolean;
-  startedByPrincipalId: string | null;
+  /** Who started the run; every workflow run has one (requested_by is not null). */
+  startedByPrincipalId: string;
   /** Offline runs reach nothing outside (#427). */
   live: boolean;
 }>;
@@ -85,7 +86,7 @@ type ScopeRow = {
   workflow_version_id: string | null;
   definition: unknown;
   agent_version_id: string | null;
-  requested_by: string | null;
+  requested_by: string;
   environment: string | null;
 };
 
@@ -348,10 +349,7 @@ export async function effectiveMcpTools(
       }
       if (row.owner_principal_id !== null) {
         const started = scope.startedByPrincipalId;
-        if (
-          started === null ||
-          (started !== row.owner_principal_id && !row.use_grant_live)
-        ) {
+        if (started !== row.owner_principal_id && !row.use_grant_live) {
           refuse("personal_not_usable");
           continue;
         }

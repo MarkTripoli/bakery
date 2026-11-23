@@ -313,7 +313,7 @@ export function createToolInvocationRoute(deps: ToolGatewayDeps) {
           kind: "send" as const,
           callId: inserted.rows[0]!.id,
           organizationId,
-          actorRef: scope.startedByPrincipalId ?? identity.host.principal_id,
+          actorRef: scope.startedByPrincipalId,
           scope,
           tool,
         };

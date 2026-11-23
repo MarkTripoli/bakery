@@ -20,6 +20,8 @@ import { signInDesktop } from "./desktop-sign-in.ts";
 import { connectClient, registerTestClient } from "./oauth-mcp.ts";
 import { createFakeGitHubApp } from "./fake-github-app.ts";
 import { seedRigIntegration } from "./external-effects.ts";
+import { seedFundedModelJob } from "./funded-model-job.ts";
+import { seedEligibleNonmodelJob } from "./worker-execution/nonmodel-job.ts";
 
 /** An exact grant body for the audit matrix (#20). */
 function integrationGrantBody(principalId: string) {
@@ -127,6 +129,123 @@ function telemetryDestinationBody() {
     name: `Audit matrix ${crypto.randomUUID()}`,
     measurements: ["results"],
     values: { address: "https://collector.example.test" },
+  };
+}
+
+/** The body that binds the seeded agent version to the seeded tool (#436). */
+function capabilityBindingBody(state: Record<string, string>) {
+  return {
+    agentVersionId: state.bindingAgentVersion,
+    mcpConnectionId: state.bindingConnection,
+    allowedOperations: ["create_note"],
+    required: false,
+  };
+}
+
+/**
+ * What toolGatewayCalls.settle and capabilityBindings.create need (#436): an
+ * enabled MCP connection, an agent version, and a write the gateway sent from a
+ * live attempt whose outcome never came back, as the server records it.
+ */
+async function seedToolGatewayCall(f: InstallationFixture) {
+  const db = f.pgDatabase;
+  const org = f.organizationId;
+  await seedFundedModelJob(db, org, f.adminId!);
+  const agent = await db.query<{ id: string }>(
+    `select id from bakery.agent_versions where organization_id = $1
+      order by created_at desc limit 1`,
+    [org],
+  );
+  const seed = await seedEligibleNonmodelJob(db, org, f.adminId!);
+  const serverId = crypto.randomUUID();
+  const connectionId = crypto.randomUUID();
+  await db.query(
+    `insert into bakery.mcp_servers (id, organization_id, slug, name, transport, launch_spec, endpoint_template, config_schema, required_capabilities, source_revision, enabled, version)
+     values ($1, $2, $3, 'Audit docs', 'streamable_http', '{}'::jsonb, 'https://mcp.example.com/mcp', '{}'::jsonb, '[]'::jsonb, 'rev', true, 1)`,
+    [serverId, org, `audit-${serverId.slice(0, 8)}`],
+  );
+  await db.query(
+    `insert into bakery.mcp_connections (id, organization_id, server_id, label, config, enabled_capabilities, status, version)
+     values ($1, $2, $3, 'Audit docs', '{}'::jsonb, '["create_note"]'::jsonb, 'enabled', 1)`,
+    [connectionId, org, serverId],
+  );
+  await db.query(
+    `insert into bakery.mcp_capability_snapshots (id, organization_id, connection_id, observed_at, protocol_version, manifest, digest)
+     values ($1, $2, $3, now(), '2026-07-28', $4::jsonb, $5)`,
+    [
+      crypto.randomUUID(),
+      org,
+      connectionId,
+      JSON.stringify({
+        tools: [{
+          name: "create_note",
+          description: "create a note",
+          inputSchema: { type: "object" },
+        }],
+      }),
+      "c".repeat(64),
+    ],
+  );
+  const ids = {
+    workerPrincipalId: crypto.randomUUID(),
+    hostId: crypto.randomUUID(),
+    sessionId: crypto.randomUUID(),
+    attemptId: crypto.randomUUID(),
+  };
+  await db.query(
+    `insert into bakery.principals (id, display_name, principal_type)
+     values ($1, 'Audit matrix worker', 'worker')`,
+    [ids.workerPrincipalId],
+  );
+  await db.query(
+    `insert into bakery.worker_hosts (id, organization_id, principal_id, principal_type, name,
+       os, architecture, capabilities, slots, credential_hash, worker_session_id,
+       worker_session_generation, adapter_capabilities)
+     values ($1, $2, $3, 'worker', 'Audit matrix host', 'linux', 'x64', '[]', 1, $4, $5, 0, '[]'::jsonb)`,
+    [
+      ids.hostId,
+      org,
+      ids.workerPrincipalId,
+      `audit-${ids.hostId}`,
+      ids.sessionId,
+    ],
+  );
+  await db.query(
+    `update bakery.jobs set status = 'running', current_fence = 1
+      where organization_id = $1 and id = $2`,
+    [org, seed.jobId],
+  );
+  await db.query(
+    `insert into bakery.job_attempts (id, organization_id, job_id, worker_host_id,
+       worker_session_id, worker_session_generation, attempt_no, fence, lease_token_hash,
+       lease_expires_at, status, started_at)
+     values ($1, $2, $3, $4, $5, 0, 1, 1, $6, clock_timestamp() + interval '30 minutes', 'running', clock_timestamp())`,
+    [
+      ids.attemptId,
+      org,
+      seed.jobId,
+      ids.hostId,
+      ids.sessionId,
+      `lease-${ids.attemptId}`,
+    ],
+  );
+  const call = await db.query<{ id: string }>(
+    `insert into bakery.tool_gateway_calls (organization_id, attempt_id, idempotency_key, mcp_connection_id, tool_name, snapshot_digest, arguments_digest, read_only, status)
+     values ($1, $2, $3, $4, 'create_note', $5, $6, false, 'sent')
+     returning id`,
+    [
+      org,
+      ids.attemptId,
+      crypto.randomUUID(),
+      connectionId,
+      "c".repeat(64),
+      "a".repeat(64),
+    ],
+  );
+  return {
+    connectionId,
+    agentVersionId: agent.rows[0]!.id,
+    callId: call.rows[0]!.id,
   };
 }
 
@@ -1459,6 +1578,66 @@ export async function runAuditMatrix(
         ),
         organizationId: f.organizationId,
         resourceId: state.permissionGrant,
+      }),
+    },
+    {
+      // #436: an Admin binds an agent version to one exact MCP tool.
+      operation: "capabilityBindings.create",
+      failure: async () => {
+        const seeded = await seedToolGatewayCall(f);
+        state.bindingConnection = seeded.connectionId;
+        state.bindingAgentVersion = seeded.agentVersionId;
+        state.gatewayCall = seeded.callId;
+        return await developerCall("POST", "/v1/capability-bindings", {
+          body: capabilityBindingBody(state),
+        });
+      },
+      success: async () => {
+        const response = await adminCall("POST", "/v1/capability-bindings", {
+          body: capabilityBindingBody(state),
+        });
+        const created = await json(response.clone());
+        state.capabilityBinding = String(created.id);
+        return {
+          response,
+          organizationId: f.organizationId,
+          resourceId: state.capabilityBinding,
+        };
+      },
+    },
+    {
+      operation: "capabilityBindings.delete",
+      failure: () =>
+        developerCall(
+          "DELETE",
+          `/v1/capability-bindings/${state.capabilityBinding}`,
+        ),
+      success: async () => ({
+        response: await adminCall(
+          "DELETE",
+          `/v1/capability-bindings/${state.capabilityBinding}`,
+        ),
+        organizationId: f.organizationId,
+        resourceId: state.capabilityBinding,
+      }),
+    },
+    {
+      // #436: an Admin records the outcome of a write the gateway sent.
+      operation: "toolGatewayCalls.settle",
+      failure: () =>
+        developerCall(
+          "POST",
+          `/v1/tool-gateway-calls/${state.gatewayCall}/settlement`,
+          { body: { status: "completed" } },
+        ),
+      success: async () => ({
+        response: await adminCall(
+          "POST",
+          `/v1/tool-gateway-calls/${state.gatewayCall}/settlement`,
+          { body: { status: "completed" } },
+        ),
+        organizationId: f.organizationId,
+        resourceId: state.gatewayCall,
       }),
     },
     {

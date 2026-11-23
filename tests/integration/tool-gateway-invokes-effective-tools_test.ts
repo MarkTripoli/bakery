@@ -251,7 +251,32 @@ async function gatewayCalls(fixture: WorkerFixture, s: Session) {
   )).rows;
 }
 
-type Proof = { leaseToken?: string; fence?: string };
+type Proof = {
+  leaseToken?: string;
+  fence?: string;
+  workerSessionId?: string;
+  workerSessionGeneration?: string;
+};
+
+/** The proof's session pair, only when the case names one. */
+function sessionPair(proof: Proof) {
+  return proof.workerSessionId === undefined ? {} : {
+    workerSessionId: proof.workerSessionId,
+    workerSessionGeneration: proof.workerSessionGeneration,
+  };
+}
+
+/** The worker session the host holds now. */
+async function hostSession(fixture: WorkerFixture, s: Session) {
+  const found = await fixture.pgDatabase.query<
+    { id: string; generation: string }
+  >(
+    `select worker_session_id as id, worker_session_generation::text as generation
+       from bakery.worker_hosts where id = $1`,
+    [s.assignment.workerHostId],
+  );
+  return found.rows[0]!;
+}
 
 function listTools(fixture: WorkerFixture, s: Session, proof: Proof = {}) {
   return workerRequest(
@@ -261,6 +286,7 @@ function listTools(fixture: WorkerFixture, s: Session, proof: Proof = {}) {
     {
       leaseToken: proof.leaseToken ?? s.assignment.leaseToken,
       fence: proof.fence ?? s.assignment.fence,
+      ...sessionPair(proof),
     },
   );
 }
@@ -296,6 +322,7 @@ function invoke(
       mcpConnectionId: options.connectionId ?? s.connectionId,
       leaseToken: options.leaseToken ?? s.assignment.leaseToken,
       fence: options.fence ?? s.assignment.fence,
+      ...sessionPair(options),
       toolName,
       arguments: args,
     },
@@ -620,6 +647,28 @@ const BAD_PROOFS: readonly (readonly [
         [s.assignment.attemptId],
       );
       return {};
+    },
+  ],
+  [
+    // A real second session id: the worker names a session the host does not
+    // hold, while the host and the attempt agree with each other.
+    "a worker session the host does not hold",
+    async (fixture, s) => {
+      const held = await hostSession(fixture, s);
+      return {
+        workerSessionId: crypto.randomUUID(),
+        workerSessionGeneration: held.generation,
+      };
+    },
+  ],
+  [
+    "a worker session generation the host has not reached",
+    async (fixture, s) => {
+      const held = await hostSession(fixture, s);
+      return {
+        workerSessionId: held.id,
+        workerSessionGeneration: String(BigInt(held.generation) + 1n),
+      };
     },
   ],
 ];
