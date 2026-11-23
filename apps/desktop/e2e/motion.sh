@@ -6,7 +6,7 @@ mkdir -p "$OUT"
 export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 TZ=UTC LANG=C.UTF-8 NO_AT_BRIDGE=1 GTK_THEME=Adwaita
 export DISPLAY=:99
 
-picture_pair() {  # $1 = name, $2 = animations (true|false)
+picture_pair() {
   local name="$1" animations="$2" fb cfg
   fb="$(mktemp -d)"; cfg="$(mktemp -d)"
   mkdir -p "$cfg/gtk-3.0"

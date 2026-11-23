@@ -888,9 +888,6 @@ def phase_web_repeat_links():
 
 
 def phase_a11y_server_page():
-    """The keyboard path through a server's own page, read over the accessibility bus (#77, native accessibility):
-    with the real web app in the window, Tab moves through named controls, one after another, and the window
-    and the page can be read. Skipped, said plainly, where the image has no accessibility tooling."""
     web = os.environ.get("BAKERY_WEB", "")
     if not web:
         return

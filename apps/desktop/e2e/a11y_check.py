@@ -6,11 +6,10 @@ import time
 import gi
 
 gi.require_version("Atspi", "2.0")
-from gi.repository import Atspi  # noqa: E402
+from gi.repository import Atspi
 
 state, size, out_dir = sys.argv[1], sys.argv[2], sys.argv[3]
 INTERACTIVE = {"push button", "radio button", "check box", "link", "entry", "combo box", "toggle button", "text"}
-SKIP_TEXT_NAMES = {"text"}  # "text" nodes are only interactive when they take input; judged below
 results = []
 
 def check(name, ok, detail=""):

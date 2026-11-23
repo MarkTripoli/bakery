@@ -1,7 +1,6 @@
 # The image the desktop app's package and update checks run in (docs/runbooks/desktop-packaging.md):
 # the Rust toolchain, the web view and GTK development files the app is built against, and what the
-# checks need to run the app without a screen (a virtual display, a message bus and a secret store), and the
-# accessibility bus and its Python bindings the accessibility check reads the window with.
+# checks need to run the app without a screen (a virtual display, a message bus and a secret store).
 #
 #   docker build -t bakery-spike77-linux apps/desktop/e2e
 FROM debian:bookworm
