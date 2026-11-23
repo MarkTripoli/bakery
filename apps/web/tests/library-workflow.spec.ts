@@ -1047,10 +1047,37 @@ test.describe("the editor header on a phone", () => {
     await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
     const chip = header(page).getByTestId("editor-problems");
     await expect(chip).toHaveText("2 problems");
+    // 44px is the touch target: a coarse pointer gets it, a mouse need not.
+    const coarse = await page.evaluate(() =>
+      globalThis.matchMedia("(pointer: coarse)").matches
+    );
     const box = await chip.boundingBox();
-    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(coarse ? 44 : 32);
     await page.mouse.move(5, 5);
     await still(page, "editor-header-problems");
+  });
+
+  test("the bell and the menu sit in the middle of the title bar, not at its top", async ({ page }) => {
+    await libraryFixture(page, WORLD);
+    await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+    await expect(saveStatus(page)).toContainText("Saved");
+    const band = await page.locator("header.bakery-app-shell__header")
+      .boundingBox();
+    const bell = await page.locator(".ui-notification-bell button")
+      .boundingBox();
+    const menu = await page.locator('[data-ui-component="topBar"] button')
+      .first()
+      .boundingBox();
+    for (const one of [bell, menu]) {
+      // The band ends in a 1px rule; the air above and below the 44px row is
+      // the same, give or take the rule.
+      const above = one!.y - band!.y;
+      const below = band!.y + band!.height - 1 - (one!.y + one!.height);
+      expect(Math.abs(above - below)).toBeLessThanOrEqual(1);
+      expect(above).toBeGreaterThanOrEqual(4);
+    }
+    await page.mouse.move(5, 5);
+    await still(page, "title-bar-bell-aligned");
   });
 
   test("a failed save puts Try again beside the state, not in the actions", async ({ page }) => {

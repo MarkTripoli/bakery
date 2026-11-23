@@ -956,8 +956,11 @@ a.bakery-application-rail__link:hover {
   min-block-size: auto;
   /* E8-0/P6-0: the 44px header row sits directly under the device status
      bar, so only the safe area pads its top. */
-  padding: var(--space-0) var(--gutter) var(--space-3);
-  padding-block-start: env(safe-area-inset-top);
+  padding: var(--space-0) var(--gutter);
+  /* Half of the 12px of air above the row and half below it, so the menu, the
+     title and the bell sit in the middle of the band, not at its top. */
+  padding-block-start: calc(env(safe-area-inset-top) + var(--space-3) / 2);
+  padding-block-end: calc(var(--space-3) / 2);
   padding-inline: max(var(--gutter), env(safe-area-inset-left))
     max(var(--gutter), env(safe-area-inset-right));
 }
