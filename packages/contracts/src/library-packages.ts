@@ -288,7 +288,8 @@ export type PackageDefect = Readonly<{
     | "workflow_definition_not_json"
     | "workflow_definition_not_canonical"
     | "unresolved_package_reference"
-    | "package_path_unsafe";
+    | "package_path_unsafe"
+    | "package_raw_binding";
   path: readonly (string | number)[];
   message: string;
 }>;
@@ -386,6 +387,14 @@ export async function packageDefects(
         });
       }
       memberDefects(parsed, ["items", index, "data", "definition"], defects);
+      for (const at of rawBindingsIn(parsed)) {
+        defects.push({
+          code: "package_raw_binding",
+          path: ["items", index, "data", "definition", at],
+          message:
+            `${identity} binds a skill or agent by an id instead of a package reference.`,
+        });
+      }
       for (const reference of packageReferencesIn(parsed)) {
         const [, kind, key] = /^package:(skill|agent)\/(.+)$/.exec(reference)!;
         if (!seen.has(`${kind}:${key}`) && !allKeys.has(`${kind}:${key}`)) {
@@ -563,6 +572,44 @@ export function exportReferences(
     return out;
   };
   return { definition: visit(definition as Json, []), openBindings };
+}
+
+/**
+ * The places a workflow definition binds a skill or an agent by something that
+ * is not a package reference. An export writes only references there, so a raw
+ * id means a hand-built package carrying an id from another organization; it
+ * means nothing here and must not be kept in a draft.
+ */
+export function rawBindingsIn(definition: unknown): string[] {
+  const found: string[] = [];
+  const isReference = (value: unknown): boolean =>
+    typeof value === "string" && PACKAGE_REFERENCE_PATTERN.test(value);
+  const visit = (value: Json, path: (string | number)[]): void => {
+    if (Array.isArray(value)) {
+      value.forEach((entry, index) => visit(entry, [...path, index]));
+      return;
+    }
+    if (!isObject(value)) return;
+    const step = isStep(value);
+    for (const [name, entry] of Object.entries(value)) {
+      const here = [...path, name];
+      if (step && name === "skills" && Array.isArray(entry)) {
+        entry.forEach((item, index) => {
+          if (!isReference(item)) found.push(pointer([...here, index]));
+        });
+      } else if (step && name === "agentVersionId") {
+        if (!isReference(entry)) found.push(pointer(here));
+      } else if (path.length === 0 && name === "agents" && isObject(entry)) {
+        for (const [action, id] of Object.entries(entry)) {
+          if (!isReference(id)) found.push(pointer([...here, action]));
+        }
+      } else {
+        visit(entry, here);
+      }
+    }
+  };
+  visit(definition as Json, []);
+  return found;
 }
 
 /** The package references a definition names, for the importer to check. */

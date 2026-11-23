@@ -6,6 +6,7 @@ import {
   importReferences,
   packageDefects,
   type PackageItemDraft,
+  rawBindingsIn,
   unsafePackagePath,
 } from "../../packages/contracts/src/library-packages.ts";
 import { canonicalJson } from "../../packages/contracts/src/workflow-compiler/canonical.ts";
@@ -275,5 +276,49 @@ Deno.test("a path that could leave its directory is refused, wherever a package 
       },
     }),
     ["items/0/data/manifest/files/0", "items/0/data/manifest/entryPath"],
+  );
+});
+
+Deno.test("a skill or agent bound by a raw id, which another organization's id would be, is refused", async () => {
+  const raw = {
+    agents: { "agent.freeform": AGENT_VERSION },
+    steps: [{
+      id: "think",
+      uses: "agent.freeform",
+      agentVersionId: AGENT_VERSION,
+      skills: [SKILL_VERSION, "package:skill/ok"],
+    }],
+  };
+  assertEquals(
+    rawBindingsIn(raw),
+    [
+      "/agents/agent.freeform",
+      "/steps/0/skills/0",
+      "/steps/0/agentVersionId",
+    ].sort((a, b) =>
+      rawBindingsIn(raw).indexOf(a) - rawBindingsIn(raw).indexOf(b)
+    ),
+  );
+  const pkg = await buildPackage("Starter", [workflow(raw)]);
+  assertEquals(
+    (await packageDefects(pkg)).filter((d) => d.code === "package_raw_binding")
+      .length,
+    3,
+  );
+  // References, and no binding at all, are what an export writes.
+  assertEquals(
+    rawBindingsIn({
+      steps: [{
+        id: "think",
+        uses: "agent.freeform",
+        agentVersionId: "package:agent/reviewer",
+        skills: ["package:skill/research"],
+      }],
+    }),
+    [],
+  );
+  assertEquals(
+    rawBindingsIn({ steps: [{ id: "go", uses: "workflow.noop" }] }),
+    [],
   );
 });

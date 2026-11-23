@@ -511,3 +511,252 @@ Deno.test("skills and agents travel, workflows are rebound to the new ids, and n
     await Deno.remove(root, { recursive: true });
   }
 });
+
+async function draftOf(org: Org, slug: string, definition: unknown) {
+  const { send, json } = org;
+  const workflow = await json<{ id: string }>(
+    await send("POST", "/v1/workflows", {
+      slug,
+      name: slug,
+      description: "A workflow.",
+    }),
+    201,
+  );
+  const draft = await json<{ id: string }>(
+    await send("POST", `/v1/workflows/${workflow.id}/versions`, { definition }),
+    201,
+  );
+  return { workflowId: workflow.id, draftId: draft.id };
+}
+
+const publish = async (org: Org, workflowId: string, draftId: string) =>
+  await org.json<{ id: string }>(
+    await org.send(
+      "POST",
+      `/v1/workflows/${workflowId}/versions/${draftId}/publish`,
+      {},
+      { "If-Match": '"1"' },
+    ),
+    200,
+  );
+
+Deno.test("a real workflow that names a skill and an agent goes through export and import by id, and another organization cannot export it", async () => {
+  await resetDatabase();
+  const root = await Deno.makeTempDir({ prefix: "bakery-426-real-flow-" });
+  const fixture = await openAuthFixture({
+    databaseConfig,
+    skillFileRoot: root,
+  });
+  const owner = fixture.database;
+  try {
+    const from = await seedOrganization(fixture, "from");
+    const to = await seedOrganization(fixture, "to");
+    const stranger = await seedOrganization(fixture, "stranger");
+
+    // A skill, an agent that binds it, and a kind, all published in `from`.
+    const skill = await from.json<{ id: string }>(
+      await from.send("POST", "/v1/skills", {
+        slug: "research",
+        name: "Research",
+      }),
+      201,
+    );
+    const body = new TextEncoder().encode("# Research\nAsk first.\n");
+    const manifest = {
+      schemaVersion: 1,
+      license: "MIT",
+      entryPath: "SKILL.md",
+      files: [{
+        path: "SKILL.md",
+        mediaType: "text/markdown",
+        sizeBytes: body.byteLength,
+        sha256: await sha256(body),
+        isExecutable: false,
+      }],
+    };
+    const skillVersion = await from.json<{ id: string }>(
+      await from.send("POST", `/v1/skills/${skill.id}/versions`, {
+        revision: 1,
+        digest: await sha256(canonicalJson(manifest)),
+        entryPath: "SKILL.md",
+        manifest,
+        files: [{
+          path: "SKILL.md",
+          mediaType: "text/markdown",
+          isExecutable: false,
+          contentBase64: btoa(String.fromCharCode(...body)),
+        }],
+      }),
+      201,
+    );
+    const agent = await from.json<{ id: string }>(
+      await from.send("POST", "/v1/agents", {
+        slug: "reviewer",
+        name: "Reviewer",
+        description: "Reviews.",
+      }),
+      201,
+    );
+    // The source agent has billing, as one that publishes in a workflow must.
+    // Billing belongs to the source organization and never travels.
+    const agentConfig = {
+      harness: "claude_code",
+      allowedCapabilities: ["model"],
+      skillBindings: { research: skillVersion.id },
+      billing: {
+        provider: "anthropic",
+        billingAccountId: "source-org-account",
+        model: "claude-sonnet-5-5",
+        billingRoute: "api",
+        maxTokens: 1000,
+        maxUsdReservation: 1,
+        pricingMetadataSnapshot: "source-org-pricing",
+      },
+    };
+    const agentVersion = await from.json<{ id: string }>(
+      await from.send("POST", `/v1/agents/${agent.id}/versions`, {
+        revision: 1,
+        config: agentConfig,
+        digest: await sha256(canonicalJson(agentConfig)),
+      }),
+      201,
+    );
+    await from.json(
+      await from.send(
+        "POST",
+        `/v1/agents/${agent.id}/activations`,
+        { versionId: agentVersion.id },
+        { "If-Match": '"1"' },
+      ),
+      200,
+    );
+    await from.json(
+      await from.send(
+        "POST",
+        `/v1/organizations/${from.organizationId}/artifact-kinds/brief/versions`,
+        { expectedRevision: 0, definition: kindDefinition },
+      ),
+      201,
+    );
+
+    // A workflow through the real API that names both by their raw ids.
+    const named = {
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
+      inputs: {},
+      steps: [{
+        id: "think",
+        uses: "agent.freeform",
+        agentVersionId: agentVersion.id,
+        skills: [skillVersion.id],
+        with: {
+          prompt: "Think.",
+          maxTurns: 1,
+          timeout: "60s",
+          maxCostUsd: 1,
+          allowedTools: [],
+        },
+      }],
+    };
+    const made = await draftOf(from, "thinker", named);
+    const published = await publish(from, made.workflowId, made.draftId);
+    await from.json(
+      await from.send(
+        "POST",
+        `/v1/workflows/${made.workflowId}/activations`,
+        { versionId: published.id },
+        { "If-Match": '"1"' },
+      ),
+      200,
+    );
+
+    // Another organization cannot export any of it: every item is "not
+    // available", whatever it names, and no package comes back.
+    for (
+      const [field, value, code] of [
+        ["workflowIds", made.workflowId, "workflow_package_source_unavailable"],
+        ["skillIds", skill.id, "skill_package_source_unavailable"],
+        ["agentIds", agent.id, "agent_package_source_unavailable"],
+        [
+          "artifactKindKeys",
+          "brief",
+          "artifact_kind_package_source_unavailable",
+        ],
+      ] as const
+    ) {
+      const response = await stranger.send(
+        "POST",
+        "/v1/library-packages/export",
+        { name: "Theft", [field]: [value] },
+      );
+      const text = await response.text();
+      assertEquals(response.status, 422, `${field}: ${text}`);
+      assert(text.includes(code), `${field}: ${text}`);
+      assertEquals(text.includes(skillVersion.id), false);
+      assertEquals(text.includes(agentVersion.id), false);
+    }
+
+    // The owner exports the workflow with the skill and the agent it names.
+    const exported = await from.json<{
+      items: { kind: string; key: string; data: unknown }[];
+    }>(
+      await from.send("POST", "/v1/library-packages/export", {
+        name: "Thinking kit",
+        workflowIds: [made.workflowId],
+        skillIds: [skill.id],
+        agentIds: [agent.id],
+      }),
+      200,
+    );
+    const text = JSON.stringify(exported);
+    // No raw id of the source organization is in the package, and the
+    // workflow names its skill and agent by package reference.
+    for (
+      const id of [
+        skillVersion.id,
+        agentVersion.id,
+        skill.id,
+        agent.id,
+        from.organizationId,
+      ]
+    ) assertEquals(text.includes(id), false, `${id} must not leave`);
+    assert(text.includes("package:skill/research"));
+    assert(text.includes("package:agent/reviewer"));
+    // Billing belongs to the source organization and does not leave with it.
+    for (
+      const word of ["source-org-account", "source-org-pricing", "billing"]
+    ) {
+      assertEquals(text.includes(word), false, `${word} must not leave`);
+    }
+
+    // It lands in another organization with its references swapped for the
+    // copies that organization just made.
+    await to.json(
+      await to.send("POST", "/v1/library-packages/import", {
+        package: exported,
+      }),
+      201,
+    );
+    const newSkill =
+      (await owner`select active_version_id from bakery.skills where organization_id = ${to.organizationId} and slug = 'research'`)[
+        0
+      ]!.active_version_id as string;
+    const newAgent =
+      (await owner`select version.id from bakery.agent_versions version join bakery.agent_definitions agent on agent.id = version.agent_id where agent.organization_id = ${to.organizationId}`)[
+        0
+      ]!.id as string;
+    const draft =
+      (await owner`select draft.definition from bakery.workflow_drafts draft join bakery.workflow_definitions definition on definition.id = draft.workflow_id where definition.organization_id = ${to.organizationId}`)[
+        0
+      ]!;
+    const step = (draft.definition as {
+      steps: { skills: string[]; agentVersionId: string }[];
+    }).steps[0]!;
+    assertEquals(step.skills, [newSkill]);
+    assertEquals(step.agentVersionId, newAgent);
+    assert(newSkill !== skillVersion.id && newAgent !== agentVersion.id);
+  } finally {
+    await fixture.close();
+    await Deno.remove(root, { recursive: true });
+  }
+});
