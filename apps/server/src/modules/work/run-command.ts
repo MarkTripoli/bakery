@@ -25,6 +25,7 @@ import type { FrozenActionBinding } from "@bakery/persistence";
 import type { ReviewLoopLimits } from "@bakery/persistence/repository-admission";
 import { planReviewLoopLimits } from "../review-loop/limits.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { assertStepSkillsAllowed } from "../catalog/skill-use-grants.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
@@ -113,6 +114,8 @@ type TaskAdmissionRow = {
 
 type WorkflowVersionRow = {
   id: string;
+  /** The workflow this version belongs to; a use grant is filed against it. */
+  workflow_id: string;
   revision: number;
   normalized_spec: unknown;
   digest: string;
@@ -656,7 +659,8 @@ async function loadWorkflowVersion(
   workflowVersionId: string,
 ): Promise<WorkflowVersionRow> {
   const result = await transaction.query<WorkflowVersionRow>(
-    `select workflow_version.id, workflow_version.revision,
+    `select workflow_version.id, workflow_version.workflow_id,
+            workflow_version.revision,
             workflow_version.normalized_spec, workflow_version.digest,
             workflow_version.status, workflow_definition.enabled
        from bakery.workflow_versions workflow_version
@@ -985,6 +989,14 @@ export async function createRunCommand(
     workflowVersionId,
   );
   await assertWorkflowVersionValid(workflow);
+  // A version whose step names a personal skill its owner has stopped allowing
+  // is refused here, before a run row exists: the owner's Stop allowing must
+  // take effect at the next run, which is what the confirmation says.
+  await assertStepSkillsAllowed(transaction, {
+    organizationId,
+    workflowId: workflow.workflow_id,
+    definition: workflow.normalized_spec,
+  });
 
   const budgetLimitUsd = validateBudgetLimitUsd(
     input.budgetLimitUsd ?? preset?.defaultBudgetLimitUsd,

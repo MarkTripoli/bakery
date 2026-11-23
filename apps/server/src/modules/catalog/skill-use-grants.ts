@@ -133,6 +133,80 @@ function issue(
 }
 
 /**
+ * Refuses a run whose version names a personal skill its owner has stopped
+ * allowing at that step.
+ *
+ * A grant is deleted when its owner presses Stop allowing, and until this check
+ * existed nothing that admits a run read the grants table at all: only publishing
+ * and the draft check did. So a stopped grant removed a row and the next run went
+ * ahead with the skill, which made the confirmation's own sentence false. The
+ * owner's act now takes effect at the next run, which is what the sentence says.
+ *
+ * It refuses rather than dropping the skill: a step compiled to use a named
+ * version and silently given nothing would answer a different question than the
+ * one its author asked. The code is the one publishing already answers, because
+ * the sentence to a person is the same one: its owner does not allow this
+ * workflow to use that skill.
+ *
+ * Published versions are untouched: a run already going finishes with the version
+ * it started with, and this only looks at admission.
+ */
+export async function assertStepSkillsAllowed(
+  transaction: PgTransactionClient,
+  facts: Readonly<{
+    organizationId: string;
+    workflowId: string;
+    definition: unknown;
+  }>,
+): Promise<void> {
+  const refs = collectStepSkills(facts.definition);
+  if (refs.length === 0) return;
+  const versionIds = [...new Set(refs.map((ref) => ref.versionId))];
+  // Only a personal version needs a grant; a shared one is visible to everyone
+  // in the organization and withholding it here would refuse runs that published
+  // perfectly well before this check existed.
+  const personal = await transaction.query<{ version_id: string }>(
+    `select version.id as version_id
+       from bakery.skill_versions as version
+       join bakery.skills as skill
+         on skill.organization_id = version.organization_id
+        and skill.id = version.skill_id
+      where version.organization_id = $1
+        and version.id = any($2::uuid[])
+        and skill.scope = 'personal'`,
+    [facts.organizationId, versionIds],
+  );
+  const maybePersonal = new Set(personal.rows.map((row) => row.version_id));
+  const wanted = refs.filter((ref) => maybePersonal.has(ref.versionId));
+  if (wanted.length === 0) return;
+  const granted = await transaction.query<{
+    skill_version_id: string;
+    step_path: string;
+  }>(
+    `select skill_version_id, step_path from bakery.skill_use_grants
+      where organization_id = $1 and workflow_id = $2
+        and skill_version_id = any($3::uuid[])`,
+    [facts.organizationId, facts.workflowId, [...maybePersonal]],
+  );
+  const live = new Set(
+    granted.rows.map((row) => `${row.step_path}#${row.skill_version_id}`),
+  );
+  const stopped = wanted.find((ref) =>
+    !live.has(`${stepPointer(ref.segments)}#${ref.versionId}`)
+  );
+  if (stopped === undefined) return;
+  throw new StandardError({
+    code: "STATE_CONFLICT",
+    params: {
+      reason: "step_skill_stopped",
+      // The step, so an editor can point at the one that stopped the run.
+      step: stepPointer(stopped.segments),
+      skillVersionId: stopped.versionId,
+    },
+  });
+}
+
+/**
  * Decides, for every personal skill a draft's steps name, whether the draft may
  * carry it, and records the grant when its owner confirms.
  *
