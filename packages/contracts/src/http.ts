@@ -950,7 +950,10 @@ function emitSuccess(
   ) {
     return emitEncodedSuccess(result);
   }
-  if (action.output === contractSchemas.NoContent) {
+  if (
+    action.output === contractSchemas.NoContent ||
+    (result === null && action.noContentWhenNull)
+  ) {
     return context.body(null, 204);
   }
   const etag = action.responseEtag?.(result);

@@ -584,6 +584,7 @@ export function createApp(options: {
     publicBaseUrl: options.config.publicBaseUrl,
     passwordHasher: providerPasswordHasher(auth),
     release: options.config.version,
+    desktopUpdateFeed: options.config.desktopUpdateFeed,
   });
   app.route(
     "/",

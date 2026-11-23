@@ -4113,6 +4113,27 @@
     {
       "group": "Access",
       "method": "GET",
+      "path": "/v1/desktop/update",
+      "action": "desktopUpdates.get",
+      "access": "Authenticated",
+      "permission": null,
+      "input": "DesktopUpdateQuery",
+      "output": "DesktopUpdate",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND"
+      ]
+    },
+    {
+      "group": "Access",
+      "method": "GET",
       "path": "/v1/me/profile",
       "action": "profile.get",
       "access": "Authenticated",
