@@ -140,6 +140,15 @@ export const INNGEST_EVENT_DEFINITIONS = {
       ),
     }).strict().describe("Version 1 dependency release request payload."),
   },
+  "coordination.lanes_dispatch_requested": {
+    schemaVersion: 1,
+    name: "bakery/coordination.lanes_dispatch_requested.v1",
+    payload: z.object({
+      planId: payloadUuid(
+        "UUID of the coordination plan whose ready lanes the engine should start.",
+      ),
+    }).strict().describe("Version 1 lane dispatch request payload."),
+  },
   "tasks.created": {
     schemaVersion: 1,
     name: "bakery/tasks.created.v1",

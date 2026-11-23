@@ -18,6 +18,7 @@ import {
 } from "@bakery/contracts/workflow-compiler";
 import { defaultWorkflowCompilerCatalog } from "@bakery/contracts/workflow-compiler/default-catalog";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
+import { loadCalledWorkflows } from "./called-workflows.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import {
   type AgentVersionSelection,
@@ -414,10 +415,11 @@ type CompiledDefinition = Readonly<{
 
 async function compileDefinition(
   definition: unknown,
+  calls?: ReadonlyMap<string, unknown>,
 ): Promise<CompiledDefinition> {
   const { result, actionSites } = await compileWorkflowDocumentDetailed(
     definition,
-    { catalog: defaultWorkflowCompilerCatalog() },
+    { catalog: defaultWorkflowCompilerCatalog(), workflows: calls },
   );
   return {
     result,
@@ -501,10 +503,15 @@ function checkCompilerGrammar(
  */
 export async function validateWorkflowDefinitionStatic(
   definition: unknown,
+  /**
+   * The published versions the definition may call, loaded by the caller from
+   * its own organization (called-workflows.ts). Without them a call is refused.
+   */
+  calls?: ReadonlyMap<string, unknown>,
 ): Promise<WorkflowValidationReport> {
   const errors: WorkflowValidationIssue[] = [];
   const warnings: WorkflowValidationIssue[] = [];
-  const compiledDefinition = await compileDefinition(definition);
+  const compiledDefinition = await compileDefinition(definition, calls);
   const compiled = compiledDefinition.report;
   const finish = (): WorkflowValidationReport =>
     Object.freeze({
@@ -693,9 +700,10 @@ type BindingTarget = Readonly<{
  */
 async function bindingTargets(
   definition: RecordValue,
+  calls?: ReadonlyMap<string, unknown>,
 ): Promise<readonly BindingTarget[]> {
   if (declaresCompilerGrammar(definition)) {
-    const compiled = await compileDefinition(definition);
+    const compiled = await compileDefinition(definition, calls);
     if (!compiled.result.ok) return [];
     const agents: Readonly<Record<string, string>> =
       compiled.result.document.agents;
@@ -751,7 +759,10 @@ export async function validateWorkflowBindings(
     bindings: Object.freeze([]),
   });
   if (!isRecord(definition)) return empty;
-  const steps = await bindingTargets(definition);
+  const steps = await bindingTargets(
+    definition,
+    await loadCalledWorkflows(transaction, organizationId, definition),
+  );
   if (steps.length === 0) return empty;
   const selections: BoundSelection[] = [];
   const unbound: { step: BindingTarget; required: string[] }[] = [];

@@ -28,6 +28,11 @@ export const WORKFLOW_COMPILER_LIMITS = Object.freeze({
   repeatMax: 8,
   /** Maximum `forEach.max`: the most items one sequential forEach accepts. */
   forEachMax: 12,
+  /**
+   * Deepest `call` nesting: a workflow calls a child (level 1), the child calls
+   * a grandchild (level 2), and the grandchild may call nothing.
+   */
+  callDepth: 2,
   /** Maximum lanes in one parallel group. */
   lanes: 8,
   /** Smallest accepted action timeout, wait and wall-clock duration. */

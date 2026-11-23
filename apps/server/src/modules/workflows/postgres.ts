@@ -49,7 +49,9 @@ import {
   validateWorkflowSourceYaml,
   type WorkflowValidationIssue,
 } from "./validation.ts";
+import { createPackageHandlers, type PackageDependencies } from "./packages.ts";
 import { assertWorkflowSatisfiesRepositoryRules } from "./rule-guard.ts";
+import { loadCalledWorkflows } from "./called-workflows.ts";
 import { readStarts } from "./start-read.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import {
@@ -119,7 +121,7 @@ export type WorkflowWriteFacts = Readonly<{
   accessTokenId?: string | null;
 }>;
 
-function writeFactsOf(context: ActionContext): WorkflowWriteFacts {
+export function writeFactsOf(context: ActionContext): WorkflowWriteFacts {
   const { organizationId, principalId } = requireWorkTransaction(context);
   const attribution = attributeAction(context, principalId);
   return {
@@ -860,7 +862,7 @@ async function settlePersonalSkillUse(
 }
 
 /** Structural guard only: a JSON object within the size bound. */
-function requireDraftDefinition(definition: unknown): string {
+export function requireDraftDefinition(definition: unknown): string {
   if (
     definition === null || typeof definition !== "object" ||
     Array.isArray(definition)
@@ -1269,7 +1271,16 @@ export async function publishWorkflowVersion(
       params: { reason: "validation_stale" },
     });
   }
-  const report = await validateWorkflowDefinitionStatic(draft.definition);
+  // The published versions this draft calls, from its own organization only.
+  const calls = await loadCalledWorkflows(
+    transaction,
+    organizationId,
+    draft.definition,
+  );
+  const report = await validateWorkflowDefinitionStatic(
+    draft.definition,
+    calls,
+  );
   const bindingErrors: readonly WorkflowValidationIssue[] = report.valid
     ? (await validateWorkflowBindings(
       transaction,
@@ -1300,6 +1311,7 @@ export async function publishWorkflowVersion(
       principalId,
       workflowId,
       definition: draft.definition,
+      calls,
     })
     : { issues: [], pins: [] };
   // The workflow tools section: its steps and seats are pinned the same way.
@@ -1626,7 +1638,12 @@ export async function validateWorkflow(
     context,
   );
   const { definition } = input as { definition: JsonValue };
-  const report = await validateWorkflowDefinitionStatic(definition);
+  const calls = await loadCalledWorkflows(
+    transaction,
+    organizationId,
+    definition,
+  );
+  const report = await validateWorkflowDefinitionStatic(definition, calls);
   const bindingResult = report.valid
     ? await validateWorkflowBindings(transaction, organizationId, definition)
     : { errors: [] as readonly WorkflowValidationIssue[], bindings: [] };
@@ -1645,6 +1662,7 @@ export async function validateWorkflow(
       principalId,
       workflowId: null,
       definition,
+      calls,
     })).issues
     : [];
   const sectionErrors = report.valid
@@ -1690,13 +1708,17 @@ export async function validateWorkflow(
 
 export function createWorkflowsHandlers(
   secret: string,
+  packageDependencies: PackageDependencies = {},
 ): WorkflowsActionHandlers {
+  const packages = createPackageHandlers(packageDependencies);
   return {
     listWorkflows: createWorkflowDefinitionsListHandler(secret),
     getWorkflow: getWorkflowDefinition,
     createWorkflow: createWorkflowDefinition,
     updateWorkflow: updateWorkflowDefinition,
     copyWorkflow: copyWorkflowDefinition,
+    exportPackage: packages.exportPackage,
+    importPackage: packages.importPackage,
     listVersions: createWorkflowVersionsListHandler(secret),
     getVersion: getWorkflowVersion,
     getVersionSkills: readWorkflowVersionSkills,

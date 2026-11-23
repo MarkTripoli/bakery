@@ -220,6 +220,7 @@ Deno.test("the counts come from each issue's own verdict, and say when they were
     canStart: 0,
     waiting: 0,
     cannotStart: 0,
+    labeledBeforeWindow: 0,
     evaluatedAt: null,
   });
 });
