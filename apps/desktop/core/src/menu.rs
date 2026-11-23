@@ -13,12 +13,15 @@ pub struct Model {
     pub connected: String,
     /// Sign out is live only while someone is signed in.
     pub sign_out_enabled: bool,
+    /// "Version {version}", and the update lines under it for the state of updating (slice 8).
+    pub update: crate::update::MenuLines,
 }
 
-pub fn model(server: &str, signed_in: bool) -> Model {
+pub fn model(server: &str, signed_in: bool, update: crate::update::MenuLines) -> Model {
     Model {
         connected: format!("Connected to {server}"),
         sign_out_enabled: signed_in,
+        update,
     }
 }
 
@@ -26,12 +29,22 @@ pub fn model(server: &str, signed_in: bool) -> Model {
 mod tests {
     use super::*;
 
+    fn no_updates() -> crate::update::MenuLines {
+        crate::update::menu_lines(&crate::update::State::Unavailable, "1.3.0", 0, 0)
+    }
+
     #[test]
     fn the_label_names_the_server_and_sign_out_follows_the_sign_in() {
-        let m = model("https://bakery.acme.example", true);
+        let m = model("https://bakery.acme.example", true, no_updates());
         assert_eq!(m.connected, "Connected to https://bakery.acme.example");
         assert!(m.sign_out_enabled);
-        assert!(!model("https://bakery.acme.example", false).sign_out_enabled);
+        assert!(!model("https://bakery.acme.example", false, no_updates()).sign_out_enabled);
+    }
+
+    #[test]
+    fn the_menu_names_the_version_under_the_server() {
+        let m = model("https://bakery.acme.example", true, no_updates());
+        assert_eq!(m.update.version, "Version 1.3.0");
     }
 
     #[test]

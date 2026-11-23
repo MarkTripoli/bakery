@@ -294,6 +294,7 @@ fn links_plugin(server: String) -> tauri::plugin::TauriPlugin<tauri::Wry> {
             }
             let url = payload.url();
             if let Some(shell) = webview.try_state::<Arc<Shell>>() {
+                shell.page_finished();
                 // Where the window is, never the query: a one-use code travels in it.
                 shell.report(
                     "page_loaded",
@@ -396,6 +397,7 @@ fn main() {
             );
             app.manage(Arc::clone(&shell));
             shell.install_menu();
+            shell.start_updating();
             test_hooks(app, &shell, &server);
             if let Some(place) = restored {
                 shell.report(
