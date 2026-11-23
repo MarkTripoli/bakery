@@ -758,5 +758,7 @@ Deno.test("a real workflow that names a skill and an agent goes through export a
   } finally {
     await fixture.close();
     await Deno.remove(root, { recursive: true });
+    // The next integration file starts from the users this file made.
+    await resetDatabase();
   }
 });
