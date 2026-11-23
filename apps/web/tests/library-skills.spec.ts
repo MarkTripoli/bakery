@@ -263,10 +263,17 @@ for (
       await expect(access.getByText("Weekly digest")).toBeVisible();
       await expect(
         access.getByText(
-          "Step “Draft the digest” · version 2 of this skill · since Nov 18, 2026",
+          "Step “Write the task brief” · version 2 of this skill · since Nov 18, 2026",
         ),
       ).toBeVisible();
-      await expect(access.getByRole("button")).toHaveCount(0);
+      // The workflow is a link; the owner's one control is Stop allowing.
+      await expect(access.getByRole("link", { name: "Weekly digest" }))
+        .toHaveAttribute(
+          "href",
+          /\/library\/workflows\/00000000-0000-4000-8000-000000000702$/,
+        );
+      await expect(access.getByRole("button")).toHaveText(["Stop allowing"]);
+      await expect(access.getByText(/\/steps\//)).toHaveCount(0);
       // The original's name is a link to its page, in the same sentence.
       const origin = page.getByTestId("skill-origin");
       await expect(origin).toContainText(
@@ -276,10 +283,14 @@ for (
         .toHaveAttribute("href", `${skillPage(IDS.writingGuide)}`);
       await expect(
         page.getByRole("button", {
-          name: /Stop|Edit|Check for updates|Make a copy/,
+          name: /Edit|Check for updates|Make a copy/,
         }),
       )
         .toHaveCount(0);
+      // Stop allowing is the one control a row of the access card carries.
+      await expect(
+        page.getByRole("button", { name: /^Stop allowing/ }),
+      ).toHaveCount(1);
       await page.mouse.move(700, 700);
       await still(page, "skill-private");
       // Following the link opens the original, after the still is taken.
@@ -775,6 +786,111 @@ for (
         "Make a copy",
         "Turn off",
       ]);
+    });
+  });
+}
+
+/** Stop allowing a workflow to use a private skill (#74, UX revision 5). */
+for (
+  const viewport of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "phone", width: 390, height: 844 },
+  ]
+) {
+  test.describe(`${viewport.name}: stop allowing`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+    const stopButton = (page: Page) =>
+      page.getByRole("button", {
+        name: "Stop allowing Weekly digest to use this skill",
+      });
+    const writes = (seen: readonly Seen[]) =>
+      seen.filter((entry) => entry.method !== "GET");
+
+    test("Keep working: Cancel sends nothing and the row stays", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.houseStyle));
+      await stopButton(page).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog.getByText("Stop Weekly digest using House style?"))
+        .toBeVisible();
+      await expect(
+        dialog.getByText(
+          "New runs of Weekly digest will be refused at the step “Write the task brief” until someone changes that step.",
+        ),
+      ).toBeVisible();
+      await expect(
+        dialog.getByText(
+          "Runs already going finish with the version they started with.",
+        ),
+      ).toBeVisible();
+      await expect(dialog.getByText("Your skill and its files do not change."))
+        .toBeVisible();
+      await expect(
+        dialog.getByText(
+          "To allow it again, attach the skill to the step in the workflow editor.",
+        ),
+      ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "skill-stop-allowing-dialog");
+      await dialog.getByRole("button", { name: "Cancel" }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(stopButton(page)).toBeFocused();
+      expect(writes(seen)).toEqual([]);
+    });
+
+    test("Stop allowing deletes the grant with its version, drops the row and says so", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.houseStyle));
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop allowing",
+      }).click();
+      await expect(page.getByTestId("skill-toast")).toContainText(
+        "Weekly digest can no longer use House style.",
+      );
+      const access = page.getByTestId("skill-access");
+      await expect(access.getByText("Weekly digest")).toHaveCount(0);
+      await expect(
+        access.getByText(
+          "No shared workflow is allowed to use it. Attach it to a workflow step to allow that workflow.",
+        ),
+      ).toBeVisible();
+      const deleted = writes(seen);
+      expect(deleted).toHaveLength(1);
+      expect(deleted[0].method).toBe("DELETE");
+      expect(deleted[0].path).toBe(
+        `/v1/skills/${IDS.houseStyle}/use-grants/00000000-0000-4000-8000-000000000701`,
+      );
+      expect(deleted[0].ifMatch).toContain("1");
+      await page.mouse.move(700, 700);
+      await still(page, "skill-stopped-allowing");
+    });
+
+    test("a grant already stopped elsewhere is the same result, not an error", async ({ page }) => {
+      await skillsFixture(page, { stopStatus: 404 });
+      await page.goto(skillPage(IDS.houseStyle));
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop allowing",
+      }).click();
+      await expect(page.getByTestId("skill-toast")).toContainText(
+        "Weekly digest can no longer use House style.",
+      );
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    });
+
+    test("a stop that fails says nothing changed and keeps the question open", async ({ page }) => {
+      await skillsFixture(page, { stopStatus: 500 });
+      await page.goto(skillPage(IDS.houseStyle));
+      await stopButton(page).click();
+      const dialog = page.getByRole("alertdialog");
+      await dialog.getByRole("button", { name: "Stop allowing" }).click();
+      await expect(dialog.getByRole("alert")).toHaveText(
+        "Weekly digest can still use House style. Nothing changed.",
+      );
+      await expect(dialog.getByRole("button", { name: "Stop allowing" }))
+        .toBeEnabled();
+      await expect(page.getByTestId("skill-toast")).toHaveCount(0);
     });
   });
 }

@@ -184,6 +184,8 @@ export type SkillsOptions = {
   readonly updateStatus?: number;
   /** Making a copy answers with this status instead of succeeding. */
   readonly copyStatus?: number;
+  /** Stopping a workflow using the skill answers with this status instead of succeeding. */
+  readonly stopStatus?: number;
 };
 
 export type Seen = {
@@ -257,6 +259,7 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
   const versionCount = (entry: Skill) =>
     entry.activeRevision === null ? 1 : entry.activeRevision + 1;
   const seen: Seen[] = [];
+  const stopped = new Set<string>();
   const record = (route: Route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -312,12 +315,61 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
     skills.find((entry) => entry.id === id) ??
       all.find((entry) => entry.id === id);
 
+  // The workflow a grant names: one version whose first step is "Write the task brief".
+  await page.route(
+    (url) => /^\/v1\/workflows\/[^/]+\/versions$/.test(url.pathname),
+    (route) => {
+      const workflowId = new URL(route.request().url()).pathname.split("/")[3];
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: [{
+            id: uuid(1002),
+            workflowId,
+            revision: 2,
+            sourceYaml: "kind: fixed\n",
+            normalizedSpec: {
+              kind: "fixed",
+              workflow: { kind: "fixed" },
+              steps: [{ id: "brief", uses: "task.brief" }],
+            },
+            digest: "02".repeat(32),
+            status: "published",
+            createdBy: uuid(1),
+            createdAt: "2026-11-01T10:00:00.000Z",
+            updatedAt: "2026-11-01T10:00:00.000Z",
+            version: 1,
+            starts: [],
+          }],
+          nextCursor: null,
+        }),
+      });
+    },
+  );
   await page.route(
     (url) => url.pathname.startsWith("/v1/skill"),
     (route) => {
       const url = record(route);
       const method = route.request().method();
       const parts = url.pathname.split("/").filter(Boolean);
+      if (
+        method === "DELETE" && parts[1] === "skills" &&
+        parts[3] === "use-grants"
+      ) {
+        if (options.stopStatus !== undefined) {
+          return problem(
+            route,
+            options.stopStatus,
+            statusOf(options.stopStatus),
+          );
+        }
+        if (stopped.has(parts[4] ?? "")) {
+          return problem(route, 404, "RESOURCE_NOT_FOUND");
+        }
+        stopped.add(parts[4] ?? "");
+        return route.fulfill({ status: 204 });
+      }
       if (method !== "GET") {
         const target = parts[1] === "skills" ? find(parts[2]) : undefined;
         const body = route.request().postDataJSON() as
@@ -483,7 +535,7 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
           if (entry.scope !== "personal") {
             return problem(route, 403, "AUTH_FORBIDDEN");
           }
-          const items = entry.id === IDS.houseStyle
+          const items = entry.id === IDS.houseStyle && !stopped.has(uuid(701))
             ? [
               {
                 id: uuid(701),
@@ -493,7 +545,9 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
                 revision: 2,
                 workflowId: uuid(702),
                 workflowName: "Weekly digest",
-                stepPath: "Draft the digest",
+                // Required since the server records it on the grant (#74 run admission).
+                revisionDigest: "sha256:2222abcdef0123456789",
+                stepPath: "/steps/0",
                 grantedBy: MOCK_PRINCIPAL_ID,
                 createdAt: "2026-11-18T09:00:00.000Z",
                 version: 1,

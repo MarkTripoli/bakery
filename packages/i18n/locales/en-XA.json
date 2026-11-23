@@ -6387,5 +6387,17 @@
   "library.skill.failure.forbidden": "⟦Ÿôû çàññôŧ çĥàñĝë {name}. ŧëšŧ ç⟧",
   "library.skill.failure.conflict": "⟦{name} çĥàñĝëð ŵĥïļë ÿôû ŵëŕë ôñ ŧĥïš þàĝë. Ŕëļôàð ŧĥë þàĝë àñð ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "library.skill.failure.offline": "⟦Ÿôû àŕë ôƒƒļïñë. Ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ ŵĥëñ ÿôû àŕë ƀàçķ ôñļïñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
-  "library.skill.failure.failed": "⟦Ŧĥàŧ ðïð ñôŧ ŵôŕķ àñð ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
+  "library.skill.failure.failed": "⟦Ŧĥàŧ ðïð ñôŧ ŵôŕķ àñð ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "library.skill.access.stop": "⟦Šŧôþ àļļôŵïñĝ ŧë⟧",
+  "library.skill.access.stopNamed": "⟦Šŧôþ àļļôŵïñĝ {workflow} ŧô ûšë ŧĥïš šķïļļ ŧëšŧ çôþÿ ŧë⟧",
+  "library.skill.access.stopTitle": "⟦Šŧôþ {workflow} ûšïñĝ {skill}? ŧëšŧ çôþ⟧",
+  "library.skill.access.stopBody": "⟦Ñëŵ ŕûñš ôƒ {workflow} ŵïļļ ƀë ŕëƒûšëð àŧ ŧĥë šŧëþ “{step}” ûñŧïļ šôɱëôñë çĥàñĝëš ŧĥàŧ šŧëþ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "library.skill.access.stopRunning": "⟦Ŕûñš àļŕëàðÿ ĝôïñĝ ƒïñïšĥ ŵïŧĥ ŧĥë ṽëŕšïôñ ŧĥëÿ šŧàŕŧëð ŵïŧĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "library.skill.access.stopFiles": "⟦Ÿôûŕ šķïļļ àñð ïŧš ƒïļëš ðô ñôŧ çĥàñĝë. ŧëšŧ çôþÿ ŧ⟧",
+  "library.skill.access.stopAgain": "⟦Ŧô àļļôŵ ïŧ àĝàïñ, àŧŧàçĥ ŧĥë šķïļļ ŧô ŧĥë šŧëþ ïñ ŧĥë ŵôŕķƒļôŵ ëðïŧôŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "library.skill.access.stopped": "⟦{workflow} çàñ ñô ļôñĝëŕ ûšë {skill}. ŧëšŧ çôþÿŧ⟧",
+  "library.skill.access.stopFailed": "⟦{workflow} çàñ šŧïļļ ûšë {skill}. Ñôŧĥïñĝ çĥàñĝëð. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.skill.access.stepFallback": "⟦Šŧëþ {number} ŧë⟧",
+  "library.workflow.editor.skills.slot.stopped.bodyOwner": "⟦Ÿôû šŧôþþëð ŧĥïš ŵôŕķƒļôŵ ûšïñĝ ïŧ. ŧëšŧ çôþÿŧ⟧",
+  "library.workflow.editor.skills.slot.allowAgain": "⟦Àļļôŵ àĝàïñ ŧ⟧"
 }

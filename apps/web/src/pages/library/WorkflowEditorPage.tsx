@@ -774,6 +774,10 @@ export function WorkflowEditorPage(
             }))
             .sort((a, b) => a.name.localeCompare(b.name)),
           onRetry: () => void catalog.refetch(),
+          canChoose: (value: string) =>
+            (catalog.data ?? []).some((skill) =>
+              skill.activeVersionId === value
+            ),
           onChoose: (value: string, replaces?: SlotReplaces) => {
             const picked = (catalog.data ?? []).find((skill) =>
               skill.activeVersionId === value

@@ -36,6 +36,11 @@ const toastStore = (() => {
   };
 })();
 
+/** Says something on the skill page after an action, until it is dismissed. */
+export function sayAboutSkill(message: string): void {
+  toastStore.set(message);
+}
+
 /** What the last skill action said, with its dismiss. */
 export function SkillToast() {
   const message = useSyncExternalStore(toastStore.subscribe, toastStore.get);

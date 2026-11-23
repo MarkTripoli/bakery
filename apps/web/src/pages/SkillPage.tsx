@@ -27,6 +27,7 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { SkillToast, useSkillActions } from "./library/SkillActions.tsx";
+import { SkillGrantRow } from "./library/SkillGrantRow.tsx";
 import {
   copiedWords,
   fileSize,
@@ -451,28 +452,15 @@ function AccessCard(
               gap="compact"
               role="list"
             >
-              {items.map((grant) => {
-                const revision = revisionOf(grant.skillVersionId);
-                return (
-                  <div data-grant={grant.id} key={grant.id} role="listitem">
-                    <UI.Stack gap="none">
-                      <UI.Text>{grant.workflowName}</UI.Text>
-                      <UI.Text variant="caption">
-                        {revision === null
-                          ? translate("library.skill.access.lineNoVersion", {
-                            step: grant.stepPath,
-                            date: when(grant.createdAt),
-                          })
-                          : translate("library.skill.access.line", {
-                            step: grant.stepPath,
-                            number: revision,
-                            date: when(grant.createdAt),
-                          })}
-                      </UI.Text>
-                    </UI.Stack>
-                  </div>
-                );
-              })}
+              {items.map((grant) => (
+                <SkillGrantRow
+                  key={grant.id}
+                  grant={grant}
+                  skill={skill}
+                  revision={revisionOf(grant.skillVersionId)}
+                  since={when(grant.createdAt)}
+                />
+              ))}
             </UI.Stack>
           </UI.Stack>
         )}

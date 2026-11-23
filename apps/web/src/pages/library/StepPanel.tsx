@@ -66,6 +66,8 @@ export type StepAttach = {
   readonly offered: number;
   readonly onRetry: () => void;
   readonly onChoose: (value: string, replaces?: SlotReplaces) => void;
+  /** Whether the skill version is the one the catalog offers now, so choosing it can be confirmed. */
+  readonly canChoose: (value: string) => boolean;
 };
 
 /** What the Skills list of a step shows: not at all, while it reads, when it failed, or the rows. */
@@ -489,6 +491,8 @@ function SkillRow(
         <UI.Text variant="muted">
           {row.status === "missing" && row.name === null
             ? t("slot.missing.bodyUnnamed")
+            : row.status === "stopped" && row.mine
+            ? t("slot.stopped.bodyOwner")
             : t(`slot.${row.status}.body`, { name })}
         </UI.Text>
         {
@@ -499,6 +503,25 @@ function SkillRow(
           ? null
           : (
             <UI.Inline gap="compact">
+              {
+                /* The owner who stopped it can allow it again: the same confirmation as attaching. */
+              }
+              {row.status === "stopped" && row.mine && attach !== null &&
+                  attach.state === "ready" && row.stepPath !== undefined &&
+                  row.versionId != null && attach.canChoose(row.versionId)
+                ? (
+                  <UI.Button
+                    variant="secondary"
+                    onClick={() =>
+                      attach.onChoose(row.versionId!, {
+                        stepPath: row.stepPath!,
+                        versionId: row.versionId ?? null,
+                      })}
+                  >
+                    {t("slot.allowAgain")}
+                  </UI.Button>
+                )
+                : null}
               {attach === null || attach.state !== "ready" ||
                   attach.choices.length === 0 || row.stepPath === undefined
                 ? null

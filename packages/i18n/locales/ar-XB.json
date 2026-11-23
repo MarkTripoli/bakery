@@ -6387,5 +6387,17 @@
   "library.skill.failure.forbidden": "⟪You cannot change {name}.⟫",
   "library.skill.failure.conflict": "⟪{name} changed while you were on this page. Reload the page and try again.⟫",
   "library.skill.failure.offline": "⟪You are offline. Nothing changed. Try again when you are back online.⟫",
-  "library.skill.failure.failed": "⟪That did not work and nothing changed. Try again in a moment.⟫"
+  "library.skill.failure.failed": "⟪That did not work and nothing changed. Try again in a moment.⟫",
+  "library.skill.access.stop": "⟪Stop allowing⟫",
+  "library.skill.access.stopNamed": "⟪Stop allowing {workflow} to use this skill⟫",
+  "library.skill.access.stopTitle": "⟪Stop {workflow} using {skill}?⟫",
+  "library.skill.access.stopBody": "⟪New runs of {workflow} will be refused at the step “{step}” until someone changes that step.⟫",
+  "library.skill.access.stopRunning": "⟪Runs already going finish with the version they started with.⟫",
+  "library.skill.access.stopFiles": "⟪Your skill and its files do not change.⟫",
+  "library.skill.access.stopAgain": "⟪To allow it again, attach the skill to the step in the workflow editor.⟫",
+  "library.skill.access.stopped": "⟪{workflow} can no longer use {skill}.⟫",
+  "library.skill.access.stopFailed": "⟪{workflow} can still use {skill}. Nothing changed.⟫",
+  "library.skill.access.stepFallback": "⟪Step {number}⟫",
+  "library.workflow.editor.skills.slot.stopped.bodyOwner": "⟪You stopped this workflow using it.⟫",
+  "library.workflow.editor.skills.slot.allowAgain": "⟪Allow again⟫"
 }

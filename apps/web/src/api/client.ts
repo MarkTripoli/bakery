@@ -2051,6 +2051,15 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<SkillResponse>>;
+  /** Stops a shared workflow step using a private skill; `version` is the grant's, sent as If-Match. */
+  readonly deleteSkillUseGrant: (options: {
+    readonly organizationId: string;
+    readonly skillId: string;
+    readonly id: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<undefined>>;
   /** One agent definition of the organization. */
   readonly getAgent: (options: {
     readonly organizationId: string;
@@ -6833,6 +6842,25 @@ export function createBakeryApiClient({
           },
         );
         return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async deleteSkillUseGrant(options) {
+      organizationId = options.organizationId;
+      try {
+        await client.actions["skills.useGrants.delete"](
+          { id: options.skillId, grantId: options.id },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data: undefined };
       } catch (error) {
         return failed(error);
       } finally {
