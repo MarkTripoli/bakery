@@ -818,7 +818,7 @@ test("P4 plan: a real coordinator turn, a question, a revision and a refused sta
   remember("conversationId", j.conversationId);
   await expect(conversationRegion(page)).toBeVisible();
   await expect(page.locator('[data-stage="plan"]')).toContainText(
-    "Waits for your approval",
+    "Human approval",
   );
   expect(await runsOf(api, j.taskId)).toHaveLength(0);
   await axeClean(page, "/tasks/<id> empty conversation");
@@ -1645,6 +1645,10 @@ test("P10 negatives: reject, expiry, stale and duplicate approvals never execute
   await say(page, "Ask agent", M1_PLAN_ONLY_REQUEST);
   await expect(approve(page, 1)).toBeEnabled({ timeout: 8 * MINUTE });
   await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Reject", exact: true })
+    .click();
   await expect(page.getByText("You rejected revision 1")).toBeVisible();
   await chooseWorkflow(page);
   await startRunButton(page).click();

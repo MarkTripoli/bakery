@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { createEvaluationExecutor } from "../../apps/worker/src/evaluation-executor.ts";
 import { JUDGE_PROVIDER_NOT_CONFIGURED } from "../../apps/worker/src/bounded-judge.ts";
+import type { ReadAttemptContext } from "../../apps/worker/src/harness-context.ts";
 import type { WorkerContextInput } from "../../apps/worker/src/client.ts";
 import type { WorkerExecutor } from "../../apps/worker/src/executor.ts";
 import type { JobAssignment } from "../../apps/worker/src/types.ts";
@@ -69,7 +70,7 @@ Deno.test("the executor advertises both evaluation actions beside the inner ones
 Deno.test("evaluation.check scores the pinned output bytes", async () => {
   const served = [await pinned("all done")];
   const executor = createEvaluationExecutor(inner, {
-    readAttemptContext: () => Promise.resolve(served),
+    readAttemptContext: () => Promise.resolve({ inputs: served, facts: null }),
   });
   const outcome = await executor.execute(
     assignment("evaluation.check", checkInput),
@@ -82,9 +83,12 @@ Deno.test("evaluation.check scores the pinned output bytes", async () => {
 });
 
 Deno.test("an unpinned version, a digest mismatch or a reader crash is an error, not a verdict", async () => {
-  const cases: Array<() => Promise<readonly WorkerContextInput[]>> = [
-    () => Promise.resolve([]),
-    async () => [await pinned("all done", "0".repeat(64))],
+  const cases: Array<() => ReturnType<ReadAttemptContext>> = [
+    () => Promise.resolve({ inputs: [], facts: null }),
+    async () => ({
+      inputs: [await pinned("all done", "0".repeat(64))],
+      facts: null,
+    }),
     () => Promise.reject(new Error("route down")),
   ];
   for (const read of cases) {
@@ -104,7 +108,7 @@ Deno.test("an unpinned version, a digest mismatch or a reader crash is an error,
 Deno.test("evaluation.score answers unscored when no judge provider is configured", async () => {
   const served = [await pinned("all done")];
   const outcome = await createEvaluationExecutor(inner, {
-    readAttemptContext: () => Promise.resolve(served),
+    readAttemptContext: () => Promise.resolve({ inputs: served, facts: null }),
   }).execute(
     assignment("evaluation.score", {
       evaluationResultId: RESULT,

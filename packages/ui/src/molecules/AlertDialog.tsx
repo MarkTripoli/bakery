@@ -79,6 +79,7 @@ export function AlertDialog(
         if (!event.defaultPrevented) containDialogFocus(event);
       }}
       onCancel={(event) => {
+        event.stopPropagation();
         onCancel?.(event);
         if (!event.defaultPrevented) {
           event.preventDefault();
@@ -86,6 +87,7 @@ export function AlertDialog(
         }
       }}
       onClose={(event) => {
+        event.stopPropagation();
         onClose?.(event);
         if (isOpen) setOpen(false);
       }}

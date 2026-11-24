@@ -95,6 +95,46 @@ function readContext(
   );
 }
 
+Deno.test("the read carries the facts the step's dispatch recorded, and null when it recorded none", () =>
+  withWorkerFixture(async (fixture) => {
+    const own = await setup(fixture);
+    const seed = await seedVersion(fixture, own.job.taskId, "pinned");
+    await pin(fixture, own.job.runId, seed);
+    const read = () =>
+      readContext(
+        fixture,
+        own.assignment.attemptId,
+        proof(own.worker.credential, own.assignment, own.worker.registration),
+      );
+
+    const before = await (await read()).json();
+    assertEquals(before.facts, null);
+
+    const facts = {
+      facts: [{
+        memoryId: crypto.randomUUID(),
+        revisionId: crypto.randomUUID(),
+        wording: "Tests run with pnpm.",
+        recordedAt: "2026-11-20T10:00:00.000Z",
+      }],
+      omitted: 3,
+    };
+    await fixture.pgDatabase.query(
+      `update bakery.run_steps set dispatch = jsonb_build_object('facts', $3::jsonb)
+        where organization_id = $1 and run_id = $2`,
+      [fixture.organizationId, own.job.runId, JSON.stringify(facts)],
+    );
+
+    const after = await (await read()).json();
+    assertEquals(after.facts, {
+      facts: [{
+        wording: "Tests run with pnpm.",
+        recordedAt: "2026-11-20T10:00:00.000Z",
+      }],
+      omitted: 3,
+    });
+  }));
+
 Deno.test("a worker reads the bytes its run pinned, and only its own run's", () =>
   withWorkerFixture(async (fixture) => {
     const own = await setup(fixture);

@@ -947,6 +947,28 @@ export const clientManifest = {
     {
       "group": "Work",
       "method": "GET",
+      "path": "/v1/runs/{id}/steps/{stepKey}/given",
+      "action": "runSteps.given",
+      "access": "Developer",
+      "permission": "runStep:read",
+      "input": "IdPath",
+      "output": "StepGiven",
+      "event": "",
+      "mcp": "bakery_runSteps_given",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
+      "method": "GET",
       "path": "/v1/output-streams",
       "action": "output.streams.list",
       "access": "Developer",
@@ -20477,6 +20499,7 @@ export const clientManifest = {
             "handoffManifests.get",
             "handoffManifests.continue",
             "runSteps.list",
+            "runSteps.given",
             "output.streams.list",
             "output.streams.read",
             "runs.controlCapabilities",
@@ -23071,6 +23094,27 @@ export const clientManifest = {
             "append",
             "interrupt"
           ]
+        },
+        "mentions": {
+          "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. A steerer without request permission (runRequest:write) can mention only people who can already see the run; mentioning anyone else is refused with AUTH_FORBIDDEN and writes nothing, not even the steer. Text that merely looks like @name never mentions anyone. SteeringMessage.mentions must contain at most 20 items.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. A steerer without request permission (runRequest:write) can mention only people who can already see the run; mentioning anyone else is refused with AUTH_FORBIDDEN and writes nothing, not even the steer. Text that merely looks like @name never mentions anyone. Each array item follows this format."
+          }
+        },
+        "mentionHandles": {
+          "description": "Groups or roles this steer @-mentions by their mention name, such as @design-reviewers, @admins or @developers; the leading @ is optional. Every active member other than the steerer is asked to just let them know on this run's step, and any one of them can handle it. A name that matches no group or role, or a group with nobody in it, falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. The same request permission rule as mentions applies to every member reached. SteeringMessage.mentionHandles must contain at most 20 items.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Groups or roles this steer @-mentions by their mention name, such as @design-reviewers, @admins or @developers; the leading @ is optional. Every active member other than the steerer is asked to just let them know on this run's step, and any one of them can handle it. A name that matches no group or role, or a group with nobody in it, falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. The same request permission rule as mentions applies to every member reached. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -50808,6 +50852,7 @@ export const clientManifest = {
                   "handoffManifests.get",
                   "handoffManifests.continue",
                   "runSteps.list",
+                  "runSteps.given",
                   "output.streams.list",
                   "output.streams.read",
                   "runs.controlCapabilities",
@@ -73775,6 +73820,7 @@ export const clientManifest = {
             "handoffManifests.get",
             "handoffManifests.continue",
             "runSteps.list",
+            "runSteps.given",
             "output.streams.list",
             "output.streams.read",
             "runs.controlCapabilities",
@@ -97868,6 +97914,10 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when deciding."
+        },
+        "mayDecide": {
+          "type": "boolean",
+          "description": "True when the person asking may decide this approval now: it is open, or it expired while its plan or reviewed commit is still the current one so a new decision can be recorded, and the person is named in its audience or holds a grant for it and may decide approvals. The web shows decision buttons only when this is true."
         }
       },
       "required": [
@@ -97895,7 +97945,8 @@ export const clientManifest = {
         "expiresAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "mayDecide"
       ],
       "additionalProperties": false,
       "description": "Typed approval request bound to an exact subject digest, stage scope, policy digest and expiry; it authorizes one action once and never carries forward to another revision.",
@@ -98639,6 +98690,10 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when deciding."
+              },
+              "mayDecide": {
+                "type": "boolean",
+                "description": "True when the person asking may decide this approval now: it is open, or it expired while its plan or reviewed commit is still the current one so a new decision can be recorded, and the person is named in its audience or holds a grant for it and may decide approvals. The web shows decision buttons only when this is true."
               }
             },
             "required": [
@@ -98666,7 +98721,8 @@ export const clientManifest = {
               "expiresAt",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "mayDecide"
             ],
             "additionalProperties": false,
             "description": "Typed approval request bound to an exact subject digest, stage scope, policy digest and expiry; it authorizes one action once and never carries forward to another revision."
@@ -105197,7 +105253,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 2048,
-              "description": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible. NotificationTarget.path must contain at most 2048 characters."
+              "description": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible. A reader who can open the task gets a task route (/tasks/{taskId} or /tasks/{taskId}/artifacts/{artifactId}); a reader whose access comes only from a direct grant gets /shared/documents/{artifactId}?version={versionId} with &comment={commentId} for a comment, or /shared/conversations/{conversationId}?message={messageId}. NotificationTarget.path must contain at most 2048 characters."
             },
             {
               "type": "null",
@@ -105219,6 +105275,26 @@ export const clientManifest = {
             }
           ],
           "description": "NotificationTarget.anchor may be null in this transport value."
+        },
+        "reason": {
+          "description": "Why an unavailable destination cannot be opened, present only when status is unavailable. gone means the document, conversation or task was deleted; no_longer_shared means it still exists but the recipient's access ended; unknown means the server cannot tell. A client reading an unavailable target with no reason, as older responses have, treats it as unknown.",
+          "type": "string",
+          "enum": [
+            "gone",
+            "no_longer_shared",
+            "unknown"
+          ]
+        },
+        "sharedByName": {
+          "description": "Current display name of the person who shared the document or conversation with the recipient through a direct grant, present only when the destination is reached through a grant or a revoked grant still records who gave it; never an email address. NotificationTarget.sharedByName must contain at most 200 characters.",
+          "type": "string",
+          "maxLength": 200
+        },
+        "sharedAt": {
+          "description": "When the direct grant that opens, or last opened, this document or conversation for the recipient was given; present alongside sharedByName.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
         }
       },
       "required": [
@@ -114761,7 +114837,7 @@ export const clientManifest = {
         },
         "ownerFallback": {
           "type": "boolean",
-          "description": "True when the person asked for could not be resolved and the run's starter was asked instead."
+          "description": "True when the person asked for could not be resolved and the workflow's owner, or the run's starter when the workflow has no owner, was asked instead."
         },
         "fallbackForName": {
           "anyOf": [
@@ -115058,7 +115134,7 @@ export const clientManifest = {
               },
               "ownerFallback": {
                 "type": "boolean",
-                "description": "True when the person asked for could not be resolved and the run's starter was asked instead."
+                "description": "True when the person asked for could not be resolved and the workflow's owner, or the run's starter when the workflow has no owner, was asked instead."
               },
               "fallbackForName": {
                 "anyOf": [
@@ -127134,6 +127210,200 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "StepGiven": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "stepKey": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The workflow step this describes. StepGiven.stepKey must contain at most 200 characters."
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the step started, or null before it has."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StepGiven.startedAt may be null in this transport value."
+        },
+        "ranAnAgent": {
+          "type": "boolean",
+          "description": "Whether an agent session ran for this step."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "memoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The memory entry this fact was sourced from."
+              },
+              "wording": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The exact wording the agent was given for this fact. GivenFact.wording must contain at most 4096 characters."
+              },
+              "recordedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When this fact was recorded, in UTC."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "given",
+                  "corrected_since",
+                  "stopped_since"
+                ],
+                "description": "given while the memory still reads the same; corrected_since when the memory was revised after the step started; stopped_since when the memory was retired."
+              }
+            },
+            "required": [
+              "memoryId",
+              "wording",
+              "recordedAt",
+              "state"
+            ],
+            "additionalProperties": false,
+            "description": "The sourced-memory facts the step was given, each with its state now. Each array item follows this format."
+          },
+          "description": "The sourced-memory facts the step was given, each with its state now."
+        },
+        "factsOmitted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How many facts were left out to stay inside the step bound. StepGiven.factsOmitted must be at least 0."
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "artifactVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The pinned artifact version the step was given."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "hidden",
+                  "gone",
+                  "unchecked"
+                ],
+                "description": "available while the reader may still see it; hidden when access ended; gone when its bytes are purged; unchecked when nothing truthful can be said."
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "The document name when the reader may see it, else null. GivenDocument.name must contain at most 200 characters."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "GivenDocument.name may be null in this transport value."
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80,
+                    "description": "The artifact type when the reader may see it, else null. GivenDocument.kind must contain at most 80 characters."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "GivenDocument.kind may be null in this transport value."
+              },
+              "version": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "The revision number when the reader may see it, else null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "GivenDocument.version may be null in this transport value."
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "The pinned byte size, always shown so a count stays truthful. GivenDocument.sizeBytes must be at least 0."
+              }
+            },
+            "required": [
+              "artifactVersionId",
+              "state",
+              "name",
+              "kind",
+              "version",
+              "sizeBytes"
+            ],
+            "additionalProperties": false,
+            "description": "The documents the step was given that the reader may still see. Each array item follows this format."
+          },
+          "description": "The documents the step was given that the reader may still see."
+        },
+        "documentsHidden": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Documents the reader may no longer see, counted but not named. StepGiven.documentsHidden must be at least 0."
+        },
+        "documentsGone": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Documents whose bytes are purged, counted but not named. StepGiven.documentsGone must be at least 0."
+        },
+        "documentsUnchecked": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Documents nothing truthful can be said about, counted but not named. StepGiven.documentsUnchecked must be at least 0."
+        }
+      },
+      "required": [
+        "stepKey",
+        "startedAt",
+        "ranAnAgent",
+        "facts",
+        "factsOmitted",
+        "documents",
+        "documentsHidden",
+        "documentsGone",
+        "documentsUnchecked"
+      ],
+      "additionalProperties": false,
+      "description": "What a step was given: the sourced-memory facts and pinned documents in use when it started, redacted to the reader."
     }
   }
 } as const;
