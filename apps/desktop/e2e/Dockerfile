@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     librsvg2-dev libayatana-appindicator3-dev \
     xvfb xauth dbus dbus-x11 gnome-keyring libsecret-tools \
     xdg-utils desktop-file-utils shared-mime-info \
-    procps jq netcat-openbsd python3 \
+    procps jq netcat-openbsd python3 python3-gi at-spi2-core \
   && rm -rf /var/lib/apt/lists/*
 ENV RUSTUP_HOME=/opt/rust/rustup CARGO_HOME=/opt/rust/cargo PATH=/opt/rust/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # rustfmt and clippy are the two checks CI runs on the desktop crates, so they are here too.

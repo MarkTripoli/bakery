@@ -1522,6 +1522,7 @@ a.bakery-application-rail__link:hover {
   font: var(--type-field); /* auth.css:8 select 16px */
   block-size: var(--target-coarse); /* auth.css:8 select height 44px */
   padding: var(--space-2-5) var(--space-3); /* auth.css:8 select 10px 12px */
+  padding-inline-end: var(--space-8);
 }
 .ui-auth-entry--context .ui-capability-list__item {
   align-items: flex-start;
@@ -1990,6 +1991,7 @@ a.bakery-application-rail__link:hover {
   font: var(--type-field);
   min-block-size: var(--target-coarse);
   padding: var(--space-0) var(--space-3);
+  padding-inline-end: var(--space-8);
 }
 .ui-settings-content[data-variant="preferences"] .ui-combobox > .ui-icon {
   display: block;

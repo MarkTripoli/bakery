@@ -230,8 +230,7 @@ export type Options = {
   pageSize?: number;
   /** The person's role in the organization; an administrator by default. */
   role?: "admin" | "developer" | "viewer";
-  /** The built-in workflow acme/web's saved settings run; the standard one when omitted. */
-  sourcePreset?: "fixed-coding" | "fixed-coding-reviewed";
+  sourcePreset?: "fixed-coding" | "fixed-coding-reviewed" | null;
   /** What starting work answers: ok (default), or a refusal. */
   start?:
     | "ok"
@@ -356,9 +355,9 @@ export async function issuesFixture(page: Page, options: Options = {}) {
               repositoryId: uuid(903),
               externalContainerId: "acme/web",
               enabled: true,
-              policy: options.sourcePreset === undefined
+              policy: options.sourcePreset === null
                 ? {}
-                : { preset: options.sourcePreset },
+                : { preset: options.sourcePreset ?? "fixed-coding" },
               policyRevision: 1,
               syncHealth: sourcesMode === "degraded"
                 ? "degraded"
