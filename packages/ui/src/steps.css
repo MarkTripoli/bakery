@@ -651,6 +651,11 @@
 button.ui-step-group__header {
   cursor: pointer;
 }
+@media (pointer: coarse) {
+  button.ui-step-group__header {
+    min-block-size: var(--target-coarse);
+  }
+}
 button.ui-step-group__header:focus-visible {
   outline: var(--border-emphasis) solid var(--color-selection);
   outline-offset: var(--space-0-5);
@@ -681,6 +686,7 @@ button.ui-step-group__header:focus-visible {
 .ui-step-group__empty {
   color: var(--color-fg-muted);
   font: var(--type-hint);
+  padding-block-end: var(--space-3);
   padding-inline: var(--space-3);
 }
 

@@ -102,7 +102,7 @@ test.describe("machines touch targets on a coarse phone", () => {
   });
 
   test("every add-a-machine wizard target is at least 44 by 44, on each step", async ({ page }) => {
-    await page.goto("/machines/new");
+    await page.goto("/machines/new/by-hand");
     await expect(page.getByText("Step 1 of 3 · Name and system")).toBeVisible();
     expect(undersized(await measureTargets(page))).toEqual([]);
     await page.getByLabel("Name").fill("touch-target-new");

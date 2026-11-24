@@ -29,6 +29,7 @@ import type { FrozenActionBinding } from "@bakery/persistence";
 import type { ReviewLoopLimits } from "@bakery/persistence/repository-admission";
 import { planReviewLoopLimits } from "../review-loop/limits.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { assertStepSkillsAllowed } from "../catalog/skill-use-grants.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
@@ -97,7 +98,8 @@ import {
 import {
   ensurePresetWorkflowVersion,
   fixedPolicyDeniesSteps,
-  presetBriefInputs,
+  presetDeclaresGates,
+  presetRunInputs,
 } from "./workflow-presets.ts";
 
 type RunCreateInput = z.output<typeof contractSchemas.RunCreate>;
@@ -132,6 +134,7 @@ type TaskAdmissionRow = {
 
 type WorkflowVersionRow = {
   id: string;
+  workflow_id: string;
   revision: number;
   normalized_spec: unknown;
   digest: string;
@@ -707,7 +710,8 @@ async function loadWorkflowVersion(
   workflowVersionId: string,
 ): Promise<WorkflowVersionRow> {
   const result = await transaction.query<WorkflowVersionRow>(
-    `select workflow_version.id, workflow_version.revision,
+    `select workflow_version.id, workflow_version.workflow_id,
+            workflow_version.revision,
             workflow_version.normalized_spec, workflow_version.digest,
             workflow_version.status, workflow_definition.enabled
        from bakery.workflow_versions workflow_version
@@ -1022,6 +1026,11 @@ export async function createRunCommand(
   if (preset && input.inputs !== undefined) {
     throw unprocessable(["inputs"], "inputs_not_allowed_with_preset");
   }
+  if (
+    input.gates !== undefined && (!preset || !presetDeclaresGates(preset))
+  ) {
+    throw unprocessable(["gates"], "gates_not_accepted");
+  }
   const workflowVersionId = preset
     ? await ensurePresetWorkflowVersion(
       transaction,
@@ -1045,6 +1054,11 @@ export async function createRunCommand(
     workflowVersionId,
   );
   await assertWorkflowVersionValid(workflow);
+  await assertStepSkillsAllowed(transaction, {
+    organizationId,
+    workflowId: workflow.workflow_id,
+    definition: workflow.normalized_spec,
+  });
 
   const namedBudgetUsd = input.budgetLimitUsd ?? preset?.defaultBudgetLimitUsd;
   const budgetLimitUsd = capBudgetAtWorkflowCeiling(
@@ -1054,7 +1068,7 @@ export async function createRunCommand(
     workflowCeilingUsd(workflow),
   );
   const suppliedInputs = preset
-    ? presetBriefInputs(task, approvedPlan)
+    ? presetRunInputs(preset, task, approvedPlan, input.gates)
     : input.inputs === undefined
     ? null
     : input.inputs;

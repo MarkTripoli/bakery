@@ -292,6 +292,9 @@ test(
     await stale.close();
 
     // ---- reject/changes-requested prevent the gated run --------------------
+    await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+      label: "Fixed coding",
+    });
     await page.getByRole("button", { name: "Start run" }).click();
     await expect(page.getByText("The server did not admit the run."))
       .toBeVisible({
@@ -342,6 +345,9 @@ test(
     await approve(page, 2).click();
     await expect(page.getByText("You approved plan, version 2")).toBeVisible();
     await expect(approve(page, 2)).toHaveCount(0);
+    await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+      label: "Fixed coding",
+    });
     await page.getByRole("button", { name: "Start run" }).click();
     await expect.poll(
       async () =>
@@ -475,6 +481,9 @@ test(
       .getByRole("button", { name: "Reject", exact: true })
       .click();
     await expect(page.getByText("You rejected plan, version 1")).toBeVisible();
+    await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+      label: "Fixed coding",
+    });
     await page.getByRole("button", { name: "Start run" }).click();
     await expect(page.getByText("The server did not admit the run."))
       .toBeVisible({

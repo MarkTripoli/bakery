@@ -106,7 +106,7 @@ coordination lane gate. After convergence there is one.
   on the flat loop, then that code is deleted. No live run is migrated.
 - The **plan interpreter becomes the engine**. Its revisions stay append-only
   and pinned per run: revision 3 adds delivery facts and `forEach`, revision 4
-  adds `route`.
+  adds loop bounds, and a later revision adds `route`.
 - The **coordination lane gate becomes the split primitive** (section 5).
 
 The decision is recorded in
@@ -370,16 +370,20 @@ inside Deliver) has an optional **minimum** and **maximum** iteration count, set
 in the loop's panel.
 
 - **Minimum** means "run at least N times even if the exit condition is already
-  met". The engine's `repeat` has no minimum today; `repeat.min` is a model gap.
+  met" (`repeat.min`, built in interpreter revision 4: `until` is not asked
+  before round `min`).
 - **Maximum** is `repeat.max`. It is bounded by the compiler's iteration cap,
   which is 1 to 8 today, and by the workflow's `limits.maxRepairCycles`. So
   `1 <= min <= max <= 8`. The compiler counts the worst case from `max`; `min`
   rounds count toward `max`.
 - **Pausing for more rounds** (deliver-as-workflow D9) happens only below the
   maximum. A loop may start with a smaller allowance (`repeat.allow`). When it
-  uses that allowance without meeting its exit condition, the run pauses for a
-  person, who can allow more rounds, accept as is, or stop. More rounds can
-  never go past `max`. When `max` is reached, the loop ends as exhausted and the
+  uses that allowance without meeting its exit condition, the engine stops the
+  run with the stable code `limit_reached`. A person then allows more rounds
+  through `POST /v1/runs/:id/repair-allowances`, which records a
+  `limit_change` decision and reopens the run; asking again for the same stop
+  returns that decision and reopens nothing. Accepting as is and stopping are
+  not built for a repeat limit yet. More rounds can never go past `max`. When `max` is reached, the loop ends as exhausted and the
   run ends `needs_human` with `limit_reached`. Raising the cap of 8 is not part
   of this decision.
 
@@ -483,8 +487,9 @@ paths.
     to O21, as replaced in section 9).
 11. **Kinds and facts.** The kind definition API for organizations, rule types,
     facts and validation at publication (O6).
-12. **`forEach`, `call` and loop bounds.** Interpreter revision 3; `call`
-    inlined with workflow outputs; `repeat.min` (O10).
+12. **`forEach`, `call` and loop bounds.** Interpreter revisions 3 (`forEach`)
+    and 4 (loop bounds); `call` inlined with workflow outputs; `repeat.min`
+    (O10).
 13. **Unlisted definitions and proposals.** `origin` and visibility on
     definitions; run a frozen conversation draft; the `definitionProposal`
     coordinator effect; coordinator skills; save as workflow.
@@ -1218,6 +1223,12 @@ Where a tag appears:
 | A Notify step                                                                 | `uses: people.tag`, which may wait for the response or carry on      |
 | A steer or comment on a live run or step, an artifact comment, a chat message | The same @ picker as chat; a chat mention is a tag with intent FYI   |
 | An agent, during a run                                                        | `people.tag` through Bakery's own connection (section 18.1)          |
+
+A Notify step (`uses: people.tag`, #456) names one recipient: a member, a role,
+a group, or the run's starter or task owner. It asks for an FYI or a review as
+the workflow, on behalf of the person who started the run, and tags once per
+step. Only a review can be waited for; the step ends `sent`, `responded` or
+`expired`.
 
 **Agents (O55).** Agent-first applies: an agent tags under the same grants as a
 person, and the tag is labelled as the agent's action. By default it tags people

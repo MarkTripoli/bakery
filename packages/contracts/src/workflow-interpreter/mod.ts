@@ -16,6 +16,7 @@ export {
   type NextStep,
   nextStep,
   nextStepWithGroups,
+  nextStepWithLoopBounds,
   nextStepWithLoops,
   type RunState,
   type StepRecord,

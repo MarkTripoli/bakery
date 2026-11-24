@@ -188,6 +188,9 @@ for (
       }]);
       expect(seen.versionsCreated).toHaveLength(1);
       expect(seen.versionsCreated[0]?.definition).toEqual({
+        apiVersion: "bakery.dev/v1",
+        kind: "workflow",
+        name: "fixed-coding-reviewed",
         steps: [
           { id: "brief", uses: "task.brief" },
           { id: "implement", uses: "harness.implement" },

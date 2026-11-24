@@ -2,15 +2,19 @@ import { useEffect, useId, useState } from "react";
 import { focusAfterPaint } from "../../app/focus.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import * as UI from "@bakery/ui";
+import { REVIEW_LOOP_LIMITS } from "@bakery/contracts/review-evidence";
 import { knownCommits, ReferenceText } from "../../app/ReferenceText.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import type { MessageKey } from "@bakery/i18n";
+import { RouterLink } from "../../app/router-link.tsx";
 import { DeliveryBody } from "./DeliveryBody.tsx";
-import type {
-  ApprovalChoice,
-  DeliveryModel,
-  MergeView,
-  NowCard,
+import { MoreTriesDialog } from "./MoreTriesDialog.tsx";
+import type { MoreTriesPhase } from "./use-more-tries.ts";
+import {
+  type ApprovalChoice,
+  type DeliveryModel,
+  type MergeView,
+  type NowCard,
 } from "./model.ts";
 import type { DecisionPhase } from "./use-approval-decision.ts";
 import type { GoBackPhase } from "./use-go-back.ts";
@@ -61,6 +65,10 @@ export type DeliverySectionViewProps = Readonly<{
   goBackPhase: GoBackPhase;
   onGoBack: (deploymentId: string, reason: string) => Promise<GoBackPhase>;
   onClearGoBack: () => void;
+  mayGiveMoreTries: boolean;
+  moreTriesPhase: MoreTriesPhase;
+  onGiveMoreTries: (tries: number) => Promise<MoreTriesPhase>;
+  onClearMoreTries: () => void;
 }>;
 
 /** The Now card's title takes focus after a decision, so it is announced. */
@@ -79,13 +87,17 @@ type NowCopy = Readonly<{
     | "retryApprovals"
     | Exclude<MergeCardAction, null>
     | "goBack"
+    | "chooseNext"
+    | "tellAndMoreTries"
     | null;
 }>;
 
+type MoreTriesOffer = "offer" | "ask" | "none";
+
 function nowCopy(
   t: Translate,
-  now: NowCard,
-  context: Readonly<{ model: DeliveryModel }>,
+  now: Exclude<NowCard, Readonly<{ kind: "paused" }>>,
+  context: Readonly<{ model: DeliveryModel; moreTries: MoreTriesOffer }>,
 ): NowCopy {
   const next = t("tasks.delivery.now.nextStep");
   switch (now.kind) {
@@ -139,12 +151,6 @@ function nowCopy(
         action: null,
       };
     }
-    case "paused":
-      return {
-        title: t("tasks.delivery.now.paused.title"),
-        body: t("tasks.delivery.now.paused.body"),
-        action: null,
-      };
     case "clean":
       return {
         title: t("tasks.delivery.now.clean.title"),
@@ -232,7 +238,7 @@ function nowCopy(
         action: "tell",
       };
     case "stopped":
-      return stoppedCopy(t, now, next);
+      return stoppedCopy(t, now, next, context.moreTries);
   }
 }
 
@@ -240,6 +246,7 @@ function stoppedCopy(
   t: Translate,
   now: Extract<NowCard, { kind: "stopped" }>,
   next: string,
+  moreTries: MoreTriesOffer,
 ): NowCopy {
   // "Nothing was merged." goes after the reason and before what to do next,
   // unless a merge attempt did merge (#62, folded into the #57 redesign).
@@ -251,14 +258,26 @@ function stoppedCopy(
     action: "tell",
   });
   switch (now.reason) {
-    case "repair_cycles_exhausted":
-      return tell(
+    case "repair_cycles_exhausted": {
+      const told = tell(
         t("tasks.delivery.now.stopped.cycles.title"),
         t("tasks.delivery.now.stopped.cycles.body", {
           max: now.max,
           count: now.blocking,
         }),
       );
+      return moreTries === "offer"
+        ? { ...told, action: "tellAndMoreTries" }
+        : moreTries === "ask"
+        ? {
+          ...told,
+          body: `${told.body} ${t("tasks.delivery.now.stopped.askAdmin")}`,
+        }
+        : {
+          ...told,
+          body: `${told.body} ${t("tasks.delivery.now.stopped.allUsed")}`,
+        };
+    }
     case "repair_time_exhausted":
       return tell(
         t("tasks.delivery.now.stopped.time.title"),
@@ -345,13 +364,17 @@ export function DeliverySectionView(
   {
     decisionPhase,
     lastUpdated,
+    mayGiveMoreTries,
     mergePhase,
     mergeTarget,
     model,
+    moreTriesPhase,
     offline,
     onCheckAgain,
     goBackPhase,
     onClearGoBack,
+    onClearMoreTries,
+    onGiveMoreTries,
     onClearMerge,
     onDecide,
     onGoBack,
@@ -403,9 +426,13 @@ export function DeliverySectionView(
           <ReadyView
             decisionPhase={decisionPhase}
             lastUpdated={lastUpdated}
+            mayGiveMoreTries={mayGiveMoreTries}
             mergePhase={mergePhase}
             mergeTarget={mergeTarget}
             model={model}
+            moreTriesPhase={moreTriesPhase}
+            onClearMoreTries={onClearMoreTries}
+            onGiveMoreTries={onGiveMoreTries}
             offline={offline}
             onCheckAgain={onCheckAgain}
             goBackPhase={goBackPhase}
@@ -449,10 +476,14 @@ function ReadyView(
     decisionPhase,
     goBackPhase,
     lastUpdated,
+    mayGiveMoreTries,
     mergePhase,
     mergeTarget,
     model,
+    moreTriesPhase,
     offline,
+    onClearMoreTries,
+    onGiveMoreTries,
     onCheckAgain,
     onClearGoBack,
     onClearMerge,
@@ -472,6 +503,10 @@ function ReadyView(
     goBackPhase: GoBackPhase;
     onGoBack: (deploymentId: string, reason: string) => Promise<GoBackPhase>;
     onClearGoBack: () => void;
+    mayGiveMoreTries: boolean;
+    moreTriesPhase: MoreTriesPhase;
+    onGiveMoreTries: (tries: number) => Promise<MoreTriesPhase>;
+    onClearMoreTries: () => void;
     onMerge: (view: MergeView) => Promise<MergePhase>;
     onCheckAgain: (pullRequestId: string) => Promise<MergePhase>;
     onClearMerge: () => void;
@@ -498,7 +533,20 @@ function ReadyView(
   const release = model.release;
   const goingBack = goBackPhase === "working";
   const deciding = decisionPhase === "deciding";
-  const copy = nowCopy(t, model.now, { model });
+  const triesRoom = model.now.kind === "stopped" &&
+      model.now.reason === "repair_cycles_exhausted"
+    ? REVIEW_LOOP_LIMITS.maxRepairCyclesCeiling - model.now.max
+    : 0;
+  const moreTries: MoreTriesOffer = triesRoom < 1
+    ? "none"
+    : mayGiveMoreTries
+    ? "offer"
+    : "ask";
+  const [moreTriesOpen, setMoreTriesOpen] = useState(false);
+  const copy = model.now.kind === "paused"
+    ? null
+    : nowCopy(t, model.now, { model, moreTries });
+  const copyAction = copy?.action ?? null;
   const head = model.headSha === null
     ? ""
     : UI.shortReference("commit", model.headSha);
@@ -669,7 +717,7 @@ function ReadyView(
     </UI.Link>
   );
   // A person who was refused cannot decide, so the answers go away for them.
-  const canDecide = copy.action === "decide" && decisionPhase !== "forbidden";
+  const canDecide = copyAction === "decide" && decisionPhase !== "forbidden";
   const answerDisabled = offline || deciding;
   const approveButton = (
     <UI.Button
@@ -707,41 +755,78 @@ function ReadyView(
     </UI.Button>
   );
   // The slice-1 buttons (Tell Bakery, Open rules) keep their place on every screen.
-  const otherButton = copy.action === "tell" || copy.action === "rules"
+  const otherButton = copyAction === "tell" || copyAction === "rules"
     ? (
       <UI.Button
-        disabled={offline && copy.action === "tell"}
-        onClick={copy.action === "tell" ? onTellBakery : onOpenRules}
-        variant={copy.action === "tell" ? "primary" : "text"}
+        disabled={offline && copyAction === "tell"}
+        onClick={copyAction === "tell" ? onTellBakery : onOpenRules}
+        variant={copyAction === "tell" ? "primary" : "text"}
       >
         {t(
-          copy.action === "tell"
+          copyAction === "tell"
             ? "tasks.delivery.now.tell"
             : "tasks.delivery.now.openRules",
         )}
       </UI.Button>
     )
     : null;
+  const moreTriesButton = (
+    <UI.Button
+      disabled={offline}
+      key="moreTries"
+      onClick={() => {
+        onClearMoreTries();
+        setMoreTriesOpen(true);
+      }}
+      variant="primary"
+    >
+      {t("tasks.delivery.moreTries.button")}
+    </UI.Button>
+  );
+  const tellOutlineButton = (
+    <UI.Button
+      disabled={offline}
+      key="tell"
+      onClick={onTellBakery}
+      variant="outline"
+    >
+      {t("tasks.delivery.now.tell")}
+    </UI.Button>
+  );
+  const chooseNextLink = (
+    <RouterLink
+      key="chooseNext"
+      search={{ repository: model.repositoryId ?? undefined }}
+      to="/issues"
+      variant="button"
+    >
+      {t("tasks.delivery.chooseNext.button")}
+    </RouterLink>
+  );
   const phoneActions = !phone
     ? null
-    : copy.action === "goBack"
+    : copyAction === "goBack"
     ? [goBackButton("primary")]
-    : copy.action === "merge"
+    : copyAction === "chooseNext"
+    ? [chooseNextLink]
+    : copyAction === "tellAndMoreTries"
+    ? [tellOutlineButton, moreTriesButton]
+    : copyAction === "merge"
     ? [mergeButton("primary")]
-    : copy.action === "mergeAgain"
+    : copyAction === "mergeAgain"
     ? [mergeButton("primary", true)]
-    : copy.action === "openOnGitHub"
+    : copyAction === "openOnGitHub"
     ? [openOnGitHub]
-    : copy.action === "checkAgain"
+    : copyAction === "checkAgain"
     ? [checkAgainButton]
-    : copy.action === "refused"
+    : copyAction === "refused"
     ? [
       openOnGitHub,
       merge?.startable === true ? mergeButton("secondary") : null,
     ]
     : canDecide
     ? [rejectButton, changesButton, approveButton]
-    : copy.action === "retryApprovals"
+    : copyAction === "retryApprovals"
     ? [retryButton]
     : null;
   // Beside the text where they fit and under it where they do not; on a phone
@@ -753,28 +838,32 @@ function ReadyView(
         {phoneActions}
       </UI.Inline>
     ))
-    : copy.action === "goBack"
+    : copyAction === "goBack"
     ? goBackButton("primary")
-    : copy.action === "merge"
+    : copyAction === "chooseNext"
+    ? chooseNextLink
+    : copyAction === "tellAndMoreTries"
+    ? <UI.Inline>{tellOutlineButton}{moreTriesButton}</UI.Inline>
+    : copyAction === "merge"
     ? mergeButton("primary")
-    : copy.action === "mergeAgain"
+    : copyAction === "mergeAgain"
     ? mergeButton("primary", true)
-    : copy.action === "openOnGitHub"
+    : copyAction === "openOnGitHub"
     ? openOnGitHub
-    : copy.action === "checkAgain"
+    : copyAction === "checkAgain"
     ? checkAgainButton
-    : copy.action === "refused"
+    : copyAction === "refused"
     ? (
       <UI.Inline>
         {openOnGitHub}
         {merge?.startable === true ? mergeButton("secondary") : null}
       </UI.Inline>
     )
-    : copy.action === "decide"
+    : copyAction === "decide"
     ? canDecide
       ? <UI.Inline>{approveButton}{changesButton}{rejectButton}</UI.Inline>
       : null
-    : copy.action === "retryApprovals"
+    : copyAction === "retryApprovals"
     ? retryButton
     : otherButton;
 
@@ -857,7 +946,7 @@ function ReadyView(
       </UI.InlineNotice>
     )
     : null;
-  const nowContent = (
+  const nowContent = copy === null ? null : (
     <>
       <UI.Heading id={NOW_TITLE_ID} level="subsection" tabIndex={-1}>
         {copy.title}
@@ -879,14 +968,17 @@ function ReadyView(
   return (
     <>
       {noticeAbove && mergeNoticeElement}
-      <UI.AlertBanner
-        action={action}
-        actionLayout="stretch"
-        data-testid="delivery-now"
-        tone={nowTone(model.now)}
-      >
-        {nowContent}
-      </UI.AlertBanner>
+      {copy === null ? null : (
+        <UI.AlertBanner
+          action={action}
+          actionLayout="stretch"
+          data-approval-id={model.approval?.id}
+          data-testid="delivery-now"
+          tone={nowTone(model.now)}
+        >
+          {nowContent}
+        </UI.AlertBanner>
+      )}
       {refusal !== null && dialog === null && (
         // Nothing failed when a decision lost or the answer is unknown, and a
         // refusal is an explanation: all three are information. Only a decision
@@ -1090,6 +1182,21 @@ function ReadyView(
         <UI.Text>{t("tasks.delivery.approval.rejectDialog.body")}</UI.Text>
         {dialog === "reject" && dialogNotice}
       </UI.AlertDialog>
+      {model.now.kind === "stopped" && (
+        <MoreTriesDialog
+          count={model.now.max}
+          max={triesRoom}
+          offline={offline}
+          onClose={() => {
+            setMoreTriesOpen(false);
+            onClearMoreTries();
+            focusAfterPaint(() => document.getElementById(NOW_TITLE_ID));
+          }}
+          onGive={onGiveMoreTries}
+          open={moreTriesOpen && triesRoom >= 1}
+          phase={moreTriesPhase}
+        />
+      )}
       {goBackOpen && release !== null && (
         <UI.AlertDialog
           cancelAction={
