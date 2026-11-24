@@ -9,8 +9,6 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { runQueryOptions } from "../../api/query.ts";
 import { approvalStep, latestStepApproval, openStepApproval } from "./model.ts";
 
-const STEP_PAGES_MAX = 20;
-
 export function useStepApproval(taskId: string, runId: string | null) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -31,12 +29,12 @@ export function useStepApproval(taskId: string, runId: string | null) {
     ...firstSteps,
     queryFn: async (context) => {
       let page = await firstSteps.queryFn!(context);
-      for (let read = 1; read < STEP_PAGES_MAX; read += 1) {
-        if (page.items.some((item) => item.status === "waiting")) break;
-        const next = page.nextCursor;
-        if (next === null) break;
+      while (
+        !page.items.some((item) => item.status === "waiting") &&
+        page.nextCursor !== null
+      ) {
         page = await runStepsListQueryOptions(api, scope, runId ?? "", {
-          cursor: next,
+          cursor: page.nextCursor,
           limit: 25,
         }).queryFn!(context);
       }

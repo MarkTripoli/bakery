@@ -145,7 +145,6 @@ type State = {
 };
 
 type OpenOptions = {
-  /** Pages of completed steps before the waiting one, to prove the read pages. */
   stepsBefore?: number;
 };
 
@@ -298,6 +297,13 @@ test("an approval past the first page of steps still names its step", async ({ p
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Review the signoff" }))
     .toBeVisible();
+});
+
+test("an approval after five hundred steps is still named right", async ({ page }) => {
+  await open(page, { stepsBefore: 500 });
+  await expect(
+    page.getByText("The signoff needs your approval before Bakery builds."),
+  ).toBeVisible();
 });
 
 test("a run waiting at an approval step says so and offers the review", async ({ page }) => {
