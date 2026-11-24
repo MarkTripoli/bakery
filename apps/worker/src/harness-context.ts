@@ -17,8 +17,11 @@
  */
 
 import { join } from "node:path";
-import { type AttemptProof, attemptProofOf } from "./client.ts";
-import type { WorkerContextInput } from "./client.ts";
+import {
+  type AttemptProof,
+  attemptProofOf,
+  type WorkerContextInput,
+} from "./client.ts";
 import {
   describeSeedingFault,
   fetcherForAttempt,

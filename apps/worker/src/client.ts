@@ -92,7 +92,6 @@ export type AttemptProof = {
   workerSessionGeneration: string;
 };
 
-/** The proof an assignment carries, or null when the server did not send one. */
 export function attemptProofOf(
   assignment: {
     readonly leaseToken?: unknown;
