@@ -22,12 +22,6 @@ import {
   resolveNotificationTarget,
 } from "./notifications-target.ts";
 
-/**
- * Recipient-only notification handlers. Every one of these reads the acting
- * principal from the authorized transaction and scopes to it; none accepts a
- * recipient from the request, so one person cannot read or change another's
- * inbox by naming an id.
- */
 async function notificationOf(
   transaction: PgTransactionClient,
   scope: Parameters<typeof resolveDestinationSummary>[1],

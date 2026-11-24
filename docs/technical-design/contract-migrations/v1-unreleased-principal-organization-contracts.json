@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "e57ba29807958878cbb854e7fca515dd0052c0ef"
+    "70cec2976e8bc36acf3c7689b53db580f9aa02f2"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:4c2f64f632e7e383e913f7df636cb5389fa0cf1aa377467bb5afcbf0e760ec2c",
-  "reason": "#975 approval notifications carry their outcome, by dev-server on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main e57ba29807958878cbb854e7fca515dd0052c0ef: Notification gains a required approvalOutcome (how the approval ended and by whom, null when the destination is unavailable or the item is not an approval) so the inbox reads it in one call. No released client builds a Notification, so no caller sends the old shape.",
+  "targetCompatibilityDigest": "sha256:dfb93dbcdaae42681e1df17a992922022317bdee693ea613c448d0cd4d5bb227",
+  "reason": "#975 approval notifications carry their outcome, by dev-server on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 70cec2976e8bc36acf3c7689b53db580f9aa02f2: Notification gains a required approvalOutcome (how the approval ended and by whom, null when the destination is unavailable or the item is not an approval) so the inbox reads it in one call. No released client builds a Notification, so no caller sends the old shape.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "e57ba29807958878cbb854e7fca515dd0052c0ef"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5cfe619f3601d1696c8f0643474401b857405396750e3e4ed297c62a0e6e9b81",
+      "reason": "#419 repeat limit decisions by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main e57ba29807958878cbb854e7fca515dd0052c0ef: runRepairAllowances.create answers with a TriesAllowance (runId, kind, addedTries, decisionId, repeatKey) instead of a DeliveryDecision, because the same route now also resumes a run that stopped at a repeat's allow, which has no delivery decision. No client has been released that reads the old response."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
@@ -17,6 +27,47 @@
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:c1996b1fc81811d3ce7edbef9c5698b84f446d7720c11b44f292e22f89f5d97d",
       "reason": "#429 Deliver templates by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 8a95d02a85fc946cc0dd1154406ad4aba19ce763: WorkflowPreset gains a required definition (the workflow document as authored, with its step names) so a person can read and copy a built-in template; RunCreate gains an optional gates field (plan or none) that only a preset declaring a gates input accepts; the four Deliver templates are new preset ids. No client has been released that builds a WorkflowPreset, so no caller sends the old shape."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8a95d02a85fc946cc0dd1154406ad4aba19ce763"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:ff538cd915f6d61b5380041e74552e8a88b92ebdd2cdb951a1ecfc473476f70a",
+      "reason": "#419 repeat limit decisions by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 8a95d02a85fc946cc0dd1154406ad4aba19ce763: runRepairAllowances.create answers with a TriesAllowance (runId, kind, addedTries, decisionId, repeatKey) instead of a DeliveryDecision, because the same route now also resumes a run that stopped at a repeat's allow, which has no delivery decision. No client has been released that reads the old response."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "e12eadac05172e807be21f9a1c2cf30d5097f60b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1e1d9c816de830faaf4a12c468d48b35b9092a5c942a988d02b576a0c3ba90e0",
+      "reason": "#419 repeat limit decisions by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main e12eadac05172e807be21f9a1c2cf30d5097f60b: runRepairAllowances.create answers with a TriesAllowance (runId, kind, addedTries, decisionId, repeatKey) instead of a DeliveryDecision, because the same route now also resumes a run that stopped at a repeat's allow, which has no delivery decision. No client has been released that reads the old response."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "33633736b3f873e705ff50999f03329dc674f472"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7fdf7f4cab7d8bc4e549446360745ac97604f1823868ba31468e388443d2c878",
+      "reason": "#419 repeat limit decisions by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 33633736b3f873e705ff50999f03329dc674f472: runRepairAllowances.create answers with a TriesAllowance (runId, kind, addedTries, decisionId, repeatKey) instead of a DeliveryDecision, because the same route now also resumes a run that stopped at a repeat's allow, which has no delivery decision. No client has been released that reads the old response."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "bc895a40c1c76b2b613505a90d46ce1bb9c9c75c",
+        "6f9b4f2da7d62e94e26134ecf8db4795429ca17a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:93dcc2c799710062968576c51349cfe653cab30f5d2fcc79005cbe40c4b33d60",
+      "reason": "#419 repeat limit decisions by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 6f9b4f2da7d62e94e26134ecf8db4795429ca17a: runRepairAllowances.create answers with a TriesAllowance (runId, kind, addedTries, decisionId, repeatKey) instead of a DeliveryDecision, because the same route now also resumes a run that stopped at a repeat's allow, which has no delivery decision. No client has been released that reads the old response."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
