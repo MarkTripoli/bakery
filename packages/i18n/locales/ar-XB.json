@@ -6755,6 +6755,7 @@
   "machines.add.attention": "⟪{name} connected, but it needs attention before it can take work.⟫",
   "machines.add.open": "⟪Open {name}⟫",
   "machines.add.another": "⟪Add another machine⟫",
-  "machines.add.byHandPrefix": "⟪Prefer to do it yourself?⟫",
-  "machines.add.byHand": "⟪Set up by hand⟫"
+  "machines.add.readFailed": "⟪Bakery made the command but could not show it.⟫",
+  "machines.add.byHandPrefix": "⟪Or⟫",
+  "machines.add.byHand": "⟪set up by hand⟫"
 }

@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
   addProblems,
   addProgress,
@@ -108,4 +108,20 @@ Deno.test("the time left reads as minutes and seconds", () => {
   assertEquals(clockText("2026-01-01T00:10:00Z", T0), "10:00");
   assertEquals(clockText("2026-01-01T00:10:00Z", T0 + 545_000), "0:55");
   assertEquals(clockText("2026-01-01T00:10:00Z", T0 + 700_000), "0:00");
+});
+
+Deno.test("no add-a-machine string names a processor", async () => {
+  const strings = JSON.parse(
+    await Deno.readTextFile("packages/i18n/locales/en.json"),
+  ) as Record<string, string>;
+  const mine = Object.entries(strings).filter(([key]) =>
+    key.startsWith("machines.add.")
+  );
+  assert(mine.length > 20);
+  for (const [key, value] of mine) {
+    assert(
+      !/arm64|aarch64|x86|x64|amd64|intel|apple silicon/i.test(value),
+      `${key} names a processor: ${value}`,
+    );
+  }
 });

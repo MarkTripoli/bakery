@@ -6755,6 +6755,7 @@
   "machines.add.attention": "⟦{name} çôññëçŧëð, ƀûŧ ïŧ ñëëðš àŧŧëñŧïôñ ƀëƒôŕë ïŧ çàñ ŧàķë ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "machines.add.open": "⟦Ôþëñ {name} ŧ⟧",
   "machines.add.another": "⟦Àðð àñôŧĥëŕ ɱàçĥïñë ŧëšŧ⟧",
-  "machines.add.byHandPrefix": "⟦Þŕëƒëŕ ŧô ðô ïŧ ÿôûŕšëļƒ? ŧëšŧ ç⟧",
-  "machines.add.byHand": "⟦Šëŧ ûþ ƀÿ ĥàñð ŧë⟧"
+  "machines.add.readFailed": "⟦Ɓàķëŕÿ ɱàðë ŧĥë çôɱɱàñð ƀûŧ çôûļð ñôŧ šĥôŵ ïŧ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "machines.add.byHandPrefix": "⟦Ôŕ⟧",
+  "machines.add.byHand": "⟦šëŧ ûþ ƀÿ ĥàñð ŧë⟧"
 }

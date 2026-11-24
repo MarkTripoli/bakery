@@ -201,6 +201,7 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
     finishId ?? null,
   );
   const [failed, setFailed] = useState(false);
+  const [failTick, setFailTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const [changing, setChanging] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -288,6 +289,7 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
     setBusy(false);
     if (!result.ok) {
       setFailed(true);
+      setFailTick((tick) => tick + 1);
       return;
     }
     createKey.current = null;
@@ -312,6 +314,7 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
     setChanging(false);
     if (!result.ok) {
       setFailed(true);
+      setFailTick((tick) => tick + 1);
       return;
     }
     issue({
@@ -335,6 +338,7 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
     setBusy(false);
     if (!result.ok) {
       setFailed(true);
+      setFailTick((tick) => tick + 1);
       return;
     }
     setEnrollmentId(null);
@@ -512,6 +516,26 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
 
   const step2Body = (
     <UI.Stack gap="standard">
+      {status.isError && status.data === undefined && !failed
+        ? (
+          <UI.Stack gap="compact">
+            <UI.AlertBanner tone="error" role="alert">
+              {translate("machines.add.readFailed" as never)}
+            </UI.AlertBanner>
+            <UI.Inline gap="compact">
+              <UI.Button
+                key={`read-${status.errorUpdateCount}`}
+                variant="primary"
+                autoFocus
+                disabled={status.isFetching}
+                onClick={() => void status.refetch()}
+              >
+                {translate("machines.retry" as never)}
+              </UI.Button>
+            </UI.Inline>
+          </UI.Stack>
+        )
+        : null}
       {hasCommand
         ? (
           <>
@@ -563,9 +587,22 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
         : null}
       {failed
         ? (
-          <UI.AlertBanner tone="error">
-            {translate("machines.add.failed" as never)}
-          </UI.AlertBanner>
+          <UI.Stack gap="compact">
+            <UI.AlertBanner tone="error" role="alert">
+              {translate("machines.add.failed" as never)}
+            </UI.AlertBanner>
+            <UI.Inline gap="compact">
+              <UI.Button
+                key={`make-${failTick}`}
+                variant="primary"
+                autoFocus
+                disabled={busy}
+                onClick={() => void (showForm ? getCommand() : getNewCommand())}
+              >
+                {translate("machines.retry" as never)}
+              </UI.Button>
+            </UI.Inline>
+          </UI.Stack>
         )
         : null}
       {progress !== null && progress.kind !== "expired"
@@ -628,22 +665,13 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
                   showProblems={showProblems}
                   translate={translate}
                 />
-                {failed
-                  ? (
-                    <UI.AlertBanner tone="error" role="alert">
-                      {translate("machines.add.failed" as never)}
-                    </UI.AlertBanner>
-                  )
-                  : null}
                 <UI.Inline gap="compact">
                   <UI.Button
                     variant="primary"
                     disabled={busy}
                     onClick={() => void getCommand()}
                   >
-                    {translate(
-                      (failed ? "machines.retry" : "machines.add.get") as never,
-                    )}
+                    {translate("machines.add.get" as never)}
                   </UI.Button>
                   <UI.Button variant="secondary" onClick={toList}>
                     {translate("machines.wizard.cancel" as never)}
@@ -688,7 +716,9 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
               : "machines.add.status.now") as never,
           )}
           title={translate("machines.add.step2" as never)}
-          summary={showForm || changing || hasCommand ? undefined : step2Body}
+          summary={(showForm && !failed) || changing || hasCommand
+            ? undefined
+            : step2Body}
         >
           {showForm || changing || !hasCommand ? null : step2Body}
         </UI.StepItem>
@@ -703,7 +733,7 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
               href="/machines/new/by-hand"
             >
               {translate("machines.add.byHand" as never)}
-            </UI.Link>
+            </UI.Link>.
           </UI.Text>
         )}
     </UI.Stack>,

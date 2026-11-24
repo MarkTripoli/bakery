@@ -29,6 +29,8 @@ type Fixture = {
   cancels: Request[];
   replacements: Request[];
   failures: number;
+  readFailures: number;
+  reads: number;
   list: unknown[];
 };
 
@@ -42,6 +44,8 @@ function fixture(over: Partial<Fixture> = {}): Fixture {
     cancels: [],
     replacements: [],
     failures: 0,
+    readFailures: 0,
+    reads: 0,
     list: [],
     ...over,
   };
@@ -146,6 +150,19 @@ async function open(
           snapshotCursor: null,
         }));
       }
+      f.reads += 1;
+      if (f.readFailures > 0) {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "about:blank",
+            title: "x",
+            status: 500,
+            code: "INTERNAL_ERROR",
+          }),
+        });
+      }
       return route.fulfill(json({
         enrollmentId: id,
         organizationId: MOCK_ORGANIZATION_ID,
@@ -216,11 +233,13 @@ test.describe("add a machine with one command", () => {
     await expect(page.getByText("build-box-01 · 2 tasks at once · Claude Code"))
       .toBeVisible();
     await expect(page.getByText("Works once, for 10 minutes", { exact: false }))
-      .toContainText("Linux arm64");
+      .toContainText("Linux arm64 or Linux x86_64");
     await expect(status(page)).toHaveText(
       "Waiting for the machine · this page updates by itself",
     );
-    await expect(page.getByText("Set up by hand")).toBeVisible();
+    await expect(page.getByTestId("machine-add-other")).toHaveText(
+      "Or set up by hand.",
+    );
     const axe = await new AxeBuilder({ page }).include(
       '[data-testid="machine-add"]',
     ).analyze();
@@ -277,7 +296,7 @@ test.describe("add a machine with one command", () => {
       .toBeVisible();
     await expect(page.getByRole("button", { name: "Add another machine" }))
       .toBeVisible();
-    await expect(page.getByText("Set up by hand")).toHaveCount(0);
+    await expect(page.getByTestId("machine-add-other")).toHaveCount(0);
   });
 
   test("a failed check shows only a warning and Open", async ({ page }) => {
@@ -373,19 +392,42 @@ test.describe("add a machine with one command", () => {
     );
   });
 
-  test("a command that could not be made says so and can be tried again", async ({ page }) => {
+  test("a command that could not be made says so in step 2 and Try again makes it again", async ({ page }) => {
     const f = fixture({ failures: 1 });
     await open(page, f);
     await getTheCommand(page);
+    const retry = steps(page).nth(1).getByRole("button", { name: "Try again" });
     await expect(
-      steps(page).first().getByText("Bakery could not make the command."),
+      steps(page).nth(1).getByText("Bakery could not make the command."),
     ).toBeVisible();
-    await expect(steps(page).first()).toHaveAttribute("data-state", "running");
-    await expect(page.getByRole("button", { name: "Get the command" }))
-      .toHaveCount(0);
-    await page.getByRole("button", { name: "Try again" }).click();
-    await expect(page.locator("[data-ui-component=codeBlock]")).toBeVisible();
+    await expect(retry).toBeFocused();
+    expect(f.creates).toHaveLength(1);
+    await retry.click();
+    await expect(page.locator("[data-ui-component=codeBlock]")).toContainText(
+      COMMAND,
+    );
     expect(f.creates).toHaveLength(2);
+  });
+
+  test("a command made but not readable says so in step 2 and Try again only reads again", async ({ page }) => {
+    const f = fixture({ readFailures: 1000 });
+    await open(page, f);
+    await getTheCommand(page);
+    const message = "Bakery made the command but could not show it.";
+    const retry = steps(page).nth(1).getByRole("button", { name: "Try again" });
+    await expect(steps(page).nth(1).getByText(message)).toBeVisible();
+    await expect(retry).toBeFocused();
+    await expect(page.locator("[data-ui-component=codeBlock]")).toHaveCount(0);
+    expect(f.creates).toHaveLength(1);
+    const readsBefore = f.reads;
+    f.readFailures = 0;
+    await retry.click();
+    await expect(page.locator("[data-ui-component=codeBlock]")).toContainText(
+      COMMAND,
+    );
+    await expect(page.getByText(message)).toHaveCount(0);
+    expect(f.reads).toBeGreaterThan(readsBefore);
+    expect(f.creates).toHaveLength(1);
   });
 
   test("only an administrator can add a machine", async ({ page }) => {
