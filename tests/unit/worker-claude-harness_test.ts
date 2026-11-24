@@ -871,7 +871,8 @@ printf '%s\\n' '{"type":"result","subtype":"success","is_error":false,"session_i
       stateDir: `${scratch.dir}/worker-state`,
       authSourceDir: `${scratch.dir}/auth-source`,
       timeLimitMs: 5_000,
-      readAttemptContext: () => Promise.resolve([served]),
+      readAttemptContext: () =>
+        Promise.resolve({ inputs: [served], facts: null }),
     });
     const outcome = await executor.execute(
       value,
@@ -1230,14 +1231,17 @@ ${[INIT, assistant("done"), resultLine()].join("\n")}`,
       authSourceDir: `${scratch.dir}/auth-source`,
       timeLimitMs: 5_000,
       readAttemptContext: () =>
-        Promise.resolve([{
-          artifactVersionId: crypto.randomUUID(),
-          artifactId: crypto.randomUUID(),
-          digest,
-          sizeBytes: bytes.length,
-          mediaType: "text/markdown",
-          contentBase64: btoa("# The brief"),
-        }]),
+        Promise.resolve({
+          inputs: [{
+            artifactVersionId: crypto.randomUUID(),
+            artifactId: crypto.randomUUID(),
+            digest,
+            sizeBytes: bytes.length,
+            mediaType: "text/markdown",
+            contentBase64: btoa("# The brief"),
+          }],
+          facts: null,
+        }),
     });
     const outcome = await executor.execute(
       value,
@@ -1257,14 +1261,17 @@ ${[INIT, assistant("done"), resultLine()].join("\n")}`,
       authSourceDir: `${scratch.dir}/auth-source`,
       timeLimitMs: 5_000,
       readAttemptContext: () =>
-        Promise.resolve([{
-          artifactVersionId: crypto.randomUUID(),
-          artifactId: crypto.randomUUID(),
-          digest,
-          sizeBytes: 5,
-          mediaType: "text/markdown",
-          contentBase64: btoa("other"),
-        }]),
+        Promise.resolve({
+          inputs: [{
+            artifactVersionId: crypto.randomUUID(),
+            artifactId: crypto.randomUUID(),
+            digest,
+            sizeBytes: 5,
+            mediaType: "text/markdown",
+            contentBase64: btoa("other"),
+          }],
+          facts: null,
+        }),
     }).execute(
       { ...value, attemptId: crypto.randomUUID() } as JobAssignment,
       new AbortController().signal,

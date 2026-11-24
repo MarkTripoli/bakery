@@ -13,9 +13,15 @@ const proof: AttemptProof = {
   workerSessionGeneration: "3",
 };
 
+const facts = {
+  facts: [{ wording: "Tests run with pnpm.", recordedAt: "2026-11-20" }],
+  omitted: 2,
+};
+
 const served = {
   attemptId: ATTEMPT,
   runId: "00000000-0000-4000-8000-0000000000a3",
+  facts,
   inputs: [{
     artifactVersionId: "00000000-0000-4000-8000-0000000000a4",
     artifactId: "00000000-0000-4000-8000-0000000000a5",
@@ -49,7 +55,8 @@ function client(body: unknown, seen: Array<Record<string, string>>) {
 Deno.test("reading an attempt's context presents the lease proof the route asks for", async () => {
   const seen: Array<Record<string, string>> = [];
   const read = await client(served, seen).attemptContext(ATTEMPT, proof);
-  assertEquals(read.value, served.inputs);
+  assertEquals(read.value.inputs, served.inputs);
+  assertEquals(read.value.facts, facts);
   const headers = seen[0];
   assertEquals(headers["x-worker-lease-token"], proof.leaseToken);
   assertEquals(headers["x-worker-fence"], proof.fence);
@@ -62,6 +69,22 @@ Deno.test("reading an attempt's context presents the lease proof the route asks 
     seen[1].url,
     `http://worker.test/v1/worker/attempts/${ATTEMPT}/context`,
   );
+});
+
+Deno.test("a read with no recorded facts serves null rather than an empty list", async () => {
+  const read = await client({ ...served, facts: null }, [])
+    .attemptContext(ATTEMPT, proof);
+  assertEquals(read.value.facts, null);
+});
+
+Deno.test("a read whose facts are not the declared shape is refused", async () => {
+  const error = await assertRejects(
+    () =>
+      client({ ...served, facts: { facts: [{ wording: 1 }], omitted: 0 } }, [])
+        .attemptContext(ATTEMPT, proof),
+    WorkerRequestError,
+  );
+  assertEquals(error.code, "WORKER_RESPONSE_CONTEXT_INVALID");
 });
 
 Deno.test("a context read refuses a body that is not the declared read", async () => {
