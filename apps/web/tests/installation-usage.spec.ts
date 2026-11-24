@@ -72,6 +72,56 @@ for (
       await still(page, "usage-provider-menu");
     });
 
+    test("the Period and Provider menus open inside the screen", async ({ page }) => {
+      await usageFixture(page, { twoRoutes: true });
+      await page.goto("/installation/usage");
+      await expect(page.getByRole("heading", { name: "By provider" }))
+        .toBeVisible();
+      for (const name of ["Period", "Provider"]) {
+        await page.getByRole("button", { name: new RegExp(`^${name}:`) })
+          .click();
+        const menu = page.getByRole("dialog", { name });
+        await expect(menu).toBeVisible();
+        const items = menu.getByRole("button");
+        const count = await items.count();
+        expect(count).toBeGreaterThan(1);
+        for (let index = 0; index < count; index += 1) {
+          const box = (await items.nth(index).boundingBox())!;
+          expect(box.x).toBeGreaterThanOrEqual(0);
+          expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+        }
+        await page.mouse.move(viewport.width / 2, viewport.height - 20);
+        await still(page, `usage-${name.toLowerCase()}-menu-open`);
+        await page.keyboard.press("Escape");
+        await expect(menu).toBeHidden();
+      }
+    });
+
+    test("Custom puts From and To on one row on a wide screen and a full row each on a phone", async ({ page }) => {
+      await usageFixture(page);
+      await page.goto("/installation/usage");
+      await page.getByRole("button", { name: /^Period:/ }).click();
+      await page.getByRole("dialog", { name: "Period" }).getByText("Custom", {
+        exact: true,
+      }).click();
+      const from = (await page.getByRole("textbox", {
+        name: "From",
+        exact: true,
+      }).boundingBox())!;
+      const to = (await page.getByRole("textbox", { name: "To", exact: true })
+        .boundingBox())!;
+      if (viewport.name === "phone") {
+        expect(to.y).toBeGreaterThan(from.y + from.height - 1);
+        expect(from.x + from.width).toBeLessThanOrEqual(viewport.width);
+        expect(from.width).toBeGreaterThan(viewport.width * 0.7);
+        expect(to.width).toBeGreaterThan(viewport.width * 0.7);
+      } else {
+        expect(Math.abs(to.y - from.y)).toBeLessThan(4);
+      }
+      await page.mouse.move(viewport.width / 2, viewport.height - 20);
+      await still(page, "usage-custom-fields");
+    });
+
     test("a failed read is an error state with Try again, not a blank page", async ({ page }) => {
       await usageFixture(page, { failing: true });
       await page.goto("/installation/usage");

@@ -312,6 +312,17 @@ for (
       );
     });
 
+    test("an administrator without the evaluationRun:write right is not offered Stop run", async ({ page }) => {
+      await evaluationsFixture(page, { adminWithoutStopRight: true });
+      await page.goto(run(IDS.running));
+      await expect(
+        page.getByRole("heading", { name: "Reviewer, version 3", level: 1 }),
+      ).toBeVisible();
+      await expect(page.getByRole("button", { name: "Stop run" })).toHaveCount(
+        0,
+      );
+    });
+
     test("a running run can be stopped after asking, with the version, and the page then reads Stopped", async ({ page }) => {
       const seen = await evaluationsFixture(page);
       await page.goto(run(IDS.running));

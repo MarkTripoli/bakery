@@ -484,8 +484,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["protected"] }),
   });
 
-  // The server lets a developer or an administrator stop a run (evaluationRun:write).
-  const canStop = access.data?.role === "admin" ||
+  const canStop =
     access.data?.capabilities.includes("evaluationRun:write") === true;
 
   const when = (iso: string, withTime = false) =>

@@ -114,20 +114,30 @@ export async function usageFixture(page: Page, options: UsageOptions = {}) {
             ...ROWS[0],
             billingType: "subscription",
             knownCostUsd: "5.0000",
+            unverifiedCostUsd: "0.0000",
+            unverifiedCount: 0,
           }]
           : []),
       ].filter((row) => provider === null || row.provider === provider);
+      const total = (pick: (row: (typeof ROWS)[number]) => number) =>
+        rows.reduce((sum, row) => sum + pick(row), 0);
+      const known = total((row) => Number(row.knownCostUsd));
+      const unknownCount = total((row) => row.unknownCount);
+      const unverifiedCount = total((row) => row.unverifiedCount);
       return route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           from: query.get("from") ?? STAMP,
           to: query.get("to") ?? STAMP,
-          knownCostUsd: options.empty ? "0.0000" : "500.5000",
-          unverifiedCostUsd: options.empty ? "0.0000" : "37.2000",
-          unknownCount: options.empty ? 0 : 1,
-          unverifiedCount: options.empty ? 0 : 3,
-          completeness: options.empty ? "complete" : "partial",
+          knownCostUsd: known.toFixed(4),
+          unverifiedCostUsd: total((row) => Number(row.unverifiedCostUsd))
+            .toFixed(4),
+          unknownCount,
+          unverifiedCount,
+          completeness: unknownCount + unverifiedCount > 0
+            ? "partial"
+            : "complete",
           byProvider: rows,
           budgetAccounts: options.empty ? [] : [{
             scope: "installation",
@@ -136,8 +146,8 @@ export async function usageFixture(page: Page, options: UsageOptions = {}) {
             periodEnd: "2026-12-01T00:00:00.000Z",
             limitUsd: "1000.0000",
             reservedUsd: "25.0000",
-            settledUsd: "500.5000",
-            availableUsd: "474.5000",
+            settledUsd: known.toFixed(4),
+            availableUsd: (1000 - 25 - known).toFixed(4),
             unknownCount: 1,
           }],
         }),

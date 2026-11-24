@@ -71,6 +71,7 @@ export function InstallationUsageScreen(
 ) {
   const { translate, locale, timeZone } = useI18n();
   const money = useMoney();
+  const phone = useShellViewport() === "phone";
   const [periodOpen, setPeriodOpen] = useState(false);
   const [providerOpen, setProviderOpen] = useState(false);
   // Formatted here, so the count is an argument the catalogue can inflect on.
@@ -129,10 +130,11 @@ export function InstallationUsageScreen(
         selected: name === provider,
       })),
   ];
+  const FieldRow = phone ? UI.Stack : UI.Inline;
   const customRow = period === "custom"
     ? (
       <UI.Stack gap="compact">
-        <UI.Inline gap="compact">
+        <FieldRow gap="compact">
           <UI.Field
             htmlFor="usage-from"
             label={translate("installation.usage.period.from")}
@@ -159,7 +161,7 @@ export function InstallationUsageScreen(
               value={customTo}
             />
           </UI.Field>
-        </UI.Inline>
+        </FieldRow>
         {periodError === "tooLong" || periodError === "reversed"
           ? (
             <UI.Text role="alert" variant="error">
@@ -179,6 +181,7 @@ export function InstallationUsageScreen(
       <UI.Inline gap="compact">
         <UI.Popover
           align="end"
+          floating={phone}
           label={periodWord}
           onOpenChange={setPeriodOpen}
           open={periodOpen}
@@ -206,6 +209,7 @@ export function InstallationUsageScreen(
         </UI.Popover>
         <UI.Popover
           align="end"
+          floating={phone}
           label={providerWord}
           onOpenChange={setProviderOpen}
           open={providerOpen}

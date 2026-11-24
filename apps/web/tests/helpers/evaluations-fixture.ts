@@ -234,6 +234,7 @@ export type EvaluationsOptions = {
   placeholderReasons?: boolean;
   repeats?: boolean;
   noStopRight?: boolean;
+  adminWithoutStopRight?: boolean;
 };
 
 export type Seen = {
@@ -258,10 +259,16 @@ export async function evaluationsFixture(
         contentType: "application/json",
         body: JSON.stringify({
           organizationId: MOCK_ORGANIZATION_ID,
-          role: options.viewer === true ? "viewer" : "developer",
-          capabilities: options.viewer === true || options.noStopRight === true
-            ? []
-            : ["evaluationRun:write"],
+          role: options.viewer === true
+            ? "viewer"
+            : options.adminWithoutStopRight === true
+            ? "admin"
+            : "developer",
+          capabilities:
+            options.viewer === true || options.noStopRight === true ||
+              options.adminWithoutStopRight === true
+              ? []
+              : ["evaluationRun:write"],
         }),
       }),
   );
