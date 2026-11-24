@@ -1,8 +1,10 @@
 import { assert, assertEquals } from "@std/assert";
 import {
+  customWindow,
   isUsagePeriod,
   USAGE_MAX_PERIOD_DAYS,
   usageWindow,
+  usageWindowReversed,
   usageWindowTooLong,
 } from "../../apps/web/src/screens/usage/usage-window.ts";
 import {
@@ -270,4 +272,26 @@ Deno.test("comparing money says less, equal or more without rounding", () => {
   assertEquals(compareDecimalStrings("0.000001", "0"), 1);
   assertEquals(compareDecimalStrings("-0.000001", "0"), -1);
   assertEquals(compareDecimalStrings("-2", "-1"), -1);
+});
+
+Deno.test("money groups and separates by the reader's locale, never always as en-US", () => {
+  const less = (smallest: string) => `Less than ${smallest}`;
+  assertEquals(usd("1234.5", less, "de-DE").replace(/\s/g, " "), "1.234,50 $");
+  assertEquals(usd("1234.5", less, "en-US"), "$1,234.50");
+  assertEquals(usd("-3.2", less, "en-US"), "-$3.20");
+  assertEquals(
+    usd("0.004", less, "de-DE").replace(/\s/g, " "),
+    "Less than 0,01 $",
+  );
+});
+
+Deno.test("a custom window is whole days, and a reversed or incomplete one is told apart", () => {
+  const window = customWindow("2026-10-01", "2026-10-10")!;
+  assertEquals(window.from.getDate(), 1);
+  assertEquals(window.to.getDate(), 10);
+  assertEquals(window.to.getHours(), 23);
+  assert(!usageWindowReversed(window));
+  assert(usageWindowReversed(customWindow("2026-10-10", "2026-10-01")!));
+  assertEquals(customWindow("2026-10-01", ""), null);
+  assertEquals(customWindow("2026-13-40", "2026-10-01"), null);
 });
