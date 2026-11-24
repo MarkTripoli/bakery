@@ -553,6 +553,9 @@ function Detail(
   // mark the notification read once the part is on screen.
   const landingStep = parseLanding(landing.at);
   const landingStepId = landingStep?.kind === "step" ? landingStep.id : null;
+  const landingMessageId = landingStep?.kind === "message"
+    ? landingStep.id
+    : null;
   const landed = useTaskLanding(
     landing,
     valid && !query.isPending && query.data !== undefined,
@@ -570,6 +573,7 @@ function Detail(
     return (
       <TaskConversation
         task={task}
+        focusMessageId={landing.gone === true ? null : landingMessageId}
         references={references}
         questionDefaults={questionDefaults}
         banner={partGone

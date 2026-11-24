@@ -520,6 +520,22 @@ Deno.test("mark all read at a cutoff leaves a racing arrival unread, and the oth
   }
 });
 
+Deno.test("a live mention names its message so the page can open there", async () => {
+  const fixture = await openSocketFixture();
+  try {
+    const messageId = crypto.randomUUID();
+    const item = await arrive(fixture, messageId);
+    const target = await body<
+      { status: string; path: string | null; anchor: string | null }
+    >(inbox(fixture, "GET", `/v1/notifications/${item.id}/target`), 200);
+    assertEquals(target.status, "available");
+    assertEquals(target.path, `/tasks/${fixture.taskId}`);
+    assertEquals(target.anchor, `message:${messageId}`);
+  } finally {
+    await fixture.close();
+  }
+});
+
 Deno.test("a deleted part opens its task with no anchor, and an unreachable task shows no title", async () => {
   const fixture = await openSocketFixture();
   try {

@@ -29,6 +29,8 @@ import {
   runQueryOptions,
 } from "../../api/query.ts";
 import { useLiveEvents } from "../../api/use-live-events.ts";
+import { landOn } from "../../notifications/landed.ts";
+import { useLandingMessageSearch } from "../../notifications/useLandingMessageSearch.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import { RouterLink } from "../../app/router-link.tsx";
@@ -94,9 +96,12 @@ export function TaskConversation(
     references,
     state = "ready",
     task,
+    focusMessageId = null,
   }: {
     /** More inspector content, such as the task's artifact pane. */
     aside?: ReactNode;
+    /** The message a landing names: paged in, then outlined once. */
+    focusMessageId?: string | null;
     /** A notice that belongs right under the stages, such as a landing's. */
     banner?: ReactNode;
     /** Transcript-end content: run controls, output and artifacts. */
@@ -135,6 +140,18 @@ export function TaskConversation(
     enabled,
     refetchInterval: poll,
   });
+  const { loaded: focusLoaded } = useLandingMessageSearch(
+    messages,
+    focusMessageId,
+  );
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!focusLoaded || focusMessageId === null) return;
+    if (focused.current) return;
+    focused.current = landOn(
+      document.querySelector(`[data-message-id="${focusMessageId}"]`),
+    );
+  }, [focusLoaded, focusMessageId]);
   const turns = useQuery({
     ...conversationTurnsQueryOptions(api, scope, conversationId),
     enabled,

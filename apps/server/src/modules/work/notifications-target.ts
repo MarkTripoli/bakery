@@ -387,7 +387,9 @@ function resolveFromFacts(facts: PageFacts, row: TargetRow): ResolvedTarget {
     status: "available",
     targetKind,
     path: taskPath(row.taskId),
-    anchor: row.targetAnchor,
+    anchor: targetKind === "conversation_message"
+      ? `message:${row.targetId}`
+      : row.targetAnchor,
   };
 }
 

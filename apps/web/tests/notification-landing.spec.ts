@@ -188,7 +188,15 @@ const approval = {
 async function world(
   page: Page,
   target: Target,
-  options: { questions?: boolean; plan?: boolean } = {},
+  options: {
+    questions?: boolean;
+    plan?: boolean;
+    messages?: {
+      newest: Record<string, unknown>[];
+      older: Record<string, unknown>[];
+      cursor: string;
+    };
+  } = {},
 ) {
   await mockAuthenticatedSession(page);
   await page.route(
@@ -229,7 +237,6 @@ async function world(
       `**/v1/runs/${runId}/reviews*`,
       `**/v1/runs/${runId}/delivery-decisions*`,
       "**/v1/pull-requests?*",
-      `**/v1/conversations/${task.conversationId}/messages*`,
       `**/v1/conversations/${task.conversationId}/participants*`,
       `**/v1/conversations/${task.conversationId}/turns*`,
       "**/v1/coordination-plans*",
@@ -240,6 +247,21 @@ async function world(
       (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
     );
   }
+  await page.route(
+    `**/v1/conversations/${task.conversationId}/messages*`,
+    (route) => {
+      const page_ = options.messages;
+      if (page_ === undefined) {
+        return route.fulfill({ json: { items: [], nextCursor: null } });
+      }
+      const cursor = new URL(route.request().url()).searchParams.get("cursor");
+      return route.fulfill({
+        json: cursor === page_.cursor
+          ? { items: page_.older, nextCursor: null }
+          : { items: page_.newest, nextCursor: page_.cursor },
+      });
+    },
+  );
   await page.route("**/v1/plan-revisions*", (route) =>
     route.fulfill({
       json: { items: options.plan ? [revision] : [], nextCursor: null },
@@ -432,19 +454,54 @@ test.describe("Opening a notification", () => {
     await landedStill(page, "landing-approval", card);
   });
 
-  test("a chat message has no address yet: the page opens, is read, and claims nothing is gone", async ({ page }) => {
-    const { reads } = await world(page, {
-      status: "available",
-      targetKind: "conversation_message",
-      path: `/tasks/${taskId}`,
-      anchor: "message:00000000-0000-4000-8000-000000000701",
+  test("a mention of an earlier message pages back to it and outlines it", async ({ page }) => {
+    const mentioned = "00000000-0000-4000-8000-000000000701";
+    const message = (id: string, body: string, sequence: number) => ({
+      id,
+      conversationId: task.conversationId,
+      authorId: "00000000-0000-4000-8000-000000000001",
+      agentSessionId: null,
+      messageType: "user",
+      body,
+      clientMessageId: `client-${sequence}`,
+      replyToId: null,
+      createdAt: `2026-01-01T00:${String(sequence).padStart(2, "0")}:00.000Z`,
+      updatedAt: `2026-01-01T00:${String(sequence).padStart(2, "0")}:00.000Z`,
+      version: 1,
+      sequence: String(sequence),
+      intent: "discussion",
+      commentContext: null,
     });
+    const { reads } = await world(
+      page,
+      {
+        status: "available",
+        targetKind: "conversation_message",
+        path: `/tasks/${taskId}`,
+        anchor: `message:${mentioned}`,
+      },
+      {
+        messages: {
+          newest: [message(
+            "00000000-0000-4000-8000-000000000730",
+            "A newer message",
+            30,
+          )],
+          older: [message(mentioned, "The earlier decision", 4)],
+          cursor: "older-page",
+        },
+      },
+    );
     await open(page);
+    await expect(page.getByText("A newer message")).toBeVisible();
+    const landed = page.locator(`[data-message-id="${mentioned}"]`);
+    await expect(landed).toHaveAttribute("data-landed", "true");
+    await expect(landed).toContainText("The earlier decision");
     await expect.poll(() => reads.length).toBe(1);
-    await expect(announcer(page)).toHaveCount(1);
     await expect(
       page.getByText("The part this notification was about is no longer here."),
     ).toHaveCount(0);
+    await still(page, "landing-message", undefined, { scrollTo: landed });
   });
 
   test("a part that is gone: the page opens, says so, outlines nothing, and is read", async ({ page }) => {
