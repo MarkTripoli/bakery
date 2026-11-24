@@ -6686,7 +6686,6 @@
   "tasks.delivery.now.stopped.askAdmin": "⟦Àñ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕ çàñ ĝïṽë Ɓàķëŕÿ ɱôŕë ŧŕïëš. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.delivery.moreTries.button": "⟦Ĝïṽë Ɓàķëŕÿ ɱôŕë ŧŕïëš ŧëšŧŧ⟧",
   "tasks.delivery.moreTries.title": "⟦Ĝïṽë Ɓàķëŕÿ ɱôŕë ŧŕïëš? ŧëšŧ ç⟧",
-  "tasks.delivery.moreTries.body": "⟦Ɓàķëŕÿ ŧŕïëð {count, plural, one {# time} other {# times}} àñð šŧôþþëð. Ïŧ ŧŕïëš àĝàïñ ûþ ŧô ŧĥë ñûɱƀëŕ ÿôû çĥôôšë, ŧĥëñ šŧôþš ïƒ ŧĥë çĥëçķš šŧïļļ ƒàïļ. Ÿôûŕ ñàɱë ïš ŕëçôŕðëð ôñ ŧĥïš ŧàšķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "tasks.delivery.moreTries.label": "⟦Ṁôŕë ŧŕïëš ŧ⟧",
   "tasks.delivery.moreTries.hint": "⟦Ƒŕôɱ 1 ŧô {max}. ŧëš⟧",
   "tasks.delivery.moreTries.invalid": "⟦Ëñŧëŕ à ñûɱƀëŕ ƒŕôɱ 1 ŧô {max}. ŧëšŧ çôþ⟧",
@@ -6695,9 +6694,10 @@
   "tasks.delivery.moreTries.close": "⟦Çļôšë⟧",
   "tasks.delivery.now.stopped.allUsed": "⟦Àļļ 8 ŧŕïëš àŕë ûšëð. ŧëšŧŧ⟧",
   "tasks.delivery.moreTries.notice.notStopped": "⟦Ŧĥïš ŕûñ ïš ñô ļôñĝëŕ ŵàïŧïñĝ ƒôŕ ɱôŕë ŧŕïëš. Ŧĥë þàĝë ñôŵ šĥôŵš ŵĥëŕë ïŧ ïš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "tasks.delivery.moreTries.notice.forbidden": "⟦Ÿôû ðô ñôŧ ĥàṽë þëŕɱïššïôñ ŧô ĝïṽë ɱôŕë ŧŕïëš. Àšķ àñ ôŕĝàñïžàŧïôñ ôŵñëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "tasks.delivery.moreTries.notice.error": "⟦Ṁôŕë ŧŕïëš çôûļð ñôŧ ƀë ĝïṽëñ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧë⟧",
   "tasks.delivery.moreTries.notice.noAnswer": "⟦Ɓàķëŕÿ ðïð ñôŧ àñšŵëŕ. Ŧŕÿ àĝàïñ; ŧĥë ŧŕïëš àŕë ôñļÿ àððëð ôñçë. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ àñôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "tasks.delivery.release.healthy.body": "⟦Ŧĥë ŕëļëàšë ïš ĥëàļŧĥÿ. Ŧĥïš çĥàñĝë ïš ðôñë. ŧëšŧ çôþÿ ŧëš⟧"
+  "tasks.delivery.release.healthy.body": "⟦Ŧĥë ŕëļëàšë ïš ĥëàļŧĥÿ. Ŧĥïš çĥàñĝë ïš ðôñë. ŧëšŧ çôþÿ ŧëš⟧",
+  "tasks.delivery.moreTries.body": "⟦Ɓàķëŕÿ ŧŕïëð {count, plural, one {# time} other {# times}} àñð šŧôþþëð. Ïŧ ŧŕïëš àĝàïñ ûþ ŧô ŧĥë ñûɱƀëŕ ÿôû çĥôôšë, ŧĥëñ šŧôþš àĝàïñ ïƒ ïŧ šŧïļļ çàññôŧ ƒïẋ ŧĥïš. Ÿôûŕ ñàɱë ïš ŕëçôŕðëð ôñ ŧĥïš ŧàšķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "tasks.delivery.moreTries.notice.forbidden": "⟦Ÿôû ðô ñôŧ ĥàṽë þëŕɱïššïôñ ŧô ĝïṽë ɱôŕë ŧŕïëš. Àšķ àñ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧"
 }

@@ -654,6 +654,21 @@ const STOPPED: Scenario = {
   ],
 };
 
+const ALL_USED: Scenario = {
+  ...STOPPED,
+  decisions: [
+    decisionRow(0, "repair", "repair_selected", OLD),
+    {
+      ...decisionRow(1, "stop", "repair_cycles_exhausted", NEW, [sha("2")]),
+      limits: {
+        maxRepairCycles: 8,
+        maxLoopDurationMs: 600000,
+        maxFindings: 25,
+      },
+    },
+  ],
+};
+
 /** Opens a disclosure's summary once; a closed one holds its content in the page already. */
 const openLink = async (section: Locator, testId: string) => {
   const link = section.getByTestId(testId);
@@ -868,7 +883,9 @@ test("a run that ran out of tries can be given more by an administrator, with th
   const now = nowCard(page);
   await button(now, "Give Bakery more tries").click();
   const dialog = page.getByRole("dialog", { name: "Give Bakery more tries?" });
-  await expect(dialog).toContainText("Bakery tried 2 times and stopped.");
+  await expect(dialog).toContainText(
+    "Bakery tried 2 times and stopped. It tries again up to the number you choose, then stops again if it still cannot fix this.",
+  );
   const field = dialog.getByLabel("More tries");
   await expect(field).toHaveValue("2");
   await expect(dialog).toContainText("From 1 to 6.");
@@ -900,28 +917,23 @@ test("a refused allowance keeps the dialog open and says why", async ({ page }) 
   );
 });
 
+test("a refusal for lack of permission says who to ask and keeps the dialog", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, STOPPED);
+  await mockMoreTries(page, { status: 403 });
+  await page.goto(`/tasks/${id}`);
+  await button(nowCard(page), "Give Bakery more tries").click();
+  const dialog = page.getByRole("dialog", { name: "Give Bakery more tries?" });
+  await dialog.getByRole("button", { name: "Give more tries" }).click();
+  await expect(dialog.getByTestId("delivery-more-tries-notice")).toContainText(
+    "You do not have permission to give more tries. Ask an organization administrator.",
+  );
+  await expect(dialog).toBeVisible();
+});
+
 test("when all 8 tries are used the card says so and offers no button for more", async ({ page }) => {
   await mockRun(page);
-  await mockDelivery(page, {
-    ...STOPPED,
-    decisions: [
-      decisionRow(0, "repair", "repair_selected", OLD),
-      {
-        ...decisionRow(
-          1,
-          "stop",
-          "repair_cycles_exhausted",
-          NEW,
-          [sha("2")],
-        ),
-        limits: {
-          maxRepairCycles: 8,
-          maxLoopDurationMs: 600000,
-          maxFindings: 25,
-        },
-      },
-    ],
-  });
+  await mockDelivery(page, ALL_USED);
   await page.goto(`/tasks/${id}`);
   await expect(nowCard(page)).toContainText("All 8 tries are used.");
   await expect(button(nowCard(page), "Give Bakery more tries")).toHaveCount(0);
@@ -3691,4 +3703,93 @@ for (const scheme of ["light", "dark"] as const) {
       });
     });
   }
+}
+
+const RULED_STILLS = [["1440", "light"], ["390", "dark"]] as const;
+
+for (const [size, scheme] of RULED_STILLS) {
+  const [, width, height] = STILL_SIZES.find((entry) => entry[0] === size)!;
+  const prepare = async (page: Page) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.setViewportSize({ width, height });
+  };
+  const openDialog = async (page: Page) => {
+    await stubStillsPage(page);
+    await page.goto(`/tasks/${id}`);
+    await button(nowCard(page), "Give Bakery more tries").click();
+    const dialog = page.getByRole("dialog", {
+      name: "Give Bakery more tries?",
+    });
+    await expect(dialog).toBeVisible();
+    return dialog;
+  };
+
+  test(`still: delivery, all 8 used, ${size} ${scheme}`, async ({ page }) => {
+    test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+    await prepare(page);
+    await mockRun(page);
+    await mockDelivery(page, ALL_USED);
+    await stubStillsPage(page);
+    await page.goto(`/tasks/${id}`);
+    await expect(nowCard(page)).toContainText("All 8 tries are used.");
+    await page.setViewportSize({ width, height: TALL[size] });
+    await stillOfSection(page, `delivery-all-8-used-${size}-${scheme}.png`);
+  });
+
+  test(`still: more tries, too many, ${size} ${scheme}`, async ({ page }) => {
+    test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+    await prepare(page);
+    await mockRun(page);
+    await mockDelivery(page, STOPPED);
+    await mockMoreTries(page, {
+      status: 409,
+      reason: "allowance_exceeds_workflow_maximum",
+    });
+    const dialog = await openDialog(page);
+    await dialog.getByRole("button", { name: "Give more tries" }).click();
+    await expect(dialog).toContainText("Enter 6 or fewer.");
+    await page.screenshot({
+      path: `${STILLS}/delivery-more-tries-too-many-${size}-${scheme}.png`,
+      animations: "disabled",
+    });
+  });
+
+  test(`still: more tries, no answer, ${size} ${scheme}`, async ({ page }) => {
+    test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+    await prepare(page);
+    await mockRun(page);
+    await mockDelivery(page, STOPPED);
+    await mockMoreTries(page, { status: 500 });
+    const dialog = await openDialog(page);
+    await dialog.getByRole("button", { name: "Give more tries" }).click();
+    await expect(dialog.getByTestId("delivery-more-tries-notice"))
+      .toContainText(
+        "Bakery did not answer.",
+      );
+    await page.screenshot({
+      path: `${STILLS}/delivery-more-tries-no-answer-${size}-${scheme}.png`,
+      animations: "disabled",
+    });
+  });
+
+  test(`still: delivery, paused run, ${size} ${scheme}`, async ({ page }) => {
+    test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+    await prepare(page);
+    await mockRun(page);
+    await page.route(
+      `**/v1/runs/${runId}`,
+      (route) => route.fulfill({ json: { ...run, status: "paused" } }),
+    );
+    await mockDelivery(page, CLEAN);
+    await stubSidePanel(page);
+    await page.goto(`/tasks/${id}`);
+    await expect(page.getByRole("button", { name: "Resume run" }))
+      .toBeVisible();
+    await expect(nowCard(page)).toHaveCount(0);
+    await page.mouse.move(0, 0);
+    await page.screenshot({
+      path: `${STILLS}/delivery-paused-${size}-${scheme}.png`,
+      animations: "disabled",
+    });
+  });
 }
