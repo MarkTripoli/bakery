@@ -356,7 +356,9 @@ export function ArtifactComments(
           root={root}
           artifact={artifact}
           viewVersionId={version.id}
-          selected={selected.some((item) => item.id === root.id)}
+          selected={agentRequest &&
+            selected.some((item) => item.id === root.id)}
+          selectable={agentRequest}
           busy={busy}
           composer={reply?.id === root.id ? composer : undefined}
           onSelect={(checked) =>
