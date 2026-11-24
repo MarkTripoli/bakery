@@ -25,9 +25,15 @@ export type EngineStepResult =
   | Readonly<{ kind: "failed"; code: string; message: string }>
   | Readonly<{ kind: "pending" }>;
 
+export type EngineStepPacing = Readonly<{
+  retryMs: number;
+  waitLimitMs: number;
+}>;
+
 export type EngineStepRunner = Readonly<{
   /** Whether this runner owns the action. */
   handles(action: string): boolean;
+  pacing?(action: string): EngineStepPacing | undefined;
   /**
    * Runs the step. It must be safe to call again for the same step key after any
    * crash: the key is the one effect key of the step end to end.
@@ -44,6 +50,8 @@ export function composeEngineStepRunners(
 ): EngineStepRunner {
   return {
     handles: (action) => runners.some((runner) => runner.handles(action)),
+    pacing: (action) =>
+      runners.find((runner) => runner.handles(action))?.pacing?.(action),
     run(request) {
       const owner = runners.find((runner) => runner.handles(request.action));
       if (owner === undefined) {

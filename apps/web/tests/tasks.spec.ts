@@ -281,7 +281,7 @@ test("task filters reset cursors, preserve focus, and navigate real routes", asy
   await expect(page.getByText(task.description)).toBeVisible();
   await expect(
     page.getByText(
-      "This task has no run yet. Start a run to see its timeline.",
+      "This task has no run yet. Choose a workflow to start one.",
     ),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Start run", exact: true }))

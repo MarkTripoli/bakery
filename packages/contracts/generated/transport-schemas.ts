@@ -3870,9 +3870,23 @@ const transportSchemas = {
           "required": false,
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
           ],
           "description": "Code-owned workflow preset this run starts; the server materializes the organization's published, digest-verified workflow version for it and builds the run inputs from the task. Exactly one of workflowVersionId, presetId and workflowId must be supplied; a preset run rejects inputs with 422 because the server builds them from the task."
+        },
+        {
+          "name": "gates",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "plan",
+            "none"
+          ],
+          "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan."
         },
         {
           "name": "workflowId",
@@ -7487,6 +7501,72 @@ const transportSchemas = {
       ],
       "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows."
     },
+    "PeopleTagInput": {
+      "fields": [
+        {
+          "name": "recipientId",
+          "type": "uuid",
+          "required": false,
+          "description": "The one person to tag: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one of recipientId, recipientRoleKey, recipientGroupId and recipientRunRole."
+        },
+        {
+          "name": "recipientRoleKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "A role to tag instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs."
+        },
+        {
+          "name": "recipientGroupId",
+          "type": "uuid",
+          "required": false,
+          "description": "A group to tag instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs."
+        },
+        {
+          "name": "recipientRunRole",
+          "type": "enum(starter|task_owner)",
+          "required": false,
+          "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item."
+        },
+        {
+          "name": "intent",
+          "type": "enum(fyi|review)",
+          "required": true,
+          "description": "What the tag asks for: fyi lets the people tagged know and lets them see the run; review also gives them the right to comment on the one artifactVersionId, until the request expires."
+        },
+        {
+          "name": "artifactVersionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The artifact version of this run to review. Required for review and refused for fyi."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 280
+          },
+          "description": "Optional one line shown to the people tagged."
+        },
+        {
+          "name": "wait",
+          "type": "boolean",
+          "required": false,
+          "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back."
+        }
+      ],
+      "rules": [
+        "A step with no agent. The workflow tags on behalf of the person who started the run, who must still be able to write runs; the organization, the run and the step come from the run, never from this payload.",
+        "Name exactly one recipient. Every rule of a request made on the run holds: a recipient who cannot be resolved falls back to the person who started the run, with a visible note, and a role or group too large to ask is refused whole.",
+        "The step tags once, keyed by the run and the step, so a step looked at again finds its requests instead of tagging again.",
+        "A waiting step completes responded when anyone tagged responds, and expired when every request has expired or been withdrawn first. Nothing is approved by silence."
+      ],
+      "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
+    },
     "IntegrationEffectQuery": {
       "fields": [
         {
@@ -9213,7 +9293,7 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 8192
           },
-          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire."
+          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver, or, for a workflow with no owner such as a built-in one, the person who started the run; an empty list is refused because a step nobody can answer could only expire."
         },
         {
           "name": "approveLabel",
@@ -9341,7 +9421,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -15294,6 +15374,36 @@ const transportSchemas = {
         "Idempotency-Key is required (PRECONDITION_REQUIRED without it). A repeat with the same key and the same body answers with the run the key started instead of starting and paying for another; the same key with another body is IDEMPOTENCY_PAYLOAD_MISMATCH, and a repeat while that run is still working is IDEMPOTENCY_IN_FLIGHT."
       ],
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
+    },
+    "SkillUseGrantCreate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "The workflow that may use the skill again."
+        },
+        {
+          "name": "skillVersionId",
+          "type": "uuid",
+          "required": true,
+          "description": "The exact version of the skill the step names; the grant covers this version only."
+        },
+        {
+          "name": "stepPath",
+          "type": "string",
+          "required": true,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+        }
+      ],
+      "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
     },
     "SkillActiveVersionSet": {
       "fields": [
@@ -26313,7 +26423,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -26358,7 +26468,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -31461,16 +31571,18 @@ const transportSchemas = {
         "nameKey",
         "steps",
         "defaultBudgetLimitUsd",
-        "availability"
+        "availability",
+        "definition"
       ],
       "fieldTypes": {
-        "id": "enum(fixed-coding|fixed-coding-reviewed)",
+        "id": "enum(fixed-coding|fixed-coding-reviewed|deliver-oneshot|deliver-lean|deliver-full|deliver-prd)",
         "revision": "integer",
         "digest": "sha256",
         "nameKey": "string",
         "steps": "WorkflowPresetStep[]",
         "defaultBudgetLimitUsd": "decimal",
-        "availability": "WorkflowPresetAvailability|null"
+        "availability": "WorkflowPresetAvailability|null",
+        "definition": "json"
       },
       "bounds": {
         "stepsMaxItems": 100
@@ -31486,7 +31598,8 @@ const transportSchemas = {
         "nameKey": "Translation key naming the preset for display.",
         "steps": "Ordered steps the preset runs.",
         "defaultBudgetLimitUsd": "Run budget the preset applies when the caller does not supply one, in US dollars.",
-        "availability": "Availability verdict for the requested repository, or null when no repository was supplied."
+        "availability": "Availability verdict for the requested repository, or null when no repository was supplied.",
+        "definition": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
       }
     },
     "Page<WorkflowPreset>": {
@@ -35845,6 +35958,7 @@ const transportSchemas = {
         "skillId",
         "skillVersionId",
         "revision",
+        "revisionDigest",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -35862,7 +35976,8 @@ const transportSchemas = {
         "stepPath": "string",
         "grantedBy": "uuid",
         "createdAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "revisionDigest": "string"
       },
       "nullableFields": [],
       "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both.",
@@ -35871,6 +35986,7 @@ const transportSchemas = {
         "skillId": "Stable UUID of the personal skill the grant is for.",
         "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
         "revision": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read.",
+        "revisionDigest": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read.",
         "workflowId": "Stable UUID of the workflow the skill was attached to.",
         "workflowName": "Display name of that workflow, so the owner can recognise it.",
         "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",

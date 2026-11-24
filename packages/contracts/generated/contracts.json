@@ -3491,6 +3491,31 @@
     },
     {
       "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/use-grants",
+      "action": "skills.useGrants.create",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillUseGrantCreate",
+      "output": "SkillUseGrant",
+      "event": "skillUseGrant.created",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
       "method": "DELETE",
       "path": "/v1/skills/{id}/use-grants/{grantId}",
       "action": "skills.useGrants.delete",
@@ -15693,6 +15718,7 @@
     "skillVersions.create",
     "skills.useGrants.list",
     "skills.useGrants.delete",
+    "skills.useGrants.create",
     "skills.setActiveVersion",
     "skillImports.get",
     "skills.takeSourceUpdate",
@@ -22266,6 +22292,7 @@
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -25988,6 +26015,77 @@
             },
             "500": {
               "description": "Internal server error."
+            }
+          }
+        },
+        "post": {
+          "operationId": "skills.useGrants.create",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SkillUseGrant"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillUseGrantCreate"
+                }
+              }
             }
           }
         }
@@ -66016,6 +66114,7 @@
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
+                "skills.useGrants.create",
                 "skills.useGrants.delete",
                 "skillVersions.list",
                 "skillVersions.get",
@@ -68867,7 +68966,19 @@
               "type": "string",
               "enum": [
                 "fixed-coding",
-                "fixed-coding-reviewed"
+                "fixed-coding-reviewed",
+                "deliver-oneshot",
+                "deliver-lean",
+                "deliver-full",
+                "deliver-prd"
+              ]
+            },
+            "gates": {
+              "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan.",
+              "type": "string",
+              "enum": [
+                "plan",
+                "none"
               ]
             },
             "workflowId": {
@@ -80105,6 +80216,66 @@
             }
           ]
         },
+        "PeopleTagInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "recipientId": {
+              "description": "The one person to tag: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one of recipientId, recipientRoleKey, recipientGroupId and recipientRunRole.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "recipientRoleKey": {
+              "description": "A role to tag instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs. PeopleTagInput.recipientRoleKey must contain at least 1 characters. PeopleTagInput.recipientRoleKey must contain at most 80 characters.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "recipientGroupId": {
+              "description": "A group to tag instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "recipientRunRole": {
+              "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item.",
+              "type": "string",
+              "enum": [
+                "starter",
+                "task_owner"
+              ]
+            },
+            "intent": {
+              "type": "string",
+              "enum": [
+                "fyi",
+                "review"
+              ],
+              "description": "What the tag asks for: fyi lets the people tagged know and lets them see the run; review also gives them the right to comment on the one artifactVersionId, until the request expires."
+            },
+            "artifactVersionId": {
+              "description": "The artifact version of this run to review. Required for review and refused for fyi.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "note": {
+              "description": "Optional one line shown to the people tagged. PeopleTagInput.note must contain at most 280 characters.",
+              "type": "string",
+              "maxLength": 280
+            },
+            "wait": {
+              "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "intent"
+          ],
+          "additionalProperties": false,
+          "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
+        },
         "IntegrationEffectQuery": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -83403,7 +83574,7 @@
               "description": "Question put to the approver, shown in the inbox and on the approval page. Plain text: the decision is typed, never inferred from this text. HumanApprovalInput.prompt must contain at least 1 characters. HumanApprovalInput.prompt must contain at most 2000 characters."
             },
             "audience": {
-              "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
+              "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver, or, for a workflow with no owner such as a built-in one, the person who started the run; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
               "anyOf": [
                 {
                   "type": "string",
@@ -83711,6 +83882,7 @@
                 "workflow.noop",
                 "workflow.stop",
                 "human.approval",
+                "people.tag",
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
@@ -92336,6 +92508,43 @@
           ],
           "additionalProperties": false,
           "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
+        },
+        "SkillUseGrantCreate": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+            },
+            "workflowId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The workflow that may use the skill again."
+            },
+            "skillVersionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The exact version of the skill the step names; the grant covers this version only."
+            },
+            "stepPath": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+            }
+          },
+          "required": [
+            "id",
+            "workflowId",
+            "skillVersionId",
+            "stepPath"
+          ],
+          "additionalProperties": false,
+          "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
         },
         "SkillActiveVersionSet": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -118932,6 +119141,7 @@
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
+                "skills.useGrants.create",
                 "skills.useGrants.delete",
                 "skillVersions.list",
                 "skillVersions.get",
@@ -119648,6 +119858,7 @@
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
+                "skills.useGrants.create",
                 "skills.useGrants.delete",
                 "skillVersions.list",
                 "skillVersions.get",
@@ -120364,6 +120575,7 @@
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
+                "skills.useGrants.create",
                 "skills.useGrants.delete",
                 "skillVersions.list",
                 "skillVersions.get",
@@ -166741,6 +166953,7 @@
                       "skillDraftFiles.get",
                       "skillDraftFiles.delete",
                       "skills.useGrants.list",
+                      "skills.useGrants.create",
                       "skills.useGrants.delete",
                       "skillVersions.list",
                       "skillVersions.get",
@@ -188951,6 +189164,7 @@
                 "workflow.noop",
                 "workflow.stop",
                 "human.approval",
+                "people.tag",
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
@@ -189115,6 +189329,7 @@
                       "workflow.noop",
                       "workflow.stop",
                       "human.approval",
+                      "people.tag",
                       "artifact.publish",
                       "memory.promote",
                       "evaluation.sample",
@@ -189332,6 +189547,7 @@
                 "workflow.noop",
                 "workflow.stop",
                 "human.approval",
+                "people.tag",
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
@@ -189608,6 +189824,7 @@
                       "workflow.noop",
                       "workflow.stop",
                       "human.approval",
+                      "people.tag",
                       "artifact.publish",
                       "memory.promote",
                       "evaluation.sample",
@@ -257896,7 +258113,11 @@
               "type": "string",
               "enum": [
                 "fixed-coding",
-                "fixed-coding-reviewed"
+                "fixed-coding-reviewed",
+                "deliver-oneshot",
+                "deliver-lean",
+                "deliver-full",
+                "deliver-prd"
               ],
               "description": "Stable preset identifier accepted by runs.create presetId."
             },
@@ -258024,6 +258245,45 @@
                 }
               ],
               "description": "WorkflowPreset.availability may be null in this transport value."
+            },
+            "definition": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
             }
           },
           "required": [
@@ -258033,10 +258293,122 @@
             "nameKey",
             "steps",
             "defaultBudgetLimitUsd",
-            "availability"
+            "availability",
+            "definition"
           ],
           "additionalProperties": false,
           "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
+        },
+        "WorkflowPreset____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
         },
         "Page<WorkflowPreset>": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -258052,7 +258424,11 @@
                     "type": "string",
                     "enum": [
                       "fixed-coding",
-                      "fixed-coding-reviewed"
+                      "fixed-coding-reviewed",
+                      "deliver-oneshot",
+                      "deliver-lean",
+                      "deliver-full",
+                      "deliver-prd"
                     ],
                     "description": "Stable preset identifier accepted by runs.create presetId."
                   },
@@ -258180,6 +258556,45 @@
                       }
                     ],
                     "description": "WorkflowPreset.availability may be null in this transport value."
+                  },
+                  "definition": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
                   }
                 },
                 "required": [
@@ -258189,7 +258604,8 @@
                   "nameKey",
                   "steps",
                   "defaultBudgetLimitUsd",
-                  "availability"
+                  "availability",
+                  "definition"
                 ],
                 "additionalProperties": false,
                 "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
@@ -258247,6 +258663,117 @@
           ],
           "additionalProperties": false,
           "description": "Cursor page of WorkflowPreset."
+        },
+        "Page<WorkflowPreset>____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
         },
         "OutputTranscriptSegment": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -279324,6 +279851,11 @@
               "maximum": 9007199254740991,
               "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
             },
+            "revisionDigest": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+            },
             "workflowId": {
               "type": "string",
               "format": "uuid",
@@ -279364,6 +279896,7 @@
             "skillId",
             "skillVersionId",
             "revision",
+            "revisionDigest",
             "workflowId",
             "workflowName",
             "stepPath",
@@ -280337,6 +280870,11 @@
                     "maximum": 9007199254740991,
                     "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
                   },
+                  "revisionDigest": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+                  },
                   "workflowId": {
                     "type": "string",
                     "format": "uuid",
@@ -280377,6 +280915,7 @@
                   "skillId",
                   "skillVersionId",
                   "revision",
+                  "revisionDigest",
                   "workflowId",
                   "workflowName",
                   "stepPath",
@@ -298526,6 +299065,39 @@
           "additionalProperties": false,
           "description": "SplitOutput is the pinned worker action output contract."
         },
+        "PeopleTagOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "sent",
+                "responded",
+                "expired"
+              ],
+              "description": "How the step ended: sent when it carried on once the tag was sent, responded when someone tagged responded, expired when every request expired or was withdrawn with no response."
+            },
+            "asked": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "description": "How many people the tag asked, one request each. How many people the tag asked, one request each. PeopleTagOutput.asked must be at least 1. PeopleTagOutput.asked must be at most 50."
+            },
+            "respondedBy": {
+              "description": "PeopleTagOutput.respondedBy output may be omitted by adapters that do not expose it.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "required": [
+            "outcome",
+            "asked"
+          ],
+          "additionalProperties": false,
+          "description": "PeopleTagOutput is the pinned worker action output contract."
+        },
         "WorkflowStopOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -306213,6 +306785,7 @@
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -309068,7 +309641,19 @@
           "type": "string",
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
+          ]
+        },
+        "gates": {
+          "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan.",
+          "type": "string",
+          "enum": [
+            "plan",
+            "none"
           ]
         },
         "workflowId": {
@@ -320346,6 +320931,66 @@
         }
       }
     },
+    "PeopleTagInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "recipientId": {
+          "description": "The one person to tag: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one of recipientId, recipientRoleKey, recipientGroupId and recipientRunRole.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "recipientRoleKey": {
+          "description": "A role to tag instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs. PeopleTagInput.recipientRoleKey must contain at least 1 characters. PeopleTagInput.recipientRoleKey must contain at most 80 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "recipientGroupId": {
+          "description": "A group to tag instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "recipientRunRole": {
+          "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item.",
+          "type": "string",
+          "enum": [
+            "starter",
+            "task_owner"
+          ]
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "fyi",
+            "review"
+          ],
+          "description": "What the tag asks for: fyi lets the people tagged know and lets them see the run; review also gives them the right to comment on the one artifactVersionId, until the request expires."
+        },
+        "artifactVersionId": {
+          "description": "The artifact version of this run to review. Required for review and refused for fyi.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "note": {
+          "description": "Optional one line shown to the people tagged. PeopleTagInput.note must contain at most 280 characters.",
+          "type": "string",
+          "maxLength": 280
+        },
+        "wait": {
+          "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "intent"
+      ],
+      "additionalProperties": false,
+      "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
+    },
     "IntegrationEffectQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -323660,7 +324305,7 @@
           "description": "Question put to the approver, shown in the inbox and on the approval page. Plain text: the decision is typed, never inferred from this text. HumanApprovalInput.prompt must contain at least 1 characters. HumanApprovalInput.prompt must contain at most 2000 characters."
         },
         "audience": {
-          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
+          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver, or, for a workflow with no owner such as a built-in one, the person who started the run; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -323970,6 +324615,7 @@
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -332621,6 +333267,43 @@
       ],
       "additionalProperties": false,
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
+    },
+    "SkillUseGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+        },
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow that may use the skill again."
+        },
+        "skillVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The exact version of the skill the step names; the grant covers this version only."
+        },
+        "stepPath": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+        }
+      },
+      "required": [
+        "id",
+        "workflowId",
+        "skillVersionId",
+        "stepPath"
+      ],
+      "additionalProperties": false,
+      "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
     },
     "SkillActiveVersionSet": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -359313,6 +359996,7 @@
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -360029,6 +360713,7 @@
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -360745,6 +361430,7 @@
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -407272,6 +407958,7 @@
                   "skillDraftFiles.get",
                   "skillDraftFiles.delete",
                   "skills.useGrants.list",
+                  "skills.useGrants.create",
                   "skills.useGrants.delete",
                   "skillVersions.list",
                   "skillVersions.get",
@@ -429522,6 +430209,7 @@
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -429686,6 +430374,7 @@
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -429903,6 +430592,7 @@
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -430179,6 +430869,7 @@
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -498539,7 +499230,11 @@
           "type": "string",
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
           ],
           "description": "Stable preset identifier accepted by runs.create presetId."
         },
@@ -498667,6 +499362,45 @@
             }
           ],
           "description": "WorkflowPreset.availability may be null in this transport value."
+        },
+        "definition": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
         }
       },
       "required": [
@@ -498676,10 +499410,124 @@
         "nameKey",
         "steps",
         "defaultBudgetLimitUsd",
-        "availability"
+        "availability",
+        "definition"
       ],
       "additionalProperties": false,
-      "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
+      "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "Page<WorkflowPreset>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -498695,7 +499543,11 @@
                 "type": "string",
                 "enum": [
                   "fixed-coding",
-                  "fixed-coding-reviewed"
+                  "fixed-coding-reviewed",
+                  "deliver-oneshot",
+                  "deliver-lean",
+                  "deliver-full",
+                  "deliver-prd"
                 ],
                 "description": "Stable preset identifier accepted by runs.create presetId."
               },
@@ -498823,6 +499675,45 @@
                   }
                 ],
                 "description": "WorkflowPreset.availability may be null in this transport value."
+              },
+              "definition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
               }
             },
             "required": [
@@ -498832,7 +499723,8 @@
               "nameKey",
               "steps",
               "defaultBudgetLimitUsd",
-              "availability"
+              "availability",
+              "definition"
             ],
             "additionalProperties": false,
             "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
@@ -498889,7 +499781,120 @@
         "nextCursor"
       ],
       "additionalProperties": false,
-      "description": "Cursor page of WorkflowPreset."
+      "description": "Cursor page of WorkflowPreset.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "OutputTranscriptSegment": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -519995,6 +521000,11 @@
           "maximum": 9007199254740991,
           "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
         },
+        "revisionDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+        },
         "workflowId": {
           "type": "string",
           "format": "uuid",
@@ -520035,6 +521045,7 @@
         "skillId",
         "skillVersionId",
         "revision",
+        "revisionDigest",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -521014,6 +522025,11 @@
                 "maximum": 9007199254740991,
                 "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
               },
+              "revisionDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+              },
               "workflowId": {
                 "type": "string",
                 "format": "uuid",
@@ -521054,6 +522070,7 @@
               "skillId",
               "skillVersionId",
               "revision",
+              "revisionDigest",
               "workflowId",
               "workflowName",
               "stepPath",
@@ -539238,6 +540255,39 @@
       ],
       "additionalProperties": false,
       "description": "SplitOutput is the pinned worker action output contract."
+    },
+    "PeopleTagOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "sent",
+            "responded",
+            "expired"
+          ],
+          "description": "How the step ended: sent when it carried on once the tag was sent, responded when someone tagged responded, expired when every request expired or was withdrawn with no response."
+        },
+        "asked": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "description": "How many people the tag asked, one request each. How many people the tag asked, one request each. PeopleTagOutput.asked must be at least 1. PeopleTagOutput.asked must be at most 50."
+        },
+        "respondedBy": {
+          "description": "PeopleTagOutput.respondedBy output may be omitted by adapters that do not expose it.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "outcome",
+        "asked"
+      ],
+      "additionalProperties": false,
+      "description": "PeopleTagOutput is the pinned worker action output contract."
     },
     "WorkflowStopOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
