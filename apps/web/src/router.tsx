@@ -2648,35 +2648,12 @@ const notificationsRoute = createRoute({
           revision={r ?? null}
           onLand={(destination) => {
             const { route, search } = destination;
-            if (route.to === "/shared/documents/$artifactId") {
-              void landNavigate({
-                to: route.to,
-                params: route.params,
-                search,
-                replace: true,
-              });
-            } else if (route.to === "/shared/conversations/$conversationId") {
-              void landNavigate({
-                to: route.to,
-                params: route.params,
-                search,
-                replace: true,
-              });
-            } else if (route.to === "/tasks/$taskId") {
-              void landNavigate({
-                to: route.to,
-                params: route.params,
-                search,
-                replace: true,
-              });
-            } else {
-              void landNavigate({
-                to: route.to,
-                params: route.params,
-                search,
-                replace: true,
-              });
-            }
+            void landNavigate({
+              to: route.to,
+              params: route.params,
+              search,
+              replace: true,
+            });
           }}
           onBack={() =>
             void navigate({

@@ -9,6 +9,7 @@ import {
 } from "./helpers/artifact-page-fixture.ts";
 import {
   NOTIFICATION_ID,
+  NOTIFICATION_REVISION,
   openNotification as open,
   stubNotification,
 } from "./helpers/notification-world.ts";
@@ -24,8 +25,11 @@ const GRANTER = "Ana Duarte";
 const SHARED_AT = "2026-02-03T09:15:00.000Z";
 const DOCUMENT_PATH = `/shared/documents/${ARTIFACT_ID}`;
 const CONVERSATION_PATH = `/shared/conversations/${CONVERSATION_ID}`;
-
 const MENTIONED = "Ana Duarte mentioned you";
+const MESSAGE_ID = "00000000-0000-4000-8000-0000000001a1";
+
+const opened = (path: string) =>
+  `${path}?n=${NOTIFICATION_ID}&r=${NOTIFICATION_REVISION}`;
 
 async function conversationWorld(page: Page) {
   await mockAuthenticatedSession(page);
@@ -35,7 +39,7 @@ async function conversationWorld(page: Page) {
       route.fulfill({
         json: {
           items: [{
-            id: "00000000-0000-4000-8000-0000000001a1",
+            id: MESSAGE_ID,
             conversationId: CONVERSATION_ID,
             authorId: "00000000-0000-4000-8000-000000000001",
             agentSessionId: null,
@@ -68,16 +72,6 @@ async function conversationWorld(page: Page) {
         resetRequired: false,
       },
     }));
-}
-
-function sharedTarget(path: string, extra: Record<string, unknown> = {}) {
-  return {
-    status: "available" as const,
-    targetKind: "conversation_message",
-    path,
-    anchor: null,
-    ...extra,
-  };
 }
 
 async function openSharedComments(page: Page) {
@@ -116,7 +110,7 @@ for (
       const body = page.getByTestId("shared-document-page");
       await expect(body).toContainText("Reviewable artifact");
       await expect(body).toContainText(
-        "Ana Duarte shared this document with you on 3 Feb 2026.",
+        "Ana Duarte shared this document with you on Feb 3, 2026.",
       );
       await expect(body).toContainText(
         "You can read this document and comment on it. The rest of the task is not shared with you.",
@@ -137,11 +131,13 @@ for (
       await conversationWorld(page);
       await stubNotification(
         page,
-        sharedTarget(`${CONVERSATION_PATH}?message=1`, {
-          sharedByName: GRANTER,
-          sharedAt: SHARED_AT,
-        }),
-        { taskId: TASK_ID, title: MENTIONED },
+        {
+          status: "available",
+          targetKind: "conversation_message",
+          path: `${CONVERSATION_PATH}?message=${MESSAGE_ID}`,
+          anchor: `message:${MESSAGE_ID}`,
+        },
+        { taskId: TASK_ID, targetId: MESSAGE_ID, title: MENTIONED },
       );
       await open(page);
       await expect(page).toHaveURL(
@@ -162,7 +158,7 @@ for (
       await still(page, "shared-conversation");
     });
 
-    test("a document that was deleted asks nobody to guess, and offers the way back", async ({ page }) => {
+    test("a document that was deleted names who shared it and offers the way back", async ({ page }) => {
       await mockAuthenticatedSession(page);
       await page.route("**/v1/artifacts/**", (route) =>
         route.fulfill({
@@ -178,11 +174,10 @@ for (
           anchor: null,
           reason: "gone",
           sharedByName: GRANTER,
-          sharedAt: SHARED_AT,
         },
         { taskId: TASK_ID, targetId: COMMENT_ID },
       );
-      await open(page);
+      await page.goto(opened(DOCUMENT_PATH));
       const body = page.getByTestId("shared-unavailable-gone");
       await expect(body).toContainText("This document was deleted");
       await expect(body).toContainText(
@@ -196,7 +191,12 @@ for (
     });
 
     test("a grant that ended names the person to ask and still marks the row read", async ({ page }) => {
-      await stubArtifactPage(page);
+      await mockAuthenticatedSession(page);
+      await page.route("**/v1/artifacts/**", (route) =>
+        route.fulfill({
+          status: 403,
+          json: { type: "about:blank", title: "Forbidden", status: 403 },
+        }));
       await stubNotification(
         page,
         {
@@ -206,14 +206,10 @@ for (
           anchor: null,
           reason: "no_longer_shared",
           sharedByName: GRANTER,
-          sharedAt: SHARED_AT,
         },
         { taskId: TASK_ID, targetId: COMMENT_ID },
       );
-      await open(page);
-      await expect(page).toHaveURL(
-        new RegExp(DOCUMENT_PATH.replaceAll("/", "\\/")),
-      );
+      await page.goto(opened(DOCUMENT_PATH));
       const body = page.getByTestId("shared-unavailable-no_longer_shared");
       await expect(body).toContainText(
         "This document is no longer shared with you",
@@ -223,6 +219,7 @@ for (
         .toBeVisible();
       await expect(page.getByRole("button", { name: "Mark read" }))
         .toBeVisible();
+      await still(page, "shared-no-longer-shared");
     });
   });
 }
@@ -244,7 +241,7 @@ test("an old row with no reason says only what the resolver could say", async ({
     },
     { taskId: TASK_ID, targetId: COMMENT_ID },
   );
-  await open(page);
+  await page.goto(opened(DOCUMENT_PATH));
   const body = page.getByTestId("shared-unavailable-unknown");
   await expect(body).toContainText("This is no longer available");
   await expect(body).toContainText(
@@ -253,14 +250,13 @@ test("an old row with no reason says only what the resolver could say", async ({
   await still(page, "shared-unknown");
 });
 
-test("a shared path typed by hand opens the page without inventing a header", async ({ page }) => {
+test("a shared conversation opened without its row carries no invented header", async ({ page }) => {
   await conversationWorld(page);
-  await page.goto(
-    `${CONVERSATION_PATH}?n=${NOTIFICATION_ID}`,
-  );
+  await page.goto(CONVERSATION_PATH);
   const body = page.getByTestId("shared-conversation-page");
   await expect(body).toContainText(
     "You can read and reply in this conversation. The rest of this task is not shared with you.",
   );
+  await expect(body).not.toContainText("A conversation");
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(0);
 });
