@@ -931,6 +931,58 @@ test("a refusal for lack of permission says who to ask and keeps the dialog", as
   await expect(dialog).toBeVisible();
 });
 
+test("a retry after no answer sends the same idempotency key", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, STOPPED);
+  const keys: (string | undefined)[] = [];
+  let calls = 0;
+  await page.route(`**/v1/runs/${runId}/repair-allowances`, (route) => {
+    keys.push(route.request().headers()["idempotency-key"]);
+    calls += 1;
+    if (calls === 1) {
+      return route.fulfill({
+        status: 500,
+        contentType: "application/problem+json",
+        json: problemBody(500, "INTERNAL_ERROR"),
+      });
+    }
+    return route.fulfill({
+      json: decisionRow(3, "repair", "repair_selected", NEW),
+    });
+  });
+  await page.goto(`/tasks/${id}`);
+  await button(nowCard(page), "Give Bakery more tries").click();
+  const dialog = page.getByRole("dialog", { name: "Give Bakery more tries?" });
+  await dialog.getByRole("button", { name: "Give more tries" }).click();
+  await expect(dialog.getByTestId("delivery-more-tries-notice")).toContainText(
+    "Bakery did not answer.",
+  );
+  await dialog.getByRole("button", { name: "Give more tries" }).click();
+  await expect(dialog).toBeHidden();
+  expect(keys).toHaveLength(2);
+  expect(keys[1]).toBe(keys[0]);
+});
+
+test("a run no longer stopped says so and offers only Close", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, STOPPED);
+  await mockMoreTries(page, {
+    status: 409,
+    reason: "run_not_stopped_by_limit",
+  });
+  await page.goto(`/tasks/${id}`);
+  await button(nowCard(page), "Give Bakery more tries").click();
+  const dialog = page.getByRole("dialog", { name: "Give Bakery more tries?" });
+  await dialog.getByRole("button", { name: "Give more tries" }).click();
+  await expect(dialog.getByTestId("delivery-more-tries-notice")).toContainText(
+    "This run is no longer waiting for more tries.",
+  );
+  await expect(dialog.getByRole("button", { name: "Give more tries" }))
+    .toHaveCount(0);
+  await dialog.getByRole("button", { name: "Close" }).last().click();
+  await expect(dialog).toBeHidden();
+});
+
 test("when all 8 tries are used the card says so and offers no button for more", async ({ page }) => {
   await mockRun(page);
   await mockDelivery(page, ALL_USED);
