@@ -192,7 +192,9 @@ export async function resolveNotificationTarget(
     status: "available",
     targetKind,
     path: taskPath(row.taskId),
-    anchor: row.targetAnchor,
+    anchor: targetKind === "conversation_message"
+      ? `message:${row.targetId}`
+      : row.targetAnchor,
   };
 }
 

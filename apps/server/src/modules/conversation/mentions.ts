@@ -652,7 +652,7 @@ export async function commitMessageMentions(
       kind: "mention",
       targetKind: "conversation_message",
       targetId: input.messageId,
-      targetAnchor: input.messageSequence,
+      targetAnchor: `message:${input.messageId}`,
       conversationId,
       taskId,
       sourceEventId: input.sourceEventId,
