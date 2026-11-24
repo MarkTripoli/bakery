@@ -7106,5 +7106,6 @@
   "installation.backups.settings.service.replace.title": "⟦Ŕëþļàçë ŧĥë ƀàçķûþ šëŕṽïçë'š ķëÿ? ŧëšŧ çôþÿ⟧",
   "installation.backups.settings.service.replace.body": "⟦Ŧĥë ôļð ķëÿ šŧôþš ŵôŕķïñĝ àŧ ôñçë. Ɓàçķûþš šŧôþ ûñŧïļ ŧĥë ñëŵ ķëÿ ïš ôñ ŧĥë šëŕṽëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "installation.backups.settings.service.replace.cancel": "⟦Çàñçëļ…⟧",
-  "installation.backups.settings.service.replace.confirm": "⟦Ŕëþļàçë…⟧"
+  "installation.backups.settings.service.replace.confirm": "⟦Ŕëþļàçë…⟧",
+  "installation.backups.notice.protected.onlyAge": "⟦Ŧĥë ļàšŧ ƀàçķûþ ƒïñïšĥëð {ago}. ŧëšŧ çôþ⟧"
 }

@@ -2162,6 +2162,7 @@
   "installation.backups.notice.protected.title": "Protected",
   "installation.backups.notice.protected.offsite": "The last backup finished {ago} and a copy is off-site.",
   "installation.backups.notice.protected.hostOnly": "The last backup finished {ago}. It is kept on this server only.",
+  "installation.backups.notice.protected.onlyAge": "The last backup finished {ago}.",
   "installation.backups.notice.running.title": "Backing up now",
   "installation.backups.notice.running.percent": "{percent}% done.",
   "installation.backups.notice.running.started": "The backup service has started it.",

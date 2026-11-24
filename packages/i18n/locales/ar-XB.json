@@ -7106,5 +7106,6 @@
   "installation.backups.settings.service.replace.title": "⟪Replace the backup service's key?⟫",
   "installation.backups.settings.service.replace.body": "⟪The old key stops working at once. Backups stop until the new key is on the server.⟫",
   "installation.backups.settings.service.replace.cancel": "⟪Cancel⟫",
-  "installation.backups.settings.service.replace.confirm": "⟪Replace⟫"
+  "installation.backups.settings.service.replace.confirm": "⟪Replace⟫",
+  "installation.backups.notice.protected.onlyAge": "⟪The last backup finished {ago}.⟫"
 }

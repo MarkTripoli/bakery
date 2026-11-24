@@ -119,6 +119,8 @@ type Options = {
   drills?: ReturnType<typeof drill>[];
   scheduleEnabled?: boolean;
   offsiteConfigured?: boolean;
+  /** The off-site read fails, so the page knows nothing about the copy. */
+  offsiteFails?: boolean;
   pitrEnabled?: boolean;
   restoreHeld?: boolean;
   statusCode?: number;
@@ -250,8 +252,11 @@ async function fixture(page: Page, options: Options = {}) {
   );
   await page.route(
     (url) => url.pathname === "/v1/installation/backup-offsite",
-    (route) =>
-      route.fulfill(json({
+    (route) => {
+      if (options.offsiteFails === true) {
+        return route.fulfill(problem(503, "DEPENDENCY_UNAVAILABLE"));
+      }
+      return route.fulfill(json({
         configured: options.offsiteConfigured ?? true,
         endpoint: "https://s3.example.com",
         region: "eu-west-1",
@@ -261,7 +266,8 @@ async function fixture(page: Page, options: Options = {}) {
         credentialRevision: 1,
         updatedAt: hoursAgo(100),
         version: 1,
-      })),
+      }));
+    },
   );
   await page.route(
     (url) => url.pathname === "/v1/installation/backup-point-in-time",
@@ -416,6 +422,18 @@ for (
       await accessible(page);
       await page.mouse.move(5, 5);
       await still(page, "backups-protected");
+    });
+
+    test("an off-site read that fails claims no copy in either direction", async ({ page }) => {
+      await fixture(page, { offsiteFails: true });
+      await page.goto("/installation/backups");
+      const notice = page.locator("[data-notice='protected']");
+      await expect.poll(() => said(notice)).toContain(
+        "The last backup finished 3 hours ago.",
+      );
+      await expect.poll(() => said(notice)).not.toContain("a copy is off-site");
+      await expect.poll(() => said(notice))
+        .not.toContain("kept on this server only");
     });
 
     test("failed: the cause, the fix and the service's own answer", async ({ page }) => {

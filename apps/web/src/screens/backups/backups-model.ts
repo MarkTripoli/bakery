@@ -225,9 +225,11 @@ export function backupNotice(input: NoticeInput): Notice {
       tone: "success",
       title: { key: "installation.backups.notice.protected.title", values: {} },
       lines: [{
-        key: input.offsiteConfigured === false
+        key: input.offsiteConfigured === true
+          ? "installation.backups.notice.protected.offsite"
+          : input.offsiteConfigured === false
           ? "installation.backups.notice.protected.hostOnly"
-          : "installation.backups.notice.protected.offsite",
+          : "installation.backups.notice.protected.onlyAge",
         values: { ago: spanSince(lastGood, nowMs) },
       }],
       holdingWork,
