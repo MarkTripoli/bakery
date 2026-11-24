@@ -200,15 +200,6 @@ for (
       await still(page, "delivery-range-reversed");
     });
 
-    test("a line the server never versioned keeps the version out of the rule", async ({ page }) => {
-      await deliveryFixture(page, { revision: null });
-      await page.goto("/delivery");
-      const records = page.getByTestId("delivery-records");
-      await expect(records.getByText(/Counted by when each was merged/))
-        .toBeVisible();
-      await expect(records.getByText(/Definitions, version/)).toHaveCount(0);
-    });
-
     test("every metrics read is made for the page's organization", async ({ page }) => {
       const seen = await deliveryFixture(page);
       await page.goto("/delivery");

@@ -13,6 +13,7 @@ import {
   missingKey,
   openFigure,
   recordRow,
+  ruleKey,
   SHOW_METRIC,
   withSomethingMissing,
 } from "../../apps/web/src/screens/delivery/delivery-display.ts";
@@ -289,4 +290,17 @@ Deno.test("no tasks delivered means no lead-time summary, never a bar of zeros",
     null,
   );
   assertEquals(leadTimeOf(taskSeries([], [0, 2]))!.point, "run");
+});
+
+Deno.test("the rule line names the definitions version only when one is served", () => {
+  assertEquals(ruleKey("merged", "3"), "delivery.records.rule.merged");
+  assertEquals(ruleKey("tasks", "3"), "delivery.records.rule.tasks");
+  assertEquals(
+    ruleKey("merged", null),
+    "delivery.records.rule.merged.noVersion",
+  );
+  assertEquals(
+    ruleKey("closed", null),
+    "delivery.records.rule.closed.noVersion",
+  );
 });

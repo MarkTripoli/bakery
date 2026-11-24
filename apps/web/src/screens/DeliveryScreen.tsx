@@ -9,6 +9,7 @@ import {
   type Freshness,
   type LeadTime,
   type RecordRow,
+  ruleKey,
   type TimePartId,
 } from "./delivery/delivery-display.ts";
 import {
@@ -117,20 +118,6 @@ const FIGURES = [
     help: "delivery.figure.closed.help",
   },
 ] as const;
-
-const RULE_KEYS = {
-  merged: "delivery.records.rule.merged",
-  tasks: "delivery.records.rule.tasks",
-  open: "delivery.records.rule.open",
-  closed: "delivery.records.rule.closed",
-} as const satisfies Record<DeliveryShow, string>;
-
-const RULE_KEYS_NO_VERSION = {
-  merged: "delivery.records.rule.merged.noVersion",
-  tasks: "delivery.records.rule.tasks.noVersion",
-  open: "delivery.records.rule.open.noVersion",
-  closed: "delivery.records.rule.closed.noVersion",
-} as const satisfies Record<DeliveryShow, string>;
 
 /** A chosen figure sends the reader to the rows it counted. */
 function showRecordsHeading() {
@@ -966,8 +953,8 @@ function RecordsSection(
         )}
       <UI.Text variant="muted">
         {version === null
-          ? translate(RULE_KEYS_NO_VERSION[shown], { zone: timeZone })
-          : translate(RULE_KEYS[shown], { zone: timeZone, version })}
+          ? translate(ruleKey(shown, null), { zone: timeZone })
+          : translate(ruleKey(shown, version), { zone: timeZone, version })}
       </UI.Text>
     </UI.Stack>
   );

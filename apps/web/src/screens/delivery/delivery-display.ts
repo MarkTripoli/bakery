@@ -6,6 +6,7 @@
  * can be tested without a browser. They return catalogue keys and plain data,
  * never sentences: the screen owns the words.
  */
+import type { MessageKey } from "@bakery/i18n";
 import type {
   MetricSeries,
   MetricSource,
@@ -380,4 +381,27 @@ export function leadTimeOf(series: MetricSeries | undefined): LeadTime | null {
     runCount: runs,
     leftOut: series?.missingCount ?? 0,
   };
+}
+
+const RULE_KEYS = {
+  merged: "delivery.records.rule.merged",
+  tasks: "delivery.records.rule.tasks",
+  open: "delivery.records.rule.open",
+  closed: "delivery.records.rule.closed",
+} as const satisfies Record<DeliveryShow, MessageKey>;
+
+const RULE_KEYS_NO_VERSION = {
+  merged: "delivery.records.rule.merged.noVersion",
+  tasks: "delivery.records.rule.tasks.noVersion",
+  open: "delivery.records.rule.open.noVersion",
+  closed: "delivery.records.rule.closed.noVersion",
+} as const satisfies Record<DeliveryShow, MessageKey>;
+
+/** The line under the records, with the definitions version only when served. */
+export function ruleKey(
+  show: DeliveryShow,
+  version: string | null,
+): MessageKey {
+  const keys = version === null ? RULE_KEYS_NO_VERSION : RULE_KEYS;
+  return keys[show];
 }
