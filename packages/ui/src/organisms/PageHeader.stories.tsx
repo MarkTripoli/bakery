@@ -23,6 +23,23 @@ const BaseContract: StoryObj = {
   ),
 };
 
+const RowActionsStory: StoryObj = {
+  render: () => (
+    <PageHeader
+      actions={
+        <>
+          <Button variant="secondary">View as code</Button>
+          <Button variant="primary">Publish</Button>
+        </>
+      }
+      actionsLayout="row"
+      subtitle={<p>Version 3 is in use.</p>}
+      title="Release train"
+      variant="list"
+    />
+  ),
+};
+
 const SplitStory: StoryObj = {
   render: () => (
     <PageHeader
@@ -38,6 +55,7 @@ export const Contract: StoryObj = {
   render: (args, context) => (
     <>
       {BaseContract.render?.(args, context)}
+      {RowActionsStory.render?.(args, context)}
       {SplitStory.render?.(args, context)}
     </>
   ),
