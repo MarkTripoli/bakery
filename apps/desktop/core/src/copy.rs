@@ -36,6 +36,9 @@ pub enum ButtonId {
     CopyLink,
     /// A link dialog's Close or Cancel.
     Close,
+    RestartToUpdate,
+    CheckForUpdates,
+    ShowUpdateInFolder,
     /// "Try again" in the dialog for a page the server would not give.
     TryPageAgain,
     /// "Open in your browser" in the another-server dialog.
@@ -156,6 +159,7 @@ pub struct Context<'a> {
     pub last_tried: Option<&'a str>,
     /// This computer's name, as the server lists the app's sign-in.
     pub computer: Option<&'a str>,
+    pub update: Option<&'a crate::update::State>,
 }
 
 fn button(id: ButtonId, label: &str, primary: bool) -> Button {
@@ -204,6 +208,40 @@ fn panel(heading: &str, text: Option<&str>, detail: Detail, buttons: Vec<Button>
 
 /// The panel for a window, or `None` for the app itself, which is the web app's own pages.
 pub fn panel_for(window: &Window, ctx: &Context) -> Option<Panel> {
+    use crate::update::{self, Action, State};
+    let mut panel = base_panel_for(window, ctx)?;
+    let Some(state) = ctx.update else {
+        return Some(panel);
+    };
+    match window {
+        Window::Incompatible {
+            mismatch: Mismatch::AppOlder,
+            ..
+        } => {
+            panel.notice = update::panel_line(state);
+            if let Some(action) = update::app_older_action(state) {
+                let (id, label) = match action {
+                    Action::RestartToUpdate => (ButtonId::RestartToUpdate, "Restart to update"),
+                    Action::ShowUpdateInFolder => (ButtonId::ShowUpdateInFolder, "Show in folder"),
+                    Action::CheckForUpdates => (ButtonId::CheckForUpdates, "Check for updates"),
+                };
+                for existing in &mut panel.buttons {
+                    existing.primary = false;
+                }
+                panel.buttons.insert(0, button(id, label, true));
+            }
+        }
+        Window::Incompatible { .. } => {}
+        _ => {
+            if panel.notice.is_none() && !matches!(state, State::NoFeed { .. }) {
+                panel.notice = update::panel_line(state);
+            }
+        }
+    }
+    Some(panel)
+}
+
+fn base_panel_for(window: &Window, ctx: &Context) -> Option<Panel> {
     let sign_in = || Panel {
         notice: notice_text(ctx),
         ..panel(
@@ -487,6 +525,9 @@ pub fn press(button: ButtonId) -> Press {
         | ButtonId::StartBakeryHelp
         | ButtonId::CopyLink
         | ButtonId::Close
+        | ButtonId::RestartToUpdate
+        | ButtonId::CheckForUpdates
+        | ButtonId::ShowUpdateInFolder
         | ButtonId::TryPageAgain
         | ButtonId::OpenLinkInBrowser => Press::Shell(button),
     }
@@ -509,7 +550,136 @@ mod tests {
             identity: None,
             last_tried: None,
             computer: Some("Ana's laptop"),
+            update: None,
         }
+    }
+
+    fn older_app() -> Window {
+        Window::Incompatible {
+            mismatch: Mismatch::AppOlder,
+            address: SERVER.into(),
+        }
+    }
+
+    fn labels(panel: &Panel) -> Vec<(&str, bool)> {
+        panel
+            .buttons
+            .iter()
+            .map(|b| (b.label.as_str(), b.primary))
+            .collect()
+    }
+
+    #[test]
+    fn the_older_app_panel_offers_the_update_first_and_keeps_its_other_two_buttons() {
+        use crate::update::State;
+        let with = |state: &State| {
+            let mut c = ctx();
+            c.update = Some(state);
+            panel_for(&older_app(), &c).unwrap()
+        };
+        let plain = panel_for(&older_app(), &ctx()).unwrap();
+        assert_eq!(
+            labels(&plain),
+            [
+                ("Choose a different server", true),
+                ("Use it anyway", false)
+            ]
+        );
+        assert_eq!(plain.notice, None);
+        let ready = with(&State::Ready {
+            version: "1.4.0".into(),
+            package: false,
+            folder: None,
+        });
+        assert_eq!(
+            ready.notice.as_deref(),
+            Some("Bakery 1.4.0 is ready. Restarting takes a few seconds.")
+        );
+        assert_eq!(
+            labels(&ready),
+            [
+                ("Restart to update", true),
+                ("Choose a different server", false),
+                ("Use it anyway", false)
+            ]
+        );
+        let going = with(&State::Downloading {
+            version: "1.4.0".into(),
+            percent: Some(40),
+        });
+        assert_eq!(
+            going.notice.as_deref(),
+            Some("Downloading Bakery 1.4.0… 40%")
+        );
+        assert_eq!(
+            labels(&going),
+            [
+                ("Choose a different server", true),
+                ("Use it anyway", false)
+            ]
+        );
+        let none = with(&State::UpToDate { checked: 0 });
+        assert_eq!(none.notice, None);
+        assert_eq!(labels(&none)[0], ("Check for updates", true));
+        let failed = with(&State::Failed { tried: 0 });
+        assert_eq!(labels(&failed)[0], ("Check for updates", true));
+        let no_feed = with(&State::NoFeed { checked: 0 });
+        assert_eq!(no_feed.notice.as_deref(), Some("This server does not offer app updates. Ask whoever runs it how to get the new version."));
+        assert_eq!(
+            labels(&no_feed),
+            [
+                ("Choose a different server", true),
+                ("Use it anyway", false)
+            ]
+        );
+        let package = with(&State::Ready {
+            version: "1.4.0".into(),
+            package: true,
+            folder: Some("Downloads".into()),
+        });
+        assert_eq!(labels(&package)[0], ("Show in folder", true));
+        let mut c = ctx();
+        let ready = State::Ready {
+            version: "1.4.0".into(),
+            package: false,
+            folder: None,
+        };
+        c.update = Some(&ready);
+        let server_older = Window::Incompatible {
+            mismatch: Mismatch::ServerOlder,
+            address: SERVER.into(),
+        };
+        assert_eq!(
+            panel_for(&server_older, &c),
+            panel_for(&server_older, &ctx())
+        );
+    }
+
+    #[test]
+    fn another_panel_carries_the_update_line_only_when_it_has_no_other_notice() {
+        use crate::update::State;
+        let ready = State::Ready {
+            version: "1.4.0".into(),
+            package: false,
+            folder: None,
+        };
+        let mut c = ctx();
+        c.update = Some(&ready);
+        let sign_in = panel_for(&Window::SignIn, &c).unwrap();
+        assert_eq!(
+            sign_in.notice.as_deref(),
+            Some("Bakery 1.4.0 is ready. Restarting takes a few seconds.")
+        );
+        let switched = crate::session::Notice::SignInForLink;
+        c.notice = Some(&switched);
+        assert_eq!(
+            panel_for(&Window::SignIn, &c).unwrap().notice.as_deref(),
+            Some("Sign in to open the page from your link.")
+        );
+        let none = State::NoFeed { checked: 0 };
+        let mut c = ctx();
+        c.update = Some(&none);
+        assert_eq!(panel_for(&Window::SignIn, &c).unwrap().notice, None);
     }
 
     fn chooser(selected: ServerChoice, problem: Option<ChooserProblem>) -> Chooser {
