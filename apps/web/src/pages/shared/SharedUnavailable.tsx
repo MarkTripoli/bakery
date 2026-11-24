@@ -62,7 +62,9 @@ export function SharedUnavailable(
       }.title` as never,
     );
   const description = reason === "gone"
-    ? translate("shared.unavailable.gone.body" as never)
+    ? granter === null
+      ? translate("shared.unavailable.gone.bodyAnon" as never)
+      : translate("shared.unavailable.gone.body" as never, { name: granter })
     : reason === "no_longer_shared"
     ? granter === null
       ? translate("shared.unavailable.noLongerShared.bodyAnon" as never)

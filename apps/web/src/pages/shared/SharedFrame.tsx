@@ -4,7 +4,7 @@ import { ShellActiveNavigation } from "../../shell/shell-slots.tsx";
 
 export function SharedFrame(
   { title, notice, testId, children }: {
-    title: ReactNode;
+    title: ReactNode | null;
     notice: ReactNode;
     testId: string;
     children: ReactNode;
@@ -14,7 +14,9 @@ export function SharedFrame(
     <>
       <ShellActiveNavigation id="work" />
       <UI.Stack gap="spacious" data-testid={testId}>
-        <UI.PageHeader variant="list" flush title={title} />
+        {title === null
+          ? null
+          : <UI.PageHeader variant="list" flush title={title} />}
         <UI.InlineNotice tone="information">{notice}</UI.InlineNotice>
         {children}
       </UI.Stack>
