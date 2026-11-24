@@ -1507,6 +1507,19 @@ Deno.test("issue 82 unit readiness: repository and preset readiness", async () =
   assertEquals(preset.verdict, "waiting");
 });
 
+Deno.test("issue 407 unit readiness: a source with no workflow is judged ready, reports no pin and leaves the workflow check out", async () => {
+  const none = await evaluate(readyInput({ preset: null }));
+  assertEquals(none.verdict, "ready");
+  assertEquals(none.preset, null);
+  assertEquals(none.checks.some((check) => check.id === "preset_ready"), false);
+  const pinned = await evaluate(readyInput());
+  assertEquals(
+    pinned.checks.some((check) => check.id === "preset_ready"),
+    true,
+  );
+  assert(none.basisDigest !== pinned.basisDigest);
+});
+
 Deno.test("issue 82 unit readiness: authority_live for a manual caller", async () => {
   const live = await evaluate(readyInput());
   assertEquals(outcome(live, "authority_live"), ["pass", "ok"]);

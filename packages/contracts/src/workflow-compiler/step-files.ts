@@ -68,6 +68,15 @@ export const WorkflowFileWriteAreaSchema = z.enum(WORKFLOW_FILE_WRITE_AREAS)
     "One area a step's agent may write: its declared outputs, its workspace, its own run folder under the work item, the work item's attachments, or the project's assets and workspaces.",
   );
 
+export const MAX_STEP_BOUND_CONNECTIONS = 16;
+
+const BOUND_CONNECTION_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export function isBoundConnectionId(value: unknown): value is string {
+  return typeof value === "string" && BOUND_CONNECTION_ID.test(value);
+}
+
 export const WorkflowStepFilesSchema = z.object({
   read: z.array(WorkflowFileReadAreaSchema).max(
     WORKFLOW_FILE_READ_AREAS.length,
@@ -78,6 +87,13 @@ export const WorkflowStepFilesSchema = z.object({
     WORKFLOW_FILE_WRITE_AREAS.length,
   ).describe(
     "Areas the step may write, in canonical order and without repeats; [outputs] alone stops side-writes. /shared and personal folders are never named here: they need a person's grant.",
+  ),
+  connections: z.array(
+    z.string().regex(BOUND_CONNECTION_ID).describe(
+      "Id of one storage connection of the organization, in lower case.",
+    ),
+  ).min(1).max(MAX_STEP_BOUND_CONNECTIONS).optional().describe(
+    "Storage connections the step binds (O44), sorted and without repeats: its agent reads /connections/<connection> for exactly these, and read must name connections. Absent, the step's agent reads no connection without a person's grant. Each must exist in the organization and be readable by the person who starts the run.",
   ),
 }).strict().describe(
   "A step's files section: the storage areas its agent may read and write. Absent means the O44 read and O45 write defaults; a definition can narrow them but never widen them.",
@@ -143,6 +159,18 @@ export function sealedByDefault(action: string): boolean {
   return Object.hasOwn(WORKFLOW_ACTION_METADATA, action) &&
     WORKFLOW_ACTION_METADATA[action as keyof typeof WORKFLOW_ACTION_METADATA]
         .effectPolicy === "evaluation_write";
+}
+
+export function boundStepConnections(
+  files:
+    | Readonly<{
+      read: readonly WorkflowFileReadArea[];
+      connections?: readonly string[];
+    }>
+    | undefined,
+): readonly string[] {
+  if (files === undefined || !files.read.includes("connections")) return [];
+  return files.connections ?? [];
 }
 
 /** Whether a step reads only its pinned inputs (O53). */

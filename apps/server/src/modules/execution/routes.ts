@@ -1,4 +1,5 @@
 import { pluginBrokerRelayRoute } from "./plugin-broker-relay.ts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { pluginJobFilesRoute } from "./plugin-job-files.ts";
 import { type Context, Hono } from "hono";
 import type { EngineStepRunner } from "../workflow-adapter/engine-steps.ts";
@@ -125,6 +126,8 @@ export type ExecutionRoutesOptions = ExecutionRouteOptions & {
   ticketLabelWriter?: TicketLabelWriter;
   /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
   engineSteps?: EngineStepRunner;
+  storageLocalRoot?: string;
+  storageBlobStore?: OrganizationBlobStore;
   /** Validated artifact preview origin; absent fails previews closed. */
   artifactPreviewOrigin?: string;
   /** Artifact registry shared with the MCP catalog tools. */
@@ -238,6 +241,8 @@ export function createExecutionRoutes(
       ticketNoteWriter: options.ticketNoteWriter,
       ticketLabelWriter: options.ticketLabelWriter,
       engineSteps: options.engineSteps,
+      storageLocalRoot: options.storageLocalRoot,
+      storageBlobStore: options.storageBlobStore,
     });
     app.all("/api/inngest", inngest);
     app.all("/api/inngest/*", inngest);

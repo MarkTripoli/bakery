@@ -256,11 +256,12 @@ Deno.test("a limit decision resumes a run stopped at a repeat's allow, round by 
     }]);
     assertEquals((await state(fixture, seeded)).run.status, "queued");
 
-    const second = await repository.findNext(seeded.job.runId, await resume());
+    const afterFirst = await resume();
+    const second = await repository.findNext(seeded.job.runId, afterFirst);
     assertEquals(second?.stepKey, "loop@2.bump");
     await setRow(fixture, seeded, "loop@2.bump", "completed", { next: 2 });
     assertEquals(
-      await repository.findNext(seeded.job.runId, await resume()),
+      await repository.findNext(seeded.job.runId, afterFirst),
       undefined,
     );
     assertEquals((await state(fixture, seeded)).run.status, "failed");
@@ -271,13 +272,11 @@ Deno.test("a limit decision resumes a run stopped at a repeat's allow, round by 
 
     const last = await decide(5);
     assertEquals(last.addedTries, 1);
-    const third = await repository.findNext(seeded.job.runId, await resume());
+    const afterLast = await resume();
+    const third = await repository.findNext(seeded.job.runId, afterLast);
     assertEquals(third?.stepKey, "loop@3.bump");
     await setRow(fixture, seeded, "loop@3.bump", "completed", { next: 3 });
-    const report = await repository.findNext(
-      seeded.job.runId,
-      await resume(),
-    );
+    const report = await repository.findNext(seeded.job.runId, afterLast);
     assertEquals(report?.stepKey, "report");
     assertEquals(
       (await rows(fixture, seeded)).map((row) => row.stepKey),
