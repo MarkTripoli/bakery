@@ -37,8 +37,13 @@ import { isVisibleTo } from "./storage-areas.ts";
 import {
   agentDeclaredReadAreas,
   agentFileReadFor,
+  agentReadGrantedFolders,
 } from "./agent-file-guard.ts";
-import { agentRootKeys } from "./agent-file-scope.ts";
+import {
+  agentRootKeys,
+  boundConnectionsOf,
+  connectionMountKey,
+} from "./agent-file-scope.ts";
 import {
   hiddenEntryIds,
   hiddenFromReviewer,
@@ -280,8 +285,35 @@ export async function readStorageFileByVersion(
 ) {
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
-  const versionId = context.params.id;
-  if (!versionId || !UUID.test(versionId)) notFound();
+  const versionId = context.params.id ?? "";
+  const { file, revision, current } = await readableVersionFile(
+    context,
+    tx,
+    reader,
+    { organizationId, principalId, versionId },
+  );
+  const listedRow = await tx.query<ListedRow>(
+    LISTED_SELECT + " where e.organization_id = $1 and e.id = $2",
+    [organizationId, file.id],
+  );
+  return {
+    file: listed(listedRow.rows[0], file.path),
+    versionId,
+    revision,
+    isCurrent: current,
+  };
+}
+
+export async function readableVersionFile(
+  context: ActionContext,
+  tx: PgTransactionClient,
+  reader: StorageReader,
+  input: Readonly<
+    { organizationId: string; principalId: string; versionId: string }
+  >,
+) {
+  const { organizationId, principalId, versionId } = input;
+  if (!UUID.test(versionId)) notFound();
   const found = await tx.query<
     { entry_id: string; revision: number; current: boolean }
   >(
@@ -320,15 +352,10 @@ export async function readStorageFileByVersion(
   ) {
     hiddenFromReviewer();
   }
-  const listedRow = await tx.query<ListedRow>(
-    LISTED_SELECT + " where e.organization_id = $1 and e.id = $2",
-    [organizationId, file.id],
-  );
   return {
-    file: listed(listedRow.rows[0], file.path),
-    versionId,
+    file,
     revision: Number(hit.revision),
-    isCurrent: hit.current === true,
+    current: hit.current === true,
   };
 }
 
@@ -358,7 +385,11 @@ export async function listStorageRoots(
   // An agent sees only the top-level areas its step's files section reaches,
   // never its principal's personal folder, /trash or /system.
   const declared = agentDeclaredReadAreas(context);
-  const keys = declared === null ? everyKey : agentRootKeys(everyKey, declared);
+  const keys = declared === null ? everyKey : agentRootKeys(
+    everyKey,
+    declared,
+    boundConnectionsOf(context.sessionScopes),
+  );
   const found = await tx.query<ListedRow>(
     LISTED_SELECT +
       " where e.organization_id = $1 and e.system_key = any($2::text[])",
@@ -454,7 +485,24 @@ export function createFolderLister(secret: string) {
       organizationId,
       page.map((row) => row.id),
     );
-    const rows = page.filter((row) => !hidden.has(row.id));
+    const connectionsListing = context.agentSession !== undefined &&
+      folder.system_key === "connections";
+    const granted = connectionsListing
+      ? await agentReadGrantedFolders(tx, context, {
+        organizationId,
+        folderId: folder.id,
+        childIds: page.map((row) => row.id),
+      })
+      : null;
+    const bound = granted === null || granted.folder ? null : new Set(
+      boundConnectionsOf(context.sessionScopes).map(connectionMountKey),
+    );
+    const rows = page.filter((row) =>
+      !hidden.has(row.id) &&
+      (bound === null ||
+        (row.system_key !== null && bound.has(row.system_key)) ||
+        granted?.children.has(row.id) === true)
+    );
     // An agent's listing joins its step's read set (O46). A listing shows the
     // folder as it is now, so it is never pinned.
     const stepReader = await stepReaderOf(tx, context, organizationId);

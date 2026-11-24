@@ -8,6 +8,7 @@ import {
   type Page,
   type Route,
 } from "@playwright/test";
+import { canvasSettled } from "./canvas-settled.ts";
 
 /**
  * Helpers for the real-API browser journeys: a Deno child runs the real
@@ -173,6 +174,7 @@ export async function shot(
         }
       });
     }
+    await canvasSettled(page);
     await page.screenshot({
       path: join(evidenceDirectory, `${name}--${viewport}.png`),
       fullPage: !options.windowOnly,

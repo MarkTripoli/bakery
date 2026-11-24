@@ -74,6 +74,26 @@ four update files from this computer, and asks each build for them:
 
 The test keys exist only inside that run. The release key plays no part in it.
 
+## Check the app's accessibility
+
+These run the app in a virtual display with the accessibility bus on and read the window the way a
+screen reader's tools do. They need the image rebuilt from the current `apps/desktop/e2e/Dockerfile`
+(it carries the bus and its Python bindings). From `apps/desktop`:
+
+```sh
+bash e2e/run.sh a11y <output dir>              # every named state, at the normal window size
+ZOOM=2 bash e2e/run.sh a11y <output dir>       # the same with the page at 200% zoom
+bash e2e/run.sh motion <output dir>            # animations stop when the system asks for less motion
+E2E_WEB=1 bash e2e/e2e.sh                      # the whole run, with a server's own page in the window
+```
+
+`ZOOM` is a factor, not a percentage: `2` is 200%. `ZOOM=200` makes the page 200 times larger and the
+zoom check fails. `STATES` narrows the walk to some named states (a space-separated list). A line starting with
+`NOTE` is something the bus could not report on this machine; it is not a pass.
+
+Not proven by any of this: what a screen reader says aloud, Tab inside a server's own web content, and the
+macOS and Windows windows.
+
 ## What the owner does to turn signed updates on
 
 1. Make a key pair with `cargo tauri signer generate`, and keep the private half where only the owner
