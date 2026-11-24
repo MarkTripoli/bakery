@@ -81,36 +81,45 @@ export const Contract: StoryObj = {
           value="BAK-142"
         />.
       </Text>
-      <Text>The card, open on a commit that links outside Bakery:</Text>
-      <div style={{ minBlockSize: "200px" }}>
-        <Reference
-          defaultOpen
-          external
-          href={COMMIT_URL}
-          kind="commit"
-          labels={labels("Commit")}
-          value={SHA}
-        />
-      </div>
-      <Text>The card after Copy worked:</Text>
-      <div style={{ minBlockSize: "200px" }}>
-        <Reference
-          defaultCopy="copied"
-          defaultOpen
-          kind="release"
-          labels={labels("Release")}
-          value={SHA}
-        />
-      </div>
-      <Text>The card when the clipboard refuses:</Text>
-      <div style={{ minBlockSize: "220px" }}>
-        <Reference
-          defaultCopy="failed"
-          defaultOpen
-          kind="release"
-          labels={labels("Release")}
-          value={SHA}
-        />
+      <Text>
+        The open card, after Copy worked, and when the clipboard refuses:
+      </Text>
+      <div
+        style={{
+          display: "grid",
+          gap: "var(--space-4)",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(min(20rem, 100%), 1fr))",
+        }}
+      >
+        <div style={{ minBlockSize: "18rem", transform: "translateZ(0)" }}>
+          <Reference
+            defaultOpen
+            external
+            href={COMMIT_URL}
+            kind="commit"
+            labels={labels("Commit")}
+            value={SHA}
+          />
+        </div>
+        <div style={{ minBlockSize: "18rem", transform: "translateZ(0)" }}>
+          <Reference
+            defaultCopy="copied"
+            defaultOpen
+            kind="release"
+            labels={labels("Release")}
+            value={SHA}
+          />
+        </div>
+        <div style={{ minBlockSize: "18rem", transform: "translateZ(0)" }}>
+          <Reference
+            defaultCopy="failed"
+            defaultOpen
+            kind="release"
+            labels={labels("Release")}
+            value={SHA}
+          />
+        </div>
       </div>
       <Text>
         A full stop stays with the reference, here at the end of a sentence
@@ -126,7 +135,7 @@ export const Contract: StoryObj = {
       </Text>
       <div dir="rtl">
         <Text>
-          Right to left:{" "}
+          מזהה:{" "}
           <Reference
             external
             href={COMMIT_URL}
