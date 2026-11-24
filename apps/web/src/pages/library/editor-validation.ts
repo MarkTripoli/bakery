@@ -30,6 +30,33 @@ export const SKILL_PROBLEM_CODES: ReadonlySet<string> = new Set([
 /** The one sentence for a step whose skill needs a choice, whichever of the three reasons it is. */
 export const SKILL_PROBLEM_SENTENCE = "A skill on this step needs a choice.";
 
+export const UNBOUND_AGENT_CODE = "model_agent_unbound";
+
+export function withoutUnboundAgent(
+  problems: readonly ValidationProblem[],
+): readonly ValidationProblem[] {
+  return problems.filter((problem) => problem.code !== UNBOUND_AGENT_CODE);
+}
+
+export function unboundActionsOf(
+  problems: readonly ValidationProblem[],
+  definition: unknown,
+): ReadonlySet<string> {
+  const actions = new Set<string>();
+  for (const problem of problems) {
+    if (problem.code !== UNBOUND_AGENT_CODE) continue;
+    let node: unknown = definition;
+    for (const part of problem.path.split("/")) {
+      if (part === "") continue;
+      node = typeof node === "object" && node !== null
+        ? (node as Record<string, unknown>)[part]
+        : undefined;
+    }
+    if (typeof node === "string") actions.add(node);
+  }
+  return actions;
+}
+
 /** The step index a pointer names, or null when it names no single step. */
 export function stepIndexOf(path: string): number | null {
   // `/steps/2/uses`, `/steps/2`, and nothing else: a bare `/steps` is the list.
@@ -96,8 +123,6 @@ const SENTENCES: Readonly<Record<string, string>> = {
     "Bakery does not know this kind of step. Delete it and add a step from the list.",
   action_not_executable:
     "This kind of step cannot run yet. Delete it or put another step in its place.",
-  model_agent_unbound:
-    "This step has no agent to run it, and agents cannot be chosen on this page yet. Delete the step, or ask an administrator to set the workflow's agents.",
   step_id_duplicate:
     "This step's ID clashes with another step. Delete this step and add it again.",
   step_id_invalid:

@@ -103,6 +103,8 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "retry_exceeds_registry",
     "retry_fault_unsupported",
     "repeat_max_invalid",
+    "repeat_min_invalid",
+    "repeat_allow_invalid",
     "repeat_exceeds_policy",
     "for_each_max_invalid",
     "for_each_as_invalid",
@@ -249,6 +251,8 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
   retry_exceeds_registry: "The retry policy exceeds the registry limit.",
   retry_fault_unsupported: "A retry fault is not supported by the action.",
   repeat_max_invalid: "The repeat max is invalid.",
+  repeat_min_invalid: "The repeat min is invalid.",
+  repeat_allow_invalid: "The repeat allow is invalid.",
   repeat_exceeds_policy: "The repeat max exceeds the repair-cycle policy.",
   for_each_max_invalid: "The forEach max must be a whole number from 1 to 12.",
   for_each_as_invalid:

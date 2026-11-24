@@ -1,13 +1,74 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "8a95d02a85fc946cc0dd1154406ad4aba19ce763"
+    "70cec2976e8bc36acf3c7689b53db580f9aa02f2"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:7560c961d6622e357c358aa27011da2a0af772e08874479a991085b8e3358209",
-  "reason": "#407 batch workflow under the owner's standing breaking-change authorization (2026-10-09), main 8a95d02a85fc946cc0dd1154406ad4aba19ce763: BatchCreate.presetId becomes a required field (fixed-coding or fixed-coding-reviewed), because a batch start admitted every issue with no workflow and #407 made that a refusal; Batch gains presetId, null for a batch started before the workflow was stored. No other contract shape changed by this branch. The #34 plugin job version pin approval on main fc819c510e55999f77dd9ec034e279926afa03f0 stays below as history.",
+  "targetCompatibilityDigest": "sha256:ad90366696d375885a60f3c68ebeabbfb6dcbabb4635633f26bd9e04b3232882",
+  "reason": "#407 batch workflow under the owner's standing breaking-change authorization (2026-10-09), main 70cec2976e8bc36acf3c7689b53db580f9aa02f2: BatchCreate.presetId becomes a required field (fixed-coding or fixed-coding-reviewed), because a batch start admitted every issue with no workflow and #407 made that a refusal; Batch gains presetId, null for a batch started before the workflow was stored. No other contract shape changed by this branch. The #34 plugin job version pin approval on main fc819c510e55999f77dd9ec034e279926afa03f0 stays below as history.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "e57ba29807958878cbb854e7fca515dd0052c0ef"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5cfe619f3601d1696c8f0643474401b857405396750e3e4ed297c62a0e6e9b81",
+      "reason": "The approval bound to main e57ba29807958878cbb854e7fca515dd0052c0ef, displaced by the #407 batch workflow rebind to main 70cec2976e8bc36acf3c7689b53db580f9aa02f2. Kept as history."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8a95d02a85fc946cc0dd1154406ad4aba19ce763"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c1996b1fc81811d3ce7edbef9c5698b84f446d7720c11b44f292e22f89f5d97d",
+      "reason": "#429 Deliver templates by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 8a95d02a85fc946cc0dd1154406ad4aba19ce763: WorkflowPreset gains a required definition (the workflow document as authored, with its step names) so a person can read and copy a built-in template; RunCreate gains an optional gates field (plan or none) that only a preset declaring a gates input accepts; the four Deliver templates are new preset ids. No client has been released that builds a WorkflowPreset, so no caller sends the old shape."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "8a95d02a85fc946cc0dd1154406ad4aba19ce763"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:ff538cd915f6d61b5380041e74552e8a88b92ebdd2cdb951a1ecfc473476f70a",
+      "reason": "#419 repeat limit decisions by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 8a95d02a85fc946cc0dd1154406ad4aba19ce763: runRepairAllowances.create answers with a TriesAllowance (runId, kind, addedTries, decisionId, repeatKey) instead of a DeliveryDecision, because the same route now also resumes a run that stopped at a repeat's allow, which has no delivery decision. No client has been released that reads the old response."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "e12eadac05172e807be21f9a1c2cf30d5097f60b"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1e1d9c816de830faaf4a12c468d48b35b9092a5c942a988d02b576a0c3ba90e0",
+      "reason": "#419 repeat limit decisions by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main e12eadac05172e807be21f9a1c2cf30d5097f60b: runRepairAllowances.create answers with a TriesAllowance (runId, kind, addedTries, decisionId, repeatKey) instead of a DeliveryDecision, because the same route now also resumes a run that stopped at a repeat's allow, which has no delivery decision. No client has been released that reads the old response."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "33633736b3f873e705ff50999f03329dc674f472"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7fdf7f4cab7d8bc4e549446360745ac97604f1823868ba31468e388443d2c878",
+      "reason": "#419 repeat limit decisions by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 33633736b3f873e705ff50999f03329dc674f472: runRepairAllowances.create answers with a TriesAllowance (runId, kind, addedTries, decisionId, repeatKey) instead of a DeliveryDecision, because the same route now also resumes a run that stopped at a repeat's allow, which has no delivery decision. No client has been released that reads the old response."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "bc895a40c1c76b2b613505a90d46ce1bb9c9c75c",
+        "6f9b4f2da7d62e94e26134ecf8db4795429ca17a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:93dcc2c799710062968576c51349cfe653cab30f5d2fcc79005cbe40c4b33d60",
+      "reason": "#419 repeat limit decisions by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 6f9b4f2da7d62e94e26134ecf8db4795429ca17a: runRepairAllowances.create answers with a TriesAllowance (runId, kind, addedTries, decisionId, repeatKey) instead of a DeliveryDecision, because the same route now also resumes a run that stopped at a repeat's allow, which has no delivery decision. No client has been released that reads the old response."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
@@ -17,7 +78,58 @@
       "status": "displaced",
       "allowBreaking": true,
       "targetCompatibilityDigest": "sha256:6435d430785cdd02cd46f7c20cfd50f948fc8d150c9f25569f7a1607f6bd3510",
-      "reason": "The #74 skill-use grant approval bound to main 688de3d1df9061f03fa89505cddf39791f1aeafe and 329170363c3d9f9b0cf26be5a65b0546f0ccc0bd, displaced by the #407 batch workflow rebind to main 8a95d02a85fc946cc0dd1154406ad4aba19ce763 after #961 merged. Kept as history."
+      "reason": "#74 skill-use grants name the revision and its digest, bound to main 329170363c3d9f9b0cf26be5a65b0546f0ccc0bd under the owner's standing breaking-change authorization (2026-10-09): SkillUseGrant gains revision and revisionDigest as required fields so an installed binding names the same bytes a page showed, without a second read. PM approved this contract change and the rebind on 2026-11-23. The #34 plugin job version pin approval on main fc819c510e55999f77dd9ec034e279926afa03f0 stays below as history."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "688de3d1df9061f03fa89505cddf39791f1aeafe",
+        "acc363ccc0017dd8898aa1cd8177e6e91ef65ea0"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c17f15607b4be762ee4e841de9a78bde86205e75e21e3e1250b6ec8b365fc42b",
+      "reason": "#429 Deliver templates by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main acc363ccc0017dd8898aa1cd8177e6e91ef65ea0: WorkflowPreset gains a required definition (the workflow document as authored, with its step names) so a person can read and copy a built-in template; RunCreate gains an optional gates field (plan or none) that only a preset declaring a gates input accepts; the four Deliver templates are new preset ids. No client has been released that builds a WorkflowPreset, so no caller sends the old shape."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "33633736b3f873e705ff50999f03329dc674f472"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c78aad39084ab9d042421352cd09289f813824a2401ca31fb6393d1c5d8227b5",
+      "reason": "#429 Deliver templates by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 33633736b3f873e705ff50999f03329dc674f472: WorkflowPreset gains a required definition (the workflow document as authored, with its step names) so a person can read and copy a built-in template; RunCreate gains an optional gates field (plan or none) that only a preset declaring a gates input accepts; the four Deliver templates are new preset ids. No client has been released that builds a WorkflowPreset, so no caller sends the old shape."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "1edb08577cabfc91ab8ea991e073ebb0a785d29a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1e2f7fe27048902faf0a389fc9bca077e87eaa352d2f2060895553b6a4dcbbec",
+      "reason": "#429 Deliver templates by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 1edb08577cabfc91ab8ea991e073ebb0a785d29a: WorkflowPreset gains a required definition (the workflow document as authored, with its step names) so a person can read and copy a built-in template; RunCreate gains an optional gates field (plan or none) that only a preset declaring a gates input accepts; the four Deliver templates are new preset ids. No client has been released that builds a WorkflowPreset, so no caller sends the old shape."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "b63639aa7ee6167b1bf51c7290afe83caa176c4c"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:336e32b49c2aa516f8232377beb40ab3d7a7bebdbda30a1bd1019b33b130387d",
+      "reason": "#429 Deliver templates by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main b63639aa7ee6167b1bf51c7290afe83caa176c4c: WorkflowPreset gains a required definition (the workflow document as authored, with its step names) and a required startableFromComposer flag so a person can read and copy a built-in template; RunCreate gains an optional gates field (plan or none) that only a preset declaring a gates input accepts; the four Deliver templates are new preset ids. No client has been released that builds a WorkflowPreset, so no caller sends the old shape."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "f107719d0009ff7c60028e7f351ef38535f3e936"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:3bef92341f21d5c6ee95f1e6542af4ef8dba8d737c2faaa6beadc2c35baf1b36",
+      "reason": "#429 Deliver templates by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main f107719d0009ff7c60028e7f351ef38535f3e936: WorkflowPreset gains a required definition (the workflow document as authored, with its step names) and a required startableFromComposer flag so a person can read and copy a built-in template; RunCreate gains an optional gates field (plan or none) that only a preset declaring a gates input accepts; the four Deliver templates are new preset ids. No client has been released that builds a WorkflowPreset, so no caller sends the old shape."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",

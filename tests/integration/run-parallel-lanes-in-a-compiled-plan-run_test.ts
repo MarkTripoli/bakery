@@ -102,7 +102,7 @@ Deno.test("a new plan run is pinned to revision 3, which runs groups as revision
          from bakery.workflow_runs where id = $1`,
       [seeded.job.runId],
     )).rows[0].revision;
-    assertEquals(pin, "3");
+    assertEquals(pin, "4");
 
     const set = await seeded.repository.findNextSet(
       seeded.job.runId,

@@ -98,7 +98,8 @@ import {
 import {
   ensurePresetWorkflowVersion,
   fixedPolicyDeniesSteps,
-  presetBriefInputs,
+  presetDeclaresGates,
+  presetRunInputs,
 } from "./workflow-presets.ts";
 
 type RunCreateInput = z.output<typeof contractSchemas.RunCreate>;
@@ -1025,6 +1026,11 @@ export async function createRunCommand(
   if (preset && input.inputs !== undefined) {
     throw unprocessable(["inputs"], "inputs_not_allowed_with_preset");
   }
+  if (
+    input.gates !== undefined && (!preset || !presetDeclaresGates(preset))
+  ) {
+    throw unprocessable(["gates"], "gates_not_accepted");
+  }
   const workflowVersionId = preset
     ? await ensurePresetWorkflowVersion(
       transaction,
@@ -1062,7 +1068,7 @@ export async function createRunCommand(
     workflowCeilingUsd(workflow),
   );
   const suppliedInputs = preset
-    ? presetBriefInputs(task, approvedPlan)
+    ? presetRunInputs(preset, task, approvedPlan, input.gates)
     : input.inputs === undefined
     ? null
     : input.inputs;

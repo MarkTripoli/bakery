@@ -199,6 +199,11 @@
   color: var(--color-destructive);
 }
 
+.ui-inline-notice[tabindex="-1"]:focus {
+  outline: var(--border-emphasis) solid var(--color-selection);
+  outline-offset: var(--space-0-5);
+}
+
 .ui-toast {
   /* One line of text sits on the middle of the dismiss button's row, not above empty space. */
   align-items: center;
