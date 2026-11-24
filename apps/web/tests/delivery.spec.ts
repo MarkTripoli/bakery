@@ -216,6 +216,14 @@ for (
       await expect(chart).toBeVisible();
       await expect(page.getByText(/No data for 1 day \(/)).toBeVisible();
       await expect(page.getByText(/A gap is not zero/)).toBeVisible();
+      const band = chart.locator("[data-gap-band]");
+      await expect(band).toHaveCount(1);
+      expect(Number(await band.getAttribute("width"))).toBeGreaterThan(100);
+      await expect(chart.locator("[data-chart-tick='max']")).toHaveText("40");
+      const tick = await chart.locator("[data-chart-tick='max']").boundingBox();
+      const plot = await chart.boundingBox();
+      expect(tick!.x).toBeGreaterThanOrEqual(plot!.x);
+      expect(tick!.x + tick!.width).toBeLessThan(plot!.x + plot!.width);
       await page.getByRole("button", { name: "Show as table" }).click();
       const table = page.getByRole("table", { name: "Tasks delivered" });
       await expect(table).toBeVisible();
