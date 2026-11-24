@@ -1,0 +1,493 @@
+copied 5 foundation files and 4 font files to apps/desktop/web
+    Finished `dev` profile [unoptimized] target(s) in 11.92s
+dbus-daemon[297]: [session uid=0 pid=297] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [sign-in 960x640] one window, named Bakery
+PASS [sign-in 960x640] the Bakery menu has named entries
+PASS [sign-in 960x640] the page is a document
+PASS [sign-in 960x640] one heading names the window
+PASS [sign-in 960x640] the heading comes before the first control
+PASS [sign-in 960x640] every control has a name a screen reader can say
+PASS [sign-in 960x640] every control can take the keyboard
+PASS [sign-in 960x640] focus starts on the heading or a control
+PASS [sign-in 960x640] Tab reaches every control
+PASS [sign-in 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[457]: [session uid=0 pid=457] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [signed-out 960x640] one window, named Bakery
+PASS [signed-out 960x640] the Bakery menu has named entries
+PASS [signed-out 960x640] the page is a document
+PASS [signed-out 960x640] one heading names the window
+PASS [signed-out 960x640] the heading comes before the first control
+PASS [signed-out 960x640] every control has a name a screen reader can say
+PASS [signed-out 960x640] every control can take the keyboard
+PASS [signed-out 960x640] focus starts on the heading or a control
+PASS [signed-out 960x640] Tab reaches every control
+PASS [signed-out 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[611]: [session uid=0 pid=611] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [signed-out-unconfirmed 960x640] one window, named Bakery
+PASS [signed-out-unconfirmed 960x640] the Bakery menu has named entries
+PASS [signed-out-unconfirmed 960x640] the page is a document
+PASS [signed-out-unconfirmed 960x640] one heading names the window
+PASS [signed-out-unconfirmed 960x640] the heading comes before the first control
+PASS [signed-out-unconfirmed 960x640] every control has a name a screen reader can say
+PASS [signed-out-unconfirmed 960x640] every control can take the keyboard
+PASS [signed-out-unconfirmed 960x640] focus starts on the heading or a control
+PASS [signed-out-unconfirmed 960x640] Tab reaches every control
+PASS [signed-out-unconfirmed 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[766]: [session uid=0 pid=766] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [waiting 960x640] one window, named Bakery
+PASS [waiting 960x640] the Bakery menu has named entries
+PASS [waiting 960x640] the page is a document
+PASS [waiting 960x640] one heading names the window
+PASS [waiting 960x640] the heading comes before the first control
+PASS [waiting 960x640] every control has a name a screen reader can say
+PASS [waiting 960x640] every control can take the keyboard
+PASS [waiting 960x640] focus starts on the heading or a control
+PASS [waiting 960x640] Tab reaches every control
+PASS [waiting 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[921]: [session uid=0 pid=921] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [browser-did-not-open 960x640] one window, named Bakery
+PASS [browser-did-not-open 960x640] the Bakery menu has named entries
+PASS [browser-did-not-open 960x640] the page is a document
+PASS [browser-did-not-open 960x640] one heading names the window
+PASS [browser-did-not-open 960x640] the heading comes before the first control
+PASS [browser-did-not-open 960x640] every control has a name a screen reader can say
+PASS [browser-did-not-open 960x640] every control can take the keyboard
+PASS [browser-did-not-open 960x640] focus starts on the heading or a control
+PASS [browser-did-not-open 960x640] Tab reaches every control
+PASS [browser-did-not-open 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[1076]: [session uid=0 pid=1076] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [finishing 960x640] one window, named Bakery
+PASS [finishing 960x640] the Bakery menu has named entries
+PASS [finishing 960x640] the page is a document
+PASS [finishing 960x640] one heading names the window
+PASS [finishing 960x640] every control has a name a screen reader can say
+PASS [finishing 960x640] every control can take the keyboard
+PASS [finishing 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[1231]: [session uid=0 pid=1231] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [expired 960x640] one window, named Bakery
+PASS [expired 960x640] the Bakery menu has named entries
+PASS [expired 960x640] the page is a document
+PASS [expired 960x640] one heading names the window
+PASS [expired 960x640] the heading comes before the first control
+PASS [expired 960x640] every control has a name a screen reader can say
+PASS [expired 960x640] every control can take the keyboard
+PASS [expired 960x640] focus starts on the heading or a control
+PASS [expired 960x640] Tab reaches every control
+PASS [expired 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[1386]: [session uid=0 pid=1386] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [cancelled 960x640] one window, named Bakery
+PASS [cancelled 960x640] the Bakery menu has named entries
+PASS [cancelled 960x640] the page is a document
+PASS [cancelled 960x640] one heading names the window
+PASS [cancelled 960x640] the heading comes before the first control
+PASS [cancelled 960x640] every control has a name a screen reader can say
+PASS [cancelled 960x640] every control can take the keyboard
+PASS [cancelled 960x640] focus starts on the heading or a control
+PASS [cancelled 960x640] Tab reaches every control
+PASS [cancelled 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[1541]: [session uid=0 pid=1541] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [used 960x640] one window, named Bakery
+PASS [used 960x640] the Bakery menu has named entries
+PASS [used 960x640] the page is a document
+PASS [used 960x640] one heading names the window
+PASS [used 960x640] the heading comes before the first control
+PASS [used 960x640] every control has a name a screen reader can say
+PASS [used 960x640] every control can take the keyboard
+PASS [used 960x640] focus starts on the heading or a control
+PASS [used 960x640] Tab reaches every control
+PASS [used 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[1696]: [session uid=0 pid=1696] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [not-from-this-app 960x640] one window, named Bakery
+PASS [not-from-this-app 960x640] the Bakery menu has named entries
+PASS [not-from-this-app 960x640] the page is a document
+PASS [not-from-this-app 960x640] one heading names the window
+PASS [not-from-this-app 960x640] the heading comes before the first control
+PASS [not-from-this-app 960x640] every control has a name a screen reader can say
+PASS [not-from-this-app 960x640] every control can take the keyboard
+PASS [not-from-this-app 960x640] focus starts on the heading or a control
+PASS [not-from-this-app 960x640] Tab reaches every control
+PASS [not-from-this-app 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[1851]: [session uid=0 pid=1851] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [could-not-finish 960x640] one window, named Bakery
+PASS [could-not-finish 960x640] the Bakery menu has named entries
+PASS [could-not-finish 960x640] the page is a document
+PASS [could-not-finish 960x640] one heading names the window
+PASS [could-not-finish 960x640] the heading comes before the first control
+PASS [could-not-finish 960x640] every control has a name a screen reader can say
+PASS [could-not-finish 960x640] every control can take the keyboard
+PASS [could-not-finish 960x640] focus starts on the heading or a control
+PASS [could-not-finish 960x640] Tab reaches every control
+PASS [could-not-finish 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[2006]: [session uid=0 pid=2006] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [no-keyring 960x640] one window, named Bakery
+PASS [no-keyring 960x640] the Bakery menu has named entries
+PASS [no-keyring 960x640] the page is a document
+PASS [no-keyring 960x640] one heading names the window
+PASS [no-keyring 960x640] the heading comes before the first control
+PASS [no-keyring 960x640] every control has a name a screen reader can say
+PASS [no-keyring 960x640] every control can take the keyboard
+PASS [no-keyring 960x640] focus starts on the heading or a control
+PASS [no-keyring 960x640] Tab reaches every control
+PASS [no-keyring 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[2161]: [session uid=0 pid=2161] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [no-keyring-still-listed 960x640] one window, named Bakery
+PASS [no-keyring-still-listed 960x640] the Bakery menu has named entries
+PASS [no-keyring-still-listed 960x640] the page is a document
+PASS [no-keyring-still-listed 960x640] one heading names the window
+PASS [no-keyring-still-listed 960x640] the heading comes before the first control
+PASS [no-keyring-still-listed 960x640] every control has a name a screen reader can say
+PASS [no-keyring-still-listed 960x640] every control can take the keyboard
+PASS [no-keyring-still-listed 960x640] focus starts on the heading or a control
+PASS [no-keyring-still-listed 960x640] Tab reaches every control
+PASS [no-keyring-still-listed 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[2315]: [session uid=0 pid=2315] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [sign-in-again 960x640] one window, named Bakery
+PASS [sign-in-again 960x640] the Bakery menu has named entries
+PASS [sign-in-again 960x640] the page is a document
+PASS [sign-in-again 960x640] one heading names the window
+PASS [sign-in-again 960x640] the heading comes before the first control
+PASS [sign-in-again 960x640] every control has a name a screen reader can say
+PASS [sign-in-again 960x640] every control can take the keyboard
+PASS [sign-in-again 960x640] focus starts on the heading or a control
+PASS [sign-in-again 960x640] Tab reaches every control
+PASS [sign-in-again 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[2470]: [session uid=0 pid=2470] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [sign-in-again-waiting 960x640] one window, named Bakery
+PASS [sign-in-again-waiting 960x640] the Bakery menu has named entries
+PASS [sign-in-again-waiting 960x640] the page is a document
+PASS [sign-in-again-waiting 960x640] one heading names the window
+PASS [sign-in-again-waiting 960x640] the heading comes before the first control
+PASS [sign-in-again-waiting 960x640] every control has a name a screen reader can say
+PASS [sign-in-again-waiting 960x640] every control can take the keyboard
+PASS [sign-in-again-waiting 960x640] focus starts on the heading or a control
+PASS [sign-in-again-waiting 960x640] Tab reaches every control
+PASS [sign-in-again-waiting 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[2625]: [session uid=0 pid=2625] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [sign-in-again-expired 960x640] one window, named Bakery
+PASS [sign-in-again-expired 960x640] the Bakery menu has named entries
+PASS [sign-in-again-expired 960x640] the page is a document
+PASS [sign-in-again-expired 960x640] one heading names the window
+PASS [sign-in-again-expired 960x640] the heading comes before the first control
+PASS [sign-in-again-expired 960x640] every control has a name a screen reader can say
+PASS [sign-in-again-expired 960x640] every control can take the keyboard
+PASS [sign-in-again-expired 960x640] focus starts on the heading or a control
+PASS [sign-in-again-expired 960x640] Tab reaches every control
+PASS [sign-in-again-expired 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[2780]: [session uid=0 pid=2780] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [signed-in 960x640] one window, named Bakery
+PASS [signed-in 960x640] the Bakery menu has named entries
+PASS [signed-in 960x640] the page is a document
+PASS [signed-in 960x640] one heading names the window
+PASS [signed-in 960x640] the heading comes before the first control
+PASS [signed-in 960x640] every control has a name a screen reader can say
+PASS [signed-in 960x640] every control can take the keyboard
+PASS [signed-in 960x640] focus starts on the heading or a control
+PASS [signed-in 960x640] Tab reaches every control
+PASS [signed-in 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[2935]: [session uid=0 pid=2935] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [signed-in-email-only 960x640] one window, named Bakery
+PASS [signed-in-email-only 960x640] the Bakery menu has named entries
+PASS [signed-in-email-only 960x640] the page is a document
+PASS [signed-in-email-only 960x640] one heading names the window
+PASS [signed-in-email-only 960x640] the heading comes before the first control
+PASS [signed-in-email-only 960x640] every control has a name a screen reader can say
+PASS [signed-in-email-only 960x640] every control can take the keyboard
+PASS [signed-in-email-only 960x640] focus starts on the heading or a control
+PASS [signed-in-email-only 960x640] Tab reaches every control
+PASS [signed-in-email-only 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[3090]: [session uid=0 pid=3090] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [signing-out 960x640] one window, named Bakery
+PASS [signing-out 960x640] the Bakery menu has named entries
+PASS [signing-out 960x640] the page is a document
+PASS [signing-out 960x640] one heading names the window
+PASS [signing-out 960x640] every control has a name a screen reader can say
+PASS [signing-out 960x640] every control can take the keyboard
+PASS [signing-out 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[3244]: [session uid=0 pid=3244] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [choose-server 960x640] one window, named Bakery
+PASS [choose-server 960x640] the Bakery menu has named entries
+PASS [choose-server 960x640] the page is a document
+PASS [choose-server 960x640] one heading names the window
+PASS [choose-server 960x640] the heading comes before the first control
+PASS [choose-server 960x640] every control has a name a screen reader can say
+PASS [choose-server 960x640] every control can take the keyboard
+PASS [choose-server 960x640] focus starts on the heading or a control
+PASS [choose-server 960x640] Tab reaches every control
+PASS [choose-server 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[3399]: [session uid=0 pid=3399] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [choose-server-this-computer 960x640] one window, named Bakery
+PASS [choose-server-this-computer 960x640] the Bakery menu has named entries
+PASS [choose-server-this-computer 960x640] the page is a document
+PASS [choose-server-this-computer 960x640] one heading names the window
+PASS [choose-server-this-computer 960x640] the heading comes before the first control
+PASS [choose-server-this-computer 960x640] every control has a name a screen reader can say
+PASS [choose-server-this-computer 960x640] every control can take the keyboard
+PASS [choose-server-this-computer 960x640] focus starts on the heading or a control
+PASS [choose-server-this-computer 960x640] Tab reaches every control
+PASS [choose-server-this-computer 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[3554]: [session uid=0 pid=3554] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [choose-server-this-computer-down 960x640] one window, named Bakery
+PASS [choose-server-this-computer-down 960x640] the Bakery menu has named entries
+PASS [choose-server-this-computer-down 960x640] the page is a document
+PASS [choose-server-this-computer-down 960x640] one heading names the window
+PASS [choose-server-this-computer-down 960x640] the heading comes before the first control
+PASS [choose-server-this-computer-down 960x640] every control has a name a screen reader can say
+PASS [choose-server-this-computer-down 960x640] every control can take the keyboard
+PASS [choose-server-this-computer-down 960x640] focus starts on the heading or a control
+PASS [choose-server-this-computer-down 960x640] Tab reaches every control
+PASS [choose-server-this-computer-down 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[3709]: [session uid=0 pid=3709] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [choose-server-signed-in 960x640] one window, named Bakery
+PASS [choose-server-signed-in 960x640] the Bakery menu has named entries
+PASS [choose-server-signed-in 960x640] the page is a document
+PASS [choose-server-signed-in 960x640] one heading names the window
+PASS [choose-server-signed-in 960x640] the heading comes before the first control
+PASS [choose-server-signed-in 960x640] every control has a name a screen reader can say
+PASS [choose-server-signed-in 960x640] every control can take the keyboard
+PASS [choose-server-signed-in 960x640] focus starts on the heading or a control
+PASS [choose-server-signed-in 960x640] Tab reaches every control
+PASS [choose-server-signed-in 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[3863]: [session uid=0 pid=3863] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [choose-server-empty 960x640] one window, named Bakery
+PASS [choose-server-empty 960x640] the Bakery menu has named entries
+PASS [choose-server-empty 960x640] the page is a document
+PASS [choose-server-empty 960x640] one heading names the window
+PASS [choose-server-empty 960x640] the heading comes before the first control
+PASS [choose-server-empty 960x640] every control has a name a screen reader can say
+PASS [choose-server-empty 960x640] every control can take the keyboard
+PASS [choose-server-empty 960x640] focus starts on the heading or a control
+PASS [choose-server-empty 960x640] Tab reaches every control
+PASS [choose-server-empty 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[4017]: [session uid=0 pid=4017] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [choose-server-not-web 960x640] one window, named Bakery
+PASS [choose-server-not-web 960x640] the Bakery menu has named entries
+PASS [choose-server-not-web 960x640] the page is a document
+PASS [choose-server-not-web 960x640] one heading names the window
+PASS [choose-server-not-web 960x640] the heading comes before the first control
+PASS [choose-server-not-web 960x640] every control has a name a screen reader can say
+PASS [choose-server-not-web 960x640] every control can take the keyboard
+PASS [choose-server-not-web 960x640] focus starts on the heading or a control
+PASS [choose-server-not-web 960x640] Tab reaches every control
+PASS [choose-server-not-web 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[4172]: [session uid=0 pid=4172] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [choose-server-credentials 960x640] one window, named Bakery
+PASS [choose-server-credentials 960x640] the Bakery menu has named entries
+PASS [choose-server-credentials 960x640] the page is a document
+PASS [choose-server-credentials 960x640] one heading names the window
+PASS [choose-server-credentials 960x640] the heading comes before the first control
+PASS [choose-server-credentials 960x640] every control has a name a screen reader can say
+PASS [choose-server-credentials 960x640] every control can take the keyboard
+PASS [choose-server-credentials 960x640] focus starts on the heading or a control
+PASS [choose-server-credentials 960x640] Tab reaches every control
+PASS [choose-server-credentials 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[4327]: [session uid=0 pid=4327] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [choose-server-plain-http 960x640] one window, named Bakery
+PASS [choose-server-plain-http 960x640] the Bakery menu has named entries
+PASS [choose-server-plain-http 960x640] the page is a document
+PASS [choose-server-plain-http 960x640] one heading names the window
+PASS [choose-server-plain-http 960x640] the heading comes before the first control
+PASS [choose-server-plain-http 960x640] every control has a name a screen reader can say
+PASS [choose-server-plain-http 960x640] every control can take the keyboard
+PASS [choose-server-plain-http 960x640] focus starts on the heading or a control
+PASS [choose-server-plain-http 960x640] Tab reaches every control
+PASS [choose-server-plain-http 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[4482]: [session uid=0 pid=4482] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [choose-server-no-answer 960x640] one window, named Bakery
+PASS [choose-server-no-answer 960x640] the Bakery menu has named entries
+PASS [choose-server-no-answer 960x640] the page is a document
+PASS [choose-server-no-answer 960x640] one heading names the window
+PASS [choose-server-no-answer 960x640] the heading comes before the first control
+PASS [choose-server-no-answer 960x640] every control has a name a screen reader can say
+PASS [choose-server-no-answer 960x640] every control can take the keyboard
+PASS [choose-server-no-answer 960x640] focus starts on the heading or a control
+PASS [choose-server-no-answer 960x640] Tab reaches every control
+PASS [choose-server-no-answer 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[4637]: [session uid=0 pid=4637] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [choose-server-signed-in-no-answer 960x640] one window, named Bakery
+PASS [choose-server-signed-in-no-answer 960x640] the Bakery menu has named entries
+PASS [choose-server-signed-in-no-answer 960x640] the page is a document
+PASS [choose-server-signed-in-no-answer 960x640] one heading names the window
+PASS [choose-server-signed-in-no-answer 960x640] the heading comes before the first control
+PASS [choose-server-signed-in-no-answer 960x640] every control has a name a screen reader can say
+PASS [choose-server-signed-in-no-answer 960x640] every control can take the keyboard
+PASS [choose-server-signed-in-no-answer 960x640] focus starts on the heading or a control
+PASS [choose-server-signed-in-no-answer 960x640] Tab reaches every control
+PASS [choose-server-signed-in-no-answer 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[4791]: [session uid=0 pid=4791] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [choose-server-not-bakery 960x640] one window, named Bakery
+PASS [choose-server-not-bakery 960x640] the Bakery menu has named entries
+PASS [choose-server-not-bakery 960x640] the page is a document
+PASS [choose-server-not-bakery 960x640] one heading names the window
+PASS [choose-server-not-bakery 960x640] the heading comes before the first control
+PASS [choose-server-not-bakery 960x640] every control has a name a screen reader can say
+PASS [choose-server-not-bakery 960x640] every control can take the keyboard
+PASS [choose-server-not-bakery 960x640] focus starts on the heading or a control
+PASS [choose-server-not-bakery 960x640] Tab reaches every control
+PASS [choose-server-not-bakery 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[4946]: [session uid=0 pid=4946] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [checking 960x640] one window, named Bakery
+PASS [checking 960x640] the Bakery menu has named entries
+PASS [checking 960x640] the page is a document
+PASS [checking 960x640] one heading names the window
+PASS [checking 960x640] the heading comes before the first control
+PASS [checking 960x640] every control has a name a screen reader can say
+PASS [checking 960x640] every control can take the keyboard
+PASS [checking 960x640] focus starts on the heading or a control
+PASS [checking 960x640] Tab reaches every control
+PASS [checking 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[5100]: [session uid=0 pid=5100] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [switched 960x640] one window, named Bakery
+PASS [switched 960x640] the Bakery menu has named entries
+PASS [switched 960x640] the page is a document
+PASS [switched 960x640] one heading names the window
+PASS [switched 960x640] the heading comes before the first control
+PASS [switched 960x640] every control has a name a screen reader can say
+PASS [switched 960x640] every control can take the keyboard
+PASS [switched 960x640] focus starts on the heading or a control
+PASS [switched 960x640] Tab reaches every control
+PASS [switched 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[5254]: [session uid=0 pid=5254] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [switched-signed-in 960x640] one window, named Bakery
+PASS [switched-signed-in 960x640] the Bakery menu has named entries
+PASS [switched-signed-in 960x640] the page is a document
+PASS [switched-signed-in 960x640] one heading names the window
+PASS [switched-signed-in 960x640] the heading comes before the first control
+PASS [switched-signed-in 960x640] every control has a name a screen reader can say
+PASS [switched-signed-in 960x640] every control can take the keyboard
+PASS [switched-signed-in 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[5409]: [session uid=0 pid=5409] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [not-running 960x640] one window, named Bakery
+PASS [not-running 960x640] the Bakery menu has named entries
+PASS [not-running 960x640] the page is a document
+PASS [not-running 960x640] one heading names the window
+PASS [not-running 960x640] the heading comes before the first control
+PASS [not-running 960x640] every control has a name a screen reader can say
+PASS [not-running 960x640] every control can take the keyboard
+PASS [not-running 960x640] focus starts on the heading or a control
+PASS [not-running 960x640] Tab reaches every control
+PASS [not-running 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[5564]: [session uid=0 pid=5564] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [cannot-reach 960x640] one window, named Bakery
+PASS [cannot-reach 960x640] the Bakery menu has named entries
+PASS [cannot-reach 960x640] the page is a document
+PASS [cannot-reach 960x640] one heading names the window
+PASS [cannot-reach 960x640] the heading comes before the first control
+PASS [cannot-reach 960x640] every control has a name a screen reader can say
+PASS [cannot-reach 960x640] every control can take the keyboard
+PASS [cannot-reach 960x640] focus starts on the heading or a control
+PASS [cannot-reach 960x640] Tab reaches every control
+PASS [cannot-reach 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[5719]: [session uid=0 pid=5719] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [older-server 960x640] one window, named Bakery
+PASS [older-server 960x640] the Bakery menu has named entries
+PASS [older-server 960x640] the page is a document
+PASS [older-server 960x640] one heading names the window
+PASS [older-server 960x640] the heading comes before the first control
+PASS [older-server 960x640] every control has a name a screen reader can say
+PASS [older-server 960x640] every control can take the keyboard
+PASS [older-server 960x640] focus starts on the heading or a control
+PASS [older-server 960x640] Tab reaches every control
+PASS [older-server 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[5874]: [session uid=0 pid=5874] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [older-app 960x640] one window, named Bakery
+PASS [older-app 960x640] the Bakery menu has named entries
+PASS [older-app 960x640] the page is a document
+PASS [older-app 960x640] one heading names the window
+PASS [older-app 960x640] the heading comes before the first control
+PASS [older-app 960x640] every control has a name a screen reader can say
+PASS [older-app 960x640] every control can take the keyboard
+PASS [older-app 960x640] focus starts on the heading or a control
+PASS [older-app 960x640] Tab reaches every control
+PASS [older-app 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[6029]: [session uid=0 pid=6029] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [link-sign-in 960x640] one window, named Bakery
+PASS [link-sign-in 960x640] the Bakery menu has named entries
+PASS [link-sign-in 960x640] the page is a document
+PASS [link-sign-in 960x640] one heading names the window
+PASS [link-sign-in 960x640] the heading comes before the first control
+PASS [link-sign-in 960x640] every control has a name a screen reader can say
+PASS [link-sign-in 960x640] every control can take the keyboard
+PASS [link-sign-in 960x640] focus starts on the heading or a control
+PASS [link-sign-in 960x640] Tab reaches every control
+PASS [link-sign-in 960x640] at 200% zoom nothing runs off the window sideways
+dbus-daemon[6184]: [session uid=0 pid=6184] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [link-cant-open 960x640] one window, named Bakery
+PASS [link-cant-open 960x640] the Bakery menu has named entries
+PASS [link-cant-open 960x640] the page is a document
+PASS [link-cant-open 960x640] one heading names the window
+PASS [link-cant-open 960x640] the heading comes before the first control
+PASS [link-cant-open 960x640] every control has a name a screen reader can say
+PASS [link-cant-open 960x640] every control can take the keyboard
+PASS [link-cant-open 960x640] the link dialog is one named dialog
+PASS [link-cant-open 960x640] the dialog is modal
+PASS [link-cant-open 960x640] its buttons are inside it
+PASS [link-cant-open 960x640] focus starts on a button in the dialog
+PASS [link-cant-open 960x640] Tab reaches every control
+PASS [link-cant-open 960x640] Tab stays inside the dialog
+PASS [link-cant-open 960x640] at 200% zoom nothing runs off the window sideways
+PASS [link-cant-open 960x640] Escape closes the dialog
+dbus-daemon[6339]: [session uid=0 pid=6339] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [link-not-web 960x640] one window, named Bakery
+PASS [link-not-web 960x640] the Bakery menu has named entries
+PASS [link-not-web 960x640] the page is a document
+PASS [link-not-web 960x640] one heading names the window
+PASS [link-not-web 960x640] the heading comes before the first control
+PASS [link-not-web 960x640] every control has a name a screen reader can say
+PASS [link-not-web 960x640] every control can take the keyboard
+PASS [link-not-web 960x640] the link dialog is one named dialog
+PASS [link-not-web 960x640] the dialog is modal
+PASS [link-not-web 960x640] its buttons are inside it
+PASS [link-not-web 960x640] focus starts on a button in the dialog
+PASS [link-not-web 960x640] Tab reaches every control
+PASS [link-not-web 960x640] Tab stays inside the dialog
+PASS [link-not-web 960x640] at 200% zoom nothing runs off the window sideways
+PASS [link-not-web 960x640] Escape closes the dialog
+dbus-daemon[6494]: [session uid=0 pid=6494] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [link-other-server 960x640] one window, named Bakery
+PASS [link-other-server 960x640] the Bakery menu has named entries
+PASS [link-other-server 960x640] the page is a document
+PASS [link-other-server 960x640] one heading names the window
+PASS [link-other-server 960x640] the heading comes before the first control
+PASS [link-other-server 960x640] every control has a name a screen reader can say
+PASS [link-other-server 960x640] every control can take the keyboard
+PASS [link-other-server 960x640] the link dialog is one named dialog
+PASS [link-other-server 960x640] the dialog is modal
+PASS [link-other-server 960x640] its buttons are inside it
+PASS [link-other-server 960x640] focus starts on a button in the dialog
+PASS [link-other-server 960x640] Tab reaches every control
+PASS [link-other-server 960x640] Tab stays inside the dialog
+PASS [link-other-server 960x640] at 200% zoom nothing runs off the window sideways
+PASS [link-other-server 960x640] Escape closes the dialog
+dbus-daemon[6649]: [session uid=0 pid=6649] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [link-browser-did-not-open 960x640] one window, named Bakery
+PASS [link-browser-did-not-open 960x640] the Bakery menu has named entries
+PASS [link-browser-did-not-open 960x640] the page is a document
+PASS [link-browser-did-not-open 960x640] one heading names the window
+PASS [link-browser-did-not-open 960x640] the heading comes before the first control
+PASS [link-browser-did-not-open 960x640] every control has a name a screen reader can say
+PASS [link-browser-did-not-open 960x640] every control can take the keyboard
+PASS [link-browser-did-not-open 960x640] the link dialog is one named dialog
+PASS [link-browser-did-not-open 960x640] the dialog is modal
+PASS [link-browser-did-not-open 960x640] its buttons are inside it
+PASS [link-browser-did-not-open 960x640] focus starts on a button in the dialog
+PASS [link-browser-did-not-open 960x640] Tab reaches every control
+PASS [link-browser-did-not-open 960x640] Tab stays inside the dialog
+PASS [link-browser-did-not-open 960x640] at 200% zoom nothing runs off the window sideways
+PASS [link-browser-did-not-open 960x640] Escape closes the dialog
+dbus-daemon[6804]: [session uid=0 pid=6804] org.freedesktop.DBus.Error.AccessDenied: Failed to set fd limit to 65536: Operation not permitted
+PASS [link-handoff-failed 960x640] one window, named Bakery
+PASS [link-handoff-failed 960x640] the Bakery menu has named entries
+PASS [link-handoff-failed 960x640] the page is a document
+PASS [link-handoff-failed 960x640] one heading names the window
+PASS [link-handoff-failed 960x640] the heading comes before the first control
+PASS [link-handoff-failed 960x640] every control has a name a screen reader can say
+PASS [link-handoff-failed 960x640] every control can take the keyboard
+PASS [link-handoff-failed 960x640] the link dialog is one named dialog
+PASS [link-handoff-failed 960x640] the dialog is modal
+PASS [link-handoff-failed 960x640] its buttons are inside it
+PASS [link-handoff-failed 960x640] focus starts on a button in the dialog
+PASS [link-handoff-failed 960x640] Tab reaches every control
+PASS [link-handoff-failed 960x640] Tab stays inside the dialog
+PASS [link-handoff-failed 960x640] at 200% zoom nothing runs off the window sideways
+PASS [link-handoff-failed 960x640] Escape closes the dialog
+accessibility: 43 of 43 states pass

@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>#76 a plugin's own pages</title><style>:root{--color-border:#E3E6EB;--color-border-strong:#CBD0D8;--color-canvas:#F5F6F8;--color-control-border:#8A939F;--color-destructive:#BE3341;--color-destructive-surface:#FCEEEF;--color-fg:#141A24;--color-fg-muted:#5D6675;--color-fg-disabled:#9AA3B1;--color-focus:#0B63C6;--color-primary:#141A24;--color-primary-foreground:#FFFFFF;--color-selection:#0B63C6;--color-selection-surface:#ECF1F8;--color-status-neutral:#374151;--color-status-neutral-surface:#E5E7EB;--color-status-success:#17784B;--color-status-success-surface:#E8F5EE;--color-status-warning:#8F5A0B;--color-status-warning-surface:#FBF3E4;--color-surface:#FFFFFF;--color-surface-subtle:#EEF0F4;}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{font:400 14px/20px Geist,Inter,system-ui,sans-serif;color:var(--color-fg);background:var(--color-surface)}
+.p5app{display:flex;height:100vh}
+.p5side{width:232px;flex:none;border-right:1px solid var(--color-border);background:var(--color-canvas);padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+.p5brand{font:600 15px/22px Geist,system-ui,sans-serif;padding:4px 10px 12px}
+.p5nav{padding:6px 10px;border-radius:4px;color:var(--color-fg-muted);display:flex;gap:10px;align-items:center}
+.p5nav i{width:14px;height:14px;border:1.5px solid currentColor;border-radius:3px;flex:none;opacity:.7}
+.p5nav.p5cur{background:var(--color-selection-surface);color:var(--color-fg);font-weight:500}
+.p5grp{font:500 12px/18px Geist,system-ui,sans-serif;color:var(--color-fg-muted);padding:16px 10px 4px}
+.p5main{flex:1;min-width:0;display:flex;flex-direction:column}
+.p5strip{display:flex;align-items:center;gap:16px;padding:14px 24px;border-bottom:1px solid var(--color-border)}
+.p5strip .p5t{flex:1;min-width:0}
+.p5strip h1{font:600 17px/24px Geist,system-ui,sans-serif;margin:0}
+.p5by{color:var(--color-fg-muted);margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.p5tip{width:16px;height:16px;border-radius:50%;border:1px solid var(--color-control-border);font:600 11px/14px Geist,system-ui,sans-serif;text-align:center;color:var(--color-fg-muted);flex:none}
+.p5btn{font:500 14px/20px Geist,system-ui,sans-serif;height:36px;padding:0 14px;border-radius:4px;border:1px solid var(--color-border-strong);background:var(--color-surface);color:var(--color-fg);display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+.p5btn.p5pri{background:var(--color-primary);border-color:var(--color-primary);color:var(--color-primary-foreground)}
+.p5badge{font:500 12px/18px Geist,system-ui,sans-serif;padding:1px 8px;border-radius:4px;white-space:nowrap;background:var(--color-status-neutral-surface);color:var(--color-status-neutral)}
+.p5badge.p5ok{background:var(--color-status-success-surface);color:var(--color-status-success)}
+.p5well{flex:1;min-height:0;background:var(--color-canvas);padding:16px 24px 24px;display:flex}
+.p5frame{flex:1;border:1px solid var(--color-border-strong);border-radius:6px;background:var(--color-surface);overflow:hidden;padding:24px 28px}
+.p5state{flex:1;display:flex;align-items:center;justify-content:center}
+.p5state div{max-width:420px;text-align:center}
+.p5state b{font:600 17px/24px Geist,system-ui,sans-serif;display:block}
+.p5state p{color:var(--color-fg-muted);margin:6px 0 16px}
+.p5state small{display:block;color:var(--color-fg-muted);font-size:13px;margin-top:14px}
+/* the plugin's own content: deliberately not Bakery's components */
+.p5pl h2{font:600 20px/28px Georgia,serif;margin:0 0 4px}
+.p5pl p{color:var(--color-fg-muted);margin:0 0 18px}
+.p5pl table{border-collapse:collapse;width:100%;max-width:760px}
+.p5pl td,.p5pl th{text-align:left;padding:10px 12px;border-bottom:1px solid var(--color-border)}
+.p5pl th{font-weight:600;color:var(--color-fg-muted);font-size:13px}
+.p5pl .p5ck{display:inline-block;width:16px;height:16px;border:1.5px solid var(--color-control-border);border-radius:3px;vertical-align:-3px;margin-right:10px}
+.p5pl .p5ck.p5y{background:#3a7d5c;border-color:#3a7d5c}
+.p5pl .p5go{display:inline-block;margin-top:18px;background:#3a7d5c;color:#fff;border-radius:18px;padding:8px 18px;font-weight:600}
+.p5sec{padding:24px;max-width:860px}
+.p5sec h3{font:600 15px/22px Geist,system-ui,sans-serif;margin:0 0 4px;display:flex;gap:8px;align-items:center}
+.p5sec .p5hint{color:var(--color-fg-muted);margin:0 0 12px}
+.p5rows{border:1px solid var(--color-border);border-radius:6px}
+.p5row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-top:1px solid var(--color-border)}
+.p5row:first-child{border-top:0}.p5row .p5g{flex:1;min-width:0}.p5row .p5g span{display:block;color:var(--color-fg-muted)}
+.p5gap{height:28px}
+body.p5phone .p5side{display:none}
+body.p5phone .p5top{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--color-border);font-weight:600}
+body.p5phone .p5top i{width:18px;height:2px;background:currentColor;box-shadow:0 5px 0 currentColor,0 -5px 0 currentColor;flex:none}
+body.p5phone .p5strip{padding:12px 16px;gap:8px}
+body.p5phone .p5well{padding:0}
+body.p5phone .p5frame{border-width:1px 0 0;border-radius:0;padding:18px 16px}
+body.p5phone .p5btn{height:44px}
+body.p5phone .p5state{padding:0 20px}
+body.p5phone .p5state .p5btn{width:100%}
+.p5top{display:none}</style></head><body class="p5phone"><div class="p5app"><div class="p5main"><div class="p5top"><i></i>Bakery</div><div class="p5strip"><div class="p5t"><h1>Release checklist</h1><div class="p5by">Provided by the plugin Release helper <span class="p5tip">?</span></div></div></div><div class="p5well"><div class="p5state"><div><b>This plugin page could not be shown</b><p>Bakery could not load it. The rest of Bakery is not affected.</p><span class="p5btn p5pri">Try again</span><small>If it keeps happening, tell an organization administrator: the page is “Release checklist” in Release helper 1.4.0.</small></div></div></div></div></div></body></html>

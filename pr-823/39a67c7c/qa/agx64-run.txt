@@ -1,0 +1,10 @@
+== start 08:22:41Z head=39a67c7c8 host=agx64
+== baseline: committed files + probe
+[BASE] exit=0 ok | 15 passed | 0 failed (55s)  cases-failed=0
+== M2 (first-save on conflict removed): committed only, then probe
+[M2c] exit=0 ok | 11 passed | 0 failed (24s)  cases-failed=0
+[M2p] exit=1 FAILED | 3 passed | 1 failed (9s)  cases-failed=1
+== M5 (receipt on conflict removed): committed only
+[M5c] exit=1 FAILED | 9 passed | 2 failed (24s)  cases-failed=2
+== done 08:26:53Z
+[teardown] modified=0 untracked=0 08:26:53Z

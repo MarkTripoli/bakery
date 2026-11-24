@@ -1,0 +1,253 @@
+[WebServer] (node:125971) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `pnpm --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:126072) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] vite v8.2.2 building client environment for test...
+[WebServer] transforming...
+[WebServer] ✓ 1456 modules transformed.
+[WebServer] rendering chunks...
+[WebServer] computing gzip size...
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/index.html                                            0.86 kB │ gzip:     0.42 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/lockup-mono-dark-JNFCqMhF.svg                  5.95 kB │ gzip:     2.74 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/lockup-mono-light-iKdiAA2X.svg                 5.95 kB │ gzip:     2.74 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/lockup-on-brand-CrTbzZlY.svg                   8.45 kB │ gzip:     3.75 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/lockup-color-light-2f2DRv8Z.svg                9.72 kB │ gzip:     4.27 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/lockup-color-dark-_2Lm82uY.svg                11.76 kB │ gzip:     5.12 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/sign-in-hero-dark-600-B8v2-gV0.webp           25.39 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/offline-dark-600-DgXII31T.webp                25.49 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/sign-in-hero-light-600-DiceVaTr.webp          25.93 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/offline-light-600-yL2KZic0.webp               26.20 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/forbidden-dark-600-CLKJGbny.webp              27.57 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-workers-dark-600-C-NpwFoI.webp          27.59 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/forbidden-light-600-B5ULVNFf.webp             27.75 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-tasks-dark-600-BI8iJu7B.webp            28.19 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/reconnecting-dark-600-DYUTKpI5.webp           28.26 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-tasks-light-600-B2jA7jV4.webp           28.76 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-workers-light-600-C1vbwLCM.webp         28.94 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/loading-dark-600-DV0tU5ZG.webp                29.19 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/not-found-dark-600-DuDTyfLg.webp              29.35 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/reconnecting-light-600-_styiJwc.webp          29.56 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/welcome-dark-600-Dh-oU5Kr.webp                30.25 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/not-found-light-600-Bpkbfrsj.webp             30.28 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/welcome-light-600-awCooSJk.webp               30.36 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/loading-light-600-DqqYbINo.webp               30.47 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/success-dark-600-DEHG7sEr.webp                30.80 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/success-light-600-DE1Q1nHM.webp               31.09 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-search-dark-600-DkiWaxfA.webp           31.37 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-search-light-600-DTWUh3Z_.webp          31.62 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-sessions-dark-600-xTFf08di.webp         32.93 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/server-error-dark-600-CQt9dRwm.webp           33.98 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-sessions-light-600-DyRsE-Ob.webp        34.02 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/server-error-light-600-C6GsCtsZ.webp          34.33 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/maintenance-dark-600-7Cg9V0Uv.webp            36.07 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/maintenance-light-600-ByyA7rAp.webp           36.16 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/not-found-pantry-dark-600-CzDrgvJA.webp       36.79 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/not-found-pantry-light-600-7wNNfY3X.webp      37.98 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/offline-light-BUL57Pum.webp                   52.57 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/offline-dark-CYzp6k27.webp                    52.70 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/forbidden-light-PIkikyZq.webp                 58.26 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/forbidden-dark-DO2zucn8.webp                  58.48 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-workers-dark-C6eSAV_d.webp              58.54 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-tasks-light-3CtUE5YM.webp               59.06 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-workers-light-D0SfkLbk.webp             59.36 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-tasks-dark-hYrNmuE6.webp                59.45 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/reconnecting-dark-DawTduzb.webp               60.51 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/loading-dark-BkZTVCBq.webp                    60.93 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/reconnecting-light-CPKRFhYg.webp              61.90 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/not-found-dark-CBJsNTOJ.webp                  62.15 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/welcome-dark-CslhkBmx.webp                    62.82 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/not-found-light-DoCb3Wsj.webp                 63.25 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/loading-light-Cmcgpmku.webp                   63.60 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/welcome-light-C8BF8zTL.webp                   63.70 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/success-dark-Du7ECNEB.webp                    64.90 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-search-light-Kg_EZYHO.webp              65.50 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/success-light-D23kxkdv.webp                   65.51 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-search-dark-CbPJdVMz.webp               66.11 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-sessions-dark-Dr_alLAx.webp             68.57 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/empty-sessions-light-blvfoTJD.webp            69.46 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/geist-mono-400-BV1xlXkC.ttf                   71.16 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/server-error-light-DX3upJhw.webp              71.31 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/sign-in-hero-dark-D9Xav946.webp               71.61 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/server-error-dark-B1Q_Tl1R.webp               71.96 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/sign-in-hero-light-uNnu7Dv9.webp              72.28 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/geist-400-BktvGMAi.ttf                        72.91 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/geist-500-BBUaz6Yt.ttf                        72.99 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/geist-600-DsJNybWY.ttf                        73.04 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/maintenance-light-CL3SYhei.webp               79.56 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/maintenance-dark-6QCRWfE5.webp                79.78 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/not-found-pantry-dark-BQjd00Qw.webp           80.93 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/not-found-pantry-light-D06y6WiK.webp          81.99 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/index-BhXSrvPl.css                           296.48 kB │ gzip:    38.82 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/workflow-compiler-rqNM2kw7.js                134.13 kB │ gzip:    41.95 kB
+[WebServer] ../../../../../../../../tmp/bakery-web-shell-37797/assets/index-BFK4ekWj.js                         13,756.76 kB │ gzip: 3,369.13 kB
+[WebServer] 
+[WebServer] ✓ built in 2.30s
+[WebServer] [plugin builtin:vite-reporter] 
+[WebServer] (!) Some chunks are larger than 500 kB after minification. Consider:
+[WebServer] - Using dynamic import() to code-split the application
+[WebServer] - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+[WebServer] - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[WebServer] (node:125969) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `pnpm --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:126553) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer]   ➜  Local:   http://127.0.0.1:37797/
+
+Running 90 tests using 2 workers
+
+(node:126643) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:126642) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop] › tests/machine-agents.spec.ts:379:3 › the Coding agents rows › an agent the machine has not reported cannot be signed in yet, and says so (2.6s)
+  ✓   2 [desktop] › tests/machine-agents.spec.ts:333:3 › the Coding agents rows › an agent with no way to sign in yet: one row, one banner, one Sign in (3.0s)
+  ✓   4 [desktop] › tests/machine-agents.spec.ts:447:3 › the Coding agents rows › an administrator-only note replaces the buttons for anyone else, and nothing is asked of the server (2.4s)
+  ✓   3 [desktop] › tests/machine-agents.spec.ts:390:3 › the Coding agents rows › ready, not checked and signed out each have their badge and the buttons beside it (3.2s)
+  ✓   6 [desktop] › tests/machine-agents.spec.ts:467:3 › the Coding agents rows › another way to pay that already exists is described in plain words (2.2s)
+  ✓   5 [desktop] › tests/machine-agents.spec.ts:458:3 › the Coding agents rows › a retired machine's rows have no buttons and nothing is asked of the administrators' list (2.7s)
+  ✓   7 [desktop] › tests/machine-agents.spec.ts:484:3 › the Coding agents rows › the machine's software is one entry by agent name and version, in no internal words (2.3s)
+  ✓   8 [desktop] › tests/machine-agents.spec.ts:497:3 › the Coding agents rows › failed checks that are only an agent's sign-in are that agent's banner, and the check still lists (2.5s)
+  ✓   9 [desktop] › tests/machine-agents.spec.ts:529:3 › the Coding agents rows › the banner says other work continues only when another coding agent on the machine is Ready (2.6s)
+  ✓  10 [desktop] › tests/machine-agents.spec.ts:553:3 › the Coding agents rows › a model check of an agent never signed in is that agent's banner too (2.8s)
+  ✓  11 [desktop] › tests/machine-agents.spec.ts:571:3 › the Coding agents rows › when any other check failed too, the failed-checks banner wins and the agent's banner is not shown (2.8s)
+  ✓  12 [desktop] › tests/machine-agents.spec.ts:586:3 › the Coding agents rows › a failed model check of an agent that is signed in is not an agent's banner (3.0s)
+  ✓  14 [desktop] › tests/machine-agents.spec.ts:625:3 › the Coding agents rows › the header reads Ready only when every agent is signed in, and the machine's own reading wins otherwise (2.5s)
+  ✓  13 [desktop] › tests/machine-agents.spec.ts:600:3 › the Coding agents rows › a failed-check id that is not a string cannot take the page down (3.8s)
+  -  16 [desktop] › tests/machine-agents.spec.ts:643:3 › the Coding agents rows › on a phone the badge and buttons sit under the text and every label is on one line
+  ✓  15 [desktop] › tests/machine-agents.spec.ts:637:3 › the Coding agents rows › for anyone but an administrator the header is the machine's own reading (2.6s)
+  ✓  17 [desktop] › tests/machine-agents.spec.ts:678:3 › the sign-in dialog › a code and an address: the steps, the code to copy, the wait and the expiry; then Signed in and Done (3.1s)
+  ✓  18 [desktop] › tests/machine-agents.spec.ts:709:3 › the sign-in dialog › the code and the address are shown as steps, with a Copy and the expiry (3.6s)
+  ✓  19 [desktop] › tests/machine-agents.spec.ts:740:3 › the sign-in dialog › an address alone is one button that opens it in a new tab; a code with no address is not shown (2.9s)
+  ✓  20 [desktop] › tests/machine-agents.spec.ts:777:5 › the sign-in dialog › an address that is not https on the agent's own hosts is never a link and ends the sign-in: javascript:alert(1) (2.6s)
+  ✓  21 [desktop] › tests/machine-agents.spec.ts:777:5 › the sign-in dialog › an address that is not https on the agent's own hosts is never a link and ends the sign-in: http://claude.ai/device (2.6s)
+  ✓  22 [desktop] › tests/machine-agents.spec.ts:777:5 › the sign-in dialog › an address that is not https on the agent's own hosts is never a link and ends the sign-in: https://user:pw@claude.ai/device (2.7s)
+  ✓  23 [desktop] › tests/machine-agents.spec.ts:777:5 › the sign-in dialog › an address that is not https on the agent's own hosts is never a link and ends the sign-in: https://evil.example/claude-login (2.6s)
+  ✓  24 [desktop] › tests/machine-agents.spec.ts:777:5 › the sign-in dialog › an address that is not https on the agent's own hosts is never a link and ends the sign-in: https://claude.ai.evil.example/device (2.5s)
+  ✓  25 [desktop] › tests/machine-agents.spec.ts:777:5 › the sign-in dialog › an address that is not https on the agent's own hosts is never a link and ends the sign-in: https://127.0.0.1:8443/device (2.7s)
+  ✓  26 [desktop] › tests/machine-agents.spec.ts:800:3 › the sign-in dialog › a code that is not plainly one ends the sign-in too: no link, no code, Try again (3.2s)
+  ✓  27 [desktop] › tests/machine-agents.spec.ts:826:3 › the sign-in dialog › an address on another agent's host is not this agent's sign-in page (2.9s)
+  ✓  29 [desktop] › tests/machine-agents.spec.ts:872:3 › the sign-in dialog › a command with a second line is not shown or copied: only one plain line ever is (3.4s)
+  ✓  30 [desktop] › tests/machine-agents.spec.ts:899:3 › the sign-in dialog › an agent that must be finished on the machine shows the command only when the server gives one (3.8s)
+  ✓  31 [desktop] › tests/machine-agents.spec.ts:930:3 › the sign-in dialog › without a command it says only to finish in a terminal, and invents none (3.2s)
+  ✓  32 [desktop] › tests/machine-agents.spec.ts:961:3 › the sign-in dialog › a sign-in that failed offers Try again, which starts a new attempt (3.2s)
+  ✓  28 [desktop] › tests/machine-agents.spec.ts:842:3 › the sign-in dialog › a command that is not the agent's own program is not shown, however plain (14.5s)
+  ✓  33 [desktop] › tests/machine-agents.spec.ts:978:3 › the sign-in dialog › a failed start keeps the setup it made: Try again makes one attempt, not a second setup (4.1s)
+  ✓  34 [desktop] › tests/machine-agents.spec.ts:998:3 › the sign-in dialog › closing the dialog while it still says Starting cancels the sign-in as soon as it exists (4.7s)
+  ✓  35 [desktop] › tests/machine-agents.spec.ts:1021:3 › the sign-in dialog › an expired sign-in offers Start again (4.5s)
+  ✓  36 [desktop] › tests/machine-agents.spec.ts:1034:3 › the sign-in dialog › Cancel sign-in calls cancel and closes; Escape does the same; focus returns to the row (4.6s)
+  ✓  37 [desktop] › tests/machine-agents.spec.ts:1060:3 › the sign-in dialog › a sign-in that cannot start says so and can be tried again (4.3s)
+  ✓  38 [desktop] › tests/machine-agents.spec.ts:1072:3 › the dialog while it starts › says it is starting until the server has answered (3.4s)
+  ✓  39 [desktop] › tests/machine-agents.spec.ts:1100:3 › Check › a check that finds the agent signed in changes nothing and opens no dialog (2.9s)
+  ✓  40 [desktop] › tests/machine-agents.spec.ts:1115:3 › Check › a check that needs the person becomes the sign-in dialog (2.8s)
+  ✓  41 [desktop] › tests/machine-agents.spec.ts:1128:3 › Check › a check that could not run says so under the row (3.1s)
+  ✓  43 [desktop] › tests/machine-agents.spec.ts:1164:3 › arriving from the wizard › an agent that is already signed in is not asked to sign in again (3.6s)
+  ✓  42 [desktop] › tests/machine-agents.spec.ts:1143:3 › arriving from the wizard › the machine page opens the sign-in for the agent in the address, once (7.0s)
+  ✓  44 [desktop] › tests/machine-page.spec.ts:274:5 › machine page: the one banner › offline: what is wrong, and the one fix that exists (3.6s)
+  ✓  45 [desktop] › tests/machine-page.spec.ts:274:5 › machine page: the one banner › not responding: what is wrong, and the one fix that exists (3.9s)
+  ✓  46 [desktop] › tests/machine-page.spec.ts:274:5 › machine page: the one banner › paused: what is wrong, and the one fix that exists (4.3s)
+  ✓  47 [desktop] › tests/machine-page.spec.ts:274:5 › machine page: the one banner › finishing up: what is wrong, and the one fix that exists (4.5s)
+  ✓  48 [desktop] › tests/machine-page.spec.ts:274:5 › machine page: the one banner › retired: what is wrong, and the one fix that exists (4.2s)
+  ✓  49 [desktop] › tests/machine-page.spec.ts:298:3 › machine page: the one banner › a machine with nothing wrong has no banner and says so about its checks (6.4s)
+  ✓  50 [desktop] › tests/machine-page.spec.ts:334:3 › machine page: the one banner › failed checks: what stops the machine, what stops only some work, and the machine's own reason (4.3s)
+  ✓  51 [desktop] › tests/machine-page.spec.ts:391:3 › machine page: the one banner › a failed capability check stops only the work that needs it (2.9s)
+  ✓  52 [desktop] › tests/machine-page.spec.ts:421:3 › machine page: mode and Retire › an administrator changes the mode, and Take work again resumes it (3.1s)
+  ✓  53 [desktop] › tests/machine-page.spec.ts:446:3 › machine page: mode and Retire › someone else changed it first: the page says so and shows the latest state (4.4s)
+  ✓  54 [desktop] › tests/machine-page.spec.ts:463:3 › machine page: mode and Retire › Retire asks first, then retires; a retired machine has no mode control (4.4s)
+  ✓  56 [desktop] › tests/machine-page.spec.ts:545:3 › machine page: mode and Retire › anyone but an administrator sees the page without the controls (2.7s)
+  ✘  55 [desktop] › tests/machine-page.spec.ts:497:3 › machine page: mode and Retire › a retired machine has one action, Set up again, which re-pairs the same machine in the wizard's words (8.3s)
+(node:145235) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  58 [desktop] › tests/machines-add-wizard.spec.ts:367:3 › add a machine wizard › a system with no installer cannot be chosen, and nothing is created for it (3.9s)
+  ✓  59 [desktop] › tests/machines-add-wizard.spec.ts:395:3 › add a machine wizard › a macOS setup left from before is not offered instructions that do not exist (2.5s)
+  ✓  57 [desktop] › tests/machines-add-wizard.spec.ts:141:3 › add a machine wizard › three steps create one setup and wait for the machine to connect (12.7s)
+  ✓  60 [desktop] › tests/machines-add-wizard.spec.ts:427:3 › add a machine wizard › a Linux machine gets its environment file and the command that starts it (2.8s)
+  ✓  61 [desktop] › tests/machines-add-wizard.spec.ts:463:3 › add a machine wizard › a failed create says so once and the retry is the same request (2.9s)
+  ✓  62 [desktop] › tests/machines-add-wizard.spec.ts:488:3 › add a machine wizard › a setup whose settings expired offers new ones (4.0s)
+  ✓  63 [desktop] › tests/machines-add-wizard.spec.ts:513:3 › add a machine wizard › continuing a setup that was left asks for new settings and keeps its answers (3.6s)
+  ✓  64 [desktop] › tests/machines-add-wizard.spec.ts:554:3 › add a machine wizard › only an administrator can add a machine (3.1s)
+  ✓  65 [desktop] › tests/machines-frame.spec.ts:60:5 › /machines frame › has no settings list, a Workspace trail, Machines selected, one main landmark (2.9s)
+  ✓  66 [desktop] › tests/machines-frame.spec.ts:87:5 › /machines frame › uses the width the page needs: the list and machine page the frame, the wizard its column (2.9s)
+  ✓  67 [desktop] › tests/machines-frame.spec.ts:60:5 › /machines/new frame › has no settings list, a Workspace trail, Machines selected, one main landmark (2.8s)
+  ✓  68 [desktop] › tests/machines-frame.spec.ts:87:5 › /machines/new frame › uses the width the page needs: the list and machine page the frame, the wizard its column (2.8s)
+  ✓  69 [desktop] › tests/machines-frame.spec.ts:60:5 › /machines/00000000-0000-4000-8000-0000000000c1 frame › has no settings list, a Workspace trail, Machines selected, one main landmark (3.0s)
+  ✓  70 [desktop] › tests/machines-frame.spec.ts:87:5 › /machines/00000000-0000-4000-8000-0000000000c1 frame › uses the width the page needs: the list and machine page the frame, the wizard its column (3.4s)
+  ✓  71 [desktop] › tests/machines-frame.spec.ts:109:3 › alignment › the title, its line and the section headings start at the same left edge (5.9s)
+  ✓  73 [desktop] › tests/machines-frame.spec.ts:151:3 › Machines frame, evidence › a settings page beside them, for the left edge (3.3s)
+  -  74 [desktop] › tests/machines-list-layout.spec.ts:124:3 › machines list layout › phone width stacks machine rows with readable names
+  ✓  72 [desktop] › tests/machines-frame.spec.ts:138:3 › Machines frame, evidence › the list, the wizard's first step and a machine page (7.8s)
+  -  76 [desktop] › tests/machines-list-layout.spec.ts:204:3 › machines list layout › phone width stacks the setups being finished with whole-word actions
+  ✓  75 [desktop] › tests/machines-list-layout.spec.ts:182:3 › machines list layout › desktop keeps the machines table (2.5s)
+  -  78 [desktop] › tests/machines-list-layout.spec.ts:296:3 › machines list layout › phone lists hold only list items when ready and loading
+  ✓  77 [desktop] › tests/machines-list-layout.spec.ts:268:3 › machines list layout › desktop shows the setups being finished above the machines (3.3s)
+  ✓  79 [desktop] › tests/machines-list-states.spec.ts:139:3 › machines list states › every state is one badge, one line and one button (4.4s)
+  ✓  80 [desktop] › tests/machines-list-states.spec.ts:235:3 › machines list states › more than ten machines offer a filter that keeps what it names (3.0s)
+  ✓  81 [desktop] › tests/machines-list-states.spec.ts:268:3 › machines list states › an administrator with no machines is invited to add one; anyone else is told whom to ask (6.6s)
+  ✓  82 [desktop] › tests/machines-list-states.spec.ts:298:3 › machines list states › a refused read, a failed read and a slow read each say so (8.9s)
+  ✓  83 [desktop] › tests/machines-list-states.spec.ts:330:3 › machines list states › setups that are not finished are listed first, and only those (4.1s)
+  -  85 [desktop] › tests/machines-touch-targets.spec.ts:75:3 › machines touch targets on a coarse phone › the phone project emulates a 390 px coarse pointer
+  -  86 [desktop] › tests/machines-touch-targets.spec.ts:84:3 › machines touch targets on a coarse phone › every /machines target is at least 44 by 44
+  -  87 [desktop] › tests/machines-touch-targets.spec.ts:104:3 › machines touch targets on a coarse phone › every add-a-machine wizard target is at least 44 by 44, on each step
+  -  88 [desktop] › tests/machines-touch-targets.spec.ts:119:3 › machines touch targets on a coarse phone › every /machines/$machineId target is at least 44 by 44
+  -  89 [desktop] › tests/machines-touch-targets.spec.ts:131:3 › machines touch targets on a coarse phone › revoked detail with failed blockers keeps 44 by 44 targets
+  -  90 [desktop] › tests/machines-touch-targets.spec.ts:145:3 › machines touch targets on a coarse phone › the open navigation drawer keeps 44 by 44 targets
+  ✓  84 [desktop] › tests/machines-list-states.spec.ts:406:3 › machines list states › the list with setups to finish, more machines to load and a failed load together (4.3s)
+
+
+  1) [desktop] › tests/machine-page.spec.ts:497:3 › machine page: mode and Retire › a retired machine has one action, Set up again, which re-pairs the same machine in the wizard's words 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTestId('machine-repair').getByText('fixture-repair-code-0001')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByTestId('machine-repair').getByText('fixture-repair-code-0001') with timeout 5000ms
+      - waiting for getByTestId('machine-repair').getByText('fixture-repair-code-0001')
+
+
+      510 |     )
+      511 |       .toBeVisible();
+    > 512 |     await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
+          |                                                ^
+      513 |     await expect(
+      514 |       setup.getByText(
+      515 |         "The Bakery worker is the program that runs agents on this machine.",
+        at /home/marktripoli/Development/bakery-wt/_qa/qa3-864/apps/web/tests/machine-page.spec.ts:512:48
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../artifacts/ui-baseline/test-results/machine-page-machine-page--2be0b-chine-in-the-wizard-s-words-desktop/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../artifacts/ui-baseline/test-results/machine-page-machine-page--2be0b-chine-in-the-wizard-s-words-desktop/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../../artifacts/ui-baseline/test-results/machine-page-machine-page--2be0b-chine-in-the-wizard-s-words-desktop/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace ../../artifacts/ui-baseline/test-results/machine-page-machine-page--2be0b-chine-in-the-wizard-s-words-desktop/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [desktop] › tests/machine-page.spec.ts:497:3 › machine page: mode and Retire › a retired machine has one action, Set up again, which re-pairs the same machine in the wizard's words 
+  10 skipped
+  79 passed (2.7m)
+headroom: 80 tests, 0 over half budget, max 0.32 desktop machine-agents.spec.ts:842 a command that is not the agent's own program is not shown, however plain 14455/45000
+headroom:   0.32 desktop machine-agents.spec.ts:842 a command that is not the agent's own program is not shown, however plain 14455/45000
+headroom:   0.28 desktop machines-add-wizard.spec.ts:141 three steps create one setup and wait for the machine to connect 12723/45000
+headroom:   0.20 desktop machines-list-states.spec.ts:298 a refused read, a failed read and a slow read each say so 8869/45000
+headroom:   0.18 desktop machine-page.spec.ts:497 a retired machine has one action, Set up again, which re-pairs the same machine in the wizard's words 8293/45000
+headroom:   0.17 desktop machines-frame.spec.ts:138 the list, the wizard's first step and a machine page 7757/45000
+headroom:   0.16 desktop machine-agents.spec.ts:1143 the machine page opens the sign-in for the agent in the address, once 7007/45000
+headroom:   0.15 desktop machines-list-states.spec.ts:268 an administrator with no machines is invited to add one; anyone else is told whom to ask 6567/45000
+headroom:   0.14 desktop machine-page.spec.ts:298 a machine with nothing wrong has no banner and says so about its checks 6361/45000
+headroom:   0.13 desktop machines-frame.spec.ts:109 the title, its line and the section headings start at the same left edge 5922/45000
+headroom:   0.11 desktop machine-agents.spec.ts:998 closing the dialog while it still says Starting cancels the sign-in as soon as it exists 4730/45000
+headroom:   0.10 desktop machine-agents.spec.ts:1034 Cancel sign-in calls cancel and closes; Escape does the same; focus returns to the row 4551/45000
+headroom:   0.10 desktop machine-page.spec.ts:274 finishing up: what is wrong, and the one fix that exists 4541/45000
+headroom:   0.10 desktop machine-agents.spec.ts:1021 an expired sign-in offers Start again 4491/45000
+headroom:   0.10 desktop machines-list-states.spec.ts:139 every state is one badge, one line and one button 4449/45000
+headroom:   0.10 desktop machine-page.spec.ts:446 someone else changed it first: the page says so and shows the latest state 4384/45000
+first-render: 0 steps, 0 failed, p50 0 p99 0 max 0

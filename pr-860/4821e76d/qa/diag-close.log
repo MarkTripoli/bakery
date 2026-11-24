@@ -1,0 +1,27 @@
+copied 5 foundation files and 4 font files to apps/desktop/web
+    Finished `dev` profile [unoptimized] target(s) in 12.95s
+gate ok, load 11.83
+
+{"email":"e2e-admin@example.test","organizationId":"f1033d54-8187-4aff-818c-d74fd7cc33ca","status":"
+server http://127.0.0.1:42325
+PASS [diagA] the sign-in window shows first
+PASS [diagA] pressing the button moves to waiting
+PASS [diagA] the app tried to open the browser  [ok=False]
+PASS the person signs in on the web, once  [status 200]
+SHOT A-a1: 1280x800 brightness=151.3
+PASS [A] A1 first target=_blank click to another site  [saw [('link_to_browser', '{"opened": false}'), ('system_dialog', '{"kind": "browser_did_not_open"}'), ('system_dialog_answer', '{"button": "close"}')]]
+SHOT A-a2: 1280x800 brightness=151.3
+FAIL [A] A2 second target=_blank click to another site  [saw []]
+SHOT A-a3: 1280x800 brightness=151.3
+FAIL [A] A3 then a file: click  [saw []]
+SHOT A-a4: 1280x800 brightness=151.3
+FAIL [A] A4 then another target=_blank click  [saw []]
+PASS [diagB] the sign-in window shows first
+PASS [diagB] pressing the button moves to waiting
+PASS [diagB] the app tried to open the browser  [ok=False]
+SHOT B-b1: 1280x800 brightness=151.3
+PASS [B] B1 target=_blank click after a real click on the page  [saw [('link_to_browser', '{"opened": false}'), ('system_dialog', '{"kind": "browser_did_not_open"}'), ('system_dialog_answer', '{"button": "close"}')]]
+SHOT B-b2: 1280x800 brightness=151.3
+FAIL [B] B2 again  [saw []]
+9 passed, 4 failed
+end-to-end exit: 1; output: /home/marktripoli/qa-860b/out4
