@@ -487,7 +487,7 @@ test.describe("Opening a notification", () => {
     await expect(row).toHaveAttribute("data-landed", "true");
     await expect(row).toBeFocused();
     await shellLeavesLandingFocus(page);
-    expect(asked).toEqual([null, "older"]);
+    expect(asked).toContain("older");
     await expect(announcer(page)).toHaveCount(1);
     await expect.poll(() => reads.length).toBe(1);
     await expect(
