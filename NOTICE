@@ -3,3 +3,13 @@ Copyright 2026 Mark Tripoli
 
 Licensed under the Apache License, Version 2.0 in "LICENSE", unless a file
 states otherwise.
+
+Third-party software shipped with Bakery's web app
+
+- React Flow (@xyflow/react, @xyflow/system), MIT licence, Copyright (c) webkid
+  GmbH. It draws the workflow canvas; its small "React Flow" attribution link
+  stays on the canvas. https://github.com/xyflow/xyflow
+- elkjs, the Eclipse Layout Kernel compiled to JavaScript, dual-licensed
+  EPL-2.0 OR GPL-3.0-or-later; Bakery uses it under the Eclipse Public License
+  2.0, unmodified. It lays out the workflow canvas in a browser worker. Source
+  and licence: https://github.com/kieler/elkjs

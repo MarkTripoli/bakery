@@ -5,7 +5,38 @@ import {
   withPgTransaction,
 } from "../../apps/server/src/platform/database.ts";
 
-export async function seedBrowserArtifact(email: string) {
+export type SeedOptions = Readonly<{
+  fixtureName: string;
+  taskDescription: string;
+  taskStatus: string;
+  artifactType: string;
+  artifactName: string;
+  artifactRevision: number;
+  mediaType: string;
+  metadata: Readonly<Record<string, unknown>>;
+  text: string;
+}>;
+
+const BROWSER_BYTES: SeedOptions = {
+  fixtureName: "Browser core fixture",
+  taskDescription: "Seeded read proof only",
+  taskStatus: "queued",
+  artifactType: "other",
+  artifactName: "Browser core bytes",
+  artifactRevision: 1,
+  mediaType: "text/plain",
+  metadata: {
+    fixture: "seeded/read proof only",
+    resultKind: "not-a-coding-result",
+  },
+  text: "seeded/read proof only\nbounded immutable browser bytes\n",
+};
+
+export async function seedBrowserArtifact(
+  email: string,
+  overrides: Partial<SeedOptions> = {},
+) {
+  const options = { ...BROWSER_BYTES, ...overrides };
   const database = openPgDatabase(
     readDatabaseConfig(Deno.env.toObject(), "owner").url,
   );
@@ -14,7 +45,7 @@ export async function seedBrowserArtifact(email: string) {
   const taskId = crypto.randomUUID();
   const artifactId = crypto.randomUUID();
   const versionId = crypto.randomUUID();
-  const text = "seeded/read proof only\nbounded immutable browser bytes\n";
+  const text = options.text;
   const content = new TextEncoder().encode(text);
   const digest = Array.from(
     new Uint8Array(await crypto.subtle.digest("SHA-256", content)),
@@ -36,44 +67,60 @@ export async function seedBrowserArtifact(email: string) {
     await withPgTransaction(database, async (transaction) => {
       await transaction.query(
         `insert into bakery.applications (id, organization_id, slug, name)
-       values ($1, $2, $3, 'Browser core fixture')`,
-        [applicationId, scope.organizationId, `browser-${applicationId}`],
+       values ($1, $2, $3, $4)`,
+        [
+          applicationId,
+          scope.organizationId,
+          `browser-${applicationId}`,
+          options.fixtureName,
+        ],
       );
       await transaction.query(
         `insert into bakery.conversations (id, organization_id, application_id, title, created_by)
-       values ($1, $2, $3, 'Browser core fixture', $4)`,
+       values ($1, $2, $3, $5, $4)`,
         [
           conversationId,
           scope.organizationId,
           applicationId,
           scope.principalId,
+          options.fixtureName,
         ],
       );
       await transaction.query(
         `insert into bakery.tasks
        (id, organization_id, application_id, conversation_id, title, description, task_type, status, created_by)
-       values ($1, $2, $3, $4, 'Browser core fixture', 'Seeded read proof only', 'feature', 'queued', $5)`,
+       values ($1, $2, $3, $4, $6, $7, 'feature', $8, $5)`,
         [
           taskId,
           scope.organizationId,
           applicationId,
           conversationId,
           scope.principalId,
+          options.fixtureName,
+          options.taskDescription,
+          options.taskStatus,
         ],
       );
       await transaction.query(
         `insert into bakery.artifacts
        (id, organization_id, task_id, artifact_type, name, revision, version)
-       values ($1, $2, $3, 'other', 'Browser core bytes', 1, 1)`,
-        [artifactId, scope.organizationId, taskId],
+       values ($1, $2, $3, $4, $5, $6, 1)`,
+        [
+          artifactId,
+          scope.organizationId,
+          taskId,
+          options.artifactType,
+          options.artifactName,
+          options.artifactRevision,
+        ],
       );
       await transaction.query(
         `insert into bakery.artifact_versions
        (id, organization_id, artifact_id, task_id, run_step_id, revision, author_id,
         subject_head_sha, subject_base_sha, step_key, metadata, content, sha256, size_bytes, media_type)
        values ($1, $2, $3, $4, null, 1, $5, null, null, null,
-        '{"fixture":"seeded/read proof only","resultKind":"not-a-coding-result"}'::jsonb,
-        $6, $7, $8, 'text/plain')`,
+        $9::jsonb,
+        $6, $7, $8, $10)`,
         [
           versionId,
           scope.organizationId,
@@ -83,6 +130,8 @@ export async function seedBrowserArtifact(email: string) {
           content,
           digest,
           content.byteLength,
+          JSON.stringify(options.metadata),
+          options.mediaType,
         ],
       );
       await transaction.query(
@@ -108,5 +157,6 @@ if (import.meta.main) {
   if (!email || Deno.env.get("BAKERY_ENV") !== "test") {
     throw new Error("ISOLATED_BROWSER_TEST_ENV_REQUIRED");
   }
-  console.log(JSON.stringify(await seedBrowserArtifact(email)));
+  const overrides = JSON.parse(Deno.args[1] ?? "{}") as Partial<SeedOptions>;
+  console.log(JSON.stringify(await seedBrowserArtifact(email, overrides)));
 }

@@ -33,6 +33,7 @@ export type StepCardProps =
     needsSetupLabel?: ReactNode;
     /** What the definition states, when the step could not be read. */
     writtenInCode?: ReactNode;
+    codeMark?: ReactNode;
     /**
      * One further line inside the card, under the summary: on a read-only page,
      * which agent the step runs. It belongs to the card so it cannot sit on top
@@ -44,6 +45,7 @@ export type StepCardProps =
 /** A step drawn as a card, selectable, for the workflow diagram. */
 export function StepCard(
   {
+    codeMark,
     controls,
     detail,
     icon,
@@ -96,6 +98,9 @@ export function StepCard(
           ? null
           : <span className="ui-step-card__written">{writtenInCode}</span>}
       </span>
+      {codeMark === undefined
+        ? null
+        : <span className="ui-step-card__code">{codeMark}</span>}
     </button>
   );
 }

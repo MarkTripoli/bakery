@@ -180,7 +180,7 @@ export async function inputReadRoute(
       // while the lease it was asked under still holds.
       await reassertAttempt(claimed);
 
-      return { attemptId, runId, items };
+      return { attemptId, runId, inputs: items };
     },
   );
   return jsonResponse(result, 200);

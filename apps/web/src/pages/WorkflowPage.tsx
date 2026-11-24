@@ -49,6 +49,7 @@ import {
 } from "./library/workflow-state.ts";
 import { stepsOfTree, treeOf } from "./library/workflow-tree.ts";
 import { WorkflowDiagram } from "./library/WorkflowDiagram.tsx";
+import { DiagramViewSwitch, useDiagramView } from "./library/diagram-view.tsx";
 
 /** How many versions the Versions card lists before "Show all". */
 const CARD_VERSIONS = 5;
@@ -82,6 +83,7 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const navigate = useNavigate();
+  const [diagramView, setDiagramView] = useDiagramView();
   const queryClient = useQueryClient();
   const { translate, locale, timeZone } = useI18n();
   useRestoreOrganizationScope();
@@ -763,6 +765,9 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
             : null}
           <UI.ListSection
             flush
+            actions={
+              <DiagramViewSwitch onChange={setDiagramView} view={diagramView} />
+            }
             data-testid="workflow-steps"
             title={shown === null
               ? translate("library.workflow.versions.none" as never)
@@ -786,6 +791,7 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
               onPick={() => {}}
               onPickClose={() => {}}
               detail={(_uses, id) => agentLine(id)}
+              view={diagramView}
             />
           </UI.ListSection>
           <UI.ListSection
