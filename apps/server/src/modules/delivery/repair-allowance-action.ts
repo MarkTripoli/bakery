@@ -6,7 +6,7 @@ import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { allowMoreRepairTries } from "./repair-allowance.ts";
 import {
   allowMoreRepeatRounds,
-  findRepeatLimitStop,
+  concernsRepeatLimit,
 } from "./repeat-limit-decision.ts";
 
 export async function createRepairAllowance(
@@ -29,7 +29,7 @@ export async function createRepairAllowance(
     requestId: context.requestId,
     traceId: context.traceId,
   };
-  if (await findRepeatLimitStop(transaction, organizationId, runId)) {
+  if (await concernsRepeatLimit(transaction, organizationId, runId)) {
     const limit = await allowMoreRepeatRounds(transaction, request);
     return {
       runId,

@@ -336,9 +336,9 @@ they cannot invoke an action or read a secret.
   that run even when `until` already holds; `until` is not asked before round
   `min`. `repeat.allow` (min..max) is a soft cap: a loop that uses it below `max`
   with `until` still false pauses the run, and no allowance goes past `max`.
-  Interpreter revision 4 honors both; earlier revisions ignore them. A repeat terminates with exactly one outcome:
-  `completed`, `exhausted`, `canceled`, `failed`, or `timed_out`; `exhausted`
-  cannot satisfy a delivery gate.
+  Interpreter revision 4 honors both; earlier revisions ignore them. A repeat
+  terminates with exactly one outcome: `completed`, `exhausted`, `canceled`,
+  `failed`, or `timed_out`; `exhausted` cannot satisfy a delivery gate.
 - `if` and `until` must evaluate to a boolean. A missing path is invalid unless
   the schema declares it optional; an optional missing value is `null`, never
   false or an empty string.
@@ -363,11 +363,11 @@ they cannot invoke an action or read a secret.
   or unknown outcome in `external_effects` and reconciles before retrying.
 
 `repeat.until` is asked from round `min` on (before the first iteration when
-`min` is absent) and after each completed iteration. The repeat maintains `currentCandidate` as its accumulator: the
-typed `repeat.seed` initializes it, and `repeat.outputs` is validated and
-applied only after every nested step completes successfully. If the seed
-already satisfies `until`, the repeat performs zero iterations and returns the
-seed unchanged. The default condition requires both zero blocking review
+`min` is absent) and after each completed iteration. The repeat maintains
+`currentCandidate` as its accumulator: the typed `repeat.seed` initializes it,
+and `repeat.outputs` is validated and applied only after every nested step
+completes successfully. If the seed already satisfies `until` and `min` is
+absent, the repeat performs zero iterations and returns the seed unchanged. The default condition requires both zero blocking review
 findings and passing required checks, so a clean review with failed checks
 enters repair using its failed-check evidence. A failed, canceled, or timed-out
 iteration leaves the prior accumulator intact and returns that outcome. A repeat returns

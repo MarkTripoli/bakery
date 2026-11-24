@@ -1,7 +1,14 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertNotEquals,
+  assertRejects,
+} from "@std/assert";
 import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
 import { readPlanHost } from "../../apps/server/src/modules/delivery/plan-host.ts";
 import { allowMoreRepeatRounds } from "../../apps/server/src/modules/delivery/repeat-limit-decision.ts";
+import { createRepairAllowance } from "../../apps/server/src/modules/delivery/repair-allowance-action.ts";
+import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
 import { pinWorkflowRuntime } from "../../packages/contracts/src/workflow-interpreter/mod.ts";
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { seedFundedModelJob } from "../helpers/funded-model-job.ts";
@@ -216,6 +223,24 @@ Deno.test("a limit decision resumes a run stopped at a repeat's allow, round by 
             traceId: crypto.randomUUID(),
           }),
       );
+    const viaAction = (tries: number) =>
+      withPgTransaction(
+        fixture.pgDatabase,
+        (transaction) =>
+          createRepairAllowance(
+            {
+              transaction,
+              authority: {
+                organizationId: fixture.organizationId,
+                subject: { principalId: fixture.principalId },
+              },
+              params: { id: seeded.job.runId },
+              requestId: crypto.randomUUID(),
+              traceId: crypto.randomUUID(),
+            } as unknown as ActionContext,
+            { tries },
+          ),
+      );
     const resume = async () => {
       await fixture.pgDatabase.query(
         `update bakery.workflow_runs set status = 'running' where id = $1`,
@@ -256,6 +281,18 @@ Deno.test("a limit decision resumes a run stopped at a repeat's allow, round by 
     }]);
     assertEquals((await state(fixture, seeded)).run.status, "queued");
 
+    assertEquals((await decide(1)).decisionId, first.decisionId);
+    const retried = await viaAction(1);
+    assertEquals(retried, {
+      runId: seeded.job.runId,
+      kind: "repeat_limit",
+      addedTries: 1,
+      decisionId: first.decisionId,
+      repeatKey: "loop",
+    });
+    assertEquals((await ledger()).length, 1);
+    assertEquals((await state(fixture, seeded)).run.status, "queued");
+
     const afterFirst = await resume();
     const second = await repository.findNext(seeded.job.runId, afterFirst);
     assertEquals(second?.stepKey, "loop@2.bump");
@@ -272,6 +309,9 @@ Deno.test("a limit decision resumes a run stopped at a repeat's allow, round by 
 
     const last = await decide(5);
     assertEquals(last.addedTries, 1);
+    assertNotEquals(last.decisionId, first.decisionId);
+    assertEquals((await viaAction(5)).decisionId, last.decisionId);
+    assertEquals((await ledger()).length, 2);
     const afterLast = await resume();
     const third = await repository.findNext(seeded.job.runId, afterLast);
     assertEquals(third?.stepKey, "loop@3.bump");

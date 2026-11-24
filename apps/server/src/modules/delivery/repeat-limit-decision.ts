@@ -49,7 +49,7 @@ async function readLimitStop(
   };
 }
 
-export async function findRepeatLimitStop(
+async function findRepeatLimitStop(
   transaction: PgTransactionClient,
   organizationId: string,
   runId: string,
@@ -61,6 +61,62 @@ export async function findRepeatLimitStop(
   );
   if (run.rows[0]?.status !== "failed") return undefined;
   return await readLimitStop(transaction, organizationId, runId);
+}
+
+async function findAnsweredRepeatLimit(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  runId: string,
+): Promise<
+  { decisionId: string; repeatKey: string; addedTries: number } | undefined
+> {
+  const answered = await transaction.query<
+    { id: string; detail: { repeatKey?: unknown; addedTries?: unknown } | null }
+  >(
+    `with stop as (
+       select created_at from bakery.audit_events
+        where organization_id = $1 and operation = 'workflow.plan_failed'
+          and resource_id = $2 and details ->> 'code' = $3
+        order by created_at desc, id desc limit 1)
+     select d.id, d.detail from bakery.decisions_ledger d, stop
+      where d.organization_id = $1 and d.subject_kind = $4
+        and d.subject_id = $2 and d.kind = 'limit_change'
+        and d.decided_at > stop.created_at
+        and not exists (
+          select 1 from bakery.audit_events later
+           where later.organization_id = $1
+             and later.operation = 'workflow.plan_failed'
+             and later.resource_id = $2 and later.created_at > stop.created_at
+             and later.details ->> 'code' <> $3)
+      order by d.decided_at desc, d.id desc limit 1`,
+    [
+      organizationId,
+      runId,
+      PLAN_LIMIT_REACHED_CODE,
+      LIMIT_DECISION_SUBJECT_KIND,
+    ],
+  );
+  const decision = answered.rows[0];
+  if (
+    !decision || typeof decision.detail?.repeatKey !== "string" ||
+    typeof decision.detail.addedTries !== "number"
+  ) return undefined;
+  return {
+    decisionId: decision.id,
+    repeatKey: decision.detail.repeatKey,
+    addedTries: decision.detail.addedTries,
+  };
+}
+
+export async function concernsRepeatLimit(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  runId: string,
+): Promise<boolean> {
+  return await findRepeatLimitStop(transaction, organizationId, runId) !==
+      undefined ||
+    await findAnsweredRepeatLimit(transaction, organizationId, runId) !==
+      undefined;
 }
 
 export async function allowMoreRepeatRounds(
@@ -92,6 +148,12 @@ export async function allowMoreRepeatRounds(
   const row = run.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   if (!isPlanRunSnapshot(row.snapshot)) conflict("not_a_plan_run");
+  const answered = await findAnsweredRepeatLimit(
+    transaction,
+    organizationId,
+    runId,
+  );
+  if (answered !== undefined) return answered;
   const stop = row.status === "failed"
     ? await readLimitStop(transaction, organizationId, runId)
     : undefined;

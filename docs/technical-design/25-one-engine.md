@@ -378,10 +378,12 @@ in the loop's panel.
   rounds count toward `max`.
 - **Pausing for more rounds** (deliver-as-workflow D9) happens only below the
   maximum. A loop may start with a smaller allowance (`repeat.allow`). When it
-  uses that allowance without meeting its exit condition, the run pauses for a
-  person (built so far: the engine stops the run with the stable code
-  `limit_reached` and goes no further; recording the decision comes next), who can allow more rounds, accept as is, or stop. More rounds can
-  never go past `max`. When `max` is reached, the loop ends as exhausted and the
+  uses that allowance without meeting its exit condition, the engine stops the
+  run with the stable code `limit_reached`. A person then allows more rounds
+  through `POST /v1/runs/:id/repair-allowances`, which records a
+  `limit_change` decision and reopens the run; asking again for the same stop
+  returns that decision and reopens nothing. Accepting as is and stopping are
+  not built for a repeat limit yet. More rounds can never go past `max`. When `max` is reached, the loop ends as exhausted and the
   run ends `needs_human` with `limit_reached`. Raising the cap of 8 is not part
   of this decision.
 
