@@ -57,6 +57,7 @@ async function withApprovalFixture(
       ask: (
         audience: readonly string[] | undefined,
         owner: string | null,
+        stepIteration?: number,
       ) => Promise<
         { approvalId: string; approverPrincipalIds: readonly string[] }
       >;
@@ -74,7 +75,7 @@ async function withApprovalFixture(
       viewer,
       runId: run.runId,
       taskId: run.taskId,
-      ask: (audience, owner) =>
+      ask: (audience, owner, stepIteration) =>
         withPgTransaction(
           fixture.pgDatabase,
           (transaction) =>
@@ -90,6 +91,7 @@ async function withApprovalFixture(
               traceId: crypto.randomUUID(),
               applicationId: fixture.applicationId,
               repositoryId: null,
+              ...(stepIteration === undefined ? {} : { stepIteration }),
             }),
         ),
     });
@@ -374,4 +376,193 @@ Deno.test("security: a steerer without request permission cannot bring anyone in
       ids.runId,
     );
     assertEquals(rows.map((row) => row.asked_by), [asker.principalId]);
+  }));
+
+Deno.test("an approval whose starter is gone still asks each approver, on behalf of a live admin", () =>
+  withApprovalFixture(async ({ fixture, guest, runId, ask }) => {
+    const gone = await addMember(fixture, "Gone starter", "developer");
+    try {
+      await fixture.pgDatabase.query(
+        `update bakery.principals set disabled_at = now() where id = $1`,
+        [gone.principalId],
+      );
+      await fixture.pgDatabase.query(
+        `update bakery.workflow_runs set requested_by = $2
+          where organization_id = $1 and id = $3`,
+        [fixture.organizationId, gone.principalId, runId],
+      );
+      const handle = `late-${crypto.randomUUID().slice(0, 8)}`;
+      await seedGroup(fixture, handle, [guest.principalId]);
+      const asked = await ask([`@${handle}`], null);
+      assertEquals(asked.approverPrincipalIds, [guest.principalId]);
+      const rows = await requestsOn(
+        fixture.pgDatabase,
+        fixture.organizationId,
+        runId,
+      );
+      assertEquals(rows.length, 1);
+      assertEquals(rows[0]!.recipient_id, guest.principalId);
+      assertEquals(rows[0]!.intent, "approve");
+      assertEquals(rows[0]!.asked_by_kind, "workflow");
+      assertEquals(rows[0]!.asked_by, fixture.principalId);
+      assertEquals(rows[0]!.target_id, asked.approvalId);
+    } finally {
+      await cleanupAuthFixture(fixture.pgDatabase, [gone.email]);
+    }
+  }));
+
+Deno.test("an approval request carries the step's loop iteration", () =>
+  withApprovalFixture(async ({ fixture, guest, runId, ask }) => {
+    const handle = `loop-${crypto.randomUUID().slice(0, 8)}`;
+    await seedGroup(fixture, handle, [guest.principalId]);
+    await ask([`@${handle}`], fixture.principalId, 3);
+    const rows = await fixture.pgDatabase.query<{ step_iteration: number }>(
+      `select step_iteration from bakery.person_requests
+        where organization_id = $1 and run_id = $2`,
+      [fixture.organizationId, runId],
+    );
+    assertEquals(rows.rows.map((row) => row.step_iteration), [3]);
+  }));
+
+async function steerGroup(
+  fixture: Fixture,
+  organizationId: string,
+  mentionName: string,
+  members: readonly string[],
+): Promise<string> {
+  const groupId = crypto.randomUUID();
+  await fixture.pgDatabase.query(
+    `insert into bakery.organization_groups
+       (id, organization_id, name, mention_name)
+     values ($1, $2, $3, $3)`,
+    [groupId, organizationId, mentionName],
+  );
+  for (const principalId of members) {
+    await fixture.pgDatabase.query(
+      `insert into bakery.organization_group_members
+         (organization_id, group_id, principal_id)
+       values ($1, $2, $3)`,
+      [organizationId, groupId, principalId],
+    );
+  }
+  return groupId;
+}
+
+Deno.test("a steer that mentions a group asks each member with an FYI request", () =>
+  withSteerFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "steer-group");
+    const taskId = await seedTask(fixture, seed);
+    const ids = await seedLiveAttempt(fixture, seed, taskId, ["steer"]);
+    const first = await addSeedMember(fixture, seed, "First", "guest");
+    const second = await addSeedMember(fixture, seed, "Second", "guest");
+    const handle = `reviewers-${crypto.randomUUID().slice(0, 8)}`;
+    const groupId = await steerGroup(fixture, seed.organizationId, handle, [
+      first.principalId,
+      second.principalId,
+    ]);
+    const response = await request(
+      fixture,
+      seed,
+      `/v1/sessions/${ids.agentSessionId}/messages`,
+      {
+        method: "POST",
+        body: {
+          body: "Reviewers, have a look.",
+          mode: "steer",
+          mentionHandles: [`@${handle}`],
+        },
+      },
+    );
+    assertEquals(response.status, 201);
+    const rows = await requestsOn(
+      fixture.pgDatabase,
+      seed.organizationId,
+      ids.runId,
+    );
+    assertEquals(
+      rows.map((row) => row.recipient_id),
+      [first.principalId, second.principalId].sort(),
+    );
+    for (const row of rows) {
+      assertEquals(row.intent, "fyi");
+      assertEquals(row.audience_group_id, groupId);
+      assertEquals(row.step_key, "implement");
+    }
+  }));
+
+Deno.test("a steer mention of someone who cannot be found asks the workflow owner with the name", () =>
+  withSteerFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "steer-fallback");
+    const taskId = await seedTask(fixture, seed);
+    const ids = await seedLiveAttempt(fixture, seed, taskId, ["steer"]);
+    const owner = await addSeedMember(fixture, seed, "Owner", "developer");
+    const gone = await addSeedMember(fixture, seed, "Gone", "guest");
+    await fixture.pgDatabase.query(
+      `update bakery.principals set disabled_at = now() where id = $1`,
+      [gone.principalId],
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_definitions set owner_principal_id = $2
+        where organization_id = $1 and id = $3`,
+      [seed.organizationId, owner.principalId, ids.workflowId],
+    );
+    const response = await request(
+      fixture,
+      seed,
+      `/v1/sessions/${ids.agentSessionId}/messages`,
+      {
+        method: "POST",
+        body: {
+          body: "Gone, have a look.",
+          mode: "steer",
+          mentions: [gone.principalId],
+        },
+      },
+    );
+    assertEquals(response.status, 201);
+    const rows = await requestsOn(
+      fixture.pgDatabase,
+      seed.organizationId,
+      ids.runId,
+    );
+    assertEquals(rows.length, 1);
+    assertEquals(rows[0]!.recipient_id, owner.principalId);
+    assertEquals(rows[0]!.fallback_for_name, "Gone");
+    assertEquals(rows[0]!.intent, "fyi");
+  }));
+
+Deno.test("a steerer without request permission can still mention someone who already sees the run", () =>
+  withSteerFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "steer-mention-reader");
+    const taskId = await seedTask(fixture, seed);
+    const ids = await seedLiveAttempt(fixture, seed, taskId, ["steer"]);
+    const reader = await addSeedMember(fixture, seed, "Reader", "developer");
+    const steerOnly = await customRoleMember(
+      fixture,
+      seed,
+      `steer-only-${crypto.randomUUID().slice(0, 8)}`,
+      STEER_ONLY,
+    );
+    const response = await request(
+      fixture,
+      steerOnly,
+      `/v1/sessions/${ids.agentSessionId}/messages`,
+      {
+        method: "POST",
+        body: {
+          body: "Reader, see this.",
+          mode: "steer",
+          mentions: [reader.principalId],
+        },
+      },
+    );
+    assertEquals(response.status, 201);
+    const rows = await requestsOn(
+      fixture.pgDatabase,
+      seed.organizationId,
+      ids.runId,
+    );
+    assertEquals(rows.map((row) => row.recipient_id), [reader.principalId]);
+    assertEquals(rows[0]!.asked_by, steerOnly.principalId);
+    assertEquals(rows[0]!.intent, "fyi");
   }));

@@ -512,6 +512,7 @@ export async function steerAgentSession(
     runId: ownerRow.run_id,
     stepKey: targetRow.step_key,
     mentions: input.mentions ?? [],
+    mentionHandles: input.mentionHandles ?? [],
   });
   return toMessage(message);
 }

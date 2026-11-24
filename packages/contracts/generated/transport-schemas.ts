@@ -4456,7 +4456,16 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 20
           },
-          "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the run's starter with a visible note. Mentioning needs the steerer's own request permission (runRequest:write), so a person who steers only through a take-over request cannot bring anyone in; any refusal writes nothing, not even the steer. Text that merely looks like @name never mentions anyone."
+          "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. A steerer without request permission (runRequest:write) can mention only people who can already see the run; mentioning anyone else is refused with AUTH_FORBIDDEN and writes nothing, not even the steer. Text that merely looks like @name never mentions anyone."
+        },
+        {
+          "name": "mentionHandles",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 20
+          },
+          "description": "Groups or roles this steer @-mentions by their mention name, such as @design-reviewers, @admins or @developers; the leading @ is optional. Every active member other than the steerer is asked to just let them know on this run's step, and any one of them can handle it. A name that matches no group or role, or a group with nobody in it, falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. The same request permission rule as mentions applies to every member reached."
         }
       ],
       "description": "Delivers a message to a running agent session's active harness process, steering it immediately or queuing a follow-up, depending on mode and the adapter capabilities the worker advertised."
@@ -36348,7 +36357,7 @@ const transportSchemas = {
         "neededBy": "The optional deadline, or null.",
         "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
         "expiresAt": "UTC time the request expires; silence never approves.",
-        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
+        "ownerFallback": "True when the person asked for could not be resolved and the workflow's owner, or the run's starter when the workflow has no owner, was asked instead.",
         "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
         "createdAt": "UTC time the request was made.",
         "updatedAt": "UTC time it last changed.",

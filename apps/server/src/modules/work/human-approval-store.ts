@@ -10,6 +10,7 @@ import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { mayActOnQuestion } from "../auth/application/run-grants.ts";
 import { internalContext, liveActor } from "../workflows/automations/start.ts";
+import type { OrganizationActor } from "../auth/application/authority.ts";
 import {
   askApproversFromWorkflowStep,
   audienceByHandle,
@@ -161,6 +162,7 @@ export async function requestHumanApproval(
     traceId: string;
     applicationId: string;
     repositoryId: string | null;
+    stepIteration?: number;
   },
 ): Promise<{
   approvalId: string;
@@ -234,6 +236,12 @@ export async function requestHumanApproval(
         "This approval step has no one to ask: the workflow has no owner and the step names no audience.",
     });
   }
+  const asker = named.length === 0 ? null : await approvalAsker(
+    transaction,
+    input.organizationId,
+    input.runId,
+    input.ownerPrincipalId,
+  );
 
   const approvalId = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + HUMAN_APPROVAL_WAIT_LIMIT_MS);
@@ -302,11 +310,12 @@ export async function requestHumanApproval(
   const fallbackForName = resolution.fallback === true
     ? await namesOf(transaction, named, unresolved)
     : null;
-  if (named.length > 0) {
-    await askApprovers(transaction, {
+  if (asker !== null) {
+    await askApprovers(transaction, asker, {
       organizationId: input.organizationId,
       runId: input.runId,
       stepKey: input.stepKey,
+      stepIteration: input.stepIteration ?? 0,
       approvalId,
       traceId: input.traceId,
       recipients: resolution.approverPrincipalIds.map((principalId) => ({
@@ -346,12 +355,56 @@ async function namesOf(
   return names.length === 0 ? "someone" : names.join(", ");
 }
 
+async function approvalAsker(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  runId: string,
+  ownerPrincipalId: string | null,
+): Promise<OrganizationActor> {
+  const run = await transaction.query<{ requested_by: string | null }>(
+    `select requested_by from bakery.workflow_runs
+      where organization_id = $1 and id = $2`,
+    [organizationId, runId],
+  );
+  const admins = await transaction.query<{ principal_id: string }>(
+    `select membership.principal_id
+       from bakery.organization_memberships membership
+       join bakery.principals principal
+         on principal.id = membership.principal_id
+      where membership.organization_id = $1 and membership.status = 'active'
+        and membership.role = 'admin' and principal.disabled_at is null
+        and principal.principal_type = 'human'
+      order by membership.joined_at nulls last, membership.principal_id`,
+    [organizationId],
+  );
+  const candidates = [
+    run.rows[0]?.requested_by ?? null,
+    ownerPrincipalId,
+    ...admins.rows.map((row) => row.principal_id),
+  ];
+  for (const candidate of new Set(candidates)) {
+    if (candidate === null) continue;
+    const actor = await liveActor(transaction, organizationId, candidate);
+    if (actor !== null) return actor;
+  }
+  throw new StandardError({
+    code: "UNPROCESSABLE",
+    params: { reason: APPROVAL_ASKER_UNAVAILABLE },
+    detail:
+      "This approval step cannot ask anyone: nobody who could ask on the workflow's behalf is still active.",
+  });
+}
+
+export const APPROVAL_ASKER_UNAVAILABLE = "approval-asker-unavailable";
+
 async function askApprovers(
   transaction: PgTransactionClient,
+  actor: OrganizationActor,
   input: Readonly<{
     organizationId: string;
     runId: string;
     stepKey: string;
+    stepIteration: number;
     approvalId: string;
     traceId: string;
     recipients: Parameters<
@@ -359,15 +412,6 @@ async function askApprovers(
     >[1]["recipients"];
   }>,
 ): Promise<void> {
-  const run = await transaction.query<{ requested_by: string | null }>(
-    `select requested_by from bakery.workflow_runs
-      where organization_id = $1 and id = $2`,
-    [input.organizationId, input.runId],
-  );
-  const starter = run.rows[0]?.requested_by ?? null;
-  if (starter === null) return;
-  const actor = await liveActor(transaction, input.organizationId, starter);
-  if (actor === null) return;
   await askApproversFromWorkflowStep(
     internalContext(
       transaction,
@@ -382,7 +426,7 @@ async function askApprovers(
     ),
     {
       stepKey: input.stepKey,
-      iteration: 0,
+      iteration: input.stepIteration,
       questionId: input.approvalId,
       recipients: input.recipients,
     },
