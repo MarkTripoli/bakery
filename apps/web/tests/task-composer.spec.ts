@@ -733,7 +733,7 @@ test("a run refused with STATE_CONFLICT leaves a draft that shows the same setup
   });
   await expect(page.getByText(REASON_COPY.coding_agent_unbound)).toBeVisible();
   await expect(page.getByRole("button", { name: "Start run", exact: true }))
-    .toBeDisabled();
+    .toBeEnabled();
   // Nothing was duplicated: the task exists once, as a draft.
   expect(seen.tasks).toHaveLength(1);
 });
