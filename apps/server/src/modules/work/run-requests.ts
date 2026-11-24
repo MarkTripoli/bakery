@@ -1276,7 +1276,7 @@ export async function handleRequestsOnTarget(
     transaction,
     organizationId,
     principalId,
-    "intent = $3 and target_id = $4",
+    (alias) => `${alias}.intent = $3 and ${alias}.target_id = $4`,
     [intent, targetId],
   );
 }
@@ -1292,7 +1292,8 @@ export async function handleTakeOverRequests(
     transaction,
     organizationId,
     principalId,
-    "intent = 'take_over' and run_id = $3 and step_key = $4",
+    (alias) =>
+      `${alias}.intent = 'take_over' and ${alias}.run_id = $3 and ${alias}.step_key = $4`,
     [runId, stepKey],
   );
 }
@@ -1301,26 +1302,22 @@ async function closeAnsweredAsk(
   transaction: PgTransactionClient,
   organizationId: string,
   principalId: string,
-  targetSql: string,
+  target: (alias: string) => string,
   targetValues: readonly unknown[],
 ): Promise<void> {
-  const qualified = targetSql.replace(
-    /\b(intent|target_id|run_id|step_key)\b/g,
-    "request.$1",
-  );
   const closed = await transaction.query<ClosedRequest>(
     `with mine as (
-       select run_id, created_at, asked_by, audience_group_id,
-              audience_role_key
-         from bakery.person_requests
-        where organization_id = $1 and recipient_id = $2 and status = 'open'
-          and ${targetSql}
+       select own.run_id, own.created_at, own.asked_by,
+              own.audience_group_id, own.audience_role_key
+         from bakery.person_requests own
+        where own.organization_id = $1 and own.recipient_id = $2
+          and own.status = 'open' and ${target("own")}
      )
      update bakery.person_requests request
         set status = 'handled', responded_at = now(), updated_at = now(),
             version = request.version + 1
       where request.organization_id = $1 and request.status = 'open'
-        and ${qualified}
+        and ${target("request")}
         and (
           request.recipient_id = $2 or exists (
             select 1 from mine
