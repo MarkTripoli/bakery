@@ -25547,7 +25547,14 @@ const transportSchemas = {
         "safeBoundary",
         "status",
         "manifest",
-        "createdAt"
+        "createdAt",
+        "decisionMode",
+        "freshReason",
+        "machineName",
+        "continuedMode",
+        "continuedFreshReason",
+        "continuedByName",
+        "continuedAt"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -25561,7 +25568,14 @@ const transportSchemas = {
         "safeBoundary": "boolean",
         "status": "enum(pending|continued|blocked)",
         "manifest": "json",
-        "createdAt": "timestamp"
+        "createdAt": "timestamp",
+        "decisionMode": "enum(fresh_session|exact_harness_resume)|null",
+        "freshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked)|null",
+        "machineName": "string|null",
+        "continuedMode": "enum(fresh_session|exact_harness_resume)|null",
+        "continuedFreshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked)|null",
+        "continuedByName": "string|null",
+        "continuedAt": "timestamp|null"
       },
       "description": "A stored handoff manifest: where one source attempt stopped, with the server's own safe-boundary computation and the digest a continuation pins. It is a record to be re-verified, never the authority for run state.",
       "fieldDescriptions": {
@@ -25576,8 +25590,24 @@ const transportSchemas = {
         "safeBoundary": "Whether resuming here cannot repeat a non-replay-safe operation, computed by the server from the event journal and the effect ledger; the source's own claim is ignored.",
         "status": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused).",
         "manifest": "The stored manifest with the server's pending-effect list and safe boundary in place of the source's claims.",
-        "createdAt": "UTC timestamp when the manifest was stored."
-      }
+        "createdAt": "UTC timestamp when the manifest was stored.",
+        "decisionMode": "How a continuation would carry on if it were admitted now, decided from the server's own rows and never from the manifest's claim. Null when the manifest is not pending, or on the worker's own write, where no decision is made.",
+        "freshReason": "Why a continuation would start fresh instead of resuming exactly; set only when decisionMode is fresh_session, otherwise null.",
+        "machineName": "Name of the machine the source session ran on, or null when it is not known. Shown so a person can tell which session a hand-over stops.",
+        "continuedMode": "How the continuation started once the step was handed over; null until then.",
+        "continuedFreshReason": "Why the continuation started fresh; null for an exact resume, before a hand-over, and for hand-overs recorded before the reason was kept.",
+        "continuedByName": "Current display name of the person who handed the step over, as the server recorded it. The same for every reader; null until a hand-over, or when that person no longer has a name.",
+        "continuedAt": "UTC timestamp when the step was handed over; null until then."
+      },
+      "optionalFields": [
+        "decisionMode",
+        "freshReason",
+        "machineName",
+        "continuedMode",
+        "continuedFreshReason",
+        "continuedByName",
+        "continuedAt"
+      ]
     },
     "HandoffContinuation": {
       "fields": [
@@ -25590,7 +25620,8 @@ const transportSchemas = {
         "previousFence",
         "newFence",
         "mode",
-        "admittedAt"
+        "admittedAt",
+        "freshReason"
       ],
       "nullableFields": [],
       "fieldTypes": {
@@ -25603,7 +25634,8 @@ const transportSchemas = {
         "previousFence": "decimalString",
         "newFence": "decimalString",
         "mode": "enum(fresh_session|exact_harness_resume)",
-        "admittedAt": "timestamp"
+        "admittedAt": "timestamp",
+        "freshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked)|null"
       },
       "description": "The record that a source attempt was retired and its job admitted again for a continuation. The source is fenced, so it can no longer publish; the job is queued again on the same pin with the same input; the manifest is marked used.",
       "fieldDescriptions": {
@@ -25616,8 +25648,12 @@ const transportSchemas = {
         "previousFence": "Fence of the source attempt before the handoff; decimal string.",
         "newFence": "The job's fence now; any event, artifact or result under the previous fence is refused as lease-fenced.",
         "mode": "What the continuation will do: a fresh session now, an exact harness resume only after the server has matched the session, host, version, commit and checkpoint.",
-        "admittedAt": "UTC timestamp when the continuation was admitted."
-      }
+        "admittedAt": "UTC timestamp when the continuation was admitted.",
+        "freshReason": "Why the continuation starts fresh instead of resuming exactly; set only when mode is fresh_session, otherwise null. Continuations admitted before this was recorded read null."
+      },
+      "optionalFields": [
+        "freshReason"
+      ]
     },
     "MergeEntry": {
       "projection": "merge_entries",
