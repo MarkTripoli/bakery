@@ -7,6 +7,10 @@ import {
   encodeCursor,
 } from "../../platform/cursor.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import {
+  type NotificationApprovalOutcome,
+  readApprovalOutcomes,
+} from "./notification-approval-outcome.ts";
 
 /**
  * Column list selecting a `NotificationRow`. The `to_char` cursor form matches
@@ -90,8 +94,8 @@ function binding(
 export function toNotification(
   row: NotificationRow,
   destination: NotificationDestination,
+  approvalOutcome: NotificationApprovalOutcome | null,
 ) {
-  const args = (row.arguments ?? {}) as { title?: unknown };
   const actor = row.actorId === null ? null : {
     principalId: row.actorId,
     // A removed account leaves actorId null through the FK; a surviving row
@@ -99,7 +103,6 @@ export function toNotification(
     displayName: row.actorName ?? "Someone",
     avatarUrl: null,
   };
-  void args;
   return contractSchemas.Notification.parse({
     id: row.id,
     organizationId: row.organizationId,
@@ -113,6 +116,7 @@ export function toNotification(
     taskId: row.taskId,
     actor,
     destination,
+    approvalOutcome: destination.available ? approvalOutcome : null,
     read: row.readAt !== null,
     revision: row.revision,
     createdAt: row.createdAt.toISOString(),
@@ -132,9 +136,9 @@ export async function listNotifications(
     scope: NotificationScope;
     query: z.output<typeof contractSchemas.NotificationCursorQuery>;
     secret: string;
-    destinationOf: (
-      row: NotificationRow,
-    ) => Promise<NotificationDestination>;
+    destinationsOf: (
+      rows: readonly NotificationRow[],
+    ) => Promise<NotificationDestination[]>;
   },
 ) {
   const { query, scope } = input;
@@ -169,10 +173,18 @@ export async function listNotifications(
   );
   const page = result.rows.slice(0, limit);
   const last = page.at(-1);
-  const items = await Promise.all(
-    page.map(async (row: NotificationRow) =>
-      toNotification(row, await input.destinationOf(row))
-    ),
+  const outcomes = await readApprovalOutcomes(
+    transaction,
+    scope.organizationId,
+    page,
+  );
+  const destinations = await input.destinationsOf(page);
+  const items = page.map((row: NotificationRow, index) =>
+    toNotification(
+      row,
+      destinations[index]!,
+      outcomes.get(row.targetId) ?? null,
+    )
   );
   return {
     items,

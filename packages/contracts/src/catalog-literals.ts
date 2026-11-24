@@ -1561,6 +1561,7 @@ export type ContractOutputName =
   | "NoContent"
   | "Notification"
   | "NotificationActor"
+  | "NotificationApprovalOutcome"
   | "NotificationCount"
   | "NotificationDestination"
   | "NotificationMarkAllReadResult"

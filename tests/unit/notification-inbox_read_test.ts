@@ -359,3 +359,20 @@ Deno.test("a run-step target is scoped through its run, never by a task column",
     "the run-step branch must join the run that carries the task",
   );
 });
+
+Deno.test("a page of notifications reads its destinations in a fixed number of queries", async () => {
+  const countFor = async (size: number) => {
+    const queries: CapturedQuery[] = [];
+    const rows = Array.from({ length: size }, (_, index) =>
+      notificationRow({
+        id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, "0")}`,
+      }));
+    const result = await createNotificationHandlers("notification-batch-secret")
+      .list(fixtureContext(fixtureTransaction(queries, { rows })), {
+        limit: 100,
+      });
+    assertEquals(result.items.length, size);
+    return queries.length;
+  };
+  assertEquals(await countFor(20), await countFor(1));
+});
