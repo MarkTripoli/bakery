@@ -358,19 +358,11 @@ export async function presetAvailability(
   budgetLimitUsd: string,
   budgetPolicy: BudgetRuntimeConfig | undefined,
 ): Promise<AvailabilityOutput> {
-  const repository = await transaction.query<RepositoryRow>(
-    `select repository.archived_at, repository.active_profile_id,
-            application.archived_at as application_archived_at
-       from bakery.repositories repository
-       join bakery.applications application
-         on application.organization_id = repository.organization_id
-        and application.id = repository.application_id
-      where repository.organization_id = $1 and repository.id = $2`,
-    [organizationId, repositoryId],
+  const { row, config, activeProfile } = await readRepository(
+    transaction,
+    organizationId,
+    repositoryId,
   );
-  const row = repository.rows[0];
-  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-
   const reasons = new Set<AvailabilityReason>();
   let minimumBudgetLimitUsd: string | null = null;
   if (row.archived_at !== null) reasons.add("repository_archived");
@@ -379,28 +371,6 @@ export async function presetAvailability(
     reasons.add("budget_policy_unavailable");
   }
 
-  let config: z.output<typeof RepositoryVersionedProfileConfigSchema> | null =
-    null;
-  let activeProfile: { revision: number; digest: string } | null = null;
-  if (row.active_profile_id !== null) {
-    const profile = await transaction.query<
-      { config: unknown; revision: number; digest: string }
-    >(
-      `select config, revision, digest from bakery.repository_profiles
-        where organization_id = $1 and repository_id = $2 and id = $3`,
-      [organizationId, repositoryId, row.active_profile_id],
-    );
-    const parsed = RepositoryVersionedProfileConfigSchema.safeParse(
-      profile.rows[0]?.config,
-    );
-    if (parsed.success && profile.rows[0]) {
-      config = parsed.data;
-      activeProfile = {
-        revision: profile.rows[0].revision,
-        digest: profile.rows[0].digest,
-      };
-    }
-  }
   if (config === null) {
     reasons.add("no_active_profile");
   } else {
@@ -664,5 +634,70 @@ export function createWorkflowPresetHandlers(
       }
       return { items, nextCursor: null };
     },
+  };
+}
+
+type RepositoryRead = {
+  row: RepositoryRow;
+  config: z.output<typeof RepositoryVersionedProfileConfigSchema> | null;
+  activeProfile: { revision: number; digest: string } | null;
+};
+
+async function readRepository(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  repositoryId: string,
+): Promise<RepositoryRead> {
+  const repository = await transaction.query<RepositoryRow>(
+    `select repository.archived_at, repository.active_profile_id,
+            application.archived_at as application_archived_at
+       from bakery.repositories repository
+       join bakery.applications application
+         on application.organization_id = repository.organization_id
+        and application.id = repository.application_id
+      where repository.organization_id = $1 and repository.id = $2`,
+    [organizationId, repositoryId],
+  );
+  const row = repository.rows[0];
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+
+  let config: z.output<typeof RepositoryVersionedProfileConfigSchema> | null =
+    null;
+  let activeProfile: { revision: number; digest: string } | null = null;
+  if (row.active_profile_id !== null) {
+    const profile = await transaction.query<
+      { config: unknown; revision: number; digest: string }
+    >(
+      `select config, revision, digest from bakery.repository_profiles
+        where organization_id = $1 and repository_id = $2 and id = $3`,
+      [organizationId, repositoryId, row.active_profile_id],
+    );
+    const parsed = RepositoryVersionedProfileConfigSchema.safeParse(
+      profile.rows[0]?.config,
+    );
+    if (parsed.success && profile.rows[0]) {
+      config = parsed.data;
+      activeProfile = {
+        revision: profile.rows[0].revision,
+        digest: profile.rows[0].digest,
+      };
+    }
+  }
+  return { row, config, activeProfile };
+}
+
+export async function repositoryFacts(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  repositoryId: string,
+): Promise<{ archived: boolean; hasActiveProfile: boolean }> {
+  const { row, config } = await readRepository(
+    transaction,
+    organizationId,
+    repositoryId,
+  );
+  return {
+    archived: row.archived_at !== null || row.application_archived_at !== null,
+    hasActiveProfile: config !== null,
   };
 }

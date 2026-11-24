@@ -65,6 +65,7 @@ const TRIED: &str = "2026-11-20T14:25:00Z";
 const SERVER: &str = "https://bakery.acme.example";
 const LOCAL: &str = "http://127.0.0.1:8000";
 const OTHER: &str = "https://bakery.example.com";
+const LONG_ADDRESS: &str = "https://bakerywithaverylongnamethathasnoplacetobreakatallbecausenothinginitisaspaceorahyphenorasymbolandkeepsgoingonandonandonandonandonandon.example.com";
 
 fn run(events: Vec<Event>) -> Session {
     run_on(Session::start(false).on_server(SERVER), events)
@@ -203,6 +204,7 @@ pub const PREVIEWS: &[&str] = &[
     "choose-server-not-bakery",
     "checking",
     "switched",
+    "switched-long-address",
     "switched-signed-in",
     "not-running",
     "cannot-reach",
@@ -410,6 +412,11 @@ pub fn preview(name: &str) -> Option<Preview> {
                     address: OTHER.into(),
                 }),
         ),
+        "switched-long-address" => plain(Session::start(false).on_server(OTHER).with_notice(
+            Notice::Switched {
+                address: LONG_ADDRESS.into(),
+            },
+        )),
         "switched-signed-in" => Preview {
             session: Session::start(true)
                 .on_server(OTHER)
@@ -701,6 +708,14 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    #[test]
+    fn a_long_address_in_a_notice_has_a_preview_of_its_own() {
+        let p = preview("switched-long-address").unwrap();
+        let notice = view(&p.session, &p.facts).panel.unwrap().notice.unwrap();
+        assert!(notice.contains(LONG_ADDRESS));
+        assert!(!LONG_ADDRESS.contains(' '));
     }
 
     #[test]

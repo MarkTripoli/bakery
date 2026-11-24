@@ -76,6 +76,7 @@ body {
   border-radius: var(--radius-control);
   font: var(--type-notice);
   color: var(--color-fg-muted);
+  overflow-wrap: anywhere;
 }
 
 .panel__heading {

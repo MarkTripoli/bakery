@@ -374,6 +374,7 @@ Deno.test("claim: a step with no section gets the undeclared reads; a plan step 
   assertEquals(stepFilesFromSnapshot(snapshot, "aa"), {
     read: ["inputs"],
     write: ["outputs"],
+    connections: [],
   });
   assertEquals(stepFilesFromSnapshot(snapshot, "bb"), UNDECLARED_STEP_FILES);
   // A step the plan does not name gets the inputs-only section, never the defaults.

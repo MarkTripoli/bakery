@@ -98,11 +98,6 @@ export const AgentFileRefusal = Object.freeze(
      * or another project's tree.
      */
     AreaNotDeclared: "agent_file_area_not_declared",
-    /**
-     * /connections holds outside storage read through only for connections
-     * the definition binds; no binding is recorded for a step yet, so a read
-     * there needs a person's grant.
-     */
     ConnectionNotBound: "agent_file_connection_not_bound",
     /**
      * A reviewer's session writes only its declared outputs, through its
@@ -558,6 +553,24 @@ export const WRITE_AREA_REACH: Readonly<
   workspaces: Object.freeze([AgentTreeArea.Workspaces]),
 });
 
+export function connectionMountKey(connectionId: string): string {
+  return "connection:" + connectionId;
+}
+
+const BOUND_CONNECTION_SCOPE_PREFIX = "files.read:connection:";
+
+export function boundConnectionScope(connectionId: string): string {
+  return BOUND_CONNECTION_SCOPE_PREFIX + connectionId;
+}
+
+export function boundConnectionsOf(
+  scopes: readonly string[] | undefined,
+): readonly string[] {
+  return (scopes ?? [])
+    .filter((scope) => scope.startsWith(BOUND_CONNECTION_SCOPE_PREFIX))
+    .map((scope) => scope.slice(BOUND_CONNECTION_SCOPE_PREFIX.length));
+}
+
 /** The session scope naming one declared tree area, as the claim mints it. */
 export function fileAreaScope(
   access: AgentFileAccess,
@@ -566,20 +579,19 @@ export function fileAreaScope(
   return "files." + access + ":" + area;
 }
 
-/**
- * The session scopes a step's resolved files section mints at claim: the
- * read tools when it reads any tree area, the write tools when it writes
- * one, and one area scope per declared tree area so the guard judges every
- * call against the section the session was claimed under. An inputs-only step
- * (read: [inputs]) gets no read tool at all.
- */
 export function stepFileScopes(
   files: Readonly<{
     read: readonly WorkflowFileReadArea[];
     write: readonly WorkflowFileWriteArea[];
+    connections?: readonly string[];
   }>,
 ): readonly string[] {
   const scopes = new Set<string>();
+  if (files.read.includes("connections")) {
+    for (const id of files.connections ?? []) {
+      scopes.add(boundConnectionScope(id));
+    }
+  }
   for (const area of files.read) {
     if (!WORKFLOW_FILE_TREE_READ_AREAS.includes(area)) continue;
     scopes.add(FILES_READ_SCOPE);
@@ -611,19 +623,13 @@ export function declaredTreeAreas(
   return [...areas];
 }
 
-/**
- * Layer 2 for a read, the area axis: whether an agent may open this entry.
- * /trash and /system are unreachable; a personal folder, the starter's own
- * included, opens only with a live grant its owner made; /connections only
- * with a grant (no binding is recorded yet); anywhere else needs the step's
- * files section to reach the area, or a live grant covering the entry.
- */
 export function agentReadAreaRefusal(
   input: Readonly<{
     area: AgentTreeArea;
     declared: readonly AgentTreeArea[];
     liveGrant: AgentFileGrant | undefined;
     personalOwnerId: string | null;
+    boundConnection?: boolean;
   }>,
 ): AgentFileRefusal | undefined {
   switch (input.area) {
@@ -638,7 +644,9 @@ export function agentReadAreaRefusal(
         ? undefined
         : AgentFileRefusal.PersonalArea;
     case AgentTreeArea.Connections:
-      return input.liveGrant !== undefined
+      return input.liveGrant !== undefined ||
+          (input.boundConnection === true &&
+            input.declared.includes(AgentTreeArea.Connections))
         ? undefined
         : AgentFileRefusal.ConnectionNotBound;
     default:
@@ -649,14 +657,10 @@ export function agentReadAreaRefusal(
   }
 }
 
-/**
- * The top-level folders an agent sees in the roots listing: never the
- * caller's personal folder, /trash or /system, and only the areas its files
- * section reaches. /connections stays out until a binding is recorded.
- */
 export function agentRootKeys(
   keys: readonly string[],
   declared: readonly AgentTreeArea[],
+  boundConnections: readonly string[] = [],
 ): string[] {
   return keys.filter((key) => {
     switch (key) {
@@ -666,6 +670,9 @@ export function agentRootKeys(
         return declared.includes(AgentTreeArea.Shared);
       case "library":
         return declared.includes(AgentTreeArea.Library);
+      case "connections":
+        return boundConnections.length > 0 &&
+          declared.includes(AgentTreeArea.Connections);
       default:
         return false;
     }
