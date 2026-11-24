@@ -91,8 +91,8 @@ async function release(input) {
 async function fillComposer(page, input, title, description) {
   await composer(page).getByRole("combobox", { name: /^Repository/ })
     .selectOption(input.repositoryId);
-  await expect(page.getByRole("radio", { name: /Fixed coding/ }))
-    .toBeChecked();
+  await composer(page).getByRole("combobox", { name: /^Workflow/ })
+    .selectOption({ label: "Fixed coding" });
   await composer(page).getByRole("textbox", { name: /^Title/ }).fill(title);
   await composer(page).getByRole("textbox", { name: /^Description/ })
     .fill(description);
@@ -144,7 +144,10 @@ async function submit(page, input) {
     await route.abort("failed");
   });
   await newTaskFromQueue(page, input, input.title, input.description);
-  await composer(page).getByRole("button", { name: "Start task", exact: true })
+  await composer(page).getByRole("button", {
+    name: "Create task and start run",
+    exact: true,
+  })
     .click();
   const retry = composer(page).getByRole("button", {
     name: "Retry submission",
