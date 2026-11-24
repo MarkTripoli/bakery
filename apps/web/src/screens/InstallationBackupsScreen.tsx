@@ -872,6 +872,21 @@ function ServiceCard(
   const { status, nowMs } = props;
   const heard = status.runnerLastUsedAt;
   const quiet = isQuiet(heard, nowMs);
+  const span = heard === null ? null : spanSince(heard, nowMs);
+  const state = heard === null
+    ? {
+      label: "installation.backups.service.state.waiting",
+      value: "installation.backups.service.waiting",
+    }
+    : quiet
+    ? {
+      label: "installation.backups.service.state.quiet",
+      value: "installation.backups.service.quiet",
+    }
+    : {
+      label: "installation.backups.service.state.running",
+      value: "installation.backups.service.running",
+    };
   return (
     <UI.SettingsSection
       data-section="service"
@@ -880,22 +895,14 @@ function ServiceCard(
     >
       <UI.DescriptionList labels="quiet">
         <UI.DescriptionItem
-          action={quiet && heard !== null
-            ? (
-              <UI.Badge tone="warning">
-                {translate("installation.backups.service.quiet", {
-                  span: format.span(spanSince(heard, nowMs)),
-                })}
-              </UI.Badge>
-            )
-            : undefined}
           data-fact="service"
-          description={heard === null
-            ? translate("installation.backups.service.waiting")
-            : translate("installation.backups.service.running", {
-              ago: format.ago(spanSince(heard, nowMs)),
+          description={span === null
+            ? translate(state.value)
+            : translate(state.value, {
+              ago: format.ago(span),
+              span: format.span(span),
             })}
-          title={translate("installation.backups.service.name")}
+          title={translate(state.label)}
         />
       </UI.DescriptionList>
     </UI.SettingsSection>

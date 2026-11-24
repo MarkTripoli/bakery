@@ -396,7 +396,9 @@ for (
         }),
       ).toBe(1);
       await expect.poll(() => said(page.locator("[data-section='service']")))
-        .toContain("Running on the server. Last heard from");
+        .toContain("Running");
+      await expect.poll(() => said(page.locator("[data-section='service']")))
+        .toContain("Last heard from");
       await expect.poll(() => said(page.locator("[data-section='restoring']")))
         .toContain("Bakery never restores by itself.");
       await expect(
@@ -439,7 +441,7 @@ for (
       const notice = page.locator("[data-notice='failed']");
       await expect.poll(() => said(notice)).toContain("Not protected since");
       await expect.poll(() => said(notice)).toContain(
-        "The last backup failed: the server's disk was full. Free space on the server, then back up now.",
+        "The last backup failed: the server's disk was full. Free space on the server.",
       );
       await expect.poll(() => said(notice)).not.toContain(
         "The last good backup is from",
@@ -488,7 +490,10 @@ for (
       const notice = page.locator("[data-notice='never']");
       await expect.poll(() => said(notice)).toContain("Not backed up yet");
       await expect.poll(() => said(notice)).toContain(
-        "Take a first backup now.",
+        "Bakery stays usable while the first backup runs.",
+      );
+      await expect.poll(() => said(notice)).not.toContain(
+        "Take a first backup now",
       );
       await expect(page.locator("[data-section='backups']")).toHaveCount(0);
       await expect.poll(() => said(page.locator("[data-fact='last-good']")))
@@ -525,7 +530,7 @@ for (
       await page.goto("/installation/backups");
       const notice = page.locator("[data-notice='never']");
       await expect.poll(() => said(notice)).toContain(
-        "The last backup failed: the server's disk was full. Free space on the server, then back up now.",
+        "The last backup failed: the server's disk was full. Free space on the server.",
       );
       await expect.poll(() => said(body(page))).not.toContain(
         "no_space_left_on_device",
@@ -638,11 +643,11 @@ for (
         ],
         [
           "incomplete_set",
-          "part of the installation could not be included, so this is not a usable backup. Back up again; if it repeats, see the guide.",
+          "part of the installation could not be included, so this is not a usable backup. If it repeats, the guide says what a backup must include.",
         ],
         [
           "drain_timeout",
-          "running work did not pause in time. Back up again when less is running.",
+          "running work did not pause in time. Try again when less work is running.",
         ],
         ["runner_error", "the backup service stopped with an error."],
       ];
@@ -772,11 +777,12 @@ for (
       await expect(link).toBeVisible();
     });
 
-    test("a quiet service shows the warning badge", async ({ page }) => {
+    test("a quiet service says when it was last heard from, once", async ({ page }) => {
       await fixture(page, { status: { runnerLastUsedAt: hoursAgo(5) } });
       await page.goto("/installation/backups");
-      await expect.poll(() => said(page.locator("[data-section='service']")))
-        .toContain("Not heard from for 5 hours");
+      const service = page.locator("[data-section='service']");
+      await expect.poll(() => said(service)).toContain("Not heard from");
+      await expect.poll(() => said(service)).toContain("5 hours ago.");
     });
 
     test("no backup service yet: the empty state, and the key shown once", async ({ page }) => {
