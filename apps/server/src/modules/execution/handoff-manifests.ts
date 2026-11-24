@@ -17,6 +17,10 @@ import {
   workerTransaction,
 } from "./shared.ts";
 import {
+  decideManifestResume,
+  type ResumeDecision,
+} from "./handoff-eligibility.ts";
+import {
   HANDOFF_MANIFEST_MAX_BYTES,
   type HandoffManifest,
   HandoffManifestSchema,
@@ -82,7 +86,22 @@ function iso(value: Date | string): string {
 
 export type HandoffManifestRecord = ReturnType<typeof toRecord>;
 
-function toRecord(row: ManifestRow) {
+type ManifestExtras = Readonly<{
+  decision?: ResumeDecision | null;
+  machineName?: string | null;
+  continuation?:
+    | Readonly<{
+      mode: string;
+      freshReason: string | null;
+      byName: string | null;
+      at: Date | string;
+    }>
+    | null;
+}>;
+
+function toRecord(row: ManifestRow, extras: ManifestExtras = {}) {
+  const decision = extras.decision ?? null;
+  const continuation = extras.continuation ?? null;
   return {
     id: row.id,
     taskId: row.task_id,
@@ -96,6 +115,13 @@ function toRecord(row: ManifestRow) {
     status: row.status,
     manifest: row.manifest,
     createdAt: iso(row.created_at),
+    decisionMode: decision?.mode ?? null,
+    freshReason: decision?.mode === "fresh_session" ? decision.reason : null,
+    machineName: extras.machineName ?? null,
+    continuedMode: continuation?.mode ?? null,
+    continuedFreshReason: continuation?.freshReason ?? null,
+    continuedByName: continuation?.byName ?? null,
+    continuedAt: continuation ? iso(continuation.at) : null,
   };
 }
 
@@ -364,7 +390,6 @@ export async function createHandoffManifest(
   return { kind: "replayed", record: toRecord(row) };
 }
 
-/** `GET /v1/handoff-manifests/{id}`: one stored manifest, in the caller's organization. */
 export async function getHandoffManifest(
   context: ActionContext,
 ): Promise<HandoffManifestRecord> {
@@ -379,7 +404,57 @@ export async function getHandoffManifest(
   );
   const row = result.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  return toRecord(row);
+  const source = (await transaction.query<
+    { worker_host_id: string | null; name: string | null }
+  >(
+    `select a.worker_host_id, h.name
+       from bakery.job_attempts as a
+       left join bakery.worker_hosts as h
+         on h.organization_id = a.organization_id and h.id = a.worker_host_id
+      where a.organization_id = $1 and a.id = $2`,
+    [organizationId, row.source_attempt_id],
+  )).rows[0];
+  const machineName = source?.name ?? null;
+  if (row.status === "continued") {
+    const continued = (await transaction.query<
+      {
+        mode: string;
+        fresh_reason: string | null;
+        display_name: string | null;
+        created_at: Date | string;
+      }
+    >(
+      `select c.mode, c.fresh_reason, p.display_name, c.created_at
+         from bakery.handoff_continuations as c
+         left join bakery.principals as p on p.id = c.admitted_by_principal_id
+        where c.organization_id = $1 and c.manifest_id = $2`,
+      [organizationId, row.id],
+    )).rows[0];
+    return toRecord(row, {
+      machineName,
+      continuation: continued
+        ? {
+          mode: continued.mode,
+          freshReason: continued.fresh_reason,
+          byName: continued.display_name,
+          at: continued.created_at,
+        }
+        : null,
+    });
+  }
+  if (row.status !== "pending") return toRecord(row, { machineName });
+  const stored = HandoffManifestSchema.safeParse(row.manifest);
+  if (!stored.success) return toRecord(row, { machineName });
+  const { decision } = await decideManifestResume(transaction, {
+    organizationId,
+    runId: row.run_id,
+    runStepId: row.run_step_id,
+    manifestId: row.id,
+    manifestDigest: row.digest,
+    manifest: stored.data,
+    sourceHostId: source?.worker_host_id ?? "",
+  });
+  return toRecord(row, { decision, machineName });
 }
 
 /**

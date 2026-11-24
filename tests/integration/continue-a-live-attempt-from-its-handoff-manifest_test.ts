@@ -7,6 +7,7 @@
  */
 
 import { assert, assertEquals } from "@std/assert";
+import { signSessionCookie } from "../helpers/auth.ts";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
 import { releaseReconciledHandoffs } from "../../apps/server/src/modules/execution/handoff-release.ts";
 import {
@@ -401,6 +402,208 @@ Deno.test("history that is no longer authorized is not reused: a purged cited ve
       (await auditDetails(fixture, String(continuation.id))).reason,
       "history_revoked",
     );
+  }));
+
+function readManifest(
+  fixture: WorkerFixture,
+  manifestId: string,
+  scope: WorkerScope = fixture,
+) {
+  return adminRequest(
+    fixture,
+    "/v1/handoff-manifests/" + manifestId,
+    undefined,
+    {
+      method: "GET",
+      scope,
+    },
+  );
+}
+
+Deno.test("the manifest read says an exact resume will be tried, and the admit then does it; once continued the read says nothing", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "read-exact");
+    const record = await exactCandidate(fixture, live);
+    assertEquals(record.decisionMode, null);
+    assertEquals(record.freshReason, null);
+    const before = await body(await readManifest(fixture, String(record.id)));
+    assertEquals(before.decisionMode, "exact_harness_resume");
+    assertEquals(before.freshReason, null);
+    const host = await fixture.pgDatabase.query<{ name: string }>(
+      `select h.name from bakery.job_attempts a
+         join bakery.worker_hosts h on h.id = a.worker_host_id
+        where a.id = $1`,
+      [live.assignment.attemptId],
+    );
+    assertEquals(before.machineName, host.rows[0].name);
+    assertEquals(before.continuedByName, null);
+    assertEquals(before.continuedAt, null);
+    assertEquals((await state(fixture, live)).attempt, "leased");
+    const response = await continueManifest(
+      fixture,
+      String(record.id),
+      await runVersion(fixture, live.job.runId),
+    );
+    const exact = await body(response);
+    assertEquals(exact.mode, before.decisionMode);
+    assertEquals(exact.freshReason, null);
+    const after = await body(await readManifest(fixture, String(record.id)));
+    assertEquals(after.status, "continued");
+    assertEquals(after.decisionMode, null);
+    assertEquals(after.freshReason, null);
+    const admitter = await fixture.pgDatabase.query<{ display_name: string }>(
+      `select p.display_name from bakery.handoff_continuations c
+         join bakery.principals p on p.id = c.admitted_by_principal_id
+        where c.manifest_id = $1`,
+      [record.id],
+    );
+    assert(admitter.rows[0].display_name.length > 0);
+    assertEquals(after.continuedByName, admitter.rows[0].display_name);
+    assertEquals(after.continuedMode, "exact_harness_resume");
+    assertEquals(after.continuedFreshReason, null);
+    assert(typeof after.continuedAt === "string");
+    assertEquals(after.machineName, host.rows[0].name);
+  }));
+
+async function addSecondReader(fixture: WorkerFixture) {
+  const db = fixture.pgDatabase;
+  const providerUserId = crypto.randomUUID();
+  const principalId = crypto.randomUUID();
+  const token = `member-${crypto.randomUUID()}`;
+  const now = new Date();
+  const displayName = "Second Reader";
+  await db.query(
+    `insert into public."user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+     values ($1, $2, $3, true, $4, $4)`,
+    [providerUserId, displayName, `second-${providerUserId}@example.test`, now],
+  );
+  await db.query(
+    `insert into bakery.principals (id, provider_user_id, display_name, principal_type)
+     values ($1, $2, $3, 'human')`,
+    [principalId, providerUserId, displayName],
+  );
+  await db.query(
+    `insert into bakery.organization_memberships (
+       id, organization_id, principal_id, role, status, joined_at, created_at, updated_at, version
+     ) values ($1, $2, $3, 'developer', 'active', $4, $4, $4, 1)`,
+    [crypto.randomUUID(), fixture.organizationId, principalId, now],
+  );
+  await db.query(
+    `insert into public.session (id, token, "userId", "expiresAt", "createdAt", "updatedAt")
+     values ($1, $2, $3, $4, $5, $5)`,
+    [
+      crypto.randomUUID(),
+      token,
+      providerUserId,
+      new Date(now.getTime() + 3_600_000),
+      now,
+    ],
+  );
+  return {
+    principalId,
+    displayName,
+    cookie: await signSessionCookie(token, fixture.config.auth!.secret),
+  };
+}
+
+Deno.test("a second member reading a continued manifest sees who admitted it, not their own name", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "read-second-member");
+    const record = await exactCandidate(fixture, live);
+    await continueManifest(
+      fixture,
+      String(record.id),
+      await runVersion(fixture, live.job.runId),
+    ).then((response) => response.body?.cancel());
+    const admitter = await fixture.pgDatabase.query<{ display_name: string }>(
+      `select p.display_name from bakery.handoff_continuations c
+         join bakery.principals p on p.id = c.admitted_by_principal_id
+        where c.manifest_id = $1`,
+      [record.id],
+    );
+    const admitterName = admitter.rows[0].display_name;
+    const reader = await addSecondReader(fixture);
+    try {
+      const read = await readManifest(fixture, String(record.id), {
+        ...fixture,
+        adminCookie: reader.cookie,
+      });
+      assertEquals(read.status, 200);
+      const seen = await body(read);
+      assertEquals(seen.status, "continued");
+      assert(reader.displayName !== admitterName);
+      assertEquals(seen.continuedByName, admitterName);
+    } finally {
+      const db = fixture.pgDatabase;
+      await db.query(
+        `delete from public.session where "userId" in (
+           select provider_user_id from bakery.principals where id = $1)`,
+        [reader.principalId],
+      );
+      await db.query(
+        `delete from bakery.organization_memberships where principal_id = $1`,
+        [reader.principalId],
+      );
+      const principal = await db.query<{ provider_user_id: string }>(
+        `delete from bakery.principals where id = $1 returning provider_user_id`,
+        [reader.principalId],
+      );
+      await db.query(`delete from public."user" where id = $1`, [
+        principal.rows[0].provider_user_id,
+      ]);
+    }
+  }));
+
+Deno.test("the manifest read gives the reason a continuation would start fresh, the one the admit then records", () =>
+  withWorkerFixture(async (fixture) => {
+    const mismatched = await liveAttempt(fixture, "read-mismatch");
+    const record = await exactCandidate(fixture, mismatched, {
+      worktreeRevision: "c".repeat(40),
+    });
+    const read = await body(await readManifest(fixture, String(record.id)));
+    assertEquals(read.decisionMode, "fresh_session");
+    assertEquals(read.freshReason, "native_evidence_mismatch");
+    const continuation = await body(
+      await continueManifest(
+        fixture,
+        String(record.id),
+        await runVersion(fixture, mismatched.job.runId),
+      ),
+    );
+    assertEquals(continuation.mode, "fresh_session");
+    assertEquals(
+      (await auditDetails(fixture, String(continuation.id))).reason,
+      read.freshReason,
+    );
+    assertEquals(continuation.freshReason, read.freshReason);
+    const kept = await fixture.pgDatabase.query<
+      { fresh_reason: string | null }
+    >(
+      "select fresh_reason from bakery.handoff_continuations where id = $1",
+      [continuation.id],
+    );
+    assertEquals(kept.rows[0].fresh_reason, "native_evidence_mismatch");
+  }));
+
+Deno.test("a manifest that never asked for an exact resume reads as fresh for that reason, and another organization reads nothing", () =>
+  withWorkerFixture(async (fixture) => {
+    const live = await liveAttempt(fixture, "read-fresh-only");
+    const record = await stored(fixture, live);
+    const read = await body(await readManifest(fixture, String(record.id)));
+    assertEquals(read.decisionMode, "fresh_session");
+    assertEquals(read.freshReason, "exact_resume_not_requested");
+    const other = await createWorkerScope(
+      fixture,
+      "handoff-read",
+      fixture,
+    );
+    try {
+      const foreign = await readManifest(fixture, String(record.id), other);
+      assertEquals(foreign.status, 404);
+      await foreign.body?.cancel();
+    } finally {
+      await closeWorkerOrganization(fixture.pgDatabase, other.organizationId);
+    }
   }));
 
 /** Runs the continuation of a fresh exact candidate after `revoke` has changed its history. */
