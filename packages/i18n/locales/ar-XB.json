@@ -6825,5 +6825,7 @@
   "integrations.slack.fields.client_secret": "⟪Client secret⟫",
   "integrations.slack.permission.read": "⟪Bakery can read the channels and messages this bot can see in Slack.⟫",
   "integrations.slack.permission.write": "⟪Bakery can post messages in the channels you selected.⟫",
-  "integrations.slack.permission.other": "⟪Slack granted {scope}, which Bakery does not use yet.⟫"
+  "integrations.slack.permission.other": "⟪Slack granted {scope}, which Bakery does not use yet.⟫",
+  "integrations.slack.connect": "⟪Connect Slack⟫",
+  "integrations.slack.soon": "⟪Connecting Slack is not available in this version of Bakery yet.⟫"
 }

@@ -6825,5 +6825,7 @@
   "integrations.slack.fields.client_secret": "⟦Çļïëñŧ šëçŕëŧ ŧë⟧",
   "integrations.slack.permission.read": "⟦Ɓàķëŕÿ çàñ ŕëàð ŧĥë çĥàññëļš àñð ɱëššàĝëš ŧĥïš ƀôŧ çàñ šëë ïñ Šļàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "integrations.slack.permission.write": "⟦Ɓàķëŕÿ çàñ þôšŧ ɱëššàĝëš ïñ ŧĥë çĥàññëļš ÿôû šëļëçŧëð. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
-  "integrations.slack.permission.other": "⟦Šļàçķ ĝŕàñŧëð {scope}, ŵĥïçĥ Ɓàķëŕÿ ðôëš ñôŧ ûšë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ ç⟧"
+  "integrations.slack.permission.other": "⟦Šļàçķ ĝŕàñŧëð {scope}, ŵĥïçĥ Ɓàķëŕÿ ðôëš ñôŧ ûšë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "integrations.slack.connect": "⟦Çôññëçŧ Šļàçķ ŧë⟧",
+  "integrations.slack.soon": "⟦Çôññëçŧïñĝ Šļàçķ ïš ñôŧ àṽàïļàƀļë ïñ ŧĥïš ṽëŕšïôñ ôƒ Ɓàķëŕÿ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
 }
