@@ -9,15 +9,8 @@ import {
 } from "@bakery/persistence";
 import { postgresErrorCode } from "../../platform/postgres-errors.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
-import {
-  decideResume,
-  historyIsAuthorized,
-  loadSourceSession,
-} from "./handoff-eligibility.ts";
-import {
-  HandoffManifestSchema,
-  NON_REPLAY_SAFE_EFFECT_STATES,
-} from "./handoff-manifest.ts";
+import { decideManifestResume } from "./handoff-eligibility.ts";
+import { HandoffManifestSchema } from "./handoff-manifest.ts";
 
 /**
  * `handoffManifests.continue` (#33 slice 2): retire the source attempt of a
@@ -218,45 +211,14 @@ export async function admitHandoffContinuation(
   const used = attempts.filter((attempt) => attempt.job_id === job.id).length;
   if (used >= job.max_attempts) throw refuse("attempt_budget_exhausted");
 
-  // An effect that may or may not have happened is never repeated and never
-  // trusted: the source is still retired and the fence advances, but the job
-  // parks in awaiting_reconciliation instead of queueing, and the coordinator
-  // queues it (as a fresh session) once every effect of the step is settled.
-  const unsettledEffects = await transaction.query(
-    `select 1 from bakery.external_effects
-      where organization_id = $1 and run_step_id = $2 and status = any($3::text[])
-      limit 1`,
-    [organizationId, named.run_step_id, [...NON_REPLAY_SAFE_EFFECT_STATES]],
-  );
-  const effectsSettled = unsettledEffects.rows.length === 0;
-
-  // Exact resume reuses the source's native history, so the server decides it
-  // from its own rows: the session, the host, the revision and the history's
-  // authorization. Any mismatch is a fresh bounded session, never a resume.
-  // The session and the history are read only when an exact resume was asked
-  // for; a fresh-only manifest decides from its own mode.
-  const wantsExact = stored.data.mode === "exact_harness_resume";
-  const decision = decideResume({
+  const { decision, effectsSettled } = await decideManifestResume(transaction, {
+    organizationId,
+    runId: named.run_id,
+    runStepId: named.run_step_id,
     manifestId: manifest.id,
     manifestDigest: manifest.digest,
     manifest: stored.data,
-    session: wantsExact
-      ? await loadSourceSession(
-        transaction,
-        organizationId,
-        stored.data.sourceSessionId,
-      )
-      : null,
     sourceHostId: source.worker_host_id ?? "",
-    effectsSettled,
-    historyAuthorized: wantsExact
-      ? await historyIsAuthorized(transaction, {
-        organizationId,
-        taskId: stored.data.taskId,
-        runId: named.run_id,
-        manifest: stored.data,
-      })
-      : false,
   });
 
   // 4. The writes: fence the source, requeue the job, mark the manifest.
@@ -306,6 +268,10 @@ export async function admitHandoffContinuation(
     [organizationId, named.run_id],
   );
 
+  const freshReason = decision.mode === "fresh_session"
+    ? decision.reason
+    : null;
+
   // One row records the continuation; the unique keys allow one per manifest
   // and one per fence step even if the locks above were wrong.
   let continuation: { id: string; created_at: Date | string };
@@ -316,8 +282,8 @@ export async function admitHandoffContinuation(
       `insert into bakery.handoff_continuations (
          organization_id, manifest_id, run_id, run_step_id, job_id,
          source_attempt_id, previous_fence, new_fence, mode,
-         admitted_by_principal_id
-       ) values ($1, $2, $3, $4, $5, $6, $7::bigint, $8::bigint, $9, $10)
+         admitted_by_principal_id, fresh_reason
+       ) values ($1, $2, $3, $4, $5, $6, $7::bigint, $8::bigint, $9, $10, $11)
        returning id, created_at`,
       [
         organizationId,
@@ -330,6 +296,7 @@ export async function admitHandoffContinuation(
         newFence.toString(),
         decision.mode,
         principalId,
+        freshReason,
       ],
     )).rows[0]!;
   } catch (error) {
@@ -358,7 +325,7 @@ export async function admitHandoffContinuation(
       newFence: newFence.toString(),
       mode: decision.mode,
       jobStatus: effectsSettled ? "queued" : "awaiting_reconciliation",
-      ...(decision.mode === "fresh_session" ? { reason: decision.reason } : {}),
+      ...(freshReason === null ? {} : { reason: freshReason }),
     },
   });
   await appendDomainEvent(transaction, {
@@ -401,6 +368,7 @@ export async function admitHandoffContinuation(
     previousFence: job.current_fence,
     newFence: newFence.toString(),
     mode: decision.mode,
+    freshReason,
     admittedAt: new Date(continuation.created_at).toISOString(),
   };
 }

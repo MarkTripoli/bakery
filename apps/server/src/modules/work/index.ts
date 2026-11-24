@@ -9,6 +9,7 @@ export { registerNotificationProjection } from "./notification-projection.ts";
 
 import { createTaskCommand, updateTaskCommand } from "./postgres.ts";
 import { createRunCommand } from "./run-command.ts";
+import { defaultStorageConnections } from "../knowledge/storage-connections.ts";
 import { withAgentSpawnChecks, withAgentTaskChecks } from "./agent-spawn.ts";
 import { DEFAULT_AGENT_SPAWN } from "@bakery/config";
 import {
@@ -23,7 +24,11 @@ import { createWorkflowPresetHandlers } from "./workflow-presets.ts";
 import type { AgentSpawnConfig, BudgetRuntimeConfig } from "@bakery/config";
 export function createWorkTaskHandlers(
   secret: string,
-  options: { budget?: BudgetRuntimeConfig; agentSpawn?: AgentSpawnConfig } = {},
+  options: {
+    budget?: BudgetRuntimeConfig;
+    agentSpawn?: AgentSpawnConfig;
+    storageLocalRoot?: string;
+  } = {},
 ) {
   return {
     ...createWorkflowPresetHandlers(options),
@@ -35,7 +40,15 @@ export function createWorkTaskHandlers(
     createDependency: createTaskDependencyCommand,
     deleteDependency: deleteTaskDependencyCommand,
     runsCreate: withAgentSpawnChecks(
-      createRunCommand,
+      (
+        context: Parameters<typeof createRunCommand>[0],
+        input: Parameters<typeof createRunCommand>[1],
+      ) =>
+        createRunCommand(context, input, {
+          storageConnections: defaultStorageConnections({
+            storageLocalRoot: options.storageLocalRoot,
+          }),
+        }),
       options.agentSpawn ?? DEFAULT_AGENT_SPAWN,
     ),
     sync: createSyncQueryHandler(secret),

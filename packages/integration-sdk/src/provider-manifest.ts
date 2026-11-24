@@ -60,9 +60,10 @@ export const IntegrationIdSchema = z.string().regex(
  * Which family of ports a provider serves. `chat` is deliberately absent: section
  * 12.3 defers it rather than inventing a shape nothing can fill yet.
  */
-export const ProviderFamilySchema = z.enum(["tickets", "code"]).describe(
-  "Port family the provider serves; a capability requiring a family is only valid when the family is listed.",
-);
+export const ProviderFamilySchema = z.enum(["tickets", "code", "storage"])
+  .describe(
+    "Port family the provider serves; a capability requiring a family is only valid when the family is listed.",
+  );
 
 /**
  * How a provider's app is registered. Separate from connect: registration is
@@ -166,7 +167,7 @@ export const ProviderManifestSchema = z.strictObject({
   nameKey: z.string().min(1).max(200).describe(
     "i18n key for the provider's display name; never a raw English string.",
   ),
-  families: z.array(ProviderFamilySchema).max(2).describe(
+  families: z.array(ProviderFamilySchema).max(3).describe(
     "Port families the provider serves; empty when it only contributes facts.",
   ),
   appRegistration: AppRegistrationSchema.nullable(),

@@ -2,6 +2,7 @@ import type { TicketPresetId, TicketSourceResponse } from "../../api/client.ts";
 import {
   DEFAULT_HOLD_LABEL,
   DEFAULT_START_LABEL,
+  presetField,
   presetOfPolicy,
 } from "../issue-sources.ts";
 import { ageOf, type SourceHealth, troubleOf } from "../issue-state.ts";
@@ -48,7 +49,7 @@ export type SettingsForm = {
   readonly principalId: string | null;
   readonly people: readonly TriggerPerson[];
   /** The built-in workflow the repository runs; the Workflow section changes it, and Save sends it with the rest of the policy. */
-  readonly preset: TicketPresetId;
+  readonly preset: TicketPresetId | null;
 };
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -126,6 +127,7 @@ export type SettingsProblems = {
   /** Automatic start needs someone to run as and at least one person to trigger it. */
   readonly principal?: "missing";
   readonly people?: "missing";
+  readonly workflow?: "missing";
 };
 
 const labelProblem = (value: string): "empty" | "unsafe" | undefined => {
@@ -155,6 +157,9 @@ export function problemsOf(form: SettingsForm): SettingsProblems {
       : {}),
     ...(form.automatic && form.people.length === 0
       ? { people: "missing" as const }
+      : {}),
+    ...(form.automatic && form.preset === null
+      ? { workflow: "missing" as const }
       : {}),
   };
 }
@@ -203,7 +208,7 @@ export function policyOfForm(form: SettingsForm): {
   readonly automatic: { readonly enabled: boolean };
   readonly readiness: { readonly requireAcceptanceCriteria: boolean };
   readonly approval: { readonly plan: "human_approval" | "automatic" };
-  readonly preset: TicketPresetId;
+  readonly preset?: TicketPresetId;
 } {
   const delegation = form.automatic && form.principalId !== null &&
       form.people.length > 0
@@ -223,7 +228,7 @@ export function policyOfForm(form: SettingsForm): {
     automatic: { enabled: form.automatic },
     readiness: { requireAcceptanceCriteria: form.requireAcceptanceCriteria },
     approval: { plan: form.approval },
-    preset: form.preset,
+    ...presetField(form.preset),
   };
 }
 

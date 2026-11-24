@@ -388,6 +388,11 @@ const transportSchemas = {
       "status": 409,
       "retryable": false,
       "slug": "step-write-limit-exceeded"
+    },
+    "STORAGE_PROVIDER_UNAVAILABLE": {
+      "status": 409,
+      "retryable": false,
+      "slug": "storage-provider-unavailable"
     }
   },
   "conventions": {
@@ -15352,6 +15357,153 @@ const transportSchemas = {
       ],
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
     },
+    "StorageConnectionPathQuery": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 14,
+            "maxLength": 4096
+          },
+          "description": "The mounted folder to list: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from the previous page of the same folder; it is signed and bound to this operation, caller, organization and path, so it cannot be replayed elsewhere."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum entries returned on this page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Read through the connection's storage port: nothing is copied into Bakery. Cursor pagination only, in the provider's stable order."
+      ],
+      "description": "Lists one folder of a storage connection mounted under /connections, one page at a time, read through the provider without copying anything."
+    },
+    "StorageConnectionStatQuery": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 14,
+            "maxLength": 4096
+          },
+          "description": "The mounted file or folder to describe: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found."
+        }
+      ],
+      "description": "Asks the connected storage what one mounted path is now: file or folder, size, media type and the provider's current revision."
+    },
+    "StorageConnectionReadQuery": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 14,
+            "maxLength": 4096
+          },
+          "description": "The mounted file to read: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found."
+        },
+        {
+          "name": "offset",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 0,
+            "max": 1099511627776
+          },
+          "description": "First byte to return, counted from zero."
+        },
+        {
+          "name": "length",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 1048576
+          },
+          "description": "Most bytes to return, at most one mebibyte; fewer come back at the end of the file."
+        }
+      ],
+      "description": "Reads a byte range of one mounted file through the provider. The bytes are returned and not kept; using the file in a run is what copies it into an artifact version."
+    },
+    "StorageConnectionSyncCreate": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 14,
+            "maxLength": 4096
+          },
+          "description": "The mounted folder to copy from: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found."
+        },
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": true,
+          "description": "Work item the synced files are recorded on; each file becomes an artifact version there, kept once per remote revision."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. One way only: files come into Bakery and nothing is written back."
+      ],
+      "description": "Starts a one-way sync that copies every file under a mounted folder into a work item, run hourly by the storage sync workflow."
+    },
+    "StorageConnectionExportCreate": {
+      "fields": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 14,
+            "maxLength": 4096
+          },
+          "description": "Where to write the file in the connected storage: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found."
+        },
+        {
+          "name": "artifactVersionId",
+          "type": "uuid",
+          "required": true,
+          "description": "The artifact version whose exact bytes are written out."
+        },
+        {
+          "name": "ifMatch",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "description": "Provider revision the write replaces; omit it to create the file only when nothing is at the path."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required and keys the external effect: the same key with the same request returns the same effect, and a different request under the key is refused."
+      ],
+      "description": "Asks Bakery to write one artifact version out to a mounted path. The write is recorded as a keyed external effect and sent by the storage workflow, never during this request."
+    },
     "DesktopUpdateQuery": {
       "fields": [
         {
@@ -25395,7 +25547,14 @@ const transportSchemas = {
         "safeBoundary",
         "status",
         "manifest",
-        "createdAt"
+        "createdAt",
+        "decisionMode",
+        "freshReason",
+        "machineName",
+        "continuedMode",
+        "continuedFreshReason",
+        "continuedByName",
+        "continuedAt"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -25409,7 +25568,14 @@ const transportSchemas = {
         "safeBoundary": "boolean",
         "status": "enum(pending|continued|blocked)",
         "manifest": "json",
-        "createdAt": "timestamp"
+        "createdAt": "timestamp",
+        "decisionMode": "enum(fresh_session|exact_harness_resume)|null",
+        "freshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked)|null",
+        "machineName": "string|null",
+        "continuedMode": "enum(fresh_session|exact_harness_resume)|null",
+        "continuedFreshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked)|null",
+        "continuedByName": "string|null",
+        "continuedAt": "timestamp|null"
       },
       "description": "A stored handoff manifest: where one source attempt stopped, with the server's own safe-boundary computation and the digest a continuation pins. It is a record to be re-verified, never the authority for run state.",
       "fieldDescriptions": {
@@ -25424,8 +25590,24 @@ const transportSchemas = {
         "safeBoundary": "Whether resuming here cannot repeat a non-replay-safe operation, computed by the server from the event journal and the effect ledger; the source's own claim is ignored.",
         "status": "pending (source still live), continued (source retired and continuation admitted) or blocked (continuation refused).",
         "manifest": "The stored manifest with the server's pending-effect list and safe boundary in place of the source's claims.",
-        "createdAt": "UTC timestamp when the manifest was stored."
-      }
+        "createdAt": "UTC timestamp when the manifest was stored.",
+        "decisionMode": "How a continuation would carry on if it were admitted now, decided from the server's own rows and never from the manifest's claim. Null when the manifest is not pending, or on the worker's own write, where no decision is made.",
+        "freshReason": "Why a continuation would start fresh instead of resuming exactly; set only when decisionMode is fresh_session, otherwise null.",
+        "machineName": "Name of the machine the source session ran on, or null when it is not known. Shown so a person can tell which session a hand-over stops.",
+        "continuedMode": "How the continuation started once the step was handed over; null until then.",
+        "continuedFreshReason": "Why the continuation started fresh; null for an exact resume, before a hand-over, and for hand-overs recorded before the reason was kept.",
+        "continuedByName": "Current display name of the person who handed the step over, as the server recorded it. The same for every reader; null until a hand-over, or when that person no longer has a name.",
+        "continuedAt": "UTC timestamp when the step was handed over; null until then."
+      },
+      "optionalFields": [
+        "decisionMode",
+        "freshReason",
+        "machineName",
+        "continuedMode",
+        "continuedFreshReason",
+        "continuedByName",
+        "continuedAt"
+      ]
     },
     "HandoffContinuation": {
       "fields": [
@@ -25438,7 +25620,8 @@ const transportSchemas = {
         "previousFence",
         "newFence",
         "mode",
-        "admittedAt"
+        "admittedAt",
+        "freshReason"
       ],
       "nullableFields": [],
       "fieldTypes": {
@@ -25451,7 +25634,8 @@ const transportSchemas = {
         "previousFence": "decimalString",
         "newFence": "decimalString",
         "mode": "enum(fresh_session|exact_harness_resume)",
-        "admittedAt": "timestamp"
+        "admittedAt": "timestamp",
+        "freshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked)|null"
       },
       "description": "The record that a source attempt was retired and its job admitted again for a continuation. The source is fenced, so it can no longer publish; the job is queued again on the same pin with the same input; the manifest is marked used.",
       "fieldDescriptions": {
@@ -25464,8 +25648,12 @@ const transportSchemas = {
         "previousFence": "Fence of the source attempt before the handoff; decimal string.",
         "newFence": "The job's fence now; any event, artifact or result under the previous fence is refused as lease-fenced.",
         "mode": "What the continuation will do: a fresh session now, an exact harness resume only after the server has matched the session, host, version, commit and checkpoint.",
-        "admittedAt": "UTC timestamp when the continuation was admitted."
-      }
+        "admittedAt": "UTC timestamp when the continuation was admitted.",
+        "freshReason": "Why the continuation starts fresh instead of resuming exactly; set only when mode is fresh_session, otherwise null. Continuations admitted before this was recorded read null."
+      },
+      "optionalFields": [
+        "freshReason"
+      ]
     },
     "MergeEntry": {
       "projection": "merge_entries",
@@ -38591,6 +38779,174 @@ const transportSchemas = {
         "skillId": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill.",
         "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
         "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+      }
+    },
+    "StorageConnectionMount": {
+      "fields": [
+        "mountId",
+        "entryId",
+        "connectionId",
+        "name",
+        "path"
+      ],
+      "fieldTypes": {
+        "mountId": "uuid",
+        "entryId": "uuid",
+        "connectionId": "uuid",
+        "name": "string",
+        "path": "string"
+      },
+      "nullableFields": [],
+      "description": "A storage connection mounted under /connections: the folder it appears as in the tree.",
+      "fieldDescriptions": {
+        "mountId": "Stable id of the mount; one per connection.",
+        "entryId": "The mount's folder in the storage tree.",
+        "connectionId": "The integration connection the mount reads through.",
+        "name": "The mount folder's name under /connections.",
+        "path": "The mount folder's path, /connections/<name>."
+      }
+    },
+    "StorageConnectionItem": {
+      "fields": [
+        "path",
+        "remotePath",
+        "name",
+        "kind",
+        "sizeBytes",
+        "mediaType",
+        "revision",
+        "modifiedAt"
+      ],
+      "fieldTypes": {
+        "path": "string",
+        "remotePath": "string",
+        "name": "string",
+        "kind": "enum(file|folder)",
+        "sizeBytes": "integer|null",
+        "mediaType": "string|null",
+        "revision": "string|null",
+        "modifiedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "sizeBytes",
+        "mediaType",
+        "revision",
+        "modifiedAt"
+      ],
+      "description": "One file or folder in a mounted storage connection, as the provider reports it now. Nothing about it is stored in Bakery until a run uses it.",
+      "fieldDescriptions": {
+        "path": "The item's path in the storage tree, under its mount.",
+        "remotePath": "The item's path inside the connected storage.",
+        "name": "The item's name as the provider names it.",
+        "kind": "Whether the item is a file or a folder.",
+        "sizeBytes": "Size of the file's current bytes; null for a folder.",
+        "mediaType": "Media type the provider reports for a file; null for a folder or when unknown.",
+        "revision": "The provider's revision or entity tag of the current bytes; it changes whenever the bytes change. Null for a folder.",
+        "modifiedAt": "When the provider last changed the item, when it says."
+      }
+    },
+    "Page<StorageConnectionItem>": {
+      "pageOf": "StorageConnectionItem",
+      "description": "Cursor page of one mounted folder's children in the provider's stable order. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, offsets or totals."
+    },
+    "StorageConnectionRange": {
+      "fields": [
+        "path",
+        "revision",
+        "mediaType",
+        "sizeBytes",
+        "offset",
+        "contentBase64"
+      ],
+      "fieldTypes": {
+        "path": "string",
+        "revision": "string|null",
+        "mediaType": "string|null",
+        "sizeBytes": "integer|null",
+        "offset": "integer",
+        "contentBase64": "string"
+      },
+      "nullableFields": [
+        "revision",
+        "mediaType",
+        "sizeBytes"
+      ],
+      "description": "A byte range of one mounted file, read through the provider and not kept.",
+      "fieldDescriptions": {
+        "path": "The file's path in the storage tree.",
+        "revision": "The provider revision the bytes belong to.",
+        "mediaType": "Media type the provider reports for the file.",
+        "sizeBytes": "Size of the whole file, so a reader knows when it has reached the end.",
+        "offset": "First byte returned, counted from zero.",
+        "contentBase64": "The returned bytes, base64 encoded."
+      }
+    },
+    "StorageConnectionSync": {
+      "fields": [
+        "id",
+        "mountId",
+        "path",
+        "taskId",
+        "changePosition",
+        "lastRunAt",
+        "pausedAt",
+        "lastFailure",
+        "createdAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "mountId": "uuid",
+        "path": "string",
+        "taskId": "uuid",
+        "changePosition": "string|null",
+        "lastRunAt": "timestamp|null",
+        "pausedAt": "timestamp|null",
+        "lastFailure": "string|null",
+        "createdAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "changePosition",
+        "lastRunAt",
+        "pausedAt",
+        "lastFailure"
+      ],
+      "description": "A one-way sync of a mounted folder into a work item. The storage sync workflow runs every sync that is not paused, least recently run first.",
+      "fieldDescriptions": {
+        "id": "Stable id of the sync.",
+        "mountId": "The mount the sync reads from.",
+        "path": "The synced folder's path in the storage tree.",
+        "taskId": "Work item the synced files are recorded on.",
+        "changePosition": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes.",
+        "lastRunAt": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run.",
+        "pausedAt": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs.",
+        "lastFailure": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded.",
+        "createdAt": "When the sync was made.",
+        "version": "Counter that increases every time the sync changes."
+      }
+    },
+    "Page<StorageConnectionSync>": {
+      "pageOf": "StorageConnectionSync",
+      "description": "Cursor page of the organization's storage syncs, oldest first. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers, offsets or totals."
+    },
+    "StorageConnectionExport": {
+      "fields": [
+        "effectId",
+        "status",
+        "replayed"
+      ],
+      "fieldTypes": {
+        "effectId": "uuid",
+        "status": "enum(prepared|submitted|confirmed|uncertain|failed)",
+        "replayed": "boolean"
+      },
+      "nullableFields": [],
+      "description": "The external effect that writes one artifact version out to a mounted path.",
+      "fieldDescriptions": {
+        "effectId": "The external effect that carries the write; follow it to see the outcome.",
+        "status": "Where the effect is: prepared until the workflow sends it, then confirmed, or failed when the provider refused the write.",
+        "replayed": "True when the idempotency key already named this same request, so nothing new was recorded."
       }
     },
     "DesktopUpdate": {
