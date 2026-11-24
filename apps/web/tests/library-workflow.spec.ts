@@ -1837,7 +1837,7 @@ for (
       // Both arms of a branch sit inside one If container, and an empty arm
       // keeps its place with "No steps" (fix 10).
       await expect(page.locator("[data-group='if']")).toContainText("If");
-      await expect(page.locator("[data-group='if']")).not.toContainText(
+      await expect(page.locator("[data-group='if']")).toContainText(
         "Edited in code",
       );
       await expect(page.locator("[data-group='yes']")).toContainText(
