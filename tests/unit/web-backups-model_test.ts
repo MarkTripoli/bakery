@@ -106,7 +106,6 @@ Deno.test("a protected installation says protected, with or without an off-site 
     notice({}, null, false).lines[0]?.key,
     "installation.backups.notice.protected.hostOnly",
   );
-  // An off-site read that has not answered yet claims nothing either way.
   assertEquals(
     notice({}, null, null).lines[0]?.key,
     "installation.backups.notice.protected.onlyAge",

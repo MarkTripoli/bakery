@@ -119,7 +119,6 @@ type Options = {
   drills?: ReturnType<typeof drill>[];
   scheduleEnabled?: boolean;
   offsiteConfigured?: boolean;
-  /** The off-site read fails, so the page knows nothing about the copy. */
   offsiteFails?: boolean;
   pitrEnabled?: boolean;
   restoreHeld?: boolean;
