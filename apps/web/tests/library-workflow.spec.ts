@@ -1,3 +1,4 @@
+import { presetRead } from "./helpers/preset-read.ts";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import {
   type AgentVersionRow,
@@ -914,9 +915,6 @@ for (
         .getByTestId("step-picker")
         .locator("[data-pick-step='review.independent']")
         .click();
-      // The step the picker added is the one slice 1 can move: a step type the
-      // picker does not offer (task.brief) is drawn "Edited in code" and its
-      // panel offers no Move or Remove (design-ux's ruling, comment 6917906748).
       await page
         .locator("[data-card]")
         .filter({ hasText: "Review" })
@@ -1699,6 +1697,23 @@ test("the leave warning is armed only while a change is unsaved", async ({ page 
   await expect.poll(net).toBe(baseline);
 });
 
+test("an agent not chosen yet is advice: the editor opens ready and the panel says where the agent comes from", async ({ page }) => {
+  await libraryFixture(page, { ...WORLD, validation: "unbound" });
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+  await expect(page.getByTestId("editor-problems")).toHaveText(
+    "Ready to publish",
+  );
+  const card = page.locator("[data-card]").nth(1);
+  await expect(card).not.toContainText("Needs setup");
+  await card.click();
+  const panel = page.getByRole("complementary", {
+    name: "The selected step",
+  });
+  await expect(panel).toContainText(
+    "Uses the agent chosen in the repository's setup.",
+  );
+});
+
 test("a step with a problem keeps its card and shows the sentence", async ({ page }) => {
   // (4) the problem card: the report's pointer lands on its step, and the card
   // stays a card with the sentence under it. The warning points at the drawn
@@ -1712,10 +1727,10 @@ test("a step with a problem keeps its card and shows the sentence", async ({ pag
   const problemCard = page.locator("[data-card]").nth(1);
   await expect(problemCard).toContainText("Needs setup");
   await expect(problemCard).not.toContainText(
-    "The step runs a model but no agent is bound.",
+    "The step's action cannot run yet.",
   );
   const sentence =
-    "This step has no agent to run it, and agents cannot be chosen on this page yet. Delete the step, or ask an administrator to set the workflow's agents.";
+    "This kind of step cannot run yet. Delete it or put another step in its place.";
   const chip = page.getByTestId("editor-problems");
   await expect(chip).toHaveText("1 problem");
   await chip.click();
@@ -3015,7 +3030,7 @@ for (
                 ],
                 defaultBudgetLimitUsd: "8.00",
                 availability: null,
-              }],
+              }].map(presetRead),
               nextCursor: null,
             },
           }),

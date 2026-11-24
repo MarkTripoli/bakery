@@ -43,6 +43,8 @@ export function composerLabels(t: Translator): TaskComposerLabels {
     repository: t("tasks.composer.repository"),
     repositoryPlaceholder: t("tasks.composer.repositoryPlaceholder"),
     preset: t("tasks.composer.preset"),
+    presetNone: t("tasks.composer.presetNone"),
+    presetNoneHint: t("tasks.composer.presetNoneHint"),
     title: t("tasks.composer.title"),
     taskType: t("tasks.composer.taskType"),
     taskTypes: {
@@ -55,6 +57,7 @@ export function composerLabels(t: Translator): TaskComposerLabels {
     budget: t("tasks.composer.budget"),
     budgetHint: t("tasks.composer.budgetHint"),
     submit: t("tasks.composer.submit"),
+    submitTask: t("tasks.composer.submitTask"),
     submitting: t("tasks.composer.submitting"),
     retry: t("tasks.composer.retry"),
     discard: t("tasks.composer.discard"),
@@ -67,7 +70,7 @@ export function composerLabels(t: Translator): TaskComposerLabels {
     forbidden: t("tasks.composer.forbidden"),
     error: t("tasks.composer.error"),
     setupHeading: t("tasks.composer.setupHeading"),
-    setupBadge: t("tasks.composer.setupBadge"),
+    setupNoWorkflow: t("tasks.composer.setupNoWorkflow"),
     setupUnknown: t("tasks.composer.setup.unknown", {
       projects: t("tasks.composer.setup.projectsPage"),
     }),
