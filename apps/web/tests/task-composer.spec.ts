@@ -1,3 +1,4 @@
+import { presetRead } from "./helpers/preset-read.ts";
 import { expect, type Page, type Route, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import {
@@ -41,18 +42,19 @@ const preset = (
     status: "ready",
     reasons: [],
   },
-) => ({
-  id: "fixed-coding",
-  revision: 1,
-  digest: "a".repeat(64),
-  nameKey: "workflowPresets.fixedCoding.name",
-  steps: [{ id: "brief", uses: "task.brief" }, {
-    id: "implement",
-    uses: "harness.implement",
-  }],
-  defaultBudgetLimitUsd: "5.00",
-  availability: { minimumBudgetLimitUsd: null, ...availability },
-});
+) =>
+  presetRead({
+    id: "fixed-coding",
+    revision: 1,
+    digest: "a".repeat(64),
+    nameKey: "workflowPresets.fixedCoding.name",
+    steps: [{ id: "brief", uses: "task.brief" }, {
+      id: "implement",
+      uses: "harness.implement",
+    }],
+    defaultBudgetLimitUsd: "5.00",
+    availability: { minimumBudgetLimitUsd: null, ...availability },
+  });
 const task = {
   id: taskId,
   applicationId,
@@ -275,13 +277,14 @@ const field = {
     page.getByRole("textbox", { name: /^Description/ }),
   budget: (page: Page) =>
     page.getByRole("textbox", { name: /^Budget limit \(USD\)/ }),
-  // One preset is one choice, so it is a line of text, not a radio group.
-  preset: (page: Page) =>
-    page.getByText(
-      "Workflow: write the brief, then run the coding agent once.",
-    ),
+  preset: (page: Page) => page.getByRole("combobox", { name: /^Workflow/ }),
   start: (page: Page) =>
-    page.getByRole("button", { name: "Start task", exact: true }),
+    page.getByRole("button", {
+      name: "Create task and start run",
+      exact: true,
+    }),
+  create: (page: Page) =>
+    page.getByRole("button", { name: "Create task", exact: true }),
   retry: (page: Page) =>
     page.getByRole("button", { name: "Retry submission", exact: true }),
   discard: (page: Page) =>
@@ -290,7 +293,7 @@ const field = {
 
 async function fill(page: Page) {
   await field.repository(page).selectOption(repositoryId);
-  await expect(field.preset(page)).toBeVisible();
+  await field.preset(page).selectOption("fixed-coding");
   await field.title(page).fill(task.title);
   await field.description(page).fill(task.description);
 }
@@ -336,10 +339,11 @@ test(
     }
     await expect(field.repository(page)).toBeVisible();
     await expect(field.preset(page)).toBeVisible();
+    await expect(field.preset(page)).toHaveValue("");
     await expect(page.getByRole("radio")).toHaveCount(0);
     await expect(field.type(page)).toBeVisible();
-    await expect(field.budget(page)).toBeVisible();
-    await expect(field.start(page)).toBeDisabled();
+    await expect(field.budget(page)).toHaveCount(0);
+    await expect(field.create(page)).toBeDisabled();
     await fill(page);
     await expect(field.budget(page)).toHaveValue("5.00");
     await expect(field.start(page)).toBeEnabled();
@@ -394,8 +398,8 @@ test("still: the New task panel", async ({ page }) => {
   await still(page, "new-task-panel");
 });
 
-test("a setup-required preset names every missing requirement and blocks submit", async ({ page }) => {
-  await mockComposer(page, {
+test("a setup-required preset names every missing requirement and a press sends nothing", async ({ page }) => {
+  const seen = await mockComposer(page, {
     availability: {
       status: "setup_required",
       reasons: Object.keys(REASON_COPY),
@@ -405,6 +409,7 @@ test("a setup-required preset names every missing requirement and blocks submit"
   });
   await page.goto("/tasks/new");
   await field.repository(page).selectOption(repositoryId);
+  await field.preset(page).selectOption("fixed-coding");
   await field.title(page).fill("Needs setup");
   const list = form(page).getByRole("listitem");
   await expect(list).toHaveCount(Object.keys(REASON_COPY).length);
@@ -415,10 +420,18 @@ test("a setup-required preset names every missing requirement and blocks submit"
       : copy;
     await expect(form(page).getByText(text, { exact: true })).toBeVisible();
   }
-  await expect(field.start(page)).toBeDisabled();
+  await expect(field.start(page)).toBeEnabled();
   await expect(field.start(page)).toHaveAccessibleDescription(
     /This workflow cannot start here yet/,
   );
+  await field.start(page).click();
+  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
+  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCSS(
+    "outline-style",
+    "solid",
+  );
+  expect(seen.tasks).toHaveLength(0);
+  expect(seen.runs).toHaveLength(0);
   // The rule it names is a link to the page where it is changed.
   await expect(form(page).getByRole("link", { name: "Repository rules" }))
     .toHaveAttribute("href", "/settings/organization/repository-rules");
@@ -434,7 +447,32 @@ test("a setup-required preset names every missing requirement and blocks submit"
   await still(page, "composer-setup", form(page));
 });
 
-test("Start is disabled for a budget below the reservation", async ({ page }) => {
+test("still: the composer pressed with one requirement missing", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await mockComposer(page, {
+    availability: {
+      status: "setup_required",
+      reasons: ["coding_agent_unbound"],
+    },
+  });
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await field.preset(page).selectOption("fixed-coding");
+  await field.title(page).fill("Needs a coding agent");
+  await expect(form(page).getByRole("listitem")).toHaveCount(1);
+  await expect(
+    form(page).getByText(REASON_COPY.coding_agent_unbound, { exact: true }),
+  ).toBeVisible();
+  await field.start(page).click();
+  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
+  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCSS(
+    "outline-style",
+    "solid",
+  );
+  await still(page, "composer-not-ready-pressed");
+});
+
+test("a budget below the reservation names the smallest one that works and sends nothing", async ({ page }) => {
   const seen = await mockComposer(page, {
     availability: {
       status: "ready",
@@ -446,7 +484,7 @@ test("Start is disabled for a budget below the reservation", async ({ page }) =>
   await fill(page);
   await expect(field.start(page)).toBeEnabled();
   await field.budget(page).fill("0.5");
-  await expect(field.start(page)).toBeDisabled();
+  await expect(field.start(page)).toBeEnabled();
   await expect(form(page)).toHaveAttribute(
     "data-reasons",
     /budget_below_reservation/,
@@ -457,16 +495,26 @@ test("Start is disabled for a budget below the reservation", async ({ page }) =>
       { exact: true },
     ),
   ).toBeVisible();
-  await field.budget(page).fill("2");
-  await expect(field.start(page)).toBeEnabled();
-  await field.budget(page).fill("1.5");
-  await expect(field.start(page)).toBeEnabled();
+  await field.start(page).click();
+  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
   expect(seen.tasks).toHaveLength(0);
   expect(seen.runs).toHaveLength(0);
+  await field.budget(page).fill("2");
+  await expect(form(page)).not.toHaveAttribute(
+    "data-reasons",
+    /budget_below_reservation/,
+  );
+  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCount(0);
+  await field.budget(page).fill("1.5");
+  await expect(form(page)).not.toHaveAttribute(
+    "data-reasons",
+    /budget_below_reservation/,
+  );
+  await expect(field.start(page)).toBeEnabled();
 });
 
 test("the default-budget server reason clears when the user raises the budget", async ({ page }) => {
-  await mockComposer(page, {
+  const seen = await mockComposer(page, {
     availability: {
       status: "setup_required",
       reasons: ["budget_below_reservation"],
@@ -475,8 +523,21 @@ test("the default-budget server reason clears when the user raises the budget", 
   });
   await page.goto("/tasks/new");
   await fill(page);
-  await expect(field.start(page)).toBeDisabled();
+  await expect(form(page)).toHaveAttribute(
+    "data-reasons",
+    /budget_below_reservation/,
+  );
+  await expect(field.start(page)).toBeEnabled();
+  await field.start(page).click();
+  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
+  expect(seen.tasks).toHaveLength(0);
+  expect(seen.runs).toHaveLength(0);
   await field.budget(page).fill("6");
+  await expect(form(page)).not.toHaveAttribute(
+    "data-reasons",
+    /budget_below_reservation/,
+  );
+  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCount(0);
   await expect(field.start(page)).toBeEnabled();
 });
 
@@ -667,9 +728,12 @@ test("a run refused with STATE_CONFLICT leaves a draft that shows the same setup
   expect(seen.runs).toHaveLength(1);
   const start = page.getByText("Start a run", { exact: true });
   await expect(start).toBeVisible();
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
   await expect(page.getByText(REASON_COPY.coding_agent_unbound)).toBeVisible();
   await expect(page.getByRole("button", { name: "Start run", exact: true }))
-    .toBeDisabled();
+    .toBeEnabled();
   // Nothing was duplicated: the task exists once, as a draft.
   expect(seen.tasks).toHaveLength(1);
 });
@@ -716,11 +780,14 @@ test("Start run on a draft task uses its own scoped intent and replays it after 
   await expect(page.getByText("Start a run", { exact: true })).toBeVisible();
   await expect(
     page.getByText(
-      "This task has no run yet. Start a run to see its timeline.",
+      "This task has no run yet. Choose a workflow to start one.",
     ),
   ).toBeVisible();
   const startRun = page.getByRole("button", { name: "Start run", exact: true });
   await expect(startRun).toBeEnabled();
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
   await startRun.click();
   await expect(page.getByText("The server did not confirm the run."))
     .toBeVisible();
@@ -823,6 +890,7 @@ for (const locale of ["en-XA", "ar-XB"]) {
     );
     await expect(page.getByRole("form")).toBeVisible();
     await page.getByRole("combobox").first().selectOption(repositoryId);
+    await page.getByRole("combobox").nth(1).selectOption("fixed-coding");
     await expect(page.getByRole("listitem")).toHaveCount(2);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     expect(
@@ -853,19 +921,20 @@ test("keyboard order follows the form", async ({ page }) => {
       }`;
     });
   order.push(await label());
-  for (let step = 0; step < 5; step++) {
+  for (let step = 0; step < 6; step++) {
     await page.keyboard.press("Tab");
     order.push(await label());
   }
   expect(order.map((entry) => entry.split(":")[0])).toEqual([
     "select",
-    "input", // title
-    "select", // task type
+    "select",
+    "input",
+    "input",
+    "select",
     "textarea",
-    "input", // budget
     "button",
   ]);
-  expect(order[5]).toContain("Start task");
+  expect(order[6]).toContain("Create task and start run");
 });
 
 // Coarse-pointer floor: 44px. The iPhone project is the coarse pointer.
@@ -935,4 +1004,60 @@ test("reduced motion removes composer transitions", async ({ page }) => {
     // The design system collapses motion to 1ms, not 0, so it still ends.
     expect(parseFloat(duration)).toBeLessThanOrEqual(0.001);
   }
+});
+
+test("the composer opens with No workflow chosen; nothing is preselected or recommended (#429, built-ins are optional)", async ({ page }) => {
+  await mockComposer(page);
+  await page.goto("/tasks/new");
+  await expect(field.preset(page)).toHaveValue("");
+  await expect(field.preset(page).locator("option:checked")).toHaveText(
+    "No workflow",
+  );
+  await expect(page.getByRole("radio")).toHaveCount(0);
+  await expect(form(page).getByText(/recommended|default workflow/i))
+    .toHaveCount(0);
+  await expect(field.budget(page)).toHaveCount(0);
+  await expect(field.create(page)).toBeVisible();
+  await expect(field.start(page)).toHaveCount(0);
+});
+
+test("a task is created with no run when no workflow is chosen, and choosing one then going back to none sends no run (#429)", async ({ page }) => {
+  const seen = await mockComposer(page);
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await field.preset(page).selectOption("fixed-coding");
+  await expect(field.budget(page)).toHaveValue("5.00");
+  await field.preset(page).selectOption("");
+  await expect(field.budget(page)).toHaveCount(0);
+  await field.title(page).fill(task.title);
+  await field.description(page).fill(task.description);
+  await field.create(page).click();
+  await expect(page).toHaveURL(new RegExp(`/tasks/${taskId}$`));
+  expect(seen.tasks).toHaveLength(1);
+  expect(seen.runs).toHaveLength(0);
+});
+
+test("a budget the person typed stays when they switch workflow (#429)", async ({ page }) => {
+  await mockComposer(page);
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await field.preset(page).selectOption("fixed-coding");
+  await field.budget(page).fill("7.50");
+  await field.preset(page).selectOption("");
+  await field.preset(page).selectOption("fixed-coding");
+  await expect(field.budget(page)).toHaveValue("7.50");
+});
+
+test("Start run stays enabled with no workflow chosen: pressing it asks for one and sends nothing (#429)", async ({ page }) => {
+  const seen = await mockComposer(page, { taskAfterRun: undefined });
+  await page.goto(`/tasks/${taskId}`);
+  const workflow = page.getByRole("combobox", { name: /^Workflow/ });
+  const startRun = page.getByRole("button", { name: "Start run", exact: true });
+  await expect(workflow).toHaveValue("");
+  await expect(startRun).toBeEnabled();
+  await startRun.click();
+  await expect(page.getByText("Choose a workflow first.")).toBeVisible();
+  expect(seen.runs).toHaveLength(0);
+  await workflow.selectOption({ label: "Fixed coding" });
+  await expect(page.getByText("Choose a workflow first.")).toHaveCount(0);
 });

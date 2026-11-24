@@ -87,6 +87,14 @@ function checkAction(
       }
     }
   }
+  node.inputs?.forEach((slot, index) => {
+    analyzeValue(env, reader, slot.from, [
+      ...flow.path,
+      "inputs",
+      index,
+      "from",
+    ]);
+  });
   if (node.effectKey) {
     const path = [...flow.path, "effectKey"];
     const keyType = checkEffectKey(env, reader, node.effectKey, path);

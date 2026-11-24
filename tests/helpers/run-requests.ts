@@ -310,11 +310,18 @@ export async function seedStep(
   fixture: SocketFixture,
   run: SeededRun,
   stepKey: string,
+  iteration = 0,
 ): Promise<void> {
   await fixture.pgDatabase.query(
     `insert into bakery.run_steps (id, organization_id, run_id, step_key,
        position, iteration, status, input)
-     values ($1, $2, $3, $4, 2, 0, 'running', '{}')`,
-    [crypto.randomUUID(), fixture.organizationId, run.runId, stepKey],
+     values ($1, $2, $3, $4, 2, $5, 'running', '{}')`,
+    [
+      crypto.randomUUID(),
+      fixture.organizationId,
+      run.runId,
+      stepKey,
+      iteration,
+    ],
   );
 }
