@@ -1394,7 +1394,7 @@ test("intercepted wrong-run response suppresses child reads and controls", async
   await page.getByRole("link", { name: task.title }).click();
   await expect(
     page.getByRole("heading", {
-      name: "Tasks could not be loaded. Try again.",
+      name: "This run could not be loaded.",
     }),
   ).toBeVisible();
   await expect(page.getByText(step.stepKey, { exact: true })).toHaveCount(0);

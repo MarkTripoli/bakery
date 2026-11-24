@@ -7900,7 +7900,7 @@
       "permission": "review:accept",
       "organizationContext": "required_authenticated_context",
       "input": "RepairAllowanceCreate",
-      "output": "DeliveryDecision",
+      "output": "TriesAllowance",
       "event": "",
       "mcp": "bakery_runRepairAllowances_create",
       "idempotency": "Idempotency-Key required; PATCH also If-Match",

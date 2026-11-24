@@ -31,6 +31,34 @@ import type { PlanHostFacts } from "../workflow-adapter/bakery-postgres-store.ts
 /** The failure code a plan run ends with when its review loop recorded a stop. */
 export const PLAN_DELIVERY_STOPPED_CODE = "delivery_loop_stopped";
 
+export const LIMIT_DECISION_SUBJECT_KIND = "workflow_run";
+
+async function loadLimitExtras(
+  transaction: PgTransactionClient,
+  run: { readonly organizationId: string; readonly runId: string },
+): Promise<Record<string, number>> {
+  const decisions = await transaction.query<
+    { detail: { repeatKey?: unknown; addedTries?: unknown } | null }
+  >(
+    `select detail from bakery.decisions_ledger
+      where organization_id = $1 and subject_kind = $2 and subject_id = $3
+        and kind = 'limit_change'
+      order by decided_at, id`,
+    [run.organizationId, LIMIT_DECISION_SUBJECT_KIND, run.runId],
+  );
+  const extras: Record<string, number> = {};
+  for (const { detail } of decisions.rows) {
+    if (
+      typeof detail?.repeatKey === "string" &&
+      typeof detail.addedTries === "number"
+    ) {
+      extras[detail.repeatKey] = (extras[detail.repeatKey] ?? 0) +
+        detail.addedTries;
+    }
+  }
+  return extras;
+}
+
 /** The host's facts about one plan run, for the engine's next decision. */
 export async function readPlanHost(
   transaction: PgTransactionClient,
@@ -40,8 +68,13 @@ export async function readPlanHost(
     readonly runSnapshot: unknown;
   },
 ): Promise<PlanHostFacts> {
-  if (reviewLoopFromSnapshot(run.runSnapshot) === null) return {};
   const { organizationId, runId } = run;
+  const limitExtras = await loadLimitExtras(transaction, run);
+  if (reviewLoopFromSnapshot(run.runSnapshot) === null) {
+    return Object.keys(limitExtras).length === 0
+      ? {}
+      : { repeatExtra: limitExtras };
+  }
   const latest = await readLatestDecision(transaction, {
     organizationId,
     runId,
@@ -57,8 +90,7 @@ export async function readPlanHost(
     runId,
   });
   const delivery = planDeliveryFrom(snapshot, stepOutputs);
-  // Tries a person allowed past the repeat's own bound, by the repeat's key.
-  const repeatExtra: Record<string, number> = {};
+  const repeatExtra: Record<string, number> = { ...limitExtras };
   for (
     const allowance of await loadRepairAllowances(transaction, {
       organizationId,

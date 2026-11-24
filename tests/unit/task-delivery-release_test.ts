@@ -195,8 +195,8 @@ Deno.test("each release status says what the design says", () => {
       release({ status: "healthy", goBack: "offer" }),
       "success",
       "Released to staging",
-      "The release is healthy.",
-      null,
+      "The release is healthy. This change is done.",
+      "chooseNext",
     ],
     [
       release({ status: "degraded", goBack: "offer" }),

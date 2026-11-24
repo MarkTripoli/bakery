@@ -13311,7 +13311,7 @@
           "description": "How many more repair tries to allow. The total a run may use never goes past 8, the most any workflow can hold, so a request that would pass it is refused and nothing changes."
         }
       ],
-      "description": "Allows a run whose review and repair loop stopped because it ran out of tries to try more, and puts the run back to work (chapter 25, one engine). It answers the stop with the repair decision it buys, which is the response. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
+      "description": "Allows a run that stopped for lack of tries to try more, and puts the run back to work (chapter 25, one engine). Two stops qualify. A review and repair loop that ran out of tries is answered with the repair decision it buys. A repeat that used its allow below its max is answered with a limit decision recorded in the decisions ledger; the repeat then runs on, never past its max, and a request for more rounds than remain is cut at max. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same repair stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
     },
     "BatchCreate": {
       "fields": [
@@ -22965,6 +22965,39 @@
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable.",
         "version": "Always 1 because delivery decision rows are immutable."
+      }
+    },
+    "TriesAllowance": {
+      "fields": [
+        "runId",
+        "kind",
+        "addedTries",
+        "decisionId",
+        "repeatKey"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "kind": "enum(repair_loop|repeat_limit)",
+        "addedTries": "integer",
+        "decisionId": "uuid",
+        "repeatKey": "string|null"
+      },
+      "fieldBounds": {
+        "addedTries": {
+          "min": 1,
+          "max": 8
+        }
+      },
+      "nullableFields": [
+        "repeatKey"
+      ],
+      "description": "The answer to an allowance of more tries: which stop it answered, how many tries it added and the decision that records it.",
+      "fieldDescriptions": {
+        "runId": "The run that was put back to work.",
+        "kind": "Which stop the allowance answered: repair_loop for a review and repair loop that ran out of tries, repeat_limit for a repeat that used its allow below its max.",
+        "addedTries": "How many more tries or rounds were allowed. For a repeat_limit it can be fewer than asked, because a repeat never goes past its max.",
+        "decisionId": "Id of the decision that records the allowance: the repair delivery decision for repair_loop, the decisions ledger entry for repeat_limit.",
+        "repeatKey": "Step key of the repeat that was allowed more rounds, or null for repair_loop."
       }
     },
     "RepairTry": {

@@ -30,6 +30,7 @@ import {
 import { useMerge } from "./use-merge.ts";
 import { useApprovalDecision } from "./use-approval-decision.ts";
 import { useGoBack } from "./use-go-back.ts";
+import { useMoreTries } from "./use-more-tries.ts";
 import {
   DeliverySectionView,
   type DeliveryViewState,
@@ -203,12 +204,18 @@ export function DeliverySection(
     enabled: enabled && merged,
     refetchInterval: 5000,
   });
+  const outOfTries =
+    decisions.data?.items.some((entry) =>
+      entry.decision === "stop" && entry.reason === "repair_cycles_exhausted"
+    ) ?? false;
   const access = useQuery({
     ...effectiveAccessQueryOptions(api, scope),
-    enabled: enabled && merged,
+    enabled: enabled && (merged || outOfTries),
   });
   const mayDeploy = access.data?.role === "admin" ||
     access.data?.role === "developer";
+  const mayGiveMoreTries = access.data?.role === "admin" ||
+    access.data?.capabilities.includes("review:accept") === true;
 
   const reads = [checks, reviews, decisions];
   const failed = [...reads, findings].find((read) => read.isError);
@@ -268,7 +275,15 @@ export function DeliverySection(
     await deployments.refetch();
   }, [deployments.refetch]);
   const mergeAction = useMerge(refreshMerge);
+  const refreshTries = useCallback(async () => {
+    await Promise.all([
+      decisions.refetch(),
+      checks.refetch(),
+      reviews.refetch(),
+    ]);
+  }, [decisions.refetch, checks.refetch, reviews.refetch]);
   const goBackAction = useGoBack(refreshRelease);
+  const moreTriesAction = useMoreTries(runId, refreshTries);
   const decision = useApprovalDecision(
     model?.approval ?? null,
     refreshDecision,
@@ -298,6 +313,10 @@ export function DeliverySection(
       onClearMerge={mergeAction.clear}
       goBackPhase={goBackAction.phase}
       onClearGoBack={goBackAction.clear}
+      mayGiveMoreTries={mayGiveMoreTries}
+      moreTriesPhase={moreTriesAction.phase}
+      onClearMoreTries={moreTriesAction.clear}
+      onGiveMoreTries={moreTriesAction.allow}
       onDecide={decision.decide}
       onGoBack={goBackAction.goBack}
       onMerge={mergeAction.merge}
