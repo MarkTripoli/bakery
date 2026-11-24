@@ -113,7 +113,7 @@ export async function usageFixture(page: Page, options: UsageOptions = {}) {
           ? [{
             ...ROWS[0],
             billingType: "subscription",
-            knownCostUsd: "5.0000",
+            knownCostUsd: "0.0000",
             unverifiedCostUsd: "0.0000",
             unverifiedCount: 0,
           }]
