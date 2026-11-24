@@ -3,9 +3,12 @@ import type { ActionContext } from "@bakery/contracts/action-registry";
 import { contractSchemas } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
 import { requireWorkTransaction } from "./work-transaction.ts";
+import type { PgTransactionClient } from "../../platform/database.ts";
+import { readApprovalOutcomes } from "./notification-approval-outcome.ts";
 import {
   listNotifications,
   markAllNotificationsRead,
+  type NotificationRow,
   readNotification,
   readNotificationCount,
   setNotificationRead,
@@ -24,6 +27,23 @@ import {
  * recipient from the request, so one person cannot read or change another's
  * inbox by naming an id.
  */
+async function notificationOf(
+  transaction: PgTransactionClient,
+  scope: Parameters<typeof resolveDestinationSummary>[1],
+  row: NotificationRow,
+) {
+  const outcomes = await readApprovalOutcomes(
+    transaction,
+    scope.organizationId,
+    [row],
+  );
+  return toNotification(
+    row,
+    await resolveDestinationSummary(transaction, scope, row),
+    outcomes.get(row.targetId) ?? null,
+  );
+}
+
 export function createNotificationHandlers(secret: string) {
   const recipientOf = (context: ActionContext) => {
     const work = requireWorkTransaction(context);
@@ -71,10 +91,7 @@ export function createNotificationHandlers(secret: string) {
       const id = context.params.id;
       if (!id) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       const row = await readNotification(transaction, scope, id);
-      return toNotification(
-        row,
-        await resolveDestinationSummary(transaction, scope, row),
-      );
+      return await notificationOf(transaction, scope, row);
     },
 
     async resolveTarget(context: ActionContext) {
@@ -105,10 +122,7 @@ export function createNotificationHandlers(secret: string) {
           traceId: context.traceId,
         });
       }
-      return toNotification(
-        row,
-        await resolveDestinationSummary(transaction, scope, row),
-      );
+      return await notificationOf(transaction, scope, row);
     },
 
     async markAllRead(context: ActionContext, input: unknown) {

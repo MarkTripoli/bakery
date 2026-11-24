@@ -33278,6 +33278,7 @@ const transportSchemas = {
         "taskId",
         "actor",
         "destination",
+        "approvalOutcome",
         "read",
         "revision",
         "createdAt"
@@ -33295,6 +33296,7 @@ const transportSchemas = {
         "taskId": "uuid|null",
         "actor": "NotificationActor|null",
         "destination": "NotificationDestination",
+        "approvalOutcome": "NotificationApprovalOutcome|null",
         "read": "boolean",
         "revision": "integer",
         "createdAt": "timestamp"
@@ -33304,7 +33306,8 @@ const transportSchemas = {
         "conversationId",
         "runId",
         "taskId",
-        "actor"
+        "actor",
+        "approvalOutcome"
       ],
       "fieldDescriptions": {
         "id": "Stable UUID identifying this notification; it addresses the item inside the recipient's own inbox and never grants access to the destination.",
@@ -33319,6 +33322,7 @@ const transportSchemas = {
         "taskId": "UUID of the task the destination lives in, or null.",
         "actor": "Who caused the event, for an avatar and a name in the sentence; null when no person caused it, such as a run that failed on its own.",
         "destination": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target.",
+        "approvalOutcome": "How the approval this item points at stands now, read from the approval at read time: open, approved, changes requested, rejected, expired or withdrawn, with who decided and when. Null when the item does not point at an approval or the recipient can no longer reach it.",
         "read": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks.",
         "revision": "Monotonic revision of this item's read state; clients discard an older response or event than the revision they already hold.",
         "createdAt": "UTC timestamp when the item entered the inbox, which is also its place in the newest-first order."
@@ -33358,6 +33362,28 @@ const transportSchemas = {
         "avatarUrl": "Absolute HTTPS URL of the person's avatar, or null to draw initials."
       },
       "description": "The person who caused a notification, reduced to the safe identity the directory already exposes: principal, display name and avatar."
+    },
+    "NotificationApprovalOutcome": {
+      "fields": [
+        "status",
+        "decidedBy",
+        "decidedAt"
+      ],
+      "fieldTypes": {
+        "status": "enum(open|approved|changes_requested|rejected|expired|withdrawn)",
+        "decidedBy": "NotificationActor|null",
+        "decidedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "decidedBy",
+        "decidedAt"
+      ],
+      "fieldDescriptions": {
+        "status": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn.",
+        "decidedBy": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it.",
+        "decidedAt": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+      },
+      "description": "The current outcome of the approval a notification points at, derived from the approval row when the inbox is read and never stored on the notification."
     },
     "NotificationDestination": {
       "fields": [
