@@ -1,4 +1,5 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
+import { StandardError } from "../../packages/contracts/src/http.ts";
 import { withPgTransaction } from "@bakery/persistence/postgres";
 import { requestHumanApproval } from "../../apps/server/src/modules/work/human-approval-store.ts";
 import { openAuthFixture } from "../helpers/auth.ts";
@@ -406,6 +407,52 @@ Deno.test("an approval whose starter is gone still asks each approver, on behalf
       assertEquals(rows[0]!.asked_by_kind, "workflow");
       assertEquals(rows[0]!.asked_by, fixture.principalId);
       assertEquals(rows[0]!.target_id, asked.approvalId);
+    } finally {
+      await cleanupAuthFixture(fixture.pgDatabase, [gone.email]);
+    }
+  }));
+
+Deno.test("an approval whose starter, owner and admins are all gone is refused by name and writes nothing", () =>
+  withApprovalFixture(async ({ fixture, guest, runId, ask }) => {
+    const gone = await addMember(fixture, "Gone starter", "developer");
+    try {
+      await fixture.pgDatabase.query(
+        `update bakery.principals set disabled_at = now() where id = $1`,
+        [gone.principalId],
+      );
+      await fixture.pgDatabase.query(
+        `update bakery.workflow_runs set requested_by = $2
+          where organization_id = $1 and id = $3`,
+        [fixture.organizationId, gone.principalId, runId],
+      );
+      await fixture.pgDatabase.query(
+        `update bakery.principals set disabled_at = now() where id = $1`,
+        [fixture.principalId],
+      );
+      const handle = `late-${crypto.randomUUID().slice(0, 8)}`;
+      await seedGroup(fixture, handle, [guest.principalId]);
+      const error = await assertRejects(() =>
+        ask([`@${handle}`], null)
+      ) as StandardError;
+      assertEquals(error.params?.reason, "approval-asker-unavailable");
+      const questions = await fixture.pgDatabase.query<{ id: string }>(
+        `select id from bakery.questions
+          where organization_id = $1 and run_id = $2`,
+        [fixture.organizationId, runId],
+      );
+      const requests = await fixture.pgDatabase.query<{ id: string }>(
+        `select id from bakery.person_requests
+          where organization_id = $1 and run_id = $2`,
+        [fixture.organizationId, runId],
+      );
+      const waits = await fixture.pgDatabase.query<{ id: string }>(
+        `select id from bakery.run_waits
+          where organization_id = $1 and run_id = $2`,
+        [fixture.organizationId, runId],
+      );
+      assertEquals(questions.rows.length, 0);
+      assertEquals(requests.rows.length, 0);
+      assertEquals(waits.rows.length, 0);
     } finally {
       await cleanupAuthFixture(fixture.pgDatabase, [gone.email]);
     }
