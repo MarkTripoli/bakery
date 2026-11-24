@@ -55,6 +55,32 @@ for (
       await still(page, "usage-seeded");
     });
 
+    test("the Provider menu lists each provider once and keeps the others after one is chosen", async ({ page }) => {
+      await usageFixture(page, { twoRoutes: true });
+      await page.goto("/installation/usage");
+      await expect(page.getByRole("heading", { name: "By provider" }))
+        .toBeVisible();
+      await page.getByRole("button", { name: /^Provider:/ }).click();
+      const menu = page.getByRole("dialog", { name: "Provider" });
+      await expect(menu.getByText("Anthropic", { exact: true })).toHaveCount(1);
+      await menu.getByText("Anthropic", { exact: true }).click();
+      await expect(page.getByRole("button", { name: "Provider: Anthropic" }))
+        .toBeVisible();
+      await page.getByRole("button", { name: /^Provider:/ }).click();
+      await expect(menu.getByText("OpenAI", { exact: true })).toBeVisible();
+      await expect(menu.getByText("Google", { exact: true })).toBeVisible();
+    });
+
+    test("a partial total says how many records are unconfirmed and how many have no cost", async ({ page }) => {
+      await usageFixture(page);
+      await page.goto("/installation/usage");
+      await expect(
+        page.getByText(
+          "3 records are not confirmed by a provider and 1 record has no cost at all.",
+        ),
+      ).toBeVisible();
+    });
+
     test("Custom asks for From and To, sends exactly those days, and says why a range is refused while keeping the last good one", async ({ page }) => {
       const { seen } = await usageFixture(page);
       await page.goto("/installation/usage");

@@ -5004,7 +5004,6 @@
   "installation.usage.provider": "⟦Þŕôṽïðëŕ…⟧",
   "installation.usage.provider.all": "⟦Àļļ⟧",
   "installation.usage.partial.title": "⟦Ŧĥëšë ŧôŧàļš àŕë þàŕŧïàļ ŧëšŧ ç⟧",
-  "installation.usage.partial.body": "⟦{unverified} ñôŧ çôñƒïŕɱëð ƀÿ à þŕôṽïðëŕ àñð {unknown} ŵïŧĥ ñô çôšŧ àŧ àļļ. Ŧĥëÿ àŕë çôûñŧëð ƀëļôŵ, ñëṽëŕ àððëð ŧô ŧĥë çôñƒïŕɱëð ŧôŧàļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "installation.usage.unknown.title": "⟦Ɓàķëŕÿ çàññôŧ šàÿ ĥôŵ çôɱþļëŧë ŧĥëšë ŧôŧàļš àŕë ŧëšŧ çôþÿ ŧëšŧ⟧",
   "installation.usage.unknown.body": "⟦Ŧŕëàŧ ëṽëŕÿ ƒïĝûŕë àš à ļôŵëŕ ƀôûñð. ŧëšŧ çôþÿŧ⟧",
   "installation.usage.confirmed.label": "⟦Çôñƒïŕɱëð çôšŧ ŧë⟧",
@@ -6687,5 +6686,6 @@
   "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ àñôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "installation.usage.period.reversed": "⟦Çĥôôšë àñ ëñð ðàŧë àƒŧëŕ ŧĥë šŧàŕŧ ðàŧë. ŧëšŧ çôþÿ ŧ⟧",
   "installation.usage.period.from": "⟦Ƒŕôɱ⟧",
-  "installation.usage.period.to": "⟦Ŧô⟧"
+  "installation.usage.period.to": "⟦Ŧô⟧",
+  "installation.usage.partial.body": "⟦{unverified, plural, one {# record is} other {# records are}} ñôŧ çôñƒïŕɱëð ƀÿ à þŕôṽïðëŕ àñð {unknown, plural, one {# record has} other {# records have}} ñô çôšŧ àŧ àļļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

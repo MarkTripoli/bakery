@@ -35,6 +35,7 @@ export type InstallationUsageScreenProps = {
   readonly state: "loading" | "error" | "ready" | "empty" | "notFound";
   readonly period: UsagePeriod;
   readonly provider: string | null;
+  readonly providers: readonly string[];
   readonly periodError: "incomplete" | "reversed" | "tooLong" | null;
   readonly customFrom: string;
   readonly customTo: string;
@@ -53,6 +54,7 @@ export function InstallationUsageScreen(
     state,
     period,
     provider,
+    providers,
     periodError,
     customFrom,
     customTo,
@@ -66,6 +68,7 @@ export function InstallationUsageScreen(
   const { translate, locale, timeZone } = useI18n();
   const money = useMoney();
   const [periodOpen, setPeriodOpen] = useState(false);
+  const [providerOpen, setProviderOpen] = useState(false);
   // Formatted here, so the count is an argument the catalogue can inflect on.
   const records = (count: number) =>
     translate(recordKey(count), { count: String(count) });
@@ -114,11 +117,13 @@ export function InstallationUsageScreen(
       label: translate("installation.usage.provider.all"),
       selected: provider === null,
     },
-    ...rows.map((row) => ({
-      id: row.provider,
-      label: providerName(row.provider),
-      selected: row.provider === provider,
-    })),
+    ...(provider === null || providers.includes(provider)
+      ? providers
+      : [provider, ...providers]).map((name) => ({
+        id: name,
+        label: providerName(name),
+        selected: name === provider,
+      })),
   ];
   const customRow = period === "custom"
     ? (
@@ -198,6 +203,8 @@ export function InstallationUsageScreen(
         <UI.Popover
           align="end"
           label={providerWord}
+          onOpenChange={setProviderOpen}
+          open={providerOpen}
           trigger={
             <>
               {providerLabel}
@@ -211,7 +218,10 @@ export function InstallationUsageScreen(
           <UI.Menu
             aria-label={providerWord}
             items={providerItems}
-            onSelect={(id) => onProviderChange(id === "all" ? null : id)}
+            onSelect={(id) => {
+              onProviderChange(id === "all" ? null : id);
+              setProviderOpen(false);
+            }}
             variant="selection"
           />
         </UI.Popover>
@@ -247,8 +257,8 @@ export function InstallationUsageScreen(
                 <strong>{translate("installation.usage.partial.title")}</strong>
                 <span>
                   {translate("installation.usage.partial.body", {
-                    unverified: records(summary.unverifiedCount),
-                    unknown: records(summary.unknownCount),
+                    unverified: summary.unverifiedCount,
+                    unknown: summary.unknownCount,
                   })}
                 </span>
               </UI.Stack>

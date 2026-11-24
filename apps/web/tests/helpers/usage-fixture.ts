@@ -10,6 +10,8 @@ export type UsageOptions = {
   empty?: boolean;
   /** Someone who may not see Usage: the server answers 403. */
   forbidden?: boolean;
+  /** A second Anthropic row on another billing route, as the server returns one row per route. */
+  twoRoutes?: boolean;
 };
 
 const ROWS = [
@@ -85,9 +87,16 @@ export async function usageFixture(page: Page, options: UsageOptions = {}) {
         });
       }
       const provider = query.get("provider");
-      const rows = options.empty
-        ? []
-        : ROWS.filter((row) => provider === null || row.provider === provider);
+      const rows = options.empty ? [] : [
+        ...ROWS,
+        ...(options.twoRoutes
+          ? [{
+            ...ROWS[0],
+            billingType: "subscription",
+            knownCostUsd: "5.0000",
+          }]
+          : []),
+      ].filter((row) => provider === null || row.provider === provider);
       return route.fulfill({
         status: 200,
         contentType: "application/json",

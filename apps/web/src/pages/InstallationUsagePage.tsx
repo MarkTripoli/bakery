@@ -76,6 +76,21 @@ export function InstallationUsagePage() {
     }),
   });
 
+  const everyProvider = useQuery({
+    ...usageSummaryQueryOptions(api, scope, {
+      from: window.from.toISOString(),
+      to: window.to.toISOString(),
+    }),
+    enabled: provider !== null,
+  });
+  const providers = [
+    ...new Set(
+      (provider === null ? summary.data : everyProvider.data)?.byProvider.map((
+        row,
+      ) => row.provider) ?? [],
+    ),
+  ];
+
   const write = (next: Record<string, string | undefined>) => {
     void navigate({
       to: "/installation/usage",
@@ -105,6 +120,7 @@ export function InstallationUsagePage() {
       customFrom={customFrom}
       customTo={customTo}
       periodError={periodError}
+      providers={providers}
       onCustomChange={(next) =>
         write({ [FROM_QUERY]: next.from, [TO_QUERY]: next.to })}
       onPeriodChange={(choice) =>

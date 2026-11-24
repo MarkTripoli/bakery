@@ -5003,7 +5003,6 @@
   "installation.usage.provider": "⟪Provider⟫",
   "installation.usage.provider.all": "⟪All⟫",
   "installation.usage.partial.title": "⟪These totals are partial⟫",
-  "installation.usage.partial.body": "⟪{unverified} not confirmed by a provider and {unknown} with no cost at all. They are counted below, never added to the confirmed total.⟫",
   "installation.usage.unknown.title": "⟪Bakery cannot say how complete these totals are⟫",
   "installation.usage.unknown.body": "⟪Treat every figure as a lower bound.⟫",
   "installation.usage.confirmed.label": "⟪Confirmed cost⟫",
@@ -6687,5 +6686,6 @@
   "issues.start.workflowHelp": "⟪{repository} is set to {workflow}. Choosing another applies to this issue only.⟫",
   "installation.usage.period.reversed": "⟪Choose an end date after the start date.⟫",
   "installation.usage.period.from": "⟪From⟫",
-  "installation.usage.period.to": "⟪To⟫"
+  "installation.usage.period.to": "⟪To⟫",
+  "installation.usage.partial.body": "⟪{unverified, plural, one {# record is} other {# records are}} not confirmed by a provider and {unknown, plural, one {# record has} other {# records have}} no cost at all.⟫"
 }
