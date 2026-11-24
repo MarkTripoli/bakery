@@ -848,6 +848,35 @@ async function aReopenKeepsAGrantAnotherRestrictionStillCovers(
   await ok(await listing(fixture, carol.cookie, leaf));
 }
 
+async function aRestrictedFolderBelowAnOpenMoverKeepsItsGrants(
+  fixture: Fixture,
+): Promise<void> {
+  const admin = fixture.adminCookie;
+  const seed = { organizationId: fixture.organizationId } as never;
+  const carol: Member = await addMember(fixture as never, seed, "carol-sub");
+  const m = await folder(fixture, admin, "/shared/m-sub");
+  await folder(fixture, admin, "/shared/open-sub");
+  await ok(await restrict(fixture, carol.cookie, m, true));
+  const k = await entryIn(fixture, carol.cookie, "/shared/m-sub/k");
+  const j = await entryIn(fixture, carol.cookie, "/shared/m-sub/k/j");
+  await ok(await restrict(fixture, carol.cookie, j.id as string, true));
+  await ok(
+    await grant(
+      fixture,
+      carol.cookie,
+      k.id as string,
+      carol.principalId,
+      "manage",
+    ),
+    201,
+  );
+  assertEquals(await liveGrantsOn(fixture, j.id as string), 1);
+  await ok(await move(fixture, carol.cookie, k, "/shared/open-sub/k"));
+  assertEquals(await liveGrantsOn(fixture, k.id as string), 0);
+  assertEquals(await liveGrantsOn(fixture, j.id as string), 1);
+  await ok(await listing(fixture, carol.cookie, j.id as string));
+}
+
 async function aTrashedRestrictedFolderIsHiddenFromTrash(
   fixture: Fixture,
 ): Promise<void> {
@@ -925,6 +954,7 @@ Deno.test("folder grants and restricted folders", async () => {
       );
       await aGrantSurvivesAMoveBetweenTwoRestrictedFolders(fixture);
       await aMoveRevokesGrantsOnTheFoldersBelowToo(fixture);
+      await aRestrictedFolderBelowAnOpenMoverKeepsItsGrants(fixture);
       await aReopenKeepsAGrantAnotherRestrictionStillCovers(fixture);
       await aTrashedRestrictedFolderIsHiddenFromTrash(fixture);
       await aFolderTakesAtMostTwoHundredGrants(fixture);

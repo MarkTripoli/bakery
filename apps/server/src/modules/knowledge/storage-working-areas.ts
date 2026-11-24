@@ -1328,7 +1328,6 @@ async function relocateEntry(
       " where organization_id = $1 and id = $2",
     [organizationId, entry.id, parent.id, name, nameKey],
   );
-  if (entry.parent_id === parent.id) return [];
   return await revokeGrantsNotCoveredWithin(
     tx,
     organizationId,
