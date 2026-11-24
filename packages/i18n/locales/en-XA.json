@@ -6754,5 +6754,18 @@
   "tasks.delivery.moreTries.notice.forbidden": "⟦Ÿôû ðô ñôŧ ĥàṽë þëŕɱïššïôñ ŧô ĝïṽë ɱôŕë ŧŕïëš. Àšķ àñ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "tasks.delivery.moreTries.notice.error": "⟦Ṁôŕë ŧŕïëš çôûļð ñôŧ ƀë ĝïṽëñ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧë⟧",
   "tasks.delivery.moreTries.notice.noAnswer": "⟦Ɓàķëŕÿ ðïð ñôŧ àñšŵëŕ. Ŧŕÿ àĝàïñ; ŧĥë ŧŕïëš àŕë ôñļÿ àððëð ôñçë. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
-  "tasks.delivery.release.healthy.body": "⟦Ŧĥë ŕëļëàšë ïš ĥëàļŧĥÿ. Ŧĥïš çĥàñĝë ïš ðôñë. ŧëšŧ çôþÿ ŧëš⟧"
+  "tasks.delivery.release.healthy.body": "⟦Ŧĥë ŕëļëàšë ïš ĥëàļŧĥÿ. Ŧĥïš çĥàñĝë ïš ðôñë. ŧëšŧ çôþÿ ŧëš⟧",
+  "library.evaluations.compare.title.same": "⟦{name}: ṽëŕšïôñ {a} àñð ṽëŕšïôñ {b} ŧëšŧ çôþÿŧ⟧",
+  "library.evaluations.compare.title.different": "⟦{left} àñð {right} ŧëšŧ⟧",
+  "library.evaluations.compare.subline": "⟦Ɓôŧĥ ɱëàšûŕëð ôñ {set}, {cases, plural, one {# test case} other {# test cases}}, ŵïŧĥ ŧĥë šàɱë {scorers, plural, one {# scorer} other {# scorers}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "library.evaluations.compare.side.rate": "⟦{rate}% þàššëð ŧë⟧",
+  "library.evaluations.compare.side.measured": "⟦{cases} ɱëàšûŕëð ŧëš⟧",
+  "library.evaluations.compare.side.nothing": "⟦Ñôŧĥïñĝ ɱëàšûŕëð ŧëš⟧",
+  "library.evaluations.compare.change.up": "⟦Ûþ {points, plural, one {# point} other {# points}} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.evaluations.compare.change.down": "⟦Ðôŵñ {points, plural, one {# point} other {# points}} ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "library.evaluations.compare.change.same": "⟦Ñô çĥàñĝë ŧ⟧",
+  "library.evaluations.compare.change.none": "⟦Ñô çĥàñĝë çàñ ƀë šĥôŵñ ŧëšŧŧ⟧",
+  "library.evaluations.compare.refused.dataset": "⟦Ŧĥëÿ ûšëð ðïƒƒëŕëñŧ ŧëšŧ çàšëš: {a} àñð {b}. À çĥàñĝë ƀëŧŵëëñ ŧĥëɱ ŵôûļð ɱëàñ ñôŧĥïñĝ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "library.evaluations.compare.refused.caseRevision": "⟦À ŧëšŧ çàšë ŵàš çĥàñĝëð ƀëŧŵëëñ ŧĥë ŧŵô ŕûñš. ŧëšŧ çôþÿ ŧëš⟧",
+  "library.evaluations.compare.refused.scorer": "⟦Ŧĥëÿ ûšëð ðïƒƒëŕëñŧ šçôŕëŕš, ôŕ ðïƒƒëŕëñŧ ŕëṽïšïôñš ôƒ ôñë. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }

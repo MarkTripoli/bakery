@@ -380,6 +380,7 @@ function fakeApi(
     listEvaluationBatches: rejecting,
     getEvaluationBatch: rejecting,
     cancelEvaluationBatch: rejecting,
+    compareEvaluationBatches: rejecting,
     listEvaluationResults: rejecting,
     listEvaluationAttempts: rejecting,
     updateMemory: rejecting,

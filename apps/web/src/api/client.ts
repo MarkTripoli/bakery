@@ -351,6 +351,7 @@ export type EvaluationBatchPage = ClientOutputMap["Page<EvaluationBatch>"];
 export type EvaluationBatchResultPage =
   ClientOutputMap["Page<EvaluationBatchResult>"];
 export type EvaluationBatchResult = EvaluationBatchResultPage["items"][number];
+export type EvaluationComparison = ClientOutputMap["EvaluationComparison"];
 export type EvaluationAttemptPage = ClientOutputMap["Page<EvaluationAttempt>"];
 export type EvaluationAttempt = EvaluationAttemptPage["items"][number];
 /** What one measured result can be: the seven states the server keeps. */
@@ -2300,6 +2301,12 @@ export type BakeryApiClient = {
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<EvaluationBatch>>;
+  readonly compareEvaluationBatches: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly other: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<EvaluationComparison>>;
   /** The results of one run, optionally only those in one state. */
   readonly listEvaluationResults: (options: {
     readonly organizationId: string;
@@ -7367,6 +7374,21 @@ export function createBakeryApiClient({
         if (data.id !== options.id) {
           throw new ApiTransportError("protocol", 200);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async compareEvaluationBatches(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["evaluationBatches.compare"](
+          { id: options.id, other: options.other },
+          { signal: options.signal },
+        );
         return { ok: true, data };
       } catch (error) {
         return failed(error);

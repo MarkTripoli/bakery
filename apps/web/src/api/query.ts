@@ -43,6 +43,7 @@ import type {
   EvaluationBatch,
   EvaluationBatchPage,
   EvaluationBatchResultPage,
+  EvaluationComparison,
   EvaluationResultState,
   ExternalTicketListResponse,
   ExternalTicketResponse,
@@ -4635,6 +4636,33 @@ export function evaluationBatchQueryOptions(
       evaluationBatchIsLive(query.state.data?.state)
         ? EVALUATION_POLL_MS
         : false,
+    retry: retryNetworkOnce,
+  });
+}
+
+export function evaluationCompareQueryOptions(
+  client: Pick<BakeryApiClient, "compareEvaluationBatches">,
+  scope: ApiScope,
+  id: string,
+  other: string,
+  live: boolean,
+) {
+  return queryOptions<EvaluationComparison, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "evaluationBatches.compare", {
+      id,
+      other,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.compareEvaluationBatches({
+          organizationId: requireOrganization(scope),
+          id,
+          other,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "" && other !== "",
+    refetchInterval: live ? EVALUATION_POLL_MS : false,
     retry: retryNetworkOnce,
   });
 }

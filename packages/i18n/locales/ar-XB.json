@@ -6754,5 +6754,18 @@
   "tasks.delivery.moreTries.notice.forbidden": "⟪You do not have permission to give more tries. Ask an organization administrator.⟫",
   "tasks.delivery.moreTries.notice.error": "⟪More tries could not be given. Try again.⟫",
   "tasks.delivery.moreTries.notice.noAnswer": "⟪Bakery did not answer. Try again; the tries are only added once.⟫",
-  "tasks.delivery.release.healthy.body": "⟪The release is healthy. This change is done.⟫"
+  "tasks.delivery.release.healthy.body": "⟪The release is healthy. This change is done.⟫",
+  "library.evaluations.compare.title.same": "⟪{name}: version {a} and version {b}⟫",
+  "library.evaluations.compare.title.different": "⟪{left} and {right}⟫",
+  "library.evaluations.compare.subline": "⟪Both measured on {set}, {cases, plural, one {# test case} other {# test cases}}, with the same {scorers, plural, one {# scorer} other {# scorers}}⟫",
+  "library.evaluations.compare.side.rate": "⟪{rate}% passed⟫",
+  "library.evaluations.compare.side.measured": "⟪{cases} measured⟫",
+  "library.evaluations.compare.side.nothing": "⟪Nothing measured⟫",
+  "library.evaluations.compare.change.up": "⟪Up {points, plural, one {# point} other {# points}}⟫",
+  "library.evaluations.compare.change.down": "⟪Down {points, plural, one {# point} other {# points}}⟫",
+  "library.evaluations.compare.change.same": "⟪No change⟫",
+  "library.evaluations.compare.change.none": "⟪No change can be shown⟫",
+  "library.evaluations.compare.refused.dataset": "⟪They used different test cases: {a} and {b}. A change between them would mean nothing.⟫",
+  "library.evaluations.compare.refused.caseRevision": "⟪A test case was changed between the two runs.⟫",
+  "library.evaluations.compare.refused.scorer": "⟪They used different scorers, or different revisions of one.⟫"
 }
