@@ -49,6 +49,7 @@ import type {
   FileFactPage,
   FileSearchInput,
   FileSearchPage,
+  HandoffManifestResponse,
   InstallationCapabilities,
   InstallationRestore,
   InstallationSettings,
@@ -1142,6 +1143,34 @@ export function runQueryOptions(
   });
 }
 
+export function handoffManifestQueryOptions(
+  client: Pick<BakeryApiClient, "getHandoffManifest">,
+  scope: ApiScope,
+  manifestId: string,
+) {
+  return queryOptions<HandoffManifestResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "handoffManifests.get", { manifestId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const manifest = unwrap(
+        await client.getHandoffManifest({
+          organizationId: scope.organizationId,
+          manifestId,
+          signal,
+        }),
+      );
+      if (signal.aborted || manifest.id !== manifestId) {
+        throw { kind: "invalid-response", status: 200 } satisfies ApiFailure;
+      }
+      return manifest;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 /**
  * The choices a run is waiting on. Read only while a step waits on a model; the
  * page asks again every thirty seconds so a card goes when the incident closes.
@@ -1568,6 +1597,50 @@ export function artifactVersionsQueryOptions(
           (version.publicationStatus ?? "current") === "current"
         ),
       };
+    },
+    retry: retryNetworkOnce,
+  });
+}
+
+export function artifactVersionAmongQueryOptions(
+  client: Pick<BakeryApiClient, "listArtifactVersions">,
+  scope: ApiScope,
+  artifactId: string,
+  versionId: string,
+) {
+  return queryOptions<
+    ArtifactVersionListResponse["items"][number] | null,
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "artifactVersions.among", {
+      artifactId,
+      versionId,
+    }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      let cursor: string | undefined;
+      for (let page = 0; page < 40; page++) {
+        const read = unwrap(
+          await client.listArtifactVersions({
+            organizationId: scope.organizationId,
+            artifactId,
+            limit: 100,
+            ...(cursor === undefined ? {} : { cursor }),
+            signal,
+          }),
+        );
+        const found = read.items.find((item) => item.id === versionId);
+        if (found) {
+          return (found.publicationStatus ?? "current") === "current"
+            ? found
+            : null;
+        }
+        if (!read.nextCursor) return null;
+        cursor = read.nextCursor;
+      }
+      throw { kind: "invalid-response", status: 200 } satisfies ApiFailure;
     },
     retry: retryNetworkOnce,
   });
