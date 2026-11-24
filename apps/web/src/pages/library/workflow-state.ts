@@ -116,11 +116,6 @@ export function exportFileName(slug: string, revision: number): string {
   return `${safe === "" ? "workflow" : safe}-v${revision}.yaml`;
 }
 
-/**
- * The step types the editor's "Add a step" list offers, in the order the
- * design lists them (design-ux, #67). A type Bakery knows but this list does
- * not offer is drawn as a card marked "Edited in code".
- */
 export const PICKER_STEPS: readonly string[] = [
   "rpi.research",
   "rpi.design",
@@ -147,6 +142,8 @@ export const ACTION_TITLES: Readonly<Record<string, string>> = {
   "agent.review": "library.workflow.action.agentReview",
   "review.independent": "library.workflow.action.reviewIndependent",
   "agent.freeform": "library.workflow.action.agentFreeform",
+  "human.approval": "library.workflow.action.humanApproval",
+  "workflow.stop": "library.workflow.action.workflowStop",
   "quality.check": "library.workflow.action.qualityCheck",
   "delivery.merge": "library.workflow.action.deliveryMerge",
   "delivery.prepare": "library.workflow.action.deliveryPrepare",
@@ -168,6 +165,9 @@ export const ACTION_ICONS: Readonly<Record<string, string>> = {
   "agent.review": "shield",
   "review.independent": "shield",
   "delivery.merge": "integration",
+  "agent.freeform": "document",
+  "human.approval": "person",
+  "workflow.stop": "close",
 };
 
 export const ACTION_LINES: Readonly<Record<string, string>> = {
@@ -180,6 +180,8 @@ export const ACTION_LINES: Readonly<Record<string, string>> = {
   "agent.review": "library.workflow.actionLine.agentReview",
   "review.independent": "library.workflow.actionLine.reviewIndependent",
   "agent.freeform": "library.workflow.actionLine.agentFreeform",
+  "human.approval": "library.workflow.actionLine.humanApproval",
+  "workflow.stop": "library.workflow.actionLine.workflowStop",
   "quality.check": "library.workflow.actionLine.qualityCheck",
   "delivery.merge": "library.workflow.actionLine.deliveryMerge",
 };
@@ -195,6 +197,23 @@ export function stepName(
   if (step.problem === "unreadable") {
     return translate("library.editor.card.unreadable" as never);
   }
+  if (step.name !== undefined) return step.name;
   const key = ACTION_TITLES[step.uses];
   return key === undefined ? step.uses : translate(key as never);
+}
+
+export function stepLine(
+  step: TreeStep,
+  translate: (key: never, values?: Record<string, string>) => string,
+): string | undefined {
+  if (step.description !== undefined) return step.description;
+  const key = ACTION_LINES[step.uses];
+  return key === undefined ? undefined : translate(key as never);
+}
+
+export function stepGlyph(step: TreeStep): string | undefined {
+  if (step.uses === "agent.freeform" && step.role === "reviewer") {
+    return "shield";
+  }
+  return ACTION_ICONS[step.uses];
 }

@@ -3870,9 +3870,23 @@ const transportSchemas = {
           "required": false,
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
           ],
           "description": "Code-owned workflow preset this run starts; the server materializes the organization's published, digest-verified workflow version for it and builds the run inputs from the task. Exactly one of workflowVersionId, presetId and workflowId must be supplied; a preset run rejects inputs with 422 because the server builds them from the task."
+        },
+        {
+          "name": "gates",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "plan",
+            "none"
+          ],
+          "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan."
         },
         {
           "name": "workflowId",
@@ -9206,7 +9220,7 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 8192
           },
-          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire."
+          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver, or, for a workflow with no owner such as a built-in one, the person who started the run; an empty list is refused because a step nobody can answer could only expire."
         },
         {
           "name": "approveLabel",
@@ -31484,16 +31498,18 @@ const transportSchemas = {
         "nameKey",
         "steps",
         "defaultBudgetLimitUsd",
-        "availability"
+        "availability",
+        "definition"
       ],
       "fieldTypes": {
-        "id": "enum(fixed-coding|fixed-coding-reviewed)",
+        "id": "enum(fixed-coding|fixed-coding-reviewed|deliver-oneshot|deliver-lean|deliver-full|deliver-prd)",
         "revision": "integer",
         "digest": "sha256",
         "nameKey": "string",
         "steps": "WorkflowPresetStep[]",
         "defaultBudgetLimitUsd": "decimal",
-        "availability": "WorkflowPresetAvailability|null"
+        "availability": "WorkflowPresetAvailability|null",
+        "definition": "json"
       },
       "bounds": {
         "stepsMaxItems": 100
@@ -31509,7 +31525,8 @@ const transportSchemas = {
         "nameKey": "Translation key naming the preset for display.",
         "steps": "Ordered steps the preset runs.",
         "defaultBudgetLimitUsd": "Run budget the preset applies when the caller does not supply one, in US dollars.",
-        "availability": "Availability verdict for the requested repository, or null when no repository was supplied."
+        "availability": "Availability verdict for the requested repository, or null when no repository was supplied.",
+        "definition": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
       }
     },
     "Page<WorkflowPreset>": {

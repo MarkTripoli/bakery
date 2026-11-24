@@ -68861,7 +68861,19 @@
               "type": "string",
               "enum": [
                 "fixed-coding",
-                "fixed-coding-reviewed"
+                "fixed-coding-reviewed",
+                "deliver-oneshot",
+                "deliver-lean",
+                "deliver-full",
+                "deliver-prd"
+              ]
+            },
+            "gates": {
+              "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan.",
+              "type": "string",
+              "enum": [
+                "plan",
+                "none"
               ]
             },
             "workflowId": {
@@ -83390,7 +83402,7 @@
               "description": "Question put to the approver, shown in the inbox and on the approval page. Plain text: the decision is typed, never inferred from this text. HumanApprovalInput.prompt must contain at least 1 characters. HumanApprovalInput.prompt must contain at most 2000 characters."
             },
             "audience": {
-              "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
+              "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver, or, for a workflow with no owner such as a built-in one, the person who started the run; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
               "anyOf": [
                 {
                   "type": "string",
@@ -257920,7 +257932,11 @@
               "type": "string",
               "enum": [
                 "fixed-coding",
-                "fixed-coding-reviewed"
+                "fixed-coding-reviewed",
+                "deliver-oneshot",
+                "deliver-lean",
+                "deliver-full",
+                "deliver-prd"
               ],
               "description": "Stable preset identifier accepted by runs.create presetId."
             },
@@ -258048,6 +258064,45 @@
                 }
               ],
               "description": "WorkflowPreset.availability may be null in this transport value."
+            },
+            "definition": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
             }
           },
           "required": [
@@ -258057,10 +258112,122 @@
             "nameKey",
             "steps",
             "defaultBudgetLimitUsd",
-            "availability"
+            "availability",
+            "definition"
           ],
           "additionalProperties": false,
           "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
+        },
+        "WorkflowPreset____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
         },
         "Page<WorkflowPreset>": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -258076,7 +258243,11 @@
                     "type": "string",
                     "enum": [
                       "fixed-coding",
-                      "fixed-coding-reviewed"
+                      "fixed-coding-reviewed",
+                      "deliver-oneshot",
+                      "deliver-lean",
+                      "deliver-full",
+                      "deliver-prd"
                     ],
                     "description": "Stable preset identifier accepted by runs.create presetId."
                   },
@@ -258204,6 +258375,45 @@
                       }
                     ],
                     "description": "WorkflowPreset.availability may be null in this transport value."
+                  },
+                  "definition": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
                   }
                 },
                 "required": [
@@ -258213,7 +258423,8 @@
                   "nameKey",
                   "steps",
                   "defaultBudgetLimitUsd",
-                  "availability"
+                  "availability",
+                  "definition"
                 ],
                 "additionalProperties": false,
                 "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
@@ -258271,6 +258482,117 @@
           ],
           "additionalProperties": false,
           "description": "Cursor page of WorkflowPreset."
+        },
+        "Page<WorkflowPreset>____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
         },
         "OutputTranscriptSegment": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -309104,7 +309426,19 @@
           "type": "string",
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
+          ]
+        },
+        "gates": {
+          "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan.",
+          "type": "string",
+          "enum": [
+            "plan",
+            "none"
           ]
         },
         "workflowId": {
@@ -323689,7 +324023,7 @@
           "description": "Question put to the approver, shown in the inbox and on the approval page. Plain text: the decision is typed, never inferred from this text. HumanApprovalInput.prompt must contain at least 1 characters. HumanApprovalInput.prompt must contain at most 2000 characters."
         },
         "audience": {
-          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
+          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver, or, for a workflow with no owner such as a built-in one, the person who started the run; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -498605,7 +498939,11 @@
           "type": "string",
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
           ],
           "description": "Stable preset identifier accepted by runs.create presetId."
         },
@@ -498733,6 +499071,45 @@
             }
           ],
           "description": "WorkflowPreset.availability may be null in this transport value."
+        },
+        "definition": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
         }
       },
       "required": [
@@ -498742,10 +499119,124 @@
         "nameKey",
         "steps",
         "defaultBudgetLimitUsd",
-        "availability"
+        "availability",
+        "definition"
       ],
       "additionalProperties": false,
-      "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
+      "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "Page<WorkflowPreset>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -498761,7 +499252,11 @@
                 "type": "string",
                 "enum": [
                   "fixed-coding",
-                  "fixed-coding-reviewed"
+                  "fixed-coding-reviewed",
+                  "deliver-oneshot",
+                  "deliver-lean",
+                  "deliver-full",
+                  "deliver-prd"
                 ],
                 "description": "Stable preset identifier accepted by runs.create presetId."
               },
@@ -498889,6 +499384,45 @@
                   }
                 ],
                 "description": "WorkflowPreset.availability may be null in this transport value."
+              },
+              "definition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
               }
             },
             "required": [
@@ -498898,7 +499432,8 @@
               "nameKey",
               "steps",
               "defaultBudgetLimitUsd",
-              "availability"
+              "availability",
+              "definition"
             ],
             "additionalProperties": false,
             "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
@@ -498955,7 +499490,120 @@
         "nextCursor"
       ],
       "additionalProperties": false,
-      "description": "Cursor page of WorkflowPreset."
+      "description": "Cursor page of WorkflowPreset.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "OutputTranscriptSegment": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

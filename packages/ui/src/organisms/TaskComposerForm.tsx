@@ -1,5 +1,5 @@
 import type { ClientOutputMap } from "@bakery/contracts/client";
-import { type FormEvent, type ReactNode, useId } from "react";
+import { type FormEvent, type ReactNode, useId, useRef } from "react";
 import { Button } from "../atoms/Button.tsx";
 import { Checkbox } from "../atoms/Checkbox.tsx";
 import { Text } from "../atoms/Text.tsx";
@@ -7,7 +7,6 @@ import { TextInput } from "../atoms/TextInput.tsx";
 import { Combobox } from "../molecules/Combobox.tsx";
 import { Field } from "../molecules/Field.tsx";
 import { InlineNotice } from "../molecules/InlineNotice.tsx";
-import { PresetOption } from "../molecules/PresetOption.tsx";
 import "../controls.css";
 
 /**
@@ -29,13 +28,8 @@ export type { TaskComposerTaskType };
 
 export type TaskComposerPreset = {
   id: string;
-  title: ReactNode;
+  title: string;
   description?: ReactNode;
-  /**
-   * The whole choice as one plain line. With a single preset there is nothing
-   * to pick, so the form shows this line instead of a radio group.
-   */
-  line?: ReactNode;
 };
 
 export type TaskComposerValues = {
@@ -73,7 +67,9 @@ export type TaskComposerLabels = Readonly<{
   heading: ReactNode;
   repository: string;
   repositoryPlaceholder: string;
-  preset: ReactNode;
+  preset: string;
+  presetNone: string;
+  presetNoneHint: ReactNode;
   title: ReactNode;
   taskType: string;
   taskTypes: Readonly<Record<TaskComposerTaskType, string>>;
@@ -81,6 +77,7 @@ export type TaskComposerLabels = Readonly<{
   budget: ReactNode;
   budgetHint: ReactNode;
   submit: ReactNode;
+  submitTask: ReactNode;
   submitting: ReactNode;
   retry: ReactNode;
   discard: ReactNode;
@@ -93,7 +90,7 @@ export type TaskComposerLabels = Readonly<{
   forbidden: ReactNode;
   error: ReactNode;
   setupHeading: ReactNode;
-  setupBadge: ReactNode;
+  setupNoWorkflow: ReactNode;
   /** Copy for a reason this build does not know; keeps the form explained. */
   setupUnknown: ReactNode;
   setupRequired: Readonly<Record<TaskComposerSetupReason, ReactNode>>;
@@ -166,8 +163,11 @@ export function TaskComposerForm(
   const headingId = `${id}-heading`;
   const setupId = `${id}-setup`;
   const noticeId = `${id}-notice`;
+  const setupRef = useRef<HTMLDivElement>(null);
   const Heading = `h${headingLevel}` as "h1" | "h2" | "h3";
   const planning = planFirst?.checked === true;
+  const chosen = presets.find((preset) => preset.id === values.presetId);
+  const withWorkflow = !planning && chosen !== undefined;
   const setup = setupReasons.length > 0 && !planning;
   const locked = submitState === "submitting" || submitState === "unknown";
   const inert = locked || view !== "ready";
@@ -180,12 +180,16 @@ export function TaskComposerForm(
       setupReasons[0] in labels.setupRequired ? setupReasons[0] : "unknown"
     }`
     : "idle";
-  const canSubmit = view === "ready" && submitState === "idle" && !setup &&
-    values.repositoryId !== "" && (planning || values.presetId !== "") &&
-    values.title.trim() !== "";
+  const canSubmit = view === "ready" && submitState === "idle" &&
+    values.repositoryId !== "" && values.title.trim() !== "";
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (canSubmit) onSubmit();
+    if (!canSubmit) return;
+    if (setup) {
+      setupRef.current?.focus();
+      return;
+    }
+    onSubmit();
   };
   const notice = view === "loading"
     ? { tone: "neutral", text: labels.loading }
@@ -280,33 +284,56 @@ export function TaskComposerForm(
         required
         value={values.repositoryId}
       />
-      {planning
-        ? null
-        : presets.length === 1 && presets[0].line !== undefined
-        ? <Text data-ui-region="preset-line">{presets[0].line}</Text>
-        : (
-          <fieldset className="ui-task-composer__presets" disabled={inert}>
-            <legend>{labels.preset}</legend>
-            {presets.map((preset) => (
-              <PresetOption
-                checked={preset.id === values.presetId}
-                description={preset.description}
-                disabled={inert}
-                key={preset.id}
-                name={`${id}-preset`}
-                onChange={() => onChange("presetId", preset.id)}
-                title={preset.title}
-                unavailable={setup && preset.id === values.presetId
-                  ? labels.setupBadge
-                  : undefined}
-                value={preset.id}
-              />
-            ))}
-          </fieldset>
-        )}
+      {planning || presets.length === 0 ? null : (
+        <>
+          <Combobox
+            appearance="field"
+            disabled={inert}
+            id={`${id}-preset`}
+            label={labels.preset}
+            onChange={(event) => onChange("presetId", event.target.value)}
+            options={[
+              { label: labels.presetNone, value: "" },
+              ...presets.map((preset) => ({
+                label: preset.title,
+                value: preset.id,
+              })),
+            ]}
+            value={chosen === undefined ? "" : chosen.id}
+          />
+          <Text data-ui-region="preset-hint" variant="hint">
+            {chosen === undefined ? labels.presetNoneHint : chosen.description}
+          </Text>
+        </>
+      )}
+      {withWorkflow
+        ? (
+          <Field
+            hint={labels.budgetHint}
+            htmlFor={`${id}-budget`}
+            label={labels.budget}
+          >
+            <TextInput
+              autoComplete="off"
+              id={`${id}-budget`}
+              inputMode="decimal"
+              name="budget"
+              onChange={(value) => onChange("budget", value)}
+              readOnly={inert}
+              type="text"
+              value={values.budget}
+            />
+          </Field>
+        )
+        : null}
       {setup
         ? (
-          <div className="ui-task-composer__setup" id={setupId}>
+          <div
+            className="ui-task-composer__setup"
+            id={setupId}
+            ref={setupRef}
+            tabIndex={-1}
+          >
             <p>{labels.setupHeading}</p>
             <ul>
               {setupReasons.map((reason) => (
@@ -315,6 +342,7 @@ export function TaskComposerForm(
                 </li>
               ))}
             </ul>
+            <p>{labels.setupNoWorkflow}</p>
           </div>
         )
         : null}
@@ -364,24 +392,6 @@ export function TaskComposerForm(
           value={values.description}
         />
       </Field>
-      {planning ? null : (
-        <Field
-          hint={labels.budgetHint}
-          htmlFor={`${id}-budget`}
-          label={labels.budget}
-        >
-          <TextInput
-            autoComplete="off"
-            id={`${id}-budget`}
-            inputMode="decimal"
-            name="budget"
-            onChange={(value) => onChange("budget", value)}
-            readOnly={inert}
-            type="text"
-            value={values.budget}
-          />
-        </Field>
-      )}
       <div className="ui-task-composer__actions">
         {submitState === "unknown" || submitState === "conflict" ||
             submitState === "error" || submitState === "forbidden"
@@ -421,7 +431,9 @@ export function TaskComposerForm(
                 ? labels.submitting
                 : planning
                 ? planFirst?.submit
-                : labels.submit}
+                : withWorkflow
+                ? labels.submit
+                : labels.submitTask}
             </Button>
           )}
       </div>

@@ -221,7 +221,7 @@ for (
       await paste(page, GOOD);
       await checked(state(page)).toContainText("Looks good: 2 steps.");
       await checked(state(page)).toContainText(
-        "Step 1, uses: The step runs a model but no agent is bound.",
+        "Step 1, uses: The step's action cannot run yet.",
       );
       await expect(
         dialog(page).getByRole("button", { name: "Import as draft" }),
