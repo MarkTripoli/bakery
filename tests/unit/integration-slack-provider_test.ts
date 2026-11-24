@@ -51,12 +51,55 @@ Deno.test("the manifest names a Slack provider that claims no port family yet", 
   assertEquals(slackProviderManifest.ingress, null);
 });
 
-Deno.test("the manifest connects with an OAuth2 workspace install and stores only the bot token", () => {
+Deno.test("the manifest connects with OAuth2 and stores both rotation secrets", () => {
   const connect = slackProviderManifest.connect;
   assertEquals(connect.kind, "oauth2");
   if (connect.kind !== "oauth2") return;
   assertEquals(connect.siteSelection, true);
-  assertEquals([...connect.secretSlots], ["access_token"]);
+  assertEquals([...connect.secretSlots], ["access_token", "refresh_token"]);
+});
+
+Deno.test("Slack's documented plain, rotating and warning responses parse", () => {
+  const plain = {
+    ok: true,
+    access_token: "xoxb-bot",
+    token_type: "bot",
+    scope: "commands,incoming-webhook",
+    bot_user_id: "U0KRQLJ9H",
+    app_id: "A0KRD7HC3",
+    team: { name: "Slack Softball Team", id: "T9TK3CUKW" },
+    enterprise: { name: "slack-sports", id: "E12345678" },
+    authed_user: {
+      id: "U1234",
+      scope: "chat:write",
+      access_token: "xoxp-user",
+      token_type: "user",
+    },
+  } as const;
+  assertEquals(slackTokenResponseSchema.parse(plain), plain);
+
+  const rotating = {
+    ...plain,
+    access_token: "xoxe.xoxb-bot",
+    expires_in: 43_200,
+    refresh_token: "xoxe-1-bot",
+    authed_user: {
+      ...plain.authed_user,
+      access_token: "xoxe.xoxp-user",
+      expires_in: 43_200,
+      refresh_token: "xoxe-1-user",
+    },
+  } as const;
+  assertEquals(slackTokenResponseSchema.parse(rotating), rotating);
+
+  const warned = {
+    ...plain,
+    warning: "slackbot_mcp_unavailable",
+    response_metadata: {
+      warnings: ["slackbot_mcp_unavailable"] as string[],
+    },
+  } as const;
+  assertEquals(slackTokenResponseSchema.parse(warned), warned);
 });
 
 Deno.test("the app registration is exactly the client pair the host stores", () => {
@@ -88,7 +131,7 @@ Deno.test("the bot asks for the features that exist and no private-channel histo
   );
 });
 
-Deno.test("the credential is the stored bot token as a bearer, with the host's own expiry", async () => {
+Deno.test("the stored bot token is a bearer with no invented expiry", async () => {
   const token = await slackServerProvider.impl.credentials.mint({
     binding: {},
     permissions: {},
@@ -97,10 +140,7 @@ Deno.test("the credential is the stored bot token as a bearer, with the host's o
   });
   assertEquals(token.token, "xoxb-token");
   assertEquals(token.placement, "bearer");
-  assertEquals(
-    token.expiresAt.getTime() > Date.now() + 300 * 24 * 3_600_000,
-    true,
-  );
+  assertEquals(token.expiresAt, null);
   assertThrows(() =>
     slackServerProvider.impl.credentials.mint({
       binding: {},

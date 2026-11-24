@@ -26,7 +26,7 @@ export const slackProviderManifest = {
   connect: {
     kind: "oauth2",
     siteSelection: true,
-    secretSlots: ["access_token"],
+    secretSlots: ["access_token", "refresh_token"],
   },
   ingress: null,
   resourceKinds: [],

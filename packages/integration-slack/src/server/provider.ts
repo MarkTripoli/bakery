@@ -31,6 +31,12 @@ export const slackTokenResponseSchema = z.strictObject({
   scope: z.string().optional().describe(
     "Space-separated bot scopes Slack granted.",
   ),
+  expires_in: z.number().int().positive().optional().describe(
+    "Seconds until the bot access token expires when token rotation is enabled.",
+  ),
+  refresh_token: z.string().min(1).optional().describe(
+    "The bot refresh token the host stores when token rotation is enabled.",
+  ),
   bot_user_id: z.string().min(1).describe("The bot user in this workspace."),
   app_id: z.string().regex(/^A[A-Z0-9]{2,31}$/).describe(
     "The Slack app the installation belongs to.",
@@ -58,8 +64,26 @@ export const slackTokenResponseSchema = z.strictObject({
       "A user token Slack issued; it is never stored, the bot token is the credential.",
     ),
     token_type: z.string().optional().describe("The user token's scheme."),
+    expires_in: z.number().int().positive().optional().describe(
+      "Seconds until the user access token expires when token rotation is enabled.",
+    ),
+    refresh_token: z.string().min(1).optional().describe(
+      "The user refresh token Slack returns when user-token rotation is enabled; Bakery never stores it.",
+    ),
   }).optional().describe(
     "The approving person as Slack reports them; Slack omits it on some installs.",
+  ),
+  warning: z.string().min(1).optional().describe(
+    "A non-fatal Slack warning that does not invalidate the installation.",
+  ),
+  response_metadata: z.strictObject({
+    warnings: z.array(
+      z.string().min(1).describe("A non-fatal Slack warning code."),
+    ).describe(
+      "Non-fatal warning codes returned with a successful installation.",
+    ),
+  }).optional().describe(
+    "Slack's structured metadata for non-fatal response warnings.",
   ),
   is_enterprise_install: z.literal(false).optional().describe(
     "Slack omits it unless the grant is organization-wide; an organization-wide grant is not a workspace installation Bakery supports, so it fails this response rather than reaching storage.",
@@ -78,8 +102,6 @@ const authTestResponse = z.object({
   bot_id: z.string().optional().describe("The bot the credential acts as."),
 }).describe("Slack's auth.test response.");
 
-const BOT_TOKEN_LIFETIME_SECONDS = 365 * 24 * 60 * 60;
-
 const decode = (bytes: Uint8Array | undefined): string =>
   bytes === undefined ? "" : new TextDecoder().decode(bytes).trim();
 
@@ -92,7 +114,7 @@ const credentials: CredentialStrategy = {
     }
     return Promise.resolve({
       token,
-      expiresAt: new Date(Date.now() + BOT_TOKEN_LIFETIME_SECONDS * 1_000),
+      expiresAt: null,
       placement: "bearer" as const,
     });
   },
