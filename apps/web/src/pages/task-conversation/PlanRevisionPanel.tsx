@@ -1,7 +1,8 @@
 import { type ReactNode, useId, useState } from "react";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import type { PlanBody } from "./model.ts";
+import { formatDate } from "@bakery/i18n";
+import type { ExpiredApproval, PlanBody, PlanRefusal } from "./model.ts";
 
 export type PlanDecision = "approve" | "request_changes" | "reject";
 export type PlanPhase =
@@ -31,6 +32,10 @@ export type PlanRevisionPanelProps = Readonly<{
   /** Name of a teammate who decided, or null when the reader decided. */
   decidedBy?: string | null;
   phase: PlanPhase;
+  mayDecide: boolean;
+  startRunAvailable: boolean;
+  expired: ExpiredApproval | null;
+  refusal: PlanRefusal | null;
   offline: boolean;
   /**
    * An agent turn is queued or running and may still open the approval, so
@@ -69,6 +74,10 @@ export function usePlanRevision(
     decided,
     decidedBy = null,
     phase,
+    mayDecide,
+    startRunAvailable,
+    expired,
+    refusal,
     offline,
     paused = false,
     approvalId,
@@ -77,8 +86,9 @@ export function usePlanRevision(
     onRefresh,
   }: PlanRevisionPanelProps,
 ): PlanRevisionParts {
-  const { translate: t } = useI18n();
+  const { translate: t, locale, timeZone } = useI18n();
   const id = useId();
+  const [rejecting, setRejecting] = useState(false);
   // The change-request draft belongs to one revision: a newer revision starts
   // with no comment and the decision buttons, never the old text.
   const [draft, setDraft] = useState({ revision, asking: false, comment: "" });
@@ -95,8 +105,26 @@ export function usePlanRevision(
   const setComment = (next: string) => setDraft({ ...current, comment: next });
   const locked = phase === "deciding" || phase === "unknown";
   const obsolete = status === "superseded";
-  const decidable = approvalOpen && status === "proposed" && decided === null;
-  const notice = phase === "conflict"
+  const redecidable = expired !== null && decided === null &&
+    (status === "proposed" || status === "approved");
+  const needsDecision =
+    (approvalOpen && status === "proposed" && decided === null) ||
+    redecidable;
+  const decidable = needsDecision && mayDecide;
+  const refusalText = refusal === null
+    ? null
+    : refusal === "decided"
+    ? decided === null
+      ? t("tasks.conversation.plan.refusal.decidedUnknown")
+      : t("tasks.conversation.plan.refusal.decided", {
+        name: decidedBy ?? t("tasks.conversation.author.member"),
+        outcome: t(`tasks.conversation.plan.refusal.outcome.${decided}`),
+      })
+    : t(`tasks.conversation.plan.refusal.${refusal}`);
+  const refused = refusalText !== null;
+  const notice = refused
+    ? { tone: "error" as const, text: refusalText }
+    : phase === "conflict"
     ? { tone: "error" as const, text: t("tasks.conversation.plan.conflict") }
     : phase === "forbidden"
     ? { tone: "error" as const, text: t("tasks.conversation.plan.forbidden") }
@@ -110,7 +138,24 @@ export function usePlanRevision(
       text: t("tasks.conversation.plan.deciding"),
     }
     : null;
-  const shown = obsolete ? "superseded" : status;
+  const shown = obsolete ? "superseded" : expired !== null ? "expired" : status;
+  const expiredText = expired === null
+    ? null
+    : expired.who !== null && expired.approvedAt !== null
+    ? t("tasks.conversation.plan.expired.approved", {
+      who: expired.who,
+      revision: String(revision),
+      date: formatDate(new Date(expired.approvedAt), locale, {
+        timeZone,
+        month: "short",
+        day: "numeric",
+      }),
+      days: String(expired.days),
+    })
+    : t("tasks.conversation.plan.expired.undecided", {
+      revision: String(revision),
+      days: String(expired.days),
+    });
   if (revision === null) return { body: null, footer: null };
   const partsBody = (
     <UI.PaneSection
@@ -121,12 +166,15 @@ export function usePlanRevision(
       aria-label={t("tasks.conversation.plan.heading")}
       role="region"
     >
-      {(obsoleteNotice !== null || obsolete) && (
+      {refusal !== "newer" && (obsoleteNotice !== null || obsolete) && (
         <UI.InlineNotice layout="bar" icon="caution" tone="warning">
           {t("tasks.conversation.plan.obsolete", {
             revision: String(obsoleteNotice ?? revision),
           })}
         </UI.InlineNotice>
+      )}
+      {expiredText !== null && !obsolete && (
+        <UI.InlineNotice tone="neutral">{expiredText}</UI.InlineNotice>
       )}
       <UI.PlanRevisionSummary
         title={body.title}
@@ -147,20 +195,33 @@ export function usePlanRevision(
         steps={body.steps}
         state={obsolete ? "muted" : "current"}
       />
-      {decided !== null && (
+      {decided !== null && refusal !== "decided" && (
         <UI.InlineNotice tone="success">
           {t(
             decidedBy === null
-              ? `tasks.conversation.plan.decided.${decided}`
-              : `tasks.conversation.plan.decidedBy.${decided}`,
+              ? `tasks.conversation.plan.decided.${
+                decided === "approve" && !startRunAvailable
+                  ? "approveNoRun"
+                  : decided
+              }`
+              : `tasks.conversation.plan.decidedBy.${
+                decided === "approve" && !startRunAvailable
+                  ? "approveNoRun"
+                  : decided
+              }`,
             { revision: String(revision), name: decidedBy ?? "" },
           )}
         </UI.InlineNotice>
       )}
       {!approvalOpen && status === "proposed" && decided === null &&
-        !paused && (
+        !paused && refusal === null && expired === null && (
         <UI.InlineNotice tone="neutral">
           {t("tasks.conversation.plan.noApproval")}
+        </UI.InlineNotice>
+      )}
+      {needsDecision && !mayDecide && !obsolete && (
+        <UI.InlineNotice tone="neutral">
+          {t("tasks.conversation.plan.awaiting")}
         </UI.InlineNotice>
       )}
       {obsolete && onRefresh && (
@@ -199,6 +260,38 @@ export function usePlanRevision(
           />
         </UI.Field>
       )}
+      <UI.AlertDialog
+        cancelAction={
+          <UI.Button
+            variant="secondary"
+            onClick={() => setRejecting(false)}
+          >
+            {t("core.actions.cancel")}
+          </UI.Button>
+        }
+        confirmAction={
+          <UI.Button
+            variant="destructive"
+            onClick={() => {
+              setRejecting(false);
+              onDecide("reject", undefined);
+            }}
+          >
+            {t("tasks.conversation.plan.reject")}
+          </UI.Button>
+        }
+        onOpenChange={(open) => !open && setRejecting(false)}
+        open={rejecting && decidable}
+        state="open"
+        title={t("tasks.conversation.plan.rejectDialog.title")}
+        variant="destructive"
+      >
+        <UI.Text>
+          {t("tasks.conversation.plan.rejectDialog.body", {
+            revision: String(revision),
+          })}
+        </UI.Text>
+      </UI.AlertDialog>
     </UI.PaneSection>
   );
   // An unknown outcome whose approval is no longer open to this person has
@@ -235,6 +328,16 @@ export function usePlanRevision(
           </UI.Button>
         </>
       )
+      : redecidable
+      ? (
+        <UI.Button
+          disabled={locked || offline}
+          loading={phase === "deciding"}
+          onClick={() => onDecide("approve", undefined)}
+        >
+          {t("tasks.conversation.plan.approveAgain")}
+        </UI.Button>
+      )
       : (
         <>
           <UI.Button
@@ -255,7 +358,7 @@ export function usePlanRevision(
           <UI.Button
             variant="destructive-outline"
             disabled={locked || offline}
-            onClick={() => onDecide("reject", undefined)}
+            onClick={() => setRejecting(true)}
           >
             {t("tasks.conversation.plan.reject")}
           </UI.Button>

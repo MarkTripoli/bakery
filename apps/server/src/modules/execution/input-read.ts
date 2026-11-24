@@ -116,8 +116,12 @@ export async function inputReadRoute(
         proof,
       });
 
-      const run = await transaction.query<{ run_id: string }>(
-        `select step.run_id
+      const run = await transaction.query<{
+        run_id: string;
+        facts: unknown;
+      }>(
+        `select step.run_id,
+                step.dispatch -> 'facts' as facts
            from bakery.jobs job
            join bakery.run_steps step
              on step.organization_id = job.organization_id
@@ -180,10 +184,33 @@ export async function inputReadRoute(
       // while the lease it was asked under still holds.
       await reassertAttempt(claimed);
 
-      return { attemptId, runId, inputs: items };
+      const facts = readRecordedFacts(run.rows[0]?.facts);
+      return { attemptId, runId, inputs: items, facts };
     },
   );
   return jsonResponse(result, 200);
+}
+
+function readRecordedFacts(
+  recorded: unknown,
+):
+  | { facts: Array<{ wording: string; recordedAt: string }>; omitted: number }
+  | null {
+  if (recorded === null || typeof recorded !== "object") return null;
+  const entries = (recorded as { facts?: unknown }).facts;
+  const omitted = (recorded as { omitted?: unknown }).omitted;
+  if (!Array.isArray(entries) || typeof omitted !== "number") return null;
+  const facts: Array<{ wording: string; recordedAt: string }> = [];
+  for (const entry of entries) {
+    if (entry === null || typeof entry !== "object") continue;
+    const wording = (entry as { wording?: unknown }).wording;
+    const recordedAt = (entry as { recordedAt?: unknown }).recordedAt;
+    if (typeof wording !== "string" || typeof recordedAt !== "string") {
+      continue;
+    }
+    facts.push({ wording, recordedAt });
+  }
+  return { facts, omitted };
 }
 
 function digits(value: number | string): string {

@@ -271,6 +271,7 @@ const approval = (n: number, extra: Record<string, unknown> = {}) => ({
   createdAt: stamp(10, 26),
   updatedAt: stamp(10, 26),
   version: 7,
+  mayDecide: true,
   ...extra,
 });
 

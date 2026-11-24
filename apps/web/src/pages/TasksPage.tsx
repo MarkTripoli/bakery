@@ -667,12 +667,7 @@ function Detail(
                 ? <TaskArtifacts hideEmpty taskId={id} presentation="run" />
                 : undefined}
             />
-            {task.currentRunId ? null : (
-              <TaskArtifacts
-                taskId={id}
-                hideEmpty={task.status !== "draft"}
-              />
-            )}
+            {task.currentRunId ? null : <TaskArtifacts hideEmpty taskId={id} />}
           </>
         }
       />

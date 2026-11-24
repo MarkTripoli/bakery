@@ -6,11 +6,25 @@ import {
   type PgTransactionClient,
 } from "@bakery/persistence";
 import { attributeAction } from "../auth/application/action-attribution.ts";
-import { accessScopeClause } from "../auth/application/bindings.ts";
-import type { CatalogActionName } from "@bakery/contracts/contracts";
-import { permissionForAction } from "../auth/application/authorize.ts";
+import {
+  accessScopeClause,
+  bindingAllows,
+  bindingCovers,
+} from "../auth/application/bindings.ts";
+import {
+  type CatalogActionName,
+  organizationId as toOrganizationId,
+  principalId as toPrincipalId,
+} from "@bakery/contracts/contracts";
+import { resolveOrganizationActor } from "../auth/adapters/authority-postgres.ts";
+import {
+  authorize,
+  permissionForAction,
+} from "../auth/application/authorize.ts";
+import type { OrganizationActor } from "../auth/application/authority.ts";
 import { roleHasPermission } from "../auth/application/permissions.ts";
 import {
+  hasLiveRunGrant,
   RUN_GRANT_ACTIONS,
   type RunPower,
 } from "../auth/application/run-grants.ts";
@@ -198,6 +212,7 @@ type RunFacts = {
   task_id: string;
   requested_by: string | null;
   task_created_by: string | null;
+  workflow_owner: string | null;
 };
 
 /** The run, if the caller may see its task; a hidden run is a missing run. */
@@ -222,11 +237,18 @@ async function loadRun(
   }
   const found = await transaction.query<RunFacts>(
     `select run.id, run.task_id, run.requested_by,
-            task.created_by as task_created_by
+            task.created_by as task_created_by,
+            definition.owner_principal_id as workflow_owner
        from bakery.workflow_runs as run
        join bakery.tasks as task
          on task.organization_id = run.organization_id
         and task.id = run.task_id
+       left join bakery.workflow_versions as version
+         on version.organization_id = run.organization_id
+        and version.id = run.workflow_version_id
+       left join bakery.workflow_definitions as definition
+         on definition.organization_id = version.organization_id
+        and definition.id = version.workflow_id
       where run.organization_id = $1 and run.id = $2${scopeSql}`,
     values,
   );
@@ -405,6 +427,7 @@ async function requestOnRun(
   context: ActionContext,
   input: unknown,
   step: Readonly<{ stepKey: string; iteration: number }> | null,
+  unresolvedName: string | null = null,
 ) {
   const { transaction, organizationId, principalId, accessScope } =
     requireWorkTransaction(context);
@@ -422,9 +445,11 @@ async function requestOnRun(
   };
   const run = await loadRun(context, transaction, organizationId, accessScope);
 
-  const named =
-    [value.recipientId, value.recipientRoleKey, value.recipientGroupId]
-      .filter((recipient) => recipient !== undefined).length;
+  const named = [
+    value.recipientId ?? unresolvedName ?? undefined,
+    value.recipientRoleKey,
+    value.recipientGroupId,
+  ].filter((recipient) => recipient !== undefined).length;
   if (named !== 1) {
     unprocessable(
       ["recipientId"],
@@ -634,24 +659,27 @@ async function requestOnRun(
       recipients.push({ principalId: id, fallbackForName: null });
     }
   } else {
-    const meantId = value.recipientId as string;
-    if (meantId === asker) {
+    const meantId = value.recipientId ?? null;
+    if (meantId !== null && meantId === asker) {
       unprocessable(["recipientId"], "request_self", "You cannot ask yourself");
     }
-    // The person asked is resolved once, here, and frozen on the request. One
-    // who cannot be found (removed, disabled, not a member, not a person) falls
-    // back to whoever started the run, with a visible note (O62).
-    const resolved = await activeHuman(transaction, organizationId, meantId);
-    if (resolved === null) {
-      const meant = await transaction.query<{ display_name: string }>(
-        "select display_name from bakery.principals where id = $1",
-        [meantId],
+    const resolved = meantId === null
+      ? null
+      : await activeHuman(transaction, organizationId, meantId);
+    if (meantId === null || resolved === null) {
+      const meant = meantId === null
+        ? unresolvedName
+        : (await transaction.query<{ display_name: string }>(
+          "select display_name from bakery.principals where id = $1",
+          [meantId],
+        )).rows[0]?.display_name ?? null;
+      const owner = await fallbackOwner(
+        transaction,
+        organizationId,
+        run,
+        asker,
       );
-      const owner = run.requested_by ?? run.task_created_by;
-      const ownerPerson = owner === null
-        ? null
-        : await activeHuman(transaction, organizationId, owner);
-      if (owner === null || ownerPerson === null || owner === asker) {
+      if (owner === null) {
         unprocessable(
           ["recipientId"],
           "request_recipient_unavailable",
@@ -660,7 +688,7 @@ async function requestOnRun(
       }
       recipients.push({
         principalId: owner,
-        fallbackForName: meant.rows[0]?.display_name ?? "someone",
+        fallbackForName: meant ?? "someone",
       });
     } else {
       recipients.push({ principalId: meantId, fallbackForName: null });
@@ -695,6 +723,266 @@ async function requestOnRun(
   }
   if (first === null) throw new Error("REQUEST_INSERT_FAILED");
   return toRunRequest(await readRequest(transaction, organizationId, first));
+}
+
+export type WorkflowApprovalAsk = Readonly<{
+  stepKey: string;
+  iteration: number;
+  questionId: string;
+  recipients: readonly Readonly<{
+    principalId: string;
+    fallbackForName: string | null;
+    audience: Audience | null;
+  }>[];
+}>;
+
+export async function askApproversFromWorkflowStep(
+  context: ActionContext,
+  ask: WorkflowApprovalAsk,
+): Promise<void> {
+  const { transaction, organizationId, principalId, accessScope } =
+    requireWorkTransaction(context);
+  const run = await loadRun(context, transaction, organizationId, accessScope);
+  for (const recipient of ask.recipients) {
+    await askOne(context, transaction, {
+      organizationId,
+      principalId,
+      run,
+      intent: "approve",
+      stepKey: ask.stepKey,
+      stepIteration: ask.iteration,
+      targetId: ask.questionId,
+      power: POWER_OF_INTENT.approve,
+      note: null,
+      neededBy: null,
+      recipient: {
+        principalId: recipient.principalId,
+        fallbackForName: recipient.fallbackForName,
+      },
+      audience: recipient.audience,
+      actor: { kind: "workflow", sessionId: null, fromRunId: null },
+    });
+  }
+}
+
+const SYSTEM_ROLE_HANDLES: Readonly<Record<string, string>> = {
+  admins: "admin",
+  developers: "developer",
+};
+
+export async function audienceByHandle(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  handle: string,
+): Promise<(Audience & { members: string[] }) | null> {
+  const systemRole = SYSTEM_ROLE_HANDLES[handle];
+  if (systemRole !== undefined) {
+    const found = await audienceMembers(
+      transaction,
+      organizationId,
+      systemRole,
+      null,
+    );
+    return { roleKey: systemRole, groupId: null, ...found };
+  }
+  const group = await transaction.query<{ id: string }>(
+    `select id from bakery.organization_groups
+      where organization_id = $1 and mention_name = $2`,
+    [organizationId, handle],
+  );
+  const groupId = group.rows[0]?.id;
+  if (groupId !== undefined) {
+    const found = await audienceMembers(
+      transaction,
+      organizationId,
+      null,
+      groupId,
+    );
+    return { roleKey: null, groupId, ...found };
+  }
+  const role = await transaction.query(
+    `select 1 from bakery.organization_roles
+      where organization_id = $1 and key = $2`,
+    [organizationId, handle],
+  );
+  if (role.rows.length === 0) return null;
+  const found = await audienceMembers(
+    transaction,
+    organizationId,
+    handle,
+    null,
+  );
+  return { roleKey: handle, groupId: null, ...found };
+}
+
+export async function tagMentionedOnSteer(
+  context: ActionContext,
+  steer: Readonly<{
+    runId: string;
+    stepKey: string;
+    mentions: readonly string[];
+    mentionHandles: readonly string[];
+  }>,
+): Promise<void> {
+  if (steer.mentions.length === 0 && steer.mentionHandles.length === 0) return;
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  const authority = (context as { authority?: unknown }).authority;
+  if (
+    typeof authority !== "object" || authority === null ||
+    !("organizationId" in authority)
+  ) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+  const runContext = {
+    ...context,
+    params: { ...context.params, id: steer.runId },
+  } as ActionContext;
+  const run = await loadRun(runContext, transaction, organizationId, undefined);
+  const asks: {
+    input: Record<string, string>;
+    unresolvedName: string | null;
+    reached: readonly string[];
+  }[] = [];
+  for (const recipientId of new Set(steer.mentions)) {
+    if (recipientId === principalId) continue;
+    const person = await activeHuman(transaction, organizationId, recipientId);
+    asks.push({
+      input: { recipientId },
+      unresolvedName: null,
+      reached: person === null ? [] : [recipientId],
+    });
+  }
+  for (const raw of new Set(steer.mentionHandles)) {
+    const handle = raw.startsWith("@") ? raw.slice(1) : raw;
+    const found = await audienceByHandle(transaction, organizationId, handle);
+    const others = found?.members.filter((id) => id !== principalId) ?? [];
+    if (found !== null && found.members.length > 0 && others.length === 0) {
+      continue;
+    }
+    if (found === null || others.length === 0) {
+      asks.push({
+        input: {},
+        unresolvedName: found?.name ?? `@${handle}`,
+        reached: [],
+      });
+      continue;
+    }
+    asks.push({
+      input: found.groupId === null
+        ? { recipientRoleKey: found.roleKey as string }
+        : { recipientGroupId: found.groupId },
+      unresolvedName: null,
+      reached: others,
+    });
+  }
+  if (!mayShareRun(authority as OrganizationActor)) {
+    for (const ask of asks) {
+      for (const id of ask.reached) {
+        if (!(await seesRun(transaction, organizationId, id, run))) {
+          throw new StandardError({
+            code: "AUTH_FORBIDDEN",
+            params: { reason: REQUEST_SHARE_FORBIDDEN },
+          });
+        }
+      }
+    }
+  }
+  for (const ask of asks) {
+    await requestOnRun(
+      runContext,
+      { ...ask.input, intent: "fyi", stepKey: steer.stepKey },
+      null,
+      ask.unresolvedName,
+    );
+  }
+}
+
+export const REQUEST_SHARE_FORBIDDEN = "request_share_forbidden";
+
+function mayShareRun(actor: OrganizationActor): boolean {
+  try {
+    authorize(actor, permissionForAction("runRequests.create"));
+    return true;
+  } catch (error) {
+    if (error instanceof StandardError) return false;
+    throw error;
+  }
+}
+
+async function seesRun(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  run: RunFacts,
+): Promise<boolean> {
+  if (
+    await hasLiveRunGrant(
+      transaction,
+      organizationId,
+      principalId,
+      "run",
+      run.id,
+    )
+  ) {
+    return true;
+  }
+  let actor: OrganizationActor;
+  try {
+    actor = await resolveOrganizationActor(
+      transaction,
+      toPrincipalId(principalId),
+      toOrganizationId(organizationId),
+      { lockMembership: false },
+    );
+  } catch (error) {
+    if (error instanceof StandardError) return false;
+    throw error;
+  }
+  const permission = permissionForAction("runs.get");
+  try {
+    authorize(actor, permission);
+    return true;
+  } catch (error) {
+    if (!(error instanceof StandardError)) throw error;
+  }
+  const task = await transaction.query<
+    { application_id: string; repository_id: string | null }
+  >(
+    `select application_id, repository_id from bakery.tasks
+      where organization_id = $1 and id = $2`,
+    [organizationId, run.task_id],
+  );
+  const target = task.rows[0];
+  if (!target) return false;
+  return (actor.bindings ?? []).some((binding) =>
+    bindingAllows(binding, permission) &&
+    bindingCovers(binding, {
+      applicationId: target.application_id,
+      repositoryId: target.repository_id,
+    })
+  );
+}
+
+async function fallbackOwner(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  run: RunFacts,
+  asker: string | null,
+): Promise<string | null> {
+  const candidates = [
+    run.workflow_owner,
+    run.requested_by,
+    run.task_created_by,
+  ];
+  for (const candidate of new Set(candidates)) {
+    if (candidate === null || candidate === asker) continue;
+    if (await activeHuman(transaction, organizationId, candidate)) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 type Recipient = Readonly<{

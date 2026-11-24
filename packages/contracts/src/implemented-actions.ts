@@ -124,6 +124,7 @@ export const ExecutionImplementedAction = Object.freeze(
     RunStepsNote: "runSteps.note",
     RunStepsTakeOver: "runSteps.takeOver",
     RunStepsRevertWrites: "runSteps.revertWrites",
+    RunStepsGiven: "runSteps.given",
     HandoffManifestsGet: "handoffManifests.get",
     HandoffManifestsContinue: "handoffManifests.continue",
     TranscriptStatus: "outputStreams.transcript",

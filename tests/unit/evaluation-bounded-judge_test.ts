@@ -109,7 +109,7 @@ async function score(
 ): Promise<ExecutionOutcome> {
   const served = [await pinned(OUTPUT)];
   return await createEvaluationExecutor(inner, {
-    readAttemptContext: () => Promise.resolve(served),
+    readAttemptContext: () => Promise.resolve({ inputs: served, facts: null }),
     judge: {
       transport,
       timeLimitMs: 5_000,
@@ -292,7 +292,7 @@ Deno.test("an invalid output schema is an error and makes no call", async () => 
   const { transport, calls } = fake({ kind: "timeout" });
   const served = [await pinned(OUTPUT)];
   const outcome = await createEvaluationExecutor(inner, {
-    readAttemptContext: () => Promise.resolve(served),
+    readAttemptContext: () => Promise.resolve({ inputs: served, facts: null }),
     judge: { transport },
   }).execute(
     {
