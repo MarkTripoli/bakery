@@ -92735,6 +92735,178 @@
             }
           ]
         },
+        "IssueDelivery": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "taskId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Id of the task that does the work: the task of the issue's newest request that was not rejected."
+            },
+            "runId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Id of the run doing the work: the request's run, else the task's current run; null while no run exists yet."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "IssueDelivery.runId may be null in this transport value."
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "starting",
+                "working",
+                "fixing",
+                "question_open",
+                "question_expired",
+                "approval_waiting",
+                "paused",
+                "stopped",
+                "finished",
+                "merged",
+                "released"
+              ],
+              "description": "One state, first match wins: released (the run has a deployment), merged (the newest pull request merged), paused (the run or request is paused), approval_waiting (an open, unexpired approval waits for a person), question_open (a question waits for an answer), question_expired (a question expired unanswered), starting (no run yet, or the run is queued or waiting for capacity), stopped (the run failed, was canceled or is blocked, the newest delivery decision stopped it, or the request ended without a run), finished (the run completed without a merged pull request), fixing (the newest delivery decision is a repair try), working (otherwise)."
+            },
+            "stepKey": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Key of the workflow step in progress: for approval_waiting, the step the approval names when it names one; otherwise the run's running or waiting step with the highest position. Null when none is in progress."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "IssueDelivery.stepKey may be null in this transport value."
+            },
+            "approvalFor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "plan",
+                    "step",
+                    "change"
+                  ],
+                  "description": "What the waiting approval decides when state is approval_waiting: plan (a plan revision), step (a workflow step's human approval), change (the reviewed change before merge). Null for every other state."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "IssueDelivery.approvalFor may be null in this transport value."
+            },
+            "environment": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Environment of the run's newest deployment (preview, staging or production); null when the run has no deployment."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "IssueDelivery.environment may be null in this transport value."
+            },
+            "releaseStatus": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "deploying",
+                    "verifying",
+                    "healthy",
+                    "degraded",
+                    "failed",
+                    "unknown",
+                    "rolling_back",
+                    "rolled_back"
+                  ],
+                  "description": "Status of the run's newest deployment, so released can say whether it is healthy; null when the run has no deployment."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "IssueDelivery.releaseStatus may be null in this transport value."
+            },
+            "pullRequestId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Id of the task's newest pull request, for the meta line's pull request reference; null when none was opened."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "IssueDelivery.pullRequestId may be null in this transport value."
+            },
+            "pullRequestNumber": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Provider number of the task's newest pull request; null when none was opened."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "IssueDelivery.pullRequestNumber may be null in this transport value."
+            },
+            "targetBranch": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Default branch of the newest pull request's repository, the branch a merge lands on; null when no pull request was opened."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "IssueDelivery.targetBranch may be null in this transport value."
+            }
+          },
+          "required": [
+            "taskId",
+            "runId",
+            "state",
+            "stepKey",
+            "approvalFor",
+            "environment",
+            "releaseStatus",
+            "pullRequestId",
+            "pullRequestNumber",
+            "targetBranch"
+          ],
+          "additionalProperties": false,
+          "description": "Where Bakery's work on one issue stands: the Now card of the task its newest started request owns, reduced to one line for the issue page and the Issues list. Computed on read from the request, its run, the task's open approvals and questions, the newest pull request and the run's newest deployment, in one statement per page."
+        },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -143922,6 +144094,186 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 9007199254740991
+            },
+            "delivery": {
+              "description": "ExternalTicket.delivery may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "taskId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Id of the task that does the work: the task of the issue's newest request that was not rejected."
+                    },
+                    "runId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "Id of the run doing the work: the request's run, else the task's current run; null while no run exists yet."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "IssueDelivery.runId may be null in this transport value."
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "starting",
+                        "working",
+                        "fixing",
+                        "question_open",
+                        "question_expired",
+                        "approval_waiting",
+                        "paused",
+                        "stopped",
+                        "finished",
+                        "merged",
+                        "released"
+                      ],
+                      "description": "One state, first match wins: released (the run has a deployment), merged (the newest pull request merged), paused (the run or request is paused), approval_waiting (an open, unexpired approval waits for a person), question_open (a question waits for an answer), question_expired (a question expired unanswered), starting (no run yet, or the run is queued or waiting for capacity), stopped (the run failed, was canceled or is blocked, the newest delivery decision stopped it, or the request ended without a run), finished (the run completed without a merged pull request), fixing (the newest delivery decision is a repair try), working (otherwise)."
+                    },
+                    "stepKey": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "Key of the workflow step in progress: for approval_waiting, the step the approval names when it names one; otherwise the run's running or waiting step with the highest position. Null when none is in progress."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "IssueDelivery.stepKey may be null in this transport value."
+                    },
+                    "approvalFor": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "plan",
+                            "step",
+                            "change"
+                          ],
+                          "description": "What the waiting approval decides when state is approval_waiting: plan (a plan revision), step (a workflow step's human approval), change (the reviewed change before merge). Null for every other state."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "IssueDelivery.approvalFor may be null in this transport value."
+                    },
+                    "environment": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "Environment of the run's newest deployment (preview, staging or production); null when the run has no deployment."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "IssueDelivery.environment may be null in this transport value."
+                    },
+                    "releaseStatus": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "queued",
+                            "deploying",
+                            "verifying",
+                            "healthy",
+                            "degraded",
+                            "failed",
+                            "unknown",
+                            "rolling_back",
+                            "rolled_back"
+                          ],
+                          "description": "Status of the run's newest deployment, so released can say whether it is healthy; null when the run has no deployment."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "IssueDelivery.releaseStatus may be null in this transport value."
+                    },
+                    "pullRequestId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "Id of the task's newest pull request, for the meta line's pull request reference; null when none was opened."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "IssueDelivery.pullRequestId may be null in this transport value."
+                    },
+                    "pullRequestNumber": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "description": "Provider number of the task's newest pull request; null when none was opened."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "IssueDelivery.pullRequestNumber may be null in this transport value."
+                    },
+                    "targetBranch": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "Default branch of the newest pull request's repository, the branch a merge lands on; null when no pull request was opened."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "IssueDelivery.targetBranch may be null in this transport value."
+                    }
+                  },
+                  "required": [
+                    "taskId",
+                    "runId",
+                    "state",
+                    "stepKey",
+                    "approvalFor",
+                    "environment",
+                    "releaseStatus",
+                    "pullRequestId",
+                    "pullRequestNumber",
+                    "targetBranch"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
             },
             "createdAt": {
               "type": "string",
@@ -248747,6 +249099,186 @@
                     "minimum": 0,
                     "maximum": 9007199254740991
                   },
+                  "delivery": {
+                    "description": "ExternalTicket.delivery may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "taskId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "Id of the task that does the work: the task of the issue's newest request that was not rejected."
+                          },
+                          "runId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                "description": "Id of the run doing the work: the request's run, else the task's current run; null while no run exists yet."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "IssueDelivery.runId may be null in this transport value."
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "starting",
+                              "working",
+                              "fixing",
+                              "question_open",
+                              "question_expired",
+                              "approval_waiting",
+                              "paused",
+                              "stopped",
+                              "finished",
+                              "merged",
+                              "released"
+                            ],
+                            "description": "One state, first match wins: released (the run has a deployment), merged (the newest pull request merged), paused (the run or request is paused), approval_waiting (an open, unexpired approval waits for a person), question_open (a question waits for an answer), question_expired (a question expired unanswered), starting (no run yet, or the run is queued or waiting for capacity), stopped (the run failed, was canceled or is blocked, the newest delivery decision stopped it, or the request ended without a run), finished (the run completed without a merged pull request), fixing (the newest delivery decision is a repair try), working (otherwise)."
+                          },
+                          "stepKey": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 65536,
+                                "description": "Key of the workflow step in progress: for approval_waiting, the step the approval names when it names one; otherwise the run's running or waiting step with the highest position. Null when none is in progress."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "IssueDelivery.stepKey may be null in this transport value."
+                          },
+                          "approvalFor": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "plan",
+                                  "step",
+                                  "change"
+                                ],
+                                "description": "What the waiting approval decides when state is approval_waiting: plan (a plan revision), step (a workflow step's human approval), change (the reviewed change before merge). Null for every other state."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "IssueDelivery.approvalFor may be null in this transport value."
+                          },
+                          "environment": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 65536,
+                                "description": "Environment of the run's newest deployment (preview, staging or production); null when the run has no deployment."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "IssueDelivery.environment may be null in this transport value."
+                          },
+                          "releaseStatus": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "queued",
+                                  "deploying",
+                                  "verifying",
+                                  "healthy",
+                                  "degraded",
+                                  "failed",
+                                  "unknown",
+                                  "rolling_back",
+                                  "rolled_back"
+                                ],
+                                "description": "Status of the run's newest deployment, so released can say whether it is healthy; null when the run has no deployment."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "IssueDelivery.releaseStatus may be null in this transport value."
+                          },
+                          "pullRequestId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                "description": "Id of the task's newest pull request, for the meta line's pull request reference; null when none was opened."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "IssueDelivery.pullRequestId may be null in this transport value."
+                          },
+                          "pullRequestNumber": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991,
+                                "description": "Provider number of the task's newest pull request; null when none was opened."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "IssueDelivery.pullRequestNumber may be null in this transport value."
+                          },
+                          "targetBranch": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 65536,
+                                "description": "Default branch of the newest pull request's repository, the branch a merge lands on; null when no pull request was opened."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "IssueDelivery.targetBranch may be null in this transport value."
+                          }
+                        },
+                        "required": [
+                          "taskId",
+                          "runId",
+                          "state",
+                          "stepKey",
+                          "approvalFor",
+                          "environment",
+                          "releaseStatus",
+                          "pullRequestId",
+                          "pullRequestNumber",
+                          "targetBranch"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
+                  },
                   "createdAt": {
                     "type": "string",
                     "format": "date-time",
@@ -333010,6 +333542,178 @@
         }
       }
     },
+    "IssueDelivery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Id of the task that does the work: the task of the issue's newest request that was not rejected."
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Id of the run doing the work: the request's run, else the task's current run; null while no run exists yet."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IssueDelivery.runId may be null in this transport value."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "starting",
+            "working",
+            "fixing",
+            "question_open",
+            "question_expired",
+            "approval_waiting",
+            "paused",
+            "stopped",
+            "finished",
+            "merged",
+            "released"
+          ],
+          "description": "One state, first match wins: released (the run has a deployment), merged (the newest pull request merged), paused (the run or request is paused), approval_waiting (an open, unexpired approval waits for a person), question_open (a question waits for an answer), question_expired (a question expired unanswered), starting (no run yet, or the run is queued or waiting for capacity), stopped (the run failed, was canceled or is blocked, the newest delivery decision stopped it, or the request ended without a run), finished (the run completed without a merged pull request), fixing (the newest delivery decision is a repair try), working (otherwise)."
+        },
+        "stepKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Key of the workflow step in progress: for approval_waiting, the step the approval names when it names one; otherwise the run's running or waiting step with the highest position. Null when none is in progress."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IssueDelivery.stepKey may be null in this transport value."
+        },
+        "approvalFor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "plan",
+                "step",
+                "change"
+              ],
+              "description": "What the waiting approval decides when state is approval_waiting: plan (a plan revision), step (a workflow step's human approval), change (the reviewed change before merge). Null for every other state."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IssueDelivery.approvalFor may be null in this transport value."
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Environment of the run's newest deployment (preview, staging or production); null when the run has no deployment."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IssueDelivery.environment may be null in this transport value."
+        },
+        "releaseStatus": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "queued",
+                "deploying",
+                "verifying",
+                "healthy",
+                "degraded",
+                "failed",
+                "unknown",
+                "rolling_back",
+                "rolled_back"
+              ],
+              "description": "Status of the run's newest deployment, so released can say whether it is healthy; null when the run has no deployment."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IssueDelivery.releaseStatus may be null in this transport value."
+        },
+        "pullRequestId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Id of the task's newest pull request, for the meta line's pull request reference; null when none was opened."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IssueDelivery.pullRequestId may be null in this transport value."
+        },
+        "pullRequestNumber": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Provider number of the task's newest pull request; null when none was opened."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IssueDelivery.pullRequestNumber may be null in this transport value."
+        },
+        "targetBranch": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Default branch of the newest pull request's repository, the branch a merge lands on; null when no pull request was opened."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IssueDelivery.targetBranch may be null in this transport value."
+        }
+      },
+      "required": [
+        "taskId",
+        "runId",
+        "state",
+        "stepKey",
+        "approvalFor",
+        "environment",
+        "releaseStatus",
+        "pullRequestId",
+        "pullRequestNumber",
+        "targetBranch"
+      ],
+      "additionalProperties": false,
+      "description": "Where Bakery's work on one issue stands: the Now card of the task its newest started request owns, reduced to one line for the issue page and the Issues list. Computed on read from the request, its run, the task's open approvals and questions, the newest pull request and the run's newest deployment, in one statement per page."
+    },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -384379,6 +385083,186 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "delivery": {
+          "description": "ExternalTicket.delivery may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "taskId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Id of the task that does the work: the task of the issue's newest request that was not rejected."
+                },
+                "runId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Id of the run doing the work: the request's run, else the task's current run; null while no run exists yet."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.runId may be null in this transport value."
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "starting",
+                    "working",
+                    "fixing",
+                    "question_open",
+                    "question_expired",
+                    "approval_waiting",
+                    "paused",
+                    "stopped",
+                    "finished",
+                    "merged",
+                    "released"
+                  ],
+                  "description": "One state, first match wins: released (the run has a deployment), merged (the newest pull request merged), paused (the run or request is paused), approval_waiting (an open, unexpired approval waits for a person), question_open (a question waits for an answer), question_expired (a question expired unanswered), starting (no run yet, or the run is queued or waiting for capacity), stopped (the run failed, was canceled or is blocked, the newest delivery decision stopped it, or the request ended without a run), finished (the run completed without a merged pull request), fixing (the newest delivery decision is a repair try), working (otherwise)."
+                },
+                "stepKey": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Key of the workflow step in progress: for approval_waiting, the step the approval names when it names one; otherwise the run's running or waiting step with the highest position. Null when none is in progress."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.stepKey may be null in this transport value."
+                },
+                "approvalFor": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "plan",
+                        "step",
+                        "change"
+                      ],
+                      "description": "What the waiting approval decides when state is approval_waiting: plan (a plan revision), step (a workflow step's human approval), change (the reviewed change before merge). Null for every other state."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.approvalFor may be null in this transport value."
+                },
+                "environment": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Environment of the run's newest deployment (preview, staging or production); null when the run has no deployment."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.environment may be null in this transport value."
+                },
+                "releaseStatus": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "deploying",
+                        "verifying",
+                        "healthy",
+                        "degraded",
+                        "failed",
+                        "unknown",
+                        "rolling_back",
+                        "rolled_back"
+                      ],
+                      "description": "Status of the run's newest deployment, so released can say whether it is healthy; null when the run has no deployment."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.releaseStatus may be null in this transport value."
+                },
+                "pullRequestId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Id of the task's newest pull request, for the meta line's pull request reference; null when none was opened."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.pullRequestId may be null in this transport value."
+                },
+                "pullRequestNumber": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Provider number of the task's newest pull request; null when none was opened."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.pullRequestNumber may be null in this transport value."
+                },
+                "targetBranch": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Default branch of the newest pull request's repository, the branch a merge lands on; null when no pull request was opened."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.targetBranch may be null in this transport value."
+                }
+              },
+              "required": [
+                "taskId",
+                "runId",
+                "state",
+                "stepKey",
+                "approvalFor",
+                "environment",
+                "releaseStatus",
+                "pullRequestId",
+                "pullRequestNumber",
+                "targetBranch"
+              ],
+              "additionalProperties": false,
+              "description": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         },
         "createdAt": {
           "type": "string",
@@ -489359,6 +490243,186 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
+              },
+              "delivery": {
+                "description": "ExternalTicket.delivery may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "taskId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Id of the task that does the work: the task of the issue's newest request that was not rejected."
+                      },
+                      "runId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "Id of the run doing the work: the request's run, else the task's current run; null while no run exists yet."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.runId may be null in this transport value."
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "starting",
+                          "working",
+                          "fixing",
+                          "question_open",
+                          "question_expired",
+                          "approval_waiting",
+                          "paused",
+                          "stopped",
+                          "finished",
+                          "merged",
+                          "released"
+                        ],
+                        "description": "One state, first match wins: released (the run has a deployment), merged (the newest pull request merged), paused (the run or request is paused), approval_waiting (an open, unexpired approval waits for a person), question_open (a question waits for an answer), question_expired (a question expired unanswered), starting (no run yet, or the run is queued or waiting for capacity), stopped (the run failed, was canceled or is blocked, the newest delivery decision stopped it, or the request ended without a run), finished (the run completed without a merged pull request), fixing (the newest delivery decision is a repair try), working (otherwise)."
+                      },
+                      "stepKey": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Key of the workflow step in progress: for approval_waiting, the step the approval names when it names one; otherwise the run's running or waiting step with the highest position. Null when none is in progress."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.stepKey may be null in this transport value."
+                      },
+                      "approvalFor": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "plan",
+                              "step",
+                              "change"
+                            ],
+                            "description": "What the waiting approval decides when state is approval_waiting: plan (a plan revision), step (a workflow step's human approval), change (the reviewed change before merge). Null for every other state."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.approvalFor may be null in this transport value."
+                      },
+                      "environment": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Environment of the run's newest deployment (preview, staging or production); null when the run has no deployment."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.environment may be null in this transport value."
+                      },
+                      "releaseStatus": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "queued",
+                              "deploying",
+                              "verifying",
+                              "healthy",
+                              "degraded",
+                              "failed",
+                              "unknown",
+                              "rolling_back",
+                              "rolled_back"
+                            ],
+                            "description": "Status of the run's newest deployment, so released can say whether it is healthy; null when the run has no deployment."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.releaseStatus may be null in this transport value."
+                      },
+                      "pullRequestId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "Id of the task's newest pull request, for the meta line's pull request reference; null when none was opened."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.pullRequestId may be null in this transport value."
+                      },
+                      "pullRequestNumber": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991,
+                            "description": "Provider number of the task's newest pull request; null when none was opened."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.pullRequestNumber may be null in this transport value."
+                      },
+                      "targetBranch": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Default branch of the newest pull request's repository, the branch a merge lands on; null when no pull request was opened."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.targetBranch may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "taskId",
+                      "runId",
+                      "state",
+                      "stepKey",
+                      "approvalFor",
+                      "environment",
+                      "releaseStatus",
+                      "pullRequestId",
+                      "pullRequestNumber",
+                      "targetBranch"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
               },
               "createdAt": {
                 "type": "string",

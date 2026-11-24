@@ -15626,6 +15626,71 @@
       ],
       "configSchema": "package: { formatVersion: 1, name: <=120, items: [{ kind: workflow|artifactKind, key, digest: sha256, data }] 1..50, packageDigest: sha256 }. The strict BakeryPackageSchema in @bakery/contracts/library-packages enforces it; unknown members are refused.",
       "description": "Imports a T0 package into this organization as ordinary drafts (workflows) and new kind versions (artifact kinds), and records where each came from. Nothing is switched on: starts stay off until someone uses a version."
+    },
+    "IssueDelivery": {
+      "description": "Where Bakery's work on one issue stands: the Now card of the task its newest started request owns, reduced to one line for the issue page and the Issues list. Computed on read from the request, its run, the task's open approvals and questions, the newest pull request and the run's newest deployment, in one statement per page.",
+      "fields": [
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": true,
+          "description": "Id of the task that does the work: the task of the issue's newest request that was not rejected."
+        },
+        {
+          "name": "runId",
+          "type": "uuid|null",
+          "required": true,
+          "description": "Id of the run doing the work: the request's run, else the task's current run; null while no run exists yet."
+        },
+        {
+          "name": "state",
+          "type": "enum(starting|working|fixing|question_open|question_expired|approval_waiting|paused|stopped|finished|merged|released)",
+          "required": true,
+          "description": "One state, first match wins: released (the run has a deployment), merged (the newest pull request merged), paused (the run or request is paused), approval_waiting (an open, unexpired approval waits for a person), question_open (a question waits for an answer), question_expired (a question expired unanswered), starting (no run yet, or the run is queued or waiting for capacity), stopped (the run failed, was canceled or is blocked, the newest delivery decision stopped it, or the request ended without a run), finished (the run completed without a merged pull request), fixing (the newest delivery decision is a repair try), working (otherwise)."
+        },
+        {
+          "name": "stepKey",
+          "type": "string|null",
+          "required": true,
+          "description": "Key of the workflow step in progress: for approval_waiting, the step the approval names when it names one; otherwise the run's running or waiting step with the highest position. Null when none is in progress."
+        },
+        {
+          "name": "approvalFor",
+          "type": "enum(plan|step|change)|null",
+          "required": true,
+          "description": "What the waiting approval decides when state is approval_waiting: plan (a plan revision), step (a workflow step's human approval), change (the reviewed change before merge). Null for every other state."
+        },
+        {
+          "name": "environment",
+          "type": "string|null",
+          "required": true,
+          "description": "Environment of the run's newest deployment (preview, staging or production); null when the run has no deployment."
+        },
+        {
+          "name": "releaseStatus",
+          "type": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)|null",
+          "required": true,
+          "description": "Status of the run's newest deployment, so released can say whether it is healthy; null when the run has no deployment."
+        },
+        {
+          "name": "pullRequestId",
+          "type": "uuid|null",
+          "required": true,
+          "description": "Id of the task's newest pull request, for the meta line's pull request reference; null when none was opened."
+        },
+        {
+          "name": "pullRequestNumber",
+          "type": "integer|null",
+          "required": true,
+          "description": "Provider number of the task's newest pull request; null when none was opened."
+        },
+        {
+          "name": "targetBranch",
+          "type": "string|null",
+          "required": true,
+          "description": "Default branch of the newest pull request's repository, the branch a merge lands on; null when no pull request was opened."
+        }
+      ]
     }
   },
   "projections": {
@@ -29612,6 +29677,7 @@
         "linkedTaskIds",
         "linkedTaskCount",
         "openQuestionCount",
+        "delivery",
         "createdAt",
         "updatedAt",
         "version"
@@ -29637,12 +29703,14 @@
         "version": "integer",
         "linkedTaskIds": "uuid[]",
         "linkedTaskCount": "integer",
-        "openQuestionCount": "integer"
+        "openQuestionCount": "integer",
+        "delivery": "IssueDelivery|null"
       },
       "nullableFields": [
         "number",
         "latestReadiness",
-        "activeRequest"
+        "activeRequest",
+        "delivery"
       ],
       "description": "Bounded, current snapshot of one provider-owned ticket synced into Bakery: its key/number/URL, normalized content, requirement digest, provider change marker, visibility, and last-observed time. Deduplicates on the provider's immutable ticket identity, independent of a changed URL or reconnected credential. Read via GET /v1/external-tickets/{id}.",
       "fieldDescriptions": {
@@ -29666,14 +29734,16 @@
         "version": "Monotonic revision used to order or conditionally update this external ticket record.",
         "linkedTaskIds": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it.",
         "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it.",
-        "openQuestionCount": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it."
+        "openQuestionCount": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it.",
+        "delivery": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
       },
       "optionalFields": [
         "latestReadiness",
         "activeRequest",
         "linkedTaskIds",
         "linkedTaskCount",
-        "openQuestionCount"
+        "openQuestionCount",
+        "delivery"
       ],
       "fieldBounds": {
         "linkedTaskIds": {
