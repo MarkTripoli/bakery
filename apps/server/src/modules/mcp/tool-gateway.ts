@@ -1,6 +1,10 @@
 import { compileWorkflowDocumentDetailed } from "@bakery/contracts/workflow-compiler";
 import { defaultWorkflowCompilerCatalog } from "@bakery/contracts/workflow-compiler/default-catalog";
 import { WORKFLOW_ACTION_METADATA } from "@bakery/contracts/workflow-action-registry";
+import {
+  type McpStdioLaunchSpec,
+  McpStdioLaunchSpecSchema,
+} from "@bakery/contracts/mcp-capabilities";
 import type { PgTransactionClient } from "../../platform/database.ts";
 
 /**
@@ -59,6 +63,7 @@ export type EffectiveMcpTool = Readonly<{
   readOnly: boolean;
   /** Which owner granted it: the most specific binding wins. */
   grantedBy: "step" | "seat" | "agent";
+  launchSpec: McpStdioLaunchSpec | null;
 }>;
 
 /** A bound tool the session cannot call now, and why, so the gap is visible. */
@@ -71,7 +76,8 @@ export type UnavailableMcpTool = Readonly<{
     | "tool_not_enabled"
     | "personal_not_usable"
     | "reviewer_read_only"
-    | "offline";
+    | "offline"
+    | "host_not_placed";
 }>;
 
 export type EffectiveMcpTools = Readonly<{
@@ -191,6 +197,9 @@ type BindingRow = {
   pinned_manifest: unknown;
   latest_digest: string | null;
   granted_by: "step" | "seat" | "agent";
+  transport: string;
+  launch_spec: unknown;
+  worker_host_id: string | null;
 };
 
 type ManifestTool = { name: string; description: string; inputSchema: unknown };
@@ -220,11 +229,11 @@ function strings(value: unknown): string[] {
 
 const SPECIFICITY = { step: 3, seat: 2, agent: 1 } as const;
 
-/** The MCP tools one session may call, and the bound ones it cannot, with why. */
 export async function effectiveMcpTools(
   transaction: PgTransactionClient,
   organizationId: string,
   scope: SessionToolScope,
+  hostId: string | null = null,
 ): Promise<EffectiveMcpTools> {
   const rows = await transaction.query<BindingRow>(
     `select binding.id as binding_id,
@@ -251,11 +260,17 @@ export async function effectiveMcpTools(
               when binding.step_key is not null then 'step'
               when binding.seat_key is not null then 'seat'
               else 'agent'
-            end as granted_by
+            end as granted_by,
+            server.transport,
+            server.launch_spec,
+            connection.worker_host_id
        from bakery.capability_bindings binding
        join bakery.mcp_connections connection
          on connection.organization_id = binding.organization_id
         and connection.id = binding.mcp_connection_id
+       join bakery.mcp_servers server
+         on server.organization_id = connection.organization_id
+        and server.id = connection.server_id
        left join bakery.mcp_capability_snapshots pinned
          on pinned.organization_id = binding.organization_id
         and pinned.id = binding.mcp_snapshot_id
@@ -347,6 +362,17 @@ export async function effectiveMcpTools(
         refuse("connection_off");
         continue;
       }
+      const launch = row.transport === "stdio"
+        ? McpStdioLaunchSpecSchema.safeParse(row.launch_spec)
+        : null;
+      if (
+        launch !== null &&
+        (!launch.success || row.worker_host_id === null ||
+          row.worker_host_id !== hostId)
+      ) {
+        refuse("host_not_placed");
+        continue;
+      }
       if (row.owner_principal_id !== null) {
         const started = scope.startedByPrincipalId;
         if (started !== row.owner_principal_id && !row.use_grant_live) {
@@ -389,6 +415,7 @@ export async function effectiveMcpTools(
         snapshotDigest: row.pinned_digest,
         readOnly,
         grantedBy: row.granted_by,
+        launchSpec: launch?.success ? launch.data : null,
       });
     }
   }

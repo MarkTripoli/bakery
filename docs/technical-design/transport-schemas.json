@@ -2512,7 +2512,7 @@
           "type": "uuid",
           "required": false,
           "nullable": true,
-          "description": "Reserved for a stdio server's worker host; stdio is not accepted yet, so it must be null."
+          "description": "The worker host a stdio server runs on: required for a stdio server and must be a host of this organization that advertises every capability the server requires; a call to the connection is dispatched only there. Must be null for a streamable_http server."
         },
         {
           "name": "label",
@@ -2550,11 +2550,11 @@
         }
       ],
       "rules": [
-        "a streamable_http connection sets neither integrationConnectionId nor workerHostId; stdio is not accepted yet",
+        "a streamable_http connection sets neither integrationConnectionId nor workerHostId; a stdio connection names its workerHostId (a placement requirement)",
         "enabledCapabilities starts empty and is changed after discovery",
         "an organization connection is registered by an Admin; a personal one by its owner"
       ],
-      "description": "Registers a connection between the organization, or one member, and a remote MCP server definition. The credential is sent once as a write-only secret and sealed in Postgres."
+      "description": "Registers a connection between the organization, or one member, and an MCP server definition: a remote one, or a local stdio one placed on a named worker host. The credential is sent once as a write-only secret and sealed in Postgres."
     },
     "McpConnectionUpdate": {
       "fields": [
@@ -2642,7 +2642,7 @@
           "bounds": {
             "maxBytes": 32000
           },
-          "description": "Allowlisted, pinned command and arguments used to launch a stdio server's subprocess; required for stdio transport and never built from unvalidated shell interpolation."
+          "description": "Pinned launch of a stdio server's subprocess: an absolute command path, its arguments and the command file's SHA-256 (artifactDigest). Required for stdio and null for streamable_http; never run through a shell, and a command file with another digest is refused."
         },
         {
           "name": "endpointTemplate",
