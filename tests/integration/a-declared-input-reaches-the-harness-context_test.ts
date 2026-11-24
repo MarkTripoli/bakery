@@ -4,12 +4,10 @@ import { sha256Hex } from "../../apps/server/src/platform/canonical-json.ts";
 import { prepareHarnessContext } from "../../apps/worker/src/harness-context.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
 import type { JobAssignment } from "../../apps/worker/src/types.ts";
-import type { WorkerContextInput } from "../../apps/worker/src/client.ts";
-import {
-  claimAssignment,
-  withWorkerFixture,
-} from "../helpers/worker-execution/scenarios.ts";
+import { workerFixtureCapabilities } from "../helpers/worker-execution.ts";
+import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { authTestOrigin } from "../helpers/auth.ts";
+import { WorkerApiClient } from "../../apps/worker/src/client.ts";
 import { registeredWorker } from "../helpers/worker-execution.ts";
 import { compiled, noop } from "../helpers/workflow-interpreter.ts";
 import { seedPlanRun, setRow } from "../helpers/plan-run.ts";
@@ -110,8 +108,31 @@ Deno.test("a declared input slot reaches the harness context index", () =>
       [seeded.job.runId],
     );
     const worker = await registeredWorker(fixture, { name: "context-join" });
-    const claim = await claimAssignment(fixture, worker);
-    const assignment = claim as unknown as JobAssignment;
+    const client = new WorkerApiClient({
+      baseUrl: authTestOrigin,
+      credential: worker.credential,
+      fetcher: async (input, init) =>
+        await fixture.app.fetch(new Request(input, init)),
+    });
+    const host = (await fixture.pgDatabase.query<{
+      workerSessionId: string;
+      workerSessionGeneration: string;
+    }>(
+      `select worker_session_id as "workerSessionId",
+              worker_session_generation::text as "workerSessionGeneration"
+         from bakery.worker_hosts
+        where credential_hash = $1`,
+      [await sha256Hex(worker.credential)],
+    )).rows[0];
+    const claim = await client.claim({
+      claimKey: crypto.randomUUID(),
+      workerHostId: worker.registration.workerHostId,
+      capabilities: workerFixtureCapabilities,
+      workerSessionId: host.workerSessionId,
+      workerSessionGeneration: host.workerSessionGeneration,
+    });
+    assertEquals(claim.value !== null, true);
+    const assignment = claim.value as JobAssignment;
 
     const root = await Deno.makeTempDir();
     const context = await prepareHarnessContext({
@@ -119,53 +140,9 @@ Deno.test("a declared input slot reaches the harness context index", () =>
       attemptRoot: root,
       goal: "Check the fmt requirement.",
       workDir: "/workspace",
-      readAttemptContext: async (attemptId) => {
-        const host = (await fixture.pgDatabase.query<{
-          protocolVersion: number;
-          workerSessionId: string;
-          workerSessionGeneration: string;
-        }>(
-          `select protocol_version as "protocolVersion",
-                  worker_session_id as "workerSessionId",
-                  worker_session_generation::text as "workerSessionGeneration"
-             from bakery.worker_hosts
-            where credential_hash = $1`,
-          [await sha256Hex(worker.credential)],
-        )).rows[0];
-        const response = await fixture.app.fetch(
-          new Request(
-            `${authTestOrigin}/v1/worker/attempts/${attemptId}/context`,
-            {
-              method: "GET",
-              headers: {
-                authorization: `Bearer ${worker.credential}`,
-                "X-Bakery-Worker-Protocol-Version": String(
-                  host.protocolVersion,
-                ),
-                "X-Worker-Lease-Token": String(claim.leaseToken),
-                "X-Worker-Fence": String(claim.fence),
-                "X-Worker-Session-Id": host.workerSessionId,
-                "X-Worker-Session-Generation": host.workerSessionGeneration,
-              },
-            },
-          ),
-        );
-        assertEquals(response.status, 200, await response.clone().text());
-        const body = await response.json() as {
-          items?: readonly WorkerContextInput[];
-          data?: readonly WorkerContextInput[] | {
-            items?: readonly WorkerContextInput[];
-          };
-        };
-        const data = body.data;
-        if (Array.isArray(data)) return data;
-        return body.items ??
-          (data as { items?: readonly WorkerContextInput[] } | undefined)
-            ?.items ??
-          [];
-      },
+      readAttemptContext: async (attemptId, proof) =>
+        (await client.attemptContext(attemptId, proof)).value,
     });
-
     assert(context.ok, context.ok ? "" : context.detail);
     assertEquals(context.contextDir?.endsWith("/context"), true);
     const index = await Deno.readTextFile(`${context.contextDir}/CONTEXT.md`);

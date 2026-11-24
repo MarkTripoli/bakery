@@ -92,6 +92,25 @@ export type AttemptProof = {
   workerSessionGeneration: string;
 };
 
+/** The proof an assignment carries, or null when the server did not send one. */
+export function attemptProofOf(
+  assignment: {
+    readonly leaseToken?: unknown;
+    readonly fence?: unknown;
+    readonly workerSessionId?: unknown;
+    readonly workerSessionGeneration?: unknown;
+  },
+): AttemptProof | null {
+  const { leaseToken, fence, workerSessionId, workerSessionGeneration } =
+    assignment;
+  if (
+    typeof leaseToken !== "string" || typeof fence !== "string" ||
+    typeof workerSessionId !== "string" ||
+    typeof workerSessionGeneration !== "string"
+  ) return null;
+  return { leaseToken, fence, workerSessionId, workerSessionGeneration };
+}
+
 function attemptProofHeaders(proof: AttemptProof): Record<string, string> {
   return {
     "X-Worker-Lease-Token": proof.leaseToken,
@@ -258,6 +277,18 @@ const WorkerContextInputList = z.array(
 ).describe(
   "Every pinned input of one attempt, each carrying its own bytes and the server's digest of them.",
 );
+
+const PinnedContextRead = z.object({
+  attemptId: z.string().uuid().describe(
+    "The attempt the served inputs belong to.",
+  ),
+  runId: z.string().uuid().describe(
+    "The run the served inputs were pinned for.",
+  ),
+  inputs: WorkerContextInputList.describe(
+    "Every pinned input, with its bytes.",
+  ),
+}).describe("The pinned input context the server served for this attempt.");
 
 export type WorkerResponse<T> = {
   readonly value: T;
@@ -1754,18 +1785,25 @@ export class WorkerApiClient {
    */
   async attemptContext(
     attemptId: string,
+    proof: AttemptProof,
     signal?: AbortSignal,
   ): Promise<WorkerResponse<readonly WorkerContextInput[]>> {
     const response = await this.request<unknown>(
       "GET",
       `/v1/worker/attempts/${encodeURIComponent(attemptId)}/context`,
-      { authenticated: true, signal, successStatuses: [200] },
+      {
+        authenticated: true,
+        headers: attemptProofHeaders(proof),
+        signal,
+        successStatuses: [200],
+      },
     );
-    return parseResponseEnvelope(
-      WorkerContextInputList,
-      response,
+    const read = parseResponse(
+      PinnedContextRead,
+      response.value,
       "WORKER_RESPONSE_CONTEXT_INVALID",
     );
+    return { ...response, value: read.inputs };
   }
 
   async renewLease(
