@@ -1,10 +1,3 @@
-/**
- * Seeds the shared admin's organization with one editable document for the
- * collaborative-documents real-API spec: a Markdown plan with a first version
- * and nothing else, the rows `draft-fixture.ts` gives the publish integration
- * tests. Prints one JSON line with the ids and the first version's text.
- * Kept apart from `web-browser-artifact-seed.ts`, whose text another spec reads.
- */
 import { readDatabaseConfig } from "../../packages/config/src/env.ts";
 import {
   closePgDatabase,

@@ -5,19 +5,6 @@ import { z } from "zod";
 import { submitUntilAccepted } from "./helpers/api-retry.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
-/**
- * Real-API proof for collaborative documents (#71, acceptance criteria 1 and 2).
- *
- * One journey against a real server, real sessions and a real database, with
- * no route mocks: two people open the same document in two browser contexts,
- * type at once and converge on one text; then one publishes while the other is
- * still typing, and the published version keeps a cutoff the draft really had,
- * the first version stays as it was, and no typed text is lost.
- *
- * The admin signs in through the sign-in page; the teammate is a seeded
- * Developer with a live session cookie (`web-member-seed`). The document is the
- * seeded text artifact of `web-document-seed`.
- */
 const enabled = process.env.BAKERY_REAL_API === "1";
 const ADMIN_EMAIL = process.env.BAKERY_REAL_EMAIL?.trim().toLowerCase() ||
   "browser-admin@example.test";
@@ -69,10 +56,6 @@ const versionsSchema = z.object({
   ).describe("Every published version of the document"),
 }).describe("The document's versions");
 
-/**
- * The document's own text. The editor also draws the other person's name
- * beside their caret, and that name differs for each viewer, so it is left out.
- */
 const documentText = (editor: Locator) =>
   editor.evaluate((node) => {
     const copy = node.cloneNode(true) as HTMLElement;
@@ -115,7 +98,6 @@ test.describe("collaborative documents against the real API", () => {
     );
     const path = `/tasks/${seeded.taskId}/artifacts/${seeded.artifactId}`;
 
-    // ---- the admin signs in; the teammate holds a seeded session --------------
     const adminContext = await browser.newContext({
       viewport: { width: 1440, height: 1000 },
     });
@@ -145,7 +127,6 @@ test.describe("collaborative documents against the real API", () => {
       const adminEditor = await openEditor(admin, path);
       const teammateEditor = await openEditor(teammate, path);
 
-      // ---- each sees the other here ------------------------------------------
       await expect(
         admin.getByRole("group", { name: "People in this document" }),
       )
@@ -154,7 +135,6 @@ test.describe("collaborative documents against the real API", () => {
         teammate.getByRole("group", { name: "People in this document" }),
       ).toContainText(adminName);
 
-      // ---- AC1: edits at both ends at once converge ---------------------------
       await adminEditor.click();
       await admin.keyboard.press("Control+End");
       await teammateEditor.click();
@@ -173,7 +153,6 @@ test.describe("collaborative documents against the real API", () => {
       await expect(teammate.getByText("All changes saved")).toBeVisible();
       const converged = adminText;
 
-      // ---- AC2: publish while the other person is still typing ----------------
       await teammateEditor.click();
       await teammate.keyboard.press("Control+End");
       await admin.getByTestId("artifact-publish").click();
@@ -207,10 +186,7 @@ test.describe("collaborative documents against the real API", () => {
           { headers },
         )).text();
 
-      // The first version is the one that was seeded, never changed.
       expect(await read(byRevision.get(1)!)).toBe(seeded.text);
-      // The published cutoff is a text the draft really had: both converged
-      // edits, with or without the late one, never a partial mix.
       const published = await read(byRevision.get(2)!);
       expect([converged, converged + " [late]"]).toContain(published);
     } finally {
