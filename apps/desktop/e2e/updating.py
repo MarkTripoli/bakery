@@ -188,7 +188,7 @@ check("[current] it asks once the first page has shown, not before",
 query = urllib.parse.parse_qs(hits[0][3]) if hits else {}
 check("[current] it says its system, processor and version", query.get("target") == ["linux"]
       and query.get("arch") == [ARCH] and query.get("current_version") == [APP_VERSION], str(query))
-check("[current] it sends its sign-in to the server", bool(hits) and hits[0][4] == "Bearer bkd_lab", str(hits[:1]))
+check("[current] the feed is public, so the request carries no sign-in", bool(hits) and hits[0][4] is None, str(hits[:1]))
 check("[current] nothing is said on screen: a check the app starts itself is silent", toasts(p) == [], str(toasts(p)))
 
 for feed in ("older", "same"):
@@ -209,7 +209,7 @@ check("[ready] it says so, once, in the designs words",
       wait_until(lambda: any(t and t.startswith("Bakery 9.9.9 is ready.") for t in toasts(p))), str(toasts(p)))
 dl = downloads_hits()
 check("[ready] the download carries no sign-in: the file may be on another host", bool(dl) and all(e[4] is None for e in dl), str(dl[:2]))
-check("[ready] the sign-in went only to the server's own feed", all(e[4] == "Bearer bkd_lab" for e in feed_hits()))
+check("[ready] the sign-in went to neither the feed nor the download", bool(feed_hits()) and all(e[4] is None for e in feed_hits()))
 saved = os.path.join(HOME, "Downloads", "Bakery updates")
 check("[ready] a build that cannot install itself saves the file to open", os.path.isdir(saved) and os.listdir(saved), saved)
 

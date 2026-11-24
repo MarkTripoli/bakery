@@ -63,24 +63,37 @@ pub enum Looked {
     Failed,
 }
 
-pub async fn look(app: &AppHandle, server: &str, bearer: Option<&str>) -> Looked {
+pub fn feed_may_be_asked(server: &str) -> bool {
+    feed_address_allowed(server, cfg!(debug_assertions))
+}
+
+fn feed_address_allowed(server: &str, debug_build: bool) -> bool {
+    let Ok(address) = url::Url::parse(server) else {
+        return false;
+    };
+    debug_build
+        || address.scheme() == "https"
+        || matches!(
+            address.host(),
+            Some(url::Host::Ipv4(host)) if host.is_loopback()
+        )
+        || address.host_str() == Some("localhost")
+}
+
+pub async fn look(app: &AppHandle, server: &str) -> Looked {
+    if !feed_may_be_asked(server) {
+        return Looked::Failed;
+    }
     let Ok(url) = feed_address(server).parse() else {
         return Looked::Failed;
     };
-    let builder = app
-        .updater_builder()
-        .endpoints(vec![url])
-        .and_then(|builder| match bearer {
-            Some(bearer) => builder.header("Authorization", format!("Bearer {bearer}")),
-            None => Ok(builder),
-        })
-        .map(|builder| {
-            builder
-                .timeout(std::time::Duration::from_secs(30))
-                .version_comparator(|current, remote| {
-                    words::is_newer(&remote.version.to_string(), &current.to_string())
-                })
-        });
+    let builder = app.updater_builder().endpoints(vec![url]).map(|builder| {
+        builder
+            .timeout(std::time::Duration::from_secs(30))
+            .version_comparator(|current, remote| {
+                words::is_newer(&remote.version.to_string(), &current.to_string())
+            })
+    });
     let updater = match builder.and_then(|builder| builder.build()) {
         Ok(updater) => updater,
         Err(_) => return Looked::Failed,
@@ -95,7 +108,7 @@ pub async fn look(app: &AppHandle, server: &str, bearer: Option<&str>) -> Looked
         }
         Ok(None) => Looked::Current,
         Err(tauri_plugin_updater::Error::ReleaseNotFound) => {
-            if server_answers_not_found(server, bearer).await {
+            if server_answers_not_found(server).await {
                 Looked::NoFeed
             } else {
                 Looked::Failed
@@ -105,7 +118,7 @@ pub async fn look(app: &AppHandle, server: &str, bearer: Option<&str>) -> Looked
     }
 }
 
-async fn server_answers_not_found(server: &str, bearer: Option<&str>) -> bool {
+async fn server_answers_not_found(server: &str) -> bool {
     let target = match std::env::consts::OS {
         "macos" => "darwin",
         other => other,
@@ -115,12 +128,8 @@ async fn server_answers_not_found(server: &str, bearer: Option<&str>) -> bool {
         server.trim_end_matches('/'),
         std::env::consts::ARCH
     );
-    let request = reqwest::Client::new().get(url);
-    let request = match bearer {
-        Some(bearer) => request.bearer_auth(bearer),
-        None => request,
-    };
-    match request
+    match reqwest::Client::new()
+        .get(url)
         .timeout(std::time::Duration::from_secs(15))
         .send()
         .await
@@ -170,5 +179,38 @@ mod tests {
             feed_address("https://bakery.acme.example/"),
             "https://bakery.acme.example/v1/desktop/update?target={{target}}&arch={{arch}}&current_version={{current_version}}"
         );
+    }
+
+    #[test]
+    fn a_release_build_asks_the_feed_only_over_https_or_on_this_computer() {
+        assert!(feed_address_allowed("https://bakery.acme.example", false));
+        assert!(feed_address_allowed("http://127.0.0.1:8000", false));
+        assert!(feed_address_allowed("http://localhost:8000", false));
+        assert!(!feed_address_allowed("http://bakery.acme.example", false));
+        assert!(!feed_address_allowed("http://10.0.0.5:8000", false));
+        assert!(!feed_address_allowed("not an address", false));
+        assert!(feed_address_allowed("http://bakery.acme.example", true));
+    }
+
+    #[tokio::test]
+    async fn the_not_found_check_sends_no_authorization_header() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let seen = std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buffer = [0u8; 4096];
+            let read = stream.read(&mut buffer).unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+                )
+                .unwrap();
+            String::from_utf8_lossy(&buffer[..read]).to_lowercase()
+        });
+        assert!(server_answers_not_found(&format!("http://{address}")).await);
+        let request = seen.join().unwrap();
+        assert!(request.contains("/v1/desktop/update"), "{request}");
+        assert!(!request.contains("authorization"), "{request}");
     }
 }

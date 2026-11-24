@@ -244,8 +244,7 @@ impl Shell {
         }
         self.push();
         let have = self.app_version();
-        let credential = self.state.lock().unwrap().credential.clone();
-        let looked = crate::update::look(&self.app, &self.server, credential.as_deref()).await;
+        let looked = crate::update::look(&self.app, &self.server).await;
         let now = now_seconds();
         match looked {
             crate::update::Looked::Current => {
