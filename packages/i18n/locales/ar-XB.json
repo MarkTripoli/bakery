@@ -6797,5 +6797,21 @@
   "machines.add.open": "⟪Open {name}⟫",
   "machines.add.another": "⟪Add another machine⟫",
   "machines.add.byHandPrefix": "⟪Or⟫",
-  "machines.add.byHand": "⟪set up by hand⟫"
+  "machines.add.byHand": "⟪set up by hand⟫",
+  "shared.backToInbox": "⟪Back to inbox⟫",
+  "shared.document.notice": "⟪You can read this document and comment on it. The rest of the task is not shared with you.⟫",
+  "shared.document.sharedBy": "⟪{name} shared this document with you on {date}.⟫",
+  "shared.document.gone.title": "⟪This document was deleted⟫",
+  "shared.document.noLongerShared.title": "⟪This document is no longer shared with you⟫",
+  "shared.conversation.title": "⟪A conversation⟫",
+  "shared.conversation.notice": "⟪You were mentioned here. You can read and reply in this conversation. The rest of this task is not shared with you.⟫",
+  "shared.conversation.gone.title": "⟪This conversation was deleted⟫",
+  "shared.conversation.noLongerShared.title": "⟪This conversation is no longer shared with you⟫",
+  "shared.conversation.reply.label": "⟪Reply to this conversation⟫",
+  "shared.conversation.reply.placeholder": "⟪Reply…⟫",
+  "shared.unavailable.gone.body": "⟪Someone removed it. Nothing here can be opened.⟫",
+  "shared.unavailable.noLongerShared.body": "⟪Ask {granter} if you still need it.⟫",
+  "shared.unavailable.noLongerShared.bodyAnon": "⟪Ask the person who shared it if you still need it.⟫",
+  "shared.unavailable.unknown.title": "⟪This is no longer available⟫",
+  "shared.unavailable.unknown.body": "⟪It was deleted, or it is no longer shared with you.⟫"
 }
