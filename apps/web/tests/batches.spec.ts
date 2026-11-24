@@ -182,16 +182,31 @@ for (
       await expect(page.getByRole("radio", { name: "Ask me first" }))
         .not.toBeChecked();
       const plan = page.getByTestId("batch-plan");
-      await expect(plan).toContainText("or once … is spent");
-      await expect(plan).toContainText("… after each merge");
+      await expect(plan).toContainText(
+        "Stop starting new issues after 5 are merged or after 8 hours.",
+      );
+      await expect(plan).toContainText("Choose what happens after each merge.");
+      await expect(plan).not.toContainText("…");
       await expect(plan).toContainText(
         "Each issue runs the workflow you choose.",
       );
       await page.getByLabel("Spend").fill("40");
       await page.getByRole("radio", { name: "Carry on by itself" }).check();
-      await expect(plan).toContainText("or once $40 is spent");
+      await expect(plan).toContainText(
+        "Stop starting new issues after 5 are merged, after 8 hours, or once $40 is spent.",
+      );
       await expect(plan).toContainText("Carry on by itself after each merge.");
-      await expect(plan).toContainText("5 are merged");
+      await page.getByLabel("Issues merged").fill("");
+      await expect(plan).toContainText(
+        "Stop starting new issues after 8 hours or once $40 is spent.",
+      );
+      await page.getByLabel("Time").fill("");
+      await expect(plan).toContainText(
+        "Stop starting new issues once $40 is spent.",
+      );
+      await page.getByLabel("Spend").fill("");
+      await expect(plan).toContainText("Choose when the batch stops.");
+      await expect(plan).not.toContainText("…");
       await still(page, "batch-new");
     });
 
@@ -433,6 +448,30 @@ for (
       await still(page, "batch-new-workflow-unset-error");
     });
 
+    test("a workflow that cannot start here says so under its field, is not sent, and a press focuses the notice", async ({ page }) => {
+      const { seen } = await batchesFixture(page, {
+        workflows: { [WEB.id]: "fixed-coding" },
+        presetAvailability: {
+          "fixed-coding": {
+            status: "setup_required",
+            reasons: ["no_active_profile"],
+          },
+        },
+      });
+      await page.goto(`/issues/batches/new?repository=${WEB.id}`);
+      const notice = page.getByTestId("batch-workflow-setup");
+      await expect(notice).toContainText("This workflow cannot start here yet");
+      await page.getByLabel("Spend").fill("40");
+      await page.getByRole("radio", { name: "Carry on by itself" }).check();
+      await still(page, "batch-new-workflow-cannot-start");
+      await page.getByRole("button", { name: "Start batch" }).click();
+      await expect(notice).toBeFocused();
+      expect(seen.created).toEqual([]);
+      await page.getByLabel("Workflow for every issue in this batch")
+        .selectOption("fixed-coding-reviewed");
+      await expect(notice).toHaveCount(0);
+    });
+
     test("a batch's page names its workflow, and a batch paused because it can no longer start says what to do", async ({ page }) => {
       await batchesFixture(page, {
         batches: [
@@ -450,6 +489,12 @@ for (
       await expect(page.getByTestId("batch-workflow")).toHaveText(
         "Workflow: Coding with independent review",
       );
+      await expect(
+        page.getByTestId("batch-workflow").getByRole("link", {
+          name: "Coding with independent review",
+        }),
+      ).toHaveAttribute("href", "/library/built-in/fixed-coding-reviewed");
+      await still(page, "batch-workflow-link");
       await page.goto(`/issues/batches/${batchId(2)}`);
       await expect(banner(page)).toContainText(
         "Paused: Fixed coding can no longer start in acme/storefront",

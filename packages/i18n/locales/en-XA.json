@@ -6737,5 +6737,13 @@
   "batches.start.workflow.helpUnset": "⟦Ëṽëŕÿ ïššûë ïñ ŧĥïš ƀàŧçĥ ŕûñš ŧĥë ŵôŕķƒļôŵ ÿôû çĥôôšë. {repository} ĥàš ñôñë šëŧ, šô þëôþļë çĥôôšë ôñë ëàçĥ ŧïɱë ŧĥëÿ šŧàŕŧ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "batches.start.summary.workflow": "⟦Ëàçĥ ïššûë ŕûñš {workflow}. ŧëšŧ çô⟧",
   "batches.start.summary.workflowUnset": "⟦Ëàçĥ ïššûë ŕûñš ŧĥë ŵôŕķƒļôŵ ÿôû çĥôôšë. ŧëšŧ çôþÿ ŧ⟧",
-  "batches.start.error.workflowRequired": "⟦Çĥôôšë à ŵôŕķƒļôŵ ƒïŕšŧ. ŧëšŧ ç⟧"
+  "batches.start.error.workflowRequired": "⟦Çĥôôšë à ŵôŕķƒļôŵ ƒïŕšŧ. ŧëšŧ ç⟧",
+  "batches.start.summary.stopIssuesHours": "⟦Šŧôþ šŧàŕŧïñĝ ñëŵ ïššûëš àƒŧëŕ {issues} ôŕ àƒŧëŕ {hours}. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "batches.start.summary.stopIssuesSpend": "⟦Šŧôþ šŧàŕŧïñĝ ñëŵ ïššûëš àƒŧëŕ {issues} ôŕ ôñçë {spend} ïš šþëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "batches.start.summary.stopHoursSpend": "⟦Šŧôþ šŧàŕŧïñĝ ñëŵ ïššûëš àƒŧëŕ {hours} ôŕ ôñçë {spend} ïš šþëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "batches.start.summary.stopIssues": "⟦Šŧôþ šŧàŕŧïñĝ ñëŵ ïššûëš àƒŧëŕ {issues}. ŧëšŧ çôþÿ ŧ⟧",
+  "batches.start.summary.stopHours": "⟦Šŧôþ šŧàŕŧïñĝ ñëŵ ïššûëš àƒŧëŕ {hours}. ŧëšŧ çôþÿ ŧ⟧",
+  "batches.start.summary.stopSpend": "⟦Šŧôþ šŧàŕŧïñĝ ñëŵ ïššûëš ôñçë {spend} ïš šþëñŧ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "batches.start.summary.stopNone": "⟦Çĥôôšë ŵĥëñ ŧĥë ƀàŧçĥ šŧôþš. ŧëšŧ çô⟧",
+  "batches.start.summary.modeNone": "⟦Çĥôôšë ŵĥàŧ ĥàþþëñš àƒŧëŕ ëàçĥ ɱëŕĝë. ŧëšŧ çôþÿŧ⟧"
 }

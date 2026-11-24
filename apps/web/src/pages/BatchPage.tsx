@@ -230,6 +230,9 @@ export function BatchPage({ batchId }: { batchId: string }) {
     ),
   };
   const stateBadge = stateBadgeFor(batch, waitingFor);
+  const workflowSentence = translate("batches.page.workflow" as never, {
+    name: "%%name%%",
+  }).split("%%name%%");
   const workflowName = batch.presetId === null
     ? translate("batches.page.workflowNone" as never)
     : presetCopy(translate, batch.presetId).title;
@@ -522,9 +525,20 @@ export function BatchPage({ batchId }: { batchId: string }) {
                 ? null
                 : (
                   <UI.Text variant="muted" data-testid="batch-workflow">
-                    {translate("batches.page.workflow" as never, {
-                      name: workflowName,
-                    })}
+                    {workflowSentence[0]}
+                    <UI.Link
+                      href={`/library/built-in/${batch.presetId}`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void navigate({
+                          to: "/library/built-in/$presetId",
+                          params: { presetId: batch.presetId as string },
+                        });
+                      }}
+                    >
+                      {workflowName}
+                    </UI.Link>
+                    {workflowSentence[1]}
                   </UI.Text>
                 )}
             </UI.Stack>

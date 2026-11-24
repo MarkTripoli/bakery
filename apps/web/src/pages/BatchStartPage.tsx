@@ -3,7 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
-import { batchStartableQueryOptions } from "../api/query.ts";
+import {
+  batchStartableQueryOptions,
+  workflowPresetsQueryOptions,
+} from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
@@ -29,10 +32,25 @@ import {
 import { BatchBreadcrumbs } from "./batches/BatchBreadcrumbs.tsx";
 import { useBatchLookups } from "./batches/use-batch-lookups.ts";
 import { TICKET_PRESETS } from "./issue-sources.ts";
-import { presetCopy } from "./task-composer-labels.ts";
+import {
+  composerLabels,
+  composerSetupReasons,
+  presetCopy,
+} from "./task-composer-labels.ts";
 import { WorkflowChoice } from "./WorkflowChoice.tsx";
 
 const BATCHES_PATH = "/issues/batches";
+
+const STOP_KEYS: Readonly<Record<string, string>> = {
+  IHS: "batches.start.summary.stop",
+  IH: "batches.start.summary.stopIssuesHours",
+  IS: "batches.start.summary.stopIssuesSpend",
+  HS: "batches.start.summary.stopHoursSpend",
+  I: "batches.start.summary.stopIssues",
+  H: "batches.start.summary.stopHours",
+  S: "batches.start.summary.stopSpend",
+  "": "batches.start.summary.stopNone",
+};
 const NEW_BATCH_PATH = "/issues/batches/new";
 
 /** The words the leave question uses; the guard is the repository rules' own. */
@@ -63,6 +81,11 @@ export function BatchStartPage() {
   const [typed, setTyped] = useState<StartForm>(START_DEFAULTS);
   const [presetTouched, setPresetTouched] = useState(false);
   const [workflowAsks, setWorkflowAsks] = useState(0);
+  const [setupAsks, setSetupAsks] = useState(0);
+  useEffect(() => {
+    if (setupAsks === 0) return;
+    document.getElementById("batch-workflow-setup")?.focus();
+  }, [setupAsks]);
   useEffect(() => {
     if (workflowAsks === 0) return;
     document.getElementById("batch-workflow")?.focus();
@@ -100,6 +123,21 @@ export function BatchStartPage() {
   const startable = useQuery(
     batchStartableQueryOptions(api, scope, form.repositoryId),
   );
+  const presets = useQuery({
+    ...workflowPresetsQueryOptions(api, scope, form.repositoryId || null),
+    enabled: form.repositoryId !== "",
+  });
+  const chosenAvailability = presets.data?.items.find((item) =>
+    item.id === form.presetId
+  )?.availability;
+  const setupReasons = chosenAvailability?.status === "setup_required"
+    ? composerSetupReasons(
+      chosenAvailability.reasons,
+      "",
+      chosenAvailability.minimumBudgetLimitUsd ?? null,
+    )
+    : [];
+  const setupLabels = composerLabels(translate as never);
   const smallest = smallestSpend(startable.data);
   const view = startable.data === undefined
     ? null
@@ -165,6 +203,10 @@ export function BatchStartPage() {
       }
       return;
     }
+    if (setupReasons.length > 0) {
+      setSetupAsks((count) => count + 1);
+      return;
+    }
     start.mutate();
   };
 
@@ -210,19 +252,25 @@ export function BatchStartPage() {
     : null;
 
   const plan = planValues(form, repositoryName, locale);
-  const issuesPart = plan.issues === "…" ? "…" : translate(
+  const issuesPart = plan.issues === "…" ? null : translate(
     "batches.start.summary.issuesPart" as never,
     { count: Number(plan.issues) },
   );
-  const hoursPart = plan.hours === "…" ? "…" : translate(
+  const hoursPart = plan.hours === "…" ? null : translate(
     "batches.start.summary.hoursPart" as never,
     { count: Number(plan.hours) },
   );
+  const spendPart = plan.spend === "…" ? null : plan.spend;
+  const stopKey = STOP_KEYS[
+    `${issuesPart === null ? "" : "I"}${hoursPart === null ? "" : "H"}${
+      spendPart === null ? "" : "S"
+    }`
+  ];
   const modeLabel = plan.mode === "carry_on"
     ? translate("batches.start.mode.carryOn" as never)
     : plan.mode === "ask_first"
     ? translate("batches.start.mode.askFirst" as never)
-    : "…";
+    : null;
 
   const numberField = (
     name: "maxIssues" | "maxHours",
@@ -433,16 +481,18 @@ export function BatchStartPage() {
                     })}
                 </UI.Text>
                 <UI.Text>
-                  {translate("batches.start.summary.stop" as never, {
+                  {translate(stopKey as never, {
                     issues: issuesPart,
                     hours: hoursPart,
-                    spend: plan.spend,
+                    spend: spendPart,
                   })}
                 </UI.Text>
                 <UI.Text>
-                  {translate("batches.start.summary.mode" as never, {
-                    mode: modeLabel,
-                  })}
+                  {modeLabel === null
+                    ? translate("batches.start.summary.modeNone" as never)
+                    : translate("batches.start.summary.mode" as never, {
+                      mode: modeLabel,
+                    })}
                 </UI.Text>
                 <UI.Text>
                   {translate("batches.start.summary.approvals" as never)}
@@ -532,7 +582,7 @@ export function BatchStartPage() {
                       translate("batches.start.repository.help" as never)}
                   </UI.Text>
                   {form.repositoryId !== "" && startable.isSuccess &&
-                      smallest === null
+                      smallest === null && setupReasons.length === 0
                     ? (
                       <UI.InlineNotice tone="warning">
                         <UI.Stack gap="tight">
@@ -592,6 +642,29 @@ export function BatchStartPage() {
                 ? undefined
                 : translate(shown.presetId as never)}
             />
+            {setupReasons.length === 0 ? null : (
+              <div
+                id="batch-workflow-setup"
+                tabIndex={-1}
+                data-testid="batch-workflow-setup"
+              >
+                <UI.InlineNotice tone="warning">
+                  <UI.Stack gap="tight">
+                    <UI.Text variant="strong">
+                      {setupLabels.setupHeading}
+                    </UI.Text>
+                    <ul>
+                      {setupReasons.map((reason) => (
+                        <li data-reason={reason} key={reason}>
+                          {setupLabels.setupRequired[reason] ??
+                            setupLabels.setupUnknown}
+                        </li>
+                      ))}
+                    </ul>
+                  </UI.Stack>
+                </UI.InlineNotice>
+              </div>
+            )}
             <UI.Text variant="hint">{workflowHint}</UI.Text>
           </UI.Stack>
           <UI.Divider />

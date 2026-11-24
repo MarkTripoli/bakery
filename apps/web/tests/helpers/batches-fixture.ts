@@ -180,6 +180,14 @@ export type Options = {
   workflows?: Readonly<
     Record<string, "fixed-coding" | "fixed-coding-reviewed">
   >;
+  presetAvailability?: Readonly<
+    Partial<
+      Record<
+        "fixed-coding" | "fixed-coding-reviewed",
+        { status: "ready" | "setup_required"; reasons: string[] }
+      >
+    >
+  >;
   /** More repositories taking issues than one page of issue sources holds (100). */
   extraRepositories?: number;
   /**
@@ -325,6 +333,27 @@ export async function batchesFixture(page: Page, options: Options = {}) {
         ),
     ),
   ];
+  await page.route("**/v1/workflow-presets*", (route) =>
+    route.fulfill({
+      json: {
+        items: (["fixed-coding", "fixed-coding-reviewed"] as const).map((
+          id,
+        ) => ({
+          id,
+          revision: 1,
+          digest: "a".repeat(64),
+          nameKey: `workflowPresets.${id}.name`,
+          steps: [{ id: "brief", uses: "task.brief" }],
+          defaultBudgetLimitUsd: "5.00",
+          availability: {
+            minimumBudgetLimitUsd: null,
+            ...(options.presetAvailability?.[id] ??
+              { status: "ready", reasons: [] }),
+          },
+        })),
+        nextCursor: null,
+      },
+    }));
   await page.route(
     (url) => url.pathname === "/v1/ticket-sources",
     (route) => {

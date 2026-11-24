@@ -60,6 +60,7 @@ const batch = (overrides: Record<string, unknown> = {}): BatchResponse =>
   ({
     id: "b-1",
     repositoryId: "r-1",
+    presetId: "fixed-coding",
     startedBy: "u-1",
     maxIssues: 5,
     maxHours: 8,
@@ -86,6 +87,8 @@ const batch = (overrides: Record<string, unknown> = {}): BatchResponse =>
   }) as BatchResponse;
 
 const facts: BannerFacts = {
+  workflow: "Fixed coding",
+  repository: "acme/web",
   currentNumber: "421",
   lastNumber: "421",
   who: "Ana Ruiz",
@@ -195,6 +198,19 @@ Deno.test("a paused batch says who paused it and whether the issue is still runn
     }).body.key,
     "batches.banner.pausedByPerson.nothing",
   );
+});
+
+Deno.test("a batch whose workflow can no longer start says which workflow and where, and offers no way to resume", () => {
+  const banner = bannerFor(
+    batch({ state: "paused", pauseReason: "workflow_cannot_start" }),
+    facts,
+  );
+  assertEquals(banner.title, {
+    key: "batches.banner.pausedWorkflow.title",
+    params: { workflow: "Fixed coding", repository: "acme/web" },
+  });
+  assertEquals(banner.body.key, "batches.banner.pausedWorkflow.body");
+  assertEquals(banner.actions, []);
 });
 
 Deno.test("a batch paused because the server cannot start work says so, and any other pause is plain", () => {
@@ -357,9 +373,11 @@ Deno.test("the start form begins with five issues, eight hours and no spend or c
   assertEquals(START_DEFAULTS.maxHours, "8");
   assertEquals(START_DEFAULTS.maxSpend, "");
   assertEquals(START_DEFAULTS.continueMode, "");
+  assertEquals(START_DEFAULTS.presetId, "");
   assertEquals(Object.keys(validateStart(START_DEFAULTS)).sort(), [
     "continueMode",
     "maxSpend",
+    "presetId",
     "repositoryId",
   ]);
 });
@@ -368,6 +386,7 @@ Deno.test("each limit is refused outside its range, at its edges", () => {
   const ok = {
     ...START_DEFAULTS,
     repositoryId: "r-1",
+    presetId: "fixed-coding",
     maxSpend: "40",
     continueMode: "carry_on" as const,
   };
@@ -386,6 +405,11 @@ Deno.test("each limit is refused outside its range, at its edges", () => {
   assertEquals(errs({ maxSpend: "4000" }), []);
   assertEquals(errs({ maxSpend: "" }), ["maxSpend"]);
   assertEquals(errs({ maxSpend: "abc" }), ["maxSpend"]);
+  assertEquals(errs({ presetId: "" }), ["presetId"]);
+  assertEquals(
+    validateStart({ ...ok, presetId: "" }).presetId,
+    "batches.start.error.workflowRequired",
+  );
 });
 
 Deno.test("the amount may carry a dollar sign and thousands commas and is sent with two decimals", () => {
@@ -396,11 +420,13 @@ Deno.test("the amount may carry a dollar sign and thousands commas and is sent w
     startBody({
       ...START_DEFAULTS,
       repositoryId: "r-1",
+      presetId: "fixed-coding-reviewed",
       maxSpend: "$40",
       continueMode: "ask_first",
     }),
     {
       repositoryId: "r-1",
+      presetId: "fixed-coding-reviewed",
       maxIssues: 5,
       maxHours: 8,
       maxSpendUsd: "40.00",
@@ -411,15 +437,36 @@ Deno.test("the amount may carry a dollar sign and thousands commas and is sent w
 });
 
 Deno.test("leaving is only asked about when something was changed", () => {
-  assertEquals(isDirty(START_DEFAULTS, ""), false);
+  assertEquals(isDirty(START_DEFAULTS, "", ""), false);
   assertEquals(
-    isDirty({ ...START_DEFAULTS, repositoryId: "r-1" }, "r-1"),
+    isDirty({ ...START_DEFAULTS, repositoryId: "r-1" }, "r-1", ""),
     false,
   );
-  assertEquals(isDirty({ ...START_DEFAULTS, repositoryId: "r-1" }, ""), true);
-  assertEquals(isDirty({ ...START_DEFAULTS, maxHours: "9" }, ""), true);
   assertEquals(
-    isDirty({ ...START_DEFAULTS, continueMode: "carry_on" }, ""),
+    isDirty({ ...START_DEFAULTS, repositoryId: "r-1" }, "", ""),
+    true,
+  );
+  assertEquals(isDirty({ ...START_DEFAULTS, maxHours: "9" }, "", ""), true);
+  assertEquals(
+    isDirty({ ...START_DEFAULTS, continueMode: "carry_on" }, "", ""),
+    true,
+  );
+});
+
+Deno.test("a workflow the repository set is not a change, and a different choice is", () => {
+  const form = {
+    ...START_DEFAULTS,
+    repositoryId: "r-1",
+    presetId: "fixed-coding",
+  };
+  assertEquals(isDirty(form, "r-1", "fixed-coding"), false);
+  assertEquals(isDirty(form, "r-1", ""), true);
+  assertEquals(
+    isDirty(
+      { ...form, presetId: "fixed-coding-reviewed" },
+      "r-1",
+      "fixed-coding",
+    ),
     true,
   );
 });
@@ -577,6 +624,7 @@ Deno.test("an amount below the smallest is a problem under Spend, and the smalle
   const ok = {
     ...START_DEFAULTS,
     repositoryId: "r-1",
+    presetId: "fixed-coding",
     maxSpend: "12.50",
     continueMode: "carry_on" as const,
   };
