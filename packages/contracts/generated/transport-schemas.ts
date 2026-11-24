@@ -4448,6 +4448,15 @@ const transportSchemas = {
             "interrupt"
           ],
           "description": "How the message reaches the active harness: \"steer\" redirects the running work immediately, while \"follow_up\" queues it after current work; legacy \"interrupt\" means steer and \"append\" means follow_up. A mode the session's adapter has not advertised returns an explicit unsupported conflict and creates no command."
+        },
+        {
+          "name": "mentions",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 20
+          },
+          "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the run's starter with a visible note. Mentioning needs the steerer's own request permission (runRequest:write), so a person who steers only through a take-over request cannot bring anyone in; any refusal writes nothing, not even the steer. Text that merely looks like @name never mentions anyone."
         }
       ],
       "description": "Delivers a message to a running agent session's active harness process, steering it immediately or queuing a follow-up, depending on mode and the adapter capabilities the worker advertised."

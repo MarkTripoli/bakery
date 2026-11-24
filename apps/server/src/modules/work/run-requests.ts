@@ -8,7 +8,11 @@ import {
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import { accessScopeClause } from "../auth/application/bindings.ts";
 import type { CatalogActionName } from "@bakery/contracts/contracts";
-import { permissionForAction } from "../auth/application/authorize.ts";
+import {
+  authorize,
+  permissionForAction,
+} from "../auth/application/authorize.ts";
+import type { OrganizationActor } from "../auth/application/authority.ts";
 import { roleHasPermission } from "../auth/application/permissions.ts";
 import {
   RUN_GRANT_ACTIONS,
@@ -695,6 +699,129 @@ async function requestOnRun(
   }
   if (first === null) throw new Error("REQUEST_INSERT_FAILED");
   return toRunRequest(await readRequest(transaction, organizationId, first));
+}
+
+export type WorkflowApprovalAsk = Readonly<{
+  stepKey: string;
+  iteration: number;
+  questionId: string;
+  recipients: readonly Readonly<{
+    principalId: string;
+    fallbackForName: string | null;
+    audience: Audience | null;
+  }>[];
+}>;
+
+export async function askApproversFromWorkflowStep(
+  context: ActionContext,
+  ask: WorkflowApprovalAsk,
+): Promise<void> {
+  const { transaction, organizationId, principalId, accessScope } =
+    requireWorkTransaction(context);
+  const run = await loadRun(context, transaction, organizationId, accessScope);
+  for (const recipient of ask.recipients) {
+    await askOne(context, transaction, {
+      organizationId,
+      principalId,
+      run,
+      intent: "approve",
+      stepKey: ask.stepKey,
+      stepIteration: ask.iteration,
+      targetId: ask.questionId,
+      power: POWER_OF_INTENT.approve,
+      note: null,
+      neededBy: null,
+      recipient: {
+        principalId: recipient.principalId,
+        fallbackForName: recipient.fallbackForName,
+      },
+      audience: recipient.audience,
+      actor: { kind: "workflow", sessionId: null, fromRunId: null },
+    });
+  }
+}
+
+const SYSTEM_ROLE_HANDLES: Readonly<Record<string, string>> = {
+  admins: "admin",
+  developers: "developer",
+};
+
+export async function audienceByHandle(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  handle: string,
+): Promise<(Audience & { members: string[] }) | null> {
+  const systemRole = SYSTEM_ROLE_HANDLES[handle];
+  if (systemRole !== undefined) {
+    const found = await audienceMembers(
+      transaction,
+      organizationId,
+      systemRole,
+      null,
+    );
+    return { roleKey: systemRole, groupId: null, ...found };
+  }
+  const group = await transaction.query<{ id: string }>(
+    `select id from bakery.organization_groups
+      where organization_id = $1 and mention_name = $2`,
+    [organizationId, handle],
+  );
+  const groupId = group.rows[0]?.id;
+  if (groupId !== undefined) {
+    const found = await audienceMembers(
+      transaction,
+      organizationId,
+      null,
+      groupId,
+    );
+    return { roleKey: null, groupId, ...found };
+  }
+  const role = await transaction.query(
+    `select 1 from bakery.organization_roles
+      where organization_id = $1 and key = $2`,
+    [organizationId, handle],
+  );
+  if (role.rows.length === 0) return null;
+  const found = await audienceMembers(
+    transaction,
+    organizationId,
+    handle,
+    null,
+  );
+  return { roleKey: handle, groupId: null, ...found };
+}
+
+export async function tagMentionedOnSteer(
+  context: ActionContext,
+  steer: Readonly<
+    { runId: string; stepKey: string; mentions: readonly string[] }
+  >,
+): Promise<void> {
+  if (steer.mentions.length === 0) return;
+  const { principalId } = requireWorkTransaction(context);
+  const authority = (context as { authority?: unknown }).authority;
+  if (
+    typeof authority !== "object" || authority === null ||
+    !("organizationId" in authority)
+  ) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+  authorize(
+    authority as OrganizationActor,
+    permissionForAction("runRequests.create"),
+  );
+  const runContext = {
+    ...context,
+    params: { ...context.params, id: steer.runId },
+  } as ActionContext;
+  for (const recipientId of new Set(steer.mentions)) {
+    if (recipientId === principalId) continue;
+    await requestOnRun(runContext, {
+      recipientId,
+      intent: "fyi",
+      stepKey: steer.stepKey,
+    }, null);
+  }
 }
 
 type Recipient = Readonly<{

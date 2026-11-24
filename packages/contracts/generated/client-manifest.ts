@@ -23044,6 +23044,17 @@ export const clientManifest = {
             "append",
             "interrupt"
           ]
+        },
+        "mentions": {
+          "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the run's starter with a visible note. Mentioning needs the steerer's own request permission (runRequest:write), so a person who steers only through a take-over request cannot bring anyone in; any refusal writes nothing, not even the steer. Text that merely looks like @name never mentions anyone. SteeringMessage.mentions must contain at most 20 items.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the run's starter with a visible note. Mentioning needs the steerer's own request permission (runRequest:write), so a person who steers only through a take-over request cannot bring anyone in; any refusal writes nothing, not even the steer. Text that merely looks like @name never mentions anyone. Each array item follows this format."
+          }
         }
       },
       "required": [

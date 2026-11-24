@@ -9,7 +9,12 @@ import { appendDomainEvent } from "@bakery/persistence/event-audit";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { mayActOnQuestion } from "../auth/application/run-grants.ts";
-import { completeRequestsOnQuestion } from "./run-requests.ts";
+import { internalContext, liveActor } from "../workflows/automations/start.ts";
+import {
+  askApproversFromWorkflowStep,
+  audienceByHandle,
+  completeRequestsOnQuestion,
+} from "./run-requests.ts";
 import {
   activeElapsedMs,
   APPROVAL_EXPIRED_OUTCOME,
@@ -157,11 +162,45 @@ export async function requestHumanApproval(
     applicationId: string;
     repositoryId: string | null;
   },
-): Promise<{ approvalId: string; approverPrincipalIds: readonly string[] }> {
-  // Resolve the audience against real principal rows before deciding whether
-  // anyone can answer. Trusting the strings would let an approval be addressed
-  // to nobody and then sit until it expired.
-  const candidates = [...(input.audience ?? [])];
+): Promise<{
+  approvalId: string;
+  approverPrincipalIds: readonly string[];
+  fallbackForName: string | null;
+}> {
+  const named = input.audience ?? [];
+  const expanded: string[] = [];
+  const handleOf = new Map<
+    string,
+    { roleKey: string | null; groupId: string | null; name: string }
+  >();
+  const unresolved: string[] = [];
+  for (const entry of named) {
+    if (entry.startsWith("@")) {
+      const found = await audienceByHandle(
+        transaction,
+        input.organizationId,
+        entry.slice(1),
+      );
+      if (found === null || found.members.length === 0) {
+        unresolved.push(found?.name ?? entry);
+        continue;
+      }
+      for (const id of found.members) {
+        if (expanded.includes(id)) continue;
+        expanded.push(id);
+        handleOf.set(id, {
+          roleKey: found.roleKey,
+          groupId: found.groupId,
+          name: found.name,
+        });
+      }
+    } else if (PRINCIPAL_ID.test(entry)) {
+      expanded.push(entry);
+    } else {
+      unresolved.push(entry);
+    }
+  }
+  const candidates = [...expanded];
   if (input.ownerPrincipalId !== null) candidates.push(input.ownerPrincipalId);
   const found = candidates.length === 0 ? new Set<string>() : new Set(
     (await transaction.query<{ id: string }>(
@@ -179,7 +218,11 @@ export async function requestHumanApproval(
     )).rows.map((row) => row.id),
   );
   const resolution = resolveApprover({
-    audience: input.audience,
+    audience: named.length === 0
+      ? undefined
+      : expanded.length > 0
+      ? expanded
+      : named,
     ownerPrincipalId: input.ownerPrincipalId,
     principals: found,
   });
@@ -256,10 +299,94 @@ export async function requestHumanApproval(
     traceId: input.traceId,
   });
 
+  const fallbackForName = resolution.fallback === true
+    ? await namesOf(transaction, named, unresolved)
+    : null;
+  if (named.length > 0) {
+    await askApprovers(transaction, {
+      organizationId: input.organizationId,
+      runId: input.runId,
+      stepKey: input.stepKey,
+      approvalId,
+      traceId: input.traceId,
+      recipients: resolution.approverPrincipalIds.map((principalId) => ({
+        principalId,
+        fallbackForName,
+        audience: fallbackForName === null
+          ? handleOf.get(principalId) ?? null
+          : null,
+      })),
+    });
+  }
+
   return {
     approvalId,
     approverPrincipalIds: resolution.approverPrincipalIds,
+    fallbackForName,
   };
+}
+
+const PRINCIPAL_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function namesOf(
+  transaction: PgTransactionClient,
+  named: readonly string[],
+  unresolved: readonly string[],
+): Promise<string> {
+  const ids = named.filter((entry) => PRINCIPAL_ID.test(entry));
+  const people = ids.length === 0
+    ? []
+    : (await transaction.query<{ display_name: string }>(
+      `select display_name from bakery.principals
+        where id = any($1::uuid[]) order by display_name`,
+      [ids],
+    )).rows.map((row) => row.display_name);
+  const names = [...people, ...unresolved];
+  return names.length === 0 ? "someone" : names.join(", ");
+}
+
+async function askApprovers(
+  transaction: PgTransactionClient,
+  input: Readonly<{
+    organizationId: string;
+    runId: string;
+    stepKey: string;
+    approvalId: string;
+    traceId: string;
+    recipients: Parameters<
+      typeof askApproversFromWorkflowStep
+    >[1]["recipients"];
+  }>,
+): Promise<void> {
+  const run = await transaction.query<{ requested_by: string | null }>(
+    `select requested_by from bakery.workflow_runs
+      where organization_id = $1 and id = $2`,
+    [input.organizationId, input.runId],
+  );
+  const starter = run.rows[0]?.requested_by ?? null;
+  if (starter === null) return;
+  const actor = await liveActor(transaction, input.organizationId, starter);
+  if (actor === null) return;
+  await askApproversFromWorkflowStep(
+    internalContext(
+      transaction,
+      actor,
+      { requestId: crypto.randomUUID(), traceId: input.traceId },
+      { id: input.runId },
+      {
+        operation: "runRequests.create",
+        idempotencyKey: `approval:${input.approvalId}`,
+        target: `/v1/runs/${input.runId}/requests`,
+      },
+    ),
+    {
+      stepKey: input.stepKey,
+      iteration: 0,
+      questionId: input.approvalId,
+      recipients: input.recipients,
+    },
+  );
 }
 
 /**
