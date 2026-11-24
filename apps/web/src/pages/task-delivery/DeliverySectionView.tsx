@@ -972,6 +972,7 @@ function ReadyView(
         <UI.AlertBanner
           action={action}
           actionLayout="stretch"
+          data-approval-id={model.approval?.id}
           data-testid="delivery-now"
           tone={nowTone(model.now)}
         >
