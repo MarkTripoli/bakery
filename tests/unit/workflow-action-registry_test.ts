@@ -38,10 +38,18 @@ function registration(
 }
 
 Deno.test("workflow registry exposes the exact documented metadata allowlist", () => {
-  assertEquals(WORKFLOW_ACTION_NAMES.length, 25);
+  assertEquals(WORKFLOW_ACTION_NAMES.length, 26);
   assertEquals(Object.keys(WORKFLOW_ACTION_METADATA), [
     ...WORKFLOW_ACTION_NAMES,
   ]);
+  assertEquals(WORKFLOW_ACTION_METADATA["people.tag"], {
+    input: "PeopleTagInput",
+    output: "PeopleTagOutput",
+    capabilities: [],
+    cancel: "cooperative",
+    retry: { maxAttempts: 1, backoff: "0s", faults: [] },
+    effectPolicy: "none",
+  });
   assertEquals(WORKFLOW_ACTION_METADATA["rpi.research"], {
     input: "ResearchInput",
     output: "ResearchOutput",
@@ -278,6 +286,7 @@ Deno.test("workflow runtime registers the exact runtime set with strict schemas"
       "harness.implement",
       "harness.repair",
       "human.approval",
+      "people.tag",
       "quality.check",
       "review.independent",
       "rpi.design",

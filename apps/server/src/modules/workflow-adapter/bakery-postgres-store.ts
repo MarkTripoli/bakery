@@ -15,6 +15,8 @@ import {
 } from "@bakery/persistence/repository-admission";
 import {
   HUMAN_APPROVAL_EVENT,
+  HUMAN_APPROVAL_WAIT_LIMIT_MS,
+  HumanApprovalInputSchema,
   normalizeWorkflowStop,
   WorkflowStopInputSchema,
 } from "@bakery/contracts/human-approval";
@@ -42,7 +44,7 @@ import {
 } from "@bakery/contracts/workflow-interpreter";
 import { canonicalJson } from "../../platform/canonical-json.ts";
 import { reconcileCoordinationForTerminalTask } from "../work/coordination-projection.ts";
-import { stopRun } from "../work/human-approval-store.ts";
+import { requestHumanApproval, stopRun } from "../work/human-approval-store.ts";
 import {
   budgetContentDigest,
   type BudgetPolicy,
@@ -854,6 +856,8 @@ async function loadRunEndContext(
   return result.rows[0];
 }
 
+export const PLAN_LIMIT_REACHED_CODE = "limit_reached";
+
 /**
  * Ends a plan run as failed for a reason that belongs to no step (the plan
  * cannot be read, or asks for something this engine does not run yet). The run
@@ -865,8 +869,9 @@ async function endPlanRunFailed(
   context: RunEndRow,
   owner: EngineOwner | undefined,
   code: string,
+  details?: Readonly<Record<string, string | number>>,
 ): Promise<void> {
-  await finishPlanRunIn(transaction, context, "failed", owner, code);
+  await finishPlanRunIn(transaction, context, "failed", owner, code, details);
 }
 
 /**
@@ -883,6 +888,7 @@ async function finishPlanRunIn(
   outcome: PlanRunOutcome,
   owner: EngineOwner | undefined,
   code?: string,
+  details?: Readonly<Record<string, string | number>>,
 ): Promise<void> {
   if (typeof outcome !== "string" || !Object.hasOwn(RUN_END_STATUS, outcome)) {
     throw new Error("WORKFLOW_PLAN_OUTCOME_INVALID");
@@ -907,7 +913,7 @@ async function finishPlanRunIn(
     requestId: `plan-run:${context.runId}`,
     traceId: originalTraceId(context),
     outcome: "failed",
-    details: { code },
+    details: { code, ...details },
   });
 }
 
@@ -1029,6 +1035,21 @@ async function findNextPlanKeys(
     await finishPlanRunIn(transaction, context, "completed", activeOwner);
     return undefined;
   }
+  if (answer.kind === "paused") {
+    await endPlanRunFailed(
+      transaction,
+      context,
+      activeOwner,
+      PLAN_LIMIT_REACHED_CODE,
+      {
+        repeatKey: answer.key,
+        iterations: answer.iterations,
+        allowed: answer.allowed,
+        max: answer.max,
+      },
+    );
+    return undefined;
+  }
   if (answer.kind === "halted") {
     await finishPlanRunIn(
       transaction,
@@ -1069,6 +1090,9 @@ async function appendPlanStep(
     iteration: 0,
     actionVersion: context.workflowVersionId,
   });
+  if (planned.kind === "action" && planned.action === "human.approval") {
+    return await appendApprovalWait(transaction, context, activeOwner, planned);
+  }
   if (planned.kind === "wait") {
     // A human.approval wait is the one event wait with a producer: a person's
     // decision writes it. Its dispatch pins the approval id, so the step waits
@@ -1146,6 +1170,98 @@ async function appendPlanStep(
     ],
   );
   return keyOf(planned.key);
+}
+
+async function appendApprovalWait(
+  transaction: PgTransactionClient,
+  context: RunEndRow,
+  activeOwner: EngineOwner,
+  planned: ActionDispatch,
+): Promise<LogicalInvocationKey | undefined> {
+  const key: LogicalInvocationKey = {
+    runId: context.runId,
+    stepKey: planned.key,
+    iteration: 0,
+    actionVersion: context.workflowVersionId,
+  };
+  const existing = await transaction.query(
+    `select 1 from bakery.run_steps
+      where organization_id = $1 and run_id = $2 and step_key = $3
+        and iteration = 0`,
+    [context.organizationId, context.runId, planned.key],
+  );
+  if (existing.rows.length > 0) return key;
+  const input = HumanApprovalInputSchema.safeParse(planned.input);
+  if (!input.success) {
+    await endPlanRunFailed(
+      transaction,
+      context,
+      activeOwner,
+      "APPROVAL_INPUT_INVALID",
+    );
+    return undefined;
+  }
+  const owner = await transaction.query<{ owner: string | null }>(
+    `select definition.owner_principal_id as owner
+       from bakery.workflow_versions version
+       join bakery.workflow_definitions definition
+         on definition.organization_id = version.organization_id
+        and definition.id = version.workflow_id
+      where version.organization_id = $1 and version.id = $2`,
+    [context.organizationId, context.workflowVersionId],
+  );
+  let asked;
+  try {
+    asked = await requestHumanApproval(transaction, {
+      organizationId: context.organizationId,
+      runId: context.runId,
+      taskId: context.taskId,
+      conversationId: context.conversationId,
+      stepKey: planned.key,
+      prompt: input.data.prompt,
+      ...(input.data.audience === undefined
+        ? {}
+        : { audience: input.data.audience }),
+      ownerPrincipalId: owner.rows[0]?.owner ?? context.requestedBy,
+      traceId: context.originalTraceId ?? crypto.randomUUID(),
+      applicationId: context.applicationId,
+      repositoryId: context.repositoryId,
+    });
+  } catch (error) {
+    if (!(error instanceof StandardError)) throw error;
+    await endPlanRunFailed(
+      transaction,
+      context,
+      activeOwner,
+      String(error.params?.reason ?? "APPROVAL_UNRESOLVABLE"),
+    );
+    return undefined;
+  }
+  const wait: WaitDispatch = {
+    kind: "wait",
+    key: planned.key,
+    id: planned.id,
+    wait: {
+      kind: "event",
+      event: HUMAN_APPROVAL_EVENT,
+      timeoutMs: HUMAN_APPROVAL_WAIT_LIMIT_MS,
+      approvalId: asked.approvalId,
+    },
+    iterationPath: planned.iterationPath,
+  };
+  await transaction.query(
+    `insert into bakery.run_steps (
+       organization_id, run_id, step_key, position, iteration, status, input,
+       dispatch, started_at
+     )
+     select $1, $2, $3, coalesce(max(position), 0) + 1, 0, 'waiting',
+            '{}'::jsonb, $4::jsonb, clock_timestamp()
+       from bakery.run_steps
+      where organization_id = $1 and run_id = $2
+     on conflict (run_id, step_key, iteration) do nothing`,
+    [context.organizationId, context.runId, planned.key, JSON.stringify(wait)],
+  );
+  return key;
 }
 
 /** Audit operation recorded when the engine completes a projection step itself. */
@@ -1655,7 +1771,8 @@ async function admitEngineStep(
     const waitingSince = stepWaitingSinceOf(row.stepDispatch);
     if (
       waitingSince !== null &&
-      Date.now() - waitingSince.getTime() >= ENGINE_STEP_WAIT_LIMIT_MS
+      Date.now() - waitingSince.getTime() >=
+        (runner.pacing?.(due.action)?.waitLimitMs ?? ENGINE_STEP_WAIT_LIMIT_MS)
     ) {
       await projectFailure(
         transaction,
@@ -1688,7 +1805,11 @@ async function admitEngineStep(
               started_at = coalesce(started_at, clock_timestamp()),
               updated_at = clock_timestamp(), version = version + 1
         where organization_id = $1 and id = $2 and status = 'pending'`,
-      [row.organizationId, row.runStepId, ENGINE_STEP_RETRY_MS],
+      [
+        row.organizationId,
+        row.runStepId,
+        runner.pacing?.(due.action)?.retryMs ?? ENGINE_STEP_RETRY_MS,
+      ],
     );
     const runUpdate = await transaction.query<{ version: number }>(
       `update bakery.workflow_runs

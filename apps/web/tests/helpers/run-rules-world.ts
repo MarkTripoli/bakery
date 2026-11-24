@@ -1,4 +1,5 @@
 /** The run page with its checks and the repository's current rules, for run-rules.spec.ts. */
+import { presetRead } from "./preset-read.ts";
 import { expect, type Page, type Route } from "@playwright/test";
 import { mockAuthenticatedSession } from "./mock-session.ts";
 
@@ -196,7 +197,7 @@ export async function openRun(page: Page, world: World = {}) {
           status: "ready",
           reasons: [],
         },
-      }]),
+      }].map(presetRead)),
     );
     await page.route(
       `**/v1/tasks/${TASK_ID}/runs`,

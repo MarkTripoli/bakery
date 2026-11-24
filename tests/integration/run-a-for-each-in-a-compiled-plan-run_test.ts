@@ -61,7 +61,7 @@ async function seedRun(fixture: WorkerFixture, max: number) {
 const CASE_A = "rev-case-a";
 const CASE_B = "rev-case-b";
 
-Deno.test("a new plan run is pinned to revision 3 and runs each item of a forEach as its own keyed step", () =>
+Deno.test("a new plan run is pinned to revision 4 and runs each item of a forEach as its own keyed step", () =>
   withWorkerFixture(async (fixture) => {
     const { seeded, repo } = await seedRun(fixture, 4);
     const pin = (await fixture.pgDatabase.query<{ revision: string }>(
@@ -69,7 +69,7 @@ Deno.test("a new plan run is pinned to revision 3 and runs each item of a forEac
          from bakery.workflow_runs where id = $1`,
       [seeded.job.runId],
     )).rows[0].revision;
-    assertEquals(pin, "3");
+    assertEquals(pin, "4");
     assertEquals(seeded.firstKey, "prepare");
 
     const next = async () =>

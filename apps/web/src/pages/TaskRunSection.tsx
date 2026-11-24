@@ -26,10 +26,10 @@ import { useConnectivity } from "../app/connectivity.ts";
 import { formatDate } from "@bakery/i18n";
 import { RouterLink } from "../app/router-link.tsx";
 import { knownCommits, ReferenceText } from "../app/ReferenceText.tsx";
+import { ReferenceLink } from "../app/ReferenceLink.tsx";
 import { TaskRunRevision } from "./TaskRunRevision.tsx";
 import { TaskRunOutput } from "./TaskRunOutput.tsx";
 import { TaskRunControls } from "./TaskRunControls.tsx";
-import { FingerprintRow } from "./FingerprintRow.tsx";
 import {
   RunRulesChangedNotice,
   RunRulesDetails,
@@ -648,14 +648,10 @@ export function TaskRunSection(
       details={validRun && run.data
         ? (
           <UI.Disclosure id="run-details" summary={t("tasks.run.details")}>
-            <FingerprintRow
-              copyFailedText={t("tasks.run.idCopyFailed")}
-              display={run.data.id.slice(0, 8)}
-              fingerprint={run.data.id}
-              label={t("tasks.run.id")}
-              noHelp
-              testId="run-id-row"
-            />
+            <UI.Text data-testid="run-id-row">
+              {t("tasks.run.id")}{" "}
+              <ReferenceLink kind="run" value={run.data.id} />
+            </UI.Text>
             {(run.data.workspaceBaseSha ?? run.data.baseSha) === null ? null : (
               // The commit the run started from: it used to show only inside
               // the Changes box, which is not drawn when nothing is recorded.
@@ -734,7 +730,9 @@ export function TaskRunSection(
         : run.isError || mismatch
         ? (
           <UI.ErrorState
-            title={t(forbidden ? "tasks.live.forbidden" : "tasks.live.error")}
+            title={t(
+              forbidden ? "tasks.live.forbidden" : "tasks.run.loadFailed",
+            )}
             action={!forbidden && (
               <UI.Button onClick={() => void run.refetch()}>
                 {t("tasks.live.retry")}

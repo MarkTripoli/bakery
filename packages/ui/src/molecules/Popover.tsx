@@ -1,5 +1,6 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   type SemanticNativeProps,
   withoutSemanticOwnerProps,
@@ -19,6 +20,7 @@ export type PopoverProps =
      * `end`, or a 360px panel hangs past the viewport edge.
      */
     align?: "start" | "end";
+    floating?: boolean;
     label: string;
     onOpenChange?: (open: boolean) => void;
     open?: boolean;
@@ -34,12 +36,16 @@ export type PopoverProps =
     variant?: "information" | "interactive";
   };
 
+const REACHABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 /** Shows compact secondary content from an explicit trigger. */
 export function Popover(
   {
     align = "start",
     children,
     defaultOpen = false,
+    floating = false,
     label,
     onOpenChange,
     open,
@@ -65,6 +71,18 @@ export function Popover(
   };
   const setOpenRef = useRef(setOpen);
   setOpenRef.current = setOpen;
+  const leavesPanel = (event: KeyboardEvent) => {
+    const content = contentRef.current;
+    const active = globalThis.document.activeElement;
+    if (!content || !active || !content.contains(active)) return false;
+    const reachable = [
+      ...content.querySelectorAll<HTMLElement>(REACHABLE),
+    ];
+    const edge = event.shiftKey
+      ? (reachable[0] ?? content)
+      : (reachable[reachable.length - 1] ?? content);
+    return active === edge || (event.shiftKey && active === content);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -72,6 +90,10 @@ export function Popover(
     const dismiss = (event: PointerEvent | KeyboardEvent) => {
       if (event instanceof KeyboardEvent) {
         if (event.key === "Escape") {
+          event.preventDefault();
+          setOpenRef.current(false);
+        }
+        if (event.key === "Tab" && floating && leavesPanel(event)) {
           event.preventDefault();
           setOpenRef.current(false);
         }
@@ -88,7 +110,65 @@ export function Popover(
       document.removeEventListener("keydown", dismiss);
       document.removeEventListener("pointerdown", dismiss);
     };
-  }, [isOpen]);
+  }, [isOpen, floating]);
+
+  const [floatingStyle, setFloatingStyle] = useState<CSSProperties>({
+    position: "fixed",
+    visibility: "hidden",
+  });
+  useEffect(() => {
+    if (!isOpen || !floating) return;
+    let frame = 0;
+    const GAP = 8;
+    const place = () => {
+      const content = contentRef.current;
+      const anchor = triggerRef.current?.getBoundingClientRect();
+      if (content && anchor) {
+        const boundaryEl = triggerRef.current?.closest(
+          "[data-popover-boundary]",
+        );
+        const edge = boundaryEl?.getBoundingClientRect();
+        const left = Math.max(edge?.left ?? 0, 0);
+        const right = Math.min(edge?.right ?? Infinity, globalThis.innerWidth);
+        const top = Math.max(edge?.top ?? 0, 0);
+        const bottom = Math.min(
+          edge?.bottom ?? Infinity,
+          globalThis.innerHeight,
+        );
+        const frameSize = content.offsetHeight - content.clientHeight;
+        const wanted = content.scrollHeight + frameSize;
+        const below = bottom - anchor.bottom - GAP;
+        const above = anchor.top - top - GAP;
+        const opensBelow = wanted <= below ||
+          (wanted > above && below >= above);
+        const room = Math.max(Math.floor(opensBelow ? below : above), 0);
+        const height = Math.min(wanted, room);
+        const width = content.offsetWidth;
+        const x = Math.min(
+          Math.max(anchor.left, left + GAP),
+          Math.max(right - width - GAP, left + GAP),
+        );
+        const y = opensBelow ? anchor.bottom + GAP : anchor.top - GAP - height;
+        setFloatingStyle((was) => {
+          const next: CSSProperties = {
+            position: "fixed",
+            left: Math.round(x),
+            top: Math.round(y),
+            maxBlockSize: room,
+            visibility: "visible",
+          };
+          return was.left === next.left && was.top === next.top &&
+              was.maxBlockSize === next.maxBlockSize &&
+              was.visibility === next.visibility
+            ? was
+            : next;
+        });
+      }
+      frame = globalThis.requestAnimationFrame(place);
+    };
+    place();
+    return () => globalThis.cancelAnimationFrame(frame);
+  }, [isOpen, floating]);
 
   /**
    * How much room the content really has, measured rather than guessed.
@@ -101,7 +181,7 @@ export function Popover(
    * is too small to be useful the content opens above its trigger instead.
    */
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || floating) return;
     const content = contentRef.current;
     if (!content) return;
     const MIN_USEFUL_ROOM = 320;
@@ -137,7 +217,30 @@ export function Popover(
       globalThis.removeEventListener("resize", place);
       globalThis.removeEventListener("scroll", place, true);
     };
-  }, [isOpen]);
+  }, [isOpen, floating]);
+
+  const panel = isOpen
+    ? (
+      <div
+        aria-label={label}
+        className={[
+          "ui-popover__content",
+          `ui-popover__content--${variant}`,
+          "nowheel",
+          "nopan",
+        ].filter(Boolean).join(" ")}
+        data-floating={floating ? "true" : undefined}
+        id={contentId}
+        ref={contentRef}
+        role="dialog"
+        style={floating ? floatingStyle : undefined}
+        tabIndex={-1}
+        {...props}
+      >
+        {children}
+      </div>
+    )
+    : null;
 
   return (
     <span
@@ -161,24 +264,7 @@ export function Popover(
       >
         {trigger}
       </button>
-      {isOpen
-        ? (
-          <div
-            aria-label={label}
-            className={[
-              "ui-popover__content",
-              `ui-popover__content--${variant}`,
-            ].filter(Boolean).join(" ")}
-            id={contentId}
-            ref={contentRef}
-            role="dialog"
-            tabIndex={-1}
-            {...props}
-          >
-            {children}
-          </div>
-        )
-        : null}
+      {floating && panel !== null ? createPortal(panel, document.body) : panel}
     </span>
   );
 }

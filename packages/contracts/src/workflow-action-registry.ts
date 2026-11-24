@@ -20,6 +20,7 @@ export const WORKFLOW_ACTION_NAMES = Object.freeze(
     "workflow.noop",
     "workflow.stop",
     "human.approval",
+    "people.tag",
     "artifact.publish",
     "memory.promote",
     "evaluation.sample",
@@ -280,6 +281,14 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
     "human.approval": metadata({
       input: "HumanApprovalInput",
       output: "HumanApprovalOutput",
+      capabilities: [],
+      cancel: "cooperative",
+      retry: { maxAttempts: 1, backoff: "0s", faults: [] },
+      effectPolicy: "none",
+    }),
+    "people.tag": metadata({
+      input: "PeopleTagInput",
+      output: "PeopleTagOutput",
       capabilities: [],
       cancel: "cooperative",
       retry: { maxAttempts: 1, backoff: "0s", faults: [] },

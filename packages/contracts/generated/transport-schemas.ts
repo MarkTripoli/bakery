@@ -3870,9 +3870,23 @@ const transportSchemas = {
           "required": false,
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
           ],
           "description": "Code-owned workflow preset this run starts; the server materializes the organization's published, digest-verified workflow version for it and builds the run inputs from the task. Exactly one of workflowVersionId, presetId and workflowId must be supplied; a preset run rejects inputs with 422 because the server builds them from the task."
+        },
+        {
+          "name": "gates",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "plan",
+            "none"
+          ],
+          "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan."
         },
         {
           "name": "workflowId",
@@ -6759,6 +6773,13 @@ const transportSchemas = {
       ],
       "description": "Cancels the conversation's active or queued coordinator turn; requires the turn's current If-Match. A queued turn is canceled immediately, while an active turn is marked cancel-requested and interrupts its session, remaining in the active slot until stopped or reconciled."
     },
+    "ConversationTurnRetry": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match required. Only a failed turn whose trigger message is still the conversation's latest message may be retried. The retry admits a new queued turn for the same trigger message, linked to the failed turn, and posts no message. Refusals: STATE_CONFLICT with reason turn_not_failed, newer_message, turn_already_retried or conversation_queue_full."
+      ],
+      "description": "Retries a failed coordinator turn without posting its message again; requires the failed turn's current If-Match. Returns the new queued turn, which runs the coordinator again as its own job."
+    },
     "SlackEvent": {
       "fields": [
         {
@@ -7479,6 +7500,72 @@ const transportSchemas = {
         "The step completes only when the plan's projection is completed. A plan that fails, is partially delivered or is canceled fails the step with a fixed code; a plan still running leaves it waiting."
       ],
       "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows."
+    },
+    "PeopleTagInput": {
+      "fields": [
+        {
+          "name": "recipientId",
+          "type": "uuid",
+          "required": false,
+          "description": "The one person to tag: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one of recipientId, recipientRoleKey, recipientGroupId and recipientRunRole."
+        },
+        {
+          "name": "recipientRoleKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "A role to tag instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs."
+        },
+        {
+          "name": "recipientGroupId",
+          "type": "uuid",
+          "required": false,
+          "description": "A group to tag instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs."
+        },
+        {
+          "name": "recipientRunRole",
+          "type": "enum(starter|task_owner)",
+          "required": false,
+          "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item."
+        },
+        {
+          "name": "intent",
+          "type": "enum(fyi|review)",
+          "required": true,
+          "description": "What the tag asks for: fyi lets the people tagged know and lets them see the run; review also gives them the right to comment on the one artifactVersionId, until the request expires."
+        },
+        {
+          "name": "artifactVersionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The artifact version of this run to review. Required for review and refused for fyi."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 280
+          },
+          "description": "Optional one line shown to the people tagged."
+        },
+        {
+          "name": "wait",
+          "type": "boolean",
+          "required": false,
+          "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back."
+        }
+      ],
+      "rules": [
+        "A step with no agent. The workflow tags on behalf of the person who started the run, who must still be able to write runs; the organization, the run and the step come from the run, never from this payload.",
+        "Name exactly one recipient. Every rule of a request made on the run holds: a recipient who cannot be resolved falls back to the person who started the run, with a visible note, and a role or group too large to ask is refused whole.",
+        "The step tags once, keyed by the run and the step, so a step looked at again finds its requests instead of tagging again.",
+        "A waiting step completes responded when anyone tagged responds, and expired when every request has expired or been withdrawn first. Nothing is approved by silence."
+      ],
+      "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
     },
     "IntegrationEffectQuery": {
       "fields": [
@@ -9206,7 +9293,7 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 8192
           },
-          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire."
+          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver, or, for a workflow with no owner such as a built-in one, the person who started the run; an empty list is refused because a step nobody can answer could only expire."
         },
         {
           "name": "approveLabel",
@@ -9334,7 +9421,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -13235,7 +13322,7 @@ const transportSchemas = {
           "description": "How many more repair tries to allow. The total a run may use never goes past 8, the most any workflow can hold, so a request that would pass it is refused and nothing changes."
         }
       ],
-      "description": "Allows a run whose review and repair loop stopped because it ran out of tries to try more, and puts the run back to work (chapter 25, one engine). It answers the stop with the repair decision it buys, which is the response. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
+      "description": "Allows a run that stopped for lack of tries to try more, and puts the run back to work (chapter 25, one engine). Two stops qualify. A review and repair loop that ran out of tries is answered with the repair decision it buys. A repeat that used its allow below its max is answered with a limit decision recorded in the decisions ledger; the repeat then runs on, never past its max, and a request for more rounds than remain is cut at max. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same repair stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
     },
     "BatchCreate": {
       "fields": [
@@ -13732,7 +13819,7 @@ const transportSchemas = {
           "name": "intent",
           "type": "enum(fyi|review|approve|answer|take_over)",
           "required": true,
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer name the questionId they concern, review names the artifactVersionId, and take_over names the stepKey; each gives the person asked the right to do that one thing, until the request expires."
         },
         {
           "name": "stepKey",
@@ -13742,7 +13829,7 @@ const transportSchemas = {
             "minLength": 1,
             "maxLength": 200
           },
-          "description": "The step the request concerns, or omitted for the run as a whole."
+          "description": "The step the request concerns, or omitted for the run as a whole. Required for take_over, which gives the right to steer and take over that one step."
         },
         {
           "name": "note",
@@ -13766,6 +13853,12 @@ const transportSchemas = {
           "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
         },
         {
+          "name": "artifactVersionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The artifact version of this run the request asks someone to review. Required for review and refused for the other intents. The person asked is given the right to comment on that one version, until the request expires."
+        },
+        {
           "name": "recipientRoleKey",
           "type": "string",
           "required": false,
@@ -13787,7 +13880,7 @@ const transportSchemas = {
         "Name exactly one recipient: recipientId, recipientRoleKey or recipientGroupId (request_recipient_required). A role or group nobody else holds is request_audience_empty, one only the asker holds is request_self, an unknown one is request_audience_not_found. One with more than 50 people to ask is refused whole with STATE_CONFLICT request_audience_too_large, and nobody is asked.",
         "An agent asks only on the run its session belongs to (AUTH_FORBIDDEN agent_ask_own_run_only) and only a role or group a live ask grant on its workflow names (agent_ask_audience_not_granted; no ask grant at all is agent_power_requires_grant, a lapsed one agent_power_grant_expired). The response is the first member's request; runRequests.list shows each member's."
       ],
-      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."
+      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve, answer, review and take_over, to do that one thing until the request ends."
     },
     "StorageFileContentQuery": {
       "fields": [
@@ -15282,6 +15375,36 @@ const transportSchemas = {
       ],
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
     },
+    "SkillUseGrantCreate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "The workflow that may use the skill again."
+        },
+        {
+          "name": "skillVersionId",
+          "type": "uuid",
+          "required": true,
+          "description": "The exact version of the skill the step names; the grant covers this version only."
+        },
+        {
+          "name": "stepPath",
+          "type": "string",
+          "required": true,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+        }
+      ],
+      "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
+    },
     "SkillActiveVersionSet": {
       "fields": [
         {
@@ -15356,6 +15479,40 @@ const transportSchemas = {
         "Skill author. Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft). The file keeps its content, type and runnable mark."
       ],
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+    },
+    "FolderGrantCreate": {
+      "fields": [
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "The member to grant on the folder. They must be an active member of the organization."
+        },
+        {
+          "name": "level",
+          "type": "enum(view|edit|manage)",
+          "required": true,
+          "description": "What the grant allows: view reads, edit also writes, manage also grants and restricts. A grant inherits downward, and a second grant to the same member changes the level."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. Only a working-area folder takes a grant: record areas, the artifacts area, personal folders, /library, /trash, /system and /connections are refused with STORAGE_AREA_REFUSED. The caller needs manage on the folder. A folder with no restricted folder at or above it is refused with STORAGE_AREA_REFUSED (409, reason folder_not_restricted); restrict it first."
+      ],
+      "description": "Grants a member view, edit or manage on one folder (chapter 25 section 17.3). It takes effect only where the folder or an ancestor is restricted, and a folder with no restricted folder at or above it cannot be granted on: restrict it first."
+    },
+    "FolderRestrictionSet": {
+      "fields": [
+        {
+          "name": "restricted",
+          "type": "boolean",
+          "required": true,
+          "description": "True to restrict the folder: what is granted above it stops reaching below it, and it is open only to members granted on it or below, and to Admins. False lifts the restriction."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. Only a working-area folder can be restricted or reopened; the same areas are refused with STORAGE_AREA_REFUSED as for grants. On a folder with no restricted folder at or above it, a member who may write in its area can restrict it and receives manage on it. Once a restricted folder is at or above it, the caller needs manage on the folder. Reopening a folder revokes the live grants on it and below it that no longer have a restricted folder at or above them. Moving, trashing or restoring a folder revokes, in the same way, the live grants in it that relied on a restricted folder above it; each of these audit rows lists the revoked grants."
+      ],
+      "description": "Restricts or reopens one folder. A restricted folder and everything under it do not exist, as far as a listing, a path or an id can tell, to a member who holds no grant inside it."
     },
     "StorageConnectionPathQuery": {
       "fields": [
@@ -22821,6 +22978,39 @@ const transportSchemas = {
         "version": "Always 1 because delivery decision rows are immutable."
       }
     },
+    "TriesAllowance": {
+      "fields": [
+        "runId",
+        "kind",
+        "addedTries",
+        "decisionId",
+        "repeatKey"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "kind": "enum(repair_loop|repeat_limit)",
+        "addedTries": "integer",
+        "decisionId": "uuid",
+        "repeatKey": "string|null"
+      },
+      "fieldBounds": {
+        "addedTries": {
+          "min": 1,
+          "max": 8
+        }
+      },
+      "nullableFields": [
+        "repeatKey"
+      ],
+      "description": "The answer to an allowance of more tries: which stop it answered, how many tries it added and the decision that records it.",
+      "fieldDescriptions": {
+        "runId": "The run that was put back to work.",
+        "kind": "Which stop the allowance answered: repair_loop for a review and repair loop that ran out of tries, repeat_limit for a repeat that used its allow below its max.",
+        "addedTries": "How many more tries or rounds were allowed. For a repeat_limit it can be fewer than asked, because a repeat never goes past its max.",
+        "decisionId": "Id of the decision that records the allowance: the repair delivery decision for repair_loop, the decisions ledger entry for repeat_limit.",
+        "repeatKey": "Step key of the repeat that was allowed more rounds, or null for repair_loop."
+      }
+    },
     "RepairTry": {
       "fields": [
         "id",
@@ -26266,7 +26456,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -26311,7 +26501,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -31414,16 +31604,18 @@ const transportSchemas = {
         "nameKey",
         "steps",
         "defaultBudgetLimitUsd",
-        "availability"
+        "availability",
+        "definition"
       ],
       "fieldTypes": {
-        "id": "enum(fixed-coding|fixed-coding-reviewed)",
+        "id": "enum(fixed-coding|fixed-coding-reviewed|deliver-oneshot|deliver-lean|deliver-full|deliver-prd)",
         "revision": "integer",
         "digest": "sha256",
         "nameKey": "string",
         "steps": "WorkflowPresetStep[]",
         "defaultBudgetLimitUsd": "decimal",
-        "availability": "WorkflowPresetAvailability|null"
+        "availability": "WorkflowPresetAvailability|null",
+        "definition": "json"
       },
       "bounds": {
         "stepsMaxItems": 100
@@ -31439,7 +31631,8 @@ const transportSchemas = {
         "nameKey": "Translation key naming the preset for display.",
         "steps": "Ordered steps the preset runs.",
         "defaultBudgetLimitUsd": "Run budget the preset applies when the caller does not supply one, in US dollars.",
-        "availability": "Availability verdict for the requested repository, or null when no repository was supplied."
+        "availability": "Availability verdict for the requested repository, or null when no repository was supplied.",
+        "definition": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
       }
     },
     "Page<WorkflowPreset>": {
@@ -33238,6 +33431,7 @@ const transportSchemas = {
         "taskId",
         "actor",
         "destination",
+        "approvalOutcome",
         "read",
         "revision",
         "createdAt"
@@ -33255,6 +33449,7 @@ const transportSchemas = {
         "taskId": "uuid|null",
         "actor": "NotificationActor|null",
         "destination": "NotificationDestination",
+        "approvalOutcome": "NotificationApprovalOutcome|null",
         "read": "boolean",
         "revision": "integer",
         "createdAt": "timestamp"
@@ -33264,7 +33459,8 @@ const transportSchemas = {
         "conversationId",
         "runId",
         "taskId",
-        "actor"
+        "actor",
+        "approvalOutcome"
       ],
       "fieldDescriptions": {
         "id": "Stable UUID identifying this notification; it addresses the item inside the recipient's own inbox and never grants access to the destination.",
@@ -33279,6 +33475,7 @@ const transportSchemas = {
         "taskId": "UUID of the task the destination lives in, or null.",
         "actor": "Who caused the event, for an avatar and a name in the sentence; null when no person caused it, such as a run that failed on its own.",
         "destination": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target.",
+        "approvalOutcome": "How the approval this item points at stands now, read from the approval at read time: open, approved, changes requested, rejected, expired or withdrawn, with who decided and when. Null when the item does not point at an approval or the recipient can no longer reach it.",
         "read": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks.",
         "revision": "Monotonic revision of this item's read state; clients discard an older response or event than the revision they already hold.",
         "createdAt": "UTC timestamp when the item entered the inbox, which is also its place in the newest-first order."
@@ -33318,6 +33515,28 @@ const transportSchemas = {
         "avatarUrl": "Absolute HTTPS URL of the person's avatar, or null to draw initials."
       },
       "description": "The person who caused a notification, reduced to the safe identity the directory already exposes: principal, display name and avatar."
+    },
+    "NotificationApprovalOutcome": {
+      "fields": [
+        "status",
+        "decidedBy",
+        "decidedAt"
+      ],
+      "fieldTypes": {
+        "status": "enum(open|approved|changes_requested|rejected|expired|withdrawn)",
+        "decidedBy": "NotificationActor|null",
+        "decidedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "decidedBy",
+        "decidedAt"
+      ],
+      "fieldDescriptions": {
+        "status": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn.",
+        "decidedBy": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it.",
+        "decidedAt": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+      },
+      "description": "The current outcome of the approval a notification points at, derived from the approval row when the inbox is read and never stored on the notification."
     },
     "NotificationDestination": {
       "fields": [
@@ -35798,6 +36017,7 @@ const transportSchemas = {
         "skillId",
         "skillVersionId",
         "revision",
+        "revisionDigest",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -35815,7 +36035,8 @@ const transportSchemas = {
         "stepPath": "string",
         "grantedBy": "uuid",
         "createdAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "revisionDigest": "string"
       },
       "nullableFields": [],
       "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both.",
@@ -35824,6 +36045,7 @@ const transportSchemas = {
         "skillId": "Stable UUID of the personal skill the grant is for.",
         "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
         "revision": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read.",
+        "revisionDigest": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read.",
         "workflowId": "Stable UUID of the workflow the skill was attached to.",
         "workflowName": "Display name of that workflow, so the owner can recognise it.",
         "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
@@ -36070,7 +36292,8 @@ const transportSchemas = {
         "updatedAt",
         "version",
         "questionId",
-        "audience"
+        "audience",
+        "artifactVersionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -36090,7 +36313,8 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "questionId": "uuid|null",
-        "audience": "RunRequestAudience|null"
+        "audience": "RunRequestAudience|null",
+        "artifactVersionId": "uuid|null"
       },
       "nullableFields": [
         "stepKey",
@@ -36099,7 +36323,8 @@ const transportSchemas = {
         "neededBy",
         "fallbackForName",
         "questionId",
-        "audience"
+        "audience",
+        "artifactVersionId"
       ],
       "description": "A request: one person asked for one thing on one run, with how it stands.",
       "fieldDescriptions": {
@@ -36120,11 +36345,13 @@ const transportSchemas = {
         "updatedAt": "UTC time it last changed.",
         "version": "Optimistic-concurrency version used as If-Match.",
         "questionId": "The approval or question the request asks about, or null when it asks for none.",
-        "audience": "The role or group this request was asked of, or null when one person was asked."
+        "audience": "The role or group this request was asked of, or null when one person was asked.",
+        "artifactVersionId": "The artifact version the request asks someone to review, or null when it asks for none."
       },
       "optionalFields": [
         "questionId",
-        "audience"
+        "audience",
+        "artifactVersionId"
       ]
     },
     "RunRequests": {
@@ -38779,6 +39006,75 @@ const transportSchemas = {
         "skillId": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill.",
         "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
         "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+      }
+    },
+    "FolderGrant": {
+      "fields": [
+        "id",
+        "folderId",
+        "principalId",
+        "level",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "folderId": "uuid",
+        "principalId": "uuid",
+        "level": "enum(view|edit|manage)",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "revokedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "revokedAt"
+      ],
+      "description": "One grant of view, edit or manage on a folder to a member.",
+      "fieldDescriptions": {
+        "id": "Stable identifier of the grant.",
+        "folderId": "The folder the grant is on.",
+        "principalId": "The member who holds it.",
+        "level": "What the grant allows.",
+        "grantedBy": "The member who granted it.",
+        "createdAt": "When it was granted.",
+        "revokedAt": "When it was revoked, or null while it is live.",
+        "version": "Optimistic concurrency counter."
+      }
+    },
+    "FolderGrantList": {
+      "fields": [
+        "items"
+      ],
+      "fieldTypes": {
+        "items": "json[]"
+      },
+      "bounds": {
+        "itemsMaxItems": 200
+      },
+      "description": "The live grants on one folder, oldest first, at most 200.",
+      "fieldDescriptions": {
+        "items": "One FolderGrant per live grant."
+      }
+    },
+    "FolderRestriction": {
+      "fields": [
+        "folderId",
+        "restricted",
+        "version"
+      ],
+      "fieldTypes": {
+        "folderId": "uuid",
+        "restricted": "boolean",
+        "version": "integer"
+      },
+      "description": "Whether a folder is restricted after the change.",
+      "fieldDescriptions": {
+        "folderId": "The folder.",
+        "restricted": "Whether it is now restricted.",
+        "version": "The folder's version after the change."
       }
     },
     "StorageConnectionMount": {

@@ -65,6 +65,15 @@ import {
   storageQueryOf,
 } from "./storage-tree.ts";
 import {
+  isOrganizationAdmin,
+  mayEditAt,
+  mayViewAt,
+} from "./folder-access-store.ts";
+import {
+  type RevokedGrant,
+  revokeGrantsNotCoveredWithin,
+} from "./folder-grants.ts";
+import {
   type EntryNow,
   planStepUndo,
   type RecordedWrite,
@@ -93,6 +102,7 @@ type Row = {
   trash_name: string | null;
   purged_at: Date | null;
   updated_at: Date;
+  restricted: boolean;
 };
 
 const COLUMN_NAMES = [
@@ -112,6 +122,7 @@ const COLUMN_NAMES = [
   "trash_name",
   "purged_at",
   "updated_at",
+  "restricted",
 ];
 const COLUMNS = COLUMN_NAMES.join(", ");
 const ENTRY_COLUMNS = COLUMN_NAMES.map((name) => "entry." + name).join(", ");
@@ -199,7 +210,23 @@ async function visibleEntry(
   if (!row || row.purged_at !== null || !isVisibleTo(area(row), principalId)) {
     notFound();
   }
+  if (!(await mayViewAt(tx, organizationId, principalId, row.id))) notFound();
+  if (
+    row.trash_parent_id !== null &&
+    !(await mayViewAt(tx, organizationId, principalId, row.trash_parent_id))
+  ) notFound();
   return row;
+}
+
+async function requireEdit(
+  tx: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  folderId: string,
+): Promise<void> {
+  if (!(await mayEditAt(tx, organizationId, principalId, folderId))) {
+    refuse("folder_view_only");
+  }
 }
 
 /** Resolves absolute path segments one by one to a live, visible entry. */
@@ -222,6 +249,9 @@ async function resolvePath(
     if (!row || row.purged_at !== null) return undefined;
     if (!isVisibleTo(area(row), principalId)) return undefined;
     parentId = row.id;
+  }
+  if (row && !(await mayViewAt(tx, organizationId, principalId, row.id))) {
+    return undefined;
   }
   return row;
 }
@@ -848,6 +878,7 @@ async function writableParent(
   if (!parent || parent.kind !== "folder") notFound();
   const refusal = writeRefusal(area(parent), principalId);
   if (refusal) refuse(refusal);
+  await requireEdit(tx, organizationId, principalId, parent.id);
   const leaf = segments[segments.length - 1];
   return { parent, name: leaf.name, nameKey: leaf.nameKey };
 }
@@ -1252,9 +1283,10 @@ async function subtreeBytes(
 async function relocateEntry(
   tx: PgTransactionClient,
   organizationId: string,
+  principalId: string,
   entry: Row,
   target: Readonly<{ parent: Row; name: string; nameKey: string }>,
-): Promise<void> {
+): Promise<RevokedGrant[]> {
   const { parent, name, nameKey } = target;
   const ids = (await subtree(tx, organizationId, entry.id)).map((row) =>
     row.id
@@ -1296,6 +1328,12 @@ async function relocateEntry(
       " where organization_id = $1 and id = $2",
     [organizationId, entry.id, parent.id, name, nameKey],
   );
+  return await revokeGrantsNotCoveredWithin(
+    tx,
+    organizationId,
+    principalId,
+    entry.id,
+  );
 }
 
 /**
@@ -1320,6 +1358,7 @@ export async function moveStorageEntry(
   if (entry.trashed_at !== null) conflict("entry_trashed");
   const refusal = changeRefusal(area(entry));
   if (refusal) refuse(refusal);
+  await requireEdit(tx, organizationId, principalId, entry.id);
   requireExpectedVersion(context, entry);
   // A move is a write in both folders: the one it leaves and the one it enters.
   await agentLeaves(tx, context, organizationId, principalId, entry);
@@ -1335,7 +1374,11 @@ export async function moveStorageEntry(
     target: parent,
     rawPath: input.destinationPath,
   });
-  await relocateEntry(tx, organizationId, entry, { parent, name, nameKey });
+  const revoked = await relocateEntry(tx, organizationId, principalId, entry, {
+    parent,
+    name,
+    nameKey,
+  });
   await assertStepWriteLimit(
     tx,
     organizationId,
@@ -1359,7 +1402,11 @@ export async function moveStorageEntry(
       previousName: entry.name,
       entryVersionBefore: Number(entry.version),
     },
-    details: { fromParentId: entry.parent_id, toParentId: parent.id },
+    details: {
+      fromParentId: entry.parent_id,
+      toParentId: parent.id,
+      revokedGrants: revoked,
+    },
   });
   return await project(tx, organizationId, entry.id);
 }
@@ -1381,6 +1428,7 @@ export async function trashStorageEntry(context: ActionContext) {
   if (entry.trashed_at !== null) conflict("entry_trashed");
   const refusal = changeRefusal(area(entry));
   if (refusal) refuse(refusal);
+  await requireEdit(tx, organizationId, principalId, entry.id);
   requireExpectedVersion(context, entry);
   const agent = await agentLeaves(
     tx,
@@ -1389,7 +1437,7 @@ export async function trashStorageEntry(context: ActionContext) {
     principalId,
     entry,
   );
-  await moveToTrash(
+  const revoked = await moveToTrash(
     tx,
     organizationId,
     entry.id,
@@ -1416,7 +1464,7 @@ export async function trashStorageEntry(context: ActionContext) {
       newVersionId: entry.current_version_id,
       entryVersionBefore: Number(entry.version),
     },
-    details: { fromParentId: entry.parent_id },
+    details: { fromParentId: entry.parent_id, revokedGrants: revoked },
   });
   return await project(tx, organizationId, entry.id);
 }
@@ -1433,14 +1481,22 @@ export async function restoreStorageEntry(context: ActionContext) {
     context.params.id ?? "",
   );
   if (entry.trashed_at === null) conflict("entry_not_trashed");
+  if (entry.trash_parent_id !== null) {
+    await requireEdit(tx, organizationId, principalId, entry.trash_parent_id);
+  }
   requireExpectedVersion(context, entry);
-  const parent = await restoreFromTrash(tx, organizationId, entry);
+  const { parent, revoked } = await restoreFromTrash(
+    tx,
+    organizationId,
+    principalId,
+    entry,
+  );
   await audit(tx, context, {
     organizationId,
     principalId,
     operation: "storageEntries.restore",
     entryId: entry.id,
-    details: { toParentId: parent.id },
+    details: { toParentId: parent.id, revokedGrants: revoked },
   });
   return await project(tx, organizationId, entry.id);
 }
@@ -1452,7 +1508,7 @@ async function moveToTrash(
   entryId: string,
   trashFolderId: string,
   principalId: string,
-): Promise<void> {
+): Promise<RevokedGrant[]> {
   await tx.query(
     "update bakery.storage_entries" +
       " set trash_parent_id = parent_id, trash_name = name, parent_id = $3," +
@@ -1460,6 +1516,12 @@ async function moveToTrash(
       " trashed_by_id = $4, version = version + 1, updated_at = now()" +
       " where organization_id = $1 and id = $2",
     [organizationId, entryId, trashFolderId, principalId],
+  );
+  return await revokeGrantsNotCoveredWithin(
+    tx,
+    organizationId,
+    principalId,
+    entryId,
   );
 }
 
@@ -1471,8 +1533,9 @@ async function moveToTrash(
 async function restoreFromTrash(
   tx: PgTransactionClient,
   organizationId: string,
+  principalId: string,
   entry: Row,
-): Promise<Row> {
+): Promise<{ parent: Row; revoked: RevokedGrant[] }> {
   const parent = entry.trash_parent_id === null
     ? undefined
     : await lockEntry(tx, organizationId, entry.trash_parent_id);
@@ -1496,7 +1559,13 @@ async function restoreFromTrash(
       " where organization_id = $1 and id = $2",
     [organizationId, entry.id, parent.id, name, nameKey],
   );
-  return parent;
+  const revoked = await revokeGrantsNotCoveredWithin(
+    tx,
+    organizationId,
+    principalId,
+    entry.id,
+  );
+  return { parent, revoked };
 }
 
 /**
@@ -1578,7 +1647,25 @@ export function createTrashLister(secret: string) {
       limit + 1,
     ]);
     const rows = found.rows.slice(0, limit);
-    const items = rows.map((row) => entryView(row, row.original_folder_path));
+    const admin = await isOrganizationAdmin(tx, organizationId, principalId);
+    const listed = [];
+    for (const row of rows) {
+      const parentVisible = row.trash_parent_id === null ||
+        await mayViewAt(
+          tx,
+          organizationId,
+          principalId,
+          row.trash_parent_id,
+          admin,
+        );
+      if (
+        parentVisible &&
+        await mayViewAt(tx, organizationId, principalId, row.id, admin)
+      ) {
+        listed.push(row);
+      }
+    }
+    const items = listed.map((row) => entryView(row, row.original_folder_path));
     const last = rows.at(-1);
     return {
       items,
@@ -1937,18 +2024,19 @@ export async function revertStepWrites(
     if (!entry) notFound();
     let details: Record<string, unknown> = {};
     switch (step.action) {
-      case UndoAction.Trash:
-        if (entry.trashed_at === null) {
-          await moveToTrash(
+      case UndoAction.Trash: {
+        const revoked = entry.trashed_at === null
+          ? await moveToTrash(
             tx,
             organizationId,
             entry.id,
             top.get("trash")!,
             principalId,
-          );
-        }
-        details = { fromParentId: entry.parent_id };
+          )
+          : [];
+        details = { fromParentId: entry.parent_id, revokedGrants: revoked };
         break;
+      }
       case UndoAction.SetVersion:
         await tx.query(
           "update bakery.storage_entries" +
@@ -1968,17 +2056,28 @@ export async function revertStepWrites(
           conflict("restore_parent_gone");
         }
         const { name, nameKey } = normalizeEntryName(step.name!);
-        await relocateEntry(tx, organizationId, entry, {
-          parent,
-          name,
-          nameKey,
-        });
-        details = { fromParentId: entry.parent_id, toParentId: parent.id };
+        const revoked = await relocateEntry(
+          tx,
+          organizationId,
+          principalId,
+          entry,
+          { parent, name, nameKey },
+        );
+        details = {
+          fromParentId: entry.parent_id,
+          toParentId: parent.id,
+          revokedGrants: revoked,
+        };
         break;
       }
       case UndoAction.Restore: {
-        const parent = await restoreFromTrash(tx, organizationId, entry);
-        details = { toParentId: parent.id };
+        const { parent, revoked } = await restoreFromTrash(
+          tx,
+          organizationId,
+          principalId,
+          entry,
+        );
+        details = { toParentId: parent.id, revokedGrants: revoked };
         break;
       }
     }

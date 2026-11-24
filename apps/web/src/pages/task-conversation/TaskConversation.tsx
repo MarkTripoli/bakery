@@ -546,7 +546,6 @@ export function TaskConversation(
     repository.data
       ? `${repository.data.owner}/${repository.data.name}`
       : undefined,
-    t("tasks.conversation.subtitle.preset"),
   ].filter((part) => part !== undefined).join(" · ");
   const reference = references?.[task.id] ?? task.id.slice(0, 8);
   const coordinationLink = (coordination.data?.items.length ?? 0) > 0;

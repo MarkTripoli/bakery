@@ -30,6 +30,15 @@ for (
     const row = (page: Page, number: number) =>
       page.locator(`[data-issue-id="${uuid(number)}"]`);
 
+    test("an address that names a repository opens on it, still on Can start", async ({ page }) => {
+      await issuesFixture(page, { secondSource: true });
+      await page.goto(`/issues?repository=${uuid(903)}`);
+      await expect(page.getByLabel("Repository").locator("option:checked"))
+        .toHaveText("acme/web");
+      await expect(page.getByRole("radio", { name: "Can start" }))
+        .toBeChecked();
+    });
+
     test("shows only what can start by default, and everything open under All open, each row with one status and one reason", async ({ page }) => {
       await issuesFixture(page);
       await page.goto("/issues");

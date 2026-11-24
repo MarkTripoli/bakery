@@ -864,6 +864,13 @@
       ]
     },
     {
+      "id": "ui.canvasFrame.contract.desktop-light-fine",
+      "catalogId": "ui.canvasFrame",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-canvasframe--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.capabilityList.contract.desktop-light-fine",
       "catalogId": "ui.capabilityList",
       "requiredCaseId": "contract",
@@ -878,10 +885,31 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.outlineRow.contract.desktop-light-fine",
+      "catalogId": "ui.outlineRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-outlinerow--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.outlineList.contract.desktop-light-fine",
+      "catalogId": "ui.outlineList",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-outlinelist--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.reference.contract.desktop-light-fine",
       "catalogId": "ui.reference",
       "requiredCaseId": "contract",
       "storyId": "bakery-molecules-reference--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.stepGroup.contract.desktop-light-fine",
+      "catalogId": "ui.stepGroup",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stepgroup--contract",
       "context": "desktop-light-fine"
     },
     {
@@ -2177,6 +2205,13 @@
       "catalogId": "ui.skeleton",
       "requiredCaseId": "contract",
       "storyId": "bakery-atoms-skeleton--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.spinner.contract.desktop-light-fine",
+      "catalogId": "ui.spinner",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-spinner--contract",
       "context": "desktop-light-fine"
     },
     {
