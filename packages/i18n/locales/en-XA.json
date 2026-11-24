@@ -6665,5 +6665,7 @@
   "issues.settings.workflow.none": "⟦Ñô ŵôŕķƒļôŵ ŧ⟧",
   "issues.settings.workflow.noneHint": "⟦Þëôþļë çĥôôšë à ŵôŕķƒļôŵ ëàçĥ ŧïɱë ŧĥëÿ šŧàŕŧ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "issues.settings.automatic.needsWorkflow": "⟦Šŧàŕŧ àûŧôɱàŧïçàļļÿ ñëëðš à ŵôŕķƒļôŵ. Çĥôôšë ôñë àƀôṽë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "issues.settings.automatic.turnedOff": "⟦Šŧàŕŧ àûŧôɱàŧïçàļļÿ ŵàš ŧûŕñëð ôƒƒ ƀëçàûšë ñô ŵôŕķƒļôŵ ïš çĥôšëñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
+  "issues.settings.automatic.turnedOff": "⟦Šŧàŕŧ àûŧôɱàŧïçàļļÿ ŵàš ŧûŕñëð ôƒƒ ƀëçàûšë ñô ŵôŕķƒļôŵ ïš çĥôšëñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "problems.STORAGE_PROVIDER_UNAVAILABLE.title": "⟦Ñô šŧôŕàĝë þŕôṽïðëŕ ŧëšŧ⟧",
+  "problems.STORAGE_PROVIDER_UNAVAILABLE.description": "⟦Ŧĥïš çôññëçŧïôñ'š þŕôṽïðëŕ çàññôŧ šëŕṽë ƒïļëš ĥëŕë ÿëŧ, šô ïŧš šŧôŕàĝë çàññôŧ ƀë ƀŕôŵšëð, šÿñçëð ôŕ ŵŕïŧŧëñ ŧô. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧"
 }

@@ -6665,5 +6665,7 @@
   "issues.settings.workflow.none": "⟪No workflow⟫",
   "issues.settings.workflow.noneHint": "⟪People choose a workflow each time they start work.⟫",
   "issues.settings.automatic.needsWorkflow": "⟪Start automatically needs a workflow. Choose one above.⟫",
-  "issues.settings.automatic.turnedOff": "⟪Start automatically was turned off because no workflow is chosen.⟫"
+  "issues.settings.automatic.turnedOff": "⟪Start automatically was turned off because no workflow is chosen.⟫",
+  "problems.STORAGE_PROVIDER_UNAVAILABLE.title": "⟪No storage provider⟫",
+  "problems.STORAGE_PROVIDER_UNAVAILABLE.description": "⟪This connection's provider cannot serve files here yet, so its storage cannot be browsed, synced or written to.⟫"
 }

@@ -1,6 +1,7 @@
 import type { BudgetRuntimeConfig, InngestRuntimeConfig } from "@bakery/config";
 import type { EngineStepRunner } from "../workflow-adapter/engine-steps.ts";
 import type { PgDatabase } from "@bakery/persistence";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { Inngest } from "inngest";
 import { serve } from "inngest/hono";
 import {
@@ -28,6 +29,11 @@ import {
 import { createIntegrationIntakeRetention } from "../integrations/intake-retention.ts";
 import { createBlobUploadReaper } from "../knowledge/blob-upload-reaper.ts";
 import { createStorageRetentionReaper } from "../knowledge/storage-retention-reaper.ts";
+import {
+  createStorageConnectionSyncWorkflow,
+  createStorageExportWorkflow,
+  defaultStorageConnections,
+} from "../knowledge/storage-connections.ts";
 import { createProviderProbeWorkflow } from "./provider-probe.ts";
 import {
   createIntegrationIntakeRecovery,
@@ -137,7 +143,15 @@ export function createDefaultInngestFunctions(options: {
   coordinatorExecutor?: CoordinatorTurnExecutor;
   /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
   engineSteps?: EngineStepRunner;
+  storageLocalRoot?: string;
+  storageBlobStore?: OrganizationBlobStore;
 }): readonly unknown[] {
+  const storage = defaultStorageConnections({
+    storageLocalRoot: options.storageLocalRoot,
+    ...(options.storageBlobStore === undefined
+      ? {}
+      : { blobStore: options.storageBlobStore }),
+  });
   const coordinatorExecutor = options.coordinatorExecutor ??
     readCoordinatorExecutor(readCoordinatorEnv(), {
       database: options.database,
@@ -230,6 +244,16 @@ export function createDefaultInngestFunctions(options: {
         createStorageRetentionReaper({
           client: options.client,
           database: options.database,
+        }),
+        createStorageConnectionSyncWorkflow({
+          client: options.client,
+          database: options.database,
+          storage,
+        }),
+        createStorageExportWorkflow({
+          client: options.client,
+          database: options.database,
+          storage,
         }),
         createIntegrationFactSweep({
           client: options.client,
@@ -356,6 +380,8 @@ export function createInngestHttpHandler(options: {
   ticketNoteWriter?: TicketNoteWriter;
   ticketLabelWriter?: TicketLabelWriter;
   engineSteps?: EngineStepRunner;
+  storageLocalRoot?: string;
+  storageBlobStore?: OrganizationBlobStore;
 }): (context: unknown) => Promise<Response> {
   const client = (options.client ?? new Inngest({
     id: "bakery-server",
@@ -376,6 +402,8 @@ export function createInngestHttpHandler(options: {
         ticketNoteWriter: options.ticketNoteWriter,
         ticketLabelWriter: options.ticketLabelWriter,
         engineSteps: options.engineSteps,
+        storageLocalRoot: options.storageLocalRoot,
+        storageBlobStore: options.storageBlobStore,
       })
       : [])) as ServeOptions["functions"];
   const officialHandler = serve({

@@ -44,7 +44,7 @@ import { readsOnlyInputs } from "@bakery/contracts/workflow-compiler";
  * reopens storage for it; every other step keeps all it was granted.
  */
 export function grantedScopesForStep(
-  files: ResolvedStepFiles,
+  files: Pick<ResolvedStepFiles, "read" | "write">,
   granted: readonly OperationScope[],
 ): readonly OperationScope[] {
   return readsOnlyInputs({ read: [...files.read], write: [...files.write] })
