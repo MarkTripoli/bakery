@@ -27,6 +27,8 @@ export type PageHeaderProps = {
   description?: ReactNode;
   /** `split` only: right-aligned summary, such as a status and counts. */
   summary?: ReactNode;
+  actionsLayout?: "stack" | "row";
+  aside?: ReactNode;
   /**
    * `list` only: no inline inset, so the title, its line and anything under
    * them start at the same left edge as the section headings and field labels
@@ -40,6 +42,8 @@ export type PageHeaderProps = {
 export function PageHeader(
   {
     actions,
+    actionsLayout = "stack",
+    aside,
     description,
     flush,
     meta,
@@ -55,6 +59,7 @@ export function PageHeader(
       <div
         className={`bakery-page-header bakery-page-header--${variant}`}
         data-state="default"
+        data-aside={variant === "list" && aside ? "true" : undefined}
         data-flush={variant === "list" && flush ? "true" : undefined}
         data-ui-component="pageHeader"
         data-variant={variant}
@@ -70,11 +75,21 @@ export function PageHeader(
               : <p className="bakery-page-header__subtitle">{subtitle}</p>
             : null}
         </div>
+        {variant === "list" && aside
+          ? <div className="bakery-page-header__aside">{aside}</div>
+          : null}
         {summary
           ? <div className="bakery-page-header__summary">{summary}</div>
           : null}
         {variant === "list" && actions
-          ? <div className="bakery-page-header__actions">{actions}</div>
+          ? (
+            <div
+              className="bakery-page-header__actions"
+              data-layout={actionsLayout}
+            >
+              {actions}
+            </div>
+          )
           : null}
       </div>
     );

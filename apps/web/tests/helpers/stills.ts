@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import { canvasSettled } from "./canvas-settled.ts";
 
 /**
  * Evidence stills for a pull request: when BAKERY_STILLS_DIR is set, the page
@@ -65,6 +66,7 @@ export async function still(
     // the window is not scrolled as a whole, the app shell is.
     await options.scrollTo.scrollIntoViewIfNeeded();
   }
+  await canvasSettled(page);
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     // The logo picks its art after a theme change (observer, render, image
@@ -78,6 +80,7 @@ export async function still(
         ),
       scheme,
     );
+    await canvasSettled(page);
     const path = `${directory}/${name}-${
       phone ? "phone" : "desktop"
     }-${scheme}.png`;
@@ -88,5 +91,29 @@ export async function still(
         path,
       });
     }
+  }
+}
+
+export async function windowStill(page: Page, name: string): Promise<void> {
+  const directory = process.env.BAKERY_EVIDENCE_DIR ??
+    process.env.BAKERY_STILLS_DIR;
+  if (directory === undefined || directory === "") return;
+  const phone = (page.viewportSize()?.width ?? 1280) <= 743;
+  await canvasSettled(page);
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.waitForFunction(
+      (expected) =>
+        Array.from(document.querySelectorAll("img[data-logo-variant]")).every(
+          (image) =>
+            image instanceof HTMLImageElement && image.complete &&
+            image.dataset.logoVariant?.endsWith(expected),
+        ),
+      scheme,
+    );
+    await canvasSettled(page);
+    await page.screenshot({
+      path: `${directory}/${name}-${phone ? "phone" : "desktop"}-${scheme}.png`,
+    });
   }
 }
