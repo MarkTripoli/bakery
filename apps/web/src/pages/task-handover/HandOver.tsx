@@ -10,6 +10,7 @@ import {
   storageFileAtVersionQueryOptions,
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
+import { failureStatus } from "../../app/async-state.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
 import { stepTitle } from "../task-timeline.ts";
@@ -132,14 +133,12 @@ export function HandOver(
       ? "failed"
       : "ok"
     : manifest.isError
-    ? notFound(manifest.error) ? "gone" : "failed"
+    ? failureStatus(manifest.error) === 404 ? "gone" : "failed"
     : manifest.fetchStatus === "paused"
     ? "offline"
     : "ok";
-  const held = useRef<ReadState>("ok");
   const rereading = manifest.isPending && tries > 0;
-  if (!rereading) held.current = settledState;
-  const readState = rereading ? held.current : settledState;
+  const readState = rereading ? "failed" : settledState;
   const way: CarryOn | null = manifest.data && view
     ? carryOn(manifest.data, view)
     : null;
@@ -266,11 +265,6 @@ export function HandOver(
 }
 
 type ReadState = "ok" | "gone" | "failed" | "offline";
-
-function notFound(error: unknown): boolean {
-  const failure = error as { kind?: string; problem?: { status: number } };
-  return failure?.kind === "problem" && failure.problem?.status === 404;
-}
 
 function Card(
   {
