@@ -3132,8 +3132,10 @@ test("an expired approval hides Start a run, and Approve again brings it back", 
     .toHaveCount(0);
   await showPlan(page);
   await expect(plan(page)).toContainText("Approval expired");
+  await still(page, "task-plan-approval-expired");
   await page.getByRole("button", { name: "Approve again" }).click();
   await expect(page.locator('[data-ui-region="start-run"]')).toBeVisible();
+  await still(page, "task-plan-approved-again");
   await expect(page.getByRole("button", { name: "Start run", exact: true }))
     .toBeVisible();
 });
@@ -3161,6 +3163,16 @@ test("a Start run press that beats the expiry says the approval expired", async 
   await page.route(`**/v1/tasks/${taskId}/runs`, (route) => {
     if (route.request().method() !== "POST") return route.fallback();
     runs.push(route.request().postDataJSON());
+    state.approvals = [
+      approval(3, {
+        status: "expired",
+        decision: "approve",
+        decidedBy: principalId,
+        decidedAt: stamp(13),
+        expiresAt: new Date(Date.parse(stamp(12)) + 7 * 86_400_000)
+          .toISOString(),
+      }),
+    ];
     return route.fulfill({
       status: 409,
       contentType: "application/problem+json",
@@ -3190,6 +3202,18 @@ test("a Start run press that beats the expiry says the approval expired", async 
   ).toBeVisible();
   await expect(page.getByText(/Check the setup below/)).toHaveCount(0);
   expect(runs).toHaveLength(1);
+  await page.reload();
+  await expect(
+    page.getByText(
+      "This approval expired, so the run did not start. Approve the plan again, then start the run.",
+    ),
+  ).toBeVisible();
+  await expect(page.locator('[data-ui-region="start-run"]')).toContainText(
+    "This approval expired",
+  );
+  await expect(page.getByRole("button", { name: "Start run", exact: true }))
+    .toHaveCount(0);
+  await still(page, "task-start-run-approval-expired");
 });
 
 test("still: Start run pressed with a requirement missing", async ({ page }) => {

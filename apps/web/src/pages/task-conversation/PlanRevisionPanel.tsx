@@ -204,7 +204,7 @@ export function usePlanRevision(
         </UI.InlineNotice>
       )}
       {!approvalOpen && status === "proposed" && decided === null &&
-        !paused && refusal === null && (
+        !paused && refusal === null && expired === null && (
         <UI.InlineNotice tone="neutral">
           {t("tasks.conversation.plan.noApproval")}
         </UI.InlineNotice>
