@@ -35542,7 +35542,7 @@ export const clientManifest = {
         "level"
       ],
       "additionalProperties": false,
-      "description": "Grants a member view, edit or manage on one folder (chapter 25 section 17.3). It matters only where the folder or an ancestor is restricted: an unrestricted folder keeps the access its area gives every member."
+      "description": "Grants a member view, edit or manage on one folder (chapter 25 section 17.3). It takes effect only where the folder or an ancestor is restricted, and a folder with no restricted folder at or above it cannot be granted on: restrict it first."
     },
     "FolderRestrictionSet": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

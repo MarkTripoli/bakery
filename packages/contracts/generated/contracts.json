@@ -91443,7 +91443,7 @@
             "level"
           ],
           "additionalProperties": false,
-          "description": "Grants a member view, edit or manage on one folder (chapter 25 section 17.3). It matters only where the folder or an ancestor is restricted: an unrestricted folder keeps the access its area gives every member."
+          "description": "Grants a member view, edit or manage on one folder (chapter 25 section 17.3). It takes effect only where the folder or an ancestor is restricted, and a folder with no restricted folder at or above it cannot be granted on: restrict it first."
         },
         "FolderRestrictionSet": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -296712,7 +296712,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:183bcd5be896f4dd3772ce15c8c5ef958c5372d6c702dacd9a3d211a1f92dac7",
+  "compatibilityDigest": "sha256:8a3dfab996675d5f55accdb7a77f92bc23e72528b93f486d3617cad780b233d1",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -330666,7 +330666,7 @@
         "level"
       ],
       "additionalProperties": false,
-      "description": "Grants a member view, edit or manage on one folder (chapter 25 section 17.3). It matters only where the folder or an ancestor is restricted: an unrestricted folder keeps the access its area gives every member."
+      "description": "Grants a member view, edit or manage on one folder (chapter 25 section 17.3). It takes effect only where the folder or an ancestor is restricted, and a folder with no restricted folder at or above it cannot be granted on: restrict it first."
     },
     "FolderRestrictionSet": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
