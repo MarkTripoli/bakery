@@ -471,9 +471,9 @@ Deno.test("a workflow the repository set is not a change, and a different choice
   );
 });
 
-Deno.test("the plan sentences show an ellipsis for a value not yet given", () => {
+Deno.test("the plan values mark what is not yet given: no repository is null, the rest an ellipsis", () => {
   const empty = planValues(START_DEFAULTS, null, "en");
-  assertEquals(empty.repository, "…");
+  assertEquals(empty.repository, null);
   assertEquals(empty.spend, "…");
   assertEquals(empty.issues, "5");
   const full = planValues(

@@ -767,12 +767,14 @@ export function planValues(
   form: StartForm,
   repositoryName: string | null,
   locale: string,
-): Record<"repository" | "issues" | "hours" | "spend" | "mode", string> {
+): Record<"issues" | "hours" | "spend" | "mode", string> & {
+  repository: string | null;
+} {
   const issues = wholeIn(form.maxIssues, LIMITS.issues.min, LIMITS.issues.max);
   const hours = wholeIn(form.maxHours, LIMITS.hours.min, LIMITS.hours.max);
   const spend = parseSpend(form.maxSpend);
   return {
-    repository: repositoryName ?? "…",
+    repository: repositoryName,
     issues: issues === null ? "…" : String(issues),
     hours: hours === null ? "…" : String(hours),
     spend: spend === null ? "…" : formatDollars(spend, locale),

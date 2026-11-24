@@ -6775,5 +6775,6 @@
   "batches.start.summary.stopSpend": "⟦Šŧôþ šŧàŕŧïñĝ ñëŵ ïššûëš ôñçë {spend} ïš šþëñŧ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "batches.start.summary.stopNone": "⟦Çĥôôšë ŵĥëñ ŧĥë ƀàŧçĥ šŧôþš. ŧëšŧ çô⟧",
   "batches.start.summary.modeNone": "⟦Çĥôôšë ŵĥàŧ ĥàþþëñš àƒŧëŕ ëàçĥ ɱëŕĝë. ŧëšŧ çôþÿŧ⟧",
-  "batches.start.error.workflowRequired": "⟦Çĥôôšë à ŵôŕķƒļôŵ ƒïŕšŧ. ŧëšŧ ç⟧"
+  "batches.start.error.workflowRequired": "⟦Çĥôôšë à ŵôŕķƒļôŵ ƒïŕšŧ. ŧëšŧ ç⟧",
+  "batches.start.summary.workNoRepository": "⟦Ŵôŕķ ŧĥŕôûĝĥ ŕëàðÿ ïššûëš ôñë àŧ à ŧïɱë. ŧëšŧ çôþÿ ŧ⟧"
 }

@@ -6576,6 +6576,7 @@
   "batches.start.mode.askFirstHelp": "The batch waits until someone says yes to the next issue.",
   "batches.start.summary.title": "What this batch will do",
   "batches.start.summary.work": "Work through ready issues in {repository}, one at a time.",
+  "batches.start.summary.workNoRepository": "Work through ready issues one at a time.",
   "batches.start.summary.workflow": "Each issue runs {workflow}.",
   "batches.start.summary.workflowUnset": "Each issue runs the workflow you choose.",
   "batches.start.summary.workFrom": "Work through ready issues in {repository}, one at a time, starting with {number}.",

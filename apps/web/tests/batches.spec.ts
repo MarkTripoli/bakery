@@ -370,6 +370,10 @@ for (
       await page.getByLabel("Time").fill("0");
       await page.getByRole("button", { name: "Start batch" }).click();
       await expect(page.getByText("Choose a repository.")).toBeVisible();
+      await expect(page.getByTestId("batch-plan")).toContainText(
+        "Work through ready issues one at a time.",
+      );
+      await expect(page.getByTestId("batch-plan")).not.toContainText("…");
       await expect(page.getByText("Choose a workflow first.")).toBeVisible();
       await expect(page.getByText("Use a number from 1 to 20.")).toBeVisible();
       await expect(page.getByText("Use 1 to 24 hours.")).toBeVisible();

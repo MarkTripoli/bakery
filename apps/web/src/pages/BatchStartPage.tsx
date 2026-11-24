@@ -464,7 +464,11 @@ export function BatchStartPage() {
                   {translate("batches.start.summary.title" as never)}
                 </UI.Heading>
                 <UI.Text>
-                  {view !== null && view.issues[0] !== undefined
+                  {plan.repository === null
+                    ? translate(
+                      "batches.start.summary.workNoRepository" as never,
+                    )
+                    : view !== null && view.issues[0] !== undefined
                     ? translate("batches.start.summary.workFrom" as never, {
                       repository: plan.repository,
                       number: `#${view.issues[0].number}`,
