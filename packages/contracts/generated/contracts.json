@@ -4332,18 +4332,14 @@
       "method": "GET",
       "path": "/v1/desktop/update",
       "action": "desktopUpdates.get",
-      "access": "Authenticated",
-      "permission": "identity:read",
+      "access": "Public",
+      "permission": null,
       "input": "DesktopUpdateQuery",
       "output": "DesktopUpdate",
       "event": "",
       "mcp": "",
       "idempotency": "read",
       "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_INVALID",
-        "AUTH_EXPIRED",
-        "AUTH_FORBIDDEN",
         "MALFORMED_REQUEST",
         "RESOURCE_NOT_FOUND"
       ],
@@ -28573,10 +28569,10 @@
               "description": "Malformed request (MALFORMED_REQUEST)."
             },
             "401": {
-              "description": "Authentication required (AUTH_REQUIRED, AUTH_INVALID, AUTH_EXPIRED)."
+              "description": "Authentication required."
             },
             "403": {
-              "description": "Forbidden (AUTH_FORBIDDEN)."
+              "description": "Forbidden."
             },
             "404": {
               "description": "Resource not found (RESOURCE_NOT_FOUND)."
@@ -298737,7 +298733,6 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:8f7149bdf5318b58ffe62a720f4cecdee8e7ea7eedd0a307c22b2e61e2a41c59",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
