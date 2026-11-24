@@ -10,7 +10,6 @@ export type UsageOptions = {
   empty?: boolean;
   /** Someone who may not see Usage: the server answers 403. */
   forbidden?: boolean;
-  /** A second Anthropic row on another billing route, as the server returns one row per route. */
   twoRoutes?: boolean;
 };
 

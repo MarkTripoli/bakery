@@ -353,6 +353,9 @@
   overflow: hidden;
   position: absolute;
 }
+.ui-data-table tbody th {
+  font: inherit;
+}
 .ui-data-table th,
 .ui-data-table td {
   border-block-end: var(--border-default) solid var(--color-border);

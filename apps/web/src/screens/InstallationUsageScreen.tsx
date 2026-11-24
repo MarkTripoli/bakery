@@ -323,6 +323,7 @@ export function InstallationUsageScreen(
                     label: translate("installation.usage.confirmed.label"),
                     text: translate("installation.usage.confirmed.help"),
                   }}
+                  aria-label={translate("installation.usage.confirmed.label")}
                   label={translate("installation.usage.confirmed.label")}
                   value={confirmed.noReceipts || summary === null
                     ? "\u2014"
@@ -336,6 +337,7 @@ export function InstallationUsageScreen(
                     label: translate("installation.usage.unverified.label"),
                     text: translate("installation.usage.unverified.help"),
                   }}
+                  aria-label={translate("installation.usage.unverified.label")}
                   label={translate("installation.usage.unverified.label")}
                   value={summary ? money(summary.unverifiedCostUsd) : "\u2014"}
                 />
@@ -345,6 +347,9 @@ export function InstallationUsageScreen(
                     label: translate("installation.usage.unknownCount.label"),
                     text: translate("installation.usage.unknownCount.help"),
                   }}
+                  aria-label={translate(
+                    "installation.usage.unknownCount.label",
+                  )}
                   label={translate("installation.usage.unknownCount.label")}
                   value={summary ? records(summary.unknownCount) : "\u2014"}
                 />
@@ -379,12 +384,13 @@ export function InstallationUsageScreen(
 
 /** Money in the page's words: an amount under a cent reads "Less than $0.01", never "$0.00". */
 function useMoney(): (amount: string) => string {
-  const { translate } = useI18n();
+  const { translate, locale } = useI18n();
   return (amount) =>
     usd(
       amount,
       (smallest) =>
         translate("installation.usage.lessThanCent", { amount: smallest }),
+      locale,
     );
 }
 
@@ -405,6 +411,7 @@ function UsageProviderTable({ rows }: { readonly rows: ProviderRow[] }) {
   const columns: UI.DataTableColumn<ProviderRow>[] = [
     {
       id: "provider",
+      rowHeader: true,
       header: translate("installation.usage.byProvider.provider"),
       cell: (row) => (
         <UI.Stack gap="none">

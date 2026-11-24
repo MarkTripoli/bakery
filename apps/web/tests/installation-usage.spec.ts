@@ -71,6 +71,21 @@ for (
       await expect(menu.getByText("Google", { exact: true })).toBeVisible();
     });
 
+    test("each figure is a named group and Total is a row header", async ({ page }) => {
+      await usageFixture(page);
+      await page.goto("/installation/usage");
+      await expect(page.getByRole("heading", { name: "By provider" }))
+        .toBeVisible();
+      await expect(page.getByRole("region", { name: "Confirmed cost" }))
+        .toBeVisible();
+      if (viewport.name === "desktop") {
+        await expect(page.getByRole("rowheader", { name: "Total" }))
+          .toBeVisible();
+        await expect(page.getByRole("rowheader", { name: "Anthropic" }))
+          .toBeVisible();
+      }
+    });
+
     test("a partial total says how many records are unconfirmed and how many have no cost", async ({ page }) => {
       await usageFixture(page);
       await page.goto("/installation/usage");
