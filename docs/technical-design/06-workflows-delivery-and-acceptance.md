@@ -279,7 +279,7 @@ Workflow = {apiVersion, kind, inputs?, limits?, agents?: {<action>: uuid}, cance
 Node = Action | Branch | Repeat | Wait | Sequence | Parallel
 Action  = {id, uses, needs?, if?, with?, requires?, checks?, limits?, timeout?, retry?, effectKey?}
 Branch  = {id, needs?, if?, branch: {when, then: Node[], else?: Node[], outputs?: {<name>: {then?: Value, else?: Value}}}}
-Repeat  = {id, needs?, if?, repeat: {max: integer 1..8, seed: Seed, until: Expression, steps: Node[], outputs: {currentCandidate: Value}}}
+Repeat  = {id, needs?, if?, repeat: {max: integer 1..8, min?: integer 1..max, allow?: integer min..max, seed: Seed, until: Expression, steps: Node[], outputs: {currentCandidate: Value}}}
 Seed    = {currentCandidate: Value} | {steps: Node[], outputs: {currentCandidate: Value}}
 Wait    = {id, needs?, if?, wait: {duration} | {event, timeout}}
 Sequence = {id, needs?, if?, steps: Node[]}
@@ -332,9 +332,13 @@ they cannot invoke an action or read a secret.
   bounded backoff, and named retryable fault codes. No unbounded retry or loop
   is valid.
 - `repeat.max` is an integer from 1 through 8 and is also bounded by the
-  workflow's repair-cycle policy. A repeat terminates with exactly one outcome:
-  `completed`, `exhausted`, `canceled`, `failed`, or `timed_out`; `exhausted`
-  cannot satisfy a delivery gate.
+  workflow's repair-cycle policy. `repeat.min` (1..max) is the number of rounds
+  that run even when `until` already holds; `until` is not asked before round
+  `min`. `repeat.allow` (min..max) is a soft cap: a loop that uses it below `max`
+  with `until` still false pauses the run, and no allowance goes past `max`.
+  Interpreter revision 4 honors both; earlier revisions ignore them. A repeat
+  terminates with exactly one outcome: `completed`, `exhausted`, `canceled`,
+  `failed`, or `timed_out`; `exhausted` cannot satisfy a delivery gate.
 - `if` and `until` must evaluate to a boolean. A missing path is invalid unless
   the schema declares it optional; an optional missing value is `null`, never
   false or an empty string.
@@ -358,12 +362,12 @@ they cannot invoke an action or read a secret.
 - External effects require `effectKey`; the action records pending, confirmed,
   or unknown outcome in `external_effects` and reconciles before retrying.
 
-`repeat.until` is checked before the first iteration and after each completed
-iteration. The repeat maintains `currentCandidate` as its accumulator: the
-typed `repeat.seed` initializes it, and `repeat.outputs` is validated and
-applied only after every nested step completes successfully. If the seed
-already satisfies `until`, the repeat performs zero iterations and returns the
-seed unchanged. The default condition requires both zero blocking review
+`repeat.until` is asked from round `min` on (before the first iteration when
+`min` is absent) and after each completed iteration. The repeat maintains
+`currentCandidate` as its accumulator: the typed `repeat.seed` initializes it,
+and `repeat.outputs` is validated and applied only after every nested step
+completes successfully. If the seed already satisfies `until` and `min` is
+absent, the repeat performs zero iterations and returns the seed unchanged. The default condition requires both zero blocking review
 findings and passing required checks, so a clean review with failed checks
 enters repair using its failed-check evidence. A failed, canceled, or timed-out
 iteration leaves the prior accumulator intact and returns that outcome. A repeat returns
@@ -875,6 +879,7 @@ key in the effect ledger is not a compiler concern.
 | Definition | 100,000 bytes; JSON depth 64; 20,000 values; number token 64 characters |
 | Nodes | depth 8; 200 authored; 1,000 expanded steps; 8 lanes |
 | `repeat.max` | 1..8, and at most `limits.maxRepairCycles` |
+| `repeat.min`, `repeat.allow` | optional; `1 <= min <= allow <= max` (`repeat_min_invalid`, `repeat_allow_invalid`); worst-case counting still uses `max` |
 | Durations | units `ms`, `s`, `m`, `h`, `d`; action `timeout`, `limits.maxDuration`, `wait.duration`, `wait.timeout`, `limits.wallClock` are 1s..24h (`duration_invalid` below, `timeout_exceeds_ceiling` above); `retry.backoff` 0s..1h |
 | Defaults | action `timeout` 30m capped by `limits.maxDuration`; `retry` `{maxAttempts: 1, backoff: 0, on: []}`; `limits.wallClock` 24h; `limits.maxAttempts` 1000 |
 | Retry | `maxAttempts` bounded by the registry entry; `on` is a subset of the registry faults |

@@ -1620,8 +1620,49 @@ Deno.test("repeat: seed forms, outputs and max", async () => {
       workflow([repeatNode({}, { forever: true })]),
       [{ path: "/steps/0/repeat", code: "field_unknown" }],
     ],
+    [
+      "min zero",
+      workflow([repeatNode({}, { min: 0 })]),
+      [{ path: "/steps/0/repeat/min", code: "repeat_min_invalid" }],
+    ],
+    [
+      "min above max",
+      workflow([repeatNode({}, { max: 3, min: 4 })]),
+      [{ path: "/steps/0/repeat/min", code: "repeat_min_invalid" }],
+    ],
+    [
+      "min fractional",
+      workflow([repeatNode({}, { min: 1.5 })]),
+      [{ path: "/steps/0/repeat/min", code: "repeat_min_invalid" }],
+    ],
+    [
+      "allow above max",
+      workflow([repeatNode({}, { max: 3, allow: 4 })]),
+      [{ path: "/steps/0/repeat/allow", code: "repeat_allow_invalid" }],
+    ],
+    [
+      "allow below min",
+      workflow([repeatNode({}, { max: 5, min: 3, allow: 2 })]),
+      [{ path: "/steps/0/repeat/allow", code: "repeat_allow_invalid" }],
+    ],
+    [
+      "allow zero",
+      workflow([repeatNode({}, { allow: 0 })]),
+      [{ path: "/steps/0/repeat/allow", code: "repeat_allow_invalid" }],
+    ],
   ];
   await runCases(seedCases);
+  const bounded = await accepted(
+    workflow([repeatNode({}, { max: 5, min: 2, allow: 3 })]),
+  );
+  const boundedNode = bounded.document.steps[0] as {
+    min?: number;
+    allow?: number;
+  };
+  assertEquals([boundedNode.min, boundedNode.allow], [2, 3]);
+  const plain = await accepted(workflow([repeatNode()]));
+  assert(!("min" in (plain.document.steps[0] as object)));
+  assert(!("allow" in (plain.document.steps[0] as object)));
   const mapping = await accepted(workflow([repeatNode()]));
   const sequence = await accepted(workflow([
     repeatNode({}, {

@@ -76,7 +76,7 @@ export type DeliveryActionHandlers = {
   runRepairAllowancesCreate: (
     context: ActionContext,
     input: RepairAllowanceCreate,
-  ) => Promise<z.output<typeof contractSchemas.DeliveryDecision>>;
+  ) => Promise<z.output<typeof contractSchemas.TriesAllowance>>;
   pullRequestsList: (
     context: ActionContext,
     input: PullRequestQuery,
@@ -199,7 +199,7 @@ export function createDeliveryActionRegistry(
     method: HttpMethod.Post,
     path: "/v1/runs/:id/repair-allowances",
     input: contractSchemas.RepairAllowanceCreate,
-    output: contractSchemas.DeliveryDecision,
+    output: contractSchemas.TriesAllowance,
     policy: { ...commandPolicy, access: ActionAccess.Admin },
     handler: handlers.runRepairAllowancesCreate,
   });
