@@ -4,6 +4,7 @@ import {
   type ProviderManifest,
 } from "@bakery/integration-sdk/provider";
 import { linearServerProvider } from "@bakery/integration-linear/server";
+import { slackServerProvider } from "@bakery/integration-slack/server";
 
 /**
  * One manifest owns all three provider identifiers (chapter 09 section 12.4).
@@ -68,6 +69,14 @@ export const GITHUB_PROVIDER_IDENTITY = Object.freeze(
   } as const satisfies ProviderIdentity,
 );
 
+export const SLACK_PROVIDER_IDENTITY = Object.freeze(
+  {
+    gateId: "bakery.slack",
+    slug: "slack",
+    uuid: "f4c75b1b-c525-586e-a4b7-bfabcd153eef",
+  } as const satisfies ProviderIdentity,
+);
+
 /**
  * Every provider this build deploys, one entry each.
  *
@@ -79,6 +88,7 @@ export const PROVIDER_IDENTITIES = Object.freeze(
   [
     GITHUB_PROVIDER_IDENTITY,
     LINEAR_PROVIDER_IDENTITY,
+    SLACK_PROVIDER_IDENTITY,
   ] as const satisfies readonly ProviderIdentity[],
 );
 
@@ -230,6 +240,7 @@ export function providerIdentityDefects(
 export const SERVER_PROVIDERS = Object.freeze(
   [
     linearServerProvider,
+    slackServerProvider,
   ] as const,
 );
 

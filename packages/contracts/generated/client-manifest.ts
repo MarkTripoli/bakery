@@ -27444,6 +27444,10 @@ export const clientManifest = {
             "fixed-coding",
             "fixed-coding-reviewed"
           ]
+        },
+        "requirePlanApproval": {
+          "description": "When true, this request's task takes a human plan approval, so no run builds until the requester's plan is approved, even when the source policy approves plans automatically. False or omitted keeps the source policy's plan approval; it never removes an approval the policy requires. Only a new admission reads it.",
+          "type": "boolean"
         }
       },
       "required": [
@@ -42333,6 +42337,15 @@ export const clientManifest = {
               "waitingOnModel": {
                 "description": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses.",
                 "type": "boolean"
+              },
+              "releaseStep": {
+                "description": "Whether the run's frozen workflow plan runs a release step after its merge step: yes when a delivery.deploy step follows delivery.merge, no when none follows or the plan has no merge step, and unknown when the plan cannot be read. Served by runs.get; omitted by other run responses.",
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unknown"
+                ]
               }
             },
             "required": [
@@ -57389,6 +57402,20 @@ export const clientManifest = {
                 "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
                 "type": "boolean"
               },
+              "address": {
+                "description": "Deployment.address may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Absolute address of the environment's running release, the page a person opens to see it; null when this install configures no address for that environment."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -63009,6 +63036,15 @@ export const clientManifest = {
         "waitingOnModel": {
           "description": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses.",
           "type": "boolean"
+        },
+        "releaseStep": {
+          "description": "Whether the run's frozen workflow plan runs a release step after its merge step: yes when a delivery.deploy step follows delivery.merge, no when none follows or the plan has no merge step, and unknown when the plan cannot be read. Served by runs.get; omitted by other run responses.",
+          "type": "string",
+          "enum": [
+            "yes",
+            "no",
+            "unknown"
+          ]
         }
       },
       "required": [
@@ -76899,6 +76935,20 @@ export const clientManifest = {
         "rollbackFailed": {
           "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
           "type": "boolean"
+        },
+        "address": {
+          "description": "Deployment.address may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Absolute address of the environment's running release, the page a person opens to see it; null when this install configures no address for that environment."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         },
         "createdAt": {
           "type": "string",

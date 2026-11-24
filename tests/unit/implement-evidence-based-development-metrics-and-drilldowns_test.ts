@@ -36,6 +36,7 @@ function pr(id: string, over: Partial<PullRequestFact> = {}): PullRequestFact {
     id,
     repositoryId: "r",
     taskId: "t",
+    title: "Pull request",
     providerNumber: 1,
     url: "u",
     status: "open",
@@ -276,7 +277,7 @@ Deno.test("the drilldown cursor round-trips a known and an unknown placed time",
     action: "metrics.sources",
     principalId: crypto.randomUUID(),
     organizationId: crypto.randomUUID(),
-    ordering: "countedAt:asc,id:asc",
+    ordering: "countedAt:desc,id:desc",
     filters: "{}",
     schemaVersion: 1,
   };
@@ -292,5 +293,5 @@ Deno.test("the drilldown cursor round-trips a known and an unknown placed time",
       createdAt,
     );
   }
-  assert(sortKey(known)[0] < sortKey(unknown)[0]);
+  assert(sortKey(known)[0] > sortKey(unknown)[0]);
 });

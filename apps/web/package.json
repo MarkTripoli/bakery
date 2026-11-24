@@ -18,6 +18,7 @@
     "@bakery/i18n": "workspace:*",
     "@bakery/integration-linear": "workspace:*",
     "@bakery/integration-sdk": "workspace:*",
+    "@bakery/integration-slack": "workspace:*",
     "@bakery/ui": "workspace:*",
     "@codemirror/state": "6.7.6",
     "@codemirror/view": "6.43.15",

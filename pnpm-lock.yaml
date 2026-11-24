@@ -142,6 +142,9 @@ importers:
       '@bakery/integration-sdk':
         specifier: workspace:*
         version: link:../../packages/integration-sdk
+      '@bakery/integration-slack':
+        specifier: workspace:*
+        version: link:../../packages/integration-slack
       '@bakery/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -280,6 +283,12 @@ importers:
       zod:
         specifier: 4.5.4
         version: 4.5.4
+
+  packages/integration-slack:
+    dependencies:
+      '@bakery/integration-sdk':
+        specifier: workspace:*
+        version: link:../integration-sdk
 
   packages/persistence:
     dependencies:

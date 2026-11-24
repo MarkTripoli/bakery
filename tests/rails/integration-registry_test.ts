@@ -199,7 +199,7 @@ Deno.test("the deployed list is ordered by the registry, not by the literal", ()
     ),
     [...deployedGateIds()],
   );
-  assertEquals(deployedProviderSlugs(), ["github", "linear"]);
+  assertEquals(deployedProviderSlugs(), ["github", "linear", "slack"]);
 });
 
 Deno.test("a deployed manifest refuses mutation all the way down", () => {

@@ -15,7 +15,7 @@ import type { SupportedLocale } from "./locale.ts";
  * Version 14 adds the desktop app's browser sign-in pages
  * (`auth.desktopSignIn.*`).
  */
-export const catalogVersion = "16";
+export const catalogVersion = "20";
 export const englishCatalog: Readonly<Record<MessageKey, string>> = english;
 export const catalogs: Readonly<
   Record<SupportedLocale, Readonly<Partial<Record<MessageKey, string>>>>

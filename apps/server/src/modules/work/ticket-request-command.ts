@@ -456,6 +456,7 @@ export function createTicketRequestHandler(
       signal: context.signal,
       requirementsDigest: input.requirementsDigest,
       preset: input.preset ?? null,
+      requirePlanApproval: input.requirePlanApproval ?? false,
       trace: { requestId: context.requestId, traceId: context.traceId },
     });
     if (result.kind === "unadmitted" || result.request === null) {

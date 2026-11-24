@@ -8333,6 +8333,12 @@
             "fixed-coding-reviewed"
           ],
           "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own."
+        },
+        {
+          "name": "requirePlanApproval",
+          "type": "boolean",
+          "required": false,
+          "description": "When true, this request's task takes a human plan approval, so no run builds until the requester's plan is approved, even when the source policy approves plans automatically. False or omitted keeps the source policy's plan approval; it never removes an approval the policy requires. Only a new admission reads it."
         }
       ],
       "rules": [
@@ -23613,7 +23619,8 @@
         "budgetSummary",
         "blockedReason",
         "blockingTasks",
-        "waitingOnModel"
+        "waitingOnModel",
+        "releaseStep"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -23641,7 +23648,8 @@
         "budgetSummary": "RunBudgetSummary",
         "blockedReason": "string|null",
         "blockingTasks": "RunBlockingTask[]",
-        "waitingOnModel": "boolean"
+        "waitingOnModel": "boolean",
+        "releaseStep": "enum(yes|no|unknown)"
       },
       "description": "Kind-aware safe run projection. Workflow runs retain task and workflow ownership; skill imports expose null workflow owners and one registered source owner.",
       "nullableFields": [
@@ -23666,14 +23674,16 @@
         "workspaceBaseSha",
         "blockedReason",
         "blockingTasks",
-        "waitingOnModel"
+        "waitingOnModel",
+        "releaseStep"
       ],
       "computedFields": {
         "budgetSummary": "Join budget_accounts + outstanding reservations for this run and the applicable installation period under one consistent read snapshot.",
         "workspaceBaseSha": "Base commit reported by the first completed harness step of this run: the step's output baseSha when it is a git SHA, else null. Read from run_steps joined to jobs by harness action; never written to workflow_runs.",
         "blockedReason": "snapshot.admission.reason of the run while status is blocked; null otherwise.",
         "blockingTasks": "task_dependencies of the run's task joined to tasks of the same organization whose status is not completed, only while blockedReason is dependency_incomplete.",
-        "waitingOnModel": "True when a live job of a non-terminal run is pinned to an active provider route with an open incident that the step has not been continued past; the same rule as routeContinuations.list."
+        "waitingOnModel": "True when a live job of a non-terminal run is pinned to an active provider route with an open incident that the step has not been continued past; the same rule as routeContinuations.list.",
+        "releaseStep": "Whether the run's frozen workflow plan runs a release step (delivery.deploy) after its merge step (delivery.merge): yes when one follows, no when none follows or the plan has no merge step, unknown when the plan cannot be read. Served on the run read."
       },
       "fieldDescriptions": {
         "id": "Stable UUID identifying the run record.",
@@ -23701,7 +23711,8 @@
         "skillSourceId": "Registered source UUID for skill import runs; null for workflow runs.",
         "blockedReason": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses.",
         "blockingTasks": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses.",
-        "waitingOnModel": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses."
+        "waitingOnModel": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses.",
+        "releaseStep": "Whether the run's frozen workflow plan runs a release step after its merge step: yes when a delivery.deploy step follows delivery.merge, no when none follows or the plan has no merge step, and unknown when the plan cannot be read. Served by runs.get; omitted by other run responses."
       },
       "fieldBounds": {
         "blockingTasks": {
@@ -25936,6 +25947,7 @@
         "externalEffectId",
         "healthEvidenceId",
         "rollbackFailed",
+        "address",
         "createdAt",
         "updatedAt",
         "version"
@@ -25953,6 +25965,7 @@
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
         "rollbackFailed": "boolean",
+        "address": "string|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
@@ -25961,11 +25974,13 @@
         "previousDeploymentId",
         "previousCommitSha",
         "externalEffectId",
-        "healthEvidenceId"
+        "healthEvidenceId",
+        "address"
       ],
       "optionalFields": [
         "previousCommitSha",
-        "rollbackFailed"
+        "rollbackFailed",
+        "address"
       ],
       "description": "One attempt to release a specific commit/artifact to a named environment for a repository, tracked from `queued` through `deploying`/`verifying` to `healthy`, `failed`, or a rollback; only one deployment per environment is in flight at a time, and `previousDeploymentId` links a rollback to the release it reverts. Created by POST /v1/deployments; reverted by POST /v1/deployments/{id}/rollbacks.",
       "fieldDescriptions": {
@@ -25981,6 +25996,7 @@
         "externalEffectId": "Stable UUID linking this record to the related external effect entity.",
         "healthEvidenceId": "Stable UUID linking this record to the related health evidence entity.",
         "rollbackFailed": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+        "address": "Absolute address of the environment's running release, the page a person opens to see it; null when this install configures no address for that environment.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="approval-step-real-api-stack" project="bakery">
+  <title>A wait-only run needs the outbox dispatcher, and compose-up's public base URL can be port 0</title>
+  <trigger>Running apps/web/tests/step-approval-real-api.spec.ts (or any real-API spec whose workflow only waits) against a per-worktree compose stack.</trigger>
+  <mistake>Took WORKER_CGROUP_DELEGATION_REQUIRED for the blocker and tried to start the worker. agx64 gives no cgroup delegation (host /sys/fs/cgroup is read-only; --privileged still leaves cgroup.subtree_control empty), and a workflow of wait steps and noop needs no worker at all. Without a dispatcher the run stays `queued` with no run_steps, so the spec's DB seed waits 120 s and fails WEB_STEP_APPROVAL_WAIT_REQUIRED.</mistake>
+  <rule>Start the stack without the worker and run the dispatcher beside it: `docker compose -p <project> -f infra/compose.yaml run -d --no-deps --name <project>-dispatch -e INNGEST_EVENT_KEY=<key> server sh -eu -c 'export BAKERY_APP_DATABASE_URL="postgres://bakery_app:<app-password>@postgres:5432/bakery"; exec deno run --allow-env --allow-net apps/server/src/dispatch.ts'`. A host process dies with the tool call; the container survives.</rule>
+  <rule>`scripts/dev/compose-up.sh` exports BAKERY_SERVER_PORT=0 to float the port, so the server's BAKERY_PUBLIC_BASE_URL resolves to http://127.0.0.1:0 and sign-in then fails to leave /sign-in. Export `BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$BAKERY_WEB_PORT` together with pinned BAKERY_*_PORT values before compose-up so the server's own origin matches the web origin the browser uses.</rule>
+  <verification>
+    <requirement>`docker exec <project>-server-1 printenv BAKERY_PUBLIC_BASE_URL` names the web origin, and the spec's three cases pass with stills under BAKERY_W1_SHOTS.</requirement>
+  </verification>
+</learning>
