@@ -1,4 +1,5 @@
-import { expect, type Route, test } from "@playwright/test";
+import { expect, type Page, type Route, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { deliveryFixture } from "./helpers/delivery-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
@@ -17,6 +18,11 @@ const access = (route: Route, capabilities: string[]) => {
     body: JSON.stringify({ organizationId, role: "developer", capabilities }),
   });
 };
+
+async function accessible(page: Page) {
+  const results = await new AxeBuilder({ page }).include("main").analyze();
+  expect(results.violations.map((violation) => violation.id)).toEqual([]);
+}
 
 /** The Delivery page (#75): what was delivered, how long a task took, where the time went. */
 for (
@@ -105,6 +111,7 @@ for (
         .toHaveCount(0);
       await expect(records.getByRole("columnheader", { name: "Repository" }))
         .toHaveCount(0);
+      await accessible(page);
       await page.mouse.move(700, 700);
       await still(page, "delivery-records-tasks");
     });
@@ -215,6 +222,7 @@ for (
       await expect(table.getByText("No data")).toHaveCount(1);
       await page.getByRole("button", { name: "Show as chart" }).click();
       await expect(page.getByTestId("delivery-chart")).toBeVisible();
+      await accessible(page);
       await page.mouse.move(700, 700);
       await still(page, "delivery-over-time");
     });
