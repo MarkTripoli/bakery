@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "fc819c510e55999f77dd9ec034e279926afa03f0"
+    "688de3d1df9061f03fa89505cddf39791f1aeafe"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:d1c89fac9f7cfc3f9f9eb7fe5e1cb3ddb2ac1aa8d61a8a77337ccc4c718f1044",
-  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main fc819c510e55999f77dd9ec034e279926afa03f0: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker refuses a job without a pin as plugin_job_version_unpinned, the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id, and every description that offered the install's current version now names only the version the job was admitted against. No other contract shape changed by this branch.",
+  "targetCompatibilityDigest": "sha256:09b52dcefcc1153b0ed17e948f2940c1a964b37a7f4b40d978023312736c8778",
+  "reason": "#60 W2 plan approval by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 688de3d1df9061f03fa89505cddf39791f1aeafe: Approval gains a required mayDecide (true when the person may decide that approval now: a human with approval:decide in the approval's audience while it is open, or after it expired while its plan revision or run stage is still current), so the web shows decision buttons only to people who can use them. A person who decides an expired approval whose plan or run stage is still current is served a new approval, and the old one stays expired. No client has been released that builds an Approval, so no caller sends the old shape.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "fc819c510e55999f77dd9ec034e279926afa03f0"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:d1c89fac9f7cfc3f9f9eb7fe5e1cb3ddb2ac1aa8d61a8a77337ccc4c718f1044",
+      "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main fc819c510e55999f77dd9ec034e279926afa03f0: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker refuses a job without a pin as plugin_job_version_unpinned, the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id, and every description that offered the install's current version now names only the version the job was admitted against. No other contract shape changed by this branch."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

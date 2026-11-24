@@ -59,6 +59,9 @@ struct State {
     serial: u64,
 }
 
+#[path = "updating.rs"]
+mod updating;
+
 pub struct Shell {
     app: AppHandle,
     pub server: String,
@@ -89,6 +92,7 @@ pub struct Shell {
     toasts: Mutex<std::collections::HashMap<u64, ToastTarget>>,
     downloads: Mutex<std::collections::HashMap<u64, DownloadState>>,
     next_toast: std::sync::atomic::AtomicU64,
+    updating: Mutex<updating::Updating>,
 }
 
 /// What a notice's buttons act on.
@@ -221,6 +225,7 @@ impl Shell {
             toasts: Mutex::new(Default::default()),
             downloads: Mutex::new(Default::default()),
             next_toast: std::sync::atomic::AtomicU64::new(1),
+            updating: Mutex::new(updating::Updating::default()),
         })
     }
 
@@ -340,6 +345,7 @@ impl Shell {
                     async move { shell.dispatch(Event::SignOutPressed).await },
                 );
             }
+            crate::menu::UPDATE_ACTION => self.update_action(),
             "quit" => self.app.exit(0),
             _ => {}
         }
@@ -381,6 +387,7 @@ impl Shell {
                 actions: vec![],
                 goes_after: None,
                 dismissable: false,
+                first_button_is_primary: false,
             }),
             "failed" => self.save_failed(
                 id,
@@ -433,6 +440,7 @@ impl Shell {
                     actions: vec![],
                     goes_after: None,
                     dismissable: false,
+                    first_button_is_primary: false,
                 });
             }
         });
@@ -545,6 +553,7 @@ impl Shell {
                     actions: vec![(saved_file::SHOW_IN_FOLDER.into(), "show")],
                     goes_after: Some(saved_file::SAVED_NOTICE_SECONDS),
                     dismissable: true,
+                    first_button_is_primary: false,
                 });
                 self.report("download_saved", json!({ "name": name }));
             }
@@ -579,11 +588,16 @@ impl Shell {
             actions: vec![(saved_file::TRY_AGAIN.into(), "retry")],
             goes_after: None,
             dismissable: true,
+            first_button_is_primary: false,
         });
     }
 
     /// A notice's button, already checked to carry this run's nonce.
-    pub fn toast_action(&self, action: &str, id: u64) {
+    pub fn toast_action(self: &Arc<Self>, action: &str, id: u64) {
+        if id == updating::UPDATE_TOAST {
+            self.update_toast_action(action);
+            return;
+        }
         let (path, retry) = {
             let toasts = self.toasts.lock().unwrap();
             match toasts.get(&id) {
@@ -714,8 +728,13 @@ impl Shell {
     }
 
     pub fn current_view(&self) -> View {
+        let update = self.updating_state();
         let st = self.state.lock().unwrap();
-        view(&st.session, &st.facts)
+        let mut facts = st.facts.clone();
+        if !self.previewing {
+            facts.update = update;
+        }
+        view(&st.session, &facts)
     }
 
     /// Install the Bakery menu and keep it in step from now on.
@@ -728,8 +747,13 @@ impl Shell {
     }
 
     fn menu_model(&self) -> bakery_desktop_core::menu::Model {
+        let update = self.update_menu_lines();
         let st = self.state.lock().unwrap();
-        bakery_desktop_core::menu::model(st.session.shown_server(), st.session.is_signed_in())
+        bakery_desktop_core::menu::model(
+            st.session.shown_server(),
+            st.session.is_signed_in(),
+            update,
+        )
     }
 
     fn push(&self) {
@@ -829,6 +853,7 @@ impl Shell {
             }
         }
         self.sync_window().await;
+        self.arrived_on_older_app_panel();
     }
 
     /// Keeps the window on the right page: the server's pages while someone is signed in, the app's

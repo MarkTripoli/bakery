@@ -36,6 +36,7 @@ pub struct Toast {
     /// Whether it carries a close button. "Saving…" has none: the design gives it no button, and it goes
     /// by itself when the save ends.
     pub dismissable: bool,
+    pub first_button_is_primary: bool,
 }
 
 fn quoted(text: &str) -> String {
@@ -54,6 +55,7 @@ pub fn show_script(toast: &Toast, nonce: &str) -> String {
     } else {
         "status"
     };
+    let first_button_is_primary = toast.first_button_is_primary;
     let actions: Vec<_> = toast.actions.iter().map(|(l, a)| json!([l, a])).collect();
     format!(
         r#"(() => {{
@@ -67,6 +69,7 @@ pub fn show_script(toast: &Toast, nonce: &str) -> String {
   const actions = {actions};
   const goesAfter = {goes_after};
   const dismissable = {dismissable};
+  const firstButtonIsPrimary = {first_button_is_primary};
   let host = document.getElementById("bakery-toasts");
   if (!host) {{
     host = document.createElement("div");
@@ -102,10 +105,12 @@ pub fn show_script(toast: &Toast, nonce: &str) -> String {
   if (actions.length) {{
     const row = document.createElement("div");
     row.className = "ui-toast__action";
-    for (const [label, action] of actions) {{
+    row.style.display = "flex";
+    row.style.gap = "var(--space-2, 8px)";
+    for (const [index, [label, action]] of actions.entries()) {{
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "ui-button ui-button--secondary";
+      b.className = "ui-button " + (firstButtonIsPrimary && index === 0 ? "ui-button--primary" : "ui-button--secondary");
       b.textContent = label;
       b.addEventListener("click", () => {{ location.href = "{scheme}://" + nonce + "/" + action + "/" + id; }});
       row.append(b);
@@ -151,6 +156,7 @@ pub fn show_script(toast: &Toast, nonce: &str) -> String {
         actions = serde_json::Value::Array(actions),
         goes_after = toast.goes_after.unwrap_or(0),
         dismissable = toast.dismissable,
+        first_button_is_primary = first_button_is_primary,
         scheme = ACTION_SCHEME,
     )
 }
@@ -175,6 +181,7 @@ mod tests {
             actions: vec![],
             goes_after: None,
             dismissable,
+            first_button_is_primary: false,
         }
     }
 
@@ -183,6 +190,17 @@ mod tests {
         let script = show_script(&toast(false), "n0nce");
         assert!(script.contains("const dismissable = false;"));
         assert!(script.contains("if (dismissable) {"));
+    }
+
+    #[test]
+    fn the_first_button_is_primary_only_when_the_notice_says_so() {
+        let mut ready = toast(true);
+        ready.actions = vec![("Restart to update".into(), "restart")];
+        ready.first_button_is_primary = true;
+        let script = show_script(&ready, "n0nce");
+        assert!(script.contains("const firstButtonIsPrimary = true;"));
+        assert!(script.contains("ui-button--primary"));
+        assert!(show_script(&toast(true), "n0nce").contains("const firstButtonIsPrimary = false;"));
     }
 
     #[test]
