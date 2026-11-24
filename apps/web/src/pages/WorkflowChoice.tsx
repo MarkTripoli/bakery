@@ -47,7 +47,7 @@ export function WorkflowChoice(
             : []),
           ...items.map((item) => ({ label: item.title, value: item.id })),
         ]}
-        required
+        required={!labelHidden}
         value={chosen === undefined ? "" : chosen.id}
       />
       {chosen?.description
