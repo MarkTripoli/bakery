@@ -4,12 +4,29 @@ import {
   definition,
   libraryFixture,
   type Options,
+  SAVED_DIGEST,
   uuid,
   type VersionRow,
 } from "./helpers/library-fixture.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
-import { still } from "./helpers/stills.ts";
+import { still, windowStill } from "./helpers/stills.ts";
+import { expectPanelUsable } from "./helpers/floating-panel.ts";
+
+async function cardsInside(group: Locator): Promise<string[]> {
+  return await group.evaluate((element) => {
+    const frame = element.getBoundingClientRect();
+    return [...document.querySelectorAll("[data-card]")]
+      .filter((card) => card.getAttribute("data-card") !== "start")
+      .filter((card) => {
+        const box = card.getBoundingClientRect();
+        return box.left >= frame.left - 1 && box.right <= frame.right + 1 &&
+          box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1;
+      })
+      .map((card) => (card as HTMLElement).innerText);
+  });
+}
 
 /**
  * The editor's save state, in the page's own status line. The shell adds an
@@ -151,15 +168,15 @@ for (
           cards.map((card) => card.getAttribute("data-card"))
         ),
       ).toEqual(["start", "brief", "implement", "review"]);
-      await expect(steps.locator(".ui-step-card").first()).toBeVisible();
+      await expect(steps.locator("[data-card='brief']")).toBeVisible();
       await expect(steps.locator(".ui-step-item")).toHaveCount(0);
       // Nothing to press: a built-in is maintained by Bakery.
       await expect(steps.getByRole("button", { name: "Add a step" }))
         .toHaveCount(0);
       await expect(steps).not.toContainText("Remove");
-      // The line runs to the end and stops there.
-      await expect(steps.locator(".ui-step-connector")).not.toHaveCount(0);
-      await expect(steps.locator(".ui-step-connector__end")).toHaveText("End");
+      if (viewport.name === "desktop") {
+        await expect(steps.locator("[data-canvas-end]")).toHaveText("End");
+      }
       await shot(page, "workflow-built-in", [], { windowOnly: true });
     });
 
@@ -172,10 +189,14 @@ for (
       // The If container holds both arms, one of them empty.
       await expect(steps.locator("[data-group=if]")).toHaveCount(1);
       await expect(steps.locator("[data-group=if]")).toContainText("If");
-      await expect(steps.locator("[data-group-arm=yes]")).toContainText(
-        "Implement",
+      await expect(steps.locator("[data-group=yes]")).toContainText("Yes");
+      await expect.poll(async () =>
+        (await cardsInside(steps.locator("[data-group=yes]"))).join(" ")
+      ).toContain("Implement");
+      await expect(steps.locator("[data-group=otherwise]")).toContainText(
+        "Otherwise",
       );
-      await expect(steps.locator("[data-group-arm=otherwise]")).toContainText(
+      await expect(steps.locator("[data-group=otherwise]")).toContainText(
         "No steps",
       );
       // The repeat is its own container.
@@ -223,15 +244,15 @@ for (
           cards.map((card) => card.getAttribute("data-card"))
         ),
       ).toEqual(["start", "brief", "implement", "review"]);
-      await expect(steps.locator(".ui-step-card").first()).toBeVisible();
+      await expect(steps.locator("[data-card='brief']")).toBeVisible();
       await expect(steps.locator(".ui-step-item")).toHaveCount(0);
       await expect(steps.getByRole("button", { name: "Add a step" }))
         .toHaveCount(0);
       await expect(steps).not.toContainText("Move");
       await expect(steps).not.toContainText("Remove");
-      // The path still runs from the first card to the last and stops.
-      await expect(steps.locator(".ui-step-connector")).not.toHaveCount(0);
-      await expect(steps.locator(".ui-step-connector__end")).toHaveText("End");
+      if (viewport.name === "desktop") {
+        await expect(steps.locator("[data-canvas-end]")).toHaveText("End");
+      }
       await expect(steps).not.toContainText("task.brief");
       const versions = page.getByTestId("workflow-versions");
       // The sentence about versions never changing belongs to Versions.
@@ -667,8 +688,7 @@ for (
       await expect(steps.getByText("Unreadable step")).toHaveCount(2);
       // Each of them is a card that says it needs setup (design-ux's ruling:
       // the cards, not a numbered row, and the state is never colour alone).
-      await expect(steps.locator('.ui-step-card[data-needs-setup="true"]'))
-        .toHaveCount(2);
+      await expect(steps.locator('[data-needs-setup="true"]')).toHaveCount(2);
       await expect(steps.getByText("Needs setup")).toHaveCount(2);
       await shot(page, "workflow-unreadable-steps", [], { windowOnly: true });
     });
@@ -829,6 +849,7 @@ for (
           "true",
         );
       } else {
+        await page.setViewportSize({ width: viewport.width, height: 520 });
         // Just opened: rows are hidden below, so only the bottom edge fades.
         await expect(list).toHaveAttribute("data-picker-fade-bottom", "true");
         await expect(list).not.toHaveAttribute("data-picker-fade-top", "true");
@@ -849,9 +870,7 @@ for (
         // `shot` resets the viewport per viewport, which resets the scroll, so
         // capture the end state directly at the evidence viewport instead.
         if (process.env.BAKERY_EVIDENCE_DIR) {
-          // Capture at the same 1440x900 the other desktop stills use, so the
-          // two picker states are directly comparable.
-          await page.setViewportSize({ width: 1440, height: 900 });
+          await page.setViewportSize({ width: 1440, height: 520 });
           await page.evaluate(() =>
             new Promise((resolve) => requestAnimationFrame(resolve))
           );
@@ -975,6 +994,642 @@ test("a draft that matches the version in use has nothing to publish", async ({ 
   const nothing = page.getByRole("alertdialog", { name: "Nothing to publish" });
   await expect(nothing).toBeVisible();
   await nothing.getByRole("button", { name: "Close" }).click();
+});
+
+test("the diagram is drawn only once the measured sizes are in, and cards in a box have room", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await libraryFixture(page, {
+    ...WORLD,
+    versions: [
+      ...VERSIONS.filter((row) => row.status !== "draft"),
+      {
+        ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+        spec: [{
+          kind: "repeat",
+          steps: [
+            { kind: "action", id: "fix", uses: "harness.implement" },
+            { kind: "action", id: "check", uses: "agent.review" },
+          ],
+        }],
+      },
+    ],
+  });
+  await page.addInitScript(() => {
+    const w = globalThis as unknown as { __gapAtReady?: number };
+    new MutationObserver(() => {
+      const canvas = document.querySelector(
+        '[data-ui-region="workflow-canvas"][data-layout="ready"]',
+      );
+      const a = document.querySelector("[data-card='fix']");
+      const b = document.querySelector("[data-card='check']");
+      if (canvas && a && b && w.__gapAtReady === undefined) {
+        w.__gapAtReady = b.getBoundingClientRect().top -
+          a.getBoundingClientRect().bottom;
+      }
+    }).observe(document, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+  });
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+  await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+    .toHaveAttribute("data-layout", "ready");
+  await expect.poll(() =>
+    page.evaluate(() =>
+      (globalThis as unknown as { __gapAtReady?: number }).__gapAtReady
+    )
+  ).toBeGreaterThanOrEqual(12);
+});
+
+const flatDraft = (steps: { id: string; uses: string }[]): Options => ({
+  ...WORLD,
+  versions: [
+    ...VERSIONS.filter((row) => row.status !== "draft"),
+    {
+      ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+      spec: steps.map((step) => ({ kind: "action", ...step })),
+    },
+  ],
+});
+const editorUrl = `/library/workflows/${WORKFLOW.id}/edit`;
+const SUMMARY = ".ui-step-card__summary, .ui-outline__summary";
+
+test.describe("the workflow canvas on a wide window", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test("Tab follows the diagram: a block, its +, the next block; Enter opens the menu and Escape returns to the +", async ({ page }) => {
+    await libraryFixture(
+      page,
+      flatDraft([
+        { id: "brief", uses: "task.brief" },
+        { id: "add", uses: "harness.implement" },
+        { id: "rev", uses: "agent.review" },
+      ]),
+    );
+    await page.goto(editorUrl);
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveAttribute("data-layout", "ready");
+    const here = () =>
+      page.evaluate(() => {
+        const active = document.activeElement;
+        const card = active?.closest("[data-card]");
+        const plus = active?.closest("[data-connector]");
+        return card
+          ? "card:" + card.getAttribute("data-card")
+          : plus
+          ? "plus:" + plus.getAttribute("data-connector")
+          : "other";
+      });
+    await page.locator("[data-card='start'] button").focus();
+    const seen = [await here()];
+    for (let tab = 0; tab < 7; tab += 1) {
+      await page.keyboard.press("Tab");
+      seen.push(await here());
+    }
+    expect(seen).toEqual([
+      "card:start",
+      "plus:start",
+      "card:brief",
+      "plus:brief",
+      "card:add",
+      "plus:add",
+      "card:rev",
+      "plus:rev",
+    ]);
+    await page.locator("[data-connector='add'] button").focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("step-picker")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("step-picker")).toHaveCount(0);
+    expect(await here()).toBe("plus:add");
+    await expect(page.locator("[data-connector='add'] button")).toBeFocused();
+  });
+
+  test("the two arms of an If start at the same height, whichever one holds the steps", async ({ page }) => {
+    const brief = { kind: "action", id: "brief", uses: "task.brief" };
+    const review = { kind: "action", id: "rev", uses: "agent.review" };
+    for (
+      const [yes, otherwise] of [
+        [[review], []],
+        [[], [review]],
+      ]
+    ) {
+      await libraryFixture(page, {
+        ...WORLD,
+        versions: [
+          ...VERSIONS.filter((row) => row.status !== "draft"),
+          {
+            ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+            spec: [brief, { kind: "branch", then: yes, else: otherwise }],
+          },
+        ],
+      });
+      await page.goto(editorUrl);
+      await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+        .toHaveAttribute("data-layout", "ready");
+      const top = async (selector: string) =>
+        (await page.locator(selector).first().boundingBox())!.y;
+      expect(
+        Math.abs(
+          (await top("[data-group='yes']")) -
+            (await top("[data-group='otherwise']")),
+        ),
+      ).toBeLessThanOrEqual(1);
+      expect(
+        Math.abs(
+          (await top("[data-group='yes'] .ui-step-group__label")) -
+            (await top("[data-group='otherwise'] .ui-step-group__label")),
+        ),
+      ).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test("selecting a box that fits brings the whole box into view", async ({ page }) => {
+    await libraryFixture(page, {
+      ...WORLD,
+      versions: [
+        ...VERSIONS.filter((row) => row.status !== "draft"),
+        {
+          ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+          spec: [
+            { kind: "action", id: "brief", uses: "task.brief" },
+            { kind: "action", id: "add", uses: "harness.implement" },
+            {
+              kind: "branch",
+              then: [{ kind: "action", id: "rev", uses: "agent.review" }],
+              else: [],
+            },
+            {
+              kind: "repeat",
+              steps: [
+                { kind: "action", id: "fix", uses: "harness.implement" },
+                { kind: "action", id: "check", uses: "agent.review" },
+              ],
+            },
+            { kind: "action", id: "done", uses: "agent.review" },
+          ],
+        },
+      ],
+    });
+    await page.goto(editorUrl);
+    const canvas = page.locator('[data-ui-region="workflow-canvas"]');
+    await expect(canvas).toHaveAttribute("data-layout", "ready");
+    const repeat = page.locator("[data-group='repeat']");
+    await repeat.getByRole("button", { name: /Repeat/ }).first().click();
+    await expect(
+      page.getByRole("complementary", { name: "The selected step" }),
+    ).toBeVisible();
+    await expect.poll(async () => {
+      const frame = (await canvas.boundingBox())!;
+      const box = (await repeat.boundingBox())!;
+      return box.y >= frame.y - 1 &&
+        box.y + box.height <= frame.y + frame.height + 1;
+    }).toBe(true);
+  });
+
+  test("the skeletons stay until the cards are placed, with no blank canvas between", async ({ page }) => {
+    await libraryFixture(
+      page,
+      flatDraft([
+        { id: "brief", uses: "task.brief" },
+        { id: "add", uses: "harness.implement" },
+        { id: "rev", uses: "agent.review" },
+      ]),
+    );
+    await page.addInitScript(() => {
+      const seen = { gaps: 0, loading: 0 };
+      (globalThis as unknown as { __canvas: typeof seen }).__canvas = seen;
+      const tick = () => {
+        const frame = document.querySelector(
+          '[data-ui-region="workflow-canvas"]',
+        );
+        if (frame) {
+          if (frame.querySelector(".ui-canvas-frame__loading") !== null) {
+            seen.loading += 1;
+          } else if (frame.getAttribute("data-layout") !== "ready") {
+            seen.gaps += 1;
+          }
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    await page.route(/WorkflowCanvas/, async (route) => {
+      await new Promise((done) => setTimeout(done, 800));
+      await route.continue();
+    });
+    await page.goto(editorUrl);
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveAttribute("data-layout", "ready");
+    await expect(page.locator(".ui-canvas-frame__loading")).toHaveCount(0);
+    const seen = await page.evaluate(() =>
+      (globalThis as unknown as { __canvas: { gaps: number; loading: number } })
+        .__canvas
+    );
+    expect(seen.gaps).toBe(0);
+    expect(seen.loading).toBeGreaterThan(0);
+  });
+
+  test("the Edited in code tip is as wide as its words", async ({ page }) => {
+    await libraryFixture(page, {
+      ...WORLD,
+      versions: [
+        ...VERSIONS.filter((row) => row.status !== "draft"),
+        {
+          ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+          spec: [
+            { kind: "action", id: "brief", uses: "task.brief" },
+            {
+              kind: "repeat",
+              steps: [{ kind: "action", id: "fix", uses: "harness.implement" }],
+            },
+          ],
+        },
+      ],
+    });
+    await page.goto(editorUrl);
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveAttribute("data-layout", "ready");
+    await page.locator("[data-card='brief']").getByRole("img", {
+      name: "Edited in code",
+    }).hover();
+    const tip = page.getByRole("tooltip").filter({ hasText: "Edited in code" });
+    await expect(tip).toBeVisible();
+    const box = (await tip.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(90);
+    expect(box.height).toBeLessThanOrEqual(48);
+  });
+
+  test("the add menu stays whole inside the canvas, from a + near the top and one near the bottom", async ({ page }) => {
+    const steps = Array.from({ length: 12 }, (_, index) => ({
+      id: "s" + index,
+      uses: ["task.brief", "harness.implement", "agent.review"][index % 3],
+    }));
+    await libraryFixture(page, flatDraft(steps));
+    await page.goto(editorUrl);
+    const canvas = page.locator('[data-ui-region="workflow-canvas"]');
+    await expect(canvas).toHaveAttribute("data-layout", "ready");
+    const menu = page.getByTestId("step-picker");
+    const dialog = page.getByRole("dialog");
+    await page.locator("[data-connector='s0'] button").click();
+    await expect(menu).toBeVisible();
+    await expectPanelUsable(dialog, canvas);
+    await page.mouse.move(5, 5);
+    await windowStill(page, "canvas-add-menu-top");
+    await page.keyboard.press("Escape");
+    const edge = (await canvas.boundingBox())!;
+    const lows = await page.locator("[data-canvas-add] button").evaluateAll(
+      (buttons, limit) =>
+        buttons
+          .map((button) => ({
+            id: button.closest("[data-connector]")!.getAttribute(
+              "data-connector",
+            ),
+            bottom: button.getBoundingClientRect().bottom,
+          }))
+          .filter((one) => one.bottom < limit)
+          .sort((a, b) => b.bottom - a.bottom),
+      edge.y + edge.height - 24,
+    );
+    await page.locator(`[data-connector='${lows[0].id}'] button`).click();
+    await expect(menu).toBeVisible();
+    await expectPanelUsable(dialog, canvas);
+    await page.mouse.move(5, 5);
+    await windowStill(page, "canvas-add-menu-bottom");
+  });
+
+  test("a canvas that cannot be fetched falls back to the outline, says so, and Try again brings the diagram", async ({ page }) => {
+    test.setTimeout(laneBudgetMs(90_000));
+    await libraryFixture(
+      page,
+      flatDraft([{ id: "brief", uses: "task.brief" }]),
+    );
+    let refuse = true;
+    await page.route(
+      /WorkflowCanvas/,
+      (route) => refuse ? route.abort() : route.continue(),
+    );
+    await page.goto(editorUrl);
+    const notice = page.getByText(
+      "The diagram could not be loaded. This list is the same workflow.",
+    );
+    await expect(notice).toBeVisible();
+    await expect(page.locator('[data-ui-region="workflow-outline"]'))
+      .toBeVisible();
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveCount(0);
+    await page.mouse.move(5, 5);
+    await windowStill(page, "canvas-failed");
+    refuse = false;
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveAttribute("data-layout", "ready", { timeout: 30000 });
+    await expect(notice).toHaveCount(0);
+  });
+});
+
+test.describe("a layout that never answers", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test("a layout worker that cannot load falls back to the outline and says so", async ({ page }) => {
+    test.setTimeout(laneBudgetMs(90_000));
+    await libraryFixture(
+      page,
+      flatDraft([{ id: "brief", uses: "task.brief" }]),
+    );
+    await page.route(/elk-worker/, (route) => route.abort());
+    await page.goto(editorUrl);
+    await expect(
+      page.getByText(
+        "The diagram could not be loaded. This list is the same workflow.",
+      ),
+    ).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('[data-ui-region="workflow-outline"]'))
+      .toBeVisible();
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveCount(0);
+    await page.mouse.move(5, 5);
+    await windowStill(page, "canvas-layout-failed");
+  });
+
+  test("Tab past the last item of the add menu closes it and returns to its plus", async ({ page }) => {
+    await libraryFixture(
+      page,
+      flatDraft([
+        { id: "brief", uses: "task.brief" },
+        { id: "add", uses: "harness.implement" },
+      ]),
+    );
+    await page.goto(editorUrl);
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveAttribute("data-layout", "ready");
+    const plus = page.locator("[data-connector='brief'] button");
+    await plus.click();
+    const menu = page.getByTestId("step-picker");
+    await expect(menu).toBeVisible();
+    for (let presses = 0; presses < 40; presses += 1) {
+      if (!(await menu.isVisible())) break;
+      await page.keyboard.press("Tab");
+    }
+    await expect(menu).toBeHidden();
+    await expect(plus).toBeFocused();
+  });
+});
+
+test.describe("Publish and the save", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test("Publish pressed while a change is saving waits for the save, then opens the dialog, and sends the saved digest", async ({ page }) => {
+    const seen = await libraryFixture(page, {
+      ...flatDraft([
+        { id: "brief", uses: "task.brief" },
+        { id: "add", uses: "harness.implement" },
+      ]),
+      saveDelayMs: 1200,
+    });
+    let published = "";
+    await page.route(
+      (url) => /\/versions\/[^/]+\/publish$/.test(url.pathname),
+      (route) => {
+        published = JSON.stringify({
+          ifMatch: route.request().headers()["if-match"] ?? "",
+          body: route.request().postData() ?? "",
+        });
+        return route.fulfill({
+          status: 500,
+          contentType: "application/problem+json",
+          body: JSON.stringify({ status: 500, code: "INTERNAL_ERROR" }),
+        });
+      },
+    );
+    await page.goto(editorUrl);
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveAttribute("data-layout", "ready");
+    await page.locator("[data-connector='brief'] button").click();
+    await page.locator("[data-pick-step='review.independent']").click();
+    const publish = page.getByRole("button", { name: "Publish" });
+    await publish.click();
+    await expect(publish).toHaveAttribute("aria-busy", "true");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toBeVisible();
+    expect(seen.draftSaves.length).toBeGreaterThanOrEqual(1);
+    expect(JSON.stringify(seen.draftSaves.at(-1)!.body)).toContain(
+      "review.independent",
+    );
+    await expect(saveStatus(page)).toContainText("Saved");
+    await dialog.getByRole("button", { name: "Publish only" }).click();
+    await expect.poll(() => published).not.toBe("");
+    expect(JSON.parse(published).ifMatch).not.toBe("");
+    expect(published).toContain(SAVED_DIGEST);
+    expect(published).not.toContain("04".repeat(32));
+  });
+
+  test("after a failed save Publish stays enabled and the problems stay", async ({ page }) => {
+    await libraryFixture(page, { ...WORLD, validation: "errors" });
+    await page.goto(editorUrl + "?state=save-failed");
+    await expect(saveStatus(page)).toContainText("Not saved");
+    const publish = page.getByRole("button", { name: "Publish" });
+    await expect(publish).not.toHaveAttribute("aria-disabled", "true");
+    await expect(publish).toBeEnabled();
+    await expect(page.getByTestId("editor-problems")).toHaveText("2 problems");
+    await page.mouse.move(5, 5);
+    await windowStill(page, "publish-not-saved");
+  });
+
+  const failingSaves = async (page: Page) => {
+    const state = { failing: true, published: "" };
+    const seen = await libraryFixture(
+      page,
+      flatDraft([
+        { id: "brief", uses: "task.brief" },
+        { id: "add", uses: "harness.implement" },
+      ]),
+    );
+    await page.route(
+      (url) => /^\/v1\/workflows\/[^/]+\/versions\/[^/]+$/.test(url.pathname),
+      (route) =>
+        state.failing && route.request().method() === "PATCH"
+          ? route.fulfill({
+            status: 500,
+            contentType: "application/problem+json",
+            body: JSON.stringify({ status: 500, code: "INTERNAL_ERROR" }),
+          })
+          : route.fallback(),
+    );
+    await page.route(
+      (url) => /\/versions\/[^/]+\/publish$/.test(url.pathname),
+      (route) => {
+        state.published = JSON.stringify({
+          ifMatch: route.request().headers()["if-match"] ?? "",
+          body: route.request().postData() ?? "",
+        });
+        return route.fulfill({
+          status: 500,
+          contentType: "application/problem+json",
+          body: JSON.stringify({ status: 500, code: "INTERNAL_ERROR" }),
+        });
+      },
+    );
+    await page.goto(editorUrl);
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveAttribute("data-layout", "ready");
+    await page.locator("[data-connector='brief'] button").click();
+    await page.locator("[data-pick-step='review.independent']").click();
+    await expect(saveStatus(page)).toContainText("Not saved");
+    return { state, seen };
+  };
+
+  test("after a failed save, Publish saves again and then opens the dialog with the new digest", async ({ page }) => {
+    const { state, seen } = await failingSaves(page);
+    const publish = page.getByRole("button", { name: "Publish" });
+    await expect(publish).not.toHaveAttribute("aria-disabled", "true");
+    const savesBefore = seen.draftSaves.length;
+    state.failing = false;
+    await publish.click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toBeVisible();
+    expect(seen.draftSaves.length).toBeGreaterThan(savesBefore);
+    await dialog.getByRole("button", { name: "Publish only" }).click();
+    await expect.poll(() => state.published).not.toBe("");
+    expect(state.published).toContain(SAVED_DIGEST);
+  });
+
+  test("when the save fails again, Publish opens no dialog and sends nothing, Not saved stays and Try again has focus", async ({ page }) => {
+    const { state } = await failingSaves(page);
+    await page.getByRole("button", { name: "Publish" }).click();
+    await expect(page.getByRole("button", { name: "Try again" }))
+      .toBeFocused();
+    await expect(saveStatus(page)).toContainText("Not saved");
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    expect(state.published).toBe("");
+  });
+
+  test("a failed save with nothing wrong hides Ready to publish", async ({ page }) => {
+    await libraryFixture(page, WORLD);
+    await page.goto(editorUrl + "?state=save-failed");
+    await expect(saveStatus(page)).toContainText("Not saved");
+    await expect(page.getByText("Ready to publish")).toHaveCount(0);
+  });
+});
+
+test.describe("the editor header on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  const header = (page: Page) =>
+    page.locator('[data-ui-component="pageHeader"]');
+  const actions = (page: Page) =>
+    header(page).locator(".bakery-page-header__actions");
+
+  test("the state sits under the title and View as code and Publish share one row", async ({ page }) => {
+    await libraryFixture(page, WORLD);
+    await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+    await expect(saveStatus(page)).toContainText("Saved");
+    await expect(
+      page.locator('[data-ui-component="topBar"]').getByRole("button", {
+        name: /Publish|View as code/,
+      }),
+    ).toHaveCount(0);
+    await expect(header(page).getByTestId("editor-problems")).toBeVisible();
+    await expect(header(page)).toContainText("Saved");
+    const code = await actions(page).getByRole("button", {
+      name: "View as code",
+    })
+      .boundingBox();
+    const publish = await actions(page).getByRole("button", { name: "Publish" })
+      .boundingBox();
+    expect(code).not.toBeNull();
+    expect(publish).not.toBeNull();
+    expect(Math.abs(code!.y - publish!.y)).toBeLessThan(2);
+    expect(publish!.x).toBeGreaterThan(code!.x + code!.width - 1);
+    expect(Math.abs(code!.width - publish!.width)).toBeLessThan(2);
+    expect(code!.height).toBeGreaterThanOrEqual(44);
+    await page.mouse.move(5, 5);
+    await still(page, "editor-header-saved");
+  });
+
+  test("with problems the chip stays a 44px button in the subtitle", async ({ page }) => {
+    await libraryFixture(page, { ...WORLD, validation: "errors" });
+    await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+    const chip = header(page).getByTestId("editor-problems");
+    await expect(chip).toHaveText("2 problems");
+    const coarse = await page.evaluate(() =>
+      globalThis.matchMedia("(pointer: coarse)").matches
+    );
+    const box = await chip.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(coarse ? 44 : 32);
+    await page.mouse.move(5, 5);
+    await still(page, "editor-header-problems");
+  });
+
+  test("the bell and the menu sit in the middle of the title bar, not at its top", async ({ page }) => {
+    await libraryFixture(page, WORLD);
+    await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+    await expect(saveStatus(page)).toContainText("Saved");
+    const band = await page.locator("header.bakery-app-shell__header")
+      .boundingBox();
+    const bell = await page.locator(".ui-notification-bell button")
+      .boundingBox();
+    const menu = await page.locator('[data-ui-component="topBar"] button')
+      .first()
+      .boundingBox();
+    for (const one of [bell, menu]) {
+      const above = one!.y - band!.y;
+      const below = band!.y + band!.height - 1 - (one!.y + one!.height);
+      expect(Math.abs(above - below)).toBeLessThanOrEqual(1);
+      expect(above).toBeGreaterThanOrEqual(4);
+    }
+    await page.mouse.move(5, 5);
+    await still(page, "title-bar-bell-aligned");
+  });
+
+  test("a failed save puts Try again beside the state, not in the actions", async ({ page }) => {
+    await libraryFixture(page, WORLD);
+    await page.goto(`/library/workflows/${WORKFLOW.id}/edit?state=save-failed`);
+    await expect(saveStatus(page)).toContainText("Not saved");
+    await expect(header(page).getByRole("button", { name: "Try again" }))
+      .toBeVisible();
+    await expect(actions(page).getByRole("button")).toHaveCount(2);
+    await expect(actions(page).getByRole("button", { name: "Publish" }))
+      .not.toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByText("Ready to publish")).toHaveCount(0);
+    await page.mouse.move(5, 5);
+    await still(page, "editor-header-save-failed");
+  });
+
+  test("a step with a problem is ringed on its row alone, and a + sits under the icon column", async ({ page }) => {
+    await libraryFixture(page, { ...WORLD, validation: "warnings" });
+    await page.goto(editorUrl);
+    const item = page.locator("li[data-card]").nth(1);
+    await expect(item).toContainText("Needs setup");
+    const look = await item.evaluate((element) => {
+      const row = element.querySelector(".ui-outline__row")!;
+      const icon = element.querySelector(".ui-outline__icon")!
+        .getBoundingClientRect();
+      const add = element.querySelector(".ui-outline__add button")!
+        .getBoundingClientRect();
+      return {
+        outline: getComputedStyle(element).outlineStyle,
+        radius: getComputedStyle(row).borderTopLeftRadius,
+        iconCentre: icon.left + icon.width / 2,
+        addCentre: add.left + add.width / 2,
+      };
+    });
+    expect(look.outline).toBe("none");
+    expect(look.radius).not.toBe("0px");
+    expect(Math.abs(look.iconCentre - look.addCentre)).toBeLessThanOrEqual(1);
+  });
+
+  test("a member sees the title and the sentences, and no actions", async ({ page }) => {
+    await libraryFixture(page, { ...WORLD, role: "member" });
+    await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+    await expect(header(page)).toContainText("Version 3 is in use");
+    await expect(actions(page)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Publish" })).toHaveCount(0);
+    await page.mouse.move(5, 5);
+    await still(page, "editor-header-member");
+  });
 });
 
 test("the state selector shows the save states a spec cannot force", async ({ page }) => {
@@ -1154,7 +1809,14 @@ for (
       await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
       const brief = page.locator("[data-card='brief']");
       await expect(brief).toContainText("Write the task brief");
-      await expect(brief).toContainText("Edited in code");
+      await expect(brief.locator(SUMMARY)).toContainText(
+        "Writes down what the task is",
+      );
+      await expect(brief.locator(SUMMARY)).not.toContainText(
+        "Edited in code",
+      );
+      await expect(brief.getByRole("img", { name: "Edited in code" }))
+        .toBeVisible();
       // A known type the picker does not offer is not a problem.
       await expect(brief).not.toContainText("Needs setup");
       // Both arms of a branch sit inside one If container, and an empty arm
@@ -1163,7 +1825,7 @@ for (
       await expect(page.locator("[data-group='if']")).toContainText(
         "Edited in code",
       );
-      await expect(page.locator("[data-group-arm='yes']")).toContainText(
+      await expect(page.locator("[data-group='yes']")).toContainText(
         "No steps",
       );
       // Labels are the ruling's words, not the old ones.
@@ -1188,6 +1850,17 @@ for (
       await expect(panel.getByRole("button", { name: "Delete" })).toHaveCount(
         0,
       );
+      if (viewport.name === "desktop") {
+        await expect.poll(async () => {
+          const canvas = await page.locator(
+            '[data-ui-region="workflow-canvas"]',
+          )
+            .boundingBox();
+          const box = await page.locator("[data-group='if']").boundingBox();
+          return canvas !== null && box !== null && box.x >= canvas.x &&
+            box.x + box.width <= canvas.x + canvas.width;
+        }).toBe(true);
+      }
       await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-code-only");
     });
@@ -2227,7 +2900,8 @@ for (
       await expect(fix).toHaveCount(1);
       await expect(fix).toContainText("Fix until it passes");
       await expect(fix).toContainText("At most 2 tries");
-      await expect(fix).toContainText("Fix problems");
+      await expect.poll(async () => (await cardsInside(fix)).join(" "))
+        .toContain("Fix problems");
       // The other repeat is still just a repeat, with no limit claimed.
       const plain = page.locator("[data-group=repeat]");
       await expect(plain).toHaveCount(1);
@@ -2292,7 +2966,7 @@ for (
       // Every step is still drawn: four before the loop, three inside it.
       await expect(steps.locator("[data-card]:not([data-card=start])"))
         .toHaveCount(7);
-      await expect(fix.locator("[data-card]")).toHaveCount(3);
+      await expect.poll(async () => (await cardsInside(fix)).length).toBe(3);
       await page.mouse.move(700, 700);
       await shot(page, "workflow-built-in-fix-block");
     });
@@ -2303,7 +2977,8 @@ for (
       const fix = page.locator("[data-group=fix]");
       await expect(fix).toContainText("Fix until it passes");
       await expect(fix).toContainText("At most 2 tries");
-      await expect(fix).toContainText("Edited in code");
+      await expect(fix.getByRole("img", { name: "Edited in code" }))
+        .toBeVisible();
       await fix.getByRole("button", { name: "Fix until it passes" }).click();
       const panel = page.getByRole("complementary", {
         name: "The selected step",
@@ -2327,6 +3002,200 @@ for (
       await fix.getByRole("button", { name: "Fix until it passes" }).click();
       await page.mouse.move(600, 700);
       await shot(page, "workflow-fix-block-editor");
+    });
+  });
+}
+
+const EACHING: Options = {
+  ...WORLD,
+  versions: [
+    ...VERSIONS.filter((row) => row.status !== "draft"),
+    {
+      ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { kind: "action", id: "brief", uses: "task.brief" },
+        {
+          kind: "forEach",
+          items: "issues",
+          as: "issue",
+          max: 12,
+          steps: [
+            { kind: "action", id: "implement", uses: "harness.implement" },
+            { kind: "action", id: "check", uses: "quality.check" },
+          ],
+        },
+        { kind: "action", id: "review", uses: "review.independent" },
+        { kind: "forEach", items: "files", as: "file", max: 3, steps: [] },
+        {
+          kind: "repeat",
+          max: 2,
+          steps: [{
+            kind: "forEach",
+            items: "notes",
+            as: "note",
+            max: 1,
+            steps: [{ kind: "action", id: "again", uses: "agent.review" }],
+          }],
+        },
+      ],
+    },
+  ],
+};
+
+const EACHING_IF: Options = {
+  ...WORLD,
+  versions: [
+    ...VERSIONS.filter((row) => row.status !== "draft"),
+    {
+      ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { kind: "action", id: "brief", uses: "task.brief" },
+        {
+          kind: "forEach",
+          items: "issues",
+          as: "issue",
+          max: 5,
+          steps: [
+            {
+              kind: "branch",
+              then: [{
+                kind: "action",
+                id: "implement",
+                uses: "harness.implement",
+              }],
+              else: [],
+            },
+            { kind: "action", id: "check", uses: "quality.check" },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+const insideBox = (inner: Locator, outer: Locator) =>
+  Promise.all([inner.boundingBox(), outer.boundingBox()]).then(([i, o]) =>
+    i !== null && o !== null && i.x >= o.x - 1 && i.y >= o.y - 1 &&
+    i.x + i.width <= o.x + o.width + 1 && i.y + i.height <= o.y + o.height + 1
+  );
+
+const marksInside = (group: Locator) =>
+  group.evaluate((element) => {
+    const frame = element.getBoundingClientRect();
+    return [
+      ...document.querySelectorAll(".ui-step-group__code, .ui-outline__code"),
+    ].filter((mark) => {
+      const box = mark.getBoundingClientRect();
+      return box.left >= frame.left - 1 && box.right <= frame.right + 1 &&
+        box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1;
+    }).length;
+  });
+
+const ringOf = (group: Locator) =>
+  group.evaluate((element) =>
+    getComputedStyle(element.querySelector(".ui-outline__row") ?? element)
+      .borderTopColor
+  );
+
+for (
+  const viewport of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "phone", width: 390, height: 844 },
+  ]
+) {
+  test.describe(`${viewport.name}: the For each item block`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    test("a forEach is one block with its steps once and its limit; an empty one and a nested one read the same way", async ({ page }) => {
+      await libraryFixture(page, EACHING);
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1004)}`,
+      );
+      const each = page.locator("[data-group=each]");
+      await expect(each).toHaveCount(3);
+      await expect(each.first()).toContainText("For each item");
+      await expect(each.first()).toContainText("At most 12 items");
+      await expect(each.first()).not.toContainText("issues");
+      expect(await cardsInside(each.first())).toHaveLength(2);
+      await expect(each.nth(1)).toContainText("At most 3 items");
+      await expect(each.nth(1)).toContainText("No steps");
+      if (viewport.name === "phone") {
+        await expect(
+          each.nth(1).locator("ul.ui-outline li [data-variant=muted]", {
+            hasText: "No steps",
+          }),
+        ).toHaveCount(1);
+      }
+      const repeat = page.locator("[data-group=repeat]");
+      await expect(repeat).toHaveCount(1);
+      expect(await insideBox(each.nth(2), repeat)).toBe(true);
+      await expect(each.nth(2)).toContainText("At most 1 item");
+      await expect(each.nth(2)).not.toContainText("At most 1 items");
+      await expect(page.getByTestId("workflow-steps")).not.toContainText(
+        "Edited in code",
+      );
+      await expect(page.getByRole("button", { name: /Add a step after/ }))
+        .toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-for-each");
+    });
+
+    test("an If inside a For each item says nothing more about code, and shows which arm is selected", async ({ page }) => {
+      await libraryFixture(page, EACHING_IF);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const each = page.locator("[data-group=each]");
+      await expect(each).toHaveCount(1);
+      const inner = page.locator("[data-group=if]");
+      await expect(inner).toHaveCount(1);
+      expect(await insideBox(inner, each)).toBe(true);
+      await expect(page.getByRole("button", { name: /Add a step after/ }))
+        .toHaveCount(0);
+      expect(await marksInside(each)).toBe(1);
+      expect(await marksInside(inner)).toBe(0);
+      if (viewport.name === "phone") return;
+      const yes = page.locator("[data-group=yes]");
+      const otherwise = page.locator("[data-group=otherwise]");
+      await expect(yes).not.toHaveAttribute("data-selected", "true");
+      await yes.getByRole("button").first().click();
+      await expect(yes).toHaveAttribute("data-selected", "true");
+      await expect(otherwise).not.toHaveAttribute("data-selected", "true");
+      await expect(each).not.toHaveAttribute("data-selected", "true");
+    });
+
+    test("in the editor the block says what it does as text, with no field for the limit", async ({ page }) => {
+      await libraryFixture(page, EACHING);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const each = page.locator("[data-group=each]").first();
+      await expect(each).toContainText("For each item");
+      await expect(each).toContainText("At most 12 items");
+      await expect(each.getByRole("img", { name: "Edited in code" }))
+        .toHaveCount(1);
+      await expect(page.getByRole("button", { name: /Add a step after/ }))
+        .toHaveCount(0);
+      expect(await marksInside(page.locator("[data-group=repeat]"))).toBe(1);
+      const name = each.getByRole("button").first();
+      await expect(each).not.toHaveAttribute("data-selected", "true");
+      await name.click();
+      await expect(each).toHaveAttribute("data-selected", "true");
+      await expect(page.locator("[data-group=each][data-selected=true]"))
+        .toHaveCount(1);
+      const plain = await ringOf(page.locator("[data-group=each]").nth(1));
+      expect(await ringOf(each)).not.toBe(plain);
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      await expect(panel).toContainText("For each item");
+      await expect(panel).toContainText(
+        "Runs these steps once for each item in a list, one item at a time.",
+      );
+      await expect(panel).toContainText(
+        "A list with more items than the limit fails the run before any step starts.",
+      );
+      await expect(panel).not.toContainText("At most");
+      await expect(panel.getByRole("textbox")).toHaveCount(0);
+      await expect(panel.getByRole("spinbutton")).toHaveCount(0);
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-for-each-editor");
     });
   });
 }

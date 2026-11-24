@@ -258,3 +258,45 @@ Deno.test("a step that authors sealed or files is drawn as code-only (#448)", ()
     [["sealed", true], ["unsealed", true], ["files", true], ["plain", false]],
   );
 });
+
+const eachLoop = (extra: Record<string, unknown> = {}) => ({
+  kind: "forEach",
+  items: "issues",
+  as: "issue",
+  max: 12,
+  steps: [step("implement"), step("check", "quality.check")],
+  ...extra,
+});
+
+Deno.test("a forEach is a For each item block with its limit and its steps drawn once", () => {
+  const tree = treeOf({ steps: [step("brief"), eachLoop(), step("review")] });
+  const group = tree.nodes[1];
+  if (group.kind !== "group") throw new Error("expected a group");
+  assertEquals(group.label, "each");
+  assertEquals(group.max, 12);
+  assertEquals(group.editedInCode, true);
+  assertEquals(group.children.length, 2);
+  assertEquals(tree.stepCount, 4);
+  assertEquals(tree.straightLine, false);
+});
+
+Deno.test("a forEach with no readable limit is drawn without one, never with an invented one", () => {
+  for (const max of [undefined, 0, -1, 2.5, "12", null]) {
+    const group = groupOf({ steps: [eachLoop({ max })] });
+    assertEquals(group.label, "each");
+    assertEquals(group.max, undefined);
+  }
+});
+
+Deno.test("a forEach with no steps is an empty block, and one inside a repeat nests", () => {
+  const empty = groupOf({ steps: [eachLoop({ steps: [] })] });
+  assertEquals(empty.children.length, 0);
+  const nested = groupOf({
+    steps: [{ kind: "repeat", max: 3, steps: [eachLoop({ max: 1 })] }],
+  });
+  assertEquals(nested.label, "repeat");
+  const inner = nested.children[0];
+  if (inner.kind !== "group") throw new Error("expected a nested group");
+  assertEquals(inner.label, "each");
+  assertEquals(inner.max, 1);
+});

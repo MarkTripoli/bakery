@@ -405,14 +405,20 @@ const sha = (text: string) => sha256Hex(canonicalJson(text));
 export async function openLoopWorld(
   fixture: WorkerFixture,
   options: {
-    budgetLimitUsd?: string;
+    budgetLimitUsd?: string | null;
     maxUsd?: number;
     /**
      * Run the reviewed workflow as a compiled plan that repairs at most
      * `repairs` times (#397), instead of the flat preset. The world's methods
      * keep their names: `check(1, …)` admits `repair@1.repair_check`.
      */
-    plan?: { readonly repairs: number };
+    plan?: {
+      readonly repairs: number;
+      readonly limits?: {
+        readonly wallClock?: string;
+        readonly maxCostUsd?: number;
+      };
+    };
   } = {},
 ): Promise<LoopWorld> {
   const suffix = crypto.randomUUID().slice(0, 8);
@@ -436,13 +442,16 @@ export async function openLoopWorld(
         name: `plan-loop-${suffix}`,
         agents: bindings,
         repairs: options.plan?.repairs ?? 2,
+        limits: options.plan?.limits,
       }),
     );
     return {
       workflowVersionId: published.versionId,
       executionMode: "repository",
       repositoryProfileId: repository.profileId,
-      budgetLimitUsd: options.budgetLimitUsd ?? "12.00",
+      ...(options.budgetLimitUsd === null
+        ? {}
+        : { budgetLimitUsd: options.budgetLimitUsd ?? "12.00" }),
       inputs: {
         repositoryId: repository.repositoryId,
         brief: {
@@ -983,10 +992,13 @@ export async function openLoopWorld(
 export async function withReviewedRun<T>(
   work: (world: LoopWorld, seeded: SeededChecks) => Promise<T>,
   options: {
-    budgetLimitUsd?: string;
+    budgetLimitUsd?: string | null;
     maxUsd?: number;
     /** Run the reviewed workflow as a compiled plan (#397). */
-    plan?: { readonly repairs: number };
+    plan?: {
+      readonly repairs: number;
+      readonly limits?: { wallClock?: string; maxCostUsd?: number };
+    };
     seed?: Readonly<Record<string, Outcome>>;
     /** Skip implement and the seed check, for a test that drives them itself. */
     bare?: boolean;

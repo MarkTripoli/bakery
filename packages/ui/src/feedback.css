@@ -317,6 +317,7 @@
   color: var(--color-fg);
   display: none;
   font: var(--type-caption);
+  inline-size: max-content;
   inset-block-end: calc(100% + var(--space-2));
   inset-inline-start: 50%;
   max-inline-size: 32ch;
