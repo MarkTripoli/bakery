@@ -818,7 +818,7 @@ test("P4 plan: a real coordinator turn, a question, a revision and a refused sta
   remember("conversationId", j.conversationId);
   await expect(conversationRegion(page)).toBeVisible();
   await expect(page.locator('[data-stage="plan"]')).toContainText(
-    "Waits for your approval",
+    "Human approval",
   );
   expect(await runsOf(api, j.taskId)).toHaveLength(0);
   await axeClean(page, "/tasks/<id> empty conversation");

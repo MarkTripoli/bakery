@@ -3396,7 +3396,7 @@
   "tasks.conversation.stage.implement": "Implement",
   "tasks.conversation.stage.review": "Review",
   "tasks.conversation.stage.current": "Current stage",
-  "tasks.conversation.stage.waitsApproval": "Waits for your approval",
+  "tasks.conversation.stage.waitsApproval": "Human approval",
   "tasks.conversation.stage.automatic": "Automatic",
   "tasks.conversation.stage.title": "{number} · {name}",
   "tasks.conversation.stage.titleCurrent": "{number} · {name} · Current stage",

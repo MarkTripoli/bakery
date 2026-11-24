@@ -196,7 +196,7 @@ test(
     const conversationId = task.conversationId;
     await expect(conversationRegion(page)).toBeVisible();
     await expect(page.locator('[data-stage="plan"]')).toContainText(
-      "Waits for your approval",
+      "Human approval",
     );
     expect(
       (await api<{ items: unknown[] }>(page, `/v1/tasks/${taskId}/runs`)).items,
