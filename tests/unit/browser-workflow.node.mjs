@@ -80,6 +80,24 @@ test("workflow schedules full coverage and aggregate requires consumer job succe
     assert.equal(captures.length, 1, `${job} capture step`);
     assert.equal(captures[0].env.BAKERY_CAPTURE_JOBS, "4");
     assert.match(captures[0].run, /--\$mode/);
+    const steps = workflow.jobs[job].steps;
+    const startApi = steps.findIndex((step) => step.name === "Start API");
+    const startWeb = steps.findIndex((step) =>
+      step.name === "Start web dev server for fixture routes"
+    );
+    assert.ok(startApi > 0, `${job} starts the API`);
+    assert.ok(startWeb > startApi, `${job} starts the API before the web`);
+    assert.ok(
+      steps.some((step) => step.name === "Wait for API health"),
+      `${job} waits for the API to be ready`,
+    );
+    const stopApi = steps.find((step) => step.name === "Stop API");
+    assert.equal(stopApi?.if, "always()", `${job} stops the API`);
+    assert.ok(
+      steps.some((step) => step.name === "Configure PostgreSQL connection"),
+      `${job} points the API at its database`,
+    );
+    assert.ok(Object.hasOwn(workflow.jobs[job].services ?? {}, "postgres"));
   }
 });
 
@@ -160,9 +178,6 @@ test("schedule/manual empty diff reaches full consumers and fail-closed aggregat
       const name of [
         "LANE_UI_WEB_BROWSER",
         "LANE_UI_STORYBOOK_BROWSER",
-        "LANE_UI_PAPER_RUNTIME",
-        "LANE_UI_PAPER_ENTITLEMENTS",
-        "LANE_UI_PAPER_ARTIFACTS",
       ]
     ) {
       const refused = spawnSync("bash", ["-c", aggregate.run], {
@@ -174,6 +189,25 @@ test("schedule/manual empty diff reaches full consumers and fail-closed aggregat
         1,
         `${eventName}/${name} must not count skipped coverage as success`,
       );
+    }
+    for (
+      const name of [
+        "LANE_UI_PAPER_RUNTIME",
+        "LANE_UI_PAPER_ENTITLEMENTS",
+        "LANE_UI_PAPER_ARTIFACTS",
+      ]
+    ) {
+      for (const result of ["skipped", "failure", "cancelled"]) {
+        const tolerated = spawnSync("bash", ["-c", aggregate.run], {
+          env: { ...env, [name]: result },
+          encoding: "utf8",
+        });
+        assert.equal(
+          tolerated.status,
+          0,
+          `${eventName}/${name}=${result} must not gate the aggregate: ${tolerated.stderr}`,
+        );
+      }
     }
   }
 });
@@ -226,11 +260,22 @@ test("the affected route selects exactly the classified heavy lanes", () => {
   });
   assert.equal(pass.status, 0, pass.stderr);
   // A selected lane that did not succeed rejects.
-  const failed = { ...env, LANE_UI_PAPER_RUNTIME: "failure" };
+  const failed = { ...env, LANE_UI_WEB_BROWSER: "failure" };
   assert.equal(
     spawnSync("bash", ["-c", aggregate.run], { env: failed, encoding: "utf8" })
       .status,
     1,
+  );
+  const informationalParityFailed = {
+    ...env,
+    LANE_UI_PAPER_RUNTIME: "failure",
+  };
+  assert.equal(
+    spawnSync("bash", ["-c", aggregate.run], {
+      env: informationalParityFailed,
+      encoding: "utf8",
+    }).status,
+    0,
   );
   // A selected lane that was skipped rejects just as hard.
   const skippedSelected = { ...env, LANE_UI_WEB_BROWSER: "skipped" };

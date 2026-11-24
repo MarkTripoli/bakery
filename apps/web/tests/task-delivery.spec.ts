@@ -413,6 +413,7 @@ const approvalRow = (over: Record<string, unknown> = {}) => ({
   createdAt: at(6),
   updatedAt: at(6),
   version: 4,
+  mayDecide: true,
   ...over,
 });
 type ApprovalRow = ReturnType<typeof approvalRow>;

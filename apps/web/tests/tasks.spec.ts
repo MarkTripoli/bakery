@@ -286,7 +286,7 @@ test("task filters reset cursors, preserve focus, and navigate real routes", asy
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Start run", exact: true }))
     .toBeVisible();
-  await expect(page.getByText("No artifacts to show.")).toBeVisible();
+  await expect(page.getByText("No artifacts to show.")).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
