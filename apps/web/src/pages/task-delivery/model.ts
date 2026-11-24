@@ -559,8 +559,6 @@ export type Try = Readonly<{
   sha: string;
 }>;
 
-export const MOST_TRIES = 8;
-
 export type DeliveryModel = Readonly<{
   /** False until there are changes to show, so the section is not drawn. */
   visible: boolean;

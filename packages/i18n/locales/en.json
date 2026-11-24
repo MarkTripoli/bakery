@@ -1004,7 +1004,6 @@
   "tasks.run.rules.noFixedPolicy": "This repository's settings name no checks, so runs here record no rules fingerprint.",
   "tasks.run.rules.loadFailed": "The rules this run used could not be loaded.",
   "tasks.run.rules.forbidden": "You do not have access to see which rules this run used.",
-  "tasks.run.idCopyFailed": "Could not copy the run ID. Select it and copy it yourself.",
   "tasks.run.updates": "Run updates",
   "tasks.run.stepUpdate": "Latest step update",
   "tasks.run.timeline": "Run steps",

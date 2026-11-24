@@ -850,6 +850,8 @@ test("a stopped run names the reason once, lists what remains, and its one butto
   await expect(page.locator("#task-message-field")).toBeFocused();
 });
 
+const allowanceAnswer = () => decisionRow(3, "repair", "repair_selected", NEW);
+
 async function mockMoreTries(
   page: Page,
   reply: { status: number; reason?: string },
@@ -863,7 +865,7 @@ async function mockMoreTries(
     });
     if (reply.status < 300) {
       return route.fulfill({
-        json: decisionRow(3, "repair", "repair_selected", NEW),
+        json: allowanceAnswer(),
       });
     }
     return route.fulfill({
@@ -947,7 +949,7 @@ test("a retry after no answer sends the same idempotency key", async ({ page }) 
       });
     }
     return route.fulfill({
-      json: decisionRow(3, "repair", "repair_selected", NEW),
+      json: allowanceAnswer(),
     });
   });
   await page.goto(`/tasks/${id}`);

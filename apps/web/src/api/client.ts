@@ -103,7 +103,6 @@ export type PullRequestListResponse = ClientOutputMap["Page<PullRequest>"];
 export type MergeAttemptListResponse = ClientOutputMap["Page<MergeAttempt>"];
 export type DeploymentListResponse = ClientOutputMap["Page<Deployment>"];
 export type DeploymentResponse = ClientOutputMap["Deployment"];
-export type RepairAllowanceResponse = ClientOutputMap["DeliveryDecision"];
 export type MergeAttemptResponse = ClientOutputMap["MergeAttempt"];
 export type MergeEntryListResponse = ClientOutputMap["Page<MergeEntry>"];
 export type MergeEntryResponse = ClientOutputMap["MergeEntry"];
@@ -2046,7 +2045,7 @@ export type BakeryApiClient = {
     readonly tries: number;
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
-  }) => Promise<ApiResult<RepairAllowanceResponse>>;
+  }) => Promise<ApiResult<null>>;
   /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
   readonly reconcileMergeAttempts: (options: {
     readonly organizationId: string;
@@ -6661,11 +6660,11 @@ export function createBakeryApiClient({
     async allowMoreRepairTries(options) {
       organizationId = options.organizationId;
       try {
-        const data = await client.actions["runRepairAllowances.create"](
+        await client.actions["runRepairAllowances.create"](
           { id: options.runId, tries: options.tries },
           { idempotencyKey: options.idempotencyKey, signal: options.signal },
         );
-        return { ok: true, data };
+        return { ok: true, data: null };
       } catch (error) {
         return failed(error);
       } finally {

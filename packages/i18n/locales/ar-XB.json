@@ -3321,7 +3321,6 @@
   "tasks.live.retry": "⟪Try again⟫",
   "tasks.controls.accepted": "⟪Request admitted. This does not confirm what the machine did. Refreshed run state is authoritative.⟫",
   "tasks.run.id": "⟪Run ID⟫",
-  "tasks.run.idCopyFailed": "⟪Could not copy the run ID. Select it and copy it yourself.⟫",
   "tasks.run.blockedWaiting": "⟪This run is waiting for another task to finish.⟫",
   "tasks.artifactPane.details": "⟪Details⟫",
   "tasks.run.revision.noneRecorded": "⟪Bakery has not recorded any changes for this run yet.⟫",

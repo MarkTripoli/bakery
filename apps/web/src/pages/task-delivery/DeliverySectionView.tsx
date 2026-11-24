@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { focusAfterPaint } from "../../app/focus.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import * as UI from "@bakery/ui";
+import { REVIEW_LOOP_LIMITS } from "@bakery/contracts/review-evidence";
 import { knownCommits, ReferenceText } from "../../app/ReferenceText.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import type { MessageKey } from "@bakery/i18n";
@@ -13,7 +14,6 @@ import {
   type ApprovalChoice,
   type DeliveryModel,
   type MergeView,
-  MOST_TRIES,
   type NowCard,
 } from "./model.ts";
 import type { DecisionPhase } from "./use-approval-decision.ts";
@@ -96,7 +96,7 @@ type MoreTriesOffer = "offer" | "ask" | "none";
 
 function nowCopy(
   t: Translate,
-  now: NowCard,
+  now: Exclude<NowCard, Readonly<{ kind: "paused" }>>,
   context: Readonly<{ model: DeliveryModel; moreTries: MoreTriesOffer }>,
 ): NowCopy {
   const next = t("tasks.delivery.now.nextStep");
@@ -151,8 +151,6 @@ function nowCopy(
         action: null,
       };
     }
-    case "paused":
-      return { title: "", body: "", action: null };
     case "clean":
       return {
         title: t("tasks.delivery.now.clean.title"),
@@ -537,7 +535,7 @@ function ReadyView(
   const deciding = decisionPhase === "deciding";
   const triesRoom = model.now.kind === "stopped" &&
       model.now.reason === "repair_cycles_exhausted"
-    ? MOST_TRIES - model.now.max
+    ? REVIEW_LOOP_LIMITS.maxRepairCyclesCeiling - model.now.max
     : 0;
   const moreTries: MoreTriesOffer = triesRoom < 1
     ? "none"
@@ -545,7 +543,10 @@ function ReadyView(
     ? "offer"
     : "ask";
   const [moreTriesOpen, setMoreTriesOpen] = useState(false);
-  const copy = nowCopy(t, model.now, { model, moreTries });
+  const copy = model.now.kind === "paused"
+    ? null
+    : nowCopy(t, model.now, { model, moreTries });
+  const copyAction = copy?.action ?? null;
   const head = model.headSha === null
     ? ""
     : UI.shortReference("commit", model.headSha);
@@ -716,7 +717,7 @@ function ReadyView(
     </UI.Link>
   );
   // A person who was refused cannot decide, so the answers go away for them.
-  const canDecide = copy.action === "decide" && decisionPhase !== "forbidden";
+  const canDecide = copyAction === "decide" && decisionPhase !== "forbidden";
   const answerDisabled = offline || deciding;
   const approveButton = (
     <UI.Button
@@ -754,15 +755,15 @@ function ReadyView(
     </UI.Button>
   );
   // The slice-1 buttons (Tell Bakery, Open rules) keep their place on every screen.
-  const otherButton = copy.action === "tell" || copy.action === "rules"
+  const otherButton = copyAction === "tell" || copyAction === "rules"
     ? (
       <UI.Button
-        disabled={offline && copy.action === "tell"}
-        onClick={copy.action === "tell" ? onTellBakery : onOpenRules}
-        variant={copy.action === "tell" ? "primary" : "text"}
+        disabled={offline && copyAction === "tell"}
+        onClick={copyAction === "tell" ? onTellBakery : onOpenRules}
+        variant={copyAction === "tell" ? "primary" : "text"}
       >
         {t(
-          copy.action === "tell"
+          copyAction === "tell"
             ? "tasks.delivery.now.tell"
             : "tasks.delivery.now.openRules",
         )}
@@ -804,28 +805,28 @@ function ReadyView(
   );
   const phoneActions = !phone
     ? null
-    : copy.action === "goBack"
+    : copyAction === "goBack"
     ? [goBackButton("primary")]
-    : copy.action === "chooseNext"
+    : copyAction === "chooseNext"
     ? [chooseNextLink]
-    : copy.action === "tellAndMoreTries"
+    : copyAction === "tellAndMoreTries"
     ? [tellOutlineButton, moreTriesButton]
-    : copy.action === "merge"
+    : copyAction === "merge"
     ? [mergeButton("primary")]
-    : copy.action === "mergeAgain"
+    : copyAction === "mergeAgain"
     ? [mergeButton("primary", true)]
-    : copy.action === "openOnGitHub"
+    : copyAction === "openOnGitHub"
     ? [openOnGitHub]
-    : copy.action === "checkAgain"
+    : copyAction === "checkAgain"
     ? [checkAgainButton]
-    : copy.action === "refused"
+    : copyAction === "refused"
     ? [
       openOnGitHub,
       merge?.startable === true ? mergeButton("secondary") : null,
     ]
     : canDecide
     ? [rejectButton, changesButton, approveButton]
-    : copy.action === "retryApprovals"
+    : copyAction === "retryApprovals"
     ? [retryButton]
     : null;
   // Beside the text where they fit and under it where they do not; on a phone
@@ -837,32 +838,32 @@ function ReadyView(
         {phoneActions}
       </UI.Inline>
     ))
-    : copy.action === "goBack"
+    : copyAction === "goBack"
     ? goBackButton("primary")
-    : copy.action === "chooseNext"
+    : copyAction === "chooseNext"
     ? chooseNextLink
-    : copy.action === "tellAndMoreTries"
+    : copyAction === "tellAndMoreTries"
     ? <UI.Inline>{tellOutlineButton}{moreTriesButton}</UI.Inline>
-    : copy.action === "merge"
+    : copyAction === "merge"
     ? mergeButton("primary")
-    : copy.action === "mergeAgain"
+    : copyAction === "mergeAgain"
     ? mergeButton("primary", true)
-    : copy.action === "openOnGitHub"
+    : copyAction === "openOnGitHub"
     ? openOnGitHub
-    : copy.action === "checkAgain"
+    : copyAction === "checkAgain"
     ? checkAgainButton
-    : copy.action === "refused"
+    : copyAction === "refused"
     ? (
       <UI.Inline>
         {openOnGitHub}
         {merge?.startable === true ? mergeButton("secondary") : null}
       </UI.Inline>
     )
-    : copy.action === "decide"
+    : copyAction === "decide"
     ? canDecide
       ? <UI.Inline>{approveButton}{changesButton}{rejectButton}</UI.Inline>
       : null
-    : copy.action === "retryApprovals"
+    : copyAction === "retryApprovals"
     ? retryButton
     : otherButton;
 
@@ -945,7 +946,7 @@ function ReadyView(
       </UI.InlineNotice>
     )
     : null;
-  const nowContent = (
+  const nowContent = copy === null ? null : (
     <>
       <UI.Heading id={NOW_TITLE_ID} level="subsection" tabIndex={-1}>
         {copy.title}
@@ -967,7 +968,7 @@ function ReadyView(
   return (
     <>
       {noticeAbove && mergeNoticeElement}
-      {model.now.kind === "paused" ? null : (
+      {copy === null ? null : (
         <UI.AlertBanner
           action={action}
           actionLayout="stretch"
