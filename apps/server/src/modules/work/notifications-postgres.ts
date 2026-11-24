@@ -136,9 +136,9 @@ export async function listNotifications(
     scope: NotificationScope;
     query: z.output<typeof contractSchemas.NotificationCursorQuery>;
     secret: string;
-    destinationOf: (
-      row: NotificationRow,
-    ) => Promise<NotificationDestination>;
+    destinationsOf: (
+      rows: readonly NotificationRow[],
+    ) => Promise<NotificationDestination[]>;
   },
 ) {
   const { query, scope } = input;
@@ -178,14 +178,13 @@ export async function listNotifications(
     scope.organizationId,
     page,
   );
-  const items = await Promise.all(
-    page.map(async (row: NotificationRow) =>
-      toNotification(
-        row,
-        await input.destinationOf(row),
-        outcomes.get(row.targetId) ?? null,
-      )
-    ),
+  const destinations = await input.destinationsOf(page);
+  const items = page.map((row: NotificationRow, index) =>
+    toNotification(
+      row,
+      destinations[index]!,
+      outcomes.get(row.targetId) ?? null,
+    )
   );
   return {
     items,

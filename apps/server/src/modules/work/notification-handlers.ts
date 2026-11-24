@@ -17,6 +17,7 @@ import {
 } from "./notifications-postgres.ts";
 import { signalInboxChanged } from "./notification-signal.ts";
 import {
+  resolveDestinationSummaries,
   resolveDestinationSummary,
   resolveNotificationTarget,
 } from "./notifications-target.ts";
@@ -70,8 +71,8 @@ export function createNotificationHandlers(secret: string) {
         scope,
         query,
         secret,
-        destinationOf: (row) =>
-          resolveDestinationSummary(transaction, scope, row),
+        destinationsOf: (rows) =>
+          resolveDestinationSummaries(transaction, scope, rows),
       });
     },
 
