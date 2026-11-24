@@ -127,6 +127,18 @@ type Options = {
   keyDelay?: Promise<void>;
 };
 
+async function datesStayReadable(page: Page) {
+  const rows = page.locator("[data-run]");
+  const count = await rows.count();
+  expect(count).toBeGreaterThan(0);
+  for (let index = 0; index < count; index += 1) {
+    const box = await rows.nth(index).getByText(/UTC/).first().boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThan(100);
+    expect(box!.height).toBeLessThan(60);
+  }
+}
+
 async function fixture(page: Page, options: Options = {}) {
   await mockAuthenticatedSession(page);
   const starts: { key: string | undefined }[] = [];
@@ -438,6 +450,10 @@ for (
       await expect(page.locator("[data-run]").first()).toContainText(
         "Not taken",
       );
+      await expect(page.locator("[data-run]").first()).not.toContainText(
+        "Not taken · Not taken",
+      );
+      await datesStayReadable(page);
       await expect.poll(() => said(page.locator("[data-run]").nth(1)))
         .toContain("Not copied off-site");
       await expect.poll(() => said(page.locator("[data-run]").nth(1)))
@@ -465,11 +481,11 @@ for (
       await expect.poll(() => said(notice)).toContain(
         "Take a first backup now.",
       );
-      await expect(page.locator("[data-result='no-backups']")).toBeVisible();
+      await expect(page.locator("[data-section='backups']")).toHaveCount(0);
       await expect.poll(() => said(page.locator("[data-fact='last-good']")))
-        .toContain("No backup has finished yet");
+        .toContain("Never");
       await expect.poll(() => said(page.locator("[data-fact='last-good']")))
-        .toContain("None yet");
+        .not.toContain("No backup has finished yet");
       await expect(page.locator("[data-result='no-drills']")).toContainText(
         "No restore check has been run.",
       );

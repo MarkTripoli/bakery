@@ -6821,8 +6821,6 @@
   "installation.backups.fix.drain_timeout": "⟦Ɓàçķ ûþ àĝàïñ ŵĥëñ ļëšš ïš ŕûññïñĝ ŧëšŧ çôþÿ⟧",
   "installation.backups.cause.runner_error": "⟦ŧĥë ƀàçķûþ šëŕṽïçë šŧôþþëð ŵïŧĥ àñ ëŕŕôŕ ŧëšŧ çôþÿ ŧ⟧",
   "installation.backups.facts.lastGood.label": "⟦Ļàšŧ ĝôôð ƀàçķûþ ŧëš⟧",
-  "installation.backups.facts.lastGood.none": "⟦Ñô ƀàçķûþ ĥàš ƒïñïšĥëð ÿëŧ ŧëšŧ çô⟧",
-  "installation.backups.facts.lastGood.value": "⟦Ñôñë ÿëŧ…⟧",
   "installation.backups.facts.next.label": "⟦Ñëẋŧ ƀàçķûþ ŧ⟧",
   "installation.backups.facts.next.off": "⟦Ñôŧ šçĥëðûļëð ŧë⟧",
   "installation.backups.facts.next.turnOn": "⟦Ŧûŕñ ôñ…⟧",
@@ -6836,7 +6834,6 @@
   "installation.backups.facts.check.detail": "⟦{time}, ŕëšŧôŕëð ïñ {span} ŧëšŧ çô⟧",
   "installation.backups.facts.check.guide": "⟦Ĥôŵ ŧô ŕûñ ôñë ŧë⟧",
   "installation.backups.list.title": "⟦Ĥïšŧôŕÿ…⟧",
-  "installation.backups.list.empty": "⟦Ñô ƀàçķûþ ĥàš ƀëëñ ŧàķëñ ÿëŧ. ŧëšŧ çôþ⟧",
   "installation.backups.list.taken": "⟦Ŧàķëñ (ÛŦÇ) ŧ⟧",
   "installation.backups.list.by": "⟦Šŧàŕŧëð ƀÿ ŧ⟧",
   "installation.backups.list.size": "⟦Šïžë⟧",
@@ -6881,7 +6878,6 @@
   "installation.backups.settings.schedule.off": "⟦Ôƒƒ⟧",
   "installation.backups.settings.schedule.on": "⟦{interval} àŧ {time} ÛŦÇ ŧëšŧ ç⟧",
   "installation.backups.settings.offsite": "⟦Ôƒƒ-šïŧë çôþÿ ŧë⟧",
-  "installation.backups.settings.offsite.on": "⟦Šëŧ ûþ…⟧",
   "installation.backups.settings.offsite.off": "⟦Ñôŧ šëŧ ûþ ŧ⟧",
   "installation.backups.settings.pitr": "⟦Ŕëšŧôŕë ŧô àñÿ ɱïñûŧë ŧëšŧŧ⟧",
   "installation.backups.settings.pitr.off": "⟦Ôƒƒ⟧",
@@ -7001,5 +6997,7 @@
   "installation.backups.drillFix.restore_failed": "⟦Çĥëçķ ïŧ àĝàïñ. Ïƒ ïŧ ƒàïļš à šëçôñð ŧïɱë, ƒôļļôŵ ŧĥë ĝûïðë. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "installation.backups.drillFix.references_missing": "⟦Ŧàķë à ñëŵ ƀàçķûþ àñð çĥëçķ ŧĥàŧ ôñë. Ŧĥë ĝûïðë šàÿš ŵĥïçĥ ƒïļëš à ƀàçķûþ ɱûšŧ ïñçļûðë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "installation.backups.drillFix.drill_error": "⟦Çĥëçķ ïŧ àĝàïñ. Ïƒ ïŧ šŧôþš àĝàïñ, ŧĥë šëŕṽëŕ ļôĝ šàÿš ŵĥÿ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "installation.backups.drillFix.unknown": "⟦Çĥëçķ ïŧ àĝàïñ. ŧëš⟧"
+  "installation.backups.drillFix.unknown": "⟦Çĥëçķ ïŧ àĝàïñ. ŧëš⟧",
+  "installation.backups.facts.lastGood.value": "⟦Ñëṽëŕ⟧",
+  "installation.backups.settings.offsite.on": "⟦Ôñ⟧"
 }
