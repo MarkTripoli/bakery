@@ -840,9 +840,9 @@ for (
         "bkr_live_9f3a7c1e5b2d8046a1c9e7f3b5d2a8c4",
       );
       await expect.poll(() => said(page.locator("[data-section='service']")))
-        .toContain(
-          "Waiting for the backup service to sign in for the first time.",
-        );
+        .toContain("Waiting");
+      await expect.poll(() => said(page.locator("[data-section='service']")))
+        .toContain("It has not signed in for the first time yet.");
     });
 
     test("not an administrator: only the sentence, no page", async ({ page }) => {
