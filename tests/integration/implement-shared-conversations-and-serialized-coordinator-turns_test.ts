@@ -636,6 +636,20 @@ Deno.test("retry is refused for a member without write access and for another te
     assertEquals((await turnsOf(fixture, seed)).length, 1);
   }));
 
+Deno.test("retry with a stale If-Match is refused and queues nothing", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "retry-stale");
+    const failed = await failedTurn(fixture, seed);
+    const stale = await call(
+      fixture,
+      seed,
+      `/v1/conversation-turns/${failed.id}/retry`,
+      { method: "POST", ifMatch: failed.version + 1 },
+    );
+    assertEquals(stale.status, 412);
+    assertEquals((await turnsOf(fixture, seed)).length, 1);
+  }));
+
 Deno.test("an expired lease is taken over after a restart and completes once", () =>
   withFixture(async (fixture) => {
     const seed = await seedOrganization(fixture, "lease");
