@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { contractSchemas } from "@bakery/contracts/contracts";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { pausedReason } from "./ticket-request-state.ts";
 
 type DeliveryOutput = z.output<typeof contractSchemas.IssueDelivery>;
 
@@ -8,6 +9,8 @@ type DeliveryRow = {
   external_ticket_id: string;
   task_id: string;
   disposition: string;
+  disposition_reason: string | null;
+  pause_requested_at: Date | null;
   run_id: string | null;
   run_status: string | null;
   step_key: string | null;
@@ -16,10 +19,14 @@ type DeliveryRow = {
   question_open: boolean;
   question_expired: boolean;
   decision: string | null;
+  decision_reason: string | null;
   pull_request_id: string | null;
   pull_request_number: number | null;
   pull_request_status: string | null;
   target_branch: string | null;
+  merged_branch: string | null;
+  paused_by: string | null;
+  paused_by_name: string | null;
   environment: string | null;
   deployment_status: string | null;
 };
@@ -55,8 +62,37 @@ function stateOf(row: DeliveryRow): DeliveryOutput["state"] {
   return "working";
 }
 
+const STOP_REASONS = new Set([
+  "policy_missing",
+  "stale_evidence",
+  "checks_unavailable",
+  "repeated_blocker",
+  "repair_cycles_exhausted",
+  "repair_time_exhausted",
+  "repair_budget_exhausted",
+  "reviewer_unavailable",
+  "review_failed",
+]);
+
+function stopReasonOf(row: DeliveryRow): DeliveryOutput["stopReason"] | null {
+  if (row.decision !== "stop" || row.decision_reason === null) return null;
+  return STOP_REASONS.has(row.decision_reason)
+    ? row.decision_reason as DeliveryOutput["stopReason"]
+    : null;
+}
+
+function pausedByOf(row: DeliveryRow): DeliveryOutput["pausedBy"] | null {
+  if (row.paused_by !== null) return "person";
+  if (row.disposition === "suspended" && row.pause_requested_at !== null) {
+    return "bakery";
+  }
+  return null;
+}
+
 function toDelivery(row: DeliveryRow): DeliveryOutput {
   const state = stateOf(row);
+  const paused = state === "paused";
+  const pausedBy = paused ? pausedByOf(row) : null;
   return {
     taskId: row.task_id,
     runId: row.run_id,
@@ -72,6 +108,15 @@ function toDelivery(row: DeliveryRow): DeliveryOutput {
     pullRequestId: row.pull_request_id,
     pullRequestNumber: row.pull_request_number,
     targetBranch: row.target_branch,
+    stopReason: state === "stopped" ? stopReasonOf(row) : null,
+    mergedBranch: state === "merged" || state === "released"
+      ? row.merged_branch
+      : null,
+    pausedBy,
+    pausedByName: pausedBy === "person" ? row.paused_by_name : null,
+    pausedReason: pausedBy === "bakery"
+      ? pausedReason(row.pause_requested_at, row.disposition_reason)
+      : null,
   } as DeliveryOutput;
 }
 
@@ -84,8 +129,10 @@ export async function deliveryFor(
   const result = await transaction.query<DeliveryRow>(
     `with latest as (
        select distinct on (request.external_ticket_id)
-              request.external_ticket_id, request.disposition,
-              request.workflow_run_id, link.task_id
+              request.id as request_id, request.external_ticket_id,
+              request.disposition, request.disposition_reason,
+              request.pause_requested_at, request.workflow_run_id,
+              link.task_id
          from bakery.ticket_requests as request
          join bakery.ticket_task_links as link
            on link.organization_id = request.organization_id
@@ -96,16 +143,20 @@ export async function deliveryFor(
         order by request.external_ticket_id, request.generation desc
      )
      select latest.external_ticket_id, latest.task_id, latest.disposition,
+            latest.disposition_reason, latest.pause_requested_at,
             run.id as run_id, run.status as run_status,
             step.step_key, approval.subject_type as approval_subject,
             approval.step_key as approval_step_key,
             coalesce(question.open, false) as question_open,
             coalesce(question.expired, false) as question_expired,
-            decision.decision,
+            decision.decision, decision.reason as decision_reason,
             pull.id as pull_request_id,
             pull.provider_number as pull_request_number,
             pull.status as pull_request_status,
             pull.default_branch as target_branch,
+            pull.merged_branch,
+            pauser.principal_id as paused_by,
+            pauser.display_name as paused_by_name,
             deployment.environment, deployment.status as deployment_status
        from latest
        join bakery.tasks as task
@@ -143,18 +194,27 @@ export async function deliveryFor(
           limit 1
        ) as question on true
        left join lateral (
-         select made.decision from bakery.delivery_decisions as made
+         select made.decision, made.reason from bakery.delivery_decisions as made
           where made.organization_id = $1 and made.run_id = run.id
           order by made.ordinal desc
           limit 1
        ) as decision on true
        left join lateral (
          select opened.id, opened.provider_number, opened.status,
-                repository.default_branch
+                repository.default_branch, landed.base_branch as merged_branch
            from bakery.pull_requests as opened
            join bakery.repositories as repository
              on repository.organization_id = opened.organization_id
             and repository.id = opened.repository_id
+           left join lateral (
+             select attempt.base_branch
+               from bakery.pull_request_merge_attempts as attempt
+              where attempt.organization_id = opened.organization_id
+                and attempt.pull_request_id = opened.id
+                and attempt.state = 'merged'
+              order by attempt.created_at desc, attempt.id desc
+              limit 1
+           ) as landed on true
           where opened.organization_id = $1
             and opened.task_id = latest.task_id
           order by opened.created_at desc, opened.id desc
@@ -166,7 +226,21 @@ export async function deliveryFor(
           where shipped.organization_id = $1 and shipped.run_id = run.id
           order by shipped.created_at desc, shipped.id desc
           limit 1
-       ) as deployment on true`,
+       ) as deployment on true
+       left join lateral (
+         select batch.paused_by as principal_id, who.display_name
+           from bakery.batch_issues as member
+           join bakery.batches as batch
+             on batch.organization_id = member.organization_id
+            and batch.id = member.batch_id
+           left join bakery.principals as who on who.id = batch.paused_by
+          where member.organization_id = $1
+            and member.ticket_request_id = latest.request_id
+            and batch.state = 'paused'
+            and batch.paused_by is not null
+          order by batch.paused_at desc nulls last, batch.id desc
+          limit 1
+       ) as pauser on true`,
     [organizationId, [...ticketIds]],
   );
   return new Map(

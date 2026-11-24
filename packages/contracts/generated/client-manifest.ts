@@ -88033,6 +88033,94 @@ export const clientManifest = {
                     }
                   ],
                   "description": "IssueDelivery.targetBranch may be null in this transport value."
+                },
+                "stopReason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "policy_missing",
+                        "stale_evidence",
+                        "checks_unavailable",
+                        "repeated_blocker",
+                        "repair_cycles_exhausted",
+                        "repair_time_exhausted",
+                        "repair_budget_exhausted",
+                        "reviewer_unavailable",
+                        "review_failed"
+                      ],
+                      "description": "Why Bakery stopped, when state is stopped: the reason of the run's newest delivery decision when that decision stopped it, the same reason the task's Delivery headline names. Null for every other state, and when the run failed, was canceled or blocked, or the request ended, without a stop decision; the line then says Bakery stopped and points to the task."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.stopReason may be null in this transport value."
+                },
+                "mergedBranch": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Branch the pull request merged into, when state is merged or released: the base branch of its newest merge attempt that merged. Null for every other state, and when it merged without a merge attempt recorded by Bakery; the line then says only Merged."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.mergedBranch may be null in this transport value."
+                },
+                "pausedBy": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "person",
+                        "bakery"
+                      ],
+                      "description": "Who paused the work, when state is paused: person (someone paused the batch the issue runs in; pausedByName names them), bakery (Bakery paused the run itself after the issue changed; pausedReason says what changed). Null for every other state, and when neither is known; the line then says only Paused."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.pausedBy may be null in this transport value."
+                },
+                "pausedByName": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Display name of the person who paused the batch, when pausedBy is person; null otherwise."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.pausedByName may be null in this transport value."
+                },
+                "pausedReason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "edited_after_setup",
+                        "label_removed",
+                        "hold_label_added",
+                        "dependency_unreadable"
+                      ],
+                      "description": "What changed on the issue, when pausedBy is bakery, in the words the issue page uses for a paused request; null otherwise, and when the change is none of those four."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "IssueDelivery.pausedReason may be null in this transport value."
                 }
               },
               "required": [
@@ -88045,7 +88133,12 @@ export const clientManifest = {
                 "releaseStatus",
                 "pullRequestId",
                 "pullRequestNumber",
-                "targetBranch"
+                "targetBranch",
+                "stopReason",
+                "mergedBranch",
+                "pausedBy",
+                "pausedByName",
+                "pausedReason"
               ],
               "additionalProperties": false,
               "description": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
@@ -88832,6 +88925,94 @@ export const clientManifest = {
                           }
                         ],
                         "description": "IssueDelivery.targetBranch may be null in this transport value."
+                      },
+                      "stopReason": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "policy_missing",
+                              "stale_evidence",
+                              "checks_unavailable",
+                              "repeated_blocker",
+                              "repair_cycles_exhausted",
+                              "repair_time_exhausted",
+                              "repair_budget_exhausted",
+                              "reviewer_unavailable",
+                              "review_failed"
+                            ],
+                            "description": "Why Bakery stopped, when state is stopped: the reason of the run's newest delivery decision when that decision stopped it, the same reason the task's Delivery headline names. Null for every other state, and when the run failed, was canceled or blocked, or the request ended, without a stop decision; the line then says Bakery stopped and points to the task."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.stopReason may be null in this transport value."
+                      },
+                      "mergedBranch": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Branch the pull request merged into, when state is merged or released: the base branch of its newest merge attempt that merged. Null for every other state, and when it merged without a merge attempt recorded by Bakery; the line then says only Merged."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.mergedBranch may be null in this transport value."
+                      },
+                      "pausedBy": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "person",
+                              "bakery"
+                            ],
+                            "description": "Who paused the work, when state is paused: person (someone paused the batch the issue runs in; pausedByName names them), bakery (Bakery paused the run itself after the issue changed; pausedReason says what changed). Null for every other state, and when neither is known; the line then says only Paused."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.pausedBy may be null in this transport value."
+                      },
+                      "pausedByName": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Display name of the person who paused the batch, when pausedBy is person; null otherwise."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.pausedByName may be null in this transport value."
+                      },
+                      "pausedReason": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "edited_after_setup",
+                              "label_removed",
+                              "hold_label_added",
+                              "dependency_unreadable"
+                            ],
+                            "description": "What changed on the issue, when pausedBy is bakery, in the words the issue page uses for a paused request; null otherwise, and when the change is none of those four."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "IssueDelivery.pausedReason may be null in this transport value."
                       }
                     },
                     "required": [
@@ -88844,7 +89025,12 @@ export const clientManifest = {
                       "releaseStatus",
                       "pullRequestId",
                       "pullRequestNumber",
-                      "targetBranch"
+                      "targetBranch",
+                      "stopReason",
+                      "mergedBranch",
+                      "pausedBy",
+                      "pausedByName",
+                      "pausedReason"
                     ],
                     "additionalProperties": false,
                     "description": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."

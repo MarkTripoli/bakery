@@ -15700,6 +15700,36 @@ const transportSchemas = {
           "type": "string|null",
           "required": true,
           "description": "Default branch of the newest pull request's repository, the branch a merge lands on; null when no pull request was opened."
+        },
+        {
+          "name": "stopReason",
+          "type": "enum(policy_missing|stale_evidence|checks_unavailable|repeated_blocker|repair_cycles_exhausted|repair_time_exhausted|repair_budget_exhausted|reviewer_unavailable|review_failed)|null",
+          "required": true,
+          "description": "Why Bakery stopped, when state is stopped: the reason of the run's newest delivery decision when that decision stopped it, the same reason the task's Delivery headline names. Null for every other state, and when the run failed, was canceled or blocked, or the request ended, without a stop decision; the line then says Bakery stopped and points to the task."
+        },
+        {
+          "name": "mergedBranch",
+          "type": "string|null",
+          "required": true,
+          "description": "Branch the pull request merged into, when state is merged or released: the base branch of its newest merge attempt that merged. Null for every other state, and when it merged without a merge attempt recorded by Bakery; the line then says only Merged."
+        },
+        {
+          "name": "pausedBy",
+          "type": "enum(person|bakery)|null",
+          "required": true,
+          "description": "Who paused the work, when state is paused: person (someone paused the batch the issue runs in; pausedByName names them), bakery (Bakery paused the run itself after the issue changed; pausedReason says what changed). Null for every other state, and when neither is known; the line then says only Paused."
+        },
+        {
+          "name": "pausedByName",
+          "type": "string|null",
+          "required": true,
+          "description": "Display name of the person who paused the batch, when pausedBy is person; null otherwise."
+        },
+        {
+          "name": "pausedReason",
+          "type": "enum(edited_after_setup|label_removed|hold_label_added|dependency_unreadable)|null",
+          "required": true,
+          "description": "What changed on the issue, when pausedBy is bakery, in the words the issue page uses for a paused request; null otherwise, and when the change is none of those four."
         }
       ]
     }

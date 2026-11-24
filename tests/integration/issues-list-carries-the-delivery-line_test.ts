@@ -19,6 +19,11 @@ type Delivery = {
   releaseStatus: string | null;
   pullRequestNumber: number | null;
   targetBranch: string | null;
+  stopReason: string | null;
+  mergedBranch: string | null;
+  pausedBy: string | null;
+  pausedByName: string | null;
+  pausedReason: string | null;
 };
 
 type Ticket = { id: string; delivery?: Delivery | null };
@@ -95,6 +100,92 @@ async function merge(
   );
 }
 
+async function landed(
+  fx: TicketFixture,
+  taskId: string,
+  number: number,
+): Promise<void> {
+  await merge(fx, taskId, number);
+  await fx.owner.query(
+    `insert into bakery.pull_request_merge_attempts (
+       organization_id, pull_request_id, repository_id, provider_number,
+       base_branch, expected_head_sha, merge_method, state, requested_by_id,
+       request_id, trace_id
+     )
+     select opened.organization_id, opened.id, opened.repository_id,
+            opened.provider_number, 'release/2', repeat('a', 40), 'squash',
+            'merged', task.created_by, 'request-m', 'trace-m'
+       from bakery.pull_requests as opened
+       join bakery.tasks as task
+         on task.organization_id = opened.organization_id
+        and task.id = opened.task_id
+      where opened.organization_id = $1 and opened.task_id = $2`,
+    [fx.organizationId, taskId],
+  );
+}
+
+async function decide(
+  fx: TicketFixture,
+  runId: string,
+  decision: string,
+  reason: string,
+): Promise<void> {
+  await fx.owner.query(
+    `insert into bakery.delivery_decisions (
+       id, organization_id, run_id, ordinal, decision, reason, head_sha,
+       failed_checks, blocking_fingerprints, limits
+     ) values (gen_random_uuid(), $1, $2, 1, $3, $4, repeat('a', 40),
+       '[]'::jsonb, '[]'::jsonb, '{}'::jsonb)`,
+    [fx.organizationId, runId, decision, reason],
+  );
+}
+
+async function suspend(fx: TicketFixture, started: Started): Promise<void> {
+  await fx.owner.query(
+    `update bakery.ticket_requests
+        set disposition = 'suspended', disposition_reason = 'held',
+            pause_requested_at = now()
+      where organization_id = $1 and external_ticket_id = $2`,
+    [fx.organizationId, started.ticketId],
+  );
+}
+
+async function pauseBatch(
+  fx: TicketFixture,
+  started: Started,
+): Promise<string> {
+  const result = await fx.owner.query<{ display_name: string }>(
+    `with request as (
+       select request.id, task.repository_id, task.created_by
+         from bakery.ticket_requests as request
+         join bakery.tasks as task
+           on task.organization_id = request.organization_id and task.id = $3
+        where request.organization_id = $1 and request.external_ticket_id = $2
+     ), batch as (
+       insert into bakery.batches (
+         organization_id, repository_id, started_by, max_issues, max_hours,
+         max_spend_usd, continue_mode, state, pause_reason, paused_by,
+         paused_at
+       )
+       select $1, repository_id, created_by, 5, 4, 10, 'carry_on', 'paused',
+              'paused_by_person', created_by, now()
+         from request
+       returning id
+     ), member as (
+       insert into bakery.batch_issues (
+         organization_id, batch_id, position, external_ticket_id, state,
+         ticket_request_id
+       )
+       select $1, batch.id, 1, $2, 'started', request.id
+         from batch, request
+     )
+     select who.display_name from request
+       join bakery.principals as who on who.id = request.created_by`,
+    [fx.organizationId, started.ticketId, started.taskId],
+  );
+  return result.rows[0].display_name;
+}
+
 async function deploy(fx: TicketFixture, started: Started): Promise<void> {
   await fx.owner.query(
     `insert into bakery.deployments (
@@ -122,6 +213,11 @@ Deno.test("issue 60: one issues page carries each issue's delivery line", () =>
     const released = await start(fx, sourceId, 607);
     const paused = await start(fx, sourceId, 608);
     const moved = await start(fx, sourceId, 610);
+    const halted = await start(fx, sourceId, 611);
+    const done = await start(fx, sourceId, 612);
+    const shipped = await start(fx, sourceId, 613);
+    const held = await start(fx, sourceId, 614);
+    const parked = await start(fx, sourceId, 615);
 
     for (const each of [working, waiting, asked, lapsed, merged, released]) {
       await setRun(fx, each.runId, "running");
@@ -142,10 +238,23 @@ Deno.test("issue 60: one issues page carries each issue's delivery line", () =>
     await merge(fx, merged.taskId, 66);
     await merge(fx, released.taskId, 67);
     await deploy(fx, released);
+    await setRun(fx, halted.runId, "running");
+    await decide(fx, halted.runId, "stop", "repair_cycles_exhausted");
+    await setRun(fx, done.runId, "completed");
+    await setRun(fx, shipped.runId, "running");
+    await landed(fx, shipped.taskId, 68);
+    await setRun(fx, held.runId, "paused");
+    await suspend(fx, held);
+    await setRun(fx, parked.runId, "paused");
+    const pauser = await pauseBatch(fx, parked);
 
     const list = await read<{ items: Ticket[] }>(
       await ticketCall(fx, "GET", "/v1/external-tickets?limit=25"),
       200,
+    );
+    await fx.owner.query(
+      `delete from bakery.batches where organization_id = $1`,
+      [fx.organizationId],
     );
     const byId = new Map(list.items.map((item) => [item.id, item.delivery]));
     const line = (started: Started) => {
@@ -171,6 +280,32 @@ Deno.test("issue 60: one issues page carries each issue's delivery line", () =>
     assertEquals(line(released).state, "released");
     assertEquals(line(released).environment, "production");
     assertEquals(line(released).releaseStatus, "healthy");
+
+    assertEquals(line(halted).state, "stopped");
+    assertEquals(line(halted).stopReason, "repair_cycles_exhausted");
+    assertEquals(line(failed).stopReason, null);
+    assertEquals(line(working).stopReason, null);
+
+    assertEquals(line(done).state, "finished");
+    assertEquals(line(done).mergedBranch, null);
+
+    assertEquals(line(shipped).state, "merged");
+    assertEquals(line(shipped).mergedBranch, "release/2");
+    assertEquals(line(merged).mergedBranch, null);
+    assertEquals(line(released).mergedBranch, null);
+
+    assertEquals(line(held).state, "paused");
+    assertEquals(line(held).pausedBy, "bakery");
+    assertEquals(line(held).pausedReason, "hold_label_added");
+    assertEquals(line(held).pausedByName, null);
+    assertEquals(line(parked).state, "paused");
+    assertEquals(line(parked).pausedBy, "person");
+    assertEquals(line(parked).pausedByName, pauser);
+    assertEquals(line(parked).pausedReason, null);
+    assertEquals(line(paused).pausedBy, null);
+    assertEquals(line(paused).pausedByName, null);
+    assertEquals(line(paused).pausedReason, null);
+    assertEquals(line(working).pausedBy, null);
 
     const one = await read<Ticket>(
       await ticketCall(fx, "GET", `/v1/external-tickets/${released.ticketId}`),
