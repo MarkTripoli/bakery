@@ -59,8 +59,8 @@ const PROMPT =
 let seeded: Seeded;
 
 const VARIANTS = [
-  { width: 1440, height: 1000, scheme: "light" },
-  { width: 1440, height: 1000, scheme: "dark" },
+  { width: 1440, height: 900, scheme: "light" },
+  { width: 1440, height: 900, scheme: "dark" },
   { width: 390, height: 844, scheme: "light" },
   { width: 390, height: 844, scheme: "dark" },
 ] as const;
@@ -68,7 +68,7 @@ const VARIANTS = [
 async function shot(page: Page, name: string) {
   if (!shotDirectory) return;
   mkdirSync(shotDirectory, { recursive: true });
-  const before = page.viewportSize() ?? { width: 1440, height: 1000 };
+  const before = page.viewportSize() ?? { width: 1440, height: 900 };
   for (const variant of VARIANTS) {
     await page.setViewportSize({
       width: variant.width,
@@ -211,7 +211,7 @@ test.beforeAll(() => {
 test.describe("a workflow approval step, on the real stack", () => {
   test.skip(!realApi, "needs the real-API stack");
   test.setTimeout(laneBudgetMs(240_000));
-  test.use({ viewport: { width: 1440, height: 1000 } });
+  test.use({ viewport: { width: 1440, height: 900 } });
 
   test("the run waits, and Approve is recorded without ending it", async ({ page }) => {
     await signedIn(page);
