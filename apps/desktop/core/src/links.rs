@@ -73,7 +73,9 @@ pub fn toast_action(raw: &str, nonce: &str) -> Option<(String, u64)> {
         return None;
     }
     let mut parts = url.path().trim_start_matches('/').split('/');
-    let action = parts.next().filter(|a| matches!(*a, "show" | "retry"))?;
+    let action = parts
+        .next()
+        .filter(|a| matches!(*a, "show" | "retry" | "restart" | "later"))?;
     let id = parts.next()?.parse().ok()?;
     parts.next().is_none().then(|| (action.to_string(), id))
 }
