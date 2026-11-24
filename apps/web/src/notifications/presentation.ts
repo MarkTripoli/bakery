@@ -206,6 +206,6 @@ export function bellAccessibleName(
     case "unknown":
       return translate("notifications.bell.unknown");
     default:
-      return translate("notifications.bell.label");
+      return translate("notifications.bell.noneUnread");
   }
 }

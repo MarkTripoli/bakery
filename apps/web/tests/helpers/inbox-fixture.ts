@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Page, WebSocketRoute } from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
@@ -12,6 +12,7 @@ export type InboxOptions = {
   unread?: number;
   failRead?: boolean;
   failList?: boolean;
+  failMarkAll?: boolean;
   unavailable?: readonly number[];
   targetGone?: boolean;
 };
@@ -51,6 +52,22 @@ export const inboxRowId = (index: number) => uuid(1000 + index);
 export const inboxRowSelector = (index: number) =>
   `[id="notification-${inboxRowId(index)}"]`;
 
+const fail = (route: import("@playwright/test").Route) =>
+  route.fulfill({
+    status: 500,
+    contentType: "application/problem+json",
+    body: JSON.stringify({
+      type: "https://bakery.example/problems/test",
+      title: "Failed",
+      detail: "Failed.",
+      status: 500,
+      code: "INTERNAL_ERROR",
+      retryable: false,
+      requestId: crypto.randomUUID(),
+      traceId: crypto.randomUUID(),
+    }),
+  });
+
 export async function inboxFixture(page: Page, options: InboxOptions = {}) {
   await mockAuthenticatedSession(page);
   const total = options.total ?? 70;
@@ -81,7 +98,12 @@ export async function inboxFixture(page: Page, options: InboxOptions = {}) {
     revision: 1,
     createdAt: new Date(now - (index * 40 + 5) * 60_000).toISOString(),
   }));
-  const calls = { patches: [] as unknown[], undo: [] as unknown[] };
+  const calls = {
+    patches: [] as unknown[],
+    undo: [] as unknown[],
+    markAll: [] as unknown[],
+  };
+  const control = { failList: options.failList ?? false };
   let lastBatch: string[] = [];
   const unreadCount = () => rows.filter((row) => !row.read).length;
   const json = (route: import("@playwright/test").Route, body: unknown) =>
@@ -128,6 +150,8 @@ export async function inboxFixture(page: Page, options: InboxOptions = {}) {
   });
   await page.route("**/v1/notifications/read-all", (route) => {
     const body = route.request().postDataJSON() as { readBefore: string };
+    calls.markAll.push(body);
+    if (options.failMarkAll) return fail(route);
     const marked = rows.filter((row) =>
       !row.read && new Date(row.createdAt) <= new Date(body.readBefore)
     );
@@ -149,20 +173,7 @@ export async function inboxFixture(page: Page, options: InboxOptions = {}) {
     const body = request.postDataJSON() as { read: boolean };
     calls.patches.push(body);
     if (options.failRead) {
-      return route.fulfill({
-        status: 500,
-        contentType: "application/problem+json",
-        body: JSON.stringify({
-          type: "https://bakery.example/problems/test",
-          title: "Failed",
-          detail: "Failed.",
-          status: 500,
-          code: "INTERNAL_ERROR",
-          retryable: false,
-          requestId: crypto.randomUUID(),
-          traceId: crypto.randomUUID(),
-        }),
-      });
+      return fail(route);
     }
     const id = request.url().split("/").at(-1)!;
     const row = rows.find((one) => one.id === id)!;
@@ -172,21 +183,8 @@ export async function inboxFixture(page: Page, options: InboxOptions = {}) {
   });
   await page.route("**/v1/notifications?*", (route) => {
     const url = new URL(route.request().url());
-    if (options.failList) {
-      return route.fulfill({
-        status: 500,
-        contentType: "application/problem+json",
-        body: JSON.stringify({
-          type: "https://bakery.example/problems/test",
-          title: "Failed",
-          detail: "Failed.",
-          status: 500,
-          code: "INTERNAL_ERROR",
-          retryable: false,
-          requestId: crypto.randomUUID(),
-          traceId: crypto.randomUUID(),
-        }),
-      });
+    if (control.failList) {
+      return fail(route);
     }
     const filter = url.searchParams.get("filter") ?? "all";
     const limit = Number(url.searchParams.get("limit") ?? 25);
@@ -206,5 +204,49 @@ export async function inboxFixture(page: Page, options: InboxOptions = {}) {
         : null,
     });
   });
-  return { rows, calls };
+  return { rows, calls, control };
+}
+
+export const INBOX_PRINCIPAL_ID = uuid(1);
+
+/** A scripted /v1/events server: hello, then a cursor for every subscribe. */
+export async function inboxStream(page: Page) {
+  const stream = {
+    subscribes: [] as Record<string, unknown>[],
+    push: () => {},
+  };
+  const requests = new Map<WebSocketRoute, string>();
+  const sockets: WebSocketRoute[] = [];
+  let sequence = 1;
+  const cursor = (socket: WebSocketRoute) => {
+    sequence += 1;
+    socket.send(JSON.stringify({
+      type: "cursor",
+      requestId: requests.get(socket),
+      cursor: `cursor-${sequence}`,
+      highwater: String(sequence),
+    }));
+  };
+  await page.routeWebSocket(/\/v1\/events/, (socket) => {
+    sockets.push(socket);
+    socket.send(JSON.stringify({
+      type: "hello",
+      protocolVersion: 1,
+      connectionId: crypto.randomUUID(),
+      highwater: "1",
+      retainedFrom: "0",
+    }));
+    socket.onMessage((message) => {
+      const frame = JSON.parse(String(message)) as Record<string, unknown>;
+      if (frame.type !== "subscribe") return;
+      stream.subscribes.push(frame);
+      requests.set(socket, String(frame.requestId));
+      cursor(socket);
+    });
+  });
+  stream.push = () => {
+    const socket = sockets.at(-1);
+    if (socket) cursor(socket);
+  };
+  return stream;
 }

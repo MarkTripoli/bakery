@@ -1565,6 +1565,30 @@ test.describe("route states", () => {
   });
 });
 
+test("the phone header carries the notifications bell", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+  await expect(
+    page.locator('[data-ui-region="task-conversation"]').getByRole("button", {
+      name: /^Notifications/,
+    }),
+  ).toBeVisible();
+});
+
+test("the wide header keeps the bell in the shell bar only", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page);
+  await expect(page.getByRole("button", { name: /^Notifications/ }))
+    .toHaveCount(
+      1,
+    );
+  await expect(
+    page.locator('[data-ui-region="task-conversation"]').getByRole("button", {
+      name: /^Notifications/,
+    }),
+  ).toHaveCount(0);
+});
+
 for (const locale of ["en-XA", "ar-XB"]) {
   test(`conversation reflows at 320px in ${locale}`, async ({ page }) => {
     await page.addInitScript((value) => {

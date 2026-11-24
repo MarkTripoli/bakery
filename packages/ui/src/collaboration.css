@@ -1587,6 +1587,10 @@
 .ui-task-detail--conversation .ui-task-detail__titles {
   display: contents;
 }
+.ui-task-detail--conversation.ui-task-detail--sheet .ui-task-detail__trailing {
+  flex: none;
+  margin-inline-start: auto;
+}
 .ui-task-detail--conversation > .ui-task-detail__main > header .ui-task-detail__leading {
   display: contents;
 }

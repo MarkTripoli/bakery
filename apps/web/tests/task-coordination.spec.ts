@@ -901,6 +901,14 @@ test("long titles and a dark scheme stay contained", async ({ page }) => {
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
+test("the phone header carries the notifications bell", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+  await expect(
+    root(page).getByRole("button", { name: /^Notifications/ }),
+  ).toBeVisible();
+});
+
 const withOrigin = (origin: Record<string, unknown>) => ({
   ...running(),
   origin,

@@ -11,7 +11,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 export type LiveState = "idle" | "connecting" | "live" | "lost";
 
 export type LiveScope = Readonly<{
-  type: "task" | "conversation" | "application" | "memory";
+  type: "task" | "conversation" | "application" | "memory" | "inbox";
   id: string;
 }>;
 
