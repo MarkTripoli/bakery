@@ -19,6 +19,7 @@ import { readRunBudgetSummary } from "./budget.ts";
 import { isTaskStatus, toIso } from "./postgres.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 import { readRunsWaitingOnModel } from "../execution/route-continuations.ts";
+import { readRunReleaseStep } from "../workflow-adapter/release-step.ts";
 
 const RUN_ORDERING = "createdAt:desc,id:desc";
 const RUN_STEP_ORDERING = "position:asc,iteration:asc,id:asc";
@@ -377,6 +378,10 @@ export function createRunQueryHandlers(secret: string) {
           organizationId,
           [run.id],
         )).has(run.id),
+        releaseStep: await readRunReleaseStep(transaction, {
+          organizationId,
+          runId: run.id,
+        }),
       };
     },
 
