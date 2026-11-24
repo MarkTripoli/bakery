@@ -44,6 +44,7 @@ import { EvaluationsTab } from "./library/EvaluationsTab.tsx";
 import { SkillsTab } from "./library/SkillsTab.tsx";
 import { type LibraryRow, LibraryRows } from "./library/LibraryRows.tsx";
 import { ImportDialog } from "./library/ImportDialog.tsx";
+import { NewSkillDialog } from "./skills/NewSkillDialog.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
 import {
   memoryBadgeTone,
@@ -112,6 +113,7 @@ export function LibraryPage() {
   const memoryStale = tab === "memory" && (offlineNow || live === "lost");
   const [copying, setCopying] = useState<WorkflowPresetResponse | null>(null);
   const [importing, setImporting] = useState(false);
+  const [creatingSkill, setCreatingSkill] = useState(false);
   const importOpener = useRef<HTMLElement | null>(null);
   const active = tab === "workflows"
     ? [workflows, presets]
@@ -457,6 +459,13 @@ export function LibraryPage() {
       </UI.Stack>
     );
 
+  const newSkillButton = tab === "skills"
+    ? (
+      <UI.Button variant="primary" onClick={() => setCreatingSkill(true)}>
+        {translate("library.skills.new.title" as never)}
+      </UI.Button>
+    )
+    : null;
   // Import is the Workflows tab's, for an administrator.
   const importButton = canManage && tab === "workflows"
     ? (
@@ -492,13 +501,16 @@ export function LibraryPage() {
       {importButton === null || phone
         ? null
         : <ShellSlot name="actions">{importButton}</ShellSlot>}
+      {newSkillButton === null || phone
+        ? null
+        : <ShellSlot name="actions">{newSkillButton}</ShellSlot>}
       <UI.SettingsContent data-testid="library-page" variant="wide">
         <UI.PageHeader
           variant="list"
           flush
           title={translate("library.title" as never)}
           subtitle={translate("library.description" as never)}
-          actions={phone ? importButton : null}
+          actions={phone ? importButton ?? newSkillButton : null}
         />
         <UI.Tabs
           aria-label={translate("library.tabs.label" as never)}
@@ -593,6 +605,20 @@ export function LibraryPage() {
               void navigate({
                 to: "/library/workflows/$workflowId",
                 params: { workflowId: workflow.id },
+              });
+            }}
+          />
+        )
+        : null}
+      {creatingSkill
+        ? (
+          <NewSkillDialog
+            onClose={() => setCreatingSkill(false)}
+            onCreated={(skill) => {
+              setCreatingSkill(false);
+              void navigate({
+                to: "/library/skills/$skillId/edit",
+                params: { skillId: skill.id },
               });
             }}
           />

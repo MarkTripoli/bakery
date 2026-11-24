@@ -44,6 +44,7 @@ import { AgentPage } from "./pages/AgentPage.tsx";
 import { EvaluationRunPage } from "./pages/EvaluationRunPage.tsx";
 import { SkillPage } from "./pages/SkillPage.tsx";
 import { skillFilter, skillSearch } from "./pages/library/skills-state.ts";
+import { SkillDraftEditorPage } from "./pages/skills/SkillDraftEditorPage.tsx";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
@@ -367,6 +368,18 @@ export const routeCoverage = [
       "forbidden",
       "offline",
       "long-copy",
+    ],
+  },
+  {
+    id: "library-skill-draft",
+    path: "/library/skills/$skillId/edit",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "error",
+      "forbidden",
+      "offline",
     ],
   },
   {
@@ -1653,6 +1666,17 @@ const skillRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const skillDraftRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/skills/$skillId/edit",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <SkillDraftEditorPage skillId={skillDraftRoute.useParams().skillId} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const evaluationRunRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/library/evaluations/$batchId",
@@ -2875,6 +2899,7 @@ const routeTree = rootRoute.addChildren([
   builtInWorkflowRoute,
   agentRoute,
   skillRoute,
+  skillDraftRoute,
   evaluationRunRoute,
   machineNewRoute,
   machineNewByHandRoute,
