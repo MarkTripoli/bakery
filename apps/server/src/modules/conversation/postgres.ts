@@ -403,7 +403,6 @@ export async function createMessage(
     applicationId: scope.applicationId,
     repositoryId: scope.repositoryId,
     messageId: message.id,
-    messageSequence: sequence,
     sourceEventId: messageEventId,
     resolved: mentions,
   });
