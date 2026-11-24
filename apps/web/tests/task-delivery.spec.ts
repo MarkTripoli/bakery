@@ -830,9 +830,113 @@ test("a stopped run names the reason once, lists what remains, and its one butto
   await expect(tried).not.toHaveAttribute("open");
   await openLink(section, "delivery-tried");
   await expect(tried).toContainText("Try 2");
-  await expect(now.getByRole("button")).toHaveCount(1);
+  await expect(now.getByRole("button")).toHaveCount(2);
   await now.getByRole("button", { name: "Tell Bakery what to change" }).click();
   await expect(page.locator("#task-message-field")).toBeFocused();
+});
+
+async function mockMoreTries(
+  page: Page,
+  reply: { status: number; reason?: string },
+) {
+  const posted: { body: unknown; key: string | undefined }[] = [];
+  await page.route(`**/v1/runs/${runId}/repair-allowances`, (route) => {
+    const request = route.request();
+    posted.push({
+      body: request.postDataJSON(),
+      key: request.headers()["idempotency-key"],
+    });
+    if (reply.status < 300) {
+      return route.fulfill({
+        json: decisionRow(3, "repair", "repair_selected", NEW),
+      });
+    }
+    return route.fulfill({
+      status: reply.status,
+      contentType: "application/problem+json",
+      json: problemBody(reply.status, "STATE_CONFLICT", reply.reason),
+    });
+  });
+  return posted;
+}
+
+test("a run that ran out of tries can be given more by an administrator, with the number checked and sent once", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, STOPPED);
+  const posted = await mockMoreTries(page, { status: 200 });
+  await page.goto(`/tasks/${id}`);
+  const now = nowCard(page);
+  await button(now, "Give Bakery more tries").click();
+  const dialog = page.getByRole("dialog", { name: "Give Bakery more tries?" });
+  await expect(dialog).toContainText("Bakery tried 2 times and stopped.");
+  const field = dialog.getByLabel("More tries");
+  await expect(field).toHaveValue("2");
+  await expect(dialog).toContainText("From 1 to 6.");
+  await field.fill("7");
+  await dialog.getByRole("button", { name: "Give more tries" }).click();
+  await expect(dialog).toContainText("Enter a number from 1 to 6.");
+  expect(posted).toHaveLength(0);
+  await field.fill("3");
+  await dialog.getByRole("button", { name: "Give more tries" }).click();
+  await expect(dialog).toBeHidden();
+  expect(posted).toHaveLength(1);
+  expect(posted[0].body).toEqual({ tries: 3 });
+  expect(posted[0].key).toBeTruthy();
+});
+
+test("a refused allowance keeps the dialog open and says why", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, STOPPED);
+  await mockMoreTries(page, {
+    status: 409,
+    reason: "allowance_exceeds_workflow_maximum",
+  });
+  await page.goto(`/tasks/${id}`);
+  await button(nowCard(page), "Give Bakery more tries").click();
+  const dialog = page.getByRole("dialog", { name: "Give Bakery more tries?" });
+  await dialog.getByRole("button", { name: "Give more tries" }).click();
+  await expect(dialog.getByTestId("delivery-more-tries-notice")).toContainText(
+    "Bakery cannot hold that many tries.",
+  );
+});
+
+test("someone who cannot allow more tries is told who can, and one whose role holds review:accept is offered the button", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, { ...STOPPED, role: "developer" });
+  await page.goto(`/tasks/${id}`);
+  const now = nowCard(page);
+  await expect(now).toContainText(
+    "An organization administrator can give Bakery more tries.",
+  );
+  await expect(button(now, "Give Bakery more tries")).toHaveCount(0);
+  await page.route(
+    "**/v1/organizations/*/effective-access",
+    (route) =>
+      route.fulfill({
+        json: {
+          organizationId: MOCK_ORGANIZATION_ID,
+          role: "developer",
+          capabilities: ["review:accept"],
+        },
+      }),
+  );
+  await page.reload();
+  await expect(button(nowCard(page), "Give Bakery more tries")).toBeVisible();
+  await expect(nowCard(page)).not.toContainText(
+    "An organization administrator",
+  );
+});
+
+test("a paused run draws no second Paused card in Delivery", async ({ page }) => {
+  await mockRun(page);
+  await page.route(
+    `**/v1/runs/${runId}`,
+    (route) => route.fulfill({ json: { ...run, status: "paused" } }),
+  );
+  await mockDelivery(page, CLEAN);
+  await page.goto(`/tasks/${id}`);
+  await expect(page.getByTestId("delivery-section")).toBeVisible();
+  await expect(nowCard(page)).toHaveCount(0);
 });
 
 test("a denied read says there is no access and draws no steps", async ({ page }) => {
@@ -3150,7 +3254,12 @@ async function mockGoBack(
 test("a healthy release says so, and Details names it and the one kept before it", async ({ page }) => {
   await openRelease(page, { deployments: [deploymentRow("healthy")] });
   await expect(nowCard(page)).toContainText("Released to staging");
-  await expect(nowCard(page)).toContainText("The release is healthy.");
+  await expect(nowCard(page)).toContainText(
+    "The release is healthy. This change is done.",
+  );
+  await expect(
+    nowCard(page).getByRole("link", { name: "Choose the next issue" }),
+  ).toHaveAttribute("href", new RegExp(`/issues\\?repository=${uuid(13)}`));
   await expect(button(nowCard(page), "Go back to the last release"))
     .toHaveCount(0);
   await openLink(page.getByTestId("delivery-section"), "delivery-details");
@@ -3494,3 +3603,62 @@ test("a developer is offered no Go back when there is no release before it", asy
   await expect(goBackButton(page)).toHaveCount(0);
   await expect(nowCard(page)).not.toContainText("You can go back");
 });
+
+const TRIES_STILLS = [
+  ["out-of-tries", {}],
+  ["out-of-tries-viewer", { role: "developer" }],
+] as const;
+
+for (const [name, scenario] of TRIES_STILLS) {
+  for (const scheme of ["light", "dark"] as const) {
+    for (const [size, width, height] of STILL_SIZES) {
+      test(`still: delivery, ${name}, ${size} ${scheme}`, async ({ page }) => {
+        test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+        test.setTimeout(laneBudgetMs(90_000));
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height });
+        await mockRun(page);
+        await mockDelivery(page, { ...STOPPED, ...scenario });
+        await stubStillsPage(page);
+        await page.goto(`/tasks/${id}`);
+        await expect(nowCard(page)).toBeVisible();
+        await page.setViewportSize({ width, height: TALL[size] });
+        await stillOfSection(page, `delivery-${name}-${size}-${scheme}.png`);
+        await page.setViewportSize({ width, height });
+        if (name === "out-of-tries") {
+          await button(nowCard(page), "Give Bakery more tries").click();
+          await expect(
+            page.getByRole("dialog", { name: "Give Bakery more tries?" }),
+          ).toBeVisible();
+          await page.screenshot({
+            path: `${STILLS}/delivery-more-tries-dialog-${size}-${scheme}.png`,
+            animations: "disabled",
+          });
+        }
+      });
+    }
+  }
+}
+
+for (const scheme of ["light", "dark"] as const) {
+  for (const [size, width, height] of STILL_SIZES) {
+    test(`still: run id in Details, ${size} ${scheme}`, async ({ page }) => {
+      test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width, height });
+      await mockRun(page);
+      await mockDelivery(page, CLEAN);
+      await stubStillsPage(page);
+      await page.goto(`/tasks/${id}`);
+      await page.getByText("Run details", { exact: true }).first().click();
+      const row = page.getByTestId("run-id-row");
+      await expect(row).toContainText("Run ID");
+      await row.scrollIntoViewIfNeeded();
+      await page.mouse.move(0, 0);
+      await page.screenshot({
+        path: `${STILLS}/run-id-details-${size}-${scheme}.png`,
+        animations: "disabled",
+      });
+    });
+  }
+}

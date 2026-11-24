@@ -559,9 +559,12 @@ export type Try = Readonly<{
   sha: string;
 }>;
 
+export const MOST_TRIES = 8;
+
 export type DeliveryModel = Readonly<{
   /** False until there are changes to show, so the section is not drawn. */
   visible: boolean;
+  repositoryId: string | null;
   headSha: string | null;
   baseSha: string | null;
   outOfDate: boolean;
@@ -1099,6 +1102,7 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
   ];
   return {
     commits,
+    repositoryId: mergePullRequest?.repositoryId ?? null,
     visible: headSha !== null || input.checks.length > 0 ||
       input.reviews.length > 0,
     headSha,
