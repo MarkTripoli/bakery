@@ -106,12 +106,11 @@ export function stepTimelineEvents(
   formatTime: (iso: string) => string = (iso) => iso,
 ): TimelineRow[] {
   return steps.map((step) => {
-    const known = KNOWN_STEPS[step.stepKey as keyof typeof KNOWN_STEPS];
     const budgetKey = budgetFaultReason(step);
     const waitingText = waiting.get(step.id);
     return {
       id: step.id,
-      title: known ? t(known) : step.stepKey,
+      title: stepTitle(t, step.stepKey),
       description: waitingText ?? t(`tasks.run.step.${step.status}`),
       reason: step.status !== "failed"
         ? undefined

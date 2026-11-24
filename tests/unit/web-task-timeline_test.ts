@@ -51,4 +51,8 @@ Deno.test("a step reads as its title, or as its key in words", () => {
   assertEquals(stepTitle(t, "implement"), "tasks.timeline.step.implement");
   assertEquals(stepTitle(t, "flow.hold"), "Flow hold");
   assertEquals(stepTitle(t, "design_signoff"), "Design signoff");
+  assertEquals(
+    stepTimelineEvents([step("s1", { stepKey: "flow.hold" })], t)[0]!.title,
+    "Flow hold",
+  );
 });
