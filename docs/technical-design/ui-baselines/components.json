@@ -1,5 +1,5 @@
 {
-  "revision": "6fe4479550eeff7b15baa03aee29c2bb21473a411b6f3ca13c6dea5a62306c8f",
+  "revision": "ed2d36855f3c41899e7980ad8275dd5e5fd01534f5a1b030ce7da7a28ecb9365",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -25184,6 +25184,132 @@
           "desktop-light-fine"
         ]
       }
+    },
+    {
+      "a11y": {
+        "role": "img",
+        "accessibleName": "aria-label",
+        "keyboard": []
+      },
+      "coverage": {
+        "automated": {
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.timeSeriesChart.contract.desktop-light-fine"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "pointer:fine": [
+            "runtime:ui.timeSeriesChart.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "theme:light": [
+            "runtime:ui.timeSeriesChart.contract.desktop-light-fine"
+          ]
+        },
+        "notApplicable": {
+          "pointer:coarse": "TimeSeriesChart renders no interactive target, so coarse-pointer hit-area behavior does not apply."
+        },
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "description": "One line chart of a metric over time: each run of known values is a line, every run of unknown days is a grey band, and the highest and zero values and the first and last dates are written beside it.",
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "id": "ui.timeSeriesChart",
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "level": "molecule",
+      "name": "TimeSeriesChart",
+      "owner": "Mark Tripoli",
+      "paper": [],
+      "paperAbsentReason": "Designed in design-ux's Delivery over-time design (#75, revision 3 part 6 and the D1 to D3 build spec); no Paper frame names it.",
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Shows a chart with a gap in the middle, a chart with one known day between two gaps, and a chart with nothing known.",
+          "states": [
+            "default",
+            "empty"
+          ],
+          "variants": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "states": [
+        "default",
+        "empty"
+      ],
+      "status": "implemented",
+      "storyTitle": "Bakery/Molecules/TimeSeriesChart",
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg-muted",
+        "--color-selection",
+        "--color-surface-subtle",
+        "--space-0",
+        "--space-1",
+        "--type-caption"
+      ],
+      "usage": {
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ],
+        "alternatives": [
+          {
+            "when": "The reader needs the exact numbers",
+            "use": "ui.dataTable"
+          },
+          {
+            "when": "One figure is enough",
+            "use": "ui.statTile"
+          }
+        ],
+        "replacesElements": [],
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "whenNotToUse": "Not for a table of the same numbers (use DataTable) and not for a single figure (use StatTile).",
+        "whenToUse": "Draw one metric over time on a page, with the days nobody can know shown as gaps and never as zero."
+      },
+      "variants": [
+        "default"
+      ]
     }
   ],
   "compositions": [

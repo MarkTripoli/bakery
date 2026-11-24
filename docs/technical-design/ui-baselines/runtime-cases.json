@@ -871,6 +871,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.timeSeriesChart.contract.desktop-light-fine",
+      "catalogId": "ui.timeSeriesChart",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-timeserieschart--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.capabilityList.contract.desktop-light-fine",
       "catalogId": "ui.capabilityList",
       "requiredCaseId": "contract",

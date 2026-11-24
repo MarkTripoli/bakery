@@ -1,0 +1,51 @@
+.ui-time-series-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-0);
+}
+.ui-time-series-chart__plot {
+  block-size: var(--chart-height, 200px);
+  border-block-end: var(--border-default) solid var(--color-border);
+  position: relative;
+}
+.ui-time-series-chart__svg {
+  block-size: 100%;
+  display: block;
+  inline-size: 100%;
+  overflow: visible;
+}
+.ui-time-series-chart__gap {
+  fill: var(--color-surface-subtle);
+}
+.ui-time-series-chart__baseline {
+  stroke: var(--color-border);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.ui-time-series-chart__line {
+  fill: none;
+  stroke: var(--color-selection);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.ui-time-series-chart__axis {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+  inset-inline-start: var(--space-1);
+  position: absolute;
+}
+.ui-time-series-chart__axis[data-edge="top"] {
+  inset-block-start: var(--space-0);
+}
+.ui-time-series-chart__axis[data-edge="bottom"] {
+  inset-block-end: var(--space-1);
+}
+.ui-time-series-chart__ends {
+  color: var(--color-fg-muted);
+  display: flex;
+  font: var(--type-caption);
+  justify-content: space-between;
+}

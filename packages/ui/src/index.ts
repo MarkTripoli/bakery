@@ -15,6 +15,7 @@ export * from "./organisms/WorkflowStageStrip.tsx";
 export * from "./molecules/PaneSection.tsx";
 export * from "./molecules/StepCard.tsx";
 export * from "./molecules/CanvasFrame.tsx";
+export * from "./molecules/TimeSeriesChart.tsx";
 export * from "./molecules/OutlineList.tsx";
 export * from "./molecules/OutlineRow.tsx";
 export * from "./molecules/StepConnector.tsx";
