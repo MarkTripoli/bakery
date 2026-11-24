@@ -87,8 +87,8 @@ bash e2e/run.sh motion <output dir>            # animations stop when the system
 E2E_WEB=1 bash e2e/e2e.sh                      # the whole run, with a server's own page in the window
 ```
 
-`ZOOM` is a factor, not a percentage: `2` is 200%. `ZOOM=200` makes the page 200 times larger and every
-check fails. `STATES` narrows the walk to some named states (a space-separated list). A line starting with
+`ZOOM` is a factor, not a percentage: `2` is 200%. `ZOOM=200` makes the page 200 times larger and the
+zoom check fails. `STATES` narrows the walk to some named states (a space-separated list). A line starting with
 `NOTE` is something the bus could not report on this machine; it is not a pass.
 
 Not proven by any of this: what a screen reader says aloud, Tab inside a server's own web content, and the
