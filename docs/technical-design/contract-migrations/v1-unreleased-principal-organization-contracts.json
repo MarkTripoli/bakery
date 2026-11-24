@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "33633736b3f873e705ff50999f03329dc674f472"
+    "acc363ccc0017dd8898aa1cd8177e6e91ef65ea0"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:c78aad39084ab9d042421352cd09289f813824a2401ca31fb6393d1c5d8227b5",
-  "reason": "#429 Deliver templates by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 33633736b3f873e705ff50999f03329dc674f472: WorkflowPreset gains a required definition (the workflow document as authored, with its step names) so a person can read and copy a built-in template; RunCreate gains an optional gates field (plan or none) that only a preset declaring a gates input accepts; the four Deliver templates are new preset ids. No client has been released that builds a WorkflowPreset, so no caller sends the old shape.",
+  "targetCompatibilityDigest": "sha256:c17f15607b4be762ee4e841de9a78bde86205e75e21e3e1250b6ec8b365fc42b",
+  "reason": "#429 Deliver templates by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main acc363ccc0017dd8898aa1cd8177e6e91ef65ea0: WorkflowPreset gains a required definition (the workflow document as authored, with its step names) so a person can read and copy a built-in template; RunCreate gains an optional gates field (plan or none) that only a preset declaring a gates input accepts; the four Deliver templates are new preset ids. No client has been released that builds a WorkflowPreset, so no caller sends the old shape.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "33633736b3f873e705ff50999f03329dc674f472"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c78aad39084ab9d042421352cd09289f813824a2401ca31fb6393d1c5d8227b5",
+      "reason": "#429 Deliver templates by dev-workflows on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main 33633736b3f873e705ff50999f03329dc674f472: WorkflowPreset gains a required definition (the workflow document as authored, with its step names) so a person can read and copy a built-in template; RunCreate gains an optional gates field (plan or none) that only a preset declaring a gates input accepts; the four Deliver templates are new preset ids. No client has been released that builds a WorkflowPreset, so no caller sends the old shape."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
