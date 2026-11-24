@@ -11890,6 +11890,233 @@
       "implemented": true
     },
     {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/connections/{id}/mount",
+      "action": "storageConnections.mount",
+      "access": "Admin",
+      "permission": "integrationConnection:manage",
+      "input": "IdPath",
+      "output": "StorageConnectionMount",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "STORAGE_PROVIDER_UNAVAILABLE",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/connection-paths",
+      "action": "storageConnectionPaths.list",
+      "access": "Developer",
+      "permission": "integrationConnection:read",
+      "input": "StorageConnectionPathQuery",
+      "output": "Page<StorageConnectionItem>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "STORAGE_PROVIDER_UNAVAILABLE",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/connection-paths/stat",
+      "action": "storageConnectionPaths.stat",
+      "access": "Developer",
+      "permission": "integrationConnection:read",
+      "input": "StorageConnectionStatQuery",
+      "output": "StorageConnectionItem",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "STORAGE_PROVIDER_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/connection-paths/content",
+      "action": "storageConnectionPaths.read",
+      "access": "Developer",
+      "permission": "integrationConnection:read",
+      "input": "StorageConnectionReadQuery",
+      "output": "StorageConnectionRange",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "STORAGE_PROVIDER_UNAVAILABLE",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/connection-syncs",
+      "action": "storageConnectionSyncs.create",
+      "access": "Developer",
+      "permission": "integrationConnection:invoke",
+      "input": "StorageConnectionSyncCreate",
+      "output": "StorageConnectionSync",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "STORAGE_PROVIDER_UNAVAILABLE",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/connection-syncs",
+      "action": "storageConnectionSyncs.list",
+      "access": "Developer",
+      "permission": "integrationConnection:read",
+      "input": "CursorQuery",
+      "output": "Page<StorageConnectionSync>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/connection-syncs/{id}/pause",
+      "action": "storageConnectionSyncs.pause",
+      "access": "Developer",
+      "permission": "integrationConnection:invoke",
+      "input": "IdPath",
+      "output": "StorageConnectionSync",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/connection-syncs/{id}/resume",
+      "action": "storageConnectionSyncs.resume",
+      "access": "Developer",
+      "permission": "integrationConnection:invoke",
+      "input": "IdPath",
+      "output": "StorageConnectionSync",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/connection-exports",
+      "action": "storageConnectionExports.create",
+      "access": "Developer",
+      "permission": "integrationConnection:invoke",
+      "input": "StorageConnectionExportCreate",
+      "output": "StorageConnectionExport",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; it keys the external effect",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "STORAGE_PROVIDER_UNAVAILABLE",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/integration-auth/github/manifest-callback",
@@ -15438,6 +15665,15 @@
     "blobUploads.part",
     "blobUploads.complete",
     "storageFiles.put",
+    "storageConnections.mount",
+    "storageConnectionPaths.list",
+    "storageConnectionPaths.stat",
+    "storageConnectionPaths.read",
+    "storageConnectionSyncs.create",
+    "storageConnectionSyncs.list",
+    "storageConnectionSyncs.pause",
+    "storageConnectionSyncs.resume",
+    "storageConnectionExports.create",
     "storageFolders.create",
     "storageEntries.copy",
     "storageEntries.move",
@@ -48206,6 +48442,645 @@
           }
         }
       },
+      "/v1/storage/connections/{id}/mount": {
+        "post": {
+          "operationId": "storageConnections.mount",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/StorageConnectionMount"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT, STORAGE_PROVIDER_UNAVAILABLE, IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdPath"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/storage/connection-paths": {
+        "get": {
+          "operationId": "storageConnectionPaths.list",
+          "parameters": [
+            {
+              "name": "path",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 14,
+                "maxLength": 4096,
+                "description": "The mounted folder to list: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionPathQuery.path must contain at least 14 characters. StorageConnectionPathQuery.path must contain at most 4096 characters."
+              }
+            },
+            {
+              "name": "cursor",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Opaque continuation token from the previous page of the same folder; it is signed and bound to this operation, caller, organization and path, so it cannot be replayed elsewhere. StorageConnectionPathQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 512
+              }
+            },
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Maximum entries returned on this page; defaults to 25 and cannot exceed 100. StorageConnectionPathQuery.limit must be at least 1. StorageConnectionPathQuery.limit must be at most 100.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Page<StorageConnectionItem>"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST, INVALID_CURSOR)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT, STORAGE_PROVIDER_UNAVAILABLE)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/storage/connection-paths/stat": {
+        "get": {
+          "operationId": "storageConnectionPaths.stat",
+          "parameters": [
+            {
+              "name": "path",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 14,
+                "maxLength": 4096,
+                "description": "The mounted file or folder to describe: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionStatQuery.path must contain at least 14 characters. StorageConnectionStatQuery.path must contain at most 4096 characters."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/StorageConnectionItem"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT, STORAGE_PROVIDER_UNAVAILABLE)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/storage/connection-paths/content": {
+        "get": {
+          "operationId": "storageConnectionPaths.read",
+          "parameters": [
+            {
+              "name": "path",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 14,
+                "maxLength": 4096,
+                "description": "The mounted file to read: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionReadQuery.path must contain at least 14 characters. StorageConnectionReadQuery.path must contain at most 4096 characters."
+              }
+            },
+            {
+              "name": "offset",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1099511627776,
+                "description": "First byte to return, counted from zero. StorageConnectionReadQuery.offset must be at least 0. StorageConnectionReadQuery.offset must be at most 1099511627776."
+              }
+            },
+            {
+              "name": "length",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1048576,
+                "description": "Most bytes to return, at most one mebibyte; fewer come back at the end of the file. StorageConnectionReadQuery.length must be at least 1. StorageConnectionReadQuery.length must be at most 1048576."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/octet-stream": {
+                  "schema": {
+                    "$ref": "#/components/schemas/StorageConnectionRange"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT, STORAGE_PROVIDER_UNAVAILABLE)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/storage/connection-syncs": {
+        "post": {
+          "operationId": "storageConnectionSyncs.create",
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/StorageConnectionSync"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT, STORAGE_PROVIDER_UNAVAILABLE, IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageConnectionSyncCreate"
+                }
+              }
+            }
+          }
+        },
+        "get": {
+          "operationId": "storageConnectionSyncs.list",
+          "parameters": [
+            {
+              "name": "cursor",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. CursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 512
+              }
+            },
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. CursorQuery.limit must be at least 1. CursorQuery.limit must be at most 100.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Page<StorageConnectionSync>"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST, INVALID_CURSOR)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/storage/connection-syncs/{id}/pause": {
+        "post": {
+          "operationId": "storageConnectionSyncs.pause",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/StorageConnectionSync"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdPath"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/storage/connection-syncs/{id}/resume": {
+        "post": {
+          "operationId": "storageConnectionSyncs.resume",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/StorageConnectionSync"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdPath"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/storage/connection-exports": {
+        "post": {
+          "operationId": "storageConnectionExports.create",
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/StorageConnectionExport"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT, STORAGE_PROVIDER_UNAVAILABLE, IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageConnectionExportCreate"
+                }
+              }
+            }
+          }
+        }
+      },
       "/v1/integration-auth/github/manifest-callback": {
         "get": {
           "operationId": "integrationAuth.manifestCallback",
@@ -64986,6 +65861,15 @@
                 "storageEntries.purge",
                 "agentFileGrants.create",
                 "agentFileGrants.revoke",
+                "storageConnections.mount",
+                "storageConnectionPaths.list",
+                "storageConnectionPaths.stat",
+                "storageConnectionPaths.read",
+                "storageConnectionSyncs.create",
+                "storageConnectionSyncs.list",
+                "storageConnectionSyncs.pause",
+                "storageConnectionSyncs.resume",
+                "storageConnectionExports.create",
                 "integrationAuth.manifestCallback",
                 "integrationResources.list",
                 "integrationDiscoveries.create",
@@ -91027,6 +91911,137 @@
           ],
           "additionalProperties": false,
           "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+        },
+        "StorageConnectionPathQuery": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 14,
+              "maxLength": 4096,
+              "description": "The mounted folder to list: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionPathQuery.path must contain at least 14 characters. StorageConnectionPathQuery.path must contain at most 4096 characters."
+            },
+            "cursor": {
+              "description": "Opaque continuation token from the previous page of the same folder; it is signed and bound to this operation, caller, organization and path, so it cannot be replayed elsewhere. StorageConnectionPathQuery.cursor must contain at most 512 UTF-8 bytes.",
+              "type": "string",
+              "maxLength": 65536,
+              "x-utf8-max-bytes": 512
+            },
+            "limit": {
+              "description": "Maximum entries returned on this page; defaults to 25 and cannot exceed 100. StorageConnectionPathQuery.limit must be at least 1. StorageConnectionPathQuery.limit must be at most 100.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false,
+          "description": "Lists one folder of a storage connection mounted under /connections, one page at a time, read through the provider without copying anything."
+        },
+        "StorageConnectionStatQuery": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 14,
+              "maxLength": 4096,
+              "description": "The mounted file or folder to describe: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionStatQuery.path must contain at least 14 characters. StorageConnectionStatQuery.path must contain at most 4096 characters."
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false,
+          "description": "Asks the connected storage what one mounted path is now: file or folder, size, media type and the provider's current revision."
+        },
+        "StorageConnectionReadQuery": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 14,
+              "maxLength": 4096,
+              "description": "The mounted file to read: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionReadQuery.path must contain at least 14 characters. StorageConnectionReadQuery.path must contain at most 4096 characters."
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1099511627776,
+              "description": "First byte to return, counted from zero. StorageConnectionReadQuery.offset must be at least 0. StorageConnectionReadQuery.offset must be at most 1099511627776."
+            },
+            "length": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1048576,
+              "description": "Most bytes to return, at most one mebibyte; fewer come back at the end of the file. StorageConnectionReadQuery.length must be at least 1. StorageConnectionReadQuery.length must be at most 1048576."
+            }
+          },
+          "required": [
+            "path",
+            "offset",
+            "length"
+          ],
+          "additionalProperties": false,
+          "description": "Reads a byte range of one mounted file through the provider. The bytes are returned and not kept; using the file in a run is what copies it into an artifact version."
+        },
+        "StorageConnectionSyncCreate": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 14,
+              "maxLength": 4096,
+              "description": "The mounted folder to copy from: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionSyncCreate.path must contain at least 14 characters. StorageConnectionSyncCreate.path must contain at most 4096 characters."
+            },
+            "taskId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Work item the synced files are recorded on; each file becomes an artifact version there, kept once per remote revision."
+            }
+          },
+          "required": [
+            "path",
+            "taskId"
+          ],
+          "additionalProperties": false,
+          "description": "Starts a one-way sync that copies every file under a mounted folder into a work item, run hourly by the storage sync workflow."
+        },
+        "StorageConnectionExportCreate": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 14,
+              "maxLength": 4096,
+              "description": "Where to write the file in the connected storage: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionExportCreate.path must contain at least 14 characters. StorageConnectionExportCreate.path must contain at most 4096 characters."
+            },
+            "artifactVersionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The artifact version whose exact bytes are written out."
+            },
+            "ifMatch": {
+              "description": "Provider revision the write replaces; omit it to create the file only when nothing is at the path. StorageConnectionExportCreate.ifMatch must contain at least 1 characters. StorageConnectionExportCreate.ifMatch must contain at most 400 characters.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            }
+          },
+          "required": [
+            "path",
+            "artifactVersionId"
+          ],
+          "additionalProperties": false,
+          "description": "Asks Bakery to write one artifact version out to a mounted path. The write is recorded as a keyed external effect and sent by the storage workflow, never during this request."
         },
         "DesktopUpdateQuery": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -117708,6 +118723,15 @@
                 "storageEntries.purge",
                 "agentFileGrants.create",
                 "agentFileGrants.revoke",
+                "storageConnections.mount",
+                "storageConnectionPaths.list",
+                "storageConnectionPaths.stat",
+                "storageConnectionPaths.read",
+                "storageConnectionSyncs.create",
+                "storageConnectionSyncs.list",
+                "storageConnectionSyncs.pause",
+                "storageConnectionSyncs.resume",
+                "storageConnectionExports.create",
                 "integrationAuth.manifestCallback",
                 "integrationResources.list",
                 "integrationDiscoveries.create",
@@ -118410,6 +119434,15 @@
                 "storageEntries.purge",
                 "agentFileGrants.create",
                 "agentFileGrants.revoke",
+                "storageConnections.mount",
+                "storageConnectionPaths.list",
+                "storageConnectionPaths.stat",
+                "storageConnectionPaths.read",
+                "storageConnectionSyncs.create",
+                "storageConnectionSyncs.list",
+                "storageConnectionSyncs.pause",
+                "storageConnectionSyncs.resume",
+                "storageConnectionExports.create",
                 "integrationAuth.manifestCallback",
                 "integrationResources.list",
                 "integrationDiscoveries.create",
@@ -119112,6 +120145,15 @@
                 "storageEntries.purge",
                 "agentFileGrants.create",
                 "agentFileGrants.revoke",
+                "storageConnections.mount",
+                "storageConnectionPaths.list",
+                "storageConnectionPaths.stat",
+                "storageConnectionPaths.read",
+                "storageConnectionSyncs.create",
+                "storageConnectionSyncs.list",
+                "storageConnectionSyncs.pause",
+                "storageConnectionSyncs.resume",
+                "storageConnectionExports.create",
                 "integrationAuth.manifestCallback",
                 "integrationResources.list",
                 "integrationDiscoveries.create",
@@ -165475,6 +166517,15 @@
                       "storageEntries.purge",
                       "agentFileGrants.create",
                       "agentFileGrants.revoke",
+                      "storageConnections.mount",
+                      "storageConnectionPaths.list",
+                      "storageConnectionPaths.stat",
+                      "storageConnectionPaths.read",
+                      "storageConnectionSyncs.create",
+                      "storageConnectionSyncs.list",
+                      "storageConnectionSyncs.pause",
+                      "storageConnectionSyncs.resume",
+                      "storageConnectionExports.create",
                       "integrationAuth.manifestCallback",
                       "integrationResources.list",
                       "integrationDiscoveries.create",
@@ -185820,6 +186871,127 @@
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
               "description": "UTC timestamp when the manifest was stored."
+            },
+            "decisionMode": {
+              "description": "HandoffManifestRecord.decisionMode may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "fresh_session",
+                    "exact_harness_resume"
+                  ],
+                  "description": "How a continuation would carry on if it were admitted now, decided from the server's own rows and never from the manifest's claim. Null when the manifest is not pending, or on the worker's own write, where no decision is made."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "freshReason": {
+              "description": "HandoffManifestRecord.freshReason may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "exact_resume_not_requested",
+                    "boundary_unsafe",
+                    "effects_unresolved",
+                    "session_changed",
+                    "no_native_evidence",
+                    "native_evidence_mismatch",
+                    "history_revoked"
+                  ],
+                  "description": "Why a continuation would start fresh instead of resuming exactly; set only when decisionMode is fresh_session, otherwise null."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "machineName": {
+              "description": "HandoffManifestRecord.machineName may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Name of the machine the source session ran on, or null when it is not known. Shown so a person can tell which session a hand-over stops."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "continuedMode": {
+              "description": "HandoffManifestRecord.continuedMode may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "fresh_session",
+                    "exact_harness_resume"
+                  ],
+                  "description": "How the continuation started once the step was handed over; null until then."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "continuedFreshReason": {
+              "description": "HandoffManifestRecord.continuedFreshReason may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "exact_resume_not_requested",
+                    "boundary_unsafe",
+                    "effects_unresolved",
+                    "session_changed",
+                    "no_native_evidence",
+                    "native_evidence_mismatch",
+                    "history_revoked"
+                  ],
+                  "description": "Why the continuation started fresh; null for an exact resume, before a hand-over, and for hand-overs recorded before the reason was kept."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "continuedByName": {
+              "description": "HandoffManifestRecord.continuedByName may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Current display name of the person who handed the step over, as the server recorded it. The same for every reader; null until a hand-over, or when that person no longer has a name."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "continuedAt": {
+              "description": "HandoffManifestRecord.continuedAt may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when the step was handed over; null until then."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
             }
           },
           "required": [
@@ -186013,6 +187185,28 @@
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
               "description": "UTC timestamp when the continuation was admitted."
+            },
+            "freshReason": {
+              "description": "HandoffContinuation.freshReason may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "exact_resume_not_requested",
+                    "boundary_unsafe",
+                    "effects_unresolved",
+                    "session_changed",
+                    "no_native_evidence",
+                    "native_evidence_mismatch",
+                    "history_revoked"
+                  ],
+                  "description": "Why the continuation starts fresh instead of resuming exactly; set only when mode is fresh_session, otherwise null. Continuations admitted before this was recorded read null."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
             }
           },
           "required": [
@@ -293581,6 +294775,702 @@
           "additionalProperties": false,
           "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids."
         },
+        "StorageConnectionMount": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "mountId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable id of the mount; one per connection."
+            },
+            "entryId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The mount's folder in the storage tree."
+            },
+            "connectionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The integration connection the mount reads through."
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The mount folder's name under /connections."
+            },
+            "path": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The mount folder's path, /connections/<name>."
+            }
+          },
+          "required": [
+            "mountId",
+            "entryId",
+            "connectionId",
+            "name",
+            "path"
+          ],
+          "additionalProperties": false,
+          "description": "A storage connection mounted under /connections: the folder it appears as in the tree."
+        },
+        "StorageConnectionItem": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The item's path in the storage tree, under its mount."
+            },
+            "remotePath": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The item's path inside the connected storage."
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The item's name as the provider names it."
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "file",
+                "folder"
+              ],
+              "description": "Whether the item is a file or a folder."
+            },
+            "sizeBytes": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Size of the file's current bytes; null for a folder."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageConnectionItem.sizeBytes may be null in this transport value."
+            },
+            "mediaType": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Media type the provider reports for a file; null for a folder or when unknown."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageConnectionItem.mediaType may be null in this transport value."
+            },
+            "revision": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The provider's revision or entity tag of the current bytes; it changes whenever the bytes change. Null for a folder."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageConnectionItem.revision may be null in this transport value."
+            },
+            "modifiedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the provider last changed the item, when it says."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageConnectionItem.modifiedAt may be null in this transport value."
+            }
+          },
+          "required": [
+            "path",
+            "remotePath",
+            "name",
+            "kind",
+            "sizeBytes",
+            "mediaType",
+            "revision",
+            "modifiedAt"
+          ],
+          "additionalProperties": false,
+          "description": "One file or folder in a mounted storage connection, as the provider reports it now. Nothing about it is stored in Bakery until a run uses it."
+        },
+        "Page<StorageConnectionItem>": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "items": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The item's path in the storage tree, under its mount."
+                  },
+                  "remotePath": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The item's path inside the connected storage."
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The item's name as the provider names it."
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "file",
+                      "folder"
+                    ],
+                    "description": "Whether the item is a file or a folder."
+                  },
+                  "sizeBytes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Size of the file's current bytes; null for a folder."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "StorageConnectionItem.sizeBytes may be null in this transport value."
+                  },
+                  "mediaType": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Media type the provider reports for a file; null for a folder or when unknown."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "StorageConnectionItem.mediaType may be null in this transport value."
+                  },
+                  "revision": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The provider's revision or entity tag of the current bytes; it changes whenever the bytes change. Null for a folder."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "StorageConnectionItem.revision may be null in this transport value."
+                  },
+                  "modifiedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "When the provider last changed the item, when it says."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "StorageConnectionItem.modifiedAt may be null in this transport value."
+                  }
+                },
+                "required": [
+                  "path",
+                  "remotePath",
+                  "name",
+                  "kind",
+                  "sizeBytes",
+                  "mediaType",
+                  "revision",
+                  "modifiedAt"
+                ],
+                "additionalProperties": false,
+                "description": "One file or folder in a mounted storage connection, as the provider reports it now. Nothing about it is stored in Bakery until a run uses it."
+              },
+              "description": "StorageConnectionItem items in this cursor page. Page<StorageConnectionItem>.items must contain at most 100 items."
+            },
+            "nextCursor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Opaque continuation cursor value."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that no continuation page remains."
+                }
+              ],
+              "description": "Opaque continuation cursor, or null at the end."
+            },
+            "prevCursor": {
+              "description": "Page<StorageConnectionItem>.prevCursor may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<StorageConnectionItem>.prevCursor must contain at most 512 UTF-8 bytes.",
+                  "x-utf8-max-bytes": 512
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "highwater": {
+              "description": "Page<StorageConnectionItem>.highwater may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9][0-9]*)$",
+                  "description": "Page<StorageConnectionItem>.highwater is a bounded decimal string.",
+                  "x-bigint-minimum": "0"
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            }
+          },
+          "required": [
+            "items",
+            "nextCursor"
+          ],
+          "additionalProperties": false,
+          "description": "Cursor page of StorageConnectionItem."
+        },
+        "StorageConnectionRange": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The file's path in the storage tree."
+            },
+            "revision": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The provider revision the bytes belong to."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageConnectionRange.revision may be null in this transport value."
+            },
+            "mediaType": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Media type the provider reports for the file."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageConnectionRange.mediaType may be null in this transport value."
+            },
+            "sizeBytes": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Size of the whole file, so a reader knows when it has reached the end."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageConnectionRange.sizeBytes may be null in this transport value."
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "First byte returned, counted from zero."
+            },
+            "contentBase64": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The returned bytes, base64 encoded."
+            }
+          },
+          "required": [
+            "path",
+            "revision",
+            "mediaType",
+            "sizeBytes",
+            "offset",
+            "contentBase64"
+          ],
+          "additionalProperties": false,
+          "description": "A byte range of one mounted file, read through the provider and not kept."
+        },
+        "StorageConnectionSync": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable id of the sync."
+            },
+            "mountId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The mount the sync reads from."
+            },
+            "path": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The synced folder's path in the storage tree."
+            },
+            "taskId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Work item the synced files are recorded on."
+            },
+            "changePosition": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageConnectionSync.changePosition may be null in this transport value."
+            },
+            "lastRunAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageConnectionSync.lastRunAt may be null in this transport value."
+            },
+            "pausedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageConnectionSync.pausedAt may be null in this transport value."
+            },
+            "lastFailure": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "StorageConnectionSync.lastFailure may be null in this transport value."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the sync was made."
+            },
+            "version": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Counter that increases every time the sync changes."
+            }
+          },
+          "required": [
+            "id",
+            "mountId",
+            "path",
+            "taskId",
+            "changePosition",
+            "lastRunAt",
+            "pausedAt",
+            "lastFailure",
+            "createdAt",
+            "version"
+          ],
+          "additionalProperties": false,
+          "description": "A one-way sync of a mounted folder into a work item. The storage sync workflow runs every sync that is not paused, least recently run first."
+        },
+        "Page<StorageConnectionSync>": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "items": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable id of the sync."
+                  },
+                  "mountId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The mount the sync reads from."
+                  },
+                  "path": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The synced folder's path in the storage tree."
+                  },
+                  "taskId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Work item the synced files are recorded on."
+                  },
+                  "changePosition": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "StorageConnectionSync.changePosition may be null in this transport value."
+                  },
+                  "lastRunAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "StorageConnectionSync.lastRunAt may be null in this transport value."
+                  },
+                  "pausedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "StorageConnectionSync.pausedAt may be null in this transport value."
+                  },
+                  "lastFailure": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "StorageConnectionSync.lastFailure may be null in this transport value."
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the sync was made."
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Counter that increases every time the sync changes."
+                  }
+                },
+                "required": [
+                  "id",
+                  "mountId",
+                  "path",
+                  "taskId",
+                  "changePosition",
+                  "lastRunAt",
+                  "pausedAt",
+                  "lastFailure",
+                  "createdAt",
+                  "version"
+                ],
+                "additionalProperties": false,
+                "description": "A one-way sync of a mounted folder into a work item. The storage sync workflow runs every sync that is not paused, least recently run first."
+              },
+              "description": "StorageConnectionSync items in this cursor page. Page<StorageConnectionSync>.items must contain at most 100 items."
+            },
+            "nextCursor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Opaque continuation cursor value."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that no continuation page remains."
+                }
+              ],
+              "description": "Opaque continuation cursor, or null at the end."
+            },
+            "prevCursor": {
+              "description": "Page<StorageConnectionSync>.prevCursor may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<StorageConnectionSync>.prevCursor must contain at most 512 UTF-8 bytes.",
+                  "x-utf8-max-bytes": 512
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "highwater": {
+              "description": "Page<StorageConnectionSync>.highwater may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9][0-9]*)$",
+                  "description": "Page<StorageConnectionSync>.highwater is a bounded decimal string.",
+                  "x-bigint-minimum": "0"
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            }
+          },
+          "required": [
+            "items",
+            "nextCursor"
+          ],
+          "additionalProperties": false,
+          "description": "Cursor page of StorageConnectionSync."
+        },
+        "StorageConnectionExport": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "effectId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The external effect that carries the write; follow it to see the outcome."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "prepared",
+                "submitted",
+                "confirmed",
+                "uncertain",
+                "failed"
+              ],
+              "description": "Where the effect is: prepared until the workflow sends it, then confirmed, or failed when the provider refused the write."
+            },
+            "replayed": {
+              "type": "boolean",
+              "description": "True when the idempotency key already named this same request, so nothing new was recorded."
+            }
+          },
+          "required": [
+            "effectId",
+            "status",
+            "replayed"
+          ],
+          "additionalProperties": false,
+          "description": "The external effect that writes one artifact version out to a mounted path."
+        },
         "DesktopUpdate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -296021,7 +297911,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:ca5bf0565c8ccd2394e6445c1bc9276df177dd2673a9d577407096bc7b308bb6",
+  "compatibilityDigest": "sha256:6a02fde213cb0af529c35ee036b270349f88697272ff23a48bdd9c5be72df2ea",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -303822,6 +305712,15 @@
             "storageEntries.purge",
             "agentFileGrants.create",
             "agentFileGrants.revoke",
+            "storageConnections.mount",
+            "storageConnectionPaths.list",
+            "storageConnectionPaths.stat",
+            "storageConnectionPaths.read",
+            "storageConnectionSyncs.create",
+            "storageConnectionSyncs.list",
+            "storageConnectionSyncs.pause",
+            "storageConnectionSyncs.resume",
+            "storageConnectionExports.create",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -329951,6 +331850,137 @@
       ],
       "additionalProperties": false,
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+    },
+    "StorageConnectionPathQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 14,
+          "maxLength": 4096,
+          "description": "The mounted folder to list: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionPathQuery.path must contain at least 14 characters. StorageConnectionPathQuery.path must contain at most 4096 characters."
+        },
+        "cursor": {
+          "description": "Opaque continuation token from the previous page of the same folder; it is signed and bound to this operation, caller, organization and path, so it cannot be replayed elsewhere. StorageConnectionPathQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum entries returned on this page; defaults to 25 and cannot exceed 100. StorageConnectionPathQuery.limit must be at least 1. StorageConnectionPathQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "Lists one folder of a storage connection mounted under /connections, one page at a time, read through the provider without copying anything."
+    },
+    "StorageConnectionStatQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 14,
+          "maxLength": 4096,
+          "description": "The mounted file or folder to describe: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionStatQuery.path must contain at least 14 characters. StorageConnectionStatQuery.path must contain at most 4096 characters."
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "Asks the connected storage what one mounted path is now: file or folder, size, media type and the provider's current revision."
+    },
+    "StorageConnectionReadQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 14,
+          "maxLength": 4096,
+          "description": "The mounted file to read: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionReadQuery.path must contain at least 14 characters. StorageConnectionReadQuery.path must contain at most 4096 characters."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1099511627776,
+          "description": "First byte to return, counted from zero. StorageConnectionReadQuery.offset must be at least 0. StorageConnectionReadQuery.offset must be at most 1099511627776."
+        },
+        "length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576,
+          "description": "Most bytes to return, at most one mebibyte; fewer come back at the end of the file. StorageConnectionReadQuery.length must be at least 1. StorageConnectionReadQuery.length must be at most 1048576."
+        }
+      },
+      "required": [
+        "path",
+        "offset",
+        "length"
+      ],
+      "additionalProperties": false,
+      "description": "Reads a byte range of one mounted file through the provider. The bytes are returned and not kept; using the file in a run is what copies it into an artifact version."
+    },
+    "StorageConnectionSyncCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 14,
+          "maxLength": 4096,
+          "description": "The mounted folder to copy from: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionSyncCreate.path must contain at least 14 characters. StorageConnectionSyncCreate.path must contain at most 4096 characters."
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Work item the synced files are recorded on; each file becomes an artifact version there, kept once per remote revision."
+        }
+      },
+      "required": [
+        "path",
+        "taskId"
+      ],
+      "additionalProperties": false,
+      "description": "Starts a one-way sync that copies every file under a mounted folder into a work item, run hourly by the storage sync workflow."
+    },
+    "StorageConnectionExportCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 14,
+          "maxLength": 4096,
+          "description": "Where to write the file in the connected storage: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionExportCreate.path must contain at least 14 characters. StorageConnectionExportCreate.path must contain at most 4096 characters."
+        },
+        "artifactVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The artifact version whose exact bytes are written out."
+        },
+        "ifMatch": {
+          "description": "Provider revision the write replaces; omit it to create the file only when nothing is at the path. StorageConnectionExportCreate.ifMatch must contain at least 1 characters. StorageConnectionExportCreate.ifMatch must contain at most 400 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        }
+      },
+      "required": [
+        "path",
+        "artifactVersionId"
+      ],
+      "additionalProperties": false,
+      "description": "Asks Bakery to write one artifact version out to a mounted path. The write is recorded as a keyed external effect and sent by the storage workflow, never during this request."
     },
     "DesktopUpdateQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -356728,6 +358758,15 @@
             "storageEntries.purge",
             "agentFileGrants.create",
             "agentFileGrants.revoke",
+            "storageConnections.mount",
+            "storageConnectionPaths.list",
+            "storageConnectionPaths.stat",
+            "storageConnectionPaths.read",
+            "storageConnectionSyncs.create",
+            "storageConnectionSyncs.list",
+            "storageConnectionSyncs.pause",
+            "storageConnectionSyncs.resume",
+            "storageConnectionExports.create",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -357430,6 +359469,15 @@
             "storageEntries.purge",
             "agentFileGrants.create",
             "agentFileGrants.revoke",
+            "storageConnections.mount",
+            "storageConnectionPaths.list",
+            "storageConnectionPaths.stat",
+            "storageConnectionPaths.read",
+            "storageConnectionSyncs.create",
+            "storageConnectionSyncs.list",
+            "storageConnectionSyncs.pause",
+            "storageConnectionSyncs.resume",
+            "storageConnectionExports.create",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -358132,6 +360180,15 @@
             "storageEntries.purge",
             "agentFileGrants.create",
             "agentFileGrants.revoke",
+            "storageConnections.mount",
+            "storageConnectionPaths.list",
+            "storageConnectionPaths.stat",
+            "storageConnectionPaths.read",
+            "storageConnectionSyncs.create",
+            "storageConnectionSyncs.list",
+            "storageConnectionSyncs.pause",
+            "storageConnectionSyncs.resume",
+            "storageConnectionExports.create",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -404645,6 +406702,15 @@
                   "storageEntries.purge",
                   "agentFileGrants.create",
                   "agentFileGrants.revoke",
+                  "storageConnections.mount",
+                  "storageConnectionPaths.list",
+                  "storageConnectionPaths.stat",
+                  "storageConnectionPaths.read",
+                  "storageConnectionSyncs.create",
+                  "storageConnectionSyncs.list",
+                  "storageConnectionSyncs.pause",
+                  "storageConnectionSyncs.resume",
+                  "storageConnectionExports.create",
                   "integrationAuth.manifestCallback",
                   "integrationResources.list",
                   "integrationDiscoveries.create",
@@ -425026,6 +427092,127 @@
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp when the manifest was stored."
+        },
+        "decisionMode": {
+          "description": "HandoffManifestRecord.decisionMode may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "fresh_session",
+                "exact_harness_resume"
+              ],
+              "description": "How a continuation would carry on if it were admitted now, decided from the server's own rows and never from the manifest's claim. Null when the manifest is not pending, or on the worker's own write, where no decision is made."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "freshReason": {
+          "description": "HandoffManifestRecord.freshReason may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "exact_resume_not_requested",
+                "boundary_unsafe",
+                "effects_unresolved",
+                "session_changed",
+                "no_native_evidence",
+                "native_evidence_mismatch",
+                "history_revoked"
+              ],
+              "description": "Why a continuation would start fresh instead of resuming exactly; set only when decisionMode is fresh_session, otherwise null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "machineName": {
+          "description": "HandoffManifestRecord.machineName may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Name of the machine the source session ran on, or null when it is not known. Shown so a person can tell which session a hand-over stops."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "continuedMode": {
+          "description": "HandoffManifestRecord.continuedMode may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "fresh_session",
+                "exact_harness_resume"
+              ],
+              "description": "How the continuation started once the step was handed over; null until then."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "continuedFreshReason": {
+          "description": "HandoffManifestRecord.continuedFreshReason may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "exact_resume_not_requested",
+                "boundary_unsafe",
+                "effects_unresolved",
+                "session_changed",
+                "no_native_evidence",
+                "native_evidence_mismatch",
+                "history_revoked"
+              ],
+              "description": "Why the continuation started fresh; null for an exact resume, before a hand-over, and for hand-overs recorded before the reason was kept."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "continuedByName": {
+          "description": "HandoffManifestRecord.continuedByName may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Current display name of the person who handed the step over, as the server recorded it. The same for every reader; null until a hand-over, or when that person no longer has a name."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "continuedAt": {
+          "description": "HandoffManifestRecord.continuedAt may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the step was handed over; null until then."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -425221,6 +427408,28 @@
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp when the continuation was admitted."
+        },
+        "freshReason": {
+          "description": "HandoffContinuation.freshReason may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "exact_resume_not_requested",
+                "boundary_unsafe",
+                "effects_unresolved",
+                "session_changed",
+                "no_native_evidence",
+                "native_evidence_mismatch",
+                "history_revoked"
+              ],
+              "description": "Why the continuation starts fresh instead of resuming exactly; set only when mode is fresh_session, otherwise null. Continuations admitted before this was recorded read null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -532922,6 +535131,702 @@
       ],
       "additionalProperties": false,
       "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids."
+    },
+    "StorageConnectionMount": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "mountId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable id of the mount; one per connection."
+        },
+        "entryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The mount's folder in the storage tree."
+        },
+        "connectionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The integration connection the mount reads through."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The mount folder's name under /connections."
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The mount folder's path, /connections/<name>."
+        }
+      },
+      "required": [
+        "mountId",
+        "entryId",
+        "connectionId",
+        "name",
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "A storage connection mounted under /connections: the folder it appears as in the tree."
+    },
+    "StorageConnectionItem": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The item's path in the storage tree, under its mount."
+        },
+        "remotePath": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The item's path inside the connected storage."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The item's name as the provider names it."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "file",
+            "folder"
+          ],
+          "description": "Whether the item is a file or a folder."
+        },
+        "sizeBytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Size of the file's current bytes; null for a folder."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionItem.sizeBytes may be null in this transport value."
+        },
+        "mediaType": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Media type the provider reports for a file; null for a folder or when unknown."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionItem.mediaType may be null in this transport value."
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The provider's revision or entity tag of the current bytes; it changes whenever the bytes change. Null for a folder."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionItem.revision may be null in this transport value."
+        },
+        "modifiedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the provider last changed the item, when it says."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionItem.modifiedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "path",
+        "remotePath",
+        "name",
+        "kind",
+        "sizeBytes",
+        "mediaType",
+        "revision",
+        "modifiedAt"
+      ],
+      "additionalProperties": false,
+      "description": "One file or folder in a mounted storage connection, as the provider reports it now. Nothing about it is stored in Bakery until a run uses it."
+    },
+    "Page<StorageConnectionItem>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The item's path in the storage tree, under its mount."
+              },
+              "remotePath": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The item's path inside the connected storage."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The item's name as the provider names it."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "file",
+                  "folder"
+                ],
+                "description": "Whether the item is a file or a folder."
+              },
+              "sizeBytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Size of the file's current bytes; null for a folder."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionItem.sizeBytes may be null in this transport value."
+              },
+              "mediaType": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Media type the provider reports for a file; null for a folder or when unknown."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionItem.mediaType may be null in this transport value."
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The provider's revision or entity tag of the current bytes; it changes whenever the bytes change. Null for a folder."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionItem.revision may be null in this transport value."
+              },
+              "modifiedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the provider last changed the item, when it says."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionItem.modifiedAt may be null in this transport value."
+              }
+            },
+            "required": [
+              "path",
+              "remotePath",
+              "name",
+              "kind",
+              "sizeBytes",
+              "mediaType",
+              "revision",
+              "modifiedAt"
+            ],
+            "additionalProperties": false,
+            "description": "One file or folder in a mounted storage connection, as the provider reports it now. Nothing about it is stored in Bakery until a run uses it."
+          },
+          "description": "StorageConnectionItem items in this cursor page. Page<StorageConnectionItem>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<StorageConnectionItem>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<StorageConnectionItem>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<StorageConnectionItem>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<StorageConnectionItem>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of StorageConnectionItem."
+    },
+    "StorageConnectionRange": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The file's path in the storage tree."
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The provider revision the bytes belong to."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionRange.revision may be null in this transport value."
+        },
+        "mediaType": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Media type the provider reports for the file."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionRange.mediaType may be null in this transport value."
+        },
+        "sizeBytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Size of the whole file, so a reader knows when it has reached the end."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionRange.sizeBytes may be null in this transport value."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "First byte returned, counted from zero."
+        },
+        "contentBase64": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The returned bytes, base64 encoded."
+        }
+      },
+      "required": [
+        "path",
+        "revision",
+        "mediaType",
+        "sizeBytes",
+        "offset",
+        "contentBase64"
+      ],
+      "additionalProperties": false,
+      "description": "A byte range of one mounted file, read through the provider and not kept."
+    },
+    "StorageConnectionSync": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable id of the sync."
+        },
+        "mountId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The mount the sync reads from."
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The synced folder's path in the storage tree."
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Work item the synced files are recorded on."
+        },
+        "changePosition": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionSync.changePosition may be null in this transport value."
+        },
+        "lastRunAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionSync.lastRunAt may be null in this transport value."
+        },
+        "pausedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionSync.pausedAt may be null in this transport value."
+        },
+        "lastFailure": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionSync.lastFailure may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the sync was made."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Counter that increases every time the sync changes."
+        }
+      },
+      "required": [
+        "id",
+        "mountId",
+        "path",
+        "taskId",
+        "changePosition",
+        "lastRunAt",
+        "pausedAt",
+        "lastFailure",
+        "createdAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "A one-way sync of a mounted folder into a work item. The storage sync workflow runs every sync that is not paused, least recently run first."
+    },
+    "Page<StorageConnectionSync>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable id of the sync."
+              },
+              "mountId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The mount the sync reads from."
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The synced folder's path in the storage tree."
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Work item the synced files are recorded on."
+              },
+              "changePosition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionSync.changePosition may be null in this transport value."
+              },
+              "lastRunAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionSync.lastRunAt may be null in this transport value."
+              },
+              "pausedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionSync.pausedAt may be null in this transport value."
+              },
+              "lastFailure": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionSync.lastFailure may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the sync was made."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Counter that increases every time the sync changes."
+              }
+            },
+            "required": [
+              "id",
+              "mountId",
+              "path",
+              "taskId",
+              "changePosition",
+              "lastRunAt",
+              "pausedAt",
+              "lastFailure",
+              "createdAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "A one-way sync of a mounted folder into a work item. The storage sync workflow runs every sync that is not paused, least recently run first."
+          },
+          "description": "StorageConnectionSync items in this cursor page. Page<StorageConnectionSync>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<StorageConnectionSync>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<StorageConnectionSync>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<StorageConnectionSync>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<StorageConnectionSync>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of StorageConnectionSync."
+    },
+    "StorageConnectionExport": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "effectId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The external effect that carries the write; follow it to see the outcome."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "prepared",
+            "submitted",
+            "confirmed",
+            "uncertain",
+            "failed"
+          ],
+          "description": "Where the effect is: prepared until the workflow sends it, then confirmed, or failed when the provider refused the write."
+        },
+        "replayed": {
+          "type": "boolean",
+          "description": "True when the idempotency key already named this same request, so nothing new was recorded."
+        }
+      },
+      "required": [
+        "effectId",
+        "status",
+        "replayed"
+      ],
+      "additionalProperties": false,
+      "description": "The external effect that writes one artifact version out to a mounted path."
     },
     "DesktopUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

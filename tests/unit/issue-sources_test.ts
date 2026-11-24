@@ -176,6 +176,5 @@ Deno.test("a policy keeps everything the source had except the two labels, and a
     automatic: { enabled: false },
     readiness: { requireAcceptanceCriteria: true },
     approval: { plan: "human_approval" },
-    preset: "fixed-coding",
   });
 });

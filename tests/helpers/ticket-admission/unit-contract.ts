@@ -446,7 +446,7 @@ Deno.test("issue 82 contract: the default policy is valid, strict and carries th
     { requireAcceptanceCriteria: true },
     "acceptance criteria are required by default",
   );
-  assertEquals(policy.preset, "fixed-coding");
+  assertEquals(policy.preset, undefined, "no workflow is chosen for anyone");
   // A fresh object each call: a caller cannot change another caller's default.
   policy.labels.execute = "changed";
   assertEquals(defaultTicketSourcePolicy().labels.execute, "ready for agent");

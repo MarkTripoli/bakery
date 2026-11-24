@@ -137,6 +137,12 @@ export const artifactVersionReferences = [
     protection: "retained-evidence",
   },
   {
+    kind: "connection-ingest",
+    table: "storage_connection_ingests",
+    constraint: "storage_connection_ingests_artifact_version_fk",
+    protection: "none",
+  },
+  {
     // A cached extract is a copy of bytes that already exist elsewhere, so it
     // never keeps a version alive: the purge deletes the extracts with the
     // version, and a cache row that outlived its source would be text nobody
