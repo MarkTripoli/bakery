@@ -1,6 +1,8 @@
 import { assertEquals, assertNotEquals } from "@std/assert";
 import { cleanupAuthFixture } from "../helpers/auth.ts";
 import { openSocketFixture } from "../helpers/events-socket.ts";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import { handleTakeOverRequests } from "../../apps/server/src/modules/work/run-requests.ts";
 import {
   addMember,
   api,
@@ -90,14 +92,13 @@ Deno.test("a take-over power reaches exactly its one step and its session", asyn
     for (
       const status of [
         await note(o.guest.cookie, o.run.runId, "build"),
-        await steer(o.guest.cookie, o.buildSession),
         await takeover(o.guest.cookie, o.run.runId, "build"),
+        await steer(o.guest.cookie, o.buildSession),
       ]
     ) {
       assertNotEquals(status, 404);
       assertNotEquals(status, 403);
     }
-    assertEquals(await steer(o.guest.cookie, o.buildSession), 404);
     assertEquals(await note(o.guest.cookie, o.run.runId, "other"), 404);
     assertEquals(await takeover(o.guest.cookie, o.run.runId, "other"), 404);
     assertEquals(await steer(o.guest.cookie, o.otherSession), 404);
@@ -258,13 +259,28 @@ Deno.test("an observer reads only the granted session's own messages, never the 
 Deno.test("one member's review or take-over ends the whole group's ask and its powers", async () => {
   const o = await open();
   try {
+    const groupId = crypto.randomUUID();
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.organization_groups
+         (id, organization_id, name, mention_name)
+       values ($1, $2, 'Reviewers', 'reviewers')`,
+      [groupId, o.fixture.organizationId],
+    );
+    for (const member of [o.guest, o.stranger]) {
+      await o.fixture.pgDatabase.query(
+        `insert into bakery.organization_group_members
+           (organization_id, group_id, principal_id)
+         values ($1, $2, $3)`,
+        [o.fixture.organizationId, groupId, member.principalId],
+      );
+    }
     const askGuests = (payload: Record<string, unknown>) =>
       api(
         o.fixture,
         o.fixture.cookie,
         "POST",
         `/v1/runs/${o.run.runId}/requests`,
-        { recipientRoleKey: "guest", ...payload },
+        { recipientGroupId: groupId, ...payload },
       );
     const statusOf = async (principalId: string, intent: string) =>
       (await o.fixture.pgDatabase.query<{ status: string }>(
@@ -289,26 +305,27 @@ Deno.test("one member's review or take-over ends the whole group's ask and its p
 
     const takeAsk = await askGuests({ intent: "take_over", stepKey: "build" });
     assertEquals(takeAsk.status, 201, await takeAsk.text());
-    const takeover = await o.as(
-      o.guest.cookie,
-      "POST",
-      `/v1/runs/${o.run.runId}/steps/build/takeover`,
-      { mode: "restart" },
+    const steer = (cookie: string) =>
+      o.as(cookie, "POST", `/v1/sessions/${o.buildSession}/messages`, {
+        body: "Mine now.",
+      });
+    assertNotEquals(await steer(o.stranger.cookie), 404);
+    await withPgTransaction(
+      o.fixture.runtimePgDatabase,
+      (tx) =>
+        handleTakeOverRequests(
+          tx,
+          o.fixture.organizationId,
+          o.guest.principalId,
+          o.run.runId,
+          "build",
+        ),
     );
-    assertNotEquals(takeover, 404);
-    assertNotEquals(takeover, 403);
     assertEquals(await statusOf(o.stranger.principalId, "take_over"), [
       "handled",
     ]);
-    assertEquals(
-      await o.as(
-        o.stranger.cookie,
-        "POST",
-        `/v1/sessions/${o.buildSession}/messages`,
-        { body: "Mine now." },
-      ),
-      404,
-    );
+    assertEquals(await steer(o.stranger.cookie), 404);
+    assertEquals(await steer(o.guest.cookie), 404);
   } finally {
     await o.finish();
   }
