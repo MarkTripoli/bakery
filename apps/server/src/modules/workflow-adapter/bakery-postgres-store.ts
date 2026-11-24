@@ -1751,7 +1751,8 @@ async function admitEngineStep(
     const waitingSince = stepWaitingSinceOf(row.stepDispatch);
     if (
       waitingSince !== null &&
-      Date.now() - waitingSince.getTime() >= ENGINE_STEP_WAIT_LIMIT_MS
+      Date.now() - waitingSince.getTime() >=
+        (runner.pacing?.(due.action)?.waitLimitMs ?? ENGINE_STEP_WAIT_LIMIT_MS)
     ) {
       await projectFailure(
         transaction,
@@ -1784,7 +1785,11 @@ async function admitEngineStep(
               started_at = coalesce(started_at, clock_timestamp()),
               updated_at = clock_timestamp(), version = version + 1
         where organization_id = $1 and id = $2 and status = 'pending'`,
-      [row.organizationId, row.runStepId, ENGINE_STEP_RETRY_MS],
+      [
+        row.organizationId,
+        row.runStepId,
+        runner.pacing?.(due.action)?.retryMs ?? ENGINE_STEP_RETRY_MS,
+      ],
     );
     const runUpdate = await transaction.query<{ version: number }>(
       `update bakery.workflow_runs
