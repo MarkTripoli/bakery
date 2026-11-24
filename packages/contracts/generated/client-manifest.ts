@@ -23094,6 +23094,27 @@ export const clientManifest = {
             "append",
             "interrupt"
           ]
+        },
+        "mentions": {
+          "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. A steerer without request permission (runRequest:write) can mention only people who can already see the run; mentioning anyone else is refused with AUTH_FORBIDDEN and writes nothing, not even the steer. Text that merely looks like @name never mentions anyone. SteeringMessage.mentions must contain at most 20 items.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. A steerer without request permission (runRequest:write) can mention only people who can already see the run; mentioning anyone else is refused with AUTH_FORBIDDEN and writes nothing, not even the steer. Text that merely looks like @name never mentions anyone. Each array item follows this format."
+          }
+        },
+        "mentionHandles": {
+          "description": "Groups or roles this steer @-mentions by their mention name, such as @design-reviewers, @admins or @developers; the leading @ is optional. Every active member other than the steerer is asked to just let them know on this run's step, and any one of them can handle it. A name that matches no group or role, or a group with nobody in it, falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. The same request permission rule as mentions applies to every member reached. SteeringMessage.mentionHandles must contain at most 20 items.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Groups or roles this steer @-mentions by their mention name, such as @design-reviewers, @admins or @developers; the leading @ is optional. Every active member other than the steerer is asked to just let them know on this run's step, and any one of them can handle it. A name that matches no group or role, or a group with nobody in it, falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. The same request permission rule as mentions applies to every member reached. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -114796,7 +114817,7 @@ export const clientManifest = {
         },
         "ownerFallback": {
           "type": "boolean",
-          "description": "True when the person asked for could not be resolved and the run's starter was asked instead."
+          "description": "True when the person asked for could not be resolved and the workflow's owner, or the run's starter when the workflow has no owner, was asked instead."
         },
         "fallbackForName": {
           "anyOf": [
@@ -115093,7 +115114,7 @@ export const clientManifest = {
               },
               "ownerFallback": {
                 "type": "boolean",
-                "description": "True when the person asked for could not be resolved and the run's starter was asked instead."
+                "description": "True when the person asked for could not be resolved and the workflow's owner, or the run's starter when the workflow has no owner, was asked instead."
               },
               "fallbackForName": {
                 "anyOf": [

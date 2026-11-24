@@ -1218,6 +1218,7 @@ async function appendApprovalWait(
       traceId: context.originalTraceId ?? crypto.randomUUID(),
       applicationId: context.applicationId,
       repositoryId: context.repositoryId,
+      stepIteration: key.iteration,
     });
   } catch (error) {
     if (!(error instanceof StandardError)) throw error;
