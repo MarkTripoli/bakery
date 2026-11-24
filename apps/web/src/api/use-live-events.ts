@@ -3,11 +3,6 @@ import { contractSchemas } from "@bakery/contracts/contracts";
 import { useBakeryApi } from "./context.tsx";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 
-/**
- * Where the live event channel stands. `idle` means it never connected, so the
- * page keeps polling quietly; `lost` means it was live and dropped, which the
- * page says out loud while it reconnects.
- */
 export type LiveState = "idle" | "connecting" | "live" | "lost";
 
 export type LiveScope = Readonly<{
@@ -17,13 +12,238 @@ export type LiveScope = Readonly<{
 
 const MAX_BACKOFF_MS = 15_000;
 
-/**
- * Subscribes the page to the organization event stream (`GET /v1/events`) for
- * the given scopes. Every event frame, and every (re)subscription, calls
- * `onActivity` once so the page re-reads its scoped queries; the stream carries
- * no state the page renders. A reconnect resubscribes from the current
- * highwater, so `onActivity` also covers anything missed while offline.
- */
+type Listener = {
+  readonly scopes: readonly LiveScope[];
+  readonly onActivity: () => void;
+  readonly onState: (state: LiveState) => void;
+};
+
+type Channel = {
+  readonly socketUrl: string;
+  readonly listeners: Set<Listener>;
+  online: () => void;
+  socket: WebSocket | null;
+  state: LiveState;
+  subscribed: string;
+  requests: Set<string>;
+  everLive: boolean;
+  retries: number;
+  timer: ReturnType<typeof setTimeout> | null;
+  terminal: boolean;
+  queued: boolean;
+  reconnectAtOnce: boolean;
+};
+
+const channels = new Map<string, Channel>();
+
+const scopeKey = (scopes: readonly LiveScope[]) =>
+  scopes.map((scope) => `${scope.type}:${scope.id}`).join(",");
+
+function sharedScopes(channel: Channel): LiveScope[] {
+  const shared = new Map<string, LiveScope>();
+  for (const listener of channel.listeners) {
+    for (const scope of listener.scopes) {
+      shared.set(`${scope.type}:${scope.id}`, scope);
+    }
+  }
+  return [...shared.values()];
+}
+
+function publish(channel: Channel, state: LiveState) {
+  if (channel.state === state) return;
+  channel.state = state;
+  for (const listener of channel.listeners) listener.onState(state);
+}
+
+function announceActivity(channel: Channel) {
+  for (const listener of channel.listeners) listener.onActivity();
+}
+
+function scheduleReconnect(channel: Channel) {
+  if (channel.listeners.size === 0 || channel.terminal) return;
+  const delay = channel.reconnectAtOnce
+    ? 0
+    : Math.min(1000 * 2 ** channel.retries++, MAX_BACKOFF_MS);
+  channel.reconnectAtOnce = false;
+  if (channel.timer !== null) globalThis.clearTimeout(channel.timer);
+  channel.timer = globalThis.setTimeout(() => {
+    channel.timer = null;
+    connect(channel);
+  }, delay);
+}
+
+function subscribe(channel: Channel, socket: WebSocket, scopes: LiveScope[]) {
+  if (scopes.length === 0) return;
+  const requestId = crypto.randomUUID();
+  channel.requests.add(requestId);
+  socket.send(
+    JSON.stringify({
+      type: "subscribe",
+      requestId,
+      scopes,
+      after: null,
+    }),
+  );
+}
+
+function connect(channel: Channel) {
+  if (channel.listeners.size === 0 || channel.terminal) return;
+  const wanted = sharedScopes(channel);
+  const subscribed = scopeKey(wanted);
+  if (subscribed === "") return;
+  const socket = new WebSocket(channel.socketUrl);
+  channel.socket = socket;
+  channel.subscribed = subscribed;
+  channel.requests = new Set();
+  publish(channel, "connecting");
+  socket.onmessage = (event) => {
+    if (channel.socket !== socket) return;
+    let value: unknown;
+    try {
+      value = JSON.parse(String(event.data));
+    } catch {
+      return;
+    }
+    const parsed = contractSchemas.WebSocketFrame.safeParse(value);
+    if (!parsed.success) return;
+    const frame = parsed.data;
+    if (frame.type === "hello") {
+      subscribe(channel, socket, wanted);
+      return;
+    }
+    if (
+      frame.type === "problem" && channel.requests.has(frame.requestId ?? "")
+    ) {
+      channel.terminal = true;
+      channel.socket = null;
+      publish(channel, channel.everLive ? "lost" : "idle");
+      socket.close();
+      return;
+    }
+    if (frame.type === "reset_required") {
+      socket.close();
+      return;
+    }
+    if (
+      (frame.type === "cursor" || frame.type === "events") &&
+      channel.requests.has(frame.requestId ?? "")
+    ) {
+      if (frame.type === "cursor") {
+        channel.everLive = true;
+        channel.retries = 0;
+        publish(channel, "live");
+      }
+      announceActivity(channel);
+    }
+  };
+  socket.onclose = () => {
+    if (channel.socket !== socket) return;
+    channel.socket = null;
+    if (channel.terminal) return;
+    publish(channel, channel.everLive ? "lost" : "idle");
+    scheduleReconnect(channel);
+  };
+  socket.onerror = () => socket.close();
+}
+
+function teardown(channel: Channel) {
+  if (channel.timer !== null) {
+    globalThis.clearTimeout(channel.timer);
+    channel.timer = null;
+  }
+  const socket = channel.socket;
+  channel.socket = null;
+  socket?.close();
+  globalThis.removeEventListener("online", channel.online);
+  for (const [key, candidate] of channels) {
+    if (candidate === channel) channels.delete(key);
+  }
+}
+
+function reconcile(channel: Channel) {
+  if (channel.queued) return;
+  channel.queued = true;
+  queueMicrotask(() => {
+    channel.queued = false;
+    applyScopes(channel);
+  });
+}
+
+function applyScopes(channel: Channel) {
+  const next = sharedScopes(channel);
+  if (channel.listeners.size === 0 || next.length === 0) {
+    teardown(channel);
+    return;
+  }
+  if (channel.socket === null) {
+    if (channel.timer === null) connect(channel);
+    return;
+  }
+  const subscribed = scopeKey(next);
+  if (channel.subscribed === subscribed) return;
+  const nextKeys = new Set(next.map((scope) => `${scope.type}:${scope.id}`));
+  const held = channel.subscribed.split(",");
+  const dropped = held.some((entry) => entry !== "" && !nextKeys.has(entry));
+  if (dropped) {
+    channel.reconnectAtOnce = true;
+    channel.socket.close();
+    return;
+  }
+  const heldKeys = new Set(held);
+  subscribe(
+    channel,
+    channel.socket,
+    next.filter((scope) => !heldKeys.has(`${scope.type}:${scope.id}`)),
+  );
+  channel.subscribed = subscribed;
+}
+
+function channelFor(socketUrl: string): Channel {
+  const existing = channels.get(socketUrl);
+  if (existing !== undefined) return existing;
+  const channel: Channel = {
+    everLive: false,
+    listeners: new Set(),
+    online: () => {},
+    queued: false,
+    reconnectAtOnce: false,
+    retries: 0,
+    requests: new Set(),
+    socket: null,
+    socketUrl,
+    state: "idle",
+    subscribed: "",
+    terminal: false,
+    timer: null,
+  };
+  channel.online = () => {
+    if (channel.terminal || channel.socket !== null) return;
+    if (channel.timer !== null) {
+      globalThis.clearTimeout(channel.timer);
+      channel.timer = null;
+    }
+    channel.retries = 0;
+    connect(channel);
+  };
+  globalThis.addEventListener("online", channel.online);
+  channels.set(socketUrl, channel);
+  return channel;
+}
+
+function retry(channel: Channel) {
+  if (channel.timer !== null) {
+    globalThis.clearTimeout(channel.timer);
+    channel.timer = null;
+  }
+  channel.terminal = false;
+  channel.retries = 0;
+  const socket = channel.socket;
+  channel.socket = null;
+  channel.reconnectAtOnce = true;
+  socket?.close();
+  if (socket === null) connect(channel);
+}
+
 export function useLiveEvents(
   scopes: readonly LiveScope[],
   onActivity: () => void,
@@ -31,119 +251,48 @@ export function useLiveEvents(
   return useLiveConnection(scopes, onActivity).state;
 }
 
-/**
- * Same stream as `useLiveEvents`, plus `reconnect()`: it discards a terminal
- * rejection and the backoff, then opens a fresh socket at once. A page offers
- * it as a manual retry.
- */
 export function useLiveConnection(
   scopes: readonly LiveScope[],
   onActivity: () => void,
 ): Readonly<{ state: LiveState; reconnect: () => void }> {
   const api = useBakeryApi();
   const scope = useProtectedScope();
+  const organizationId = scope.organizationId;
+  const key = scopeKey(scopes);
   const [state, setState] = useState<LiveState>("idle");
-  const [attempt, setAttempt] = useState(0);
-  const reconnect = useCallback(() => setAttempt((value) => value + 1), []);
-  // Remembers which subscription was live, so a manual retry that is rejected
-  // again returns to `lost` instead of silently dropping to `idle`.
-  const liveBefore = useRef("");
   const activity = useRef(onActivity);
   activity.current = onActivity;
-  const key = scopes.map((item) => `${item.type}:${item.id}`).join(",");
-  const organizationId = scope.organizationId;
+  const joined = useRef<Channel | null>(null);
+
   useEffect(() => {
-    if (organizationId === null || key === "") return;
-    let disposed = false;
-    let terminal = false;
-    const identity = `${organizationId}|${key}`;
-    let everLive = liveBefore.current === identity;
-    let socket: WebSocket | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let retries = 0;
-    const wanted = key.split(",").map((entry) => {
-      const [type, id] = entry.split(":");
-      return { type, id };
-    });
-    const connect = () => {
-      if (disposed || terminal) return;
-      const requestId = crypto.randomUUID();
-      const current = new WebSocket(api.output.socketUrl(organizationId));
-      socket = current;
-      current.onmessage = (event) => {
-        if (disposed || socket !== current) return;
-        let value: unknown;
-        try {
-          value = JSON.parse(String(event.data));
-        } catch {
-          return;
-        }
-        const parsed = contractSchemas.WebSocketFrame.safeParse(value);
-        if (!parsed.success) return;
-        const frame = parsed.data;
-        if (frame.type === "hello") {
-          current.send(
-            JSON.stringify({
-              type: "subscribe",
-              requestId,
-              scopes: wanted,
-              after: null,
-            }),
-          );
-          return;
-        }
-        if (frame.type === "problem" && frame.requestId === requestId) {
-          // A viewer or an expired session cannot stream; polling continues.
-          terminal = true;
-          setState(everLive ? "lost" : "idle");
-          current.close();
-          return;
-        }
-        if (frame.type === "reset_required") {
-          // The cursor is gone: resubscribe from now and re-read everything.
-          current.close();
-          return;
-        }
-        if (
-          (frame.type === "cursor" || frame.type === "events") &&
-          frame.requestId === requestId
-        ) {
-          if (frame.type === "cursor") {
-            everLive = true;
-            liveBefore.current = identity;
-            retries = 0;
-            setState("live");
-          }
-          activity.current();
-        }
-      };
-      current.onclose = () => {
-        if (disposed || terminal || socket !== current) return;
-        setState(everLive ? "lost" : "idle");
-        timer = setTimeout(
-          connect,
-          Math.min(1000 * 2 ** retries++, MAX_BACKOFF_MS),
-        );
-      };
-      current.onerror = () => current.close();
+    if (organizationId === null || key === "") {
+      setState("idle");
+      return;
+    }
+    const channel = channelFor(api.output.socketUrl(organizationId));
+    const listener: Listener = {
+      onActivity: () => activity.current(),
+      onState: setState,
+      scopes: key.split(",").map((entry) => {
+        const [type, id] = entry.split(":");
+        return { type, id } as LiveScope;
+      }),
     };
-    // Coming back online reconnects at once instead of waiting out the backoff.
-    const online = () => {
-      if (disposed || terminal || socket?.readyState === WebSocket.OPEN) return;
-      clearTimeout(timer);
-      retries = 0;
-      socket?.close();
-      connect();
-    };
-    globalThis.addEventListener("online", online);
-    setState("connecting");
-    connect();
+    joined.current = channel;
+    channel.listeners.add(listener);
+    reconcile(channel);
+    setState(channel.state);
     return () => {
-      disposed = true;
-      globalThis.removeEventListener("online", online);
-      clearTimeout(timer);
-      socket?.close();
+      channel.listeners.delete(listener);
+      joined.current = null;
+      reconcile(channel);
     };
-  }, [api, organizationId, key, attempt]);
-  return { state, reconnect };
+  }, [api, key, organizationId]);
+
+  const reconnect = useCallback(() => {
+    const channel = joined.current;
+    if (channel !== null) retry(channel);
+  }, []);
+
+  return { reconnect, state };
 }

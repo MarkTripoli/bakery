@@ -85,7 +85,7 @@ async function shot(page: Page, name: string) {
 }
 
 const message = (page: Page) =>
-  page.getByRole("combobox", { name: "Message this task" });
+  page.getByRole("textbox", { name: "Message this task" });
 const send = (page: Page) =>
   page.getByRole("button", { name: "Send", exact: true });
 const log = (page: Page) => page.getByRole("log");
