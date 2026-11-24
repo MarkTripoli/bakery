@@ -121,6 +121,7 @@ Deno.test("issue 60: one issues page carries each issue's delivery line", () =>
     const merged = await start(fx, sourceId, 606);
     const released = await start(fx, sourceId, 607);
     const paused = await start(fx, sourceId, 608);
+    const moved = await start(fx, sourceId, 610);
 
     for (const each of [working, waiting, asked, lapsed, merged, released]) {
       await setRun(fx, each.runId, "running");
@@ -129,6 +130,14 @@ Deno.test("issue 60: one issues page carries each issue's delivery line", () =>
     await ask(fx, asked.taskId, "question");
     await ask(fx, lapsed.taskId, "question", true);
     await setRun(fx, failed.runId, "failed");
+    await ask(fx, moved.taskId, "question", true);
+    await fx.owner.query(
+      `update bakery.questions set created_at = now() - interval '1 hour'
+        where organization_id = $1 and task_id = $2`,
+      [fx.organizationId, moved.taskId],
+    );
+    await ask(fx, moved.taskId, "question");
+    await setRun(fx, moved.runId, "running");
     await setRun(fx, paused.runId, "paused");
     await merge(fx, merged.taskId, 66);
     await merge(fx, released.taskId, 67);
@@ -153,6 +162,7 @@ Deno.test("issue 60: one issues page carries each issue's delivery line", () =>
     assertEquals(line(asked).state, "question_open");
     assertEquals(line(lapsed).state, "question_expired");
     assertEquals(line(failed).state, "stopped");
+    assertEquals(line(moved).state, "question_open");
     assertEquals(line(paused).state, "paused");
     assertEquals(line(merged).state, "merged");
     assertEquals(line(merged).pullRequestNumber, 66);

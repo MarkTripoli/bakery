@@ -130,15 +130,17 @@ export async function deliveryFor(
           limit 1
        ) as approval on true
        left join lateral (
-         select bool_or(asked.status = 'open'
-                  and (asked.expires_at is null or asked.expires_at > now()))
+         select newest.status = 'open'
+                  and (newest.expires_at is null or newest.expires_at > now())
                   as open,
-                bool_or(asked.status = 'expired'
-                  or (asked.status = 'open' and asked.expires_at <= now()))
+                newest.status = 'expired'
+                  or (newest.status = 'open' and newest.expires_at <= now())
                   as expired
-           from bakery.questions as asked
-          where asked.organization_id = $1 and asked.task_id = latest.task_id
-            and asked.kind = 'question'
+           from bakery.questions as newest
+          where newest.organization_id = $1 and newest.task_id = latest.task_id
+            and newest.kind = 'question'
+          order by newest.created_at desc, newest.id desc
+          limit 1
        ) as question on true
        left join lateral (
          select made.decision from bakery.delivery_decisions as made
