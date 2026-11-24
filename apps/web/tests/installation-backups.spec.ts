@@ -128,6 +128,18 @@ type Options = {
   keyDelay?: Promise<void>;
 };
 
+async function datesStayReadable(page: Page) {
+  const rows = page.locator("[data-run]");
+  const count = await rows.count();
+  expect(count).toBeGreaterThan(0);
+  for (let index = 0; index < count; index += 1) {
+    const box = await rows.nth(index).getByText(/UTC/).first().boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThan(100);
+    expect(box!.height).toBeLessThan(60);
+  }
+}
+
 async function fixture(page: Page, options: Options = {}) {
   await mockAuthenticatedSession(page);
   const starts: { key: string | undefined }[] = [];
@@ -439,6 +451,10 @@ for (
       await expect(page.locator("[data-run]").first()).toContainText(
         "Not taken",
       );
+      await expect(page.locator("[data-run]").first()).not.toContainText(
+        "Not taken · Not taken",
+      );
+      await datesStayReadable(page);
       await expect.poll(() => said(page.locator("[data-run]").nth(1)))
         .toContain("Not copied off-site");
       await expect.poll(() => said(page.locator("[data-run]").nth(1)))
@@ -466,11 +482,11 @@ for (
       await expect.poll(() => said(notice)).toContain(
         "Take a first backup now.",
       );
-      await expect(page.locator("[data-result='no-backups']")).toBeVisible();
+      await expect(page.locator("[data-section='backups']")).toHaveCount(0);
       await expect.poll(() => said(page.locator("[data-fact='last-good']")))
-        .toContain("No backup has finished yet");
+        .toContain("Never");
       await expect.poll(() => said(page.locator("[data-fact='last-good']")))
-        .toContain("None yet");
+        .not.toContain("No backup has finished yet");
       await expect(page.locator("[data-result='no-drills']")).toContainText(
         "No restore check has been run.",
       );
@@ -635,6 +651,9 @@ for (
         "The backup key did not open the backup.",
       );
       await expect.poll(() => said(failed)).toContain(
+        "Use the key file from the server that took this backup, then check it again.",
+      );
+      await expect.poll(() => said(failed)).toContain(
         "Did not pass: database, files",
       );
       await expect.poll(() => said(failed)).toContain(
@@ -645,6 +664,35 @@ for (
       await expect.poll(() => said(page.locator("[data-drill]").nth(1)))
         .toContain("Backup was 2 hours old");
       await noOverflow(page);
+    });
+
+    test("restore checks: every failure code says what to do next", async ({ page }) => {
+      const fixes = {
+        set_incomplete: "Take a new backup. This one cannot be restored.",
+        key_mismatch:
+          "Use the key file from the server that took this backup, then check it again.",
+        migration_unsupported:
+          "Install a release at least as new as the one that took the backup, then check it again.",
+        cutoff_mismatch:
+          "Take a new backup and check that one. Don't rely on this backup.",
+        restore_failed:
+          "Check it again. If it fails a second time, follow the guide.",
+        references_missing:
+          "Take a new backup and check that one. The guide says which files a backup must include.",
+        drill_error:
+          "Check it again. If it stops again, the server log says why.",
+      };
+      const codes = Object.keys(fixes) as (keyof typeof fixes)[];
+      await fixture(page, {
+        drills: codes.map((failureCode, index) =>
+          drill(index + 1, { outcome: "failed", failureCode })
+        ),
+      });
+      await page.goto("/installation/backups");
+      for (const [index, code] of codes.entries()) {
+        await expect.poll(() => said(page.locator("[data-drill]").nth(index)))
+          .toContain(fixes[code]);
+      }
     });
 
     test("a held restore offers Finish the restore", async ({ page }) => {

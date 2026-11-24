@@ -410,7 +410,7 @@ function Facts(
       <UI.StatTile
         data-fact="last-good"
         detail={lastGood === null
-          ? translate("installation.backups.facts.lastGood.none")
+          ? undefined
           : format.ago(spanSince(lastGood, nowMs))}
         label={translate("installation.backups.facts.lastGood.label")}
         value={lastGood === null
@@ -562,19 +562,7 @@ function RunList(props: InstallationBackupsScreenProps) {
     );
   const sizeOfRun = (run: BackupRun) =>
     run.sizeBytes === null ? missing(run) : format.size(run.sizeBytes);
-  const result = (run: BackupRun) => {
-    const outcome = runResult(run);
-    return (
-      <UI.Stack gap="tight">
-        <UI.Badge tone={outcome.tone}>{translate(outcome.key)}</UI.Badge>
-        {outcome.cause === null ? null : (
-          <UI.Text variant="caption">
-            {format.phrase(outcome.cause)}
-          </UI.Text>
-        )}
-      </UI.Stack>
-    );
-  };
+  if (runs.state === "ready" && runs.rows.length === 0) return null;
   return (
     <UI.SettingsSection
       data-section="backups"
@@ -588,33 +576,43 @@ function RunList(props: InstallationBackupsScreenProps) {
             <UI.Skeleton shape="row" />
           </UI.Stack>
         )
-        : runs.rows.length === 0 && runs.state === "ready"
-        ? (
-          <UI.Text data-result="no-backups" variant="muted">
-            {translate("installation.backups.list.empty")}
-          </UI.Text>
-        )
         : phone
         ? (
           <UI.Stack gap="none">
-            {runs.rows.map((run) => (
-              <UI.StackedRow
-                data-run={run.id}
-                flush
-                key={run.id}
-                status={result(run)}
-                title={format.utc(takenAt(run))}
-                titleLines="wrap"
-              >
-                <UI.Text variant="caption">
-                  {[
-                    translate(startedByKey(run)),
-                    sizeOfRun(run),
-                    keptIn(run),
-                  ].join(DETAIL_SEPARATOR)}
-                </UI.Text>
-              </UI.StackedRow>
-            ))}
+            {runs.rows.map((run) => {
+              const outcome = runResult(run);
+              return (
+                <UI.StackedRow
+                  data-run={run.id}
+                  flush
+                  key={run.id}
+                  status={
+                    <UI.Badge tone={outcome.tone}>
+                      {translate(outcome.key)}
+                    </UI.Badge>
+                  }
+                  title={format.utc(takenAt(run))}
+                  titleLines="wrap"
+                >
+                  <UI.Stack gap="tight">
+                    <UI.Text variant="caption">
+                      {[
+                        translate(startedByKey(run)),
+                        sizeOfRun(run),
+                        keptIn(run),
+                      ].filter((part, index, parts) =>
+                        index === 0 || part !== parts[index - 1]
+                      ).join(DETAIL_SEPARATOR)}
+                    </UI.Text>
+                    {outcome.cause === null ? null : (
+                      <UI.Text variant="caption">
+                        {format.phrase(outcome.cause)}
+                      </UI.Text>
+                    )}
+                  </UI.Stack>
+                </UI.StackedRow>
+              );
+            })}
           </UI.Stack>
         )
         : runs.rows.length === 0
@@ -651,7 +649,23 @@ function RunList(props: InstallationBackupsScreenProps) {
               {
                 id: "result",
                 header: translate("installation.backups.list.result"),
-                cell: result,
+                cell: (run) => {
+                  const outcome = runResult(run);
+                  return (
+                    <UI.Stack gap="tight">
+                      <UI.Badge tone={outcome.tone}>
+                        {translate(outcome.key)}
+                      </UI.Badge>
+                      {outcome.cause === null
+                        ? null
+                        : (
+                          <UI.Text variant="caption">
+                            {format.phrase(outcome.cause)}
+                          </UI.Text>
+                        )}
+                    </UI.Stack>
+                  );
+                },
               },
             ]}
             getRowAttributes={(run) => ({ "data-run": run.id })}
@@ -689,6 +703,9 @@ function DrillList(props: InstallationBackupsScreenProps) {
         {result.cause === null
           ? null
           : <UI.Text variant="caption">{translate(result.cause)}</UI.Text>}
+        {result.fix === null
+          ? null
+          : <UI.Text variant="caption">{translate(result.fix)}</UI.Text>}
         {result.detail === null ? null : (
           <UI.DataText fit variant="code">
             {result.detail}
