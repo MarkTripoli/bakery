@@ -405,3 +405,57 @@ export function ruleKey(
   const keys = version === null ? RULE_KEYS_NO_VERSION : RULE_KEYS;
   return keys[show];
 }
+
+export type ChartPoint = Readonly<{ at: string; value: number | null }>;
+
+export type ChartSegment = readonly Readonly<{ at: string; value: number }>[];
+
+export type ChartGap = Readonly<{ from: string; to: string; points: number }>;
+
+/**
+ * The runs of measured points a chart draws as separate lines, so a stretch
+ * with no measurement leaves a break instead of drawing a line across it.
+ */
+export function chartSegments(
+  points: readonly ChartPoint[],
+): readonly ChartSegment[] {
+  const segments: { at: string; value: number }[][] = [];
+  let run: { at: string; value: number }[] = [];
+  for (const point of points) {
+    if (point.value === null) {
+      if (run.length > 0) segments.push(run);
+      run = [];
+      continue;
+    }
+    run.push({ at: point.at, value: point.value });
+  }
+  if (run.length > 0) segments.push(run);
+  return segments;
+}
+
+/** The stretches with no measurement, with the dates that bound them. */
+export function chartGaps(points: readonly ChartPoint[]): readonly ChartGap[] {
+  const gaps: { from: string; to: string; points: number }[] = [];
+  let open: { from: string; to: string; points: number } | null = null;
+  for (const point of points) {
+    if (point.value === null) {
+      open = open === null
+        ? { from: point.at, to: point.at, points: 1 }
+        : { from: open.from, to: point.at, points: open.points + 1 };
+      continue;
+    }
+    if (open !== null) gaps.push(open);
+    open = null;
+  }
+  if (open !== null) gaps.push(open);
+  return gaps;
+}
+
+/** The highest value a chart's line reaches; 0 when nothing was measured. */
+export function chartMaximum(points: readonly ChartPoint[]): number {
+  let maximum = 0;
+  for (const point of points) {
+    if (point.value !== null && point.value > maximum) maximum = point.value;
+  }
+  return maximum;
+}

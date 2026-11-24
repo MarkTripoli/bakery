@@ -6873,5 +6873,16 @@
   "delivery.records.rule.closed.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš çļôšëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "delivery.missing.noLineCount": "⟦Ñôŧ ļïñë-çôûñŧëð ŧëš⟧",
   "delivery.missing.lineCountBinary": "⟦Ñôŧ ļïñë-çôûñŧëð · ƀïñàŕÿ ƒïļëš ŧëšŧ çôþ⟧",
-  "delivery.missing.lineCountTruncated": "⟦Ñôŧ ļïñë-çôûñŧëð · ôṽëŕ 3,000 ƒïļëš ŧëšŧ çôþÿŧ⟧"
+  "delivery.missing.lineCountTruncated": "⟦Ñôŧ ļïñë-çôûñŧëð · ôṽëŕ 3,000 ƒïļëš ŧëšŧ çôþÿŧ⟧",
+  "delivery.chart.heading": "⟦Ôṽëŕ ŧïɱë ŧ⟧",
+  "delivery.chart.asTable": "⟦Šĥôŵ àš ŧàƀļë ŧë⟧",
+  "delivery.chart.asChart": "⟦Šĥôŵ àš çĥàŕŧ ŧë⟧",
+  "delivery.chart.noGap": "⟦Ëṽëŕÿ {unit} ŵàš ɱëàšûŕëð ïñ ŧĥïš þëŕïôð. ŧëšŧ çôþÿ ŧë⟧",
+  "delivery.chart.gapCount": "⟦Ñô ðàŧà ƒôŕ {count} ðàÿš ({gaps}). À ĝàþ ïš ñôŧ žëŕô. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "delivery.chart.gap": "⟦ñô ðàŧà, {from} ŧô {to} ŧëšŧ ç⟧",
+  "delivery.chart.gapDay": "⟦ñô ðàŧà, {date} ŧëš⟧",
+  "delivery.chart.column.day": "⟦Ðàÿ⟧",
+  "delivery.chart.column.value": "⟦Ṽàļûë⟧",
+  "delivery.chart.noData": "⟦Ñô ðàŧà…⟧",
+  "delivery.chart.show": "⟦Šĥôŵ⟧"
 }

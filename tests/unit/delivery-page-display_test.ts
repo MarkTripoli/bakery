@@ -4,6 +4,9 @@ import type {
   MetricSource,
 } from "../../apps/web/src/api/client.ts";
 import {
+  chartGaps,
+  chartMaximum,
+  chartSegments,
   countFigure,
   durationWords,
   freshnessOf,
@@ -303,4 +306,25 @@ Deno.test("the rule line names the definitions version only when one is served",
     ruleKey("closed", null),
     "delivery.records.rule.closed.noVersion",
   );
+});
+
+Deno.test("a chart breaks its line where nothing was measured and names the gaps", () => {
+  const points = [
+    { at: "2026-11-01T00:00:00.000Z", value: 3 },
+    { at: "2026-11-02T00:00:00.000Z", value: 5 },
+    { at: "2026-11-03T00:00:00.000Z", value: null },
+    { at: "2026-11-04T00:00:00.000Z", value: null },
+    { at: "2026-11-05T00:00:00.000Z", value: 2 },
+  ];
+  assertEquals(chartSegments(points).length, 2);
+  assertEquals(chartSegments(points)[0]?.map((point) => point.value), [3, 5]);
+  assertEquals(chartSegments(points)[1]?.map((point) => point.value), [2]);
+  assertEquals(chartGaps(points), [{
+    from: "2026-11-03T00:00:00.000Z",
+    to: "2026-11-04T00:00:00.000Z",
+    points: 2,
+  }]);
+  assertEquals(chartMaximum(points), 5);
+  assertEquals(chartSegments([]).length, 0);
+  assertEquals(chartGaps([]).length, 0);
 });

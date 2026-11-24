@@ -1,12 +1,15 @@
 import * as UI from "@bakery/ui";
 import { formatDate, formatNumber } from "@bakery/i18n";
+import { DeliveryChart } from "./delivery/DeliveryChart.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
+  type ChartPoint,
   type DeliveryShow,
   durationWords,
   type Figure,
   type Freshness,
+  isDeliveryShow,
   type LeadTime,
   type RecordRow,
   ruleKey,
@@ -67,6 +70,10 @@ export type DeliveryScreenProps = {
   readonly records: DeliveryRecords;
   /** How long tasks took and where the time went; null when no task was delivered. */
   readonly leadTime: LeadTime | null;
+  /** One line per chosen figure, with its gaps, and the same points as a table. */
+  readonly series: Readonly<
+    Record<DeliveryShow, { readonly points: readonly ChartPoint[] } | null>
+  >;
   /** Admins are sent to reconnect; everyone else is told who can. */
   readonly canReconnect: boolean;
   readonly reconnectHref: string;
@@ -399,8 +406,65 @@ function Ready(props: DeliveryScreenProps) {
         )
         : null}
       {props.leadTime === null ? null : <TimeWent lead={props.leadTime} />}
+      <OverTime {...props} />
       <RecordsSection {...props} figureText={figureText} />
     </UI.Stack>
+  );
+}
+
+function OverTime(props: DeliveryScreenProps) {
+  const { translate, locale, timeZone } = useI18n();
+  const shown: DeliveryShow = props.show ?? "merged";
+  const figure = FIGURES.find((entry) => entry.show === shown)!;
+  const series = props.series[shown];
+  const day = new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeZone,
+  });
+  const numberFormat = new Intl.NumberFormat(locale);
+  return (
+    <DeliveryChart
+      label={translate(figure.label)}
+      points={series?.points ?? []}
+      showMenu={
+        <UI.Menu
+          aria-label={translate("delivery.chart.show")}
+          items={FIGURES.map((entry) => ({
+            id: entry.show,
+            label: translate(entry.label),
+            selected: entry.show === shown,
+          }))}
+          onSelect={(id) => props.onShow(isDeliveryShow(id) ? id : null)}
+          variant="selection"
+        />
+      }
+      table={
+        <UI.DataTable
+          caption={translate(figure.label)}
+          captionHidden
+          columns={[
+            {
+              id: "day",
+              header: translate("delivery.chart.column.day"),
+              cell: (point: ChartPoint) => day.format(new Date(point.at)),
+            },
+            {
+              id: "value",
+              header: translate("delivery.chart.column.value"),
+              align: "end" as const,
+              cell: (point: ChartPoint) =>
+                point.value === null
+                  ? translate("delivery.chart.noData")
+                  : numberFormat.format(point.value),
+            },
+          ]}
+          emptyMessage={translate("delivery.chart.noData")}
+          getRowKey={(point) => point.at}
+          rows={series === null ? [] : [...series.points]}
+        />
+      }
+      unitLabel={translate(figure.detail)}
+    />
   );
 }
 

@@ -172,6 +172,18 @@ export function DeliveryPage() {
             to: formatDay(new Date(window.to.getTime() - 1)),
           }
           : custom}
+        series={{
+          merged: merged.data === undefined
+            ? null
+            : { points: merged.data.points },
+          tasks: tasks.data === undefined
+            ? null
+            : { points: tasks.data.points },
+          open: open.data === undefined ? null : { points: open.data.points },
+          closed: closed.data === undefined
+            ? null
+            : { points: closed.data.points },
+        }}
         figures={{
           merged: mergedCount,
           tasks: tasksCount,

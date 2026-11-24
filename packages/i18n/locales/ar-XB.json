@@ -6873,5 +6873,16 @@
   "delivery.records.rule.closed.noVersion": "⟪Counted by when each was closed, in your time zone ({zone}).⟫",
   "delivery.missing.noLineCount": "⟪Not line-counted⟫",
   "delivery.missing.lineCountBinary": "⟪Not line-counted · binary files⟫",
-  "delivery.missing.lineCountTruncated": "⟪Not line-counted · over 3,000 files⟫"
+  "delivery.missing.lineCountTruncated": "⟪Not line-counted · over 3,000 files⟫",
+  "delivery.chart.heading": "⟪Over time⟫",
+  "delivery.chart.asTable": "⟪Show as table⟫",
+  "delivery.chart.asChart": "⟪Show as chart⟫",
+  "delivery.chart.noGap": "⟪Every {unit} was measured in this period.⟫",
+  "delivery.chart.gapCount": "⟪No data for {count} days ({gaps}). A gap is not zero.⟫",
+  "delivery.chart.gap": "⟪no data, {from} to {to}⟫",
+  "delivery.chart.gapDay": "⟪no data, {date}⟫",
+  "delivery.chart.column.day": "⟪Day⟫",
+  "delivery.chart.column.value": "⟪Value⟫",
+  "delivery.chart.noData": "⟪No data⟫",
+  "delivery.chart.show": "⟪Show⟫"
 }
