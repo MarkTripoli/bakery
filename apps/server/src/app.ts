@@ -6,6 +6,7 @@ import { createRemoteMcpToolTransport } from "./modules/mcp/tool-transport.ts";
 import { httpsMcpTransport } from "./modules/mcp/discovery-transport.ts";
 import { composeEngineStepRunners } from "./modules/workflow-adapter/engine-steps.ts";
 import { createSplitStepRunner } from "./modules/work/coordination-split-step.ts";
+import { createPeopleTagStepRunner } from "./modules/work/people-tag-step.ts";
 import { createLocalDeliveryTargets } from "./modules/delivery/local-delivery-targets.ts";
 import {
   createSkillObjectStore,
@@ -542,6 +543,7 @@ export function createApp(options: {
     publicBaseUrl: options.config.publicBaseUrl,
     secret: options.config.auth.secret,
     artifactPreviewOrigin: previewOrigin,
+    storageLocalRoot: options.config.storageLocalRoot?.root,
     // Absent when no object store is configured; completion then fails closed
     // rather than recording a blob whose bytes exist nowhere.
     ...(skillFileStore
@@ -553,6 +555,7 @@ export function createApp(options: {
       createWorkTaskHandlers(options.config.auth.secret, {
         budget: options.config.budget,
         agentSpawn: options.config.agentSpawn,
+        storageLocalRoot: options.config.storageLocalRoot?.root,
       }),
     {
       authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
@@ -817,6 +820,10 @@ export function createApp(options: {
         : {}),
       artifactPreviewOrigin: previewOrigin,
       artifactActions,
+      storageLocalRoot: options.config.storageLocalRoot?.root,
+      ...(skillFileStore
+        ? { storageBlobStore: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
       integrations,
       ticketNoteWriter,
       ticketLabelWriter,
@@ -826,6 +833,7 @@ export function createApp(options: {
         // A split's plan is made and watched by the engine, as the person who
         // started the run (#422).
         createSplitStepRunner({ database: options.pgDatabase }),
+        createPeopleTagStepRunner({ database: options.pgDatabase }),
         createToolCallStepRunner({
           database: options.pgDatabase,
           registry: integrationRegistry,
@@ -1190,6 +1198,10 @@ export function createApp(options: {
       secretsFetch: options.secretsFetch,
       pluginBroker,
       artifactPreviewOrigin: previewOrigin,
+      storageLocalRoot: options.config.storageLocalRoot?.root,
+      ...(skillFileStore
+        ? { storageBlobStore: new ScopedOrganizationBlobStore(skillFileStore) }
+        : {}),
     }),
   );
 

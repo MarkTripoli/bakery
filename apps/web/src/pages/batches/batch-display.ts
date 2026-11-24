@@ -375,6 +375,8 @@ export type BannerFacts = Readonly<{
   currentNumber: string | null;
   /** The number of the last issue worked on. */
   lastNumber: string | null;
+  workflow: string;
+  repository: string;
   /** The name of who paused or stopped it, or a plain stand-in. */
   who: string;
   /** When that happened, already formatted. */
@@ -489,6 +491,17 @@ function stateBanner(batch: BatchResponse, facts: BannerFacts): Banner {
         actions: ["finishHere", "startNext"],
       };
     case "paused":
+      if (batch.pauseReason === "workflow_cannot_start") {
+        return {
+          tone: "warning",
+          title: {
+            key: "batches.banner.pausedWorkflow.title",
+            params: { workflow: facts.workflow, repository: facts.repository },
+          },
+          body: { key: "batches.banner.pausedWorkflow.body" },
+          actions: [],
+        };
+      }
       if (batch.pauseReason === "starting_not_available") {
         return {
           tone: "warning",
@@ -633,6 +646,7 @@ export function stopChoices(batch: BatchResponse): "choice" | "nothingRunning" {
 
 export type StartForm = Readonly<{
   repositoryId: string;
+  presetId: string;
   maxIssues: string;
   maxHours: string;
   maxSpend: string;
@@ -641,6 +655,7 @@ export type StartForm = Readonly<{
 
 export const START_DEFAULTS: StartForm = {
   repositoryId: "",
+  presetId: "",
   maxIssues: "5",
   maxHours: "8",
   maxSpend: "",
@@ -655,7 +670,12 @@ export const LIMITS = {
 
 export type StartErrors = Partial<
   Record<
-    "repositoryId" | "maxIssues" | "maxHours" | "maxSpend" | "continueMode",
+    | "repositoryId"
+    | "presetId"
+    | "maxIssues"
+    | "maxHours"
+    | "maxSpend"
+    | "continueMode",
     string
   >
 >;
@@ -687,6 +707,9 @@ export function validateStart(
   if (form.repositoryId === "") {
     errors.repositoryId = "batches.start.error.repositoryNone";
   }
+  if (form.presetId === "") {
+    errors.presetId = "batches.start.error.workflowRequired";
+  }
   if (wholeIn(form.maxIssues, LIMITS.issues.min, LIMITS.issues.max) === null) {
     errors.maxIssues = "batches.start.error.maxIssues";
   }
@@ -708,6 +731,7 @@ export function validateStart(
 /** The body the server takes, or null while the form has a problem. */
 export function startBody(form: StartForm): {
   repositoryId: string;
+  presetId: NonNullable<BatchResponse["presetId"]>;
   maxIssues: number;
   maxHours: number;
   maxSpendUsd: string;
@@ -716,6 +740,7 @@ export function startBody(form: StartForm): {
   if (Object.keys(validateStart(form)).length > 0) return null;
   return {
     repositoryId: form.repositoryId,
+    presetId: form.presetId as NonNullable<BatchResponse["presetId"]>,
     maxIssues: Number(form.maxIssues.trim()),
     maxHours: Number(form.maxHours.trim()),
     maxSpendUsd: parseSpend(form.maxSpend)!.toFixed(2),
@@ -724,8 +749,13 @@ export function startBody(form: StartForm): {
 }
 
 /** True when the person has changed anything from the form's opening values. */
-export function isDirty(form: StartForm, preselected: string): boolean {
+export function isDirty(
+  form: StartForm,
+  preselected: string,
+  presetDefault: string,
+): boolean {
   return form.repositoryId !== preselected ||
+    form.presetId !== presetDefault ||
     form.maxIssues !== START_DEFAULTS.maxIssues ||
     form.maxHours !== START_DEFAULTS.maxHours ||
     form.maxSpend !== START_DEFAULTS.maxSpend ||
@@ -737,12 +767,14 @@ export function planValues(
   form: StartForm,
   repositoryName: string | null,
   locale: string,
-): Record<"repository" | "issues" | "hours" | "spend" | "mode", string> {
+): Record<"issues" | "hours" | "spend" | "mode", string> & {
+  repository: string | null;
+} {
   const issues = wholeIn(form.maxIssues, LIMITS.issues.min, LIMITS.issues.max);
   const hours = wholeIn(form.maxHours, LIMITS.hours.min, LIMITS.hours.max);
   const spend = parseSpend(form.maxSpend);
   return {
-    repository: repositoryName ?? "…",
+    repository: repositoryName,
     issues: issues === null ? "…" : String(issues),
     hours: hours === null ? "…" : String(hours),
     spend: spend === null ? "…" : formatDollars(spend, locale),

@@ -3444,6 +3444,31 @@ export const clientManifest = {
     },
     {
       "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/use-grants",
+      "action": "skills.useGrants.create",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillUseGrantCreate",
+      "output": "SkillUseGrant",
+      "event": "skillUseGrant.created",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
       "method": "DELETE",
       "path": "/v1/skills/{id}/use-grants/{grantId}",
       "action": "skills.useGrants.delete",
@@ -4263,18 +4288,14 @@ export const clientManifest = {
       "method": "GET",
       "path": "/v1/desktop/update",
       "action": "desktopUpdates.get",
-      "access": "Authenticated",
-      "permission": "identity:read",
+      "access": "Public",
+      "permission": null,
       "input": "DesktopUpdateQuery",
       "output": "DesktopUpdate",
       "event": "",
       "mcp": "",
       "idempotency": "read",
       "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_INVALID",
-        "AUTH_EXPIRED",
-        "AUTH_FORBIDDEN",
         "MALFORMED_REQUEST",
         "RESOURCE_NOT_FOUND"
       ],
@@ -7640,7 +7661,7 @@ export const clientManifest = {
       "access": "Admin",
       "permission": "review:accept",
       "input": "RepairAllowanceCreate",
-      "output": "DeliveryDecision",
+      "output": "TriesAllowance",
       "event": "",
       "mcp": "bakery_runRepairAllowances_create",
       "idempotency": "Idempotency-Key required; PATCH also If-Match",
@@ -8492,6 +8513,32 @@ export const clientManifest = {
       "output": "ConversationTurn",
       "event": "conversation.turn_changed",
       "mcp": "bakery_conversationTurns_cancel",
+      "idempotency": "Idempotency-Key and If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "POST",
+      "path": "/v1/conversation-turns/{id}/retry",
+      "action": "conversationTurns.retry",
+      "access": "Developer",
+      "permission": "conversationTurn:write",
+      "input": "ConversationTurnRetry",
+      "output": "ConversationTurn",
+      "event": "conversation.turn_changed",
+      "mcp": "bakery_conversationTurns_retry",
       "idempotency": "Idempotency-Key and If-Match required",
       "errors": [
         "AUTH_REQUIRED",
@@ -10636,6 +10683,114 @@ export const clientManifest = {
     {
       "group": "Storage",
       "method": "POST",
+      "path": "/v1/storage/folders/{id}/grants",
+      "action": "storageFolderGrants.create",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "FolderGrantCreate",
+      "output": "FolderGrant",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/folders/{id}/grants",
+      "action": "storageFolderGrants.list",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "IdPath",
+      "output": "FolderGrantList",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/folder-grants/{id}/revoke",
+      "action": "storageFolderGrants.revoke",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "IdPath",
+      "output": "FolderGrant",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/folders/{id}/restriction",
+      "action": "storageFolders.restrict",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "FolderRestrictionSet",
+      "output": "FolderRestriction",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
       "path": "/v1/storage/entries/{id}/copy",
       "action": "storageEntries.copy",
       "access": "Developer",
@@ -11051,6 +11206,233 @@ export const clientManifest = {
         "STATE_CONFLICT",
         "PRECONDITION_REQUIRED",
         "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/connections/{id}/mount",
+      "action": "storageConnections.mount",
+      "access": "Admin",
+      "permission": "integrationConnection:manage",
+      "input": "IdPath",
+      "output": "StorageConnectionMount",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "STORAGE_PROVIDER_UNAVAILABLE",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/connection-paths",
+      "action": "storageConnectionPaths.list",
+      "access": "Developer",
+      "permission": "integrationConnection:read",
+      "input": "StorageConnectionPathQuery",
+      "output": "Page<StorageConnectionItem>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "STORAGE_PROVIDER_UNAVAILABLE",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/connection-paths/stat",
+      "action": "storageConnectionPaths.stat",
+      "access": "Developer",
+      "permission": "integrationConnection:read",
+      "input": "StorageConnectionStatQuery",
+      "output": "StorageConnectionItem",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "STORAGE_PROVIDER_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/connection-paths/content",
+      "action": "storageConnectionPaths.read",
+      "access": "Developer",
+      "permission": "integrationConnection:read",
+      "input": "StorageConnectionReadQuery",
+      "output": "StorageConnectionRange",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "STORAGE_PROVIDER_UNAVAILABLE",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/connection-syncs",
+      "action": "storageConnectionSyncs.create",
+      "access": "Developer",
+      "permission": "integrationConnection:invoke",
+      "input": "StorageConnectionSyncCreate",
+      "output": "StorageConnectionSync",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "STORAGE_PROVIDER_UNAVAILABLE",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/connection-syncs",
+      "action": "storageConnectionSyncs.list",
+      "access": "Developer",
+      "permission": "integrationConnection:read",
+      "input": "CursorQuery",
+      "output": "Page<StorageConnectionSync>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read; opaque cursor pagination",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "INVALID_CURSOR",
+        "UNPROCESSABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/connection-syncs/{id}/pause",
+      "action": "storageConnectionSyncs.pause",
+      "access": "Developer",
+      "permission": "integrationConnection:invoke",
+      "input": "IdPath",
+      "output": "StorageConnectionSync",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/connection-syncs/{id}/resume",
+      "action": "storageConnectionSyncs.resume",
+      "access": "Developer",
+      "permission": "integrationConnection:invoke",
+      "input": "IdPath",
+      "output": "StorageConnectionSync",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/connection-exports",
+      "action": "storageConnectionExports.create",
+      "access": "Developer",
+      "permission": "integrationConnection:invoke",
+      "input": "StorageConnectionExportCreate",
+      "output": "StorageConnectionExport",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required; it keys the external effect",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "STORAGE_PROVIDER_UNAVAILABLE",
+        "UNPROCESSABLE",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
         "IDEMPOTENCY_IN_FLIGHT"
       ],
@@ -20197,6 +20579,7 @@ export const clientManifest = {
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -20434,6 +20817,7 @@ export const clientManifest = {
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -20516,6 +20900,10 @@ export const clientManifest = {
             "storageFiles.pin",
             "storageFiles.put",
             "storageFolders.create",
+            "storageFolderGrants.create",
+            "storageFolderGrants.list",
+            "storageFolderGrants.revoke",
+            "storageFolders.restrict",
             "storageEntries.copy",
             "storageEntries.move",
             "storageEntries.trash",
@@ -20533,6 +20921,15 @@ export const clientManifest = {
             "storageEntries.purge",
             "agentFileGrants.create",
             "agentFileGrants.revoke",
+            "storageConnections.mount",
+            "storageConnectionPaths.list",
+            "storageConnectionPaths.stat",
+            "storageConnectionPaths.read",
+            "storageConnectionSyncs.create",
+            "storageConnectionSyncs.list",
+            "storageConnectionSyncs.pause",
+            "storageConnectionSyncs.resume",
+            "storageConnectionExports.create",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -21826,7 +22223,19 @@ export const clientManifest = {
           "type": "string",
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
+          ]
+        },
+        "gates": {
+          "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan.",
+          "type": "string",
+          "enum": [
+            "plan",
+            "none"
           ]
         },
         "workflowId": {
@@ -25415,6 +25824,13 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cancels the conversation's active or queued coordinator turn; requires the turn's current If-Match. A queued turn is canceled immediately, while an active turn is marked cancel-requested and interrupts its session, remaining in the active slot until stopped or reconciled."
     },
+    "ConversationTurnRetry": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Retries a failed coordinator turn without posting its message again; requires the failed turn's current If-Match. Returns the new queued turn, which runs the coordinator again as its own job."
+    },
     "OrganizationCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -28771,6 +29187,7 @@ export const clientManifest = {
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -32679,7 +33096,7 @@ export const clientManifest = {
         "tries"
       ],
       "additionalProperties": false,
-      "description": "Allows a run whose review and repair loop stopped because it ran out of tries to try more, and puts the run back to work (chapter 25, one engine). It answers the stop with the repair decision it buys, which is the response. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
+      "description": "Allows a run that stopped for lack of tries to try more, and puts the run back to work (chapter 25, one engine). Two stops qualify. A review and repair loop that ran out of tries is answered with the repair decision it buys. A repeat that used its allow below its max is answered with a limit decision recorded in the decisions ledger; the repeat then runs on, never past its max, and a request for more rounds than remain is cut at max. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same repair stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
     },
     "BatchCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -32690,6 +33107,14 @@ export const clientManifest = {
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "The repository the batch works through. It must be taking issues (an enabled ticket source), and no other batch may be live in it."
+        },
+        "presetId": {
+          "type": "string",
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ],
+          "description": "The built-in workflow every issue in this batch runs: fixed-coding or fixed-coding-reviewed. Required: a batch is never started without a workflow chosen, so no one is given a workflow they did not choose. Each issue is admitted with it; a workflow the repository cannot run stops the batch with the pause reason workflow_cannot_start."
         },
         "maxIssues": {
           "type": "integer",
@@ -32719,6 +33144,7 @@ export const clientManifest = {
       },
       "required": [
         "repositoryId",
+        "presetId",
         "maxIssues",
         "maxHours",
         "maxSpendUsd",
@@ -33160,10 +33586,10 @@ export const clientManifest = {
             "answer",
             "take_over"
           ],
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer name the questionId they concern, review names the artifactVersionId, and take_over names the stepKey; each gives the person asked the right to do that one thing, until the request expires."
         },
         "stepKey": {
-          "description": "The step the request concerns, or omitted for the run as a whole. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
+          "description": "The step the request concerns, or omitted for the run as a whole. Required for take_over, which gives the right to steer and take over that one step. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 200
@@ -33185,6 +33611,12 @@ export const clientManifest = {
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
+        "artifactVersionId": {
+          "description": "The artifact version of this run the request asks someone to review. Required for review and refused for the other intents. The person asked is given the right to comment on that one version, until the request expires.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
         "recipientRoleKey": {
           "description": "A role to ask instead of one person: admin, developer or a custom role's key. Every active member holding the role, other than the asker, is asked, each with their own request; the members are resolved when the request is made and frozen, so a later change to the role never changes who was asked. An agent may ask only a role its live ask grant names. RunRequestCreate.recipientRoleKey must contain at least 1 characters. RunRequestCreate.recipientRoleKey must contain at most 80 characters.",
           "type": "string",
@@ -33202,7 +33634,7 @@ export const clientManifest = {
         "intent"
       ],
       "additionalProperties": false,
-      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."
+      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve, answer, review and take_over, to do that one thing until the request ends."
     },
     "StorageFileContentQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -35327,6 +35759,43 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
     },
+    "SkillUseGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+        },
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow that may use the skill again."
+        },
+        "skillVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The exact version of the skill the step names; the grant covers this version only."
+        },
+        "stepPath": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+        }
+      },
+      "required": [
+        "id",
+        "workflowId",
+        "skillVersionId",
+        "stepPath"
+      ],
+      "additionalProperties": false,
+      "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
+    },
     "SkillActiveVersionSet": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -35404,6 +35873,179 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+    },
+    "FolderGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The member to grant on the folder. They must be an active member of the organization."
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "view",
+            "edit",
+            "manage"
+          ],
+          "description": "What the grant allows: view reads, edit also writes, manage also grants and restricts. A grant inherits downward, and a second grant to the same member changes the level."
+        }
+      },
+      "required": [
+        "principalId",
+        "level"
+      ],
+      "additionalProperties": false,
+      "description": "Grants a member view, edit or manage on one folder (chapter 25 section 17.3). It takes effect only where the folder or an ancestor is restricted, and a folder with no restricted folder at or above it cannot be granted on: restrict it first."
+    },
+    "FolderRestrictionSet": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "restricted": {
+          "type": "boolean",
+          "description": "True to restrict the folder: what is granted above it stops reaching below it, and it is open only to members granted on it or below, and to Admins. False lifts the restriction."
+        }
+      },
+      "required": [
+        "restricted"
+      ],
+      "additionalProperties": false,
+      "description": "Restricts or reopens one folder. A restricted folder and everything under it do not exist, as far as a listing, a path or an id can tell, to a member who holds no grant inside it."
+    },
+    "StorageConnectionPathQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 14,
+          "maxLength": 4096,
+          "description": "The mounted folder to list: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionPathQuery.path must contain at least 14 characters. StorageConnectionPathQuery.path must contain at most 4096 characters."
+        },
+        "cursor": {
+          "description": "Opaque continuation token from the previous page of the same folder; it is signed and bound to this operation, caller, organization and path, so it cannot be replayed elsewhere. StorageConnectionPathQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum entries returned on this page; defaults to 25 and cannot exceed 100. StorageConnectionPathQuery.limit must be at least 1. StorageConnectionPathQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "Lists one folder of a storage connection mounted under /connections, one page at a time, read through the provider without copying anything."
+    },
+    "StorageConnectionStatQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 14,
+          "maxLength": 4096,
+          "description": "The mounted file or folder to describe: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionStatQuery.path must contain at least 14 characters. StorageConnectionStatQuery.path must contain at most 4096 characters."
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "Asks the connected storage what one mounted path is now: file or folder, size, media type and the provider's current revision."
+    },
+    "StorageConnectionReadQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 14,
+          "maxLength": 4096,
+          "description": "The mounted file to read: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionReadQuery.path must contain at least 14 characters. StorageConnectionReadQuery.path must contain at most 4096 characters."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1099511627776,
+          "description": "First byte to return, counted from zero. StorageConnectionReadQuery.offset must be at least 0. StorageConnectionReadQuery.offset must be at most 1099511627776."
+        },
+        "length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576,
+          "description": "Most bytes to return, at most one mebibyte; fewer come back at the end of the file. StorageConnectionReadQuery.length must be at least 1. StorageConnectionReadQuery.length must be at most 1048576."
+        }
+      },
+      "required": [
+        "path",
+        "offset",
+        "length"
+      ],
+      "additionalProperties": false,
+      "description": "Reads a byte range of one mounted file through the provider. The bytes are returned and not kept; using the file in a run is what copies it into an artifact version."
+    },
+    "StorageConnectionSyncCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 14,
+          "maxLength": 4096,
+          "description": "The mounted folder to copy from: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionSyncCreate.path must contain at least 14 characters. StorageConnectionSyncCreate.path must contain at most 4096 characters."
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Work item the synced files are recorded on; each file becomes an artifact version there, kept once per remote revision."
+        }
+      },
+      "required": [
+        "path",
+        "taskId"
+      ],
+      "additionalProperties": false,
+      "description": "Starts a one-way sync that copies every file under a mounted folder into a work item, run hourly by the storage sync workflow."
+    },
+    "StorageConnectionExportCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 14,
+          "maxLength": 4096,
+          "description": "Where to write the file in the connected storage: Absolute path in the storage tree under /connections, such as /connections/drive/reports/q3.pdf: the mount folder's name, then the path inside the connected storage. A mount another organization holds, or one the caller may not read, is not found. StorageConnectionExportCreate.path must contain at least 14 characters. StorageConnectionExportCreate.path must contain at most 4096 characters."
+        },
+        "artifactVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The artifact version whose exact bytes are written out."
+        },
+        "ifMatch": {
+          "description": "Provider revision the write replaces; omit it to create the file only when nothing is at the path. StorageConnectionExportCreate.ifMatch must contain at least 1 characters. StorageConnectionExportCreate.ifMatch must contain at most 400 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        }
+      },
+      "required": [
+        "path",
+        "artifactVersionId"
+      ],
+      "additionalProperties": false,
+      "description": "Asks Bakery to write one artifact version out to a mounted path. The write is recorded as a keyed external effect and sent by the storage workflow, never during this request."
     },
     "DesktopUpdateQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -50268,6 +50910,7 @@ export const clientManifest = {
                   "skillDraftFiles.get",
                   "skillDraftFiles.delete",
                   "skills.useGrants.list",
+                  "skills.useGrants.create",
                   "skills.useGrants.delete",
                   "skillVersions.list",
                   "skillVersions.get",
@@ -50505,6 +51148,7 @@ export const clientManifest = {
                   "conversationAccess.revoke",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
+                  "conversationTurns.retry",
                   "notifications.list",
                   "notifications.count",
                   "notifications.get",
@@ -50587,6 +51231,10 @@ export const clientManifest = {
                   "storageFiles.pin",
                   "storageFiles.put",
                   "storageFolders.create",
+                  "storageFolderGrants.create",
+                  "storageFolderGrants.list",
+                  "storageFolderGrants.revoke",
+                  "storageFolders.restrict",
                   "storageEntries.copy",
                   "storageEntries.move",
                   "storageEntries.trash",
@@ -50604,6 +51252,15 @@ export const clientManifest = {
                   "storageEntries.purge",
                   "agentFileGrants.create",
                   "agentFileGrants.revoke",
+                  "storageConnections.mount",
+                  "storageConnectionPaths.list",
+                  "storageConnectionPaths.stat",
+                  "storageConnectionPaths.read",
+                  "storageConnectionSyncs.create",
+                  "storageConnectionSyncs.list",
+                  "storageConnectionSyncs.pause",
+                  "storageConnectionSyncs.resume",
+                  "storageConnectionExports.create",
                   "integrationAuth.manifestCallback",
                   "integrationResources.list",
                   "integrationDiscoveries.create",
@@ -60095,259 +60752,60 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "One immutable independent automated review of one exact candidate of a run: the head and base commits and the effective policy digest it judged, the reviewer's fresh server-created agent session and worker principal, and the implementing session and principal it reviewed. A cycle is recorded only after the server verified the report against its own pins and the independence rules, so its approval is evidence for that exact candidate and is invalid once the head, base or policy digest changes. Only approved and changes_requested are written; running and failed are never stored because a review that did not complete leaves no cycle. Rows are never updated, so updatedAt equals createdAt and version is always 1."
     },
-    "DeliveryDecision": {
+    "TriesAllowance": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID identifying the delivery decision record."
-        },
         "runId": {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID of the workflow run this decision governs."
+          "description": "The run that was put back to work."
         },
-        "ordinal": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Zero-based position of this decision among the run's decisions; the latest ordinal is the one that governs delivery. DeliveryDecision.ordinal must be at least 0."
-        },
-        "reviewCycleId": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Review cycle the decision followed, or null for a stop taken without a recorded cycle such as an unavailable reviewer."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "DeliveryDecision.reviewCycleId may be null in this transport value."
-        },
-        "decision": {
+        "kind": {
           "type": "string",
           "enum": [
-            "proceed",
-            "repair",
-            "stop"
+            "repair_loop",
+            "repeat_limit"
           ],
-          "description": "What the run does next: proceed when the candidate is clean, repair when a bounded repair iteration was appended, stop when the loop ended."
+          "description": "Which stop the allowance answered: repair_loop for a review and repair loop that ran out of tries, repeat_limit for a repeat that used its allow below its max."
         },
-        "reason": {
-          "type": "string",
-          "enum": [
-            "clean",
-            "repair_selected",
-            "policy_missing",
-            "stale_evidence",
-            "checks_unavailable",
-            "repeated_blocker",
-            "repair_cycles_exhausted",
-            "repair_time_exhausted",
-            "repair_budget_exhausted",
-            "reviewer_unavailable",
-            "review_failed"
-          ],
-          "description": "Machine-readable reason for the decision, such as clean, repair_selected, repeated_blocker or repair_cycles_exhausted."
-        },
-        "headSha": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Head commit SHA of the candidate the decision was taken for."
-        },
-        "baseSha": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Base commit SHA pinned for the run, or null when it was not known to the decision."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "DeliveryDecision.baseSha may be null in this transport value."
-        },
-        "policyDigest": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Digest of the effective policy the decision was evaluated under, or null when it was not known to the decision."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "DeliveryDecision.policyDigest may be null in this transport value."
-        },
-        "failedChecks": {
-          "maxItems": 32,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "checkRunId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Identifier of the immutable check run row that recorded the failed observation; the repair evidence is this row, not the output text."
-              },
-              "checkId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 100,
-                "description": "Fixed policy command id of the check that did not pass, as pinned in the repository profile. FailedCheck.checkId must contain at least 1 characters. FailedCheck.checkId must contain at most 100 characters."
-              },
-              "result": {
-                "type": "string",
-                "enum": [
-                  "pending",
-                  "failed",
-                  "unavailable",
-                  "canceled"
-                ],
-                "description": "Observed outcome of the check; never passed, because a passing check is not a failed check."
-              },
-              "reason": {
-                "type": "string",
-                "enum": [
-                  "exit_nonzero",
-                  "signal",
-                  "deadline",
-                  "output_limit",
-                  "rule_violation",
-                  "description_placeholder",
-                  "tool_missing",
-                  "unsupported_checker",
-                  "revision_unavailable",
-                  "skipped",
-                  "metadata_missing",
-                  "metadata_too_large",
-                  "rule_unbound",
-                  "rule_binding_ambiguous",
-                  "policy_missing",
-                  "awaiting_result",
-                  "canceled"
-                ],
-                "description": "Machine-readable reason for the result, such as exit_nonzero, deadline or tool_missing; verified is excluded because it explains only a pass."
-              },
-              "exitCode": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 255,
-                    "description": "Process exit code the check produced, or null when it produced no exit status. FailedCheck.exitCode must be at least 0. FailedCheck.exitCode must be at most 255."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "FailedCheck.exitCode may be null in this transport value."
-              }
-            },
-            "required": [
-              "checkRunId",
-              "checkId",
-              "result",
-              "reason",
-              "exitCode"
-            ],
-            "additionalProperties": false,
-            "description": "Required checks that did not pass on the candidate when the decision was taken, with their check run ids; the evidence a repair acts on. Each array item follows this format."
-          },
-          "description": "Required checks that did not pass on the candidate when the decision was taken, with their check run ids; the evidence a repair acts on. DeliveryDecision.failedChecks must contain at most 32 items."
-        },
-        "blockingFingerprints": {
-          "maxItems": 25,
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-f0-9]{64}$",
-            "description": "Fingerprints of the blocking findings of the reviewed cycle, which the loop compares across cycles to recognize an unchanged blocker. Each array item follows this format."
-          },
-          "description": "Fingerprints of the blocking findings of the reviewed cycle, which the loop compares across cycles to recognize an unchanged blocker. DeliveryDecision.blockingFingerprints must contain at most 25 items."
-        },
-        "limits": {
-          "type": "object",
-          "properties": {
-            "maxRepairCycles": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 8,
-              "description": "Most repair iterations the run may spend; the loop stops with repair_cycles_exhausted once that many repairs were used and a blocker remains. DeliveryLoopLimits.maxRepairCycles must be at least 0. DeliveryLoopLimits.maxRepairCycles must be at most 8."
-            },
-            "maxLoopDurationMs": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 86400000,
-              "description": "Longest time in milliseconds from the first review cycle to the latest decision; the loop stops with repair_time_exhausted once it is reached. DeliveryLoopLimits.maxLoopDurationMs must be at least 1. DeliveryLoopLimits.maxLoopDurationMs must be at most 86400000."
-            },
-            "maxFindings": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 25,
-              "description": "Most findings one review report may carry; the server rejects a longer report. DeliveryLoopLimits.maxFindings must be at least 1. DeliveryLoopLimits.maxFindings must be at most 25."
-            }
-          },
-          "required": [
-            "maxRepairCycles",
-            "maxLoopDurationMs",
-            "maxFindings"
-          ],
-          "additionalProperties": false,
-          "description": "Loop bounds the decision was taken under, frozen when the run was admitted."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the record was created."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable."
-        },
-        "version": {
+        "addedTries": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991,
-          "description": "Always 1 because delivery decision rows are immutable. DeliveryDecision.version must be at least 1."
+          "maximum": 8,
+          "description": "How many more tries or rounds were allowed. For a repeat_limit it can be fewer than asked, because a repeat never goes past its max. TriesAllowance.addedTries must be at least 1. TriesAllowance.addedTries must be at most 8."
+        },
+        "decisionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Id of the decision that records the allowance: the repair delivery decision for repair_loop, the decisions ledger entry for repeat_limit."
+        },
+        "repeatKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Step key of the repeat that was allowed more rounds, or null for repair_loop."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TriesAllowance.repeatKey may be null in this transport value."
         }
       },
       "required": [
-        "id",
         "runId",
-        "ordinal",
-        "reviewCycleId",
-        "decision",
-        "reason",
-        "headSha",
-        "baseSha",
-        "policyDigest",
-        "failedChecks",
-        "blockingFingerprints",
-        "limits",
-        "createdAt",
-        "updatedAt",
-        "version"
+        "kind",
+        "addedTries",
+        "decisionId",
+        "repeatKey"
       ],
       "additionalProperties": false,
-      "description": "One immutable decision the review and repair loop took for a run: proceed, repair or stop, with the reason, the candidate it was taken for, the failed checks and blocking fingerprints it acted on, and the limits it was bound by. A stop ends the run with this record as its durable explanation and never approves a candidate; proceed is not an approval either, because a merge still requires the candidate evidence to be current. Rows are never updated, so updatedAt equals createdAt and version is always 1."
+      "description": "The answer to an allowance of more tries: which stop it answered, how many tries it added and the decision that records it."
     },
     "Application": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -73419,6 +73877,7 @@ export const clientManifest = {
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -73656,6 +74115,7 @@ export const clientManifest = {
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -73738,6 +74198,10 @@ export const clientManifest = {
             "storageFiles.pin",
             "storageFiles.put",
             "storageFolders.create",
+            "storageFolderGrants.create",
+            "storageFolderGrants.list",
+            "storageFolderGrants.revoke",
+            "storageFolders.restrict",
             "storageEntries.copy",
             "storageEntries.move",
             "storageEntries.trash",
@@ -73755,6 +74219,15 @@ export const clientManifest = {
             "storageEntries.purge",
             "agentFileGrants.create",
             "agentFileGrants.revoke",
+            "storageConnections.mount",
+            "storageConnectionPaths.list",
+            "storageConnectionPaths.stat",
+            "storageConnectionPaths.read",
+            "storageConnectionSyncs.create",
+            "storageConnectionSyncs.list",
+            "storageConnectionSyncs.pause",
+            "storageConnectionSyncs.resume",
+            "storageConnectionExports.create",
             "integrationAuth.manifestCallback",
             "integrationResources.list",
             "integrationDiscoveries.create",
@@ -77929,6 +78402,7 @@ export const clientManifest = {
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -78093,6 +78567,7 @@ export const clientManifest = {
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -78453,6 +78928,7 @@ export const clientManifest = {
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -95139,7 +95615,11 @@ export const clientManifest = {
                 "type": "string",
                 "enum": [
                   "fixed-coding",
-                  "fixed-coding-reviewed"
+                  "fixed-coding-reviewed",
+                  "deliver-oneshot",
+                  "deliver-lean",
+                  "deliver-full",
+                  "deliver-prd"
                 ],
                 "description": "Stable preset identifier accepted by runs.create presetId."
               },
@@ -95267,6 +95747,45 @@ export const clientManifest = {
                   }
                 ],
                 "description": "WorkflowPreset.availability may be null in this transport value."
+              },
+              "definition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
               }
             },
             "required": [
@@ -95276,7 +95795,8 @@ export const clientManifest = {
               "nameKey",
               "steps",
               "defaultBudgetLimitUsd",
-              "availability"
+              "availability",
+              "definition"
             ],
             "additionalProperties": false,
             "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
@@ -95333,7 +95853,120 @@ export const clientManifest = {
         "nextCursor"
       ],
       "additionalProperties": false,
-      "description": "Cursor page of WorkflowPreset."
+      "description": "Cursor page of WorkflowPreset.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "ArtifactPinResult": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -103977,6 +104610,100 @@ export const clientManifest = {
           "additionalProperties": false,
           "description": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target."
         },
+        "approvalOutcome": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "approved",
+                    "changes_requested",
+                    "rejected",
+                    "expired",
+                    "withdrawn"
+                  ],
+                  "description": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn."
+                },
+                "decidedBy": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "principalId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "maxLength": 200,
+                          "description": "The person's current display name, or a neutral stand-in when the account is gone; never an email address. NotificationActor.displayName must contain at most 200 characters."
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 2048,
+                              "description": "Absolute HTTPS URL of the person's avatar, or null to draw initials. NotificationActor.avatarUrl must contain at most 2048 characters."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "NotificationActor.avatarUrl may be null in this transport value."
+                        }
+                      },
+                      "required": [
+                        "principalId",
+                        "displayName",
+                        "avatarUrl"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "NotificationApprovalOutcome.decidedBy may be null in this transport value."
+                },
+                "decidedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "NotificationApprovalOutcome.decidedAt may be null in this transport value."
+                }
+              },
+              "required": [
+                "status",
+                "decidedBy",
+                "decidedAt"
+              ],
+              "additionalProperties": false,
+              "description": "How the approval this item points at stands now, read from the approval at read time: open, approved, changes requested, rejected, expired or withdrawn, with who decided and when. Null when the item does not point at an approval or the recipient can no longer reach it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.approvalOutcome may be null in this transport value."
+        },
         "read": {
           "type": "boolean",
           "description": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks."
@@ -104007,6 +104734,7 @@ export const clientManifest = {
         "taskId",
         "actor",
         "destination",
+        "approvalOutcome",
         "read",
         "revision",
         "createdAt"
@@ -104210,6 +104938,100 @@ export const clientManifest = {
                 "additionalProperties": false,
                 "description": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target."
               },
+              "approvalOutcome": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "approved",
+                          "changes_requested",
+                          "rejected",
+                          "expired",
+                          "withdrawn"
+                        ],
+                        "description": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn."
+                      },
+                      "decidedBy": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "principalId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                              },
+                              "displayName": {
+                                "type": "string",
+                                "maxLength": 200,
+                                "description": "The person's current display name, or a neutral stand-in when the account is gone; never an email address. NotificationActor.displayName must contain at most 200 characters."
+                              },
+                              "avatarUrl": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048,
+                                    "description": "Absolute HTTPS URL of the person's avatar, or null to draw initials. NotificationActor.avatarUrl must contain at most 2048 characters."
+                                  },
+                                  {
+                                    "type": "null",
+                                    "description": "Null indicates that the value is unavailable."
+                                  }
+                                ],
+                                "description": "NotificationActor.avatarUrl may be null in this transport value."
+                              }
+                            },
+                            "required": [
+                              "principalId",
+                              "displayName",
+                              "avatarUrl"
+                            ],
+                            "additionalProperties": false,
+                            "description": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "NotificationApprovalOutcome.decidedBy may be null in this transport value."
+                      },
+                      "decidedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "description": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "NotificationApprovalOutcome.decidedAt may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "decidedBy",
+                      "decidedAt"
+                    ],
+                    "additionalProperties": false,
+                    "description": "How the approval this item points at stands now, read from the approval at read time: open, approved, changes requested, rejected, expired or withdrawn, with who decided and when. Null when the item does not point at an approval or the recipient can no longer reach it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.approvalOutcome may be null in this transport value."
+              },
               "read": {
                 "type": "boolean",
                 "description": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks."
@@ -104240,6 +105062,7 @@ export const clientManifest = {
               "taskId",
               "actor",
               "destination",
+              "approvalOutcome",
               "read",
               "revision",
               "createdAt"
@@ -110207,6 +111030,23 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "The repository it works in."
         },
+        "presetId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "fixed-coding",
+                "fixed-coding-reviewed"
+              ],
+              "description": "The built-in workflow each of its issues runs; null for a batch started before the workflow was stored."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.presetId may be null in the safe projection."
+        },
         "startedBy": {
           "type": "string",
           "format": "uuid",
@@ -110617,6 +111457,7 @@ export const clientManifest = {
       "required": [
         "id",
         "repositoryId",
+        "presetId",
         "startedBy",
         "maxIssues",
         "maxHours",
@@ -110664,6 +111505,23 @@ export const clientManifest = {
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "The repository it works in."
+              },
+              "presetId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "fixed-coding",
+                      "fixed-coding-reviewed"
+                    ],
+                    "description": "The built-in workflow each of its issues runs; null for a batch started before the workflow was stored."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.presetId may be null in the safe projection."
               },
               "startedBy": {
                 "type": "string",
@@ -111075,6 +111933,7 @@ export const clientManifest = {
             "required": [
               "id",
               "repositoryId",
+              "presetId",
               "startedBy",
               "maxIssues",
               "maxHours",
@@ -112652,6 +113511,90 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused."
     },
+    "SkillUseGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the grant."
+        },
+        "skillId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the personal skill the grant is for."
+        },
+        "skillVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+        },
+        "revisionDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+        },
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the workflow the skill was attached to."
+        },
+        "workflowName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Display name of that workflow, so the owner can recognise it."
+        },
+        "stepPath": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill."
+        },
+        "grantedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Person who confirmed the grant, always the skill owner."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant was made."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version a stop must name in If-Match."
+        }
+      },
+      "required": [
+        "id",
+        "skillId",
+        "skillVersionId",
+        "revision",
+        "revisionDigest",
+        "workflowId",
+        "workflowName",
+        "stepPath",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both."
+    },
     "SkillSourceUpdateCheck": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -113557,6 +114500,11 @@ export const clientManifest = {
                 "maximum": 9007199254740991,
                 "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
               },
+              "revisionDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+              },
               "workflowId": {
                 "type": "string",
                 "format": "uuid",
@@ -113597,6 +114545,7 @@ export const clientManifest = {
               "skillId",
               "skillVersionId",
               "revision",
+              "revisionDigest",
               "workflowId",
               "workflowName",
               "stepPath",
@@ -113915,6 +114864,21 @@ export const clientManifest = {
               "description": "Null indicates that the value is unavailable."
             }
           ]
+        },
+        "artifactVersionId": {
+          "description": "RunRequest.artifactVersionId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The artifact version the request asks someone to review, or null when it asks for none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -114191,6 +115155,21 @@ export const clientManifest = {
                     ],
                     "additionalProperties": false,
                     "description": "The role or group this request was asked of, or null when one person was asked."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "artifactVersionId": {
+                "description": "RunRequest.artifactVersionId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The artifact version the request asks someone to review, or null when it asks for none."
                   },
                   {
                     "type": "null",
@@ -124627,6 +125606,977 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids."
+    },
+    "FolderGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable identifier of the grant."
+        },
+        "folderId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The folder the grant is on."
+        },
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The member who holds it."
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "view",
+            "edit",
+            "manage"
+          ],
+          "description": "What the grant allows."
+        },
+        "grantedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The member who granted it."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When it was granted."
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it was revoked, or null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "FolderGrant.revokedAt may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic concurrency counter."
+        }
+      },
+      "required": [
+        "id",
+        "folderId",
+        "principalId",
+        "level",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One grant of view, edit or manage on a folder to a member."
+    },
+    "FolderGrantList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "One FolderGrant per live grant. Each array item follows this format."
+          },
+          "description": "One FolderGrant per live grant. FolderGrantList.items must contain at most 200 items."
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "The live grants on one folder, oldest first, at most 200.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "FolderRestriction": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "folderId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The folder."
+        },
+        "restricted": {
+          "type": "boolean",
+          "description": "Whether it is now restricted."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The folder's version after the change."
+        }
+      },
+      "required": [
+        "folderId",
+        "restricted",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Whether a folder is restricted after the change."
+    },
+    "StorageConnectionMount": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "mountId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable id of the mount; one per connection."
+        },
+        "entryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The mount's folder in the storage tree."
+        },
+        "connectionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The integration connection the mount reads through."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The mount folder's name under /connections."
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The mount folder's path, /connections/<name>."
+        }
+      },
+      "required": [
+        "mountId",
+        "entryId",
+        "connectionId",
+        "name",
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "A storage connection mounted under /connections: the folder it appears as in the tree."
+    },
+    "StorageConnectionItem": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The item's path in the storage tree, under its mount."
+        },
+        "remotePath": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The item's path inside the connected storage."
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The item's name as the provider names it."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "file",
+            "folder"
+          ],
+          "description": "Whether the item is a file or a folder."
+        },
+        "sizeBytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Size of the file's current bytes; null for a folder."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionItem.sizeBytes may be null in this transport value."
+        },
+        "mediaType": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Media type the provider reports for a file; null for a folder or when unknown."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionItem.mediaType may be null in this transport value."
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The provider's revision or entity tag of the current bytes; it changes whenever the bytes change. Null for a folder."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionItem.revision may be null in this transport value."
+        },
+        "modifiedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the provider last changed the item, when it says."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionItem.modifiedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "path",
+        "remotePath",
+        "name",
+        "kind",
+        "sizeBytes",
+        "mediaType",
+        "revision",
+        "modifiedAt"
+      ],
+      "additionalProperties": false,
+      "description": "One file or folder in a mounted storage connection, as the provider reports it now. Nothing about it is stored in Bakery until a run uses it."
+    },
+    "Page<StorageConnectionItem>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The item's path in the storage tree, under its mount."
+              },
+              "remotePath": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The item's path inside the connected storage."
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The item's name as the provider names it."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "file",
+                  "folder"
+                ],
+                "description": "Whether the item is a file or a folder."
+              },
+              "sizeBytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Size of the file's current bytes; null for a folder."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionItem.sizeBytes may be null in this transport value."
+              },
+              "mediaType": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Media type the provider reports for a file; null for a folder or when unknown."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionItem.mediaType may be null in this transport value."
+              },
+              "revision": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The provider's revision or entity tag of the current bytes; it changes whenever the bytes change. Null for a folder."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionItem.revision may be null in this transport value."
+              },
+              "modifiedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the provider last changed the item, when it says."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionItem.modifiedAt may be null in this transport value."
+              }
+            },
+            "required": [
+              "path",
+              "remotePath",
+              "name",
+              "kind",
+              "sizeBytes",
+              "mediaType",
+              "revision",
+              "modifiedAt"
+            ],
+            "additionalProperties": false,
+            "description": "One file or folder in a mounted storage connection, as the provider reports it now. Nothing about it is stored in Bakery until a run uses it."
+          },
+          "description": "StorageConnectionItem items in this cursor page. Page<StorageConnectionItem>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<StorageConnectionItem>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<StorageConnectionItem>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<StorageConnectionItem>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<StorageConnectionItem>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of StorageConnectionItem."
+    },
+    "StorageConnectionRange": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The file's path in the storage tree."
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The provider revision the bytes belong to."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionRange.revision may be null in this transport value."
+        },
+        "mediaType": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Media type the provider reports for the file."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionRange.mediaType may be null in this transport value."
+        },
+        "sizeBytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Size of the whole file, so a reader knows when it has reached the end."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionRange.sizeBytes may be null in this transport value."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "First byte returned, counted from zero."
+        },
+        "contentBase64": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The returned bytes, base64 encoded."
+        }
+      },
+      "required": [
+        "path",
+        "revision",
+        "mediaType",
+        "sizeBytes",
+        "offset",
+        "contentBase64"
+      ],
+      "additionalProperties": false,
+      "description": "A byte range of one mounted file, read through the provider and not kept."
+    },
+    "StorageConnectionSync": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable id of the sync."
+        },
+        "mountId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The mount the sync reads from."
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The synced folder's path in the storage tree."
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Work item the synced files are recorded on."
+        },
+        "changePosition": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionSync.changePosition may be null in this transport value."
+        },
+        "lastRunAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionSync.lastRunAt may be null in this transport value."
+        },
+        "pausedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionSync.pausedAt may be null in this transport value."
+        },
+        "lastFailure": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StorageConnectionSync.lastFailure may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the sync was made."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Counter that increases every time the sync changes."
+        }
+      },
+      "required": [
+        "id",
+        "mountId",
+        "path",
+        "taskId",
+        "changePosition",
+        "lastRunAt",
+        "pausedAt",
+        "lastFailure",
+        "createdAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "A one-way sync of a mounted folder into a work item. The storage sync workflow runs every sync that is not paused, least recently run first."
+    },
+    "Page<StorageConnectionSync>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable id of the sync."
+              },
+              "mountId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The mount the sync reads from."
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "The synced folder's path in the storage tree."
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Work item the synced files are recorded on."
+              },
+              "changePosition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The provider change-feed position the last finished walk of the folder reached; null before the first walk finishes. A walk longer than one run resumes where it stopped and moves this only when it finishes."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionSync.changePosition may be null in this transport value."
+              },
+              "lastRunAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the workflow last ran the sync, whether it succeeded or failed; null before the first run."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionSync.lastRunAt may be null in this transport value."
+              },
+              "pausedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When someone paused the sync; a paused sync is never run until it is resumed. Null while it runs."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionSync.pausedAt may be null in this transport value."
+              },
+              "lastFailure": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Why the last run failed, as a short code such as connection_unavailable or sync_failed; null after a run that succeeded."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "StorageConnectionSync.lastFailure may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the sync was made."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Counter that increases every time the sync changes."
+              }
+            },
+            "required": [
+              "id",
+              "mountId",
+              "path",
+              "taskId",
+              "changePosition",
+              "lastRunAt",
+              "pausedAt",
+              "lastFailure",
+              "createdAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "A one-way sync of a mounted folder into a work item. The storage sync workflow runs every sync that is not paused, least recently run first."
+          },
+          "description": "StorageConnectionSync items in this cursor page. Page<StorageConnectionSync>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<StorageConnectionSync>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<StorageConnectionSync>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<StorageConnectionSync>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<StorageConnectionSync>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of StorageConnectionSync."
+    },
+    "StorageConnectionExport": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "effectId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The external effect that carries the write; follow it to see the outcome."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "prepared",
+            "submitted",
+            "confirmed",
+            "uncertain",
+            "failed"
+          ],
+          "description": "Where the effect is: prepared until the workflow sends it, then confirmed, or failed when the provider refused the write."
+        },
+        "replayed": {
+          "type": "boolean",
+          "description": "True when the idempotency key already named this same request, so nothing new was recorded."
+        }
+      },
+      "required": [
+        "effectId",
+        "status",
+        "replayed"
+      ],
+      "additionalProperties": false,
+      "description": "The external effect that writes one artifact version out to a mounted path."
     },
     "DesktopUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -57,6 +57,7 @@ function stand(options: Options = {}) {
           rows: [{
             id: BATCH,
             repository_id: REPO,
+            preset_id: "fixed-coding",
             started_by: PERSON,
             max_issues: 5,
             max_hours: 8,
@@ -157,6 +158,7 @@ async function refusedWith(
 
 const valid = {
   repositoryId: REPO,
+  presetId: "fixed-coding" as const,
   maxIssues: 5,
   maxHours: 8,
   maxSpendUsd: "25",
@@ -226,17 +228,31 @@ Deno.test("a start with the smallest positive amount is accepted and stored with
     { ...valid, maxSpendUsd: "0.000001" } as never,
   );
   assertEquals(created.id, BATCH);
+  assertEquals(created.presetId, "fixed-coding");
   const insert = writes.find((w) =>
     /insert into bakery\.batches/i.test(w.sql)
   )!;
   assertEquals(insert.values.slice(1), [
     REPO,
+    "fixed-coding",
     PERSON,
     5,
     8,
     "0.000001",
     "ask_first",
   ]);
+});
+
+Deno.test("a start names a built-in workflow, and a missing or unknown one is refused before anything is stored", async () => {
+  for (const presetId of [undefined, "", "no-such-workflow"]) {
+    const { context, writes } = stand();
+    await refusedWith(
+      () => createBatch(context, { ...valid, presetId } as never),
+      "UNPROCESSABLE",
+      "workflow_unknown",
+    );
+    assertEquals(writes, []);
+  }
 });
 
 Deno.test("pause stops new starts, repeats are harmless, and only a running or waiting batch can be paused", async () => {

@@ -4,6 +4,7 @@ import type {
   WorkflowReferenceNode,
   WorkflowSemanticDocument,
 } from "../schema.ts";
+import { documentOutputSlot } from "../document-slots.ts";
 import { isSecretName } from "../secrets.ts";
 import type { ObjectField, ValueType } from "../types.ts";
 import {
@@ -63,6 +64,15 @@ const FOR_EACH_OUTCOMES: readonly string[] = Object.freeze([
 function field(type: ValueType, required = true): ObjectField {
   return { type, required, sensitive: false };
 }
+
+const ARTIFACT_REFERENCE: ValueType = {
+  kind: "object",
+  fields: new Map<string, ObjectField>([
+    ["artifactId", field({ kind: "string", format: "uuid" } as ValueType)],
+    ["versionId", field({ kind: "string", format: "uuid" } as ValueType)],
+    ["sha256", field({ kind: "string" } as ValueType)],
+  ]),
+};
 
 /** Type of `$step.<wait>`: its outcome and, for event waits, the payload. */
 export function waitOutputType(
@@ -315,6 +325,13 @@ function resolveStep(
           path.length > position + 1
         ) {
           return untypedResolution(path.slice(position + 1));
+        }
+        if (authored.kind === "action" && segment === "outputs") {
+          const slot = documentOutputSlot(authored.action, authored.outputs);
+          if (slot === undefined || path[position + 1] !== slot) {
+            return fieldUnknown;
+          }
+          return finishWalk(ARTIFACT_REFERENCE, path.slice(position + 2));
         }
         const output = authored.kind === "wait"
           ? waitOutputType(authored, env.catalog)

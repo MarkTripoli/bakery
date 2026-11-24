@@ -193,6 +193,59 @@ export async function resolveCoordinatorAgentVersion(
   return result.rows[0]?.active_version_id ?? null;
 }
 
+export async function admitQueuedTurn(
+  transaction: PgTransactionClient,
+  facts: {
+    organizationId: string;
+    scope: ConversationScope;
+    triggerMessageId: string;
+    contextThroughSequence: string;
+    agentVersionId: string | null;
+    retryOfTurnId: string | null;
+    traceId: string;
+  },
+): Promise<string> {
+  const { organizationId, scope } = facts;
+  const conversationId = scope.id;
+  const turn = await transaction.query<{ id: string }>(
+    `insert into bakery.conversation_turns (
+       organization_id, conversation_id, trigger_message_id, status,
+       context_through_sequence, agent_version_id, retry_of_turn_id
+     ) values ($1, $2, $3, 'queued', $4, $5, $6)
+     returning id`,
+    [
+      organizationId,
+      conversationId,
+      facts.triggerMessageId,
+      facts.contextThroughSequence,
+      facts.agentVersionId,
+      facts.retryOfTurnId,
+    ],
+  );
+  const turnId = turn.rows[0]?.id;
+  if (!turnId) throw new Error("CONVERSATION_TURN_INSERT_FAILED");
+  await appendDomainEvent(transaction, {
+    organizationId,
+    applicationId: scope.applicationId,
+    repositoryId: scope.repositoryId,
+    conversationId,
+    eventType: "conversation.turn_changed",
+    aggregateId: turnId,
+    aggregateVersion: 1,
+    payload: {
+      resourceId: turnId,
+      resourceVersion: 1,
+      conversationId,
+      triggerMessageId: facts.triggerMessageId,
+      status: "queued",
+    },
+    traceId: facts.traceId,
+    outboxDeliveryKey:
+      `conversation:${conversationId}:turn:${turnId}:version:1`,
+  });
+  return turnId;
+}
+
 function sameCanonicalInput(
   row: MessageRow,
   input: MessageCreateInput,
@@ -360,40 +413,14 @@ export async function createMessage(
       transaction,
       organizationId,
     );
-    const turn = await transaction.query<{ id: string }>(
-      `insert into bakery.conversation_turns (
-         organization_id, conversation_id, trigger_message_id, status,
-         context_through_sequence, agent_version_id
-       ) values ($1, $2, $3, 'queued', $4, $5)
-       returning id`,
-      [
-        organizationId,
-        conversationId,
-        message.id,
-        sequence,
-        agentVersionId,
-      ],
-    );
-    const turnId = turn.rows[0]?.id;
-    if (!turnId) throw new Error("CONVERSATION_TURN_INSERT_FAILED");
-    await appendDomainEvent(transaction, {
+    await admitQueuedTurn(transaction, {
       organizationId,
-      applicationId: scope.applicationId,
-      repositoryId: scope.repositoryId,
-      conversationId,
-      eventType: "conversation.turn_changed",
-      aggregateId: turnId,
-      aggregateVersion: 1,
-      payload: {
-        resourceId: turnId,
-        resourceVersion: 1,
-        conversationId,
-        triggerMessageId: message.id,
-        status: "queued",
-      },
+      scope,
+      triggerMessageId: message.id,
+      contextThroughSequence: sequence,
+      agentVersionId,
+      retryOfTurnId: null,
       traceId: context.traceId,
-      outboxDeliveryKey:
-        `conversation:${conversationId}:turn:${turnId}:version:1`,
     });
   }
 

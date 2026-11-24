@@ -44,6 +44,7 @@ export type ReferenceProps =
     readonly trailing?: string;
     /** Opt-in, for specimens and tests: the card is open from the first render. */
     readonly defaultOpen?: boolean;
+    readonly defaultCopy?: "copied" | "failed";
   };
 
 /** How long the pointer rests on a reference before its card opens. */
@@ -107,6 +108,7 @@ export function Reference(
     labels,
     trailing,
     defaultOpen = false,
+    defaultCopy,
     ...props
   }: ReferenceProps,
 ) {
@@ -120,7 +122,9 @@ export function Reference(
   // focus does not open the card again.
   const handingBack = useRef(false);
   const [open, setOpen] = useState(defaultOpen);
-  const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
+  const [copy, setCopy] = useState<"idle" | "copied" | "failed">(
+    defaultCopy ?? "idle",
+  );
   const timers = useRef<{
     hover?: ReturnType<typeof globalThis.setTimeout>;
     copied?: ReturnType<typeof globalThis.setTimeout>;
@@ -214,6 +218,15 @@ export function Reference(
     }
   };
 
+  const state = open
+    ? copy === "copied"
+      ? "copied"
+      : copy === "failed"
+      ? "copy-failed"
+      : "card-open"
+    : linked
+    ? external ? "external" : "linked"
+    : "plain";
   const text = linked
     ? (
       <Link
@@ -222,23 +235,25 @@ export function Reference(
         target={external ? "_blank" : undefined}
         variant="sentence"
       >
-        <DataText
-          fit
-          variant={kind === "machine" || kind === "person"
-            ? "code"
-            : "identifier"}
-        >
-          {shown}
-        </DataText>
-        {external
-          ? (
-            <>
+        <span className="ui-reference__keep">
+          <DataText
+            fit
+            variant={kind === "machine" || kind === "person"
+              ? "code"
+              : "identifier"}
+          >
+            {shown}
+          </DataText>
+          {external
+            ? (
               <span className="ui-reference__glyph">
                 <IconGlyph name="arrow" size="small" />
               </span>
-              <VisuallyHidden>{` ${labels.opensNewTab}`}</VisuallyHidden>
-            </>
-          )
+            )
+            : null}
+        </span>
+        {external
+          ? <VisuallyHidden>{` ${labels.opensNewTab}`}</VisuallyHidden>
           : null}
       </Link>
     )
@@ -271,9 +286,9 @@ export function Reference(
       data-kind={kind}
       data-linked={linked ? "true" : "false"}
       data-open={open ? "true" : "false"}
-      data-state={open ? "open" : "default"}
+      data-state={state}
       data-ui-component="reference"
-      data-variant={kind}
+      data-variant="default"
       onBlur={(event) => {
         if (!root.current?.contains(event.relatedTarget as Node | null)) {
           setOpen(false);

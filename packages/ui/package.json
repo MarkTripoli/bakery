@@ -36,7 +36,8 @@
     "@codemirror/view": "6.43.15"
   },
   "peerDependencies": {
-    "react": "19.3.0"
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
@@ -45,6 +46,7 @@
     "@storybook/addon-a11y": "10.6.0",
     "@storybook/react-vite": "10.6.0",
     "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "esbuild": "0.28.2",
     "loro-codemirror": "0.3.3",
     "loro-crdt": "1.16.0",

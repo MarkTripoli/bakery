@@ -37,6 +37,12 @@ export const artifactVersionReferences = [
     protection: "none",
   },
   {
+    kind: "review-power-grant",
+    table: "run_power_grants",
+    constraint: "run_power_grants_artifact_version_fk",
+    protection: "none",
+  },
+  {
     // A live external effect (prepared, submitted or uncertain) may still be
     // dispatched or reconciled from these oversized arguments.
     kind: "external-effect-arguments",
@@ -129,6 +135,12 @@ export const artifactVersionReferences = [
     table: "evaluation_results",
     constraint: "evaluation_results_output_fk",
     protection: "retained-evidence",
+  },
+  {
+    kind: "connection-ingest",
+    table: "storage_connection_ingests",
+    constraint: "storage_connection_ingests_artifact_version_fk",
+    protection: "none",
   },
   {
     // A cached extract is a copy of bytes that already exist elsewhere, so it

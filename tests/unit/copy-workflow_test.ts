@@ -39,26 +39,34 @@ Deno.test("a copy's name says it is a copy and stays within the limit", () => {
   assertEquals(long.endsWith(" (copy)"), true);
 });
 
-Deno.test("a built-in workflow's steps become a definition with only id and action", () => {
+Deno.test("a built-in workflow becomes a copy that keeps its whole document: sign-offs, repeats and limits (#429)", () => {
+  const document = {
+    apiVersion: "bakery.dev/v1",
+    kind: "workflow",
+    steps: [
+      { id: "brief", uses: "task.brief" },
+      {
+        id: "signoff",
+        branch: {
+          when: '$input.gates == "plan"',
+          then: [{ id: "approve", uses: "human.approval" }],
+          else: [],
+        },
+      },
+      {
+        id: "loop",
+        repeat: { max: 3, steps: [{ id: "fix", uses: "harness.repair" }] },
+      },
+    ],
+  };
   const source = presetSource(
-    {
-      revision: 3,
-      steps: [{ id: "brief", uses: "task.brief" }, {
-        id: "implement",
-        uses: "harness.implement",
-      }],
-    },
+    { revision: 3, definition: document as never },
     { title: "Coding", description: null },
   );
   assertEquals(source.name, "Coding");
   assertEquals(source.description, "");
   assertEquals(source.revision, 3);
-  assertEquals(source.definition, {
-    steps: [{ id: "brief", uses: "task.brief" }, {
-      id: "implement",
-      uses: "harness.implement",
-    }],
-  });
+  assertEquals(source.definition, document);
   assertEquals("sourceYaml" in source, false);
 });
 

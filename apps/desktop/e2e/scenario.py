@@ -96,6 +96,8 @@ def start_app(path, bus=None, server=None, extra=None):
     env = dict(os.environ, BAKERY_SERVER=server or SERVER, BAKERY_DESKTOP_REPORT=os.path.join(path, "report.jsonl"),
                BAKERY_DESKTOP_COMMANDS=os.path.join(path, "cmd"), BAKERY_DESKTOP_CONFIG_DIR=config, TZ="UTC",
                **(extra or {}))
+    for name in [name for name, value in env.items() if value is None]:
+        del env[name]
     if bus:
         env["DBUS_SESSION_BUS_ADDRESS"] = bus
     app_env.clear()
@@ -403,6 +405,101 @@ def phase_restart():
     check("[restart] a later launch goes straight to the app", first is not None)
     check("[restart] without ever showing a sign-in window", all(v[0] != "sign_in" for v in views(p)), str(views(p)))
     stop_app()
+
+
+def phase_signed_in_server_down_then_back():
+    """Launched while signed in and the server is down: the window says the server is not answering, keeps
+    asking by itself, and opens the server's page once it answers, with no click and no restart."""
+    p = os.path.join(OUT, "t-recover")
+    clear_store()
+    start_app(p, extra={"BAKERY_DESKTOP_RETRY_MS": "1000"})
+    check("[recover] signing in works", sign_in_to_app(p, "[recover]"))
+    stop_app()
+    check("[recover] the server is stopped", server_flag("stop"))
+    seen = len(views(p))
+    pages_before = sum(1 for e in reports(p) if e["event"] == "server_page_opened")
+    start_app(p, extra={"BAKERY_DESKTOP_RETRY_MS": "1000"})
+    first_down = wait_window(p, "not_answering", after=seen, timeout=60)
+    check("[recover] a launch that is signed in, with the server down, says the server is not answering",
+          first_down is not None, str(views(p)[seen:]))
+    quiet = len(views(p))
+    time.sleep(8)
+    check("[recover] and keeps asking by itself, still not signed out",
+          first_down is not None and len(views(p)) > quiet
+          and all(v[0] == "not_answering" for v in views(p)[first_down - 1:]) and stored().startswith("bkd_"),
+          str(views(p)[-3:]))
+    check("[recover] the server is started again", server_flag("start"))
+    check("[recover] the window moves to the app by itself, with no click",
+          first_down is not None and wait_window(p, "app", after=first_down, timeout=60) is not None,
+          str(views(p)[-3:]))
+    check("[recover] and opens the server's page again",
+          wait_report(p, "server_page_opened", pages_before + 1, timeout=40))
+    check("[recover] the sign-in was kept the whole time", stored().startswith("bkd_"))
+    stop_app()
+
+
+def listener_of(statuses):
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            statuses.append(self.path.split("s=", 1)[-1])
+            self.send_response(204)
+            self.end_headers()
+
+        def log_message(self, *a):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server, server.server_address[1]
+
+
+def phase_open_page_survives_server_restart():
+    """With the server's page open, the server stops and comes back: the same page, in the same window and
+    never reloaded, gets answers again as the same signed-in person."""
+    web = os.environ.get("BAKERY_WEB", "")
+    if not web:
+        print("SKIP the open page phase: no built web app (run with E2E_WEB=1)", flush=True)
+        return
+    host = web.split("//", 1)[1].split(":")[0]
+    p = os.path.join(OUT, "u-open-page")
+    clear_store()
+    clear_store(web)
+    statuses = []
+    listener, port = listener_of(statuses)
+    try:
+        start_app(p, server=web, extra={"BAKERY_DESKTOP_DIALOG_ANSWER": "Copy the link"})
+        assert wait_window(p, "sign_in") is not None
+        url = sign_in_to_waiting(p, "[open page]")
+        if not url:
+            return
+        deliver(confirm(request_id_of(url), session_cookie()))
+        check("[open page] the app opens the server's page", wait_report(p, "server_page_opened", 1, timeout=40))
+        end = time.time() + 40
+        while time.time() < end and not any(h == host and not (pth or "").startswith("/sign-in") for h, pth in page_loads(p)):
+            time.sleep(1)
+        loads_before = len(page_loads(p))
+        views_before = len(views(p))
+        eval_in_window(p, "if (window.__ask) clearInterval(window.__ask); window.__ask = setInterval(async () => {"
+                          " let answer = 'none';"
+                          " try { answer = (await fetch('/v1/installation/backups/status', {credentials: 'same-origin'})).status; }"
+                          " catch (error) { answer = 'none'; }"
+                          f" fetch('http://127.0.0.1:{port}/r?s=' + answer, {{mode: 'no-cors'}}).catch(() => {{}}); }}, 500)")
+        check("[open page] the page asks the server as the signed-in person and is answered",
+              wait_until(lambda: "200" in statuses, timeout=30), str(statuses[-5:]))
+        check("[open page] the server is stopped", server_flag("stop"))
+        check("[open page] the page sees the server is gone",
+              wait_until(lambda: statuses and statuses[-1] != "200", timeout=30), str(statuses[-5:]))
+        mark = len(statuses)
+        check("[open page] the server is started again", server_flag("start"))
+        check("[open page] the same page is answered again, as the same person, with no click",
+              wait_until(lambda: "200" in statuses[mark:], timeout=90), str(statuses[mark:][-5:]))
+        check("[open page] no page was loaded again", len(page_loads(p)) == loads_before, str(page_loads(p)[loads_before:]))
+        check("[open page] the window stayed the app's", all(v[0] == "app" for v in views(p)[views_before:]),
+              str(views(p)[views_before:]))
+        check("[open page] the sign-in was kept the whole time", stored(web).startswith("bkd_"))
+    finally:
+        listener.shutdown()
+        stop_app()
 
 
 def phase_cancel_then_late_answer():
@@ -885,6 +982,52 @@ def phase_web_repeat_links():
     shot("repeat-links-end")
 
 
+def phase_a11y_server_page():
+    web = os.environ.get("BAKERY_WEB", "")
+    if not web:
+        return
+    if subprocess.run(["python3", "-c", "import gi; gi.require_version('Atspi','2.0')"], capture_output=True).returncode != 0:
+        print("SKIP the server page accessibility phase: this image has no python3-gi and at-spi2-core", flush=True)
+        return
+    p = os.path.join(OUT, "s-a11y")
+    clear_store()
+    clear_store(web)
+    subprocess.run(["pkill", "-f", "at-spi"], capture_output=True)
+    time.sleep(1)
+    bus_launcher = subprocess.Popen(["/usr/libexec/at-spi-bus-launcher", "--launch-immediately"], stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL)
+    time.sleep(2)
+    keep_alive_client = subprocess.Popen(
+        ["python3", "-c", "import gi; gi.require_version('Atspi','2.0'); from gi.repository import Atspi; "
+                          "Atspi.get_desktop(0); Atspi.event_main()"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        start_app(p, server=web, extra={"GTK_A11Y": "atspi", "NO_AT_BRIDGE": None})
+        assert wait_window(p, "sign_in") is not None
+        url = sign_in_to_waiting(p, "[a11y]")
+        if not url:
+            return
+        deliver(confirm(request_id_of(url), session_cookie()))
+        if not wait_report(p, "server_page_opened", 1, timeout=40):
+            check("[a11y] the server's page opens", False)
+            return
+        time.sleep(8)
+        out_dir = os.path.join(OUT, "a11y-server")
+        done = subprocess.run(["python3", "/app/e2e/a11y_check.py", "server-page", "960x640", out_dir],
+                              capture_output=True, text=True, timeout=180)
+        os.makedirs(out_dir, exist_ok=True)
+        open(os.path.join(out_dir, "checks.txt"), "w").write(done.stdout + done.stderr)
+        for line in done.stdout.splitlines():
+            if line.startswith("NOTE"):
+                print(line, flush=True)
+            if line.startswith(("PASS ", "FAIL ")):
+                check(line[5:].split("  ")[0], line.startswith("PASS "), line[5:][-160:] if line.startswith("FAIL ") else "")
+        check("[a11y] the server page check ran to the end", done.returncode in (0, 1), done.stderr[-200:])
+    finally:
+        keep_alive_client.terminate()
+        bus_launcher.terminate()
+
+
 def phase_web_handoff_retry():
     """design-ux (#77): when the server will not give a page, the app says so with Try again. A press while the
     server is still down brings the dialog back (never a stack); a press once it answers opens the page."""
@@ -1240,8 +1383,8 @@ def main():
     only = [s for s in os.environ.get("E2E_PHASES", "").split(",") if s]
     for phase in (phase_cold_sign_in, phase_restart, phase_cancel_then_late_answer, phase_bogus_answers,
                   phase_server_down_then_try_again, phase_ended_sign_in, phase_no_keyring, phase_address_spelling,
-                  phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back,
-                  phase_open_links, phase_menu, phase_web_pages, phase_web_repeat_links, phase_web_handoff_retry, phase_record_flow, phase_web_download, phase_web_shots):
+                  phase_sign_out, phase_choose_and_switch, phase_silent_server_then_back, phase_signed_in_server_down_then_back, phase_open_page_survives_server_restart,
+                  phase_open_links, phase_menu, phase_web_pages, phase_web_repeat_links, phase_web_handoff_retry, phase_a11y_server_page, phase_record_flow, phase_web_download, phase_web_shots):
         if only and not any(s in phase.__name__ for s in only):
             continue
         try:

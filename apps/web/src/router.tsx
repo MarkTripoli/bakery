@@ -49,6 +49,7 @@ import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
 import { MachineModelNewPage } from "./pages/MachineModelNewPage.tsx";
+import { MachineAddPage } from "./pages/MachineAddPage.tsx";
 import { MachineWizardPage } from "./pages/MachineWizardPage.tsx";
 import { TaskCoordinationPage } from "./pages/task-coordination/TaskCoordinationPage.tsx";
 import { WorkflowEditorPage } from "./pages/library/WorkflowEditorPage.tsx";
@@ -489,6 +490,19 @@ export const routeCoverage = [
   {
     id: "machine-new",
     path: "/machines/new",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "reconnecting",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
+    id: "machine-new-by-hand",
+    path: "/machines/new/by-hand",
     classification: "production",
     states: [
       "loading",
@@ -1375,10 +1389,16 @@ const issuesRoute = createRoute({
   path: "/issues",
   // `?choose=true` opens the Choose repositories sheet (an issue whose
   // repository is off sends an administrator there).
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { choose?: true; repository?: string } => ({
     choose: search.choose === true || search.choose === "true"
       ? true
       : undefined,
+    repository:
+      typeof search.repository === "string" && search.repository !== ""
+        ? search.repository
+        : undefined,
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
@@ -1664,7 +1684,23 @@ const machineNewRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <MachineWizardPage finishId={machineNewRoute.useSearch().finish} />
+    <MachineAddPage finishId={machineNewRoute.useSearch().finish} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const machineNewByHandRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/new/by-hand",
+  validateSearch: (search: Record<string, unknown>) => ({
+    finish: typeof search.finish === "string" && isUuid(search.finish)
+      ? search.finish
+      : undefined,
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <MachineWizardPage finishId={machineNewByHandRoute.useSearch().finish} />
   ),
   errorComponent: ProtectedRouteError,
 });
@@ -2841,6 +2877,7 @@ const routeTree = rootRoute.addChildren([
   skillRoute,
   evaluationRunRoute,
   machineNewRoute,
+  machineNewByHandRoute,
   machineDetailRoute,
   machineModelsRoute,
   machineModelNewRoute,

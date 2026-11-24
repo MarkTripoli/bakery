@@ -1,22 +1,3 @@
-/**
- * The workflow as the editor draws it (#67, slice 1 of the owner's spec): a
- * definition's nodes turned into the cards and groups a person sees, top to
- * bottom. One model, two renderings — the diagram and the phone outline — so
- * the two cannot drift.
- *
- * The definition is the server's own node tree (`WorkflowNode`): a sequence of
- * nodes, each an action, a branch with two arms, a parallel with lanes, a
- * repeat, or a wait. Slice 1 draws all of them and edits only the actions in a
- * straight line; a group a person cannot change says "Edited in code".
- *
- * Nothing is ever left out of the drawing (design-ux's ruling on #67, comment
- * 6917906748): a step Bakery knows but can only change in code is drawn as its
- * own card marked "Edited in code", a step it cannot read is drawn as a card
- * that needs setup, and a group holds its place even when it is empty. The only
- * case that draws no steps is a definition whose list of steps cannot be read
- * at all, and the page says so in a notice rather than showing an empty editor.
- */
-
 import { ACTION_TITLES, PICKER_STEPS } from "./workflow-state.ts";
 
 /**
@@ -43,6 +24,10 @@ export type TreeStep = {
    * "Add a step" list does not offer, or a setting the panel cannot show.
    */
   readonly codeOnly?: boolean;
+  readonly name?: string;
+  readonly description?: string;
+  readonly role?: string;
+  readonly end?: true;
 };
 
 /** A group the editor draws but does not let anyone change in slice 1. */
@@ -50,12 +35,7 @@ export type TreeGroup = {
   readonly kind: "group";
   /** A stable id for the group, so selecting it opens its panel. */
   readonly id: string;
-  /**
-   * What the group is called: "Yes", "Otherwise", "At the same time", "Repeat",
-   * "Fix until it passes" (a repeat that repairs and reviews) or "Wait".
-   */
   readonly label: GroupLabel;
-  /** The most tries a "fix" group makes; set only when `label` is `fix`. */
   readonly max?: number;
   /** The nodes inside it, drawn under the label. */
   readonly children: readonly TreeNode[];
@@ -69,6 +49,7 @@ export type GroupLabel =
   | "together"
   | "repeat"
   | "fix"
+  | "each"
   | "wait";
 
 export type TreeNode = TreeStep | TreeGroup;
@@ -93,6 +74,64 @@ const record = (value: unknown): Record<string, unknown> =>
     : {};
 
 const text = (value: unknown): string => typeof value === "string" ? value : "";
+
+function withKind(node: Record<string, unknown>): Record<string, unknown> {
+  if (text(node.kind) !== "" || typeof node.uses === "string") return node;
+  if (node.branch !== undefined) {
+    const branch = record(node.branch);
+    return {
+      ...node,
+      kind: "branch",
+      when: branch.when,
+      then: branch.then,
+      else: branch.else,
+    };
+  }
+  if (node.repeat !== undefined) {
+    const repeat = record(node.repeat);
+    return {
+      ...node,
+      kind: "repeat",
+      max: repeat.max,
+      seed: repeat.seed,
+      steps: repeat.steps,
+    };
+  }
+  if (node.parallel !== undefined) {
+    return { ...node, kind: "parallel", lanes: record(node.parallel).lanes };
+  }
+  if (node.wait !== undefined) return { ...node, kind: "wait" };
+  if (Array.isArray(node.steps)) return { ...node, kind: "sequence" };
+  return node;
+}
+
+function presentation(
+  node: Record<string, unknown>,
+): Pick<TreeStep, "name" | "description" | "role"> {
+  const name = text(node.name);
+  const description = text(node.description);
+  const role = text(node.role);
+  return {
+    ...(name === "" ? {} : { name }),
+    ...(description === "" ? {} : { description }),
+    ...(role === "" ? {} : { role }),
+  };
+}
+
+const PLAN_GATE = '$input.gates == "plan"';
+
+function planGateApproval(
+  node: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  if (typeof node.when !== "string" || node.when.trim() !== PLAN_GATE) {
+    return undefined;
+  }
+  const then = Array.isArray(node.then) ? node.then : [];
+  const other = Array.isArray(node.else) ? node.else : [];
+  if (then.length !== 1 || other.length !== 0) return undefined;
+  const only = record(then[0]);
+  return only.uses === "human.approval" ? only : undefined;
+}
 
 /** Every action the shared registry knows, by the name a step runs it under. */
 const KNOWN_ACTIONS: ReadonlySet<string> = new Set(Object.keys(ACTION_TITLES));
@@ -146,6 +185,10 @@ function fixLimitOf(node: Record<string, unknown>): number | undefined {
   const uses = body.map((step) => text(record(step).uses));
   if (!uses.includes(FIX_ACTION)) return undefined;
   if (uses[uses.length - 1] !== REVIEW_ACTION) return undefined;
+  return maxOf(node);
+}
+
+function maxOf(node: Record<string, unknown>): number | undefined {
   const max = node.max;
   return typeof max === "number" && Number.isInteger(max) && max >= 1
     ? max
@@ -168,7 +211,12 @@ export function treeOf(definition: unknown): Tree {
     });
   }
   const counter = { next: 0 };
-  const drawn = spec.steps.flatMap((node) => drawNode(node, counter));
+  const flat = spec.steps.flatMap((node) => drawNode(node, counter));
+  const last = flat[flat.length - 1];
+  const drawn = last !== undefined && last.kind === "step" &&
+      last.uses === "workflow.stop" && last.problem === undefined
+    ? [...flat.slice(0, -1), { ...last, end: true as const }]
+    : flat;
   return Object.freeze({
     nodes: drawn,
     stepCount: drawn.reduce((all, node) => all + countSteps(node), 0),
@@ -210,7 +258,7 @@ function drawNode(
       code: JSON.stringify(raw).slice(0, 120),
     }];
   }
-  const node = record(raw);
+  const node = withKind(record(raw));
   const kind = text(node.kind);
   if (kind === "action" || kind === "") {
     const id = text(node.id);
@@ -234,12 +282,24 @@ function drawNode(
       uses,
       agentVersionId: agentVersionId === "" ? null : agentVersionId,
       codeOnly: isCodeOnly(node, uses),
+      ...presentation(node),
     }];
   }
   if (kind === "sequence") {
     return drawNodes(Array.isArray(node.steps) ? node.steps : [], counter);
   }
   if (kind === "branch") {
+    const approval = planGateApproval(node);
+    if (approval !== undefined) {
+      const id = text(node.id);
+      return [{
+        kind: "step",
+        id: id === "" ? anonymousId(counter, "approval") : id,
+        uses: "human.approval",
+        agentVersionId: null,
+        ...presentation(approval),
+      }];
+    }
     // Both arms are always drawn, even the one with no steps in it: a person
     // who cannot see an empty arm cannot tell it apart from a missing one.
     return [{
@@ -289,6 +349,17 @@ function drawNode(
       editedInCode: true,
     }];
   }
+  if (kind === "forEach") {
+    const max = maxOf(node);
+    return [{
+      kind: "group",
+      id: anonymousId(counter, "group"),
+      label: "each",
+      ...(max === undefined ? {} : { max }),
+      children: drawNodes(Array.isArray(node.steps) ? node.steps : [], counter),
+      editedInCode: true,
+    }];
+  }
   if (kind === "wait") {
     return [{
       kind: "group",
@@ -316,7 +387,7 @@ function drawNode(
 /** How many steps a node holds, counting the ones inside a group. */
 export function countSteps(node: TreeNode): number {
   return node.kind === "step"
-    ? 1
+    ? (node.end === true ? 0 : 1)
     : node.children.reduce((all, child) => all + countSteps(child), 0);
 }
 

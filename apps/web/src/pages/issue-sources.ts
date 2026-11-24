@@ -23,19 +23,14 @@ const text = (value: unknown): string => typeof value === "string" ? value : "";
 export const DEFAULT_START_LABEL = "bakery";
 export const DEFAULT_HOLD_LABEL = "hold";
 
-/**
- * The built-in workflow a repository's saved policy runs. A policy that names
- * none (or one this page does not know) is the standard one, which is also what
- * the server treats an absent choice as.
- */
 export const TICKET_PRESETS = [
   "fixed-coding",
   "fixed-coding-reviewed",
 ] as const satisfies readonly TicketPresetId[];
 
-export function presetOfPolicy(policy: unknown): TicketPresetId {
+export function presetOfPolicy(policy: unknown): TicketPresetId | null {
   const preset = record(policy).preset;
-  return preset === "fixed-coding-reviewed" ? preset : "fixed-coding";
+  return TICKET_PRESETS.find((id) => id === preset) ?? null;
 }
 
 /**
@@ -173,8 +168,12 @@ export type SourcePolicy = {
   readonly automatic: { readonly enabled: boolean };
   readonly readiness: unknown;
   readonly approval: unknown;
-  readonly preset: TicketPresetId;
+  readonly preset?: TicketPresetId;
 };
+
+export const presetField = (
+  preset: TicketPresetId | null,
+): { readonly preset?: TicketPresetId } => preset === null ? {} : { preset };
 
 export function policyOf(draft: SourceDraft, existing: unknown): SourcePolicy {
   const current = record(existing);
@@ -196,7 +195,6 @@ export function policyOf(draft: SourceDraft, existing: unknown): SourcePolicy {
     approval: Object.keys(approval).length > 0
       ? approval
       : { plan: "human_approval" as const },
-    // Saving the labels keeps the workflow the repository was already set to.
-    preset: presetOfPolicy(existing),
+    ...presetField(presetOfPolicy(existing)),
   };
 }

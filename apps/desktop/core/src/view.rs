@@ -32,6 +32,7 @@ pub struct ViewFacts {
     pub computer: Option<String>,
     /// The dialog a link brought up, until the person closes it.
     pub link_dialog: Option<LinkDialog>,
+    pub update: Option<crate::update::State>,
 }
 
 pub fn view(session: &Session, facts: &ViewFacts) -> View {
@@ -44,6 +45,7 @@ pub fn view(session: &Session, facts: &ViewFacts) -> View {
         identity: facts.identity.as_ref(),
         last_tried: facts.last_tried.as_deref(),
         computer: facts.computer.as_deref(),
+        update: facts.update.as_ref(),
     };
     View {
         window: session.window().clone(),
@@ -63,6 +65,7 @@ const TRIED: &str = "2026-11-20T14:25:00Z";
 const SERVER: &str = "https://bakery.acme.example";
 const LOCAL: &str = "http://127.0.0.1:8000";
 const OTHER: &str = "https://bakery.example.com";
+const LONG_ADDRESS: &str = "https://bakerywithaverylongnamethathasnoplacetobreakatallbecausenothinginitisaspaceorahyphenorasymbolandkeepsgoingonandonandonandonandonandon.example.com";
 
 fn run(events: Vec<Event>) -> Session {
     run_on(Session::start(false).on_server(SERVER), events)
@@ -132,6 +135,16 @@ pub struct Preview {
     pub facts: ViewFacts,
 }
 
+fn updating(session: Session, state: crate::update::State) -> Preview {
+    Preview {
+        session,
+        facts: ViewFacts {
+            update: Some(state),
+            ..ViewFacts::default()
+        },
+    }
+}
+
 fn plain(session: Session) -> Preview {
     Preview {
         session,
@@ -191,6 +204,7 @@ pub const PREVIEWS: &[&str] = &[
     "choose-server-not-bakery",
     "checking",
     "switched",
+    "switched-long-address",
     "switched-signed-in",
     "not-running",
     "cannot-reach",
@@ -202,6 +216,13 @@ pub const PREVIEWS: &[&str] = &[
     "link-other-server",
     "link-browser-did-not-open",
     "link-handoff-failed",
+    "update-older-ready",
+    "update-older-package",
+    "update-older-downloading",
+    "update-older-check",
+    "update-older-no-feed",
+    "update-older-unverified",
+    "update-sign-in-ready",
 ];
 
 /// The named state, or `None` for a name that is not one.
@@ -210,6 +231,18 @@ pub fn preview(name: &str) -> Option<Preview> {
     let local = || Session::start(false).on_server(LOCAL);
     let choose =
         |session: Session, this_computer: bool| run_on(session, chooser_events(this_computer));
+    let older_app_session = || {
+        run_on(
+            choose(run(vec![]), true),
+            vec![
+                typed(ServerChoice::Another, OTHER),
+                Event::ServerChecked {
+                    address: OTHER.into(),
+                    answer: ServerAnswer::Answered(Kind::AppOlder),
+                },
+            ],
+        )
+    };
     Some(match name {
         "sign-in" => plain(run(vec![])),
         "signed-out" => plain(run_on(
@@ -379,6 +412,11 @@ pub fn preview(name: &str) -> Option<Preview> {
                     address: OTHER.into(),
                 }),
         ),
+        "switched-long-address" => plain(Session::start(false).on_server(OTHER).with_notice(
+            Notice::Switched {
+                address: LONG_ADDRESS.into(),
+            },
+        )),
         "switched-signed-in" => Preview {
             session: Session::start(true)
                 .on_server(OTHER)
@@ -414,6 +452,49 @@ pub fn preview(name: &str) -> Option<Preview> {
                 },
             ],
         )),
+        "update-older-ready" => updating(
+            older_app_session(),
+            crate::update::State::Ready {
+                version: "1.4.0".into(),
+                package: false,
+                folder: None,
+            },
+        ),
+        "update-older-package" => updating(
+            older_app_session(),
+            crate::update::State::Ready {
+                version: "1.4.0".into(),
+                package: true,
+                folder: Some("Bakery updates".into()),
+            },
+        ),
+        "update-older-downloading" => updating(
+            older_app_session(),
+            crate::update::State::Downloading {
+                version: "1.4.0".into(),
+                percent: Some(42),
+            },
+        ),
+        "update-older-check" => updating(
+            older_app_session(),
+            crate::update::State::UpToDate { checked: 0 },
+        ),
+        "update-older-no-feed" => updating(
+            older_app_session(),
+            crate::update::State::NoFeed { checked: 0 },
+        ),
+        "update-older-unverified" => updating(
+            older_app_session(),
+            crate::update::State::NotVerified { tried: 0 },
+        ),
+        "update-sign-in-ready" => updating(
+            run(vec![]),
+            crate::update::State::Ready {
+                version: "1.4.0".into(),
+                package: false,
+                folder: None,
+            },
+        ),
         "older-app" => plain(run_on(
             choose(run(vec![]), true),
             vec![
@@ -627,6 +708,14 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    #[test]
+    fn a_long_address_in_a_notice_has_a_preview_of_its_own() {
+        let p = preview("switched-long-address").unwrap();
+        let notice = view(&p.session, &p.facts).panel.unwrap().notice.unwrap();
+        assert!(notice.contains(LONG_ADDRESS));
+        assert!(!LONG_ADDRESS.contains(' '));
     }
 
     #[test]

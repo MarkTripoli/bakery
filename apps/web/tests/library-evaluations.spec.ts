@@ -269,6 +269,9 @@ for (
       await evaluationsFixture(page);
       await page.goto(LIST);
       await expect(page.getByText("An agent, version 4")).toBeVisible();
+      await expect(page.getByText("A version that is not named")).toHaveCount(
+        0,
+      );
       await expect(page.getByText("Version 1", { exact: true })).toBeVisible();
       await page.goto(run(IDS.noName));
       await expect(
@@ -276,6 +279,48 @@ for (
       ).toBeVisible();
       await page.mouse.move(700, 700);
       await still(page, "evaluation-run-no-name");
+    });
+
+    test("a result that never ran says Not run yet while the run works and Not run after, never its state as the reason", async ({ page }) => {
+      await evaluationsFixture(page, { placeholderReasons: true });
+      await page.goto(run(IDS.running));
+      await expect(page.getByText("Not run yet").first()).toBeVisible();
+      await expect(page.getByText("Not run: Not run yet.")).toHaveCount(0);
+      await page.goto(run(IDS.gaps));
+      await expect(page.getByText(/Not run$/).first()).toBeVisible();
+      await expect(page.getByText(/Not run: Not run/)).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-not-run");
+    });
+
+    test("repeats of one scorer read how many passed", async ({ page }) => {
+      await evaluationsFixture(page, { repeats: true });
+      await page.goto(run(IDS.met));
+      await expect(page.getByText(/: \d of 3 repeats passed$/)).toHaveCount(1);
+      await page.mouse.move(700, 700);
+      await still(page, "evaluation-run-repeats");
+    });
+
+    test("Stop run is offered to whoever holds the evaluationRun:write right, not by role name", async ({ page }) => {
+      await evaluationsFixture(page, { noStopRight: true });
+      await page.goto(run(IDS.running));
+      await expect(
+        page.getByRole("heading", { name: "Reviewer, version 3", level: 1 }),
+      ).toBeVisible();
+      await expect(page.getByRole("button", { name: "Stop run" })).toHaveCount(
+        0,
+      );
+    });
+
+    test("an administrator without the evaluationRun:write right is not offered Stop run", async ({ page }) => {
+      await evaluationsFixture(page, { adminWithoutStopRight: true });
+      await page.goto(run(IDS.running));
+      await expect(
+        page.getByRole("heading", { name: "Reviewer, version 3", level: 1 }),
+      ).toBeVisible();
+      await expect(page.getByRole("button", { name: "Stop run" })).toHaveCount(
+        0,
+      );
     });
 
     test("a running run can be stopped after asking, with the version, and the page then reads Stopped", async ({ page }) => {
@@ -581,7 +626,7 @@ for (
         "Bakery cannot say this run stayed within its limit",
       );
       await expect(notice).toContainText(
-        "No new model call starts until the missing cost is known.",
+        "No new model call starts until the missing cost is known. Bakery checks again by itself.",
       );
       await expect(notice).not.toContainText("$");
       // All ten results were attempted: no rate line. Two were interrupted.

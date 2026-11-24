@@ -9,6 +9,13 @@ import type { SocketFixture } from "./events-socket.ts";
  * member of the fixture's organization; a guest holds no permission at all.
  */
 
+export type ApiHost = {
+  pgDatabase: SocketFixture["pgDatabase"];
+  organizationId: string;
+  app: { fetch(request: Request): Response | Promise<Response> };
+  config: { auth?: { secret: string } };
+};
+
 export type Member = {
   principalId: string;
   cookie: string;
@@ -17,7 +24,7 @@ export type Member = {
 };
 
 export async function addMember(
-  fixture: SocketFixture,
+  fixture: ApiHost,
   label: string,
   role: "guest" | "developer" | "viewer" | "admin",
 ): Promise<Member> {
@@ -66,9 +73,15 @@ export type SeededRun = { runId: string; taskId: string; stepKey: string };
 
 /** A run (and one step) on the given task, started by the fixture's admin. */
 export async function seedRun(
-  fixture: SocketFixture,
+  fixture: {
+    pgDatabase: SocketFixture["pgDatabase"];
+    organizationId: string;
+    principalId: string;
+    taskId?: string;
+  },
   taskId = fixture.taskId,
 ): Promise<SeededRun> {
+  if (taskId === undefined) throw new Error("seedRun needs a task");
   const db = fixture.pgDatabase;
   const workflowId = crypto.randomUUID();
   const versionId = crypto.randomUUID();
@@ -121,7 +134,7 @@ export async function seedOtherTask(fixture: SocketFixture): Promise<string> {
 }
 
 export function api(
-  fixture: SocketFixture,
+  fixture: ApiHost,
   cookie: string,
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
@@ -245,4 +258,70 @@ export async function seedArtifactVersion(
     ],
   );
   return versionId;
+}
+
+export async function seedAgentSession(
+  fixture: SocketFixture,
+  run: SeededRun,
+  stepKey = run.stepKey,
+): Promise<string> {
+  const db = fixture.pgDatabase;
+  const agentId = crypto.randomUUID();
+  const versionId = crypto.randomUUID();
+  const sessionId = crypto.randomUUID();
+  await db.query(
+    `insert into bakery.agent_definitions (id, organization_id, slug, name)
+     values ($1, $2, $3, 'Steered')`,
+    [agentId, fixture.organizationId, `steered-${agentId}`],
+  );
+  await db.query(
+    `insert into bakery.agent_versions (id, organization_id, agent_id, revision,
+       config, digest, created_by)
+     values ($1, $2, $3, 1, '{}'::jsonb, $4, $5)`,
+    [
+      versionId,
+      fixture.organizationId,
+      agentId,
+      `digest-${versionId}`,
+      fixture.principalId,
+    ],
+  );
+  await db.query(
+    `insert into bakery.agent_sessions (id, organization_id, run_step_id,
+       conversation_id, agent_version_id, harness, status)
+     select $1, $2, step.id, $3, $4, 'codex', 'active'
+       from bakery.run_steps step
+      where step.organization_id = $2 and step.run_id = $5
+        and step.step_key = $6
+      order by step.iteration desc limit 1`,
+    [
+      sessionId,
+      fixture.organizationId,
+      fixture.conversationId,
+      versionId,
+      run.runId,
+      stepKey,
+    ],
+  );
+  return sessionId;
+}
+
+export async function seedStep(
+  fixture: SocketFixture,
+  run: SeededRun,
+  stepKey: string,
+  iteration = 0,
+): Promise<void> {
+  await fixture.pgDatabase.query(
+    `insert into bakery.run_steps (id, organization_id, run_id, step_key,
+       position, iteration, status, input)
+     values ($1, $2, $3, $4, 2, $5, 'running', '{}')`,
+    [
+      crypto.randomUUID(),
+      fixture.organizationId,
+      run.runId,
+      stepKey,
+      iteration,
+    ],
+  );
 }

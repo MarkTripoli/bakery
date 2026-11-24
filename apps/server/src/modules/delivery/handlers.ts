@@ -45,7 +45,7 @@ export function createDeliveryHandlers(
     runDeliveryDecisionsList: createRunDeliveryDecisionsListHandler(secret),
     runRepairTriesList: createRunRepairTriesListHandler(secret),
     runRepairAllowancesCreate: async (context, input) =>
-      contractSchemas.DeliveryDecision.parse(
+      contractSchemas.TriesAllowance.parse(
         await createRepairAllowance(context, input),
       ),
     pullRequestsList: createPullRequestsListHandler(secret),

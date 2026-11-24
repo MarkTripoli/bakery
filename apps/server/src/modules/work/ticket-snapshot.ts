@@ -210,7 +210,7 @@ export type BasisParts = {
   requirementsDigest: string | null;
   dependencyDigest: string | null;
   sourcePolicyRevision: number;
-  preset: TicketPresetPin;
+  preset: TicketPresetPin | null;
   intent: TicketRequestIntent | null;
   labelBasis: TicketLabelBasis;
   hold: boolean;

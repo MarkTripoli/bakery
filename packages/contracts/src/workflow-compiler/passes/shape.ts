@@ -23,6 +23,8 @@ import {
 } from "../schema.ts";
 import {
   DEFAULT_STEP_FILES,
+  isBoundConnectionId,
+  MAX_STEP_BOUND_CONNECTIONS,
   OMITTED_STEP_FILES_WRITE,
   SEALED_STEP_FILES,
   sealedByDefault,
@@ -151,6 +153,8 @@ const REPEAT_NODE_KEYS: ReadonlySet<string> = new Set([
 ]);
 const REPEAT_BODY_KEYS: ReadonlySet<string> = new Set([
   "max",
+  "min",
+  "allow",
   "seed",
   "until",
   "steps",
@@ -371,7 +375,11 @@ function readInputSlots(
 }
 
 /** Reads named output slots; `kind` is optional but never invented. */
-const FILES_KEYS: ReadonlySet<string> = new Set(["read", "write"]);
+const FILES_KEYS: ReadonlySet<string> = new Set([
+  "read",
+  "write",
+  "connections",
+]);
 
 /**
  * Reads one axis of a files section: a list of known areas, each once. The
@@ -501,7 +509,42 @@ function readStepFiles(
     )
     : [...OMITTED_STEP_FILES_WRITE];
   if (read === null || write === null) return null;
-  return { read, write };
+  if (!Object.hasOwn(raw, "connections")) return { read, write };
+  const connections = readBoundConnections(
+    context,
+    raw["connections"],
+    [...path, "connections"],
+  );
+  if (connections === null) return null;
+  if (!read.includes("connections")) {
+    report(context, [...path, "connections"], "action_files_invalid");
+    return null;
+  }
+  return { read, write, connections };
+}
+
+function readBoundConnections(
+  context: Context,
+  raw: unknown,
+  path: Path,
+): string[] | null {
+  if (
+    !Array.isArray(raw) || raw.length === 0 ||
+    raw.length > MAX_STEP_BOUND_CONNECTIONS
+  ) {
+    report(context, path, "action_files_invalid");
+    return null;
+  }
+  const seen = new Set<string>();
+  for (const [index, item] of raw.entries()) {
+    const id = typeof item === "string" ? item.toLowerCase() : undefined;
+    if (!isBoundConnectionId(id) || seen.has(id)) {
+      report(context, [...path, index], "action_files_invalid");
+      return null;
+    }
+    seen.add(id);
+  }
+  return [...seen].sort();
 }
 
 function readOutputSlots(
@@ -1249,6 +1292,24 @@ function shapeRepeat(
   } else {
     max = body["max"];
   }
+  let min: number | undefined;
+  let allow: number | undefined;
+  if (Object.hasOwn(body, "min")) {
+    if (max > 0 && isInteger(body["min"], 1, max)) {
+      min = body["min"];
+    } else if (max > 0) {
+      report(context, [...bodyPath, "min"], "repeat_min_invalid");
+      failed = true;
+    }
+  }
+  if (Object.hasOwn(body, "allow")) {
+    if (max > 0 && isInteger(body["allow"], min ?? 1, max)) {
+      allow = body["allow"];
+    } else if (max > 0) {
+      report(context, [...bodyPath, "allow"], "repeat_allow_invalid");
+      failed = true;
+    }
+  }
   let seed: WorkflowRepeatSeed | undefined;
   if (!Object.hasOwn(body, "seed")) {
     report(context, [...bodyPath, "seed"], "field_missing");
@@ -1302,6 +1363,8 @@ function shapeRepeat(
     steps,
     currentCandidate,
   };
+  if (min !== undefined) node.min = min;
+  if (allow !== undefined) node.allow = allow;
   if (condition) node.if = condition;
   return node;
 }
@@ -1523,15 +1586,9 @@ function shapeWait(
     if (durationMs !== undefined) wait = { kind: "duration", durationMs };
   } else if (hasEvent && !hasDuration) {
     const keys = Object.keys(body);
-    // A human.approval wait names the approval it waits on, so the step and the
-    // answer are paired by id rather than by position; "approvalId" is the only
-    // key an event wait may carry beyond event and timeout.
-    if (
-      keys.some((key) =>
-        key !== "event" && key !== "timeout" &&
-        key !== "approvalId"
-      )
-    ) {
+    if (body["event"] === HUMAN_APPROVAL_COMPILER_EVENT) {
+      report(context, [...bodyPath, "event"], "approval_wait_use_step");
+    } else if (keys.some((key) => key !== "event" && key !== "timeout")) {
       report(context, bodyPath, "wait_shape_invalid");
     } else if (
       typeof body["event"] !== "string" || !EVENT_NAME.test(body["event"])
@@ -1540,36 +1597,16 @@ function shapeWait(
     } else if (!Object.hasOwn(body, "timeout")) {
       report(context, bodyPath, "wait_timeout_required");
     } else {
-      // A human.approval wait lasts up to seven days; every other wait keeps the
-      // one-day ceiling.
-      const eventMax = body["event"] === HUMAN_APPROVAL_COMPILER_EVENT
-        ? WORKFLOW_COMPILER_LIMITS.approvalWaitMaxMs
-        : max;
       const timeoutMs = readDurationField(
         context,
         body,
         "timeout",
         bodyPath,
         min,
-        eventMax,
+        max,
       );
       if (timeoutMs !== undefined) {
-        const approvalId = body["approvalId"];
-        if (
-          approvalId !== undefined &&
-          (typeof approvalId !== "string" || approvalId === "")
-        ) {
-          report(context, [...bodyPath, "approvalId"], "wait_shape_invalid");
-        } else {
-          wait = {
-            kind: "event",
-            event: body["event"],
-            timeoutMs,
-            ...(approvalId === undefined
-              ? {}
-              : { approvalId: approvalId as string }),
-          };
-        }
+        wait = { kind: "event", event: body["event"], timeoutMs };
       }
     }
   } else {

@@ -117,7 +117,9 @@ export {
 } from "./plan.ts";
 export type { PlanStep, WorkflowPlan } from "./plan.ts";
 export {
+  boundStepConnections,
   DEFAULT_STEP_FILES,
+  MAX_STEP_BOUND_CONNECTIONS,
   OMITTED_STEP_FILES_WRITE,
   readsOnlyInputs,
   resolveStepFiles,
@@ -137,3 +139,8 @@ export type {
   WorkflowFileWriteArea,
   WorkflowStepFiles,
 } from "./step-files.ts";
+
+export {
+  DOCUMENT_OUTPUT_ACTIONS,
+  documentOutputSlot,
+} from "./document-slots.ts";

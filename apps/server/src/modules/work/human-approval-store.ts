@@ -461,6 +461,32 @@ export async function decideHumanApproval(
       // wait is excluded from the active clock forever.
       stepKey: row.step_key ?? HUMAN_APPROVAL_STEP_KEY,
     });
+    if (outcome !== null) {
+      await transaction.query(
+        `update bakery.run_steps
+            set status = 'completed',
+                output = jsonb_build_object(
+                  'decision', $3::text, 'note', $4::text,
+                  'decidedBy', $5::uuid, 'decidedAt', clock_timestamp(),
+                  'approvalId', $2::uuid
+                ),
+                finished_at = clock_timestamp(),
+                updated_at = clock_timestamp(), version = version + 1
+          where organization_id = $1 and run_id = $6 and status = 'waiting'
+            and dispatch ->> 'kind' = 'wait'
+            and dispatch #>> '{wait,approvalId}' = $2::text`,
+        [
+          input.organizationId,
+          input.approvalId,
+          input.decision,
+          input.note === undefined || input.note.trim() === ""
+            ? null
+            : input.note,
+          input.principalId,
+          row.run_id,
+        ],
+      );
+    }
     await recordOutcome(transaction, {
       organizationId: input.organizationId,
       runId: row.run_id,

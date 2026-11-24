@@ -50,6 +50,9 @@ async fn press_button(
         }
         Press::Shell(ButtonId::QuitBakery) => app.exit(0),
         Press::Shell(ButtonId::Close) => shell.close_link_dialog(),
+        Press::Shell(ButtonId::RestartToUpdate) => shell.inner().restart_to_update().await,
+        Press::Shell(ButtonId::CheckForUpdates) => shell.inner().check_now(true).await,
+        Press::Shell(ButtonId::ShowUpdateInFolder) => shell.inner().show_update_in_folder(),
         Press::Shell(ButtonId::TryPageAgain) => shell.inner().try_page_again().await,
         Press::Shell(ButtonId::OpenLinkInBrowser) => {
             if let Some(target) = shell.link_dialog_target() {
@@ -127,6 +130,11 @@ fn test_hooks(app: &tauri::App, shell: &Arc<Shell>, server: &str) {
             .and_then(|(w, h)| Some((w.parse::<f64>().ok()?, h.parse::<f64>().ok()?)))
         {
             let _ = window.set_size(tauri::LogicalSize::new(w, h));
+        }
+    }
+    if let Ok(zoom) = std::env::var("BAKERY_DESKTOP_ZOOM") {
+        if let Ok(factor) = zoom.parse::<f64>() {
+            let _ = window.set_zoom(factor);
         }
     }
     if let Ok(dir) = std::env::var("BAKERY_DESKTOP_COMMANDS") {
@@ -294,6 +302,7 @@ fn links_plugin(server: String) -> tauri::plugin::TauriPlugin<tauri::Wry> {
             }
             let url = payload.url();
             if let Some(shell) = webview.try_state::<Arc<Shell>>() {
+                shell.page_finished();
                 // Where the window is, never the query: a one-use code travels in it.
                 shell.report(
                     "page_loaded",
@@ -396,6 +405,7 @@ fn main() {
             );
             app.manage(Arc::clone(&shell));
             shell.install_menu();
+            shell.start_updating();
             test_hooks(app, &shell, &server);
             if let Some(place) = restored {
                 shell.report(

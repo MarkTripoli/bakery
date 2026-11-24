@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { WORKFLOW_PRESET_IDS } from "./workflow-presets.ts";
+import { TICKET_PRESET_IDS } from "./workflow-presets.ts";
 
 /**
  * Vocabulary, policy and report shapes for ticket sources, readiness and
@@ -565,8 +565,8 @@ const policyReadinessSchema = z.object(policyReadinessShape).strict().describe(
   "Readiness options evaluated for every ticket of this source.",
 );
 
-const policyPresetSchema = z.enum(WORKFLOW_PRESET_IDS).describe(
-  "Built-in workflow every admission of this source runs unless a person's Start work names another for that one issue: fixed-coding (plan, write the code, run the checks, open a pull request) or fixed-coding-reviewed (the same with a review step). A request keeps the workflow, revision and digest it was admitted with; changing this applies to work started afterwards.",
+const policyPresetSchema = z.enum(TICKET_PRESET_IDS).optional().describe(
+  "Built-in workflow every admission of this source runs unless a person's Start work names another for that one issue: fixed-coding (plan, write the code, run the checks, open a pull request) or fixed-coding-reviewed (the same with a review step). Absent means no workflow is set: people choose one each time they start work, and automatic admission cannot be on. A request keeps the workflow, revision and digest it was admitted with; changing this applies to work started afterwards.",
 );
 
 const policyVersionSchema = z.literal(1).describe(
@@ -671,11 +671,6 @@ export const TicketPreviewFiltersSchema = z.object({
 );
 export type TicketPreviewFilters = z.output<typeof TicketPreviewFiltersSchema>;
 
-/**
- * A fresh default policy: execute "ready for agent", planning-only
- * "ready for planning", hold "bakery:hold", no delegation, automatic admission
- * off, acceptance criteria required, human plan approval.
- */
 export function defaultTicketSourcePolicy(): TicketSourcePolicy {
   return TicketSourcePolicySchema.parse({
     version: 1,
@@ -689,7 +684,6 @@ export function defaultTicketSourcePolicy(): TicketSourcePolicy {
     readiness: { requireAcceptanceCriteria: true },
     approval: { plan: "human_approval" },
     completion: "merged",
-    preset: "fixed-coding",
   });
 }
 
@@ -822,7 +816,7 @@ export type TicketSnapshot = z.output<typeof TicketSnapshotSchema>;
 
 /** Identity of the preset an admission or a report was bound to. */
 export const TicketPresetPinSchema = z.object({
-  id: z.enum(WORKFLOW_PRESET_IDS).describe(
+  id: z.enum(TICKET_PRESET_IDS).describe(
     "Id of the built-in workflow the admission or report was bound to: the source policy's preset, or the one a person chose for one Start work.",
   ),
   revision: z.number().int().min(1).describe(
@@ -902,7 +896,9 @@ export const TicketReadinessReportSchema = z.object({
   sourcePolicyRevision: z.number().int().min(1).describe(
     "Revision of the ticket source policy the report was evaluated against, at least 1.",
   ),
-  preset: TicketPresetPinSchema,
+  preset: TicketPresetPinSchema.nullable().describe(
+    "Built-in workflow the report was judged with, or null when none was chosen: no request pin, no Start work choice and no source workflow.",
+  ),
 }).strict().superRefine((report, context) => {
   const seen = new Set<string>();
   report.checks.forEach((check, index) => {

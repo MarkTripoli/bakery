@@ -106,7 +106,7 @@ coordination lane gate. After convergence there is one.
   on the flat loop, then that code is deleted. No live run is migrated.
 - The **plan interpreter becomes the engine**. Its revisions stay append-only
   and pinned per run: revision 3 adds delivery facts and `forEach`, revision 4
-  adds `route`.
+  adds loop bounds, and a later revision adds `route`.
 - The **coordination lane gate becomes the split primitive** (section 5).
 
 The decision is recorded in
@@ -370,16 +370,20 @@ inside Deliver) has an optional **minimum** and **maximum** iteration count, set
 in the loop's panel.
 
 - **Minimum** means "run at least N times even if the exit condition is already
-  met". The engine's `repeat` has no minimum today; `repeat.min` is a model gap.
+  met" (`repeat.min`, built in interpreter revision 4: `until` is not asked
+  before round `min`).
 - **Maximum** is `repeat.max`. It is bounded by the compiler's iteration cap,
   which is 1 to 8 today, and by the workflow's `limits.maxRepairCycles`. So
   `1 <= min <= max <= 8`. The compiler counts the worst case from `max`; `min`
   rounds count toward `max`.
 - **Pausing for more rounds** (deliver-as-workflow D9) happens only below the
   maximum. A loop may start with a smaller allowance (`repeat.allow`). When it
-  uses that allowance without meeting its exit condition, the run pauses for a
-  person, who can allow more rounds, accept as is, or stop. More rounds can
-  never go past `max`. When `max` is reached, the loop ends as exhausted and the
+  uses that allowance without meeting its exit condition, the engine stops the
+  run with the stable code `limit_reached`. A person then allows more rounds
+  through `POST /v1/runs/:id/repair-allowances`, which records a
+  `limit_change` decision and reopens the run; asking again for the same stop
+  returns that decision and reopens nothing. Accepting as is and stopping are
+  not built for a repeat limit yet. More rounds can never go past `max`. When `max` is reached, the loop ends as exhausted and the
   run ends `needs_human` with `limit_reached`. Raising the cap of 8 is not part
   of this decision.
 
@@ -483,8 +487,9 @@ paths.
     to O21, as replaced in section 9).
 11. **Kinds and facts.** The kind definition API for organizations, rule types,
     facts and validation at publication (O6).
-12. **`forEach`, `call` and loop bounds.** Interpreter revision 3; `call`
-    inlined with workflow outputs; `repeat.min` (O10).
+12. **`forEach`, `call` and loop bounds.** Interpreter revisions 3 (`forEach`)
+    and 4 (loop bounds); `call` inlined with workflow outputs; `repeat.min`
+    (O10).
 13. **Unlisted definitions and proposals.** `origin` and visibility on
     definitions; run a frozen conversation draft; the `definitionProposal`
     coordinator effect; coordinator skills; save as workflow.
@@ -914,6 +919,33 @@ somewhere to attach.
 | MCP outward    | Bakery's own MCP server exposes the tree under its OAuth scopes                                                                                                                                                                                                                                                                                                         |
 | Integrations   | A `storage` family: list, stat, read by range, write, change events. Connections mount under `/connections`, read through. Using an outside file ingests it into a version; one-way sync is a workflow; writing out is a keyed effect; no two-way sync in the first version (O38)                                                                                       |
 
+**Outside storage as shipped (F9, #452).** A storage connection is an
+integration connection whose provider serves the storage family. An Admin mounts
+it as a record-area folder under `/connections/<connection>`; listing, stat and
+range reads go through the provider's port and copy nothing. Using a file
+ingests it into an artifact version keyed by mount, remote path and remote
+revision, so using it again returns the same version. One-way sync is a workflow
+over that ingest, driven by the provider's change feed, and a remote deletion
+leaves ingested versions alone. A run walks at most 500 files and the next run
+resumes where it stopped; the feed position moves only when a walk finishes. A
+sync can be paused and resumed, and a failed run records why (`lastFailure`)
+without holding up the other syncs. Writing out is a keyed external effect,
+written with `If-Match` on the remote revision. An export whose source bytes are
+gone fails, and one the provider keeps refusing is tried at most five times.
+Access is the connection's permission (read, invoke, manage), the tree's read
+rule on the mount folder, and a live connection.
+
+The first provider is **local disk**. The operator sets one root
+(`BAKERY_STORAGE_LOCAL_ROOT`, read through `RuntimeConfig`, server only), and a
+connection with provider `local-disk` reads and writes only
+`<root>/<organization>/<connection>`. A remote path is absolute with no empty,
+`.` or `..` segment, and is resolved with `realpath`. An answer outside the
+connection folder reads as missing. Listing and the change feed skip symbolic
+links, and a link in place of the organization or connection folder is never
+followed. A read checks that the file it opened is the one it resolved. With no
+root set, a `local-disk` connection answers `STORAGE_PROVIDER_UNAVAILABLE`, like
+any provider that is not deployed.
+
 ### 17.5 Lifecycle
 
 - **Retention** follows folder policy. Record areas keep today's rules (30 days
@@ -952,7 +984,7 @@ acts for.
 | The rest of the project (other items' artifacts, `assets`, `workspaces`) | Yes                                    | No. With a declared section or grant: `assets` and `workspaces`, under the one-writer rule                                                          |
 | `/shared`                                                                | Yes                                    | Only with a grant                                                                                                                                   |
 | `/library`                                                               | Published items the principal may read | Not by file write; drafts through the library's own operations                                                                                      |
-| `/connections/<connection>`                                              | Only connections the definition binds  | Only as a keyed external effect                                                                                                                     |
+| `/connections/<connection>`                                              | Only connections the step binds        | Only as a keyed external effect                                                                                                                     |
 | `/users/<member>`, including the starter's own                           | No, unless that member grants it       | No                                                                                                                                                  |
 | `/trash`, `/system`                                                      | No                                     | No                                                                                                                                                  |
 
@@ -970,6 +1002,23 @@ them:
   recorded, pinned with the version and revocable. Widening its own file scope
   is off by default (O52).
 - **Never beyond the principal.** Widening adds scope, not authority.
+
+**Binding connections (O44, #452).** A step binds storage connections in its
+`files` section: `files: { read: [connections, ...], connections: [<id>] }`, at
+most 16 ids. The workflow SDK takes the same section as an action step's `files`
+option. The compiler lower-cases and sorts the ids and refuses a repeat, a value
+that is not an id, or a binding whose `read` does not name `connections`. A
+sealed step cannot bind. When a run is admitted, each bound connection must be
+mounted in the run's organization, readable by the person starting the run, and
+live. Otherwise the start is refused with `storage_connection_not_bindable`, or
+`connection_unavailable` for a disabled or archived connection. At claim the
+session gets `files.read:connections` and one `files.read:connection:<id>` scope
+per bound connection. It also gets the mount's list, stat and read tools. The
+read guard opens `/connections` itself, showing only the bound mounts, and
+everything under a bound mount. Any other connection is refused with
+`agent_file_connection_not_bound` unless a person granted the workflow that
+folder. A step that binds nothing never sees `/connections`, even when its
+`read` names the area.
 
 **Reads (O46).** Each file an agent opens joins the step's **read set** (entry,
 version, digest, feed position). A read returns the version current when the
@@ -1174,6 +1223,12 @@ Where a tag appears:
 | A Notify step                                                                 | `uses: people.tag`, which may wait for the response or carry on      |
 | A steer or comment on a live run or step, an artifact comment, a chat message | The same @ picker as chat; a chat mention is a tag with intent FYI   |
 | An agent, during a run                                                        | `people.tag` through Bakery's own connection (section 18.1)          |
+
+A Notify step (`uses: people.tag`, #456) names one recipient: a member, a role,
+a group, or the run's starter or task owner. It asks for an FYI or a review as
+the workflow, on behalf of the person who started the run, and tags once per
+step. Only a review can be waited for; the step ends `sent`, `responded` or
+`expired`.
 
 **Agents (O55).** Agent-first applies: an agent tags under the same grants as a
 person, and the tag is labelled as the agent's action. By default it tags people

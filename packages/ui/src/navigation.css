@@ -956,8 +956,9 @@ a.bakery-application-rail__link:hover {
   min-block-size: auto;
   /* E8-0/P6-0: the 44px header row sits directly under the device status
      bar, so only the safe area pads its top. */
-  padding: var(--space-0) var(--gutter) var(--space-3);
-  padding-block-start: env(safe-area-inset-top);
+  padding: var(--space-0) var(--gutter);
+  padding-block-start: calc(env(safe-area-inset-top) + var(--space-3) / 2);
+  padding-block-end: calc(var(--space-3) / 2);
   padding-inline: max(var(--gutter), env(safe-area-inset-left))
     max(var(--gutter), env(safe-area-inset-right));
 }
@@ -1521,6 +1522,7 @@ a.bakery-application-rail__link:hover {
   font: var(--type-field); /* auth.css:8 select 16px */
   block-size: var(--target-coarse); /* auth.css:8 select height 44px */
   padding: var(--space-2-5) var(--space-3); /* auth.css:8 select 10px 12px */
+  padding-inline-end: var(--space-8);
 }
 .ui-auth-entry--context .ui-capability-list__item {
   align-items: flex-start;
@@ -1989,6 +1991,7 @@ a.bakery-application-rail__link:hover {
   font: var(--type-field);
   min-block-size: var(--target-coarse);
   padding: var(--space-0) var(--space-3);
+  padding-inline-end: var(--space-8);
 }
 .ui-settings-content[data-variant="preferences"] .ui-combobox > .ui-icon {
   display: block;
@@ -2377,6 +2380,18 @@ a.bakery-application-rail__link:hover {
 .bakery-page-header--list .bakery-page-header__subtitle p {
   margin: var(--space-0);
 }
+.bakery-page-header--list[data-aside="true"] {
+  align-items: start;
+  column-gap: var(--space-4);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.bakery-page-header--list[data-aside="true"] > .bakery-page-header__actions {
+  grid-column: 1 / -1;
+}
+.bakery-page-header__aside {
+  align-self: start;
+}
 .bakery-page-header--list .bakery-page-header__actions {
   display: none;
 }
@@ -2398,6 +2413,14 @@ a.bakery-application-rail__link:hover {
   .bakery-page-header--list .bakery-page-header__actions .ui-button {
     inline-size: 100%;
     min-block-size: var(--target-coarse);
+  }
+  .bakery-page-header--list .bakery-page-header__actions[data-layout="row"] {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .bakery-page-header--list .bakery-page-header__actions[data-layout="row"] > * {
+    flex: 1 1 0;
+    min-inline-size: 0;
   }
 }
 .bakery-inspector-panel--sections .bakery-inspector-panel__header > :first-child {
