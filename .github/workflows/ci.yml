@@ -2178,10 +2178,7 @@ jobs:
       - name: Start web dev server for fixture routes
         # Design route candidates compare against the app's real fixture
         # routes (`/__fixtures__/...`), which only exist under the Vite dev
-        # server (`import.meta.env.DEV`) — a production build 404s them. Some
-        # captured screens also read the API (through the vite proxy on
-        # BAKERY_SERVER_PORT), so the server and its database above are part
-        # of the capture, not just the fixtures.
+        # server (`import.meta.env.DEV`) — a production build 404s them.
         run: |
           pnpm --dir apps/web dev --host 127.0.0.1 --port "$BAKERY_WEB_PORT" > "$RUNNER_TEMP/web-dev.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/web-dev.pid"
@@ -2378,10 +2375,7 @@ jobs:
       - name: Start web dev server for fixture routes
         # Design route candidates compare against the app's real fixture
         # routes (`/__fixtures__/...`), which only exist under the Vite dev
-        # server (`import.meta.env.DEV`) — a production build 404s them. Some
-        # captured screens also read the API (through the vite proxy on
-        # BAKERY_SERVER_PORT), so the server and its database above are part
-        # of the capture, not just the fixtures.
+        # server (`import.meta.env.DEV`) — a production build 404s them.
         run: |
           pnpm --dir apps/web dev --host 127.0.0.1 --port "$BAKERY_WEB_PORT" > "$RUNNER_TEMP/web-dev.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/web-dev.pid"
@@ -2592,10 +2586,7 @@ jobs:
       - name: Start web dev server for fixture routes
         # Design route candidates compare against the app's real fixture
         # routes (`/__fixtures__/...`), which only exist under the Vite dev
-        # server (`import.meta.env.DEV`) — a production build 404s them. Some
-        # captured screens also read the API (through the vite proxy on
-        # BAKERY_SERVER_PORT), so the server and its database above are part
-        # of the capture, not just the fixtures.
+        # server (`import.meta.env.DEV`) — a production build 404s them.
         run: |
           pnpm --dir apps/web dev --host 127.0.0.1 --port "$BAKERY_WEB_PORT" > "$RUNNER_TEMP/web-dev.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/web-dev.pid"
