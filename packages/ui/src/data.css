@@ -394,6 +394,10 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.ui-code-block--command[data-state="overflowing"] {
+  overflow-wrap: normal;
+  white-space: pre;
+}
 .ui-code-block__copied {
   color: var(--color-syntax-success);
   inset-block-start: var(--space-2);
