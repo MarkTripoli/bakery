@@ -7,6 +7,8 @@ import {
   withPgTransaction,
 } from "../../platform/database.ts";
 import { type AdmissionResult, admitTicket } from "./ticket-admission.ts";
+import { StandardError } from "@bakery/contracts/http";
+import type { TicketPresetPin } from "@bakery/contracts/ticket-admission";
 import type { TicketSourceReader } from "./ticket-source-reader.ts";
 import type { StartResult } from "./batch-tick.ts";
 
@@ -24,6 +26,16 @@ import type { StartResult } from "./batch-tick.ts";
 const CANDIDATES_PER_START = 20;
 /** The reasons that mean the provider did not answer: not the issue's fault, so nothing is passed over. */
 const PROVIDER_DOWN = "provider_unavailable";
+export const WORKFLOW_CANNOT_START = "workflow_cannot_start";
+
+function workflowRequired(error: unknown): boolean {
+  if (!(error instanceof StandardError) || error.code !== "UNPROCESSABLE") {
+    return false;
+  }
+  const issues = error.params?.issues as { code?: string }[] | undefined;
+  return issues?.some((issue) => issue.code === "ticket_workflow_required") ??
+    false;
+}
 
 type Candidate = { id: string; sourceId: string; number: number };
 
@@ -135,6 +147,7 @@ export function createBatchStartPort(deps: BatchStartPortDeps) {
       organizationId: string;
       batchId: string;
       repositoryId: string;
+      presetId: string | null;
       startedBy: string;
     },
   ): Promise<StartResult> => {
@@ -147,28 +160,45 @@ export function createBatchStartPort(deps: BatchStartPortDeps) {
         input.organizationId,
         input.startedBy,
       );
-      const result = await admit(
-        {
-          reader: deps.reader,
-          budget: deps.budget,
-          readsAllowed: true,
-          database: deps.database,
-        },
-        {
-          organizationId: input.organizationId,
-          sourceId: candidate.sourceId,
-          number: candidate.number,
-          intent: "start",
-          origin: "manual",
-          caller,
-          prefetch: null,
-          signal: AbortSignal.timeout(deps.admissionTimeoutMs ?? 30_000),
-          trace: {
-            requestId: `batch:${input.batchId}`,
-            traceId: `batch:${input.batchId}`,
+      let result: AdmissionResult;
+      try {
+        result = await admit(
+          {
+            reader: deps.reader,
+            budget: deps.budget,
+            readsAllowed: true,
+            database: deps.database,
           },
-        },
-      );
+          {
+            organizationId: input.organizationId,
+            sourceId: candidate.sourceId,
+            number: candidate.number,
+            intent: "start",
+            origin: "manual",
+            caller,
+            prefetch: null,
+            preset: input.presetId as TicketPresetPin["id"] | null,
+            signal: AbortSignal.timeout(deps.admissionTimeoutMs ?? 30_000),
+            trace: {
+              requestId: `batch:${input.batchId}`,
+              traceId: `batch:${input.batchId}`,
+            },
+          },
+        );
+      } catch (error) {
+        if (workflowRequired(error)) {
+          return { started: false, pause: WORKFLOW_CANNOT_START, passedOver };
+        }
+        throw error;
+      }
+      if (
+        result.kind === "unadmitted" &&
+        result.report.checks.some((check) =>
+          check.id === "preset_ready" && check.status !== "pass"
+        )
+      ) {
+        return { started: false, pause: WORKFLOW_CANNOT_START, passedOver };
+      }
       if (result.kind === "admitted" && result.request) {
         return {
           started: true,
