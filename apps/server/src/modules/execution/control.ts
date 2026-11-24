@@ -75,6 +75,7 @@ import {
 } from "./sessions.ts";
 import { createRunStepNote } from "./step-notes.ts";
 import { readStepGiven } from "../knowledge/step-given.ts";
+import { readerMayReadArtifactVersions } from "../knowledge/memory-source-state.ts";
 import { getHandoffManifest } from "./handoff-manifests.ts";
 import { admitHandoffContinuation } from "./handoff-continuations.ts";
 import { takeOverRunStep } from "./step-takeover.ts";
@@ -732,7 +733,7 @@ export function createRunControlRegistry(
         organizationId,
         runId,
         stepKey,
-        readerMayRead: true,
+        readerMayRead: readerMayReadArtifactVersions(context),
       });
       if (given === null) {
         throw new StandardError({ code: "RESOURCE_NOT_FOUND" });

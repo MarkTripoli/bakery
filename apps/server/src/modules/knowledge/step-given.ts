@@ -1,4 +1,5 @@
 import type { PgTransactionClient } from "@bakery/persistence";
+import { toIso } from "../work/postgres.ts";
 import { resolveMemorySources } from "./memory-source-state.ts";
 import type { StepFact } from "./step-facts.ts";
 
@@ -81,16 +82,16 @@ export async function readStepGiven(
     organizationId: string;
     runId: string;
     stepKey: string;
-    readerMayRead?: boolean;
+    readerMayRead: boolean;
   }>,
 ): Promise<StepGiven | null> {
   const step = (await transaction.query<{
     stepKey: string;
-    startedAt: string | null;
+    startedAt: Date | string | null;
     recorded: StepFactsRecord | null;
   }>(
     `select step_key as "stepKey",
-            started_at::text as "startedAt",
+            started_at as "startedAt",
             dispatch -> 'facts' as recorded
        from bakery.run_steps
       where organization_id = $1 and run_id = $2 and step_key = $3
@@ -131,7 +132,7 @@ export async function readStepGiven(
 
   return {
     stepKey: step.stepKey,
-    startedAt: step.startedAt,
+    startedAt: step.startedAt === null ? null : toIso(step.startedAt),
     ranAnAgent,
     facts: describeGivenFacts(recorded, now),
     factsOmitted: step.recorded?.omitted ?? 0,
@@ -144,7 +145,7 @@ async function readGivenDocuments(
   input: Readonly<{
     organizationId: string;
     runId: string;
-    readerMayRead?: boolean;
+    readerMayRead: boolean;
   }>,
 ): Promise<
   Readonly<{
@@ -180,7 +181,7 @@ async function readGivenDocuments(
 
   const sources = await resolveMemorySources(transaction, {
     organizationId: input.organizationId,
-    readerMayRead: input.readerMayRead ?? true,
+    readerMayRead: input.readerMayRead,
     versionIds: pins.map((pin) => pin.artifactVersionId),
   });
 

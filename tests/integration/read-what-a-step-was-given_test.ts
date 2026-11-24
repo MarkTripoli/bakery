@@ -1,5 +1,9 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { readStepGiven } from "../../apps/server/src/modules/knowledge/step-given.ts";
+import { createRunControlRegistry } from "../../apps/server/src/modules/execution/control.ts";
+import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
+import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
+import { StandardError } from "../../packages/contracts/src/http.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { compiled } from "../helpers/workflow-interpreter.ts";
@@ -180,6 +184,7 @@ Deno.test(
           organizationId: fixture.organizationId,
           runId: seeded.runId,
           stepKey: seeded.stepKey,
+          readerMayRead: true,
         });
 
         assertEquals(given?.stepKey, "gate");
@@ -203,6 +208,87 @@ Deno.test(
       } finally {
         await releaseFacts(fixture);
       }
+    }),
+);
+
+Deno.test(
+  "the runSteps.given operation answers a started step and hides documents its reader cannot open",
+  () =>
+    withWorkerFixture(async (fixture) => {
+      const seeded = await seedStep(fixture);
+      const document = await seedCitedVersion(fixture, seeded.runId);
+      await fixture.pgDatabase.query(
+        `insert into bakery.run_input_pins (
+           organization_id, run_id, artifact_id, artifact_version_id,
+           sha256, size_bytes
+         ) select $1, $2, v.artifact_id, v.id, v.sha256, v.size_bytes
+             from bakery.artifact_versions v
+            where v.organization_id = $1 and v.id = $3::uuid`,
+        [fixture.organizationId, seeded.runId, document],
+      );
+      await fixture.pgDatabase.query(
+        `update bakery.run_steps
+            set started_at = '2026-11-24T16:42:07.890428Z'
+          where organization_id = $1 and run_id = $2 and step_key = $3`,
+        [fixture.organizationId, seeded.runId, seeded.stepKey],
+      );
+
+      const operation = createRunControlRegistry({
+        database: fixture.pgDatabase,
+        secret: "step-given-operation-secret",
+      }).get("runSteps.given");
+      const context = (
+        stepKey: string,
+        capabilities: readonly string[],
+      ) =>
+        ({
+          transaction: fixture.pgDatabase,
+          authority: {
+            organizationId: fixture.organizationId,
+            subject: {
+              principalId: fixture.principalId,
+              principalType: "human",
+              displayName: "Grace Guest",
+            },
+            role: "guest",
+            capabilities,
+          },
+          params: { id: seeded.runId, stepKey },
+          requestId: "req-step-given",
+          traceId: "trace-step-given",
+        }) as unknown as ActionContext;
+      const read = (stepKey: string, capabilities: readonly string[]) =>
+        operation.handler(
+          context(stepKey, capabilities),
+          contractSchemas.IdPath.parse({ id: seeded.runId }),
+        );
+
+      const withRead = contractSchemas.StepGiven.parse(
+        await read(seeded.stepKey, ["runSteps.given", "artifactVersions.list"]),
+      );
+      assertEquals(withRead.stepKey, seeded.stepKey);
+      assertEquals(
+        withRead.startedAt,
+        new Date("2026-11-24T16:42:07.890Z").toISOString(),
+      );
+      assertEquals(withRead.documents.map((entry) => entry.artifactVersionId), [
+        document,
+      ]);
+      assertEquals(withRead.documentsHidden, 0);
+
+      const withoutRead = contractSchemas.StepGiven.parse(
+        await read(seeded.stepKey, ["runSteps.given"]),
+      );
+      assertEquals(withoutRead.documents, []);
+      assertEquals(withoutRead.documentsHidden, 1);
+
+      const refused = await assertRejects(
+        async () => {
+          await read("no-such-step", ["runSteps.given"]);
+        },
+        StandardError,
+      ) as StandardError;
+      assertEquals(refused.code, "RESOURCE_NOT_FOUND");
     }),
 );
 
