@@ -454,7 +454,7 @@ function OverTime(props: DeliveryScreenProps) {
             },
             {
               id: "value",
-              header: translate("delivery.chart.column.value"),
+              header: translate(figure.label),
               align: "end" as const,
               cell: (point: ChartPoint) =>
                 point.value === null

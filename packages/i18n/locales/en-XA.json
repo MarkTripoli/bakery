@@ -7179,7 +7179,6 @@
   "delivery.chart.gapCount": "⟦{count, plural, one {No data for 1 day ({gaps}).} other {No data for # days ({gaps}).}} À ĝàþ ïš ñôŧ žëŕô. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "delivery.chart.gap": "⟦ñô ðàŧà, {from} ŧô {to} ŧëšŧ ç⟧",
   "delivery.chart.gapDay": "⟦ñô ðàŧà, {date} ŧëš⟧",
-  "delivery.chart.column.day": "⟦Ðàÿ⟧",
   "delivery.chart.column.value": "⟦Ṽàļûë⟧",
   "delivery.chart.noData": "⟦Ñô ðàŧà…⟧",
   "delivery.records.rule.merged.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ɱëŕĝëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). À þûļļ ŕëǫûëšŧ ŕëôþëñëð àñð ɱëŕĝëð àĝàïñ ïš ôñë ŕôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
@@ -7188,5 +7187,9 @@
   "delivery.records.rule.closed.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš çļôšëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "delivery.missing.noLineCount": "⟦Ñôŧ ļïñë-çôûñŧëð ŧëš⟧",
   "delivery.missing.lineCountBinary": "⟦Ñôŧ ļïñë-çôûñŧëð · ƀïñàŕÿ ƒïļëš ŧëšŧ çôþ⟧",
-  "delivery.missing.lineCountTruncated": "⟦Ñôŧ ļïñë-çôûñŧëð · ôṽëŕ 3,000 ƒïļëš ŧëšŧ çôþÿŧ⟧"
+  "delivery.missing.lineCountTruncated": "⟦Ñôŧ ļïñë-çôûñŧëð · ôṽëŕ 3,000 ƒïļëš ŧëšŧ çôþÿŧ⟧",
+  "delivery.chart.band": "⟦Ñô ðàŧà, {from} ŧô {to} ŧëšŧ ç⟧",
+  "delivery.chart.bandDay": "⟦Ñô ðàŧà, {date} ŧëš⟧",
+  "delivery.chart.noDataPeriod": "⟦Ñô ðàŧà ƒôŕ ŧĥïš þëŕïôð. À ĝàþ ïš ñôŧ žëŕô. ŧëšŧ çôþÿ ŧëš⟧",
+  "delivery.chart.column.day": "⟦Ðàŧë⟧"
 }

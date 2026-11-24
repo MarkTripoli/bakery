@@ -113,7 +113,7 @@ for (
         .toHaveCount(0);
       await accessible(page);
       await page.mouse.move(700, 700);
-      await still(page, "delivery-records-tasks");
+      await still(page, "delivery-records-tasks", records);
     });
 
     test("fewer than five tasks are listed, not summarised", async ({ page }) => {
@@ -219,20 +219,35 @@ for (
       const band = chart.locator("[data-gap-band]");
       await expect(band).toHaveCount(1);
       expect(Number(await band.getAttribute("width"))).toBeGreaterThan(100);
+      await expect(chart.getByText("No data, Nov 2, 2026")).toBeVisible();
       await expect(chart.locator("[data-chart-tick='max']")).toHaveText("40");
-      const tick = await chart.locator("[data-chart-tick='max']").boundingBox();
-      const plot = await chart.boundingBox();
-      expect(tick!.x).toBeGreaterThanOrEqual(plot!.x);
-      expect(tick!.x + tick!.width).toBeLessThan(plot!.x + plot!.width);
+      const chartBox = await chart.boundingBox();
+      expect(chartBox!.height).toBe(200);
+      await expect(chart.locator("[data-chart-point]")).toHaveCount(1);
+      const table2 = page.getByRole("table", { name: "Tasks delivered" });
       await page.getByRole("button", { name: "Show as table" }).click();
-      const table = page.getByRole("table", { name: "Tasks delivered" });
-      await expect(table).toBeVisible();
-      await expect(table.getByText("No data")).toHaveCount(1);
+      await expect(table2).toBeVisible();
+      await expect(table2.getByRole("columnheader", { name: "Date" }))
+        .toBeVisible();
+      await expect(
+        table2.getByRole("columnheader", { name: "Tasks delivered" }),
+      )
+        .toBeVisible();
+      await expect(table2.getByText("No data")).toHaveCount(1);
       await page.getByRole("button", { name: "Show as chart" }).click();
       await expect(page.getByTestId("delivery-chart")).toBeVisible();
       await accessible(page);
       await page.mouse.move(700, 700);
       await still(page, "delivery-over-time");
+    });
+
+    test("a period with no measurement says so and draws no line", async ({ page }) => {
+      await deliveryFixture(page, { nothingMeasured: true });
+      await page.goto("/delivery?show=tasks");
+      await expect(
+        page.getByText("No data for this period. A gap is not zero."),
+      ).toBeVisible();
+      await expect(page.getByTestId("delivery-chart")).toHaveCount(0);
     });
 
     test("every metrics read is made for the page's organization", async ({ page }) => {

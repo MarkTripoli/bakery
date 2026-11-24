@@ -25,6 +25,8 @@ export type DeliveryOptions = {
   allAccountedFor?: boolean;
   /** The definitions version the series report; null when the server serves none. */
   revision?: string | null;
+  /** Every series reports no measurement at all, as a period with no activity does. */
+  nothingMeasured?: boolean;
 };
 
 const point = (day: number, value: number | null) => ({
@@ -39,15 +41,18 @@ const series = (
   unit: "count" | "hours" | "lines",
   values: (number | null)[],
   extra: Record<string, unknown> = {},
+  blank = false,
 ) => ({
   name,
-  points: values.map((value, index) => point(index + 1, value)),
+  points: values.map((value, index) => point(index + 1, blank ? null : value)),
   from: "2026-11-01T00:00:00.000Z",
   to: "2026-11-21T00:00:00.000Z",
   resolution: "day",
   unit,
   cohort: "Pull requests merged in the window.",
-  sampleCount: values.reduce<number>((sum, value) => sum + (value ?? 0), 0),
+  sampleCount: blank
+    ? 0
+    : values.reduce<number>((sum, value) => sum + (value ?? 0), 0),
   missingCount: 0,
   measurementRevision: revision === undefined ? "metrics@3" : revision,
   lastSyncAt: STAMP,
@@ -68,6 +73,7 @@ export async function deliveryFixture(
   page: Page,
   options: DeliveryOptions = {},
 ) {
+  const blank = options.nothingMeasured === true;
   await projectsFixture(page, { repositories: [REPO], role: "admin" });
   const merged = options.merged ?? 6;
   const runs = options.runs ?? 2;
@@ -240,13 +246,13 @@ export async function deliveryFixture(
                 { deliveryPoint: "completed_run", count: runs },
               ],
             },
-          }),
+          }, blank),
         );
       }
       if (metric === "prs.openAtCutoff") {
         return json(
           route,
-          series(options.revision, metric, "count", [3, 4, 5, 4]),
+          series(options.revision, metric, "count", [3, 4, 5, 4], {}, blank),
         );
       }
       return json(
@@ -255,12 +261,9 @@ export async function deliveryFixture(
           options.revision,
           metric,
           metric === "prs.changedLines" ? "lines" : "count",
-          [
-            2,
-            4,
-            0,
-            5,
-          ],
+          [2, 4, 0, 5],
+          {},
+          blank,
         ),
       );
     },

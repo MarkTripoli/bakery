@@ -7179,7 +7179,6 @@
   "delivery.chart.gapCount": "⟪{count, plural, one {No data for 1 day ({gaps}).} other {No data for # days ({gaps}).}} A gap is not zero.⟫",
   "delivery.chart.gap": "⟪no data, {from} to {to}⟫",
   "delivery.chart.gapDay": "⟪no data, {date}⟫",
-  "delivery.chart.column.day": "⟪Day⟫",
   "delivery.chart.column.value": "⟪Value⟫",
   "delivery.chart.noData": "⟪No data⟫",
   "delivery.records.rule.merged.noVersion": "⟪Counted by when each was merged, in your time zone ({zone}). A pull request reopened and merged again is one row.⟫",
@@ -7188,5 +7187,9 @@
   "delivery.records.rule.closed.noVersion": "⟪Counted by when each was closed, in your time zone ({zone}).⟫",
   "delivery.missing.noLineCount": "⟪Not line-counted⟫",
   "delivery.missing.lineCountBinary": "⟪Not line-counted · binary files⟫",
-  "delivery.missing.lineCountTruncated": "⟪Not line-counted · over 3,000 files⟫"
+  "delivery.missing.lineCountTruncated": "⟪Not line-counted · over 3,000 files⟫",
+  "delivery.chart.band": "⟪No data, {from} to {to}⟫",
+  "delivery.chart.bandDay": "⟪No data, {date}⟫",
+  "delivery.chart.noDataPeriod": "⟪No data for this period. A gap is not zero.⟫",
+  "delivery.chart.column.day": "⟪Date⟫"
 }
