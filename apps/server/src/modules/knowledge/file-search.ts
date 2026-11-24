@@ -497,7 +497,7 @@ export function createFileSearchHandler(
          where entry.organization_id = ${org} and entry.kind = 'file'
            and entry.id not in (select id from hidden)
            and (${p(admin)}::boolean or entry.id not in (
-                select id from denied where in_restricted and not granted))
+                select id from denied where not granted))
            and (${folder}::uuid is null or entry.id in (select id from scope))
            and (${needleParam}::text is null
                 or strpos(entry.name_key, ${needleParam}) > 0)
@@ -574,7 +574,7 @@ export function createFileSearchHandler(
                 or entry.owner_id = ${p(principalId)}::uuid)
            and entry.id not in (select id from hidden)
            and (${p(admin)}::boolean or entry.id not in (
-                select id from denied where in_restricted and not granted))
+                select id from denied where not granted))
            and (${folder}::uuid is null or entry.id in (select id from scope))
            and (${needleParam}::text is null
                 or strpos(entry.name_key, ${needleParam}) > 0)

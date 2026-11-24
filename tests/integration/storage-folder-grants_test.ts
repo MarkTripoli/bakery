@@ -585,6 +585,26 @@ async function aGrantOnAnOpenFolderIsRefusedSoRestrictingLaterAdmitsOnlyTheRestr
   assertEquals(grants.map((g) => g.principalId), [fixture.principalId]);
 }
 
+async function aMemberWhoRestrictsThenReopensAFolderKeepsNoGrantWhenAnAdminRestrictsIt(
+  fixture: Fixture,
+): Promise<void> {
+  const admin = fixture.adminCookie;
+  const seed = { organizationId: fixture.organizationId } as never;
+  const carol: Member = await addMember(fixture as never, seed, "carol");
+  const shared = await folder(fixture, admin, "/shared/x");
+  await ok(await restrict(fixture, carol.cookie, shared, true));
+  await ok(await restrict(fixture, carol.cookie, shared, false));
+  await ok(await restrict(fixture, admin, shared, true));
+  assertEquals(
+    await shape(await listing(fixture, carol.cookie, shared)),
+    [404, "RESOURCE_NOT_FOUND"],
+  );
+  const grants = (await ok(
+    await call(fixture, admin, "GET", `/v1/storage/folders/${shared}/grants`),
+  )).items as Json[];
+  assertEquals(grants.map((g) => g.principalId), [fixture.principalId]);
+}
+
 async function aTrashedRestrictedFolderIsHiddenFromTrash(
   fixture: Fixture,
 ): Promise<void> {
@@ -646,6 +666,9 @@ Deno.test("folder grants and restricted folders", async () => {
       await onlyAManagerRevokesAGrant(fixture);
       await searchHidesFilesInARestrictedFolder(fixture);
       await aGrantOnAnOpenFolderIsRefusedSoRestrictingLaterAdmitsOnlyTheRestrictor(
+        fixture,
+      );
+      await aMemberWhoRestrictsThenReopensAFolderKeepsNoGrantWhenAnAdminRestrictsIt(
         fixture,
       );
       await aTrashedRestrictedFolderIsHiddenFromTrash(fixture);

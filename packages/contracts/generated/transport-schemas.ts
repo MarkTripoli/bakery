@@ -15382,7 +15382,7 @@ const transportSchemas = {
         }
       ],
       "rules": [
-        "Idempotency-Key is required. Whoever restricts a folder keeps manage on it. The same areas and the same caller rules as folder grants apply."
+        "Idempotency-Key is required. Only a working-area folder can be restricted or reopened; the same areas are refused with STORAGE_AREA_REFUSED as for grants. On a folder with no restricted folder at or above it, a member who may write in its area can restrict it and receives manage on it. Once a restricted folder is at or above it, the caller needs manage on the folder. Reopening a folder revokes the live grants on it and below it that no longer have a restricted folder at or above them."
       ],
       "description": "Restricts or reopens one folder. A restricted folder and everything under it do not exist, as far as a listing, a path or an id can tell, to a member who holds no grant inside it."
     },

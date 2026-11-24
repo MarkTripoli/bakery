@@ -64,7 +64,11 @@ import {
   type StoragePolicy,
   storageQueryOf,
 } from "./storage-tree.ts";
-import { mayEditAt, mayViewAt } from "./folder-access-store.ts";
+import {
+  isOrganizationAdmin,
+  mayEditAt,
+  mayViewAt,
+} from "./folder-access-store.ts";
 import {
   type EntryNow,
   planStepUndo,
@@ -1606,13 +1610,20 @@ export function createTrashLister(secret: string) {
       limit + 1,
     ]);
     const rows = found.rows.slice(0, limit);
+    const admin = await isOrganizationAdmin(tx, organizationId, principalId);
     const listed = [];
     for (const row of rows) {
       const parentVisible = row.trash_parent_id === null ||
-        await mayViewAt(tx, organizationId, principalId, row.trash_parent_id);
+        await mayViewAt(
+          tx,
+          organizationId,
+          principalId,
+          row.trash_parent_id,
+          admin,
+        );
       if (
         parentVisible &&
-        await mayViewAt(tx, organizationId, principalId, row.id)
+        await mayViewAt(tx, organizationId, principalId, row.id, admin)
       ) {
         listed.push(row);
       }

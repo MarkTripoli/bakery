@@ -11,7 +11,11 @@ import {
   grantRefusal,
   mayManage,
 } from "./folder-access.ts";
-import { accessAt, ancestorChain } from "./folder-access-store.ts";
+import {
+  accessAt,
+  ancestorChain,
+  type EntryAccess,
+} from "./folder-access-store.ts";
 import { writeRefusal } from "./storage-areas.ts";
 import type { StoragePolicy } from "./storage-tree.ts";
 
@@ -86,7 +90,7 @@ async function manageableFolder(
   organizationId: string,
   principalId: string,
   id: string | undefined,
-): Promise<FolderRow> {
+): Promise<{ folder: FolderRow; access: EntryAccess }> {
   if (!id || !UUID.test(id)) notFound();
   const found = await tx.query<FolderRow>(
     `select id, kind, policy, owner_id, system_key, restricted, version,
@@ -115,7 +119,7 @@ async function manageableFolder(
     systemKey: folder.system_key,
   }, principalId) === undefined;
   if (!mayManage(access, mayWriteArea)) refuse("folder_manage_required");
-  return folder;
+  return { folder, access };
 }
 
 async function audit(
@@ -163,13 +167,12 @@ export async function createFolderGrant(
   if (!FOLDER_GRANT_LEVELS.includes(input.level)) {
     unprocessable("level", "unknown_level");
   }
-  const folder = await manageableFolder(
+  const { folder, access } = await manageableFolder(
     tx,
     organizationId,
     principalId,
     context.params.id,
   );
-  const access = await accessAt(tx, organizationId, principalId, folder.id);
   if (!access.restricted) refuse("folder_not_restricted");
   const member = await tx.query(
     `select 1 from bakery.organization_memberships
@@ -262,7 +265,7 @@ export async function revokeFolderGrant(context: ActionContext) {
 export async function listFolderGrants(context: ActionContext) {
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
-  const folder = await manageableFolder(
+  const { folder } = await manageableFolder(
     tx,
     organizationId,
     principalId,
@@ -277,6 +280,32 @@ export async function listFolderGrants(context: ActionContext) {
   return { items: found.rows.map(toGrant) };
 }
 
+async function revokeUncoveredGrants(
+  tx: PgTransactionClient,
+  organizationId: string,
+  revokedBy: string,
+  folderId: string,
+): Promise<void> {
+  const chain = await ancestorChain(tx, organizationId, folderId);
+  if (chain.some((node) => node.restricted)) return;
+  await tx.query(
+    `with recursive down as (
+       select id, restricted from bakery.storage_entries
+        where organization_id = $1 and id = $2
+       union all
+       select e.id, down.restricted or e.restricted
+         from bakery.storage_entries e
+         join down on e.organization_id = $1 and e.parent_id = down.id
+        where e.kind = 'folder' and e.purged_at is null)
+     update bakery.storage_folder_grants g
+        set revoked_at = now(), revoked_by = $3, version = g.version + 1
+       from down
+      where g.organization_id = $1 and g.folder_id = down.id
+        and g.revoked_at is null and not down.restricted`,
+    [organizationId, folderId, revokedBy],
+  );
+}
+
 export type FolderRestrictionInput = Readonly<{ restricted: boolean }>;
 
 export async function setFolderRestriction(
@@ -286,7 +315,7 @@ export async function setFolderRestriction(
   const { transaction: tx, organizationId, principalId } =
     requireWorkTransaction(context);
   requirePerson(context, principalId);
-  const folder = await manageableFolder(
+  const { folder } = await manageableFolder(
     tx,
     organizationId,
     principalId,
@@ -299,6 +328,9 @@ export async function setFolderRestriction(
         where organization_id = $1 and id = $2`,
       [organizationId, folder.id, input.restricted],
     );
+    if (!input.restricted) {
+      await revokeUncoveredGrants(tx, organizationId, principalId, folder.id);
+    }
     if (input.restricted) {
       const held = await tx.query(
         `select 1 from bakery.storage_folder_grants
