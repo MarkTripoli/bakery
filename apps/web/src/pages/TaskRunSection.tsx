@@ -38,7 +38,6 @@ import {
 import { stepTimelineEvents, stepTitle } from "./task-timeline.ts";
 import { TaskRunSectionView } from "./task-run-section-view.tsx";
 import { runOutcome, stepName } from "./task-step-approval/model.ts";
-import { ReferenceLink } from "../app/ReferenceLink.tsx";
 import { useStepApproval } from "./task-step-approval/use-step-approval.ts";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
