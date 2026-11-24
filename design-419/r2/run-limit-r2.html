@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+:root{
+--color-border:#E3E6EB;--color-border-strong:#CBD0D8;--color-canvas:#F5F6F8;--color-fg:#141A24;
+--color-fg-muted:#5D6675;--color-primary:#141A24;--color-primary-foreground:#FFFFFF;
+--color-status-warning:#8F5A0B;--color-status-warning-surface:#FBF3E4;--color-surface:#FFFFFF;
+--radius-control:4px;--radius-surface:6px;--layout-content:720px;--size-control:36px;
+--space-3:12px;--space-4:16px;
+--font-sans:Inter,Geist,system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 var(--font-sans);color:var(--color-fg);background:var(--color-canvas)}
+.top{height:64px;background:var(--color-surface);border-bottom:1px solid var(--color-border);display:flex;align-items:center;padding:0 20px}
+.top b{font-size:15px}
+.main{max-width:var(--layout-content);margin:0 auto;padding:32px 0}
+@media (max-width:743px){.main{padding:16px}.banner{flex-wrap:wrap}.banner .content{flex:1 1 100%}}
+.banner{display:flex;gap:var(--space-3);align-items:flex-start;background:var(--color-status-warning-surface);
+ border:1px solid var(--color-status-warning);border-radius:var(--radius-surface);color:var(--color-status-warning);
+ padding:var(--space-3) var(--space-4)}
+.banner .content{flex:1;min-width:0}
+.banner h2{margin:0;font:600 15px/1.35 var(--font-sans)}
+.banner p{margin:6px 0 0;font:14px/1.45 var(--font-sans)}
+.banner .icon{width:16px;height:16px;border:1.5px solid currentColor;border-radius:50%;flex:none;margin-top:2px}
+.btn{height:var(--size-control);border-radius:var(--radius-control);border:1px solid var(--color-border-strong);
+ background:var(--color-surface);padding:0 14px;font:inherit;font-weight:500;color:var(--color-fg)}
+.pri{background:var(--color-primary);border-color:var(--color-primary);color:var(--color-primary-foreground)}
+.body{margin-top:28px;color:var(--color-fg-muted);font-size:13.5px}
+</style></head><body>
+<div class="top"><b>Task · Add CSV export</b></div>
+<div class="main">
+  <div class="banner">
+    <span class="icon"></span>
+    <div class="content">
+      <h2 id="title">Bakery stopped to ask you</h2>
+      <p id="body">It tried twice and 1 blocking finding remains. This workflow allows up to 4 tries, so it can try 2 more. Nothing was merged.</p>
+      <div class="content" style="margin-top:12px" id="action"><button class="btn pri">Give Bakery more tries</button></div>
+    </div>
+  </div>
+  <div class="body">Below: the run's steps and findings, unchanged.</div>
+</div>
+<script>
+const q=new URLSearchParams(location.search);
+if(q.get("admin")==="1"){
+  document.getElementById("body").textContent+=" An organization administrator can give Bakery more tries.";
+  document.getElementById("action").remove();
+}
+</script>
+</body></html>

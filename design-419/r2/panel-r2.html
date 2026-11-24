@@ -1,0 +1,94 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+:root{
+--color-border:#E3E6EB;--color-border-strong:#CBD0D8;--color-canvas:#F5F6F8;--color-control-border:#8A939F;
+--color-destructive:#BE3341;--color-destructive-surface:#FCEEEF;--color-fg:#141A24;--color-fg-muted:#5D6675;
+--color-fg-tertiary:#6B7686;--color-focus:#0B63C6;--color-primary:#141A24;--color-primary-foreground:#FFFFFF;
+--color-status-warning:#8F5A0B;--color-status-warning-surface:#FBF3E4;--color-surface:#FFFFFF;
+--color-surface-subtle:#EEF0F4;--color-selection-surface:#ECF1F8;
+--radius-control:4px;--radius-surface:6px;--radius-overlay:8px;--radius-pill:999px;
+--layout-step-card:320px;--layout-step-panel:344px;--layout-content:720px;--size-control:36px;
+--font-sans:Inter,Geist,system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 var(--font-sans);color:var(--color-fg);background:var(--color-canvas)}
+.top{height:64px;background:var(--color-surface);border-bottom:1px solid var(--color-border);display:flex;align-items:center;gap:12px;padding:0 20px}
+.top b{font-size:15px}.mut{color:var(--color-fg-muted)}.cap{font-size:12px;color:var(--color-fg-tertiary)}
+.wrap{display:flex;height:calc(100vh - 64px)}
+.canvas{flex:1;padding:40px;display:flex;flex-direction:column;align-items:center;gap:18px;background-image:radial-gradient(#DFE3E9 1px,transparent 1px);background-size:18px 18px}
+.card{width:var(--layout-step-card);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-surface);padding:10px 14px;box-shadow:0 1px 2px rgba(20,26,36,.12)}
+.grp{width:calc(var(--layout-step-card) + 40px);border:1px solid var(--color-border-strong);border-radius:var(--radius-overlay);padding:12px;background:var(--color-surface)}
+.grp.sel{border:2px solid var(--color-focus);background:var(--color-selection-surface)}
+.grp h4{margin:0 0 10px;font-size:13.5px}
+.chip{display:inline-block;font-size:12px;background:var(--color-surface-subtle);border-radius:var(--radius-pill);padding:1px 8px;color:var(--color-fg-muted);margin-left:6px;font-weight:400}
+.panel{width:var(--layout-step-panel);background:var(--color-surface);border-left:1px solid var(--color-border);display:flex;flex-direction:column}
+.phead{padding:16px 20px;border-bottom:1px solid var(--color-border);font-weight:600;font-size:15px}
+.pbody{padding:16px 20px;flex:1;display:flex;flex-direction:column;gap:16px;overflow:auto}
+.pfoot{padding:12px 20px;border-top:1px solid var(--color-border)}
+.desc{color:var(--color-fg-muted);font-size:13.5px}
+h5{margin:0;font-size:13px;font-weight:600}
+.field label{display:block;font-weight:500;margin-bottom:4px;font-size:13.5px}
+.field input{width:96px;height:var(--size-control);border:1px solid var(--color-control-border);border-radius:var(--radius-control);padding:0 10px;font:inherit;color:var(--color-fg);background:var(--color-surface)}
+.field input:focus{outline:2px solid var(--color-focus);outline-offset:2px}
+.field.bad input{border-color:var(--color-destructive);box-shadow:0 0 0 2px var(--color-destructive-surface)}
+.hint{font-size:12.5px;color:var(--color-fg-muted);margin-top:4px;max-width:290px}
+.err{font-size:12.5px;color:var(--color-destructive);margin-top:4px;max-width:290px}
+.btn{height:var(--size-control);border-radius:var(--radius-control);border:1px solid var(--color-border-strong);background:var(--color-surface);padding:0 14px;font:inherit;font-weight:500;color:var(--color-fg)}
+.pri{background:var(--color-primary);border-color:var(--color-primary);color:var(--color-primary-foreground)}
+.now{width:var(--layout-content);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-overlay);padding:20px 24px}
+.now+.now{margin-top:16px}
+.pill{display:inline-block;font-size:12px;border-radius:var(--radius-pill);padding:2px 8px;font-weight:600;margin-bottom:10px;background:var(--color-status-warning-surface);color:var(--color-status-warning)}
+.pill.stop{background:var(--color-destructive-surface);color:var(--color-destructive)}
+.now h3{margin:0 0 6px;font-size:17px}
+.row{display:flex;gap:8px;margin-top:14px}
+@media (max-width:743px){.wrap{flex-direction:column;height:auto}.canvas{padding:20px;width:100%}.panel{width:100%;border-left:0;border-top:1px solid var(--color-border)}.grp{width:100%}.card{width:100%}}
+</style></head><body>
+<div class="top"><b>Deliver a change</b><span class="mut">Draft · saved</span><span style="flex:1"></span><button class="btn">Undo</button><button class="btn pri" style="margin-left:8px">Publish</button></div>
+<div class="wrap">
+  <div class="canvas">
+    <div class="card">Write the change<span class="cap"> · Implement</span></div>
+    <div class="grp sel">
+      <h4>Fix until it passes<span class="chip" id="chip">2 to 4 tries · asks after 3</span></h4>
+      <div class="card" style="width:100%;margin-bottom:8px">Fix the findings</div>
+      <div class="card" style="width:100%;margin-bottom:8px">Run the checks</div>
+      <div class="card" style="width:100%">Independent review</div>
+    </div>
+    <div class="card">Open the pull request</div>
+  </div>
+  <div class="panel">
+    <div class="phead">Fix until it passes</div>
+    <div class="pbody">
+      <div class="desc">Fixes what the checks and the review found, then checks and reviews again.</div>
+      <h5>Tries</h5>
+      <div class="field" id="f-min">
+        <label for="min">Fewest tries</label>
+        <input id="min" value="2">
+        <div class="hint" id="min-hint">Tries this many times even if the review is already clean.</div>
+      </div>
+      <div class="field" id="f-max">
+        <label for="max">Most tries</label>
+        <input id="max" value="4">
+        <div class="hint" id="max-hint">From 1 to 6. This workflow allows at most 6.</div>
+      </div>
+      <div class="field" id="f-ask">
+        <label for="ask">Ask a person after</label>
+        <input id="ask" value="3">
+        <div class="hint" id="ask-hint">Stops and asks before trying more. Leave empty to try up to the most without asking.</div>
+      </div>
+    </div>
+    <div class="pfoot"><button class="btn">View as code</button></div>
+  </div>
+</div>
+<script>
+const q=new URLSearchParams(location.search);
+if(q.get("state")==="error"){
+  document.getElementById("min").value="3";
+  document.getElementById("max").value="2";
+  const f=document.getElementById("f-max");
+  f.className="field bad";
+  document.getElementById("max-hint").remove();
+  const e=document.createElement("div");e.className="err";
+  e.textContent="Enter 3 or more. It cannot be fewer than Fewest tries. Not saved.";
+  f.appendChild(e);
+}
+</script>
+</body></html>
