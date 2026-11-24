@@ -220,14 +220,38 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
       refusal?.reason === "requirements_changed"
     ? refusal.reason
     : null;
+  // An approval that ran out of time is the one action's turn: the plan panel's
+  // Approve again. While it is expired this section is not drawn at all, because
+  // every press would be refused, and it comes back the moment the approval is
+  // live again. A press that beat the refresh keeps its sentence, so the person
+  // sees why the run did not start.
+  const expiredRace = refusal?.reason === "approval_expired";
+  if (gated && gate?.status === "expired") {
+    return expiredRace
+      ? (
+        <UI.Stack data-ui-region="start-run" gap="compact">
+          <UI.InlineNotice role="none" tone="warning">
+            {t("tasks.startRun.refused.approvalExpired")}
+          </UI.InlineNotice>
+        </UI.Stack>
+      )
+      : null;
+  }
   if (presets.data !== undefined && presets.data.items.length === 0) {
     return null;
   }
-  const notice = phase === "unknown"
+  // The stored race sentence belongs to the expired approval it named.
+  const shown = expiredRace ? null : refusal;
+  const notice = expiredRace
+    ? {
+      tone: "warning" as const,
+      text: t("tasks.startRun.refused.approvalExpired"),
+    }
+    : phase === "unknown"
     ? { tone: "warning" as const, text: t("tasks.startRun.unknown") }
     : phase === "conflict"
     // A stored refusal renders its own notice below; show one.
-    ? (refusal
+    ? (shown
       ? null
       : { tone: "error" as const, text: t("tasks.startRun.conflict") })
     : phase === "forbidden"
@@ -297,7 +321,7 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
             {notice.text}
           </UI.InlineNotice>
         )}
-        {refusal && explained && (
+        {shown !== null && explained && (
           <UI.InlineNotice role="none" tone="warning">
             <UI.Stack gap="compact">
               <UI.Text>
@@ -319,17 +343,17 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
             </UI.Stack>
           </UI.InlineNotice>
         )}
-        {refusal && !explained && (
+        {shown !== null && !explained && (
           <UI.InlineNotice role="none" tone="error">
             {labels.setupRequired[
-              refusal.code as keyof typeof labels.setupRequired
+              shown.code as keyof typeof labels.setupRequired
             ] ?? labels.setupRequired[
-              refusal.title as keyof typeof labels.setupRequired
+              shown.title as keyof typeof labels.setupRequired
             ] ?? (
               <>
                 {t("tasks.startRun.conflict")}
-                {refusal.title || refusal.code
-                  ? ` ${refusal.title || refusal.code}`
+                {shown.title || shown.code
+                  ? ` ${shown.title || shown.code}`
                   : null}
               </>
             )}

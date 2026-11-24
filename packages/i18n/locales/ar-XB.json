@@ -6813,5 +6813,6 @@
   "tasks.conversation.plan.refusal.closed": "⟪This request closed while you were deciding. The current state is shown.⟫",
   "tasks.conversation.plan.refusal.audience": "⟪This decision is for the people on this task. Ask one of them.⟫",
   "tasks.conversation.plan.rejectDialog.title": "⟪Reject this plan?⟫",
-  "tasks.conversation.plan.rejectDialog.body": "⟪Bakery will not build from version {revision}. You can ask for changes instead. This cannot be undone.⟫"
+  "tasks.conversation.plan.rejectDialog.body": "⟪Bakery will not build from version {revision}. You can ask for changes instead. This cannot be undone.⟫",
+  "tasks.startRun.refused.approvalExpired": "⟪This approval expired, so the run did not start. Approve the plan again, then start the run.⟫"
 }

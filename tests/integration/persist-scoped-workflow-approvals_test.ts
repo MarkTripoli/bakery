@@ -371,6 +371,15 @@ Deno.test("an approval that was given and then expired can be given again, and a
       (await f.startRun(task.taskId, { approvalId: given.id })).status,
       409,
     );
+    // The 409 names the expiry, so the page can say the approval ran out of
+    // time instead of showing setup words.
+    const refused = await f.startRun(task.taskId, { approvalId: given.id });
+    const body = await refused.json();
+    assertEquals([body.code, body.reason], [
+      "STATE_CONFLICT",
+      "approval_expired",
+    ]);
+    assertEquals(await f.runCount(task.taskId), 0);
     const response = await f.decide(expired, "approve");
     assertEquals(response.status, 200, await response.clone().text());
     const again = await response.json() as ApprovalView;

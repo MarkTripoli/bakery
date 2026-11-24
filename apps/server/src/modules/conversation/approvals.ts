@@ -1105,12 +1105,46 @@ export async function revokeApproval(
 }
 
 /**
+ * Why one admission's approval did not match. An approval that ran out of time
+ * while its plan was still the current one is its own answer: the page read it
+ * as live and the person pressed Start run, so the page says what happened and
+ * what to do. A plan that moved on keeps the one refusal the route already
+ * gives, because approving again is not the fix there.
+ */
+async function refusedAdmissionReason(
+  transaction: PgTransactionClient,
+  facts: { organizationId: string; taskId: string; approvalId: string },
+): Promise<string> {
+  const expired = await transaction.query(
+    `select 1 from bakery.questions q
+      where q.organization_id = $1 and q.task_id = $2 and q.id = $3
+        and q.kind = 'approval' and q.subject_type = 'plan_revision'
+        and (q.status = 'expired' or (
+          q.status in ('open', 'answered') and q.expires_at is not null
+          and q.expires_at <= now()))
+        and q.subject_id = (
+          select r.id from bakery.plan_revisions r
+           where r.organization_id = $1 and r.task_id = $2
+             and r.status = 'approved'
+           order by r.revision desc limit 1)
+        and q.subject_digest = (
+          select r.digest from bakery.plan_revisions r
+           where r.organization_id = $1 and r.id = q.subject_id)
+      limit 1`,
+    [facts.organizationId, facts.taskId, facts.approvalId],
+  );
+  return expired.rows.length > 0 ? "approval_expired" : "approval_unavailable";
+}
+
+/**
  * Consumes the approval for one run admission, inside the admission
  * transaction. One conditional update binds organization, task, subject, the
  * current approved revision's id and digest, stage, policy digest, decision,
- * revocation and expiry. Zero rows means `approval_unavailable` and the whole
- * admission rolls back; the run's task and stage come from the admission, so
- * another task's approval never matches even for an identical plan body.
+ * revocation and expiry. Zero rows means the run starts from no approval: an
+ * approval that ran out of time is `approval_expired`, anything else is
+ * `approval_unavailable`, and the whole admission rolls back. The run's task
+ * and stage come from the admission, so another task's approval never matches
+ * even for an identical plan body.
  */
 export async function consumeApprovalForAdmission(
   transaction: PgTransactionClient,
@@ -1168,7 +1202,7 @@ export async function consumeApprovalForAdmission(
     ],
   );
   const row = consumed.rows[0];
-  if (!row) conflict("approval_unavailable");
+  if (!row) conflict(await refusedAdmissionReason(transaction, facts));
   const scope = await scopeOf(
     transaction,
     facts.organizationId,

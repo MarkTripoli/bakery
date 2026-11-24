@@ -1683,6 +1683,7 @@
   "tasks.startRun.noProfile": "This task has no repository profile, so a run cannot start.",
   "tasks.startRun.unknown": "The server did not confirm the run. Retry to replay the same request; no second run is created.",
   "tasks.startRun.conflict": "The server did not admit the run. Check the setup below, then start the run again.",
+  "tasks.startRun.refused.approvalExpired": "This approval expired, so the run did not start. Approve the plan again, then start the run.",
   "tasks.startRun.refused.sourcePolicyChanged": "The repository's rules changed before this run could start. Check the rules, then start the run again.",
   "tasks.startRun.refused.requirementsChanged": "What this task needs changed before the run could start. Review the task, then start the run again.",
   "tasks.startRun.forbidden": "You are not allowed to start runs for this task.",

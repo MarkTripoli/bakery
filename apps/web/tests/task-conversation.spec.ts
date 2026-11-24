@@ -3093,6 +3093,105 @@ test("a press on a task with no repository profile focuses the notice and sends 
   expect(runs).toHaveLength(0);
 });
 
+test("an expired approval hides Start a run, and Approve again brings it back", async ({ page }) => {
+  const state = world({
+    approvals: [
+      approval(3, {
+        status: "expired",
+        decision: "approve",
+        decidedBy: principalId,
+        decidedAt: stamp(13),
+        expiresAt: new Date(Date.parse(stamp(12)) + 7 * 86_400_000)
+          .toISOString(),
+      }),
+    ],
+  });
+  await mockWorld(page, state);
+  await page.route("**/v1/workflow-presets*", (route) =>
+    route.fulfill({
+      json: page_([{
+        id: "fixed-coding",
+        revision: 1,
+        digest: "a".repeat(64),
+        nameKey: "workflowPresets.fixedCoding.name",
+        steps: [{ id: "implement", uses: "harness.implement" }],
+        defaultBudgetLimitUsd: "5.00",
+        availability: {
+          minimumBudgetLimitUsd: null,
+          status: "ready",
+          reasons: [],
+        },
+      }].map(presetRead)),
+    }));
+  await firstRender(
+    () => page.goto(`/tasks/${taskId}`),
+    (timeout) => expect(conversation(page)).toBeVisible({ timeout }),
+  );
+  await expect(page.locator('[data-ui-region="start-run"]')).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Start run", exact: true }))
+    .toHaveCount(0);
+  await showPlan(page);
+  await expect(plan(page)).toContainText("Approval expired");
+  await page.getByRole("button", { name: "Approve again" }).click();
+  await expect(page.locator('[data-ui-region="start-run"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start run", exact: true }))
+    .toBeVisible();
+});
+
+test("a Start run press that beats the expiry says the approval expired", async ({ page }) => {
+  const state = world();
+  await mockWorld(page, state);
+  await page.route("**/v1/workflow-presets*", (route) =>
+    route.fulfill({
+      json: page_([{
+        id: "fixed-coding",
+        revision: 1,
+        digest: "a".repeat(64),
+        nameKey: "workflowPresets.fixedCoding.name",
+        steps: [{ id: "implement", uses: "harness.implement" }],
+        defaultBudgetLimitUsd: "5.00",
+        availability: {
+          minimumBudgetLimitUsd: null,
+          status: "ready",
+          reasons: [],
+        },
+      }].map(presetRead)),
+    }));
+  const runs: unknown[] = [];
+  await page.route(`**/v1/tasks/${taskId}/runs`, (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    runs.push(route.request().postDataJSON());
+    return route.fulfill({
+      status: 409,
+      contentType: "application/problem+json",
+      json: problem(409, "STATE_CONFLICT", false, "approval_expired"),
+    });
+  });
+  await firstRender(
+    () => page.goto(`/tasks/${taskId}`),
+    (timeout) => expect(conversation(page)).toBeVisible({ timeout }),
+  );
+  await showPlan(page);
+  await approve(page, 3).click();
+  await expect(page.getByText("You approved plan, version 3")).toBeVisible();
+  const sheet = page.locator('[data-ui-region="plan-sheet"]');
+  if (await sheet.isVisible()) {
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+  }
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
+  await page.getByRole("button", { name: "Start run", exact: true }).click();
+  await expect(
+    page.getByText(
+      "This approval expired, so the run did not start. Approve the plan again, then start the run.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText(/Check the setup below/)).toHaveCount(0);
+  expect(runs).toHaveLength(1);
+});
+
 test("still: Start run pressed with a requirement missing", async ({ page }) => {
   test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
   const start = await openStartRun(page, {
