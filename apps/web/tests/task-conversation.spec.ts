@@ -751,10 +751,10 @@ test("the brief is not a synthetic transcript message", async ({ page }) => {
 
 test("the draft persists across reload and is never sent until Send", async ({ page }) => {
   const state = await open(page);
-  const box = page.getByRole("textbox", { name: "Message this task" });
+  const box = page.getByRole("combobox", { name: "Message this task" });
   await box.fill("A private thought");
   await page.reload();
-  await expect(page.getByRole("textbox", { name: "Message this task" }))
+  await expect(page.getByRole("combobox", { name: "Message this task" }))
     .toHaveValue("A private thought");
   expect(state.sent).toHaveLength(0);
   const stored = await page.evaluate(
@@ -770,14 +770,14 @@ test("the draft persists across reload and is never sent until Send", async ({ p
     intent: "discussion",
   });
   expect(state.sent[0].key).toBe(state.sent[0].body.clientMessageId);
-  await expect(page.getByRole("textbox", { name: "Message this task" }))
+  await expect(page.getByRole("combobox", { name: "Message this task" }))
     .toHaveValue("");
 });
 
 test("Ask agent sends an agent request", async ({ page }) => {
   const state = await open(page);
   await page.getByLabel("Ask agent", { exact: true }).check({ force: true });
-  await page.getByRole("textbox", { name: "Message this task" }).fill(
+  await page.getByRole("combobox", { name: "Message this task" }).fill(
     "Draft a plan",
   );
   await page.getByRole("button", { name: "Send", exact: true }).click();
@@ -799,7 +799,7 @@ test("an unknown send outcome retries the same message id once", async ({ page }
         json: message(40, "user", "Resilient"),
       });
   await open(page, state);
-  await page.getByRole("textbox", { name: "Message this task" }).fill(
+  await page.getByRole("combobox", { name: "Message this task" }).fill(
     "Resilient",
   );
   await page.getByRole("button", { name: "Send", exact: true }).click();
@@ -1280,7 +1280,7 @@ test("unsupported steering is explicit in the run controls while a run is active
     0,
   );
   // Questions to the agent are still accepted and saved to the conversation.
-  await page.getByRole("textbox", { name: "Message this task" }).fill(
+  await page.getByRole("combobox", { name: "Message this task" }).fill(
     "How is it going?",
   );
   await page.getByRole("button", { name: "Send", exact: true }).click();
@@ -1377,7 +1377,7 @@ test("a finished run invites discussing the results", async ({ page }) => {
     }),
   );
   await expect(page.getByText("The run has finished.")).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Message this task" }))
+  await expect(page.getByRole("combobox", { name: "Message this task" }))
     .toBeEnabled();
 });
 
@@ -1500,7 +1500,7 @@ test.describe("route states", () => {
 
   test("offline disables sending and decisions, then reconnects", async ({ page, context }) => {
     await open(page);
-    await page.getByRole("textbox", { name: "Message this task" }).fill("x");
+    await page.getByRole("combobox", { name: "Message this task" }).fill("x");
     await context.setOffline(true);
     await page.evaluate(() => globalThis.dispatchEvent(new Event("offline")));
     await expect(page.getByText(/^You are offline\. Your draft/)).toBeVisible();
@@ -1641,7 +1641,7 @@ test("keyboard reaches the plan decisions and the composer in order", async ({ p
   await expect(page.getByRole("textbox", { name: "What should change?" }))
     .toBeVisible();
   await hidePlan(page);
-  await page.getByRole("textbox", { name: "Message this task" }).focus();
+  await page.getByRole("combobox", { name: "Message this task" }).focus();
   await page.keyboard.type("hello");
   await page.keyboard.press("Control+Enter");
   await expect(page.getByText("hello").last()).toBeVisible();
@@ -1668,7 +1668,7 @@ test(
     };
     await check([
       page.getByRole("button", { name: "Send", exact: true }),
-      page.getByRole("textbox", { name: "Message this task" }),
+      page.getByRole("combobox", { name: "Message this task" }),
     ]);
     await showPlan(page);
     await check([
@@ -1960,7 +1960,7 @@ test(
       .toBeVisible();
     // The composer stays reachable at 200%: dismiss the sheet, then type.
     await hidePlan(page);
-    const composer = page.getByRole("textbox", { name: "Message this task" });
+    const composer = page.getByRole("combobox", { name: "Message this task" });
     await composer.scrollIntoViewIfNeeded();
     await expect(composer).toBeInViewport({ ratio: 1 });
     await composer.fill("zoom check");
@@ -2231,7 +2231,7 @@ test.describe("participants and live updates", () => {
     const stream = await mockStream(page);
     await open(page, state);
     await expect.poll(() => stream.subscribes.length).toBe(1);
-    const box = page.getByRole("textbox", { name: "Message this task" });
+    const box = page.getByRole("combobox", { name: "Message this task" });
     await box.fill("Not yet");
     state.messages.push(message(6, "user", "From Dana.", otherPrincipalId));
     stream.push();
@@ -2636,7 +2636,7 @@ for (
     test(`the task page is the window: it never scrolls as a whole (${label}, ${status})`, async ({ page }) => {
       await page.setViewportSize({ width, height });
       await openRun(page, status);
-      await expect(page.getByRole("textbox", { name: "Message this task" }))
+      await expect(page.getByRole("combobox", { name: "Message this task" }))
         .toBeVisible();
       await page.waitForTimeout(500);
       const result = await scrollEverythingToItsEnd(page);
@@ -2667,7 +2667,7 @@ test("still: the task page at the window top and the very bottom", async ({ page
     ) {
       await page.setViewportSize({ width, height });
       await page.goto(`/tasks/${taskId}`);
-      await expect(page.getByRole("textbox", { name: "Message this task" }))
+      await expect(page.getByRole("combobox", { name: "Message this task" }))
         .toBeVisible();
       await page.waitForTimeout(800);
       await scrollEverythingToItsEnd(page);
@@ -2895,7 +2895,7 @@ test("a blocked run whose reason the page does not know says it does not know", 
 const ANA = "00000000-0000-4000-8000-0000000000a1";
 const SAM = "00000000-0000-4000-8000-0000000000a2";
 const messageBox = (page: Page) =>
-  page.getByRole("textbox", { name: "Message this task" });
+  page.getByRole("combobox", { name: "Message this task" });
 const refusal = (issues: { index: number; code: string }[]) => ({
   ...problem(422, "UNPROCESSABLE"),
   issues: issues.map(({ index, code }) => ({
@@ -2994,6 +2994,18 @@ test("the keys: arrows move, Enter chooses, Escape closes and keeps the text", a
   await expect(box).toHaveValue("@Samir Okafor ");
 });
 
+test("the message field is a combobox that is expanded only while the picker shows", async ({ page }) => {
+  await open(page);
+  const box = messageBox(page);
+  await expect(box).toHaveAttribute("role", "combobox");
+  await expect(box).toHaveAttribute("aria-expanded", "false");
+  await box.fill("@");
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await expect(box).toHaveAttribute("aria-expanded", "true");
+  await box.press("Escape");
+  await expect(box).toHaveAttribute("aria-expanded", "false");
+});
+
 test("editing the inserted name drops its chip; the chip's button takes the @ name off; a typed @name mentions nobody", async ({ page }) => {
   const state = await open(page);
   const box = messageBox(page);
@@ -3010,8 +3022,7 @@ test("editing the inserted name drops its chip; the chip's button takes the @ na
   await page.getByRole("option", { name: "Ana Ruiz", exact: true }).click();
   await page.getByRole("button", { name: "Remove mention of Ana Ruiz" })
     .click();
-  await expect(box).not.toHaveValue(/@Ana Ruiz/);
-  // A name typed by hand is just text.
+  await expect(box).toHaveValue("Hi Ana Ruiz ");
   await box.fill("Thanks @Ana Ruiz");
   await expect(page.getByText("Will be notified")).toHaveCount(0);
   await page.getByRole("button", { name: "Send", exact: true }).click();

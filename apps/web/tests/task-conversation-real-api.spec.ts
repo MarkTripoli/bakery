@@ -91,7 +91,7 @@ async function shot(page: Page, name: string) {
 const conversationRegion = (page: Page) =>
   page.getByRole("region", { name: "Conversation", exact: true });
 const message = (page: Page) =>
-  page.getByRole("textbox", { name: "Message this task" });
+  page.getByRole("combobox", { name: "Message this task" });
 const send = (page: Page) =>
   page.getByRole("button", { name: "Send", exact: true });
 const approve = (page: Page, n: number) =>

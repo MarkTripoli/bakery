@@ -44,7 +44,6 @@ import {
   rowKind,
   triggerAt,
   withoutAtSign,
-  withoutMention,
 } from "./mentions-state.ts";
 
 /** What a mention that gives access to a document gives: read and comment, or also edit. */
@@ -62,6 +61,8 @@ export type MentionField = {
     readonly onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
     readonly onKeyUp: () => void;
     readonly onClick: () => void;
+    readonly role: "combobox";
+    readonly "aria-expanded": boolean;
     readonly "aria-autocomplete": "list";
     readonly "aria-controls": string | undefined;
     readonly "aria-activedescendant": string | undefined;
@@ -450,11 +451,8 @@ export function useMentionField(
     });
     setSent((current) => current === null ? null : { ...current, state });
   };
-  // "Don't mention" keeps the name as words; the chip's remove cuts the whole word.
-  const removeMention = (mention: Mention, keepName = false) => {
-    onValue(
-      keepName ? withoutAtSign(value, mention) : withoutMention(value, mention),
-    );
+  const removeMention = (mention: Mention) => {
+    onValue(withoutAtSign(value, mention));
     setMentions((current) =>
       current.filter((entry) => entry.principalId !== mention.principalId)
     );
@@ -518,7 +516,7 @@ export function useMentionField(
                   label: translate("mentions.offer.decline", {
                     name: offering[0].name,
                   }),
-                  onDecline: () => removeMention(offering[0], true),
+                  onDecline: () => removeMention(offering[0]),
                 }
                 : undefined}
               control={source.kind === "comment"
@@ -593,7 +591,7 @@ export function useMentionField(
                   label: translate("mentions.offer.decline", {
                     name: blocking[0].name,
                   }),
-                  onDecline: () => removeMention(blocking[0], true),
+                  onDecline: () => removeMention(blocking[0]),
                 }
                 : undefined}
               detail={sharersRead.isError
@@ -712,6 +710,8 @@ export function useMentionField(
       },
       onKeyUp: () => setCaret(ref.current?.selectionStart ?? value.length),
       onClick: () => setCaret(ref.current?.selectionStart ?? value.length),
+      role: "combobox",
+      "aria-expanded": showing,
       "aria-autocomplete": "list",
       "aria-controls": showing ? listId : undefined,
       "aria-activedescendant": showing && activeId !== null
