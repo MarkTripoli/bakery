@@ -1069,6 +1069,8 @@ export async function createRunCommand(
     transaction,
     {
       organizationId,
+      principalId,
+      context,
       inputs: suppliedInputs,
       inputPaths: input.inputPaths,
       ...(storageConnections === undefined ? {} : {
