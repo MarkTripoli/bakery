@@ -1,5 +1,8 @@
 import { assertEquals } from "@std/assert";
-import { stepTimelineEvents } from "../../apps/web/src/pages/task-timeline.ts";
+import {
+  stepTimelineEvents,
+  stepTitle,
+} from "../../apps/web/src/pages/task-timeline.ts";
 
 // deno-lint-ignore no-explicit-any
 const t = ((key: string) => key) as any;
@@ -42,4 +45,10 @@ Deno.test("the list holds the steps and nothing about the run itself", () => {
       .map((row) => [row.id, row.status]),
     [["s1", "complete"], ["s2", "failed"]],
   );
+});
+
+Deno.test("a step reads as its title, or as its key in words", () => {
+  assertEquals(stepTitle(t, "implement"), "tasks.timeline.step.implement");
+  assertEquals(stepTitle(t, "flow.hold"), "Flow hold");
+  assertEquals(stepTitle(t, "design_signoff"), "Design signoff");
 });

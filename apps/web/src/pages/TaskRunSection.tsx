@@ -280,7 +280,10 @@ export function TaskRunSection(
       );
       const latest = changed.at(-1);
       if (latest) {
-        setStepUpdate({ name: latest.stepKey, status: latest.status });
+        setStepUpdate({
+          name: stepName(latest.stepKey),
+          status: latest.status,
+        });
       }
     } else {
       setStepUpdate(null);
@@ -329,12 +332,14 @@ export function TaskRunSection(
         ? (
           <SessionRunNow
             source={runningSource}
-            stepName={otherRunning ? runningStepKey : undefined}
+            stepName={otherRunning && runningStepKey !== undefined
+              ? stepTitle(t, runningStepKey)
+              : undefined}
             onSelect={selectRunning}
           />
         )
         : null,
-    [runningSource, otherRunning, runningStepKey, selectRunning],
+    [runningSource, otherRunning, runningStepKey, selectRunning, t],
   );
   const nowLinePublished = usePublishNowLine(nowLine);
   const usageAuthority = `${authority}:${selectedStepId}`;
@@ -361,7 +366,9 @@ export function TaskRunSection(
     enabled: validRun && run.data !== undefined,
   });
   const stepNames = new Map(
-    (steps.data?.items ?? []).map((step) => [step.id, step.stepKey] as const),
+    (steps.data?.items ?? []).map((step) =>
+      [step.id, stepName(step.stepKey)] as const
+    ),
   );
   const showRulesDetails = () => {
     const details = document.getElementById("run-details");
@@ -833,7 +840,7 @@ export function TaskRunSection(
                           value={selectedStepId}
                           options={steps.data.items.map((step) => ({
                             value: step.id,
-                            label: step.stepKey,
+                            label: stepTitle(t, step.stepKey),
                           }))}
                           onChange={(event) =>
                             setOutputStepId(event.target.value)}

@@ -1,5 +1,6 @@
 import type { Translator } from "@bakery/i18n";
 import type { RunStepListResponse } from "../api/client.ts";
+import { capitalized, stepName } from "./task-step-approval/model.ts";
 
 type RunStep = RunStepListResponse["items"][number];
 
@@ -50,10 +51,10 @@ const KNOWN_STEPS = {
   implement: "tasks.timeline.step.implement",
 } as const;
 
-/** A step's name for people: the known title, else the step's own key. */
+/** A step's name for people: the known title, else its key in words. */
 export function stepTitle(t: Translator, stepKey: string): string {
   const known = KNOWN_STEPS[stepKey as keyof typeof KNOWN_STEPS];
-  return known ? t(known) : stepKey;
+  return known ? t(known) : capitalized(stepName(stepKey));
 }
 
 /** True when the server recorded the missing-harness fault on this step. */
