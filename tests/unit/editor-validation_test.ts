@@ -6,7 +6,9 @@ import {
   stepIndexOf,
   stepProblemLine,
   stepProblemLines,
+  unboundActionsOf,
   type ValidationProblem,
+  withoutUnboundAgent,
 } from "../../apps/web/src/pages/library/editor-validation.ts";
 
 const problem = (
@@ -54,12 +56,11 @@ Deno.test("a step's line is its first sentence, with no count", () => {
   assertEquals(
     stepProblemLine([{
       path: "/steps/0",
-      code: "model_agent_unbound",
+      code: "action_not_executable",
       message: "validator text",
     }]),
-    "This step has no agent to run it, and agents cannot be chosen on this " +
-      "page yet. Delete the step, or ask an administrator to set the " +
-      "workflow's agents.",
+    "This kind of step cannot run yet. Delete it or put another step in its " +
+      "place.",
   );
   // The card and the list show one sentence; how many more there are is the
   // problems chip's job, not a "(+1)" glued to the end of a sentence (#67 UX
@@ -101,4 +102,21 @@ Deno.test("the three reasons a skill needs a choice read as one sentence, and it
     ]).length,
     2,
   );
+});
+
+Deno.test("an unbound agent is advice: it leaves the problems and names its actions", () => {
+  const warning = {
+    path: "/steps/1/steps/0/uses",
+    code: "model_agent_unbound",
+    message: "x",
+  };
+  const real = problem("/steps/0");
+  assertEquals(withoutUnboundAgent([warning, real]), [real]);
+  const definition = {
+    steps: [{ uses: "task.brief" }, { steps: [{ uses: "agent.freeform" }] }],
+  };
+  assertEquals([...unboundActionsOf([warning, real], definition)], [
+    "agent.freeform",
+  ]);
+  assertEquals(unboundActionsOf([real], definition).size, 0);
 });

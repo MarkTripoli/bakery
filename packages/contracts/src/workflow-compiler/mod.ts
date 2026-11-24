@@ -139,3 +139,8 @@ export type {
   WorkflowFileWriteArea,
   WorkflowStepFiles,
 } from "./step-files.ts";
+
+export {
+  DOCUMENT_OUTPUT_ACTIONS,
+  documentOutputSlot,
+} from "./document-slots.ts";

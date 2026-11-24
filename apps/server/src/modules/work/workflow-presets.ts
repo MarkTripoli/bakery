@@ -81,6 +81,7 @@ const uniformAgentReasons = (reason: AvailabilityReason): AgentReasons =>
 const AGENT_REASONS_BY_ACTION: Readonly<Record<string, AgentReasons>> = Object
   .freeze({
     "harness.implement": CODING_AGENT_REASONS,
+    "agent.freeform": CODING_AGENT_REASONS,
     "harness.repair": uniformAgentReasons("repair_agent_unavailable"),
     "review.independent": uniformAgentReasons("review_agent_unavailable"),
   });
@@ -495,6 +496,7 @@ export function presetOutput(
   availability: AvailabilityOutput | null,
 ): WorkflowPresetOutput {
   return {
+    definition: preset.spec as unknown as WorkflowPresetOutput["definition"],
     id: preset.id,
     revision: preset.revision,
     digest: preset.digest,
@@ -509,6 +511,34 @@ export function presetOutput(
     defaultBudgetLimitUsd: preset.defaultBudgetLimitUsd,
     availability,
   };
+}
+
+function declaredInputs(
+  preset: WorkflowPresetDefinition,
+): Readonly<Record<string, Readonly<{ required: boolean }>>> {
+  return isPresetDocument(preset.spec) ? preset.spec.inputs : {};
+}
+
+export function presetDeclaresGates(
+  preset: WorkflowPresetDefinition,
+): boolean {
+  return Object.hasOwn(declaredInputs(preset), "gates");
+}
+
+export function presetRunInputs(
+  preset: WorkflowPresetDefinition,
+  task: Parameters<typeof presetBriefInputs>[0],
+  approvedPlan: ApprovedPlanForInstructions | null | undefined,
+  gates: "plan" | "none" | undefined,
+): ReturnType<typeof presetBriefInputs> & { gates?: "plan" | "none" } {
+  const inputs = presetBriefInputs(task, approvedPlan);
+  const declared = declaredInputs(preset);
+  const carried = Object.fromEntries(
+    Object.entries(inputs).filter(([name]) => Object.hasOwn(declared, name)),
+  ) as typeof inputs;
+  return presetDeclaresGates(preset)
+    ? { ...carried, gates: gates ?? "plan" }
+    : carried;
 }
 
 /** Run inputs cap is 100000 bytes; the brief plan keeps this much headroom. */
@@ -607,7 +637,10 @@ export function presetBriefInputs(
 }
 
 export function createWorkflowPresetHandlers(
-  options: { budget?: BudgetRuntimeConfig } = {},
+  options: {
+    budget?: BudgetRuntimeConfig;
+    presets?: readonly WorkflowPresetDefinition[];
+  } = {},
 ) {
   return {
     async workflowPresetsList(
@@ -618,7 +651,7 @@ export function createWorkflowPresetHandlers(
       const repositoryId = (input as { repositoryId?: string } | undefined)
         ?.repositoryId;
       const items: WorkflowPresetOutput[] = [];
-      for (const preset of WORKFLOW_PRESETS) {
+      for (const preset of options.presets ?? WORKFLOW_PRESETS) {
         items.push(presetOutput(
           preset,
           await presetActionSteps(preset.spec),
