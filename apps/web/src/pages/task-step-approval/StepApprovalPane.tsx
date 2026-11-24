@@ -164,11 +164,12 @@ export function StepApprovalPane(
     : (
       <>
         <UI.Button
-          variant="destructive-outline"
+          variant="primary"
           disabled={locked || !online}
-          onClick={() => setAsking("reject")}
+          loading={phase === "deciding"}
+          onClick={() => void send("approve", "")}
         >
-          {t("tasks.stepApproval.reject")}
+          {t("tasks.stepApproval.approve")}
         </UI.Button>
         <UI.Button
           variant="outline"
@@ -178,11 +179,11 @@ export function StepApprovalPane(
           {t("tasks.stepApproval.requestChanges")}
         </UI.Button>
         <UI.Button
+          variant="destructive-outline"
           disabled={locked || !online}
-          loading={phase === "deciding"}
-          onClick={() => void send("approve", "")}
+          onClick={() => setAsking("reject")}
         >
-          {t("tasks.stepApproval.approve")}
+          {t("tasks.stepApproval.reject")}
         </UI.Button>
       </>
     );
