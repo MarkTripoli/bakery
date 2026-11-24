@@ -68,16 +68,9 @@ pub fn feed_may_be_asked(server: &str) -> bool {
 }
 
 fn feed_address_allowed(server: &str, debug_build: bool) -> bool {
-    let Ok(address) = url::Url::parse(server) else {
-        return false;
-    };
     debug_build
-        || address.scheme() == "https"
-        || matches!(
-            address.host(),
-            Some(url::Host::Ipv4(host)) if host.is_loopback()
-        )
-        || address.host_str() == Some("localhost")
+        || url::Url::parse(server).is_ok_and(|address| address.scheme() == "https")
+        || bakery_desktop_core::address::is_this_computer_address(server)
 }
 
 pub async fn look(app: &AppHandle, server: &str) -> Looked {
@@ -186,6 +179,7 @@ mod tests {
         assert!(feed_address_allowed("https://bakery.acme.example", false));
         assert!(feed_address_allowed("http://127.0.0.1:8000", false));
         assert!(feed_address_allowed("http://localhost:8000", false));
+        assert!(feed_address_allowed("http://[::1]:8000", false));
         assert!(!feed_address_allowed("http://bakery.acme.example", false));
         assert!(!feed_address_allowed("http://10.0.0.5:8000", false));
         assert!(!feed_address_allowed("not an address", false));
