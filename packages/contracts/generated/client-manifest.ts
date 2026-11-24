@@ -33131,6 +33131,14 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "The repository the batch works through. It must be taking issues (an enabled ticket source), and no other batch may be live in it."
         },
+        "presetId": {
+          "type": "string",
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ],
+          "description": "The built-in workflow every issue in this batch runs: fixed-coding or fixed-coding-reviewed. Required: a batch is never started without a workflow chosen, so no one is given a workflow they did not choose. Each issue is admitted with it; a workflow the repository cannot run stops the batch with the pause reason workflow_cannot_start."
+        },
         "maxIssues": {
           "type": "integer",
           "minimum": 1,
@@ -33159,6 +33167,7 @@ export const clientManifest = {
       },
       "required": [
         "repositoryId",
+        "presetId",
         "maxIssues",
         "maxHours",
         "maxSpendUsd",
@@ -111046,6 +111055,23 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "The repository it works in."
         },
+        "presetId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "fixed-coding",
+                "fixed-coding-reviewed"
+              ],
+              "description": "The built-in workflow each of its issues runs; null for a batch started before the workflow was stored."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.presetId may be null in the safe projection."
+        },
         "startedBy": {
           "type": "string",
           "format": "uuid",
@@ -111456,6 +111482,7 @@ export const clientManifest = {
       "required": [
         "id",
         "repositoryId",
+        "presetId",
         "startedBy",
         "maxIssues",
         "maxHours",
@@ -111503,6 +111530,23 @@ export const clientManifest = {
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "The repository it works in."
+              },
+              "presetId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "fixed-coding",
+                      "fixed-coding-reviewed"
+                    ],
+                    "description": "The built-in workflow each of its issues runs; null for a batch started before the workflow was stored."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.presetId may be null in the safe projection."
               },
               "startedBy": {
                 "type": "string",
@@ -111914,6 +111958,7 @@ export const clientManifest = {
             "required": [
               "id",
               "repositoryId",
+              "presetId",
               "startedBy",
               "maxIssues",
               "maxHours",

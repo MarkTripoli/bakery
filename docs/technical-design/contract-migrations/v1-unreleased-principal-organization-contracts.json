@@ -1,13 +1,24 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "70cec2976e8bc36acf3c7689b53db580f9aa02f2"
+    "b2d43f5341ad9fa9fcc71d64202440231fb97c4f",
+    "bcf250d9b43bacc274e8054b81cb02a2bf5c9843"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:dfb93dbcdaae42681e1df17a992922022317bdee693ea613c448d0cd4d5bb227",
-  "reason": "#975 approval notifications carry their outcome, by dev-server on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 70cec2976e8bc36acf3c7689b53db580f9aa02f2: Notification gains a required approvalOutcome (how the approval ended and by whom, null when the destination is unavailable or the item is not an approval) so the inbox reads it in one call. No released client builds a Notification, so no caller sends the old shape.",
+  "targetCompatibilityDigest": "sha256:da4e6483b255d84e1026de9d528ed29eec7f66cbf2c91a13ee098fae305b27d4",
+  "reason": "#407 batch workflow under the owner's standing breaking-change authorization (2026-10-09), main b2d43f5341ad9fa9fcc71d64202440231fb97c4f: BatchCreate.presetId becomes a required field (fixed-coding or fixed-coding-reviewed), because a batch start admitted every issue with no workflow and #407 made that a refusal; Batch gains presetId, null for a batch started before the workflow was stored. No other contract shape changed by this branch. The #975 approval bound to main 70cec2976e8bc36acf3c7689b53db580f9aa02f2 stays below as history.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "70cec2976e8bc36acf3c7689b53db580f9aa02f2"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:dfb93dbcdaae42681e1df17a992922022317bdee693ea613c448d0cd4d5bb227",
+      "reason": "#975 approval notifications carry their outcome, by dev-server on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 70cec2976e8bc36acf3c7689b53db580f9aa02f2: Notification gains a required approvalOutcome (how the approval ended and by whom, null when the destination is unavailable or the item is not an approval) so the inbox reads it in one call. No released client builds a Notification, so no caller sends the old shape."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

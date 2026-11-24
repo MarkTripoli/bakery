@@ -3,6 +3,7 @@ import type { ActionContext } from "@bakery/contracts/action-registry";
 import type { contractSchemas } from "@bakery/contracts/contracts";
 import { BatchImplementedAction } from "@bakery/contracts/implemented-actions";
 import { StandardError, unprocessable } from "@bakery/contracts/http";
+import { workflowPresetById } from "@bakery/contracts/workflow-presets";
 import { appendAudit } from "@bakery/persistence";
 import {
   type CursorBinding,
@@ -50,6 +51,7 @@ export const LIVE_BATCH_STATES = [
 type Row = {
   id: string;
   repository_id: string;
+  preset_id: string | null;
   started_by: string;
   max_issues: number;
   max_hours: number;
@@ -71,7 +73,7 @@ type Row = {
 };
 
 const COLUMNS =
-  `batch.id, batch.repository_id, batch.started_by, batch.max_issues,
+  `batch.id, batch.repository_id, batch.preset_id, batch.started_by, batch.max_issues,
   batch.max_hours, batch.max_spend_usd::text as max_spend_usd,
   batch.continue_mode, batch.state, batch.pause_reason, batch.paused_by,
   batch.paused_at, batch.finish_reason, batch.finished_at, batch.stopped_by,
@@ -170,6 +172,7 @@ export async function loadBatch(
   return {
     id: row.id,
     repositoryId: row.repository_id,
+    presetId: row.preset_id,
     startedBy: row.started_by,
     maxIssues: row.max_issues,
     maxHours: row.max_hours,
@@ -465,11 +468,16 @@ export async function createBatch(
   // Below the smallest spend that can start one issue, the batch could never start
   // anything. When the repository cannot run work now there is no smallest amount to
   // judge by, and the supervisor says why when it tries to start.
+  const preset = workflowPresetById(input.presetId);
+  if (preset === undefined) {
+    throw unprocessable(["presetId"], "workflow_unknown");
+  }
   const smallest = await smallestBatchSpend(
     transaction,
     organizationId,
     input.repositoryId,
     budget,
+    preset,
   );
   if (smallest !== null && spend < parseMicroUsd(smallest, "smallest_spend")) {
     throw unprocessable(["maxSpendUsd"], "max_spend_below_smallest");
@@ -478,13 +486,14 @@ export async function createBatch(
   try {
     id = (await transaction.query<{ id: string }>(
       `insert into bakery.batches (
-         organization_id, repository_id, started_by, max_issues, max_hours,
-         max_spend_usd, continue_mode
-       ) values ($1, $2, $3, $4, $5, $6::numeric, $7)
+         organization_id, repository_id, preset_id, started_by, max_issues,
+         max_hours, max_spend_usd, continue_mode
+       ) values ($1, $2, $3, $4, $5, $6, $7::numeric, $8)
        returning id`,
       [
         organizationId,
         input.repositoryId,
+        input.presetId,
         principalId,
         input.maxIssues,
         input.maxHours,
@@ -508,6 +517,7 @@ export async function createBatch(
     created,
     "batches.create",
     {
+      presetId: created.presetId,
       maxIssues: created.maxIssues,
       maxHours: created.maxHours,
       maxSpendUsd: created.maxSpendUsd,

@@ -1,4 +1,3 @@
-import { HUMAN_APPROVAL_EVENT as HUMAN_APPROVAL_BOUNDS_EVENT } from "../../human-approval.ts";
 import { type DiagnosticCollector, pointerOf } from "../diagnostics.ts";
 import { WORKFLOW_COMPILER_LIMITS } from "../limits.ts";
 import type { WorkflowNode, WorkflowSemanticDocument } from "../schema.ts";
@@ -90,13 +89,8 @@ export function nodeWorstCase(node: WorkflowNode, depth = 1): WorstCase {
       return {
         steps: 1,
         attempts: 1,
-        // A human.approval wait spends no active clock: §9 puts the wait outside
-        // it, so waiting for a person must not consume the run's wall-clock
-        // budget. Every other wait counts its full duration.
         timeMs: node.wait.kind === "duration"
           ? node.wait.durationMs
-          : node.wait.event === HUMAN_APPROVAL_BOUNDS_EVENT
-          ? 0
           : node.wait.timeoutMs,
         costUsd: 0,
       };
