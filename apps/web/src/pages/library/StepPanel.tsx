@@ -76,9 +76,24 @@ export type StepSkills =
   | { readonly kind: "failed"; readonly onRetry: () => void }
   | { readonly kind: "ready"; readonly rows: readonly StepSkillRow[] };
 
+export type LoopValues = {
+  readonly min: number | null;
+  readonly max: number;
+  readonly allow: number | null;
+};
+
 /** What the panel is showing. */
 export type PanelTarget =
   | { readonly kind: "start" }
+  | {
+    readonly kind: "loop";
+    readonly name: string;
+    readonly fix: boolean;
+    readonly values: LoopValues;
+    readonly cap: number;
+    readonly help?: string | undefined;
+    readonly onCommit: (values: LoopValues) => void;
+  }
   | {
     readonly kind: "codeOnly";
     readonly name: string;
@@ -117,7 +132,7 @@ export type PanelTarget =
 export function StepPanel(
   { target, onViewAsCode }: {
     readonly target: PanelTarget;
-    readonly onViewAsCode: () => void;
+    readonly onViewAsCode: (() => void) | null;
   },
 ) {
   const { translate } = useI18n();
@@ -142,6 +157,10 @@ export function StepPanel(
     );
   }
 
+  if (target.kind === "loop") {
+    return <LoopPanel onViewAsCode={onViewAsCode} target={target} />;
+  }
+
   if (target.kind === "codeOnly") {
     return (
       <UI.InspectorPanel
@@ -149,11 +168,13 @@ export function StepPanel(
         label={label}
         variant="column"
         header={<UI.Text variant="strong">{target.name}</UI.Text>}
-        footer={
-          <UI.Button variant="secondary" onClick={onViewAsCode}>
-            {translate("library.editor.viewAsCode" as never)}
-          </UI.Button>
-        }
+        {...(onViewAsCode === null ? {} : {
+          footer: (
+            <UI.Button variant="secondary" onClick={onViewAsCode}>
+              {translate("library.editor.viewAsCode" as never)}
+            </UI.Button>
+          ),
+        })}
       >
         <UI.Stack gap="compact">
           {target.skills === undefined || target.skills.kind === "hidden"
@@ -250,6 +271,144 @@ export function StepPanel(
         {target.skills.kind === "hidden"
           ? null
           : <Skills attach={target.attach} skills={target.skills} />}
+      </UI.Stack>
+    </UI.InspectorPanel>
+  );
+}
+
+type LoopField = "min" | "max" | "allow";
+
+const wholeNumber = (text: string): number | null => {
+  const trimmed = text.trim();
+  return /^[0-9]{1,3}$/.test(trimmed) ? Number(trimmed) : null;
+};
+
+type LoopDraft = Record<LoopField, string>;
+type LoopProblem = { readonly field: LoopField; readonly error: string };
+
+function loopProblem(
+  draft: LoopDraft,
+  cap: number,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): LoopProblem | null {
+  const max = wholeNumber(draft.max);
+  if (max === null || max < 1 || max > cap) {
+    return { field: "max", error: t("mostInvalid", { cap }) };
+  }
+  const minTyped = draft.min.trim();
+  const min = minTyped === "" ? null : wholeNumber(draft.min);
+  if (min !== null && min > max) {
+    return { field: "min", error: t("fewestAboveMost", { max }) };
+  }
+  const allowTyped = draft.allow.trim();
+  const allow = allowTyped === "" ? null : wholeNumber(draft.allow);
+  const low = min ?? 1;
+  const high = Math.max(low, max - 1);
+  if (allow !== null && (allow < low || allow > high)) {
+    return { field: "allow", error: t("askRange", { low, high }) };
+  }
+  return null;
+}
+
+function LoopPanel(
+  { target, onViewAsCode }: {
+    readonly target: Extract<PanelTarget, { readonly kind: "loop" }>;
+    readonly onViewAsCode: (() => void) | null;
+  },
+) {
+  const { translate } = useI18n();
+  const t = (key: string, values?: Record<string, string | number>) =>
+    translate(`library.editor.loop.${key}` as never, values as never);
+  const asDraft = (values: LoopValues): LoopDraft => ({
+    min: values.min === null ? "" : String(values.min),
+    max: String(values.max),
+    allow: values.allow === null ? "" : String(values.allow),
+  });
+  const committed =
+    `${target.values.min}/${target.values.max}/${target.values.allow}`;
+  const [draft, setDraft] = useState<LoopDraft>(asDraft(target.values));
+  const [shown, setShown] = useState<LoopProblem | null>(null);
+  const [seen, setSeen] = useState(committed);
+  if (seen !== committed) {
+    setSeen(committed);
+    setDraft(asDraft(target.values));
+    setShown(null);
+  }
+  const commit = () => {
+    const problem = loopProblem(draft, target.cap, t);
+    setShown(problem);
+    if (problem !== null) return;
+    const min = draft.min.trim() === "" ? null : wholeNumber(draft.min);
+    const allow = draft.allow.trim() === "" ? null : wholeNumber(draft.allow);
+    target.onCommit({ min, max: wholeNumber(draft.max) as number, allow });
+  };
+  const hintFor = (field: LoopField): string => {
+    if (field === "min") {
+      if (draft.min.trim() !== "") {
+        return t(target.fix ? "fewestSet" : "fewestSetRepeat");
+      }
+      return t(target.fix ? "fewestEmpty" : "fewestEmptyRepeat");
+    }
+    if (field === "max") {
+      return target.cap < 8
+        ? t("mostHintCapped", { cap: target.cap })
+        : t("mostHint", { cap: target.cap });
+    }
+    return t("askHint");
+  };
+  const fields: readonly { field: LoopField; label: string }[] = [
+    { field: "min", label: t("fewest") },
+    { field: "max", label: t("most") },
+    { field: "allow", label: t("ask") },
+  ];
+  return (
+    <UI.InspectorPanel
+      id="editor-step-panel"
+      label={translate("library.editor.panel.label" as never)}
+      variant="column"
+      header={<UI.Text variant="strong">{target.name}</UI.Text>}
+      {...(onViewAsCode === null ? {} : {
+        footer: (
+          <UI.Button variant="secondary" onClick={onViewAsCode}>
+            {translate("library.editor.viewAsCode" as never)}
+          </UI.Button>
+        ),
+      })}
+    >
+      <UI.Stack gap="compact">
+        {target.help === undefined ? null : <UI.Text>{target.help}</UI.Text>}
+        {fields.map(({ field, label }) => (
+          <UI.Field
+            key={field}
+            error={shown?.field === field ? shown.error : undefined}
+            hint={hintFor(field)}
+            htmlFor={`loop-${field}`}
+            label={label}
+          >
+            <UI.TextInput
+              autoComplete="off"
+              id={`loop-${field}`}
+              inputMode="numeric"
+              max={field === "max" ? target.cap : undefined}
+              min={1}
+              name={field}
+              onBlur={commit}
+              onChange={(value) => {
+                setDraft((held) => ({ ...held, [field]: value }));
+                if (shown?.field === field) setShown(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commit();
+                }
+              }}
+              type="number"
+              value={draft[field]}
+            />
+          </UI.Field>
+        ))}
+        <UI.Text variant="muted">{t("codeUntil")}</UI.Text>
       </UI.Stack>
     </UI.InspectorPanel>
   );
