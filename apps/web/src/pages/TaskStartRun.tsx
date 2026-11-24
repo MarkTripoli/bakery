@@ -220,11 +220,6 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
       refusal?.reason === "requirements_changed"
     ? refusal.reason
     : null;
-  // An approval that ran out of time is the one action's turn: the plan panel's
-  // Approve again. While it is expired this section is not drawn at all, because
-  // every press would be refused, and it comes back the moment the approval is
-  // live again. A press that beat the refresh keeps its sentence, so the person
-  // sees why the run did not start.
   const expiredRace = refusal?.reason === "approval_expired";
   if (gated && gate?.status === "expired") {
     return expiredRace
@@ -240,7 +235,6 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
   if (presets.data !== undefined && presets.data.items.length === 0) {
     return null;
   }
-  // The stored race sentence belongs to the expired approval it named.
   const shown = expiredRace ? null : refusal;
   const notice = expiredRace
     ? {

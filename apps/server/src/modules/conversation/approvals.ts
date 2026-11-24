@@ -1104,13 +1104,6 @@ export async function revokeApproval(
   return toApproval(row, false);
 }
 
-/**
- * Why one admission's approval did not match. An approval that ran out of time
- * while its plan was still the current one is its own answer: the page read it
- * as live and the person pressed Start run, so the page says what happened and
- * what to do. A plan that moved on keeps the one refusal the route already
- * gives, because approving again is not the fix there.
- */
 async function refusedAdmissionReason(
   transaction: PgTransactionClient,
   facts: { organizationId: string; taskId: string; approvalId: string },
@@ -1136,16 +1129,6 @@ async function refusedAdmissionReason(
   return expired.rows.length > 0 ? "approval_expired" : "approval_unavailable";
 }
 
-/**
- * Consumes the approval for one run admission, inside the admission
- * transaction. One conditional update binds organization, task, subject, the
- * current approved revision's id and digest, stage, policy digest, decision,
- * revocation and expiry. Zero rows means the run starts from no approval: an
- * approval that ran out of time is `approval_expired`, anything else is
- * `approval_unavailable`, and the whole admission rolls back. The run's task
- * and stage come from the admission, so another task's approval never matches
- * even for an identical plan body.
- */
 export async function consumeApprovalForAdmission(
   transaction: PgTransactionClient,
   facts: {

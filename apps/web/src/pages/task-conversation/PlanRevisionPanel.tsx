@@ -33,7 +33,6 @@ export type PlanRevisionPanelProps = Readonly<{
   decidedBy?: string | null;
   phase: PlanPhase;
   mayDecide: boolean;
-  /** Whether this page offers Start a run, which only a draft task does. */
   startRunAvailable: boolean;
   expired: ExpiredApproval | null;
   refusal: PlanRefusal | null;
