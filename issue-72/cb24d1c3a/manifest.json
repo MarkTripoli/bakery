@@ -1,0 +1,71 @@
+{
+  "schema": "bakery.stills/1",
+  "generatedAt": "2026-11-24T07:55:03.977Z",
+  "distinct": true,
+  "files": [
+    {
+      "path": "handover-choice-exact-1440-dark.png",
+      "bytes": 180511,
+      "sha256": "6bc42e68c815eb2db42ab0f1466775f353c8d551ab443df39fde440885eaf267"
+    },
+    {
+      "path": "handover-choice-exact-1440-light.png",
+      "bytes": 178785,
+      "sha256": "146b8633b32f6be726c0cd4f429a28210c7f6c4f17073c1407976253e68bb95c"
+    },
+    {
+      "path": "handover-choice-exact-390-dark.png",
+      "bytes": 526279,
+      "sha256": "7dffc1ab60665a0bd87c298ea6a89111783d5dee7a84fc6a2d483da39c83a5f7"
+    },
+    {
+      "path": "handover-choice-exact-390-light.png",
+      "bytes": 515696,
+      "sha256": "d87c8c32e3a022281be536c6e6897cac008578b61832d6984526a023011dc404"
+    },
+    {
+      "path": "handover-choice-fresh-1440-dark.png",
+      "bytes": 166756,
+      "sha256": "75649582de7db798f78bb99dba7af7df05f57708176f8d034092de12a0c94447"
+    },
+    {
+      "path": "handover-choice-fresh-1440-light.png",
+      "bytes": 164966,
+      "sha256": "c373299b06ea77ab23a68724590410214a27b0fe2c7bcc3281ddb7caa37e9200"
+    },
+    {
+      "path": "handover-choice-fresh-390-dark.png",
+      "bytes": 516885,
+      "sha256": "ffd0e7f37dabdd1fb61b6c3a5efd6398cd499c75f82b2dc108d4af6cc426f07c"
+    },
+    {
+      "path": "handover-choice-fresh-390-light.png",
+      "bytes": 506323,
+      "sha256": "bcec21bcc5aab9417b8e9e300d54befbfebe32456585ebcc880e8aac21e75bcc"
+    },
+    {
+      "path": "timeline-fresh-chosen-1440-dark.png",
+      "bytes": 106669,
+      "sha256": "39ccb71a365a2267c0145dd3e1d3244661611dbd185ce2ca2d492093d3d88a7c"
+    },
+    {
+      "path": "timeline-fresh-chosen-1440-light.png",
+      "bytes": 105707,
+      "sha256": "760ea2cf74d3f8751bbbf45a2895622cbcd27ca542c718a6ba1e29d9588f973e"
+    },
+    {
+      "path": "timeline-fresh-chosen-390-dark.png",
+      "bytes": 246576,
+      "sha256": "ca1b72b12e9bb8595b22da27907ab41cc6087b0f67e9c9c9a8523012f6f990d1"
+    },
+    {
+      "path": "timeline-fresh-chosen-390-light.png",
+      "bytes": 245098,
+      "sha256": "c0eda92ed484c8e64423d5b120844e47705b5f371587cea927d7a2575d102a86"
+    }
+  ],
+  "issue": 72,
+  "slice": 3,
+  "head": "cb24d1c3a3d327a2b8553701df12dd2a51463028",
+  "source": "apps/web/tests/task-handover.spec.ts (mocked API), BAKERY_EVIDENCE_DIR with light and dark schemes, desktop 1440 and mobile 390"
+}
