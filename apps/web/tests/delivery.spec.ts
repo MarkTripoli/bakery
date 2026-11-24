@@ -4,6 +4,7 @@ import { deliveryFixture } from "./helpers/delivery-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
 import { MOCK_ORGANIZATION_ID } from "./helpers/mock-session.ts";
+import { repository, uuid } from "./helpers/projects-fixture.ts";
 
 registerPageHealth(test);
 
@@ -219,11 +220,21 @@ for (
       const band = chart.locator("[data-gap-band]");
       await expect(band).toHaveCount(1);
       expect(Number(await band.getAttribute("width"))).toBeGreaterThan(100);
-      await expect(chart.getByText("No data, Nov 2, 2026")).toBeVisible();
+      if (viewport.name === "phone") {
+        await expect(chart.getByText(/^No data, /)).toHaveCount(0);
+        await expect(page.getByText(/\(no data, Nov 2, 2026\)/))
+          .toBeVisible();
+      } else {
+        await expect(chart.getByText("No data, Nov 2, 2026")).toBeVisible();
+      }
       await expect(chart.locator("[data-chart-tick='max']")).toHaveText("40");
       const chartBox = await chart.boundingBox();
       expect(chartBox!.height).toBe(200);
       await expect(chart.locator("[data-chart-point]")).toHaveCount(1);
+      const firstCaption = await page.getByText(/^Oct 31, 2026$/).boundingBox();
+      const lastCaption = await page.getByText(/^Nov 3, 2026$/).boundingBox();
+      expect(Math.abs(firstCaption!.y - lastCaption!.y)).toBeLessThan(2);
+      expect(lastCaption!.x).toBeGreaterThan(firstCaption!.x);
       const table2 = page.getByRole("table", { name: "Tasks delivered" });
       await page.getByRole("button", { name: "Show as table" }).click();
       await expect(table2).toBeVisible();
@@ -239,6 +250,66 @@ for (
       await accessible(page);
       await page.mouse.move(700, 700);
       await still(page, "delivery-over-time");
+    });
+
+    test("a dense series keeps the band label off the line", async ({ page }) => {
+      await deliveryFixture(page);
+      const days = Array.from({ length: 90 }, (_, index) => {
+        const at = new Date(Date.UTC(2026, 7, 1 + index)).toISOString();
+        return {
+          at,
+          value: index === 45 ? null : 30 + (index % 7),
+          unknownReason: null,
+        };
+      });
+      await page.route(
+        (url) => url.pathname === "/v1/metrics",
+        (route) => {
+          const metric = new URL(route.request().url()).searchParams.get(
+            "metric",
+          );
+          if (metric !== "tasks.leadTimeHours") return route.fallback();
+          return route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              name: metric,
+              points: days,
+              from: days[0]!.at,
+              to: days.at(-1)!.at,
+              resolution: "day",
+              unit: "hours",
+              cohort: "Tasks delivered in the window.",
+              sampleCount: 89,
+              missingCount: 1,
+              measurementRevision: "metrics@3",
+              lastSyncAt: "2026-10-30T09:00:00.000Z",
+              completeness: "complete",
+              missingReasons: [],
+              hiddenCount: 0,
+              repositories: [{
+                repositoryId: repository(1, uuid(100), "web").id,
+                state: "connected",
+                since: null,
+                lastSyncAt: "2026-10-30T09:00:00.000Z",
+              }],
+              summary: {
+                median: 32,
+                p90: 36,
+                mean: 33,
+                breakdown: [],
+                deliveryPoints: [],
+              },
+            }),
+          });
+        },
+      );
+      await page.goto("/delivery?show=tasks");
+      const chart = page.getByTestId("delivery-chart");
+      await expect(chart).toBeVisible();
+      await expect(chart.locator("[data-gap-band]")).toHaveCount(1);
+      await expect(chart.getByText(/^No data, /)).toHaveCount(0);
+      await expect(page.getByText(/A gap is not zero/)).toBeVisible();
     });
 
     test("a period with no measurement says so and draws no line", async ({ page }) => {

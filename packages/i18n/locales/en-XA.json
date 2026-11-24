@@ -7179,7 +7179,6 @@
   "delivery.chart.gapCount": "⟦{count, plural, one {No data for 1 day ({gaps}).} other {No data for # days ({gaps}).}} À ĝàþ ïš ñôŧ žëŕô. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "delivery.chart.gap": "⟦ñô ðàŧà, {from} ŧô {to} ŧëšŧ ç⟧",
   "delivery.chart.gapDay": "⟦ñô ðàŧà, {date} ŧëš⟧",
-  "delivery.chart.column.value": "⟦Ṽàļûë⟧",
   "delivery.chart.noData": "⟦Ñô ðàŧà…⟧",
   "delivery.records.rule.merged.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ɱëŕĝëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). À þûļļ ŕëǫûëšŧ ŕëôþëñëð àñð ɱëŕĝëð àĝàïñ ïš ôñë ŕôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "delivery.records.rule.tasks.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ðëļïṽëŕëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",

@@ -2636,7 +2636,6 @@
   "delivery.chart.gap": "no data, {from} to {to}",
   "delivery.chart.gapDay": "no data, {date}",
   "delivery.chart.column.day": "Date",
-  "delivery.chart.column.value": "Value",
   "delivery.chart.noData": "No data",
   "delivery.period.tooLong": "Choose a period of 366 days or less.",
   "delivery.fresh.complete": "Up to date as of {time}.",

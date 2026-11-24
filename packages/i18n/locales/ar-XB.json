@@ -7179,7 +7179,6 @@
   "delivery.chart.gapCount": "⟪{count, plural, one {No data for 1 day ({gaps}).} other {No data for # days ({gaps}).}} A gap is not zero.⟫",
   "delivery.chart.gap": "⟪no data, {from} to {to}⟫",
   "delivery.chart.gapDay": "⟪no data, {date}⟫",
-  "delivery.chart.column.value": "⟪Value⟫",
   "delivery.chart.noData": "⟪No data⟫",
   "delivery.records.rule.merged.noVersion": "⟪Counted by when each was merged, in your time zone ({zone}). A pull request reopened and merged again is one row.⟫",
   "delivery.records.rule.tasks.noVersion": "⟪Counted by when each was delivered, in your time zone ({zone}).⟫",

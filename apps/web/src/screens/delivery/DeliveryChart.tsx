@@ -11,6 +11,7 @@ import {
 
 const HEIGHT = 200;
 const PAD = { top: 18, right: 12, bottom: 12, left: 44 };
+const LABEL_WIDTH = 118;
 
 export function DeliveryChart(
   {
@@ -119,16 +120,18 @@ export function DeliveryChart(
                     x={band.left}
                     y={PAD.top}
                   />
-                  <text
-                    fill="currentColor"
-                    fontSize={11}
-                    letterSpacing={0}
-                    textAnchor="middle"
-                    x={band.left + band.width / 2}
-                    y={PAD.top + 16}
-                  >
-                    {band.label}
-                  </text>
+                  {band.width < LABEL_WIDTH ? null : (
+                    <text
+                      fill="currentColor"
+                      fontSize={11}
+                      letterSpacing={0}
+                      textAnchor="middle"
+                      x={band.left + band.width / 2}
+                      y={PAD.top + 16}
+                    >
+                      {band.label}
+                    </text>
+                  )}
                 </g>
               ))}
               {segments.map((segment) =>
@@ -172,11 +175,15 @@ export function DeliveryChart(
                 {maximum}
               </text>
             </svg>
-            <UI.Inline gap="compact" variant="between">
+            <UI.Inline gap="standard">
               <UI.Text variant="caption">
                 {day.format(new Date(points[0]!.at))}
               </UI.Text>
-              <UI.Text variant="caption">
+              <UI.Text
+                data-placement="end"
+                data-chart-tick="last"
+                variant="caption"
+              >
                 {day.format(new Date(points.at(-1)!.at))}
               </UI.Text>
             </UI.Inline>
