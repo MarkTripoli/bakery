@@ -1126,6 +1126,7 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     // The parent run's step that owns a plan of child work items and completes
     // from the plan's terminal projection (docs/technical-design/25-one-engine.md 5).
     CoordinationSplit: "coordination.split",
+    PeopleTag: "people.tag",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 
@@ -1145,6 +1146,7 @@ export const ENGINE_SETTLED_STEP_ACTIONS = Object.freeze(
     WorkflowRuntimeImplementedAction.DeliveryHealth,
     WorkflowRuntimeImplementedAction.ToolCall,
     WorkflowRuntimeImplementedAction.CoordinationSplit,
+    WorkflowRuntimeImplementedAction.PeopleTag,
   ] as const,
 );
 

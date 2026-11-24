@@ -363,8 +363,34 @@ async function readRequest(
 
 /** runRequests.create */
 export async function createRunRequest(context: ActionContext, input: unknown) {
+  return await requestOnRun(context, input, null);
+}
+
+export type WorkflowStepAsk = Readonly<{
+  stepKey: string;
+  recipientId?: string;
+  recipientRoleKey?: string;
+  recipientGroupId?: string;
+  intent: "fyi" | "review";
+  artifactVersionId?: string;
+  note?: string;
+}>;
+
+export async function askFromWorkflowStep(
+  context: ActionContext,
+  ask: WorkflowStepAsk,
+) {
+  return await requestOnRun(context, ask, { stepKey: ask.stepKey });
+}
+
+async function requestOnRun(
+  context: ActionContext,
+  input: unknown,
+  step: Readonly<{ stepKey: string }> | null,
+) {
   const { transaction, organizationId, principalId, accessScope } =
     requireWorkTransaction(context);
+  const asker = step === null ? principalId : null;
   const value = input as {
     recipientId?: string;
     recipientRoleKey?: string;
@@ -575,7 +601,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
       groupId,
     );
     audience = { roleKey, groupId, name: resolved.name };
-    const others = resolved.members.filter((id) => id !== principalId);
+    const others = resolved.members.filter((id) => id !== asker);
     if (others.length === 0) {
       const path = roleKey !== null ? "recipientRoleKey" : "recipientGroupId";
       if (resolved.members.length > 0) {
@@ -598,7 +624,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     }
   } else {
     const meantId = value.recipientId as string;
-    if (meantId === principalId) {
+    if (meantId === asker) {
       unprocessable(["recipientId"], "request_self", "You cannot ask yourself");
     }
     // The person asked is resolved once, here, and frozen on the request. One
@@ -614,7 +640,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
       const ownerPerson = owner === null
         ? null
         : await activeHuman(transaction, organizationId, owner);
-      if (owner === null || ownerPerson === null || owner === principalId) {
+      if (owner === null || ownerPerson === null || owner === asker) {
         unprocessable(
           ["recipientId"],
           "request_recipient_unavailable",
@@ -631,7 +657,9 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
   }
 
   const actor: Actor = {
-    kind: attributeAction(context, principalId).actorKind,
+    kind: step === null
+      ? attributeAction(context, principalId).actorKind
+      : "workflow",
     sessionId: exercised?.origin?.agentSessionId ?? null,
     fromRunId: exercised?.origin?.runId ?? null,
   };
@@ -676,7 +704,7 @@ type Audience = Readonly<{
  * person's only in these values (O50).
  */
 type Actor = Readonly<{
-  kind: "person" | "agent";
+  kind: "person" | "agent" | "workflow";
   sessionId: string | null;
   fromRunId: string | null;
 }>;
@@ -856,7 +884,7 @@ async function askOne(
   // The same keys on every row a person or an agent writes (O50).
   const actorDetail = {
     actorKind: actor.kind,
-    onBehalfOf: actor.kind === "agent" ? principalId : null,
+    onBehalfOf: actor.kind === "person" ? null : principalId,
     sessionId: actor.sessionId,
     fromRunId: actor.fromRunId,
     audienceRoleKey: audience?.roleKey ?? null,

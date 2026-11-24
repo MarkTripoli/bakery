@@ -21895,6 +21895,7 @@
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -78718,6 +78719,66 @@
             }
           ]
         },
+        "PeopleTagInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "recipientId": {
+              "description": "The one person to tag: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one of recipientId, recipientRoleKey, recipientGroupId and recipientRunRole.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "recipientRoleKey": {
+              "description": "A role to tag instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs. PeopleTagInput.recipientRoleKey must contain at least 1 characters. PeopleTagInput.recipientRoleKey must contain at most 80 characters.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "recipientGroupId": {
+              "description": "A group to tag instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "recipientRunRole": {
+              "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item.",
+              "type": "string",
+              "enum": [
+                "starter",
+                "task_owner"
+              ]
+            },
+            "intent": {
+              "type": "string",
+              "enum": [
+                "fyi",
+                "review"
+              ],
+              "description": "What the tag asks for: fyi lets the people tagged know and lets them see the run; review also gives them the right to comment on the one artifactVersionId, until the request expires."
+            },
+            "artifactVersionId": {
+              "description": "The artifact version of this run to review. Required for review and refused for fyi.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "note": {
+              "description": "Optional one line shown to the people tagged. PeopleTagInput.note must contain at most 280 characters.",
+              "type": "string",
+              "maxLength": 280
+            },
+            "wait": {
+              "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "intent"
+          ],
+          "additionalProperties": false,
+          "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
+        },
         "IntegrationEffectQuery": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -82324,6 +82385,7 @@
                 "workflow.noop",
                 "workflow.stop",
                 "human.approval",
+                "people.tag",
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
@@ -187192,6 +187254,7 @@
                 "workflow.noop",
                 "workflow.stop",
                 "human.approval",
+                "people.tag",
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
@@ -187356,6 +187419,7 @@
                       "workflow.noop",
                       "workflow.stop",
                       "human.approval",
+                      "people.tag",
                       "artifact.publish",
                       "memory.promote",
                       "evaluation.sample",
@@ -187573,6 +187637,7 @@
                 "workflow.noop",
                 "workflow.stop",
                 "human.approval",
+                "people.tag",
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
@@ -187849,6 +187914,7 @@
                       "workflow.noop",
                       "workflow.stop",
                       "human.approval",
+                      "people.tag",
                       "artifact.publish",
                       "memory.promote",
                       "evaluation.sample",
@@ -295798,6 +295864,39 @@
           "additionalProperties": false,
           "description": "SplitOutput is the pinned worker action output contract."
         },
+        "PeopleTagOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "sent",
+                "responded",
+                "expired"
+              ],
+              "description": "How the step ended: sent when it carried on once the tag was sent, responded when someone tagged responded, expired when every request expired or was withdrawn with no response."
+            },
+            "asked": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "description": "How many people the tag asked, one request each. How many people the tag asked, one request each. PeopleTagOutput.asked must be at least 1. PeopleTagOutput.asked must be at most 50."
+            },
+            "respondedBy": {
+              "description": "PeopleTagOutput.respondedBy output may be omitted by adapters that do not expose it.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "required": [
+            "outcome",
+            "asked"
+          ],
+          "additionalProperties": false,
+          "description": "PeopleTagOutput is the pinned worker action output contract."
+        },
         "WorkflowStopOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -296021,7 +296120,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:ca5bf0565c8ccd2394e6445c1bc9276df177dd2673a9d577407096bc7b308bb6",
+  "compatibilityDigest": "sha256:1f700635fe027550127505c26f43eb78c4e119f71ae8e7f081f44b8a9d86f970",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -317598,6 +317697,66 @@
         }
       }
     },
+    "PeopleTagInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "recipientId": {
+          "description": "The one person to tag: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one of recipientId, recipientRoleKey, recipientGroupId and recipientRunRole.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "recipientRoleKey": {
+          "description": "A role to tag instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs. PeopleTagInput.recipientRoleKey must contain at least 1 characters. PeopleTagInput.recipientRoleKey must contain at most 80 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "recipientGroupId": {
+          "description": "A group to tag instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "recipientRunRole": {
+          "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item.",
+          "type": "string",
+          "enum": [
+            "starter",
+            "task_owner"
+          ]
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "fyi",
+            "review"
+          ],
+          "description": "What the tag asks for: fyi lets the people tagged know and lets them see the run; review also gives them the right to comment on the one artifactVersionId, until the request expires."
+        },
+        "artifactVersionId": {
+          "description": "The artifact version of this run to review. Required for review and refused for fyi.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "note": {
+          "description": "Optional one line shown to the people tagged. PeopleTagInput.note must contain at most 280 characters.",
+          "type": "string",
+          "maxLength": 280
+        },
+        "wait": {
+          "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "intent"
+      ],
+      "additionalProperties": false,
+      "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
+    },
     "IntegrationEffectQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -321222,6 +321381,7 @@
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -426402,6 +426562,7 @@
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -426566,6 +426727,7 @@
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -426783,6 +426945,7 @@
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -427059,6 +427222,7 @@
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -535147,6 +535311,39 @@
       ],
       "additionalProperties": false,
       "description": "SplitOutput is the pinned worker action output contract."
+    },
+    "PeopleTagOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "sent",
+            "responded",
+            "expired"
+          ],
+          "description": "How the step ended: sent when it carried on once the tag was sent, responded when someone tagged responded, expired when every request expired or was withdrawn with no response."
+        },
+        "asked": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "description": "How many people the tag asked, one request each. How many people the tag asked, one request each. PeopleTagOutput.asked must be at least 1. PeopleTagOutput.asked must be at most 50."
+        },
+        "respondedBy": {
+          "description": "PeopleTagOutput.respondedBy output may be omitted by adapters that do not expose it.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "outcome",
+        "asked"
+      ],
+      "additionalProperties": false,
+      "description": "PeopleTagOutput is the pinned worker action output contract."
     },
     "WorkflowStopOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

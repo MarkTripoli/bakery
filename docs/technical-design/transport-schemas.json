@@ -7464,6 +7464,72 @@
       ],
       "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows."
     },
+    "PeopleTagInput": {
+      "fields": [
+        {
+          "name": "recipientId",
+          "type": "uuid",
+          "required": false,
+          "description": "The one person to tag: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one of recipientId, recipientRoleKey, recipientGroupId and recipientRunRole."
+        },
+        {
+          "name": "recipientRoleKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "A role to tag instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs."
+        },
+        {
+          "name": "recipientGroupId",
+          "type": "uuid",
+          "required": false,
+          "description": "A group to tag instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs."
+        },
+        {
+          "name": "recipientRunRole",
+          "type": "enum(starter|task_owner)",
+          "required": false,
+          "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item."
+        },
+        {
+          "name": "intent",
+          "type": "enum(fyi|review)",
+          "required": true,
+          "description": "What the tag asks for: fyi lets the people tagged know and lets them see the run; review also gives them the right to comment on the one artifactVersionId, until the request expires."
+        },
+        {
+          "name": "artifactVersionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The artifact version of this run to review. Required for review and refused for fyi."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 280
+          },
+          "description": "Optional one line shown to the people tagged."
+        },
+        {
+          "name": "wait",
+          "type": "boolean",
+          "required": false,
+          "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back."
+        }
+      ],
+      "rules": [
+        "A step with no agent. The workflow tags on behalf of the person who started the run, who must still be able to write runs; the organization, the run and the step come from the run, never from this payload.",
+        "Name exactly one recipient. Every rule of a request made on the run holds: a recipient who cannot be resolved falls back to the person who started the run, with a visible note, and a role or group too large to ask is refused whole.",
+        "The step tags once, keyed by the run and the step, so a step looked at again finds its requests instead of tagging again.",
+        "A waiting step completes responded when anyone tagged responds, and expired when every request has expired or been withdrawn first. Nothing is approved by silence."
+      ],
+      "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
+    },
     "IntegrationEffectQuery": {
       "fields": [
         {
@@ -9318,7 +9384,7 @@
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -26073,7 +26139,7 @@
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -26118,7 +26184,7 @@
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",

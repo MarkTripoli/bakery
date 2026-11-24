@@ -1122,6 +1122,7 @@ export type ContractInputName =
   | "PackageImport"
   | "PasswordResetLinkCreate"
   | "PasswordResetRedemption"
+  | "PeopleTagInput"
   | "PermissionGrantCreate"
   | "PlanInput"
   | "PlanRevisionQuery"

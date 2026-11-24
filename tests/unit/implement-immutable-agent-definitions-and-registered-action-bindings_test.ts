@@ -539,6 +539,7 @@ const runtimeSet = [
   "harness.implement",
   "harness.repair",
   "human.approval",
+  "people.tag",
   "quality.check",
   "review.independent",
   "rpi.design",
@@ -587,7 +588,7 @@ Deno.test("worker-dispatched declarations pin outputSchema to the registry and t
       name === "workflow.noop" || name === "rpi.plan" ||
       name === "workflow.stop" || name === "human.approval" ||
       name === "tool.call" || name === "coordination.split" ||
-      name.startsWith("delivery.")
+      name === "people.tag" || name.startsWith("delivery.")
     ) continue;
     const metadata = WORKFLOW_ACTION_METADATA[name as "quality.check"];
     const { handler } = runtime.get(name as "quality.check");
