@@ -1,14 +1,24 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "1edb08577cabfc91ab8ea991e073ebb0a785d29a",
-    "6f9b4f2da7d62e94e26134ecf8db4795429ca17a"
+    "33633736b3f873e705ff50999f03329dc674f472"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:393b36f5c49fb96bbc82859df4b39c3297596c0cff3da77fe693c7b8df2f8ec5",
-  "reason": "#74 skill-use grants name the revision and its digest, bound to main 6f9b4f2da7d62e94e26134ecf8db4795429ca17a under the owner's standing breaking-change authorization (2026-10-09): SkillUseGrant gains revision and revisionDigest as required fields so an installed binding names the same bytes a page showed, without a second read. PM approved this contract change and the rebind on 2026-11-23. The #34 plugin job version pin approval on main fc819c510e55999f77dd9ec034e279926afa03f0 stays below as history.",
+  "targetCompatibilityDigest": "sha256:59637abebf5043c336419e3a42b11de81aa8479d868a127899fc78f8b3cdd9cf",
+  "reason": "#74 skill-use grants name the revision and its digest, bound to main 33633736b3f873e705ff50999f03329dc674f472 under the owner's standing breaking-change authorization (2026-10-09): SkillUseGrant gains revision and revisionDigest as required fields so an installed binding names the same bytes a page showed, without a second read. PM approved this contract change and the rebind on 2026-11-23. The #34 plugin job version pin approval on main fc819c510e55999f77dd9ec034e279926afa03f0 stays below as history.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "1edb08577cabfc91ab8ea991e073ebb0a785d29a",
+        "6f9b4f2da7d62e94e26134ecf8db4795429ca17a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:393b36f5c49fb96bbc82859df4b39c3297596c0cff3da77fe693c7b8df2f8ec5",
+      "reason": "The #74 skill-use grant approval bound to main 1edb08577cabfc91ab8ea991e073ebb0a785d29a and 6f9b4f2da7d62e94e26134ecf8db4795429ca17a, displaced by the rebind to main 33633736b3f873e705ff50999f03329dc674f472 after #956 added folder grants to the contracts."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
