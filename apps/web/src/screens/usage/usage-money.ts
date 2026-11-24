@@ -44,6 +44,7 @@ export function addDecimalStrings(left: string, right: string): string {
 export function usd(
   amount: string,
   lessThan: (smallest: string) => string,
+  locale = "en-US",
 ): string {
   const [whole = "0", fraction = ""] = amount.trim().split(".");
   const negative = whole.startsWith("-");
@@ -52,7 +53,7 @@ export function usd(
     BigInt(fraction.padEnd(6, "0").slice(0, 6) || "0");
   const cents = (micros + 5_000n) / 10_000n;
   if (cents === 0n && micros > 0n) {
-    const smallest = new Intl.NumberFormat("en-US", {
+    const smallest = new Intl.NumberFormat(locale, {
       style: "currency",
       currency: "USD",
     }).format(0.01);
@@ -60,12 +61,13 @@ export function usd(
     // a tiny cost; a minus sign would turn it into its opposite.
     return lessThan(smallest);
   }
-  const grouped = (cents / 100n).toString().replace(
-    /\B(?=(\d{3})+(?!\d))/g,
-    ",",
-  );
   const rest = (cents % 100n).toString().padStart(2, "0");
-  return `${negative && cents > 0n ? "-" : ""}$${grouped}.${rest}`;
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+  }).format(
+    `${negative && cents > 0n ? "-" : ""}${cents / 100n}.${rest}` as never,
+  );
 }
 
 /** Compares two decimal strings exactly, in micro-dollars: negative, zero or positive. */

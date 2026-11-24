@@ -439,15 +439,20 @@ export function registerAllowanceCases(): void {
           },
         );
         assert(response.ok, await response.clone().text());
-        const decision = await response.json() as {
-          id: string;
+        const allowed = await response.json() as {
           runId: string;
-          ordinal: number;
-          decision: string;
-          reason: string;
-          limits: { maxRepairCycles: number };
+          kind: string;
+          addedTries: number;
+          decisionId: string;
+          repeatKey: string | null;
         };
-        assertEquals(decision.runId, world.runId);
+        assertEquals(
+          [allowed.runId, allowed.kind, allowed.addedTries, allowed.repeatKey],
+          [world.runId, "repair_loop", 1, null],
+        );
+        const decision = (await world.decisions()).find((row) =>
+          row.id === allowed.decisionId
+        )!;
         assertEquals(decision.ordinal, 3);
         assertEquals([decision.decision, decision.reason], [
           "repair",
@@ -457,13 +462,13 @@ export function registerAllowanceCases(): void {
         assertEquals(await world.runStatus(), "queued");
 
         // Asked again with a new key for the same stop: the same decision.
-        const again = await expectJson<{ id: string }>(
+        const again = await expectJson<{ decisionId: string }>(
           await apiCall(world.fixture, world.fixture, "POST", path, {
             body: { tries: 1 },
           }),
           response.status,
         );
-        assertEquals(again.id, decision.id);
+        assertEquals(again.decisionId, allowed.decisionId);
         assertEquals((await world.audits("runs.reopen")).length, 1);
 
         // A run that is not stopped for lack of tries is a conflict.

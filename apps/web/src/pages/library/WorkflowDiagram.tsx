@@ -14,10 +14,12 @@ import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 
 import {
-  ACTION_ICONS,
   ACTION_LINES,
   ACTION_TITLES,
   PICKER_STEPS,
+  stepGlyph,
+  stepLine,
+  stepName as authoredName,
 } from "./workflow-state.ts";
 import {
   type CanvasBlock,
@@ -224,7 +226,13 @@ export function WorkflowDiagram(
     </UI.Stack>
   );
 
-  const graph = useMemo<CanvasGraph>(() => canvasGraph(tree), [tree]);
+  const drawn = useMemo<Tree>(() => ({
+    ...tree,
+    nodes: tree.nodes.filter((node) =>
+      node.kind !== "step" || node.end !== true
+    ),
+  }), [tree]);
+  const graph = useMemo<CanvasGraph>(() => canvasGraph(drawn), [drawn]);
   const stepNumber = useMemo(
     () =>
       new Map(
@@ -312,7 +320,7 @@ export function WorkflowDiagram(
     if (node.problem === "unreadable") {
       return translate("library.editor.card.unreadable" as never);
     }
-    return title(node.uses);
+    return authoredName(node, translate);
   };
   const stepName = (node: TreeStep): string =>
     translate("library.editor.canvas.stepName" as never, {
@@ -325,8 +333,8 @@ export function WorkflowDiagram(
     const drawing = node.problem !== undefined ||
       problems.get(node.id) !== undefined;
     const codeOnly = node.codeOnly === true && !drawing;
-    const glyph = drawing ? "info" : ACTION_ICONS[node.uses];
-    const summary = drawing ? undefined : line(node.uses);
+    const glyph = drawing ? "info" : stepGlyph(node);
+    const summary = drawing ? undefined : stepLine(node, translate);
     const extra = drawing ? undefined : detail?.(node.uses, node.id);
     return { codeOnly, drawing, extra, glyph, summary };
   };
@@ -635,7 +643,7 @@ export function WorkflowDiagram(
         summary={translate("library.editor.howItStartsLine" as never)}
         title={translate("library.editor.howItStarts" as never)}
       />
-      {tree.unreadable ? null : outlineRows(tree.nodes, false)}
+      {tree.unreadable ? null : outlineRows(drawn.nodes, false)}
     </UI.OutlineList>
   );
 
