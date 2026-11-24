@@ -23525,6 +23525,14 @@ export const clientManifest = {
           "minimum": 1,
           "maximum": 9007199254740991,
           "description": "The run version the person saw when they chose to hand the step off. If the run changed since, the submission is refused as a failed precondition and nothing is committed. HandoffContinue.runVersion must be at least 1."
+        },
+        "mode": {
+          "description": "How the person asks the new session to start. fresh always starts a new conversation from the summary and records the reason fresh_requested. exact, or leaving it out, lets the server decide as before: it picks up exactly only when it can prove that is safe, otherwise it starts fresh and says why.",
+          "type": "string",
+          "enum": [
+            "exact",
+            "fresh"
+          ]
         }
       },
       "required": [
@@ -76181,7 +76189,8 @@ export const clientManifest = {
                 "session_changed",
                 "no_native_evidence",
                 "native_evidence_mismatch",
-                "history_revoked"
+                "history_revoked",
+                "fresh_requested"
               ],
               "description": "Why a continuation would start fresh instead of resuming exactly; set only when decisionMode is fresh_session, otherwise null."
             },
@@ -76234,7 +76243,8 @@ export const clientManifest = {
                 "session_changed",
                 "no_native_evidence",
                 "native_evidence_mismatch",
-                "history_revoked"
+                "history_revoked",
+                "fresh_requested"
               ],
               "description": "Why the continuation started fresh; null for an exact resume, before a hand-over, and for hand-overs recorded before the reason was kept."
             },
@@ -76480,7 +76490,8 @@ export const clientManifest = {
                 "session_changed",
                 "no_native_evidence",
                 "native_evidence_mismatch",
-                "history_revoked"
+                "history_revoked",
+                "fresh_requested"
               ],
               "description": "Why the continuation starts fresh instead of resuming exactly; set only when mode is fresh_session, otherwise null. Continuations admitted before this was recorded read null."
             },

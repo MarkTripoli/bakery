@@ -5322,6 +5322,12 @@ const transportSchemas = {
             "min": 1
           },
           "description": "The run version the person saw when they chose to hand the step off. If the run changed since, the submission is refused as a failed precondition and nothing is committed."
+        },
+        {
+          "name": "mode",
+          "type": "enum(exact|fresh)",
+          "required": false,
+          "description": "How the person asks the new session to start. fresh always starts a new conversation from the summary and records the reason fresh_requested. exact, or leaving it out, lets the server decide as before: it picks up exactly only when it can prove that is safe, otherwise it starts fresh and says why."
         }
       ],
       "rules": [
@@ -25570,10 +25576,10 @@ const transportSchemas = {
         "manifest": "json",
         "createdAt": "timestamp",
         "decisionMode": "enum(fresh_session|exact_harness_resume)|null",
-        "freshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked)|null",
+        "freshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked|fresh_requested)|null",
         "machineName": "string|null",
         "continuedMode": "enum(fresh_session|exact_harness_resume)|null",
-        "continuedFreshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked)|null",
+        "continuedFreshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked|fresh_requested)|null",
         "continuedByName": "string|null",
         "continuedAt": "timestamp|null"
       },
@@ -25635,7 +25641,7 @@ const transportSchemas = {
         "newFence": "decimalString",
         "mode": "enum(fresh_session|exact_harness_resume)",
         "admittedAt": "timestamp",
-        "freshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked)|null"
+        "freshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked|fresh_requested)|null"
       },
       "description": "The record that a source attempt was retired and its job admitted again for a continuation. The source is fenced, so it can no longer publish; the job is queued again on the same pin with the same input; the manifest is marked used.",
       "fieldDescriptions": {

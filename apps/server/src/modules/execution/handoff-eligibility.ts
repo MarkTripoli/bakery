@@ -42,7 +42,8 @@ export type FreshReason =
   | "session_changed"
   | "no_native_evidence"
   | "native_evidence_mismatch"
-  | "history_revoked";
+  | "history_revoked"
+  | "fresh_requested";
 
 /** The record written to the job's checkpoints for a harness to match. */
 export type HandoffCheckpoint = Readonly<{
