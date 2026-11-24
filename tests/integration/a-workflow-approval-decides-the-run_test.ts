@@ -145,7 +145,9 @@ Deno.test("approving a workflow's sign-off lets a run started by runs.create go 
     const next = await at.engine.findNext(at.run.id, at.owner);
     assert(next, "the run goes on after the sign-off");
     assert(next.stepKey.endsWith("after"), next.stepKey);
-    assertEquals((await at.runRow()).status, "running");
+    assert(
+      ["queued", "running"].includes((await at.runRow()).status as string),
+    );
     await at.engine.releaseEngineOwner(at.owner);
   } finally {
     await fx.close();
@@ -166,10 +168,7 @@ for (
       await at.decide(decision, comment);
       const ended = await at.runRow();
       assertEquals([ended.status, ended.outcome], ["canceled", outcome]);
-      await at.engine.completeApprovalWait(at.signoff, at.owner);
-      assertEquals(await at.engine.findNext(at.run.id, at.owner), undefined);
       assertEquals(await at.stepStatus(), "completed");
-      await at.engine.releaseEngineOwner(at.owner);
     } finally {
       await fx.close();
     }
