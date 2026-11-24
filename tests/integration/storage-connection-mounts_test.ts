@@ -966,8 +966,13 @@ Deno.test("a sync longer than one run resumes where it stopped and only then mov
         maxFiles: 1,
       });
     const counts: number[] = [];
-    for (let i = 0; i < 3; i++) counts.push((await run()).ingested);
+    const midWalk: (string | null)[] = [];
+    for (let i = 0; i < 3; i++) {
+      counts.push((await run()).ingested);
+      if (i < 2) midWalk.push((await position()).change_position);
+    }
     assertEquals(counts, [1, 1, 1]);
+    assertEquals(midWalk, [null, null]);
     assertEquals(await ingestedCount(r), 3);
     assertEquals((await position()).walking, false);
     assert((await position()).change_position !== null);
