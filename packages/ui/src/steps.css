@@ -686,6 +686,7 @@ button.ui-step-group__header:focus-visible {
 .ui-step-group__empty {
   color: var(--color-fg-muted);
   font: var(--type-hint);
+  padding-block-end: var(--space-3);
   padding-inline: var(--space-3);
 }
 
