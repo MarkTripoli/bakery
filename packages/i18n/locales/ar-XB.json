@@ -1678,7 +1678,6 @@
   "tasks.conversation.stage.implement": "⟪Implement⟫",
   "tasks.conversation.stage.review": "⟪Review⟫",
   "tasks.conversation.stage.current": "⟪Current stage⟫",
-  "tasks.conversation.stage.waitsApproval": "⟪Waits for your approval⟫",
   "tasks.conversation.stage.automatic": "⟪Automatic⟫",
   "tasks.conversation.stage.planningOnly": "⟪Planning only⟫",
   "tasks.conversation.stage.planningOnlyHint": "⟪Stop after the plan. No run starts from this task.⟫",
@@ -6882,5 +6881,6 @@
   "tasks.conversation.plan.refusal.closed": "⟪This request closed while you were deciding. The current state is shown.⟫",
   "tasks.conversation.plan.refusal.audience": "⟪This decision is for the people on this task. Ask one of them.⟫",
   "tasks.conversation.plan.rejectDialog.title": "⟪Reject this plan?⟫",
-  "tasks.conversation.plan.rejectDialog.body": "⟪Bakery will not build from version {revision}. You can ask for changes instead. This cannot be undone.⟫"
+  "tasks.conversation.plan.rejectDialog.body": "⟪Bakery will not build from version {revision}. You can ask for changes instead. This cannot be undone.⟫",
+  "tasks.conversation.stage.waitsApproval": "⟪Human approval⟫"
 }

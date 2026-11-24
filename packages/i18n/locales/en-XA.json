@@ -1681,7 +1681,6 @@
   "tasks.conversation.stage.implement": "⟦Ïɱþļëɱëñŧ ŧ⟧",
   "tasks.conversation.stage.review": "⟦Ŕëṽïëŵ…⟧",
   "tasks.conversation.stage.current": "⟦Çûŕŕëñŧ šŧàĝë ŧë⟧",
-  "tasks.conversation.stage.waitsApproval": "⟦Ŵàïŧš ƒôŕ ÿôûŕ àþþŕôṽàļ ŧëšŧ ç⟧",
   "tasks.conversation.stage.automatic": "⟦Àûŧôɱàŧïç ŧ⟧",
   "tasks.conversation.stage.planningOnly": "⟦Þļàññïñĝ ôñļÿ ŧë⟧",
   "tasks.conversation.stage.planningOnlyHint": "⟦Šŧôþ àƒŧëŕ ŧĥë þļàñ. Ñô ŕûñ šŧàŕŧš ƒŕôɱ ŧĥïš ŧàšķ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
@@ -6882,5 +6881,6 @@
   "tasks.conversation.plan.refusal.closed": "⟦Ŧĥïš ŕëǫûëšŧ çļôšëð ŵĥïļë ÿôû ŵëŕë ðëçïðïñĝ. Ŧĥë çûŕŕëñŧ šŧàŧë ïš šĥôŵñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "tasks.conversation.plan.refusal.audience": "⟦Ŧĥïš ðëçïšïôñ ïš ƒôŕ ŧĥë þëôþļë ôñ ŧĥïš ŧàšķ. Àšķ ôñë ôƒ ŧĥëɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "tasks.conversation.plan.rejectDialog.title": "⟦Ŕëĵëçŧ ŧĥïš þļàñ? ŧëš⟧",
-  "tasks.conversation.plan.rejectDialog.body": "⟦Ɓàķëŕÿ ŵïļļ ñôŧ ƀûïļð ƒŕôɱ ṽëŕšïôñ {revision}. Ÿôû çàñ àšķ ƒôŕ çĥàñĝëš ïñšŧëàð. Ŧĥïš çàññôŧ ƀë ûñðôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
+  "tasks.conversation.plan.rejectDialog.body": "⟦Ɓàķëŕÿ ŵïļļ ñôŧ ƀûïļð ƒŕôɱ ṽëŕšïôñ {revision}. Ÿôû çàñ àšķ ƒôŕ çĥàñĝëš ïñšŧëàð. Ŧĥïš çàññôŧ ƀë ûñðôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "tasks.conversation.stage.waitsApproval": "⟦Ĥûɱàñ àþþŕôṽàļ ŧë⟧"
 }
