@@ -3491,6 +3491,31 @@
     },
     {
       "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/use-grants",
+      "action": "skills.useGrants.create",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillUseGrantCreate",
+      "output": "SkillUseGrant",
+      "event": "skillUseGrant.created",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
       "method": "DELETE",
       "path": "/v1/skills/{id}/use-grants/{grantId}",
       "action": "skills.useGrants.delete",
@@ -15666,6 +15691,7 @@
     "skillVersions.create",
     "skills.useGrants.list",
     "skills.useGrants.delete",
+    "skills.useGrants.create",
     "skills.setActiveVersion",
     "skillImports.get",
     "skills.takeSourceUpdate",
@@ -25962,6 +25988,77 @@
             },
             "500": {
               "description": "Internal server error."
+            }
+          }
+        },
+        "post": {
+          "operationId": "skills.useGrants.create",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SkillUseGrant"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillUseGrantCreate"
+                }
+              }
             }
           }
         }
@@ -65914,6 +66011,7 @@
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
+                "skills.useGrants.create",
                 "skills.useGrants.delete",
                 "skillVersions.list",
                 "skillVersions.get",
@@ -92287,6 +92385,43 @@
           ],
           "additionalProperties": false,
           "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
+        },
+        "SkillUseGrantCreate": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+            },
+            "workflowId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The workflow that may use the skill again."
+            },
+            "skillVersionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The exact version of the skill the step names; the grant covers this version only."
+            },
+            "stepPath": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+            }
+          },
+          "required": [
+            "id",
+            "workflowId",
+            "skillVersionId",
+            "stepPath"
+          ],
+          "additionalProperties": false,
+          "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
         },
         "SkillActiveVersionSet": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -118883,6 +119018,7 @@
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
+                "skills.useGrants.create",
                 "skills.useGrants.delete",
                 "skillVersions.list",
                 "skillVersions.get",
@@ -119598,6 +119734,7 @@
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
+                "skills.useGrants.create",
                 "skills.useGrants.delete",
                 "skillVersions.list",
                 "skillVersions.get",
@@ -120313,6 +120450,7 @@
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
+                "skills.useGrants.create",
                 "skills.useGrants.delete",
                 "skillVersions.list",
                 "skillVersions.get",
@@ -166689,6 +166827,7 @@
                       "skillDraftFiles.get",
                       "skillDraftFiles.delete",
                       "skills.useGrants.list",
+                      "skills.useGrants.create",
                       "skills.useGrants.delete",
                       "skillVersions.list",
                       "skillVersions.get",
@@ -279275,6 +279414,11 @@
               "maximum": 9007199254740991,
               "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
             },
+            "revisionDigest": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+            },
             "workflowId": {
               "type": "string",
               "format": "uuid",
@@ -279315,6 +279459,7 @@
             "skillId",
             "skillVersionId",
             "revision",
+            "revisionDigest",
             "workflowId",
             "workflowName",
             "stepPath",
@@ -280288,6 +280433,11 @@
                     "maximum": 9007199254740991,
                     "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
                   },
+                  "revisionDigest": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+                  },
                   "workflowId": {
                     "type": "string",
                     "format": "uuid",
@@ -280328,6 +280478,7 @@
                   "skillId",
                   "skillVersionId",
                   "revision",
+                  "revisionDigest",
                   "workflowId",
                   "workflowName",
                   "stepPath",
@@ -306197,6 +306348,7 @@
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -332658,6 +332810,43 @@
       ],
       "additionalProperties": false,
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
+    },
+    "SkillUseGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+        },
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow that may use the skill again."
+        },
+        "skillVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The exact version of the skill the step names; the grant covers this version only."
+        },
+        "stepPath": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+        }
+      },
+      "required": [
+        "id",
+        "workflowId",
+        "skillVersionId",
+        "stepPath"
+      ],
+      "additionalProperties": false,
+      "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
     },
     "SkillActiveVersionSet": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -359350,6 +359539,7 @@
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -360065,6 +360255,7 @@
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -360780,6 +360971,7 @@
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -407306,6 +407498,7 @@
                   "skillDraftFiles.get",
                   "skillDraftFiles.delete",
                   "skills.useGrants.list",
+                  "skills.useGrants.create",
                   "skills.useGrants.delete",
                   "skillVersions.list",
                   "skillVersions.get",
@@ -520032,6 +520225,11 @@
           "maximum": 9007199254740991,
           "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
         },
+        "revisionDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+        },
         "workflowId": {
           "type": "string",
           "format": "uuid",
@@ -520072,6 +520270,7 @@
         "skillId",
         "skillVersionId",
         "revision",
+        "revisionDigest",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -521051,6 +521250,11 @@
                 "maximum": 9007199254740991,
                 "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
               },
+              "revisionDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+              },
               "workflowId": {
                 "type": "string",
                 "format": "uuid",
@@ -521091,6 +521295,7 @@
               "skillId",
               "skillVersionId",
               "revision",
+              "revisionDigest",
               "workflowId",
               "workflowName",
               "stepPath",
