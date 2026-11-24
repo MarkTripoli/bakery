@@ -123,6 +123,8 @@ import { RevokeClientPage } from "./pages/RevokeClientPage.tsx";
 import { NotificationOpening } from "./notifications/NotificationOpening.tsx";
 import { NotificationsPage } from "./notifications/NotificationsPage.tsx";
 import { type LandingSearch, landingSearch } from "./notifications/landing.ts";
+import { SharedConversationPage } from "./pages/shared/SharedConversationPage.tsx";
+import { SharedDocumentPage } from "./pages/shared/SharedDocumentPage.tsx";
 import { isNotificationView } from "./notifications/presentation.ts";
 import { OAuthConsentPage } from "./pages/OAuthConsentPage.tsx";
 import { createConsentGateway } from "./app/consent-gateway.ts";
@@ -950,6 +952,34 @@ export const routeCoverage = [
       "unavailable",
       "offline",
       "reconnecting",
+      "error",
+    ],
+  },
+  {
+    id: "shared-document",
+    path: "/shared/documents/$artifactId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "forbidden",
+      "unavailable",
+      "offline",
+      "error",
+    ],
+  },
+  {
+    id: "shared-conversation",
+    path: "/shared/conversations/$conversationId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "forbidden",
+      "unavailable",
+      "offline",
       "error",
     ],
   },
@@ -2296,6 +2326,76 @@ const artifactRetrievalRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const sharedDocumentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/shared/documents/$artifactId",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { version?: string; comment?: string } & LandingSearch => ({
+    version: typeof search.version === "string" && isUuid(search.version)
+      ? search.version
+      : undefined,
+    comment: typeof search.comment === "string" && isUuid(search.comment)
+      ? search.comment
+      : undefined,
+    ...landingSearch(search),
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => {
+    const { artifactId } = sharedDocumentRoute.useParams();
+    const { version, comment, ...landing } = sharedDocumentRoute.useSearch();
+    const navigate = sharedDocumentRoute.useNavigate();
+    return (
+      <SharedDocumentPage
+        artifactId={artifactId}
+        version={version}
+        comment={comment}
+        landing={landing}
+        stripLanding={() =>
+          void navigate({
+            search: (previous) => ({ ...previous, n: undefined, r: undefined }),
+            replace: true,
+          })}
+      />
+    );
+  },
+  errorComponent: ProtectedRouteError,
+});
+
+const sharedConversationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/shared/conversations/$conversationId",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { message?: string } & LandingSearch => ({
+    message: typeof search.message === "string" && isUuid(search.message)
+      ? search.message
+      : undefined,
+    ...landingSearch(search),
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => {
+    const { conversationId } = sharedConversationRoute.useParams();
+    const { message, ...landing } = sharedConversationRoute.useSearch();
+    const navigate = sharedConversationRoute.useNavigate();
+    return (
+      <SharedConversationPage
+        conversationId={conversationId}
+        message={message}
+        landing={landing}
+        stripLanding={() =>
+          void navigate({
+            search: (previous) => ({ ...previous, n: undefined, r: undefined }),
+            replace: true,
+          })}
+      />
+    );
+  },
+  errorComponent: ProtectedRouteError,
+});
+
 /** `search.<flag>` is `true` when written by `navigate({ search })` and `"1"` when typed into the address bar as `?flag=1`. */
 function searchFlag(value: unknown): boolean {
   return value === true || value === "1" || value === 1;
@@ -2548,19 +2648,35 @@ const notificationsRoute = createRoute({
           revision={r ?? null}
           onLand={(destination) => {
             const { route, search } = destination;
-            void (route.to === "/tasks/$taskId"
-              ? landNavigate({
+            if (route.to === "/shared/documents/$artifactId") {
+              void landNavigate({
                 to: route.to,
                 params: route.params,
                 search,
                 replace: true,
-              })
-              : landNavigate({
+              });
+            } else if (route.to === "/shared/conversations/$conversationId") {
+              void landNavigate({
                 to: route.to,
                 params: route.params,
                 search,
                 replace: true,
-              }));
+              });
+            } else if (route.to === "/tasks/$taskId") {
+              void landNavigate({
+                to: route.to,
+                params: route.params,
+                search,
+                replace: true,
+              });
+            } else {
+              void landNavigate({
+                to: route.to,
+                params: route.params,
+                search,
+                replace: true,
+              });
+            }
           }}
           onBack={() =>
             void navigate({
@@ -2925,6 +3041,8 @@ const routeTree = rootRoute.addChildren([
   settingsScimRoute,
   projectsRoute,
   artifactRetrievalRoute,
+  sharedDocumentRoute,
+  sharedConversationRoute,
   securityRoute,
   sessionsRoute,
   revokeRoute,

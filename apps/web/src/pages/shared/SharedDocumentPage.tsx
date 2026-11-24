@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
@@ -5,6 +6,7 @@ import { useBakeryApi } from "../../api/context.tsx";
 import {
   artifactQueryOptions,
   artifactVersionsQueryOptions,
+  notificationTargetQueryOptions,
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
@@ -16,7 +18,7 @@ import { ArtifactRetrievalView } from "../ArtifactRetrievalView.tsx";
 import { sharedReasonOf, SharedUnavailable } from "./SharedUnavailable.tsx";
 
 export function SharedDocumentPage(
-  { artifactId, version, comment, landing, stripLanding }: {
+  { artifactId, version, comment, landing: current, stripLanding }: {
     artifactId: string;
     version: string | undefined;
     comment: string | undefined;
@@ -26,9 +28,14 @@ export function SharedDocumentPage(
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
-  const { translate: t } = useI18n();
+  const { translate: t, locale } = useI18n();
   const navigate = useNavigate();
+  const landing = useRef(current).current;
   const scoped = scope.organizationId !== null;
+  const target = useQuery({
+    ...notificationTargetQueryOptions(api, scope, landing.n ?? ""),
+    enabled: landing.n !== undefined && scoped,
+  });
   const artifact = useQuery({
     ...artifactQueryOptions(api, scope, artifactId),
     enabled: scoped,
@@ -73,7 +80,16 @@ export function SharedDocumentPage(
       </UI.Stack>
     );
   }
-  const current = artifact.data;
+  const shown = artifact.data;
+  const sharedBy = target.data?.sharedByName !== undefined &&
+      target.data.sharedAt !== undefined
+    ? t("shared.document.sharedBy" as never, {
+      name: target.data.sharedByName,
+      date: new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
+        new Date(target.data.sharedAt),
+      ),
+    })
+    : "";
   return (
     <>
       <UI.VisuallyHidden aria-live="polite" as="div" role="status">
@@ -81,13 +97,13 @@ export function SharedDocumentPage(
       </UI.VisuallyHidden>
       <ArtifactRetrievalView
         testId="shared-document-page"
-        title={current.name}
+        title={shown.name}
         artifactLabel={t("artifact.view.eyebrow")}
-        kind={selected?.mediaType ?? current.artifactType}
+        kind={selected?.mediaType ?? shown.artifactType}
         revision={selected
           ? t("artifact.version.label", { revision: selected.revision })
           : t("artifact.retrieval.noCurrentVersion")}
-        description=""
+        description={sharedBy}
         versionLabel={t("artifact.retrieval.versionsTitle")}
         versionId={selected?.id ?? ""}
         versions={items.map((candidate) => ({
@@ -131,7 +147,7 @@ export function SharedDocumentPage(
           ? (
             <ArtifactComments
               key={`comments:${selected.id}`}
-              artifact={current}
+              artifact={shown}
               version={selected}
               commentId={comment}
               landed={comment !== undefined && landing.gone !== true}

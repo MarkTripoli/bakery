@@ -24,7 +24,7 @@ const POLL_MS = 15_000;
 const MESSAGE_MAX = 20_000;
 
 export function SharedConversationPage(
-  { conversationId, message, landing, stripLanding }: {
+  { conversationId, message, landing: current, stripLanding }: {
     conversationId: string;
     message: string | undefined;
     landing: LandingSearch;
@@ -34,6 +34,7 @@ export function SharedConversationPage(
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const session = useSession();
+  const landing = useRef(current).current;
   const { translate: t } = useI18n();
   const organizationId = scope.organizationId;
   const principalId = session.identity?.principalId ?? null;
