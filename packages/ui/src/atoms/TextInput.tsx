@@ -24,7 +24,6 @@ export type TextInputProps = {
   step?: number;
   onBlur?: () => void;
   onChange: (value: string) => void;
-  /** A key the field itself handles, such as the Enter that commits a typed number. */
   onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
   placeholder?: string;
   readOnly?: boolean;

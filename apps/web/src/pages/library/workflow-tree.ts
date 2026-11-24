@@ -30,16 +30,11 @@ export type TreeStep = {
   readonly end?: true;
 };
 
-/** The numbers a repeat states, and where in the definition it states them. */
 export type TreeLoop = {
-  /** Fewest tries, `repeat.min`: absent means the review alone decides the first round. */
   readonly min: number | null;
   readonly max: number;
-  /** Ask a person after, `repeat.allow`: absent means no pause before the max. */
   readonly allow: number | null;
-  /** The block repairs and then reviews, so the page calls it "Fix until it passes". */
   readonly fix: boolean;
-  /** Where the repeat node sits in the definition, for the panel's edits. */
   readonly path: readonly (string | number)[];
 };
 
@@ -50,7 +45,6 @@ export type TreeGroup = {
   readonly id: string;
   readonly label: GroupLabel;
   readonly max?: number;
-  /** A repeat's own numbers, which the panel may change (#419). */
   readonly loop?: TreeLoop;
   /** The nodes inside it, drawn under the label. */
   readonly children: readonly TreeNode[];
@@ -216,11 +210,6 @@ function wholeOrNull(value: unknown): number | null {
     : null;
 }
 
-/**
- * A repeat's three numbers as the panel edits them (#419). A repeat whose max
- * the editor cannot read has no loop: the panel keeps saying it is code-only
- * rather than offering a number it could not save.
- */
 function loopOf(
   node: Record<string, unknown>,
   path: readonly (string | number)[],

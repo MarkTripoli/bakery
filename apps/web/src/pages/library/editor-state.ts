@@ -14,16 +14,13 @@ export type EditorStep = {
   readonly skills: readonly string[];
 };
 
-/** A repeat's three numbers as the panel commits them (#419). */
 export type LoopEdit = {
-  /** Where the repeat node sits in the definition, e.g. `["steps", 2]`. */
   readonly path: readonly (string | number)[];
   readonly min: number | null;
   readonly max: number;
   readonly allow: number | null;
 };
 
-/** Everything one undo step restores: the steps and the loop numbers. */
 export type EditorSnapshot = {
   readonly steps: readonly EditorStep[];
   readonly loops: readonly LoopEdit[];
@@ -48,7 +45,6 @@ export type EditorAction =
     readonly skills: readonly string[];
   }
   /** Start again from these steps: a different version is being edited. */
-  /** Set one repeat's numbers; the panel only sends what validated. */
   | {
     readonly kind: "loop";
     readonly path: readonly (string | number)[];
@@ -60,11 +56,6 @@ export type EditorAction =
   | { readonly kind: "undo" }
   | { readonly kind: "redo" };
 
-/**
- * Whether the authored `steps` are a straight line of actions, the one shape
- * the editor rebuilds. A definition that holds a group keeps its authored
- * shape, because replacing its steps would drop every group.
- */
 function straightLineOf(held: readonly unknown[]): boolean {
   return held.every((node) => {
     if (typeof node !== "object" || node === null || Array.isArray(node)) {
@@ -131,11 +122,6 @@ export function definitionOf(
   };
 }
 
-/**
- * The definition with each loop's committed numbers written into its repeat
- * node (#419): a number the person cleared is removed, so the authored shape
- * stays what it was. Nothing else in the definition is touched.
- */
 export function applyLoops(
   spec: Readonly<Record<string, unknown>> | null,
   loops: readonly LoopEdit[],

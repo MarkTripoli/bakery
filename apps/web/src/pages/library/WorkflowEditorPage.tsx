@@ -102,10 +102,6 @@ type ProblemRow = {
   readonly stepId: string | null;
 };
 
-/**
- * The most tries a repeat may take: WORKFLOW_COMPILER_LIMITS.repeatMax, or the
- * workflow's own repair-cycle limit when that is lower (#419).
- */
 function repeatCap(spec: Readonly<Record<string, unknown>> | null): number {
   const limits = record(spec?.limits);
   const own = limits.maxRepairCycles;
@@ -764,11 +760,9 @@ export function WorkflowEditorPage(
         return {
           kind: "loop",
           name: translate(GROUP_LABEL[group.label] as never),
-          noun: loop.fix ? "tries" : "rounds",
           fix: loop.fix,
           values: { min: loop.min, max: loop.max, allow: loop.allow },
           cap: repeatCap(rawSpec),
-          readOnly: !canManage,
           ...(loop.fix
             ? { help: translate("library.editor.group.fixHelpShort" as never) }
             : {}),
@@ -1090,7 +1084,7 @@ export function WorkflowEditorPage(
         {panelTarget === null ? null : (
           <StepPanel
             target={panelTarget}
-            onViewAsCode={() => setCodeOpen(true)}
+            onViewAsCode={phone ? null : () => setCodeOpen(true)}
           />
         )}
       </UI.Inline>
@@ -1166,7 +1160,7 @@ export function WorkflowEditorPage(
                 {stateWord}
               </UI.Text>
               {problems}
-              {viewAsCodeButton}
+              {panelTarget === null ? viewAsCodeButton : null}
               {publishButton}
             </UI.Inline>
           </ShellSlot>

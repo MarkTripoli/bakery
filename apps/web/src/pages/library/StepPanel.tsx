@@ -76,7 +76,6 @@ export type StepSkills =
   | { readonly kind: "failed"; readonly onRetry: () => void }
   | { readonly kind: "ready"; readonly rows: readonly StepSkillRow[] };
 
-/** A repeat's numbers as the panel edits them (#419). */
 export type LoopValues = {
   readonly min: number | null;
   readonly max: number;
@@ -88,16 +87,10 @@ export type PanelTarget =
   | { readonly kind: "start" }
   | {
     readonly kind: "loop";
-    /** The block's own name: Fix until it passes, or Repeat. */
     readonly name: string;
-    /** The noun every label uses: Tries for a fix block, Rounds for a repeat. */
-    readonly noun: "tries" | "rounds";
     readonly fix: boolean;
     readonly values: LoopValues;
-    /** The most this workflow allows: 8, or its own repair-cycle limit when lower. */
     readonly cap: number;
-    readonly readOnly: boolean;
-    /** What the block does, in the words the group already uses. */
     readonly help?: string | undefined;
     readonly onCommit: (values: LoopValues) => void;
   }
@@ -139,7 +132,7 @@ export type PanelTarget =
 export function StepPanel(
   { target, onViewAsCode }: {
     readonly target: PanelTarget;
-    readonly onViewAsCode: () => void;
+    readonly onViewAsCode: (() => void) | null;
   },
 ) {
   const { translate } = useI18n();
@@ -175,11 +168,13 @@ export function StepPanel(
         label={label}
         variant="column"
         header={<UI.Text variant="strong">{target.name}</UI.Text>}
-        footer={
-          <UI.Button variant="secondary" onClick={onViewAsCode}>
-            {translate("library.editor.viewAsCode" as never)}
-          </UI.Button>
-        }
+        {...(onViewAsCode === null ? {} : {
+          footer: (
+            <UI.Button variant="secondary" onClick={onViewAsCode}>
+              {translate("library.editor.viewAsCode" as never)}
+            </UI.Button>
+          ),
+        })}
       >
         <UI.Stack gap="compact">
           {target.skills === undefined || target.skills.kind === "hidden"
@@ -291,10 +286,6 @@ const wholeNumber = (text: string): number | null => {
 type LoopDraft = Record<LoopField, string>;
 type LoopProblem = { readonly field: LoopField; readonly error: string };
 
-/**
- * What stops a draft from being saved, or null when it can be: one problem at
- * a time, top-down, so the first bad field is the one the person fixes (#419).
- */
 function loopProblem(
   draft: LoopDraft,
   cap: number,
@@ -319,16 +310,10 @@ function loopProblem(
   return null;
 }
 
-/**
- * A repeat's numbers (#419): Fewest tries, Most tries and Ask a person after.
- * They commit on blur or Enter into the editor's draft, so the existing Undo
- * and Publish carry them; the panel keeps the typed text until the draft takes
- * it, and an invalid value shows one error and changes nothing.
- */
 function LoopPanel(
   { target, onViewAsCode }: {
     readonly target: Extract<PanelTarget, { readonly kind: "loop" }>;
-    readonly onViewAsCode: () => void;
+    readonly onViewAsCode: (() => void) | null;
   },
 ) {
   const { translate } = useI18n();
@@ -371,14 +356,10 @@ function LoopPanel(
     }
     return t("askHint");
   };
-  const fields: readonly {
-    field: LoopField;
-    label: string;
-    locked: boolean;
-  }[] = [
-    { field: "min", label: t("fewest"), locked: target.readOnly },
-    { field: "max", label: t("most"), locked: false },
-    { field: "allow", label: t("ask"), locked: target.readOnly },
+  const fields: readonly { field: LoopField; label: string }[] = [
+    { field: "min", label: t("fewest") },
+    { field: "max", label: t("most") },
+    { field: "allow", label: t("ask") },
   ];
   return (
     <UI.InspectorPanel
@@ -386,20 +367,21 @@ function LoopPanel(
       label={translate("library.editor.panel.label" as never)}
       variant="column"
       header={<UI.Text variant="strong">{target.name}</UI.Text>}
-      footer={
-        <UI.Button variant="secondary" onClick={onViewAsCode}>
-          {translate("library.editor.viewAsCode" as never)}
-        </UI.Button>
-      }
+      {...(onViewAsCode === null ? {} : {
+        footer: (
+          <UI.Button variant="secondary" onClick={onViewAsCode}>
+            {translate("library.editor.viewAsCode" as never)}
+          </UI.Button>
+        ),
+      })}
     >
       <UI.Stack gap="compact">
         {target.help === undefined ? null : <UI.Text>{target.help}</UI.Text>}
-        <UI.Text variant="strong">{t(target.noun)}</UI.Text>
-        {fields.map(({ field, label, locked }) => (
+        {fields.map(({ field, label }) => (
           <UI.Field
             key={field}
             error={shown?.field === field ? shown.error : undefined}
-            hint={locked ? t("newFormat") : hintFor(field)}
+            hint={hintFor(field)}
             htmlFor={`loop-${field}`}
             label={label}
           >
@@ -421,7 +403,6 @@ function LoopPanel(
                   commit();
                 }
               }}
-              readOnly={locked}
               type="number"
               value={draft[field]}
             />
