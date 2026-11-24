@@ -32,7 +32,6 @@ export type TaskDetailProps =
     presence?: ReactNode;
     /** Conversation layout, phone: back control before the title. */
     leading?: ReactNode;
-    /** Conversation layout, phone: a control at the far end of the header. */
     trailing?: ReactNode;
     /** Conversation layout: stage strip under the title block. */
     stages?: ReactNode;

@@ -209,7 +209,6 @@ export async function inboxFixture(page: Page, options: InboxOptions = {}) {
 
 export const INBOX_PRINCIPAL_ID = uuid(1);
 
-/** A scripted /v1/events server: hello, then a cursor for every subscribe. */
 export async function inboxStream(page: Page) {
   const stream = {
     subscribes: [] as Record<string, unknown>[],

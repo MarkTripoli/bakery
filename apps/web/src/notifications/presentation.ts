@@ -71,11 +71,6 @@ export const NOTIFICATION_COPY: Readonly<
   },
 });
 
-/**
- * The document's own version number, from the anchor the server writes as
- * `version:{number}`. Anything else is not a number to show, so the row
- * leaves the number out rather than print the anchor.
- */
 export function versionOfAnchor(anchor: string | null): string | null {
   const match = anchor === null ? null : /^version:(\d+)$/.exec(anchor);
   return match === null ? null : match[1];

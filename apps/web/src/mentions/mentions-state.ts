@@ -79,11 +79,6 @@ export function reconcile(
   return mentions.filter((mention) => carries(text, mention));
 }
 
-/**
- * The text with only the `@` taken off a person's `@Name`, so the name stays as
- * words ("Hi @Sam Patel" becomes "Hi Sam Patel"). A chip's remove button and
- * "Don't mention" both use it.
- */
 export function withoutAtSign(text: string, mention: Mention): string {
   const at = find(text, mention);
   if (at < 0) return text;

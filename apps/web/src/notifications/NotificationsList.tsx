@@ -19,10 +19,6 @@ export type NotificationsListProps = {
   /** Closes the popover when a row is chosen; the page passes nothing. */
   readonly onOpened?: () => void;
   readonly onToggleRead?: (row: NotificationResponse) => void;
-  /**
-   * Opens a row through the router, so the rows already read stay in memory
-   * and Back returns to them. Without it the row is an ordinary link.
-   */
   readonly onOpenRow?: (row: NotificationResponse) => void;
   readonly showMenu?: boolean;
   readonly showGroups?: boolean;
