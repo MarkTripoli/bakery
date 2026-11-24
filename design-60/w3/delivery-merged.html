@@ -1,0 +1,62 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+:root{
+--color-border:#E3E6EB;--color-border-strong:#CBD0D8;--color-canvas:#F5F6F8;--color-fg:#141A24;--color-fg-muted:#5D6675;
+--color-primary:#141A24;--color-primary-foreground:#FFFFFF;--color-selection:#0B63C6;--color-selection-surface:#ECF1F8;
+--color-status-success:#17784B;--color-status-success-surface:#E8F5EE;--color-surface:#FFFFFF;
+--radius-control:4px;--radius-surface:6px;--layout-content:720px;--size-control:36px;--space-3:12px;--space-4:16px;
+--font-sans:Inter,Geist,system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 var(--font-sans);color:var(--color-fg);background:var(--color-canvas)}
+.top{height:64px;background:var(--color-surface);border-bottom:1px solid var(--color-border);display:flex;align-items:center;padding:0 20px}
+.top b{font-size:15px}
+.main{max-width:var(--layout-content);margin:0 auto;padding:32px 0}
+.banner{display:flex;gap:var(--space-3);align-items:flex-start;border:1px solid;border-radius:var(--radius-surface);
+ padding:var(--space-3) var(--space-4)}
+.banner.success{background:var(--color-status-success-surface);border-color:var(--color-status-success);color:var(--color-status-success)}
+.banner.info{background:var(--color-selection-surface);border-color:var(--color-selection);color:var(--color-fg)}
+.banner .content{flex:1;min-width:0}
+.banner h2{margin:0;font:600 15px/1.35 var(--font-sans)}
+.banner p{margin:6px 0 0;font:14px/1.45 var(--font-sans)}
+.banner .icon{width:16px;height:16px;border:1.5px solid currentColor;border-radius:50%;flex:none;margin-top:2px}
+.actions{display:flex;gap:8px;margin-top:12px;align-items:center}
+.btn{height:var(--size-control);border-radius:var(--radius-control);border:1px solid var(--color-border-strong);
+ background:var(--color-surface);padding:0 14px;font:inherit;font-weight:500;color:var(--color-fg);text-decoration:none;display:inline-flex;align-items:center}
+.pri{background:var(--color-primary);border-color:var(--color-primary);color:var(--color-primary-foreground)}
+.rest{margin-top:28px;color:var(--color-fg-muted);font-size:13.5px}
+@media (max-width:743px){.main{padding:16px}.banner{flex-wrap:wrap}.actions{flex-wrap:wrap;gap:8px}}
+</style></head><body>
+<div class="top"><b>Task · Add CSV export</b></div>
+<div class="main">
+  <div class="banner success" id="card">
+    <span class="icon"></span>
+    <div class="content">
+      <h2 id="title">Merged into main</h2>
+      <p id="body">Every step for this issue is done. This workflow has no release step.</p>
+      <div class="actions" id="actions">
+        <a class="btn pri" href="#">Choose the next issue</a>
+        <span id="extra"></span>
+      </div>
+    </div>
+  </div>
+  <div class="rest" id="rest">Below: the run's steps, checks and the merged pull request.</div>
+</div>
+<script>
+const q = new URLSearchParams(location.search);
+if (q.get("state") === "released") {
+  const card = document.getElementById("card");
+  card.className = "banner success";
+  document.getElementById("title").textContent = "Released to production";
+  document.getElementById("body").textContent = "The release is healthy. This change is done.";
+  document.getElementById("extra").innerHTML = '<a class="btn" href="#">Open it ↗</a>';
+}
+if (q.get("state") === "pending") {
+  const card = document.getElementById("card");
+  card.className = "banner info";
+  document.getElementById("title").textContent = "Merged into main";
+  document.getElementById("body").textContent = "The release has not started yet.";
+  document.getElementById("actions").remove();
+  document.getElementById("rest").textContent = "Below: the run's steps, checks and the merged pull request.";
+}
+</script>
+</body></html>
