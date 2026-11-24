@@ -14,6 +14,7 @@ import type { SupportedLocale } from "./locale.ts";
  * kept connection rows under `session.feed.*`.
  * Version 14 adds the desktop app's browser sign-in pages
  * (`auth.desktopSignIn.*`).
+ * Version 17 adds the Slack provider rows (`integrations.slack.*`).
  */
 export const catalogVersion = "17";
 export const englishCatalog: Readonly<Record<MessageKey, string>> = english;

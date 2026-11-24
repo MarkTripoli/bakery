@@ -1489,7 +1489,9 @@ pack implements for the actions it owns.
 - **Configuration.** `BAKERY_DELIVERY_RELEASE_ROOT`, `..._ARTIFACTS_DIR`,
   `..._HEALTH_URL` and `..._ENVIRONMENT` come through `RuntimeConfig` together or
   not at all. The target reads `<artifacts>/<sha>.artifact`, never builds, and
-  never runs a command.
+  never runs a command. `BAKERY_DELIVERY_ADDRESS` is separate and optional: the
+  page a person opens to see the environment's release, served as the
+  `Deployment` projection's `address` and null when the install configures none.
 
 ## Schedules and event-triggered agents
 

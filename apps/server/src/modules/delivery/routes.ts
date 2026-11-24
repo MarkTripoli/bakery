@@ -17,6 +17,7 @@ export function createDeliveryRoutes(options: {
   publicBaseUrl: string;
   cursorSecret: string;
   merge: MergeDispatchDependencies;
+  environmentAddress?: (environment: string) => string | null;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/runs/:id/checks", options.session);
@@ -36,7 +37,11 @@ export function createDeliveryRoutes(options: {
     createApiRouter({
       registry: createDeliveryActionRegistry(
         options.database,
-        createDeliveryHandlers(options.cursorSecret, options.merge),
+        createDeliveryHandlers(
+          options.cursorSecret,
+          options.merge,
+          options.environmentAddress,
+        ),
       ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,
