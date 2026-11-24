@@ -1,5 +1,8 @@
 import type { PgTransactionClient } from "@bakery/persistence";
+import type { ActionContext } from "@bakery/contracts/action-registry";
 import { StandardError, unprocessable } from "@bakery/contracts/http";
+import { isOrganizationAdmin } from "../knowledge/folder-access-store.ts";
+import { readableEntry } from "../knowledge/storage-reads.ts";
 import {
   pinStoragePath,
   StorageNameError,
@@ -189,10 +192,45 @@ export type ResolvedInputPath = Readonly<{
  * file with a current version is refused with one code, whether it is missing or
  * in another organization, so a caller learns nothing about another tree.
  */
+async function readableByCaller(
+  transaction: PgTransactionClient,
+  options: {
+    organizationId: string;
+    principalId: string;
+    context: Pick<ActionContext, "agentSession" | "sessionScopes">;
+  },
+  entryId: string,
+): Promise<boolean> {
+  try {
+    await readableEntry(
+      options.context,
+      transaction,
+      options.organizationId,
+      options.principalId,
+      {
+        isAdmin: await isOrganizationAdmin(
+          transaction,
+          options.organizationId,
+          options.principalId,
+        ),
+      },
+      entryId,
+    );
+    return true;
+  } catch (error) {
+    if (error instanceof StandardError && error.code === "RESOURCE_NOT_FOUND") {
+      return false;
+    }
+    throw error;
+  }
+}
+
 export async function resolveInputPaths(
   transaction: PgTransactionClient,
   options: {
     organizationId: string;
+    principalId: string;
+    context: Pick<ActionContext, "agentSession" | "sessionScopes">;
     inputs: unknown;
     inputPaths: unknown;
     connections?: ConnectionInputIngest;
@@ -253,7 +291,7 @@ export async function resolveInputPaths(
       }
       throw error;
     }
-    if (!pin) {
+    if (!pin || !(await readableByCaller(transaction, options, pin.entryId))) {
       throw unprocessable(
         ["inputPaths", inputName],
         "input_storage_path_unavailable",

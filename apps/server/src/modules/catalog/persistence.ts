@@ -49,7 +49,11 @@ import {
   toSkillVersion,
   VERSION_COLUMNS,
 } from "./publication.ts";
-import { deleteSkillUseGrant, listSkillUseGrants } from "./skill-use-grants.ts";
+import {
+  createSkillUseGrant,
+  deleteSkillUseGrant,
+  listSkillUseGrants,
+} from "./skill-use-grants.ts";
 import {
   type RunRow,
   runWorkspaceBaseShaColumn,
@@ -1221,6 +1225,13 @@ export function createCatalogHandlers(
 
     deleteSkillUseGrant(context: ActionContext) {
       return deleteSkillUseGrant(context);
+    },
+
+    createSkillUseGrant(
+      context: ActionContext,
+      input: { workflowId: string; skillVersionId: string; stepPath: string },
+    ) {
+      return createSkillUseGrant(context, input);
     },
 
     copySkill(

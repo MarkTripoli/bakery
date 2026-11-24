@@ -2161,6 +2161,30 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
+  readonly updateSkill: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: DefinitionUpdate;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillResponse>>;
+  readonly copySkill: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly name: string;
+    readonly scope: "organization" | "personal";
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillResponse>>;
+  readonly deleteSkillUseGrant: (options: {
+    readonly organizationId: string;
+    readonly skillId: string;
+    readonly id: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<undefined>>;
   /** One agent definition of the organization. */
   readonly getAgent: (options: {
     readonly organizationId: string;
@@ -7115,6 +7139,65 @@ export function createBakeryApiClient({
           },
         );
         return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateSkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.update"](
+          { id: options.id, ...options.input },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async copySkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.copy"](
+          { id: options.id, name: options.name, scope: options.scope },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async deleteSkillUseGrant(options) {
+      organizationId = options.organizationId;
+      try {
+        await client.actions["skills.useGrants.delete"](
+          { id: options.skillId, grantId: options.id },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data: undefined };
       } catch (error) {
         return failed(error);
       } finally {

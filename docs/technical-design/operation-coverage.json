@@ -1023,6 +1023,10 @@
         "module": "knowledge",
         "migration": "apps/server/src/modules/knowledge/migrations/bakery/0249_storage_working_areas.sql"
       },
+      "storage_folder_grants": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0356_folder_grants.sql"
+      },
       "storage_purge_requests": {
         "module": "knowledge",
         "migration": "apps/server/src/modules/knowledge/migrations/bakery/0250_storage_purge_requests.sql"

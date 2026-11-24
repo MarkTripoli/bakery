@@ -13,6 +13,7 @@ import {
   StorageNameError,
   storageQueryOf,
 } from "./storage-tree.ts";
+import { deniedEntriesCte } from "./folder-access-store.ts";
 import { hiddenEntryIds, reviewerIsolationOf } from "./reviewer-isolation.ts";
 
 /**
@@ -495,6 +496,8 @@ export function createFileSearchHandler(
            and def.id = av.agent_id
          where entry.organization_id = ${org} and entry.kind = 'file'
            and entry.id not in (select id from hidden)
+           and (${p(admin)}::boolean or entry.id not in (
+                select id from denied where not granted))
            and (${folder}::uuid is null or entry.id in (select id from scope))
            and (${needleParam}::text is null
                 or strpos(entry.name_key, ${needleParam}) > 0)
@@ -570,6 +573,8 @@ export function createFileSearchHandler(
                 or entry.owner_id is null
                 or entry.owner_id = ${p(principalId)}::uuid)
            and entry.id not in (select id from hidden)
+           and (${p(admin)}::boolean or entry.id not in (
+                select id from denied where not granted))
            and (${folder}::uuid is null or entry.id in (select id from scope))
            and (${needleParam}::text is null
                 or strpos(entry.name_key, ${needleParam}) > 0)
@@ -630,7 +635,8 @@ export function createFileSearchHandler(
         select child.id from bakery.storage_entries child
           join hidden on child.parent_id = hidden.id
          where child.organization_id = ${org}
-      )
+      ),
+      ${deniedEntriesCte(org, p(principalId))}
       select *, to_char(created_at at time zone 'UTC',
                'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at
         from (${branches.join("\n union all\n")}) hits

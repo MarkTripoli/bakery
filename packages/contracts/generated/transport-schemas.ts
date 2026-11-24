@@ -13732,7 +13732,7 @@ const transportSchemas = {
           "name": "intent",
           "type": "enum(fyi|review|approve|answer|take_over)",
           "required": true,
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer name the questionId they concern, review names the artifactVersionId, and take_over names the stepKey; each gives the person asked the right to do that one thing, until the request expires."
         },
         {
           "name": "stepKey",
@@ -13742,7 +13742,7 @@ const transportSchemas = {
             "minLength": 1,
             "maxLength": 200
           },
-          "description": "The step the request concerns, or omitted for the run as a whole."
+          "description": "The step the request concerns, or omitted for the run as a whole. Required for take_over, which gives the right to steer and take over that one step."
         },
         {
           "name": "note",
@@ -13766,6 +13766,12 @@ const transportSchemas = {
           "description": "The open approval (for approve) or question (for answer) on this run that the request asks about. Required for approve and answer, and refused for the other intents. The person asked is given the right to decide or answer that one row, until the request expires."
         },
         {
+          "name": "artifactVersionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The artifact version of this run the request asks someone to review. Required for review and refused for the other intents. The person asked is given the right to comment on that one version, until the request expires."
+        },
+        {
           "name": "recipientRoleKey",
           "type": "string",
           "required": false,
@@ -13787,7 +13793,7 @@ const transportSchemas = {
         "Name exactly one recipient: recipientId, recipientRoleKey or recipientGroupId (request_recipient_required). A role or group nobody else holds is request_audience_empty, one only the asker holds is request_self, an unknown one is request_audience_not_found. One with more than 50 people to ask is refused whole with STATE_CONFLICT request_audience_too_large, and nobody is asked.",
         "An agent asks only on the run its session belongs to (AUTH_FORBIDDEN agent_ask_own_run_only) and only a role or group a live ask grant on its workflow names (agent_ask_audience_not_granted; no ask grant at all is agent_power_requires_grant, a lapsed one agent_power_grant_expired). The response is the first member's request; runRequests.list shows each member's."
       ],
-      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."
+      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve, answer, review and take_over, to do that one thing until the request ends."
     },
     "StorageFileContentQuery": {
       "fields": [
@@ -15282,6 +15288,36 @@ const transportSchemas = {
       ],
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
     },
+    "SkillUseGrantCreate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "The workflow that may use the skill again."
+        },
+        {
+          "name": "skillVersionId",
+          "type": "uuid",
+          "required": true,
+          "description": "The exact version of the skill the step names; the grant covers this version only."
+        },
+        {
+          "name": "stepPath",
+          "type": "string",
+          "required": true,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+        }
+      ],
+      "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
+    },
     "SkillActiveVersionSet": {
       "fields": [
         {
@@ -15356,6 +15392,40 @@ const transportSchemas = {
         "Skill author. Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft). The file keeps its content, type and runnable mark."
       ],
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+    },
+    "FolderGrantCreate": {
+      "fields": [
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "The member to grant on the folder. They must be an active member of the organization."
+        },
+        {
+          "name": "level",
+          "type": "enum(view|edit|manage)",
+          "required": true,
+          "description": "What the grant allows: view reads, edit also writes, manage also grants and restricts. A grant inherits downward, and a second grant to the same member changes the level."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. Only a working-area folder takes a grant: record areas, the artifacts area, personal folders, /library, /trash, /system and /connections are refused with STORAGE_AREA_REFUSED. The caller needs manage on the folder. A folder with no restricted folder at or above it is refused with STORAGE_AREA_REFUSED (409, reason folder_not_restricted); restrict it first."
+      ],
+      "description": "Grants a member view, edit or manage on one folder (chapter 25 section 17.3). It takes effect only where the folder or an ancestor is restricted, and a folder with no restricted folder at or above it cannot be granted on: restrict it first."
+    },
+    "FolderRestrictionSet": {
+      "fields": [
+        {
+          "name": "restricted",
+          "type": "boolean",
+          "required": true,
+          "description": "True to restrict the folder: what is granted above it stops reaching below it, and it is open only to members granted on it or below, and to Admins. False lifts the restriction."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. Only a working-area folder can be restricted or reopened; the same areas are refused with STORAGE_AREA_REFUSED as for grants. On a folder with no restricted folder at or above it, a member who may write in its area can restrict it and receives manage on it. Once a restricted folder is at or above it, the caller needs manage on the folder. Reopening a folder revokes the live grants on it and below it that no longer have a restricted folder at or above them. Moving, trashing or restoring a folder revokes, in the same way, the live grants in it that relied on a restricted folder above it; each of these audit rows lists the revoked grants."
+      ],
+      "description": "Restricts or reopens one folder. A restricted folder and everything under it do not exist, as far as a listing, a path or an id can tell, to a member who holds no grant inside it."
     },
     "StorageConnectionPathQuery": {
       "fields": [
@@ -35798,6 +35868,7 @@ const transportSchemas = {
         "skillId",
         "skillVersionId",
         "revision",
+        "revisionDigest",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -35815,7 +35886,8 @@ const transportSchemas = {
         "stepPath": "string",
         "grantedBy": "uuid",
         "createdAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "revisionDigest": "string"
       },
       "nullableFields": [],
       "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both.",
@@ -35824,6 +35896,7 @@ const transportSchemas = {
         "skillId": "Stable UUID of the personal skill the grant is for.",
         "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
         "revision": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read.",
+        "revisionDigest": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read.",
         "workflowId": "Stable UUID of the workflow the skill was attached to.",
         "workflowName": "Display name of that workflow, so the owner can recognise it.",
         "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
@@ -36070,7 +36143,8 @@ const transportSchemas = {
         "updatedAt",
         "version",
         "questionId",
-        "audience"
+        "audience",
+        "artifactVersionId"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -36090,7 +36164,8 @@ const transportSchemas = {
         "updatedAt": "timestamp",
         "version": "integer",
         "questionId": "uuid|null",
-        "audience": "RunRequestAudience|null"
+        "audience": "RunRequestAudience|null",
+        "artifactVersionId": "uuid|null"
       },
       "nullableFields": [
         "stepKey",
@@ -36099,7 +36174,8 @@ const transportSchemas = {
         "neededBy",
         "fallbackForName",
         "questionId",
-        "audience"
+        "audience",
+        "artifactVersionId"
       ],
       "description": "A request: one person asked for one thing on one run, with how it stands.",
       "fieldDescriptions": {
@@ -36120,11 +36196,13 @@ const transportSchemas = {
         "updatedAt": "UTC time it last changed.",
         "version": "Optimistic-concurrency version used as If-Match.",
         "questionId": "The approval or question the request asks about, or null when it asks for none.",
-        "audience": "The role or group this request was asked of, or null when one person was asked."
+        "audience": "The role or group this request was asked of, or null when one person was asked.",
+        "artifactVersionId": "The artifact version the request asks someone to review, or null when it asks for none."
       },
       "optionalFields": [
         "questionId",
-        "audience"
+        "audience",
+        "artifactVersionId"
       ]
     },
     "RunRequests": {
@@ -38779,6 +38857,75 @@ const transportSchemas = {
         "skillId": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill.",
         "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
         "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+      }
+    },
+    "FolderGrant": {
+      "fields": [
+        "id",
+        "folderId",
+        "principalId",
+        "level",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "folderId": "uuid",
+        "principalId": "uuid",
+        "level": "enum(view|edit|manage)",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "revokedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "revokedAt"
+      ],
+      "description": "One grant of view, edit or manage on a folder to a member.",
+      "fieldDescriptions": {
+        "id": "Stable identifier of the grant.",
+        "folderId": "The folder the grant is on.",
+        "principalId": "The member who holds it.",
+        "level": "What the grant allows.",
+        "grantedBy": "The member who granted it.",
+        "createdAt": "When it was granted.",
+        "revokedAt": "When it was revoked, or null while it is live.",
+        "version": "Optimistic concurrency counter."
+      }
+    },
+    "FolderGrantList": {
+      "fields": [
+        "items"
+      ],
+      "fieldTypes": {
+        "items": "json[]"
+      },
+      "bounds": {
+        "itemsMaxItems": 200
+      },
+      "description": "The live grants on one folder, oldest first, at most 200.",
+      "fieldDescriptions": {
+        "items": "One FolderGrant per live grant."
+      }
+    },
+    "FolderRestriction": {
+      "fields": [
+        "folderId",
+        "restricted",
+        "version"
+      ],
+      "fieldTypes": {
+        "folderId": "uuid",
+        "restricted": "boolean",
+        "version": "integer"
+      },
+      "description": "Whether a folder is restricted after the change.",
+      "fieldDescriptions": {
+        "folderId": "The folder.",
+        "restricted": "Whether it is now restricted.",
+        "version": "The folder's version after the change."
       }
     },
     "StorageConnectionMount": {
