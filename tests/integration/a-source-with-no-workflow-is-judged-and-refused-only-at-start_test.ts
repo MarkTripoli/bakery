@@ -46,6 +46,8 @@ Deno.test("issue 407: a source with no workflow records readiness, previews, syn
     assertEquals([counted.reports, counted.requests], [2, 0]);
 
     const first = await ticketByNumber(fx, 1);
+    assert(first.latestReadiness !== null, "the list reads the stored report");
+    assertEquals(typeof first.latestReadiness.verdict, "string");
     const recorded = await ticketCall(
       fx,
       "POST",
