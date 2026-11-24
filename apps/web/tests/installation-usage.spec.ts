@@ -122,6 +122,38 @@ for (
       await still(page, "usage-custom-fields");
     });
 
+    test("a clause that counts nothing is left out of the partial banner, and budgets say they cover every provider", async ({ page }) => {
+      await usageFixture(page);
+      await page.goto("/installation/usage");
+      const banner = page.getByText("These totals are partial").locator("..");
+      await expect(banner).toContainText(
+        "3 records are not confirmed by a provider and 1 record has no cost at all.",
+      );
+      await expect(page.getByText(/^Budgets count every provider/)).toHaveCount(
+        0,
+      );
+      await page.getByRole("button", { name: /^Provider:/ }).click();
+      await page.getByRole("dialog", { name: "Provider" }).getByText(
+        "Anthropic",
+        { exact: true },
+      ).click();
+      await expect(banner).toContainText(
+        "3 records are not confirmed by a provider.",
+      );
+      await expect(banner).not.toContainText("no cost at all");
+      await expect(
+        page.getByText("Budgets count every provider, not only Anthropic."),
+      ).toBeVisible();
+      await page.mouse.move(viewport.width / 2, viewport.height - 20);
+      await still(page, "usage-provider-filtered");
+      await page.getByRole("button", { name: /^Provider:/ }).click();
+      await page.getByRole("dialog", { name: "Provider" }).getByText("OpenAI", {
+        exact: true,
+      }).click();
+      await expect(banner).toContainText("1 record has no cost at all.");
+      await expect(banner).not.toContainText("not confirmed by a provider");
+    });
+
     test("a failed read is an error state with Try again, not a blank page", async ({ page }) => {
       await usageFixture(page, { failing: true });
       await page.goto("/installation/usage");

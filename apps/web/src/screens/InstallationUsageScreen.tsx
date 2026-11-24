@@ -258,10 +258,17 @@ export function InstallationUsageScreen(
               <UI.Stack gap="tight">
                 <strong>{translate("installation.usage.partial.title")}</strong>
                 <span>
-                  {translate("installation.usage.partial.body", {
-                    unverified: summary.unverifiedCount,
-                    unknown: summary.unknownCount,
-                  })}
+                  {translate(
+                    summary.unverifiedCount > 0 && summary.unknownCount > 0
+                      ? "installation.usage.partial.body"
+                      : summary.unverifiedCount > 0
+                      ? "installation.usage.partial.unverifiedOnly"
+                      : "installation.usage.partial.unknownOnly",
+                    {
+                      unverified: summary.unverifiedCount,
+                      unknown: summary.unknownCount,
+                    },
+                  )}
                 </span>
               </UI.Stack>
             </UI.AlertBanner>
@@ -381,6 +388,13 @@ export function InstallationUsageScreen(
                       "installation.usage.budgets.heading",
                     )}
                   >
+                    {provider === null ? null : (
+                      <UI.Text variant="caption">
+                        {translate("installation.usage.budgets.allProviders", {
+                          provider: providerName(provider),
+                        })}
+                      </UI.Text>
+                    )}
                     <UsageBudgetTable accounts={budgets} />
                   </UI.SettingsSection>
                 )

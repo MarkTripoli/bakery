@@ -6761,5 +6761,8 @@
   "library.evaluations.title.workflowUnversioned": "⟦À ŵôŕķƒļôŵ ŧ⟧",
   "library.evaluations.title.versionUnversioned": "⟦Ṽëŕšïôñ ñôŧ ŕëçôŕðëð ŧëšŧ⟧",
   "library.evaluation.cost.unsettled.body": "⟦Ñô ñëŵ ɱôðëļ çàļļ šŧàŕŧš ûñŧïļ ŧĥë ɱïššïñĝ çôšŧ ïš ķñôŵñ. Ɓàķëŕÿ çĥëçķš àĝàïñ ƀÿ ïŧšëļƒ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "library.evaluation.repeats.summary": "⟦{scorer}: {passed} ôƒ {n} ŕëþëàŧš þàššëð ŧëšŧ çôþÿ ŧ⟧"
+  "library.evaluation.repeats.summary": "⟦{scorer}: {passed} ôƒ {n} ŕëþëàŧš þàššëð ŧëšŧ çôþÿ ŧ⟧",
+  "installation.usage.partial.unverifiedOnly": "⟦{unverified, plural, one {# record is} other {# records are}} ñôŧ çôñƒïŕɱëð ƀÿ à þŕôṽïðëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "installation.usage.partial.unknownOnly": "⟦{unknown, plural, one {# record has} other {# records have}} ñô çôšŧ àŧ àļļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "installation.usage.budgets.allProviders": "⟦Ɓûðĝëŧš çôûñŧ ëṽëŕÿ þŕôṽïðëŕ, ñôŧ ôñļÿ {provider}. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

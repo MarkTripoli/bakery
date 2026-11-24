@@ -6761,5 +6761,8 @@
   "library.evaluations.title.workflowUnversioned": "⟪A workflow⟫",
   "library.evaluations.title.versionUnversioned": "⟪Version not recorded⟫",
   "library.evaluation.cost.unsettled.body": "⟪No new model call starts until the missing cost is known. Bakery checks again by itself.⟫",
-  "library.evaluation.repeats.summary": "⟪{scorer}: {passed} of {n} repeats passed⟫"
+  "library.evaluation.repeats.summary": "⟪{scorer}: {passed} of {n} repeats passed⟫",
+  "installation.usage.partial.unverifiedOnly": "⟪{unverified, plural, one {# record is} other {# records are}} not confirmed by a provider.⟫",
+  "installation.usage.partial.unknownOnly": "⟪{unknown, plural, one {# record has} other {# records have}} no cost at all.⟫",
+  "installation.usage.budgets.allProviders": "⟪Budgets count every provider, not only {provider}.⟫"
 }
