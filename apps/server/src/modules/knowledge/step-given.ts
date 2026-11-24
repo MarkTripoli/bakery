@@ -65,11 +65,8 @@ export type StepGiven = Readonly<{
   facts: readonly GivenFact[];
   factsOmitted: number;
   documents: readonly GivenDocument[];
-  /** Documents the reader may not see at all, counted but never named. */
   documentsHidden: number;
-  /** Documents whose bytes are purged, counted but never named. */
   documentsGone: number;
-  /** Documents nothing truthful can be said about, counted but never named. */
   documentsUnchecked: number;
 }>;
 

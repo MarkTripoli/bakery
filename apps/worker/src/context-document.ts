@@ -19,9 +19,7 @@ export type ContextInputEntry = {
 };
 
 export type ContextFactEntry = {
-  /** The wording the agent was given, exactly as it was recorded. */
   readonly wording: string;
-  /** When that wording was recorded, ISO 8601. */
   readonly recordedAt: string;
 };
 
@@ -33,9 +31,7 @@ export type ContextDocument = {
   /** The output slots the step must publish, by name. */
   readonly outputs: readonly string[];
   readonly inputs: readonly ContextInputEntry[];
-  /** The repository's facts in use when this step started. */
   readonly facts?: readonly ContextFactEntry[];
-  /** How many facts were left out to stay inside the step's bound. */
   readonly factsOmitted?: number;
   readonly contextDir: string;
   readonly outputDir: string;

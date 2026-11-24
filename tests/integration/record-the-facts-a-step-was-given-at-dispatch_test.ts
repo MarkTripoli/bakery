@@ -128,8 +128,6 @@ Deno.test("dispatch records the facts the step's agent was given, with their rev
       body: "Tests run with pnpm.",
       sourceVersionId: await seedCitedVersion(fixture),
     });
-    // The seed's rows hold the cited version open, and the fixture's teardown
-    // deletes versions: release them once the assertion has been made.
     try {
       await setRow(fixture, probe, probe.firstKey, "completed", {});
       const key = await probe.repository.findNext(probe.job.runId, probe.owner);

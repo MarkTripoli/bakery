@@ -206,7 +206,6 @@ Deno.test(
     }),
 );
 
-/** Seeds cited versions and memory rows outlive a close that deletes versions. */
 async function releaseFacts(fixture: WorkerFixture) {
   const entries = await fixture.pgDatabase.query<{ id: string }>(
     "update bakery.memory_entries set current_revision_id = null where organization_id = $1 returning id",
