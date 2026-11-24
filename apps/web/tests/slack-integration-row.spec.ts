@@ -16,6 +16,14 @@ const slackCredentials = {
   version: 0,
 };
 
+const savedSlackCredentials = {
+  ...slackCredentials,
+  configured: true,
+  clientId: "1234567890.0987654321",
+  clientSecretSavedAt: "2026-11-24T10:00:00.000Z",
+  version: 2,
+};
+
 async function fixture(page: Page): Promise<void> {
   await mockAuthenticatedSession(page);
   await page.route(
@@ -56,4 +64,12 @@ test("the Slack section on the installation integrations page", async ({ page })
     "Slack is not set up yet. Create a Slack app, then enter its details here.",
   );
   await still(page, "connections-installation", section);
+});
+
+test("a saved Slack app says its details are saved, never that Slack is set up", async ({ page }) => {
+  await fixture(page, savedSlackCredentials);
+  await page.goto(INSTALLATION_PATH);
+  const section = page.getByTestId("slack-credentials");
+  await expect(section).toContainText("Your Slack app details are saved.");
+  await expect(section).not.toContainText("Slack is set up.");
 });

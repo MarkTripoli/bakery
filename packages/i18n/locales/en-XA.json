@@ -6830,12 +6830,12 @@
   "integrations.slack.soon": "⟦Çôññëçŧïñĝ Šļàçķ ïš ñôŧ àṽàïļàƀļë ïñ ŧĥïš ṽëŕšïôñ ôƒ Ɓàķëŕÿ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "integrations.slack.credentials.guide": "⟦Ĥôŵ ŧô çŕëàŧë ïŧ ïñ Šļàçķ ŧëšŧ ç⟧",
   "integrations.slack.credentials.callbackHint": "⟦Þàšŧë ŧĥïš ïñŧô ŧĥë Šļàçķ àþþ àš ïŧš ŕëðïŕëçŧ ÛŔĻ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "integrations.slack.credentials.setUp": "⟦Šļàçķ ïš šëŧ ûþ. ŧëš⟧",
   "integrations.slack.credentials.clientIdSaved": "⟦Çļïëñŧ ÏÐ {id} ŧë⟧",
   "integrations.slack.credentials.secretSaved": "⟦Çļïëñŧ šëçŕëŧ šàṽëð {date} ŧëšŧ çô⟧",
   "integrations.slack.credentials.saveFailed": "⟦Ŧĥë ðëŧàïļš çôûļð ñôŧ ƀë šàṽëð. Ëñŧëŕ ŧĥë çļïëñŧ šëçŕëŧ àĝàïñ, ŧĥëñ šàṽë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "integrations.slack.credentials.stale": "⟦Ŧĥëšë ðëŧàïļš çĥàñĝëð šïñçë ŧĥïš þàĝë ļôàðëð. Ñôŧĥïñĝ ŵàš šàṽëð. Çĥëçķ ŧĥë çûŕŕëñŧ ðëŧàïļš, ŧĥëñ ëñŧëŕ ÿôûŕš àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "integrations.slack.credentials.loading": "⟦Ļôàðïñĝ ŧĥë Šļàçķ ðëŧàïļš. ŧëšŧ çô⟧",
   "integrations.slack.credentials.loadError": "⟦Ŧĥë Šļàçķ ðëŧàïļš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧ⟧",
-  "integrations.slack.credentials.notSet": "⟦Šļàçķ ïš ñôŧ šëŧ ûþ ÿëŧ. Çŕëàŧë à Šļàçķ àþþ, ŧĥëñ ëñŧëŕ ïŧš ðëŧàïļš ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
+  "integrations.slack.credentials.notSet": "⟦Šļàçķ ïš ñôŧ šëŧ ûþ ÿëŧ. Çŕëàŧë à Šļàçķ àþþ, ŧĥëñ ëñŧëŕ ïŧš ðëŧàïļš ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "integrations.slack.credentials.setUp": "⟦Ÿôûŕ Šļàçķ àþþ ðëŧàïļš àŕë šàṽëð. ŧëšŧ çôþÿ⟧"
 }

@@ -6830,12 +6830,12 @@
   "integrations.slack.soon": "⟪Connecting Slack is not available in this version of Bakery yet.⟫",
   "integrations.slack.credentials.guide": "⟪How to create it in Slack⟫",
   "integrations.slack.credentials.callbackHint": "⟪Paste this into the Slack app as its redirect URL.⟫",
-  "integrations.slack.credentials.setUp": "⟪Slack is set up.⟫",
   "integrations.slack.credentials.clientIdSaved": "⟪Client ID {id}⟫",
   "integrations.slack.credentials.secretSaved": "⟪Client secret saved {date}⟫",
   "integrations.slack.credentials.saveFailed": "⟪The details could not be saved. Enter the client secret again, then save.⟫",
   "integrations.slack.credentials.stale": "⟪These details changed since this page loaded. Nothing was saved. Check the current details, then enter yours again.⟫",
   "integrations.slack.credentials.loading": "⟪Loading the Slack details.⟫",
   "integrations.slack.credentials.loadError": "⟪The Slack details could not be loaded.⟫",
-  "integrations.slack.credentials.notSet": "⟪Slack is not set up yet. Create a Slack app, then enter its details here.⟫"
+  "integrations.slack.credentials.notSet": "⟪Slack is not set up yet. Create a Slack app, then enter its details here.⟫",
+  "integrations.slack.credentials.setUp": "⟪Your Slack app details are saved.⟫"
 }
