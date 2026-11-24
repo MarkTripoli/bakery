@@ -1573,6 +1573,8 @@ test("the phone header carries the notifications bell", async ({ page }) => {
       name: /^Notifications/,
     }),
   ).toBeVisible();
+  await page.mouse.move(200, 800);
+  await still(page, "phone-header-bell-conversation");
 });
 
 test("the wide header keeps the bell in the shell bar only", async ({ page }) => {

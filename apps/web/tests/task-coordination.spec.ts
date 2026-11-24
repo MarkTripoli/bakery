@@ -907,6 +907,8 @@ test("the phone header carries the notifications bell", async ({ page }) => {
   await expect(
     root(page).getByRole("button", { name: /^Notifications/ }),
   ).toBeVisible();
+  await page.mouse.move(200, 800);
+  await still(page, "phone-header-bell-coordination");
 });
 
 const withOrigin = (origin: Record<string, unknown>) => ({
