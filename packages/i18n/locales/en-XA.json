@@ -6752,7 +6752,6 @@
   "installation.backups.facts.check.failed": "⟦Ƒàïļëð…⟧",
   "installation.backups.facts.check.detail": "⟦{time}, ŕëšŧôŕëð ïñ {span} ŧëšŧ çô⟧",
   "installation.backups.facts.check.guide": "⟦Ĥôŵ ŧô ŕûñ ôñë ŧë⟧",
-  "installation.backups.list.title": "⟦Ɓàçķûþš…⟧",
   "installation.backups.list.empty": "⟦Ñô ƀàçķûþ ĥàš ƀëëñ ŧàķëñ ÿëŧ. ŧëšŧ çôþ⟧",
   "installation.backups.list.taken": "⟦Ŧàķëñ (ÛŦÇ) ŧ⟧",
   "installation.backups.list.by": "⟦Šŧàŕŧëð ƀÿ ŧ⟧",
@@ -6803,7 +6802,6 @@
   "installation.backups.settings.pitr.on": "⟦Ôñ⟧",
   "installation.backups.settings.pitr.waiting": "⟦Ôñ, ŵàïŧïñĝ ƒôŕ ŧĥë ƀàçķûþ šëŕṽïçë ŧô ŕëþôŕŧ ŧëšŧ çôþÿ ŧëš⟧",
   "installation.backups.settings.unavailable": "⟦Çôûļð ñôŧ ƀë ŕëàð ŧëš⟧",
-  "installation.backups.settings.change": "⟦Çĥàñĝë šëŧŧïñĝš ŧëš⟧",
   "installation.backups.interval.hourly": "⟦Ëṽëŕÿ ĥôûŕ ŧ⟧",
   "installation.backups.interval.daily": "⟦Ëṽëŕÿ ðàÿ ŧ⟧",
   "installation.backups.interval.weekly": "⟦Ëṽëŕÿ ŵëëķ, ôñ Ṁôñðàÿ ŧëšŧŧ⟧",
@@ -6826,5 +6824,12 @@
   "installation.backups.key.confirm": "⟦Ï ĥàṽë çôþïëð ïŧ ŧëš⟧",
   "installation.backups.key.done": "⟦Ðôñë⟧",
   "installation.backups.key.dismiss": "⟦Çļôšë ôñçë ŧĥë ķëÿ ïš çôþïëð ŧëšŧ çô⟧",
-  "installation.backups.key.failed": "⟦Ŧĥë ķëÿ çôûļð ñôŧ ƀë ɱàðë. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿŧ⟧"
+  "installation.backups.key.failed": "⟦Ŧĥë ķëÿ çôûļð ñôŧ ƀë ɱàðë. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿŧ⟧",
+  "installation.backups.notice.waiting.starts": "⟦Ïŧ šŧàŕŧš ŵĥëñ ŧĥë ƀàçķûþ šëŕṽïçë þïçķš ïŧ ûþ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "installation.backups.facts.lastGood.value": "⟦Ñôñë ÿëŧ…⟧",
+  "installation.backups.facts.next.value": "⟦Ûñķñôŵñ…⟧",
+  "installation.backups.list.notTaken": "⟦Ñôŧ ŧàķëñ ŧ⟧",
+  "installation.backups.list.notFinished": "⟦Ñôŧ ƒïñïšĥëð ÿëŧ ŧëš⟧",
+  "installation.backups.key.tick": "⟦Ŧïçķ ŧĥïš ôñçë ÿôû ĥàṽë çôþïëð ŧĥë ķëÿ. ŧëšŧ çôþÿ ŧ⟧",
+  "installation.backups.list.title": "⟦Ĥïšŧôŕÿ…⟧"
 }

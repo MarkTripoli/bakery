@@ -212,6 +212,11 @@ Deno.test("a running backup shows its percent, or says it waits for the service"
     waiting.lines[0]?.key,
     "installation.backups.notice.running.waiting",
   );
+  assertEquals(
+    waiting.lines[1]?.key,
+    "installation.backups.notice.waiting.starts",
+  );
+  assertEquals(started.lines.length, 1);
   assertEquals(isBackingUp(status({ waitingRunId: "w" })), true);
   assertEquals(isBackingUp(status()), false);
 });
@@ -311,6 +316,14 @@ Deno.test("rows say who started them, where they are kept and how they ended", (
   assertEquals(
     runResult(run({ failureCode: "destination_unreachable" })).key,
     "installation.backups.result.notCopied",
+  );
+  assertEquals(
+    runResult(run({ failureCode: "destination_unreachable" })).cause?.key,
+    "installation.backups.notice.notCopied.cause",
+  );
+  assertEquals(
+    runResult(run({ failureCode: "key_missing" })).cause?.key,
+    "installation.backups.notice.notCopied.cause",
   );
   assertEquals(
     runResult(run({ status: "failed", failureCode: "disk_full" })).tone,

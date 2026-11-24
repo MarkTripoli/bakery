@@ -1,4 +1,4 @@
-import { type MouseEvent, type ReactNode, useState } from "react";
+import { type MouseEvent, type ReactNode } from "react";
 import * as UI from "@bakery/ui";
 import type {
   BackupDrill,
@@ -8,10 +8,13 @@ import type {
   BackupSchedule,
   BackupStatus,
 } from "../api/client.ts";
-import { CopyValueButton } from "../pages/CopyValueButton.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellSlot } from "../shell/shell-slots.tsx";
+import {
+  RunnerKeyDialog,
+  type RunnerKeyView,
+} from "./backups/RunnerKeyDialog.tsx";
 import {
   backupNotice,
   BACKUPS_DRILL_GUIDE_HREF,
@@ -50,11 +53,6 @@ export type BackupsListState = {
   readonly loadingMore: boolean;
 };
 
-export type RunnerKeyView = {
-  readonly phase: "idle" | "issuing" | "shown" | "failed";
-  readonly credential: string | null;
-};
-
 export type InstallationBackupsScreenProps = {
   readonly state: BackupsScreenState;
   readonly nowMs: number;
@@ -89,7 +87,7 @@ type Formatters = {
   readonly word: (word: SettingsWord) => string;
 };
 
-function useFormatters(): Formatters {
+export function useFormatters(): Formatters {
   const { translate, locale, timeZone } = useI18n();
   const utcFormat = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
@@ -213,7 +211,7 @@ export function InstallationBackupsScreen(
 
   const headerActions = state === "ready" && status !== null
     ? (
-      <UI.Inline gap="compact" variant="actions">
+      <UI.Inline gap="compact" variant={phone ? "actions" : undefined}>
         <InternalLink
           onNavigate={props.onNavigate}
           path={BACKUPS_SETTINGS_PATH}
@@ -287,7 +285,7 @@ export function InstallationBackupsScreen(
           ? <NoRunner {...props} />
           : <Ready {...props} status={status} />}
       </UI.Stack>
-      <KeyDialog {...props} />
+      <RunnerKeyDialog onDone={props.onKeyDone} runnerKey={props.runnerKey} />
     </UI.SettingsContent>
   );
 }
@@ -415,7 +413,9 @@ function Facts(
           ? translate("installation.backups.facts.lastGood.none")
           : format.ago(spanSince(lastGood, nowMs))}
         label={translate("installation.backups.facts.lastGood.label")}
-        value={lastGood === null ? "—" : format.utc(lastGood)}
+        value={lastGood === null
+          ? translate("installation.backups.facts.lastGood.value")
+          : format.utc(lastGood)}
       />
       <UI.StatTile
         data-fact="next"
@@ -439,7 +439,7 @@ function Facts(
           })}
         label={translate("installation.backups.facts.next.label")}
         value={next === null
-          ? "—"
+          ? translate("installation.backups.facts.next.value")
           : next.kind === "off"
           ? translate("installation.backups.facts.next.off")
           : format.utc(next.iso)}
@@ -552,8 +552,16 @@ function RunList(props: InstallationBackupsScreenProps) {
   };
   const keptIn = (run: BackupRun) => {
     const key = keptInKey(run.locations);
-    return key === null ? "—" : translate(key);
+    return key === null ? missing(run) : translate(key);
   };
+  const missing = (run: BackupRun) =>
+    translate(
+      run.status === "failed"
+        ? "installation.backups.list.notTaken"
+        : "installation.backups.list.notFinished",
+    );
+  const sizeOfRun = (run: BackupRun) =>
+    run.sizeBytes === null ? missing(run) : format.size(run.sizeBytes);
   const result = (run: BackupRun) => {
     const outcome = runResult(run);
     return (
@@ -601,7 +609,7 @@ function RunList(props: InstallationBackupsScreenProps) {
                 <UI.Text variant="caption">
                   {[
                     translate(startedByKey(run)),
-                    format.size(run.sizeBytes),
+                    sizeOfRun(run),
                     keptIn(run),
                   ].join(DETAIL_SEPARATOR)}
                 </UI.Text>
@@ -632,7 +640,7 @@ function RunList(props: InstallationBackupsScreenProps) {
                 id: "size",
                 header: translate("installation.backups.list.size"),
                 width: "12%",
-                cell: (run) => format.size(run.sizeBytes),
+                cell: sizeOfRun,
               },
               {
                 id: "kept",
@@ -842,14 +850,6 @@ function SettingsCard(props: InstallationBackupsScreenProps) {
           title={translate("installation.backups.settings.pitr")}
         />
       </UI.DescriptionList>
-      <UI.Inline>
-        <InternalLink
-          onNavigate={props.onNavigate}
-          path={BACKUPS_SETTINGS_PATH}
-        >
-          {translate("installation.backups.settings.change")}
-        </InternalLink>
-      </UI.Inline>
     </UI.SettingsSection>
   );
 }
@@ -920,66 +920,5 @@ function RestoringCard(props: InstallationBackupsScreenProps) {
           : null}
       </UI.Inline>
     </UI.SettingsSection>
-  );
-}
-
-function KeyDialog(props: InstallationBackupsScreenProps) {
-  const { phase } = props.runnerKey;
-  if (phase !== "shown" && phase !== "issuing") return null;
-  return <KeyDialogBody {...props} />;
-}
-
-function KeyDialogBody(props: InstallationBackupsScreenProps) {
-  const { translate } = useI18n();
-  const [copied, setCopied] = useState(false);
-  const { runnerKey } = props;
-  const credential = runnerKey.credential;
-  return (
-    <UI.Dialog
-      data-dialog="runner-key"
-      dismissLabel={translate("installation.backups.key.dismiss")}
-      onOpenChange={(next) => {
-        if (!next && copied) props.onKeyDone();
-      }}
-      open
-      state={runnerKey.phase === "issuing" ? "submitting" : "open"}
-      title={translate("installation.backups.key.title")}
-      variant="form"
-    >
-      <UI.Stack gap="standard">
-        {credential === null ? <UI.Skeleton shape="row" /> : (
-          <>
-            <UI.DataText data-value="runner-key" fit variant="code">
-              {credential}
-            </UI.DataText>
-            <CopyValueButton
-              label={translate("installation.backups.key.copyLabel")}
-              value={credential}
-            />
-            <UI.Text variant="strong">
-              {translate("installation.backups.key.warning")}
-            </UI.Text>
-            <UI.Checkbox
-              checked={copied}
-              data-field="key-copied"
-              onChange={(event) => setCopied(event.target.checked)}
-            >
-              {translate("installation.backups.key.confirm")}
-            </UI.Checkbox>
-            <UI.Inline gap="compact" variant="actions">
-              <UI.Button
-                data-action="key-done"
-                disabled={!copied}
-                onClick={props.onKeyDone}
-                type="button"
-                variant="primary"
-              >
-                {translate("installation.backups.key.done")}
-              </UI.Button>
-            </UI.Inline>
-          </>
-        )}
-      </UI.Stack>
-    </UI.Dialog>
   );
 }

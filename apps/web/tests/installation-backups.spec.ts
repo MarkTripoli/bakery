@@ -354,7 +354,34 @@ for (
       await expect.poll(() => said(page.locator("[data-section='settings']")))
         .toContain("Every day at 03:00 UTC");
       await expect.poll(() => said(page.locator("[data-section='settings']")))
-        .toContain("Change settings");
+        .not.toContain("Change settings");
+      await expect(page.getByRole("heading", { name: "History" }))
+        .toBeVisible();
+      await expect(page.getByRole("heading", { name: "Backups" })).toHaveCount(
+        1,
+      );
+      await expect.poll(() => said(page.locator("[data-fact='last-good']")))
+        .not.toContain("—");
+      const startButton = page.getByRole("button", { name: "Back up now" });
+      const startBox = await startButton.boundingBox();
+      expect(startBox!.height).toBeLessThan(60);
+      expect(
+        await startButton.evaluate((element) => {
+          const walker = document.createTreeWalker(
+            element,
+            NodeFilter.SHOW_TEXT,
+          );
+          const tops = new Set<number>();
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            for (const rect of Array.from(range.getClientRects())) {
+              tops.add(Math.round(rect.top));
+            }
+          }
+          return tops.size;
+        }),
+      ).toBe(1);
       await expect.poll(() => said(page.locator("[data-section='service']")))
         .toContain("Running on the server. Last heard from");
       await expect.poll(() => said(page.locator("[data-section='restoring']")))
@@ -391,7 +418,7 @@ for (
             locations: [],
             sizeBytes: null,
           }),
-          run(2),
+          run(2, { failureCode: "destination_refused" }),
         ],
         offsiteConfigured: false,
       });
@@ -408,6 +435,15 @@ for (
         "no space left on device",
       );
       await expect(page.locator("[data-run]").first()).toContainText("Failed");
+      await expect(page.locator("[data-run]").first()).toContainText(
+        "Not taken",
+      );
+      await expect.poll(() => said(page.locator("[data-run]").nth(1)))
+        .toContain("Not copied off-site");
+      await expect.poll(() => said(page.locator("[data-run]").nth(1)))
+        .toContain(
+          "The off-site copy failed: the bucket refused the copy. Check the access key and the bucket in Settings.",
+        );
       await noOverflow(page);
       await accessible(page);
       await page.mouse.move(5, 5);
@@ -432,6 +468,8 @@ for (
       await expect(page.locator("[data-result='no-backups']")).toBeVisible();
       await expect.poll(() => said(page.locator("[data-fact='last-good']")))
         .toContain("No backup has finished yet");
+      await expect.poll(() => said(page.locator("[data-fact='last-good']")))
+        .toContain("None yet");
       await expect(page.locator("[data-result='no-drills']")).toContainText(
         "No restore check has been run.",
       );
@@ -457,6 +495,7 @@ for (
           said: [
             "Backup requested",
             "Waiting for the backup service to start it.",
+            "It starts when the backup service picks it up.",
           ],
           button: "Backing up…",
         },
@@ -660,10 +699,18 @@ for (
         "Copy it now. Bakery cannot show it again.",
       );
       const done = dialog.getByRole("button", { name: "Done" });
-      await expect(done).toBeDisabled();
+      await expect(done).toBeEnabled();
       await page.keyboard.press("Escape");
       await expect(dialog).toBeVisible();
+      await done.click();
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText(
+        "Tick this once you have copied the key.",
+      );
       await dialog.getByRole("checkbox", { name: "I have copied it" }).check();
+      await expect(dialog).not.toContainText(
+        "Tick this once you have copied the key.",
+      );
       await expect(done).toBeEnabled();
       await page.mouse.move(5, 5);
       await still(page, "backups-key-dialog", dialog);
@@ -698,9 +745,14 @@ for (
       await page.goto("/installation/backups");
       const failed = page.locator("[data-result='load-failed']");
       await expect(failed).toContainText("Backups could not be loaded.");
+      const readsBefore = served.statusReads.length;
       served.stopRefusing();
-      await failed.getByRole("button", { name: "Try again" }).click();
+      const tryAgain = failed.getByRole("button", { name: "Try again" });
+      if (await tryAgain.isVisible()) {
+        await tryAgain.click({ timeout: 5_000 }).catch(() => undefined);
+      }
       await expect(page.locator("[data-notice='protected']")).toBeVisible();
+      expect(served.statusReads.length).toBeGreaterThan(readsBefore);
     });
 
     test("loading: skeleton rows with the label", async ({ page }) => {

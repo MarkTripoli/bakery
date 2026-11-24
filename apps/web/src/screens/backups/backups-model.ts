@@ -192,7 +192,13 @@ export function backupNotice(input: NoticeInput): Notice {
           : "installation.backups.notice.waiting.title",
         values: {},
       },
-      lines: [line],
+      lines: status.state === "running" ? [line] : [
+        line,
+        {
+          key: "installation.backups.notice.waiting.starts",
+          values: {},
+        },
+      ],
       detail: null,
       holdingWork,
     };
@@ -380,6 +386,15 @@ export type RunResult = {
 
 export function runResult(run: BackupRun): RunResult {
   const code = run.failureCode;
+  const offsiteCause: Phrase | null = code === null ? null : {
+    key: CAUSE_KEYS[code].fix === null
+      ? "installation.backups.notice.notCopied.causeOnly"
+      : "installation.backups.notice.notCopied.cause",
+    values: {
+      cause: CAUSE_KEYS[code].cause,
+      ...(CAUSE_KEYS[code].fix === null ? {} : { fix: CAUSE_KEYS[code].fix }),
+    },
+  };
   const cause: Phrase | null = code === null ? null : {
     key: CAUSE_KEYS[code].fix === null
       ? "installation.backups.row.causeOnly"
@@ -400,7 +415,7 @@ export function runResult(run: BackupRun): RunResult {
         : {
           key: "installation.backups.result.notCopied",
           tone: "warning",
-          cause,
+          cause: offsiteCause,
         };
     case "failed":
       return {

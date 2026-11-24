@@ -6752,7 +6752,6 @@
   "installation.backups.facts.check.failed": "⟪Failed⟫",
   "installation.backups.facts.check.detail": "⟪{time}, restored in {span}⟫",
   "installation.backups.facts.check.guide": "⟪How to run one⟫",
-  "installation.backups.list.title": "⟪Backups⟫",
   "installation.backups.list.empty": "⟪No backup has been taken yet.⟫",
   "installation.backups.list.taken": "⟪Taken (UTC)⟫",
   "installation.backups.list.by": "⟪Started by⟫",
@@ -6803,7 +6802,6 @@
   "installation.backups.settings.pitr.on": "⟪On⟫",
   "installation.backups.settings.pitr.waiting": "⟪On, waiting for the backup service to report⟫",
   "installation.backups.settings.unavailable": "⟪Could not be read⟫",
-  "installation.backups.settings.change": "⟪Change settings⟫",
   "installation.backups.interval.hourly": "⟪Every hour⟫",
   "installation.backups.interval.daily": "⟪Every day⟫",
   "installation.backups.interval.weekly": "⟪Every week, on Monday⟫",
@@ -6826,5 +6824,12 @@
   "installation.backups.key.confirm": "⟪I have copied it⟫",
   "installation.backups.key.done": "⟪Done⟫",
   "installation.backups.key.dismiss": "⟪Close once the key is copied⟫",
-  "installation.backups.key.failed": "⟪The key could not be made. Try again.⟫"
+  "installation.backups.key.failed": "⟪The key could not be made. Try again.⟫",
+  "installation.backups.notice.waiting.starts": "⟪It starts when the backup service picks it up.⟫",
+  "installation.backups.facts.lastGood.value": "⟪None yet⟫",
+  "installation.backups.facts.next.value": "⟪Unknown⟫",
+  "installation.backups.list.notTaken": "⟪Not taken⟫",
+  "installation.backups.list.notFinished": "⟪Not finished yet⟫",
+  "installation.backups.key.tick": "⟪Tick this once you have copied the key.⟫",
+  "installation.backups.list.title": "⟪History⟫"
 }

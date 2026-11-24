@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  useInfiniteQuery,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import type { BackupRunnerCredentialIssued } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import {
   backupDrillsQueryOptions,
@@ -22,8 +17,8 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import {
   type BackupsScreenState,
   InstallationBackupsScreen,
-  type RunnerKeyView,
 } from "../screens/InstallationBackupsScreen.tsx";
+import { useRunnerKey } from "./useRunnerKey.ts";
 
 const CLOCK_TICK_MS = 30_000;
 const STATUS_REFRESH_MS = 15_000;
@@ -44,7 +39,6 @@ export function InstallationBackupsPage() {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const nowMs = useNowMs();
   const statusOptions = backupStatusQueryOptions(api, scope);
   const status = useQuery({
@@ -59,14 +53,9 @@ export function InstallationBackupsPage() {
   const restore = useQuery(installationRestoreQueryOptions(api, scope));
 
   const [startFailed, setStartFailed] = useState(false);
-  const [runnerKey, setRunnerKey] = useState<RunnerKeyView>({
-    phase: "idle",
-    credential: null,
-  });
   const startKey = useRef<string | null>(null);
   useEffect(() => {
     setStartFailed(false);
-    setRunnerKey({ phase: "idle", credential: null });
     startKey.current = null;
   }, [scope.sessionGeneration]);
 
@@ -91,23 +80,7 @@ export function InstallationBackupsPage() {
     setStartFailed(true);
   });
 
-  const [, makeKey] = useSingleFlightSubmit(async () => {
-    setRunnerKey({ phase: "issuing", credential: null });
-    const started = scope.sessionGeneration;
-    const result = await api.backups.issueRunnerCredential();
-    if (started !== scope.sessionGeneration) return;
-    if (result.ok) {
-      const issued: BackupRunnerCredentialIssued = result.data;
-      setRunnerKey({ phase: "shown", credential: issued.credential });
-      return;
-    }
-    setRunnerKey({ phase: "failed", credential: null });
-  });
-
-  const keyDone = () => {
-    setRunnerKey({ phase: "idle", credential: null });
-    void queryClient.invalidateQueries({ queryKey: statusOptions.queryKey });
-  };
+  const { runnerKey, issue: makeKey, done: keyDone } = useRunnerKey();
 
   const runRows = useMemo(
     () => runs.data?.pages.flatMap((page) => page.items) ?? [],
