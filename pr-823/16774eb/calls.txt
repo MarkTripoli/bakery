@@ -1,8 +1,0 @@
-GET /v1/integrations/slack/app 200
-GET /v1/integrations/slack/app 200
-PUT /v1/integrations/slack/app 200
-POST /v1/integrations/slack/app/check 201
-GET /v1/integrations/slack/app 200
-POST /v1/integrations/slack/app/check 201
-GET /v1/integrations/slack/app 200
-DELETE /v1/integrations/slack/app 200
