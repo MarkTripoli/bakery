@@ -6836,5 +6836,7 @@
   "tasks.conversation.plan.rejectDialog.title": "⟦Ŕëĵëçŧ ŧĥïš þļàñ? ŧëš⟧",
   "tasks.conversation.plan.rejectDialog.body": "⟦Ɓàķëŕÿ ŵïļļ ñôŧ ƀûïļð ƒŕôɱ ṽëŕšïôñ {revision}. Ÿôû çàñ àšķ ƒôŕ çĥàñĝëš ïñšŧëàð. Ŧĥïš çàññôŧ ƀë ûñðôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "tasks.startRun.refused.approvalExpired": "⟦Ŧĥïš àþþŕôṽàļ ëẋþïŕëð, šô ŧĥë ŕûñ ðïð ñôŧ šŧàŕŧ. Àþþŕôṽë ŧĥë þļàñ àĝàïñ, ŧĥëñ šŧàŕŧ ŧĥë ŕûñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
-  "tasks.conversation.stage.waitsApproval": "⟦Ĥûɱàñ àþþŕôṽàļ ŧë⟧"
+  "tasks.conversation.stage.waitsApproval": "⟦Ĥûɱàñ àþþŕôṽàļ ŧë⟧",
+  "tasks.conversation.plan.decided.approveNoRun": "⟦Ÿôû àþþŕôṽëð þļàñ, ṽëŕšïôñ {revision}. ŧëšŧ çôþÿ ŧ⟧",
+  "tasks.conversation.plan.decidedBy.approveNoRun": "⟦{name} àþþŕôṽëð þļàñ, ṽëŕšïôñ {revision}. ŧëšŧ çôþÿ ŧë⟧"
 }

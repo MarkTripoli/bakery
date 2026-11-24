@@ -3465,6 +3465,8 @@
   "tasks.conversation.live.lost": "Live updates paused. Reconnecting. The conversation refreshes when the connection returns.",
   "tasks.conversation.coordination.link": "View the split",
   "tasks.conversation.plan.decidedBy.approve": "{name} approved plan, version {revision}. Start the run when you are ready.",
+  "tasks.conversation.plan.decided.approveNoRun": "You approved plan, version {revision}.",
+  "tasks.conversation.plan.decidedBy.approveNoRun": "{name} approved plan, version {revision}.",
   "tasks.conversation.plan.decidedBy.request_changes": "{name} requested changes to plan, version {revision}. The agent will propose a new version.",
   "tasks.conversation.plan.decidedBy.reject": "{name} rejected plan, version {revision}. No run will start from it.",
   "tasks.conversation.plan.status.expired": "Approval expired",

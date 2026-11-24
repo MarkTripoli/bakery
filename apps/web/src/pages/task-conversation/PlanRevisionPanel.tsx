@@ -33,6 +33,8 @@ export type PlanRevisionPanelProps = Readonly<{
   decidedBy?: string | null;
   phase: PlanPhase;
   mayDecide: boolean;
+  /** Whether this page offers Start a run, which only a draft task does. */
+  startRunAvailable: boolean;
   expired: ExpiredApproval | null;
   refusal: PlanRefusal | null;
   offline: boolean;
@@ -74,6 +76,7 @@ export function usePlanRevision(
     decidedBy = null,
     phase,
     mayDecide,
+    startRunAvailable,
     expired,
     refusal,
     offline,
@@ -197,8 +200,16 @@ export function usePlanRevision(
         <UI.InlineNotice tone="success">
           {t(
             decidedBy === null
-              ? `tasks.conversation.plan.decided.${decided}`
-              : `tasks.conversation.plan.decidedBy.${decided}`,
+              ? `tasks.conversation.plan.decided.${
+                decided === "approve" && !startRunAvailable
+                  ? "approveNoRun"
+                  : decided
+              }`
+              : `tasks.conversation.plan.decidedBy.${
+                decided === "approve" && !startRunAvailable
+                  ? "approveNoRun"
+                  : decided
+              }`,
             { revision: String(revision), name: decidedBy ?? "" },
           )}
         </UI.InlineNotice>

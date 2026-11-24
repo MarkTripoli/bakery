@@ -538,6 +538,7 @@ export function TaskConversation(
       : null,
     phase: planPhase,
     mayDecide: approval?.mayDecide ?? false,
+    startRunAvailable: task.status === "draft",
     expired,
     refusal,
     offline: !online,

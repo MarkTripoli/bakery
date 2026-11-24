@@ -3139,6 +3139,7 @@ test("an expired approval hides Start a run, and Approve again brings it back", 
   await expect(plan(page)).toContainText("Approval expired");
   await page.getByRole("button", { name: "Approve again" }).click();
   await expect(page.locator('[data-ui-region="start-run"]')).toBeVisible();
+  await still(page, "task-plan-approved-again");
   await expect(page.getByRole("button", { name: "Start run", exact: true }))
     .toBeVisible();
 });
@@ -3167,8 +3168,11 @@ test("still: an expired approval on a task already under way", async ({ page }) 
   await expect(plan(page)).toContainText("Approval expired");
   await still(page, "task-plan-approval-expired");
   await page.getByRole("button", { name: "Approve again" }).click();
-  await expect(page.getByText("You approved plan, version 3")).toBeVisible();
-  await still(page, "task-plan-approved-again");
+  await expect(page.getByText("You approved plan, version 3.")).toBeVisible();
+  await expect(page.getByText(/Start the run when you are ready/)).toHaveCount(
+    0,
+  );
+  await still(page, "task-plan-approved-again-underway");
 });
 
 test("a Start run press that beats the expiry says the approval expired", async ({ page }) => {
