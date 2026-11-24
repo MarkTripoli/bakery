@@ -16,7 +16,6 @@ import {
   rowKind,
   triggerAt,
   withoutAtSign,
-  withoutMention,
 } from "../../apps/web/src/mentions/mentions-state.ts";
 
 const sam: Mention = {
@@ -64,12 +63,6 @@ Deno.test("editing the inserted name removes its chip, and a hand-typed @name ha
   assertEquals(reconcile("Hi @Sam Patelson", [sam]), []);
   assertEquals(reconcile("Hi Sam Patel", [sam]), []);
   assertEquals(reconcile("a@Sam Patel", [sam]), []);
-});
-
-Deno.test("removing a chip takes the @ off the name in the text", () => {
-  assertEquals(withoutMention("Hi @Sam Patel thanks", sam), "Hi thanks");
-  assertEquals(withoutMention("Hi @Sam Patel", sam), "Hi ");
-  assertEquals(withoutMention("nothing", sam), "nothing");
 });
 
 Deno.test("the same person is one chip, and chosen people are not offered again", () => {
@@ -166,31 +159,6 @@ Deno.test("a refusal names the mentions by place and code, and other failures na
     [["Ana Ruiz", "share_forbidden"], ["Sam Patel", "not_member"]],
   );
   assertEquals(refusalsOf({ kind: "network" }), []);
-});
-
-Deno.test("removing a chip cuts its own word, not the start of a longer name", () => {
-  const sam: Mention = {
-    principalId: "p2",
-    name: "Sam",
-    gainsAccess: false,
-    needsSharer: false,
-  };
-  assertEquals(
-    withoutMention("Hi @Samir and @Sam ok", sam),
-    "Hi @Samir and ok",
-  );
-  assertEquals(withoutMention("@Sam", sam), "");
-  assertEquals(withoutMention("Hi @Samir", sam), "Hi @Samir");
-  const patel: Mention = {
-    principalId: "p3",
-    name: "Sam Patel",
-    gainsAccess: false,
-    needsSharer: false,
-  };
-  assertEquals(
-    withoutMention("@Sam Patelson, @Sam Patel!", patel),
-    "@Sam Patelson, !",
-  );
 });
 
 Deno.test("not mentioning someone keeps the name as words and drops only the @", () => {

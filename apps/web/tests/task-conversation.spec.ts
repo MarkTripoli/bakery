@@ -1745,6 +1745,32 @@ test.describe("route states", () => {
   });
 });
 
+test("the phone header carries the notifications bell", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+  await expect(
+    page.locator('[data-ui-region="task-conversation"]').getByRole("button", {
+      name: /^Notifications/,
+    }),
+  ).toBeVisible();
+  await page.mouse.move(200, 800);
+  await still(page, "phone-header-bell-conversation");
+});
+
+test("the wide header keeps the bell in the shell bar only", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page);
+  await expect(page.getByRole("button", { name: /^Notifications/ }))
+    .toHaveCount(
+      1,
+    );
+  await expect(
+    page.locator('[data-ui-region="task-conversation"]').getByRole("button", {
+      name: /^Notifications/,
+    }),
+  ).toHaveCount(0);
+});
+
 for (const locale of ["en-XA", "ar-XB"]) {
   test(`conversation reflows at 320px in ${locale}`, async ({ page }) => {
     await page.addInitScript((value) => {
@@ -2192,16 +2218,48 @@ test("Plan first creates the task with a human-approved plan stage and starts no
   await expect(conversation(page)).toBeVisible();
 });
 
+type Subscribe = {
+  connection: number;
+  scopes: { type: string; id: string }[];
+};
+
 /** A scripted /v1/events server: hello, then a cursor for every subscribe. */
 type Stream = {
-  subscribes: Record<string, unknown>[];
+  connections: WebSocketRoute[];
+  subscribes: Subscribe[];
   push: () => void;
   drop: () => void;
 };
+
+const scopesByConnection = (stream: Stream) => {
+  const byConnection = new Map<number, string[]>();
+  for (const subscribe of stream.subscribes) {
+    const scopes = byConnection.get(subscribe.connection) ?? [];
+    for (const scope of subscribe.scopes) {
+      const named = `${scope.type}:${scope.id}`;
+      expect(scopes).not.toContain(named);
+      scopes.push(named);
+    }
+    byConnection.set(subscribe.connection, scopes);
+  }
+  return [...byConnection.values()].map((scopes) => scopes.sort());
+};
+
+const shellAndConversationScopes = () =>
+  [
+    `conversation:${conversationId}`,
+    `inbox:${principalId}`,
+    `task:${taskId}`,
+  ].sort();
 async function mockStream(page: Page): Promise<Stream> {
   const connections: WebSocketRoute[] = [];
   const requests = new Map<WebSocketRoute, string>();
-  const stream: Stream = { subscribes: [], push: () => {}, drop: () => {} };
+  const stream: Stream = {
+    connections,
+    subscribes: [],
+    push: () => {},
+    drop: () => {},
+  };
   let sequence = 1;
   const cursor = (socket: WebSocketRoute) => {
     sequence += 1;
@@ -2224,7 +2282,10 @@ async function mockStream(page: Page): Promise<Stream> {
     socket.onMessage((message) => {
       const frame = JSON.parse(String(message)) as Record<string, unknown>;
       if (frame.type !== "subscribe") return;
-      stream.subscribes.push(frame);
+      stream.subscribes.push({
+        connection: connections.length,
+        scopes: frame.scopes as { type: string; id: string }[],
+      });
       requests.set(socket, String(frame.requestId));
       cursor(socket);
     });
@@ -2281,10 +2342,9 @@ test.describe("participants and live updates", () => {
     const stream = await mockStream(page);
     await open(page, state);
     await showPlan(page);
-    await expect.poll(() => stream.subscribes.length).toBe(1);
-    expect(stream.subscribes[0].scopes).toEqual([
-      { type: "task", id: taskId },
-      { type: "conversation", id: conversationId },
+    await expect.poll(() => stream.connections.length).toBe(1);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
     ]);
     await expect(approve(page, 3)).toBeVisible();
     state.messages.push(
@@ -2317,7 +2377,10 @@ test.describe("participants and live updates", () => {
     const stream = await mockStream(page);
     await open(page, state);
     await showPlan(page);
-    await expect.poll(() => stream.subscribes.length).toBe(1);
+    await expect.poll(() => stream.connections.length).toBe(1);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+    ]);
     const toggle = page.getByRole("switch", { name: "Planning only" });
     await expect(toggle).not.toBeChecked();
     // The teammate turns planning-only on: delivered by the live event.
@@ -2329,8 +2392,12 @@ test.describe("participants and live updates", () => {
     stream.drop();
     await expect(page.locator('[data-ui-region="live-lost"]')).toBeVisible();
     state.task = { ...state.task, planningOnly: false, version: 5 };
-    await expect.poll(() => stream.subscribes.length, { timeout: 15_000 })
+    await expect.poll(() => stream.connections.length, { timeout: 15_000 })
       .toBe(2);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+      shellAndConversationScopes(),
+    ]);
     await expect(toggle).not.toBeChecked();
     await expect(page.locator('[data-ui-region="live-lost"]')).toHaveCount(0);
     // Reading never wrote: this participant sent no task update.
@@ -2341,14 +2408,21 @@ test.describe("participants and live updates", () => {
     const state = world({ participants: [teammate, me] });
     const stream = await mockStream(page);
     await open(page, state);
-    await expect.poll(() => stream.subscribes.length).toBe(1);
+    await expect.poll(() => stream.connections.length).toBe(1);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+    ]);
     stream.drop();
     await expect(page.locator('[data-ui-region="live-lost"]')).toBeVisible();
     state.messages.push(
       message(5, "user", "While you were away.", otherPrincipalId),
     );
-    await expect.poll(() => stream.subscribes.length, { timeout: 15_000 })
+    await expect.poll(() => stream.connections.length, { timeout: 15_000 })
       .toBe(2);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+      shellAndConversationScopes(),
+    ]);
     await expect(page.getByRole("log").getByText("While you were away."))
       .toBeVisible();
     await expect(page.locator('[data-ui-region="live-lost"]')).toHaveCount(0);
@@ -2386,7 +2460,10 @@ test.describe("participants and live updates", () => {
     const state = world({ participants: [teammate, me] });
     const stream = await mockStream(page);
     await open(page, state);
-    await expect.poll(() => stream.subscribes.length).toBe(1);
+    await expect.poll(() => stream.connections.length).toBe(1);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+    ]);
     const box = page.getByRole("textbox", { name: "Message this task" });
     await box.fill("Not yet");
     state.messages.push(message(6, "user", "From Dana.", otherPrincipalId));
@@ -3452,6 +3529,30 @@ test("the keys: arrows move, Enter chooses, Escape closes and keeps the text", a
   await expect(box).toHaveValue("@Samir Okafor ");
 });
 
+test("the message field owns the picker: a textbox with the listbox as its active-descendant while it shows", async ({ page }) => {
+  await open(page);
+  const box = messageBox(page);
+  await expect(box).toHaveAttribute("aria-autocomplete", "list");
+  await expect(box).not.toHaveAttribute("aria-controls", /.+/);
+  await expect(box).not.toHaveAttribute("aria-activedescendant", /.+/);
+  await box.fill("@");
+  const listbox = page.getByRole("listbox");
+  await expect(listbox).toBeVisible();
+  await expect(box).toHaveAttribute(
+    "aria-controls",
+    await listbox.getAttribute("id"),
+  );
+  const active = await box.getAttribute("aria-activedescendant");
+  expect(active).not.toBeNull();
+  await expect(page.locator(`[id="${active}"]`)).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await box.press("Escape");
+  await expect(box).not.toHaveAttribute("aria-controls", /.+/);
+  await expect(box).not.toHaveAttribute("aria-activedescendant", /.+/);
+});
+
 test("editing the inserted name drops its chip; the chip's button takes the @ name off; a typed @name mentions nobody", async ({ page }) => {
   const state = await open(page);
   const box = messageBox(page);
@@ -3468,8 +3569,7 @@ test("editing the inserted name drops its chip; the chip's button takes the @ na
   await page.getByRole("option", { name: "Ana Ruiz", exact: true }).click();
   await page.getByRole("button", { name: "Remove mention of Ana Ruiz" })
     .click();
-  await expect(box).not.toHaveValue(/@Ana Ruiz/);
-  // A name typed by hand is just text.
+  await expect(box).toHaveValue("Hi Ana Ruiz ");
   await box.fill("Thanks @Ana Ruiz");
   await expect(page.getByText("Will be notified")).toHaveCount(0);
   await page.getByRole("button", { name: "Send", exact: true }).click();

@@ -32,6 +32,7 @@ import { useLiveEvents } from "../../api/use-live-events.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import { RouterLink } from "../../app/router-link.tsx";
+import { NotificationBellControl } from "../../notifications/NotificationBellControl.tsx";
 import { WORK_HOME } from "../../shell/breadcrumb-paths.ts";
 import { ShellFlushMain, ShellSlot } from "../../shell/shell-slots.tsx";
 import { NowLineOutlet, NowLineProvider } from "../now-line-slot.tsx";
@@ -788,6 +789,7 @@ export function TaskConversation(
             </RouterLink>
           )
           : undefined}
+        trailing={phone ? <NotificationBellControl /> : undefined}
         state={state}
         meta={<TaskFromIssue taskId={task.id} />}
         data-ui-region="task-conversation"

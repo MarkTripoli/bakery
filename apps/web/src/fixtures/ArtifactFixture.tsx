@@ -182,6 +182,7 @@ export function ArtifactFixture(
       composer={{
         id: "artifact-comment-body",
         disabled: false,
+        posting: false,
         mode: {
           kind: "reply",
           onCancel: () => {

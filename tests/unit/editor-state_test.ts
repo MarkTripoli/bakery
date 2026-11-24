@@ -339,3 +339,74 @@ Deno.test("a branch, a repeat and a group the editor holds untouched are saved e
   }));
   assertEquals(JSON.stringify(definitionOf(spec, held)), JSON.stringify(spec));
 });
+
+Deno.test("a loop's numbers are written into its own repeat node and undone (#419)", () => {
+  const spec = {
+    steps: [
+      { kind: "action", id: "brief", uses: "task.brief" },
+      {
+        kind: "repeat",
+        id: "fix",
+        max: 4,
+        seed: { form: "literal", value: null },
+        until: { kind: "literal", value: false },
+        steps: [],
+      },
+    ],
+  };
+  const state = apply(editorStateOf(START), {
+    kind: "loop",
+    path: ["steps", 1],
+    min: 2,
+    max: 4,
+    allow: 3,
+  });
+  const written = definitionOf(spec, START, state.loops) as {
+    steps: Record<string, unknown>[];
+  };
+  assertEquals(written.steps[1].min, 2);
+  assertEquals(written.steps[1].max, 4);
+  assertEquals(written.steps[1].allow, 3);
+  assertEquals(spec.steps[1], {
+    kind: "repeat",
+    id: "fix",
+    max: 4,
+    seed: { form: "literal", value: null },
+    until: { kind: "literal", value: false },
+    steps: [],
+  });
+  const undone = editorReducer(state, { kind: "undo" });
+  assertEquals(undone.loops, []);
+  const cleared = apply(state, {
+    kind: "loop",
+    path: ["steps", 1],
+    min: null,
+    max: 5,
+    allow: null,
+  });
+  const clearedSpec = definitionOf(spec, START, cleared.loops) as {
+    steps: Record<string, unknown>[];
+  };
+  assertEquals(clearedSpec.steps[1].max, 5);
+  assertEquals("min" in clearedSpec.steps[1], false);
+  assertEquals("allow" in clearedSpec.steps[1], false);
+});
+
+Deno.test("asking for the same loop numbers again records no undo step", () => {
+  const state = apply(editorStateOf(START), {
+    kind: "loop",
+    path: ["steps", 1],
+    min: null,
+    max: 3,
+    allow: null,
+  });
+  const again = editorReducer(state, {
+    kind: "loop",
+    path: ["steps", 1],
+    min: null,
+    max: 3,
+    allow: null,
+  });
+  assertEquals(again, state);
+  assertEquals(again.past.length, 1);
+});

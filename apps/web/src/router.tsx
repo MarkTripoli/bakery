@@ -2575,6 +2575,11 @@ const notificationsRoute = createRoute({
       <NotificationsPage
         item={item ?? null}
         view={view ?? "all"}
+        onOpenRow={(row) =>
+          void navigate({
+            to: NOTIFICATIONS_PATH,
+            search: { open: row.id, r: row.revision },
+          })}
         onViewChange={(next) =>
           void navigate({
             to: NOTIFICATIONS_PATH,
