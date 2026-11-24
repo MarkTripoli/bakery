@@ -34,7 +34,10 @@ export function reviewedPlanDocument(options: {
   readonly agents: Readonly<Record<string, string>>;
   readonly repairs: number;
   /** Workflow-level limits the plan declares, as an author would write them. */
-  readonly limits?: { readonly wallClock?: string };
+  readonly limits?: {
+    readonly wallClock?: string;
+    readonly maxCostUsd?: number;
+  };
 }) {
   return {
     apiVersion: "bakery.dev/v1",

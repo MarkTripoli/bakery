@@ -100,3 +100,22 @@ loopTest(
 );
 
 loopFixtureCloseStep("a loop that ran out of clock");
+
+loopTest(
+  "a run's budget is the plan's ceiling when the requester asks for more",
+  async () => {
+    await withReviewedRun(async (world) => {
+      const { rows } = await world.fixture.pgDatabase.query<
+        { budget_limit_usd: string }
+      >(
+        `select budget_limit_usd from bakery.workflow_runs
+          where organization_id = $1 and id = $2`,
+        [world.fixture.organizationId, world.runId],
+      );
+      assertEquals(rows[0].budget_limit_usd, "10.000000");
+    }, {
+      budgetLimitUsd: "12.00",
+      plan: { repairs: 2, limits: { maxCostUsd: 10 } },
+    });
+  },
+);

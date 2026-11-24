@@ -59,6 +59,7 @@ import {
 } from "@bakery/contracts/scope-profiles";
 import { readProjectScopeProfile } from "../projects/scope-profiles.ts";
 import {
+  formatMicroUsd,
   isModelAction,
   parseMicroUsd,
   type RunBudgetSummary,
@@ -378,6 +379,33 @@ function assertBudgetCoversReservations(
       });
     }
   }
+}
+
+/** The workflow's declared spend ceiling in USD, or `undefined` when it names none. */
+function workflowCeilingUsd(workflow: WorkflowVersionRow): number | undefined {
+  const spec = workflow.normalized_spec as
+    | { limits?: { maxCostUsd?: number } }
+    | null;
+  const ceiling = spec?.limits?.maxCostUsd;
+  return typeof ceiling === "number" ? ceiling : undefined;
+}
+
+/**
+ * A run's budget is the requester's own limit capped by the workflow's declared
+ * ceiling: a requester may ask for less than the ceiling, never more. A missing
+ * side falls back to the other, and neither leaves today's behaviour.
+ */
+export function capBudgetAtWorkflowCeiling(
+  requested: string,
+  ceilingUsd: number | undefined,
+): string {
+  if (ceilingUsd === undefined) return requested;
+  const ceiling = formatMicroUsd(parseMicroUsd(String(ceilingUsd), "max_cost"));
+  if (requested === "0") return ceiling;
+  return parseMicroUsd(requested, "budget_limit") <=
+      parseMicroUsd(ceiling, "max_cost")
+    ? requested
+    : ceiling;
 }
 
 export function validateBudgetLimitUsd(value: unknown): string {
@@ -996,8 +1024,11 @@ export async function createRunCommand(
   );
   await assertWorkflowVersionValid(workflow);
 
-  const budgetLimitUsd = validateBudgetLimitUsd(
-    input.budgetLimitUsd ?? preset?.defaultBudgetLimitUsd,
+  const budgetLimitUsd = capBudgetAtWorkflowCeiling(
+    validateBudgetLimitUsd(
+      input.budgetLimitUsd ?? preset?.defaultBudgetLimitUsd,
+    ),
+    workflowCeilingUsd(workflow),
   );
   const suppliedInputs = preset
     ? presetBriefInputs(task, approvedPlan)

@@ -414,7 +414,10 @@ export async function openLoopWorld(
      */
     plan?: {
       readonly repairs: number;
-      readonly limits?: { readonly wallClock?: string };
+      readonly limits?: {
+        readonly wallClock?: string;
+        readonly maxCostUsd?: number;
+      };
     };
   } = {},
 ): Promise<LoopWorld> {
@@ -992,7 +995,7 @@ export async function withReviewedRun<T>(
     /** Run the reviewed workflow as a compiled plan (#397). */
     plan?: {
       readonly repairs: number;
-      readonly limits?: { wallClock?: string };
+      readonly limits?: { wallClock?: string; maxCostUsd?: number };
     };
     seed?: Readonly<Record<string, Outcome>>;
     /** Skip implement and the seed check, for a test that drives them itself. */
