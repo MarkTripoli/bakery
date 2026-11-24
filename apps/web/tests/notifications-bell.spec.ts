@@ -48,15 +48,19 @@ test.describe("desktop: bell and popover", () => {
     await still(page, "bell-popover");
     const popover = popoverOf(page);
     await popover.getByRole("button", { name: "Mark all read" }).click();
-    await expect(bell(page, "Notifications, none unread")).toBeVisible();
+    const noneUnread = bell(page, "Notifications, none unread");
+    await expect(noneUnread).toBeVisible();
+    await expect(popover).toHaveCount(0);
+    await expect(noneUnread).toBeFocused();
     await expect(page.getByText("Marked 3 read.")).toBeVisible();
+    await page.mouse.move(40, 800);
+    await still(page, "bell-popover-success-toast");
+    await noneUnread.click();
     await expect(popover.getByText("You're all caught up.")).toBeVisible();
     await expect(popover.getByRole("button", { name: "Mark all read" }))
       .toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(popover).toHaveCount(0);
-    await page.mouse.move(40, 800);
-    await still(page, "bell-popover-success-toast");
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(page.getByText("Restored 3 notifications to unread."))
       .toBeVisible();

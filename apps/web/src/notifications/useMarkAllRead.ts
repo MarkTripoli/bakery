@@ -74,8 +74,8 @@ export function useMarkAllRead(surface: MarkAllReadSurface) {
     [surface],
   );
 
-  const markAllRead = useCallback(async () => {
-    if (state.marking) return;
+  const markAllRead = useCallback(async (): Promise<boolean> => {
+    if (state.marking) return false;
     clearDismissTimer();
     write({ failedSurface: null, marking: true, toast: null });
     const cutoff = new Date().toISOString();
@@ -86,7 +86,7 @@ export function useMarkAllRead(surface: MarkAllReadSurface) {
     }).catch(() => null);
     if (result === null || !result.ok) {
       write({ failedSurface: surface, marking: false, toast: null });
-      return;
+      return false;
     }
     const marked = result.data.marked;
     const arrived = result.data.remainingUnread ?? 0;
@@ -102,6 +102,7 @@ export function useMarkAllRead(surface: MarkAllReadSurface) {
       undoBatchId: marked > 0 ? result.data.batchId ?? null : null,
     });
     await invalidateNotificationQueries(queryClient);
+    return true;
   }, [client, queryClient, scope.organizationId, showToast, translate]);
 
   const undo = useCallback(async () => {
@@ -130,6 +131,7 @@ export function useMarkAllRead(surface: MarkAllReadSurface) {
       undoBatchId: null,
     });
     await invalidateNotificationQueries(queryClient);
+    return true;
   }, [client, queryClient, scope.organizationId, showToast, translate]);
 
   const dismissToast = useCallback(() => {

@@ -138,9 +138,11 @@ function NotificationBellPopover(
   const { translate } = useI18n();
   const client = useBakeryApi();
   const scope = useProtectedScope();
-  const { failed: markAllFailed, markAllRead, marking } = useMarkAllRead(
-    "bell",
-  );
+  const { failed: markAllFailed, markAllRead: runMarkAllRead, marking } =
+    useMarkAllRead("bell");
+  const markAllRead = async () => {
+    if (await runMarkAllRead()) onClose();
+  };
   const list = useQuery(
     notificationsListQueryOptions(client, scope, {
       filter: "all",

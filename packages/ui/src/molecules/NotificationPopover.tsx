@@ -110,7 +110,7 @@ export function NotificationPopover(
             <>
               {actionFailedLabel === undefined ? null : (
                 <div
-                  className="ui-notification-popover__message"
+                  className="ui-notification-popover__message ui-notification-popover__message--action"
                   role="alert"
                 >
                   <span>{actionFailedLabel}</span>
