@@ -410,6 +410,10 @@ Deno.test("every failed restore check says what to do next, and an unknown code 
   assertEquals(unknown.cause, "installation.backups.drillCause.unknown");
   assertEquals(unknown.fix, "installation.backups.drillFix.unknown");
   assertEquals(
+    drillResult(failed(null)).cause,
+    "installation.backups.drillCause.unknown",
+  );
+  assertEquals(
     drillResult(failed(null)).fix,
     "installation.backups.drillFix.unknown",
   );

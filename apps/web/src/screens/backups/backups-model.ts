@@ -507,7 +507,7 @@ export function drillResult(drill: BackupDrill): DrillResult {
   const known = code !== null && code in DRILL_CAUSE_KEYS;
   return {
     passed,
-    cause: passed || code === null
+    cause: passed
       ? null
       : known
       ? DRILL_CAUSE_KEYS[code]

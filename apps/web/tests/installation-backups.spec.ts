@@ -693,6 +693,20 @@ for (
         await expect.poll(() => said(page.locator("[data-drill]").nth(index)))
           .toContain(fixes[code]);
       }
+      await expect(
+        page.locator("[data-section='restore-checks']").getByRole("link", {
+          name: "Read the guide",
+        }),
+      ).toHaveAttribute("href", /docs\/runbooks\/backups\.md/);
+    });
+
+    test("restore checks: a failure with no code still says what to do next", async ({ page }) => {
+      await fixture(page, {
+        drills: [drill(1, { outcome: "failed", failureCode: null })],
+      });
+      await page.goto("/installation/backups");
+      await expect.poll(() => said(page.locator("[data-drill]").first()))
+        .toMatch(/The check did not pass\..*Check it again\./);
     });
 
     test("a held restore offers Finish the restore", async ({ page }) => {

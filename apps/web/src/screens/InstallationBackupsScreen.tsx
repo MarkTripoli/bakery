@@ -741,14 +741,9 @@ function DrillList(props: InstallationBackupsScreenProps) {
         ? <UI.Skeleton shape="row" />
         : drills.rows.length === 0 && drills.state === "ready"
         ? (
-          <UI.Stack gap="tight">
-            <UI.Text data-result="no-drills" variant="muted">
-              {translate("installation.backups.drills.empty")}
-            </UI.Text>
-            <GuideLink href={BACKUPS_DRILL_GUIDE_HREF}>
-              {translate("installation.backups.drills.guide")}
-            </GuideLink>
-          </UI.Stack>
+          <UI.Text data-result="no-drills" variant="muted">
+            {translate("installation.backups.drills.empty")}
+          </UI.Text>
         )
         : phone
         ? (
@@ -820,6 +815,9 @@ function DrillList(props: InstallationBackupsScreenProps) {
             state="ready"
           />
         )}
+      <GuideLink href={BACKUPS_DRILL_GUIDE_HREF}>
+        {translate("installation.backups.drills.guide")}
+      </GuideLink>
       <MoreButton
         list={drills}
         name="drills"
