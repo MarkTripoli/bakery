@@ -301,7 +301,6 @@ export function InstallationBackupsSettingsPage() {
         service={ready
           ? {
             status: status.data as NonNullable<typeof status.data>,
-            issued: key.issued,
             runnerKey: key.runnerKey,
             confirmingReplace,
             onAskReplace: () => setConfirmingReplace(true),

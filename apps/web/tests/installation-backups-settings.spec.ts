@@ -396,13 +396,35 @@ for (
       await expect(pitr(page).getByLabel("Keep a running record"))
         .not.toBeChecked();
       await expect.poll(() => said(page, "[data-section='service']"))
-        .toContain("A key is in use.");
-      await expect.poll(() => said(page, "[data-section='service']"))
-        .toContain("Last used");
+        .toMatch(/A key is in use\. Last used .+/);
       await noOverflow(page);
       await accessible(page);
       await page.mouse.move(5, 5);
       await still(page, "settings-default");
+    });
+
+    test("the service row: a key made but never used links the guide", async ({ page }) => {
+      await fixture(page, { status: { runnerLastUsedAt: null } });
+      await open(page);
+      const service = page.locator("[data-section='service']");
+      await expect(service).toContainText(
+        /A key is made, but the backup service has not used it yet\. Follow the guide \(opens in a new tab\) to start the service\./,
+      );
+      await expect(service.getByRole("link", { name: "the guide" }))
+        .toHaveAttribute("href", /backups\.md#set-up-the-runner$/);
+      await expect(service.getByRole("button", { name: "Replace the key…" }))
+        .toBeVisible();
+    });
+
+    test("the service row: no key offers to make one", async ({ page }) => {
+      await fixture(page, {
+        status: { runnerConfigured: false, runnerLastUsedAt: null },
+      });
+      await open(page);
+      const service = page.locator("[data-section='service']");
+      await expect(service).toContainText("No key has been made yet.");
+      await expect(service.getByRole("button", { name: "Make the key" }))
+        .toBeVisible();
     });
 
     test("schedule: saves by itself with its body, key and version", async ({ page }) => {
@@ -885,7 +907,7 @@ for (
       await expect(shown).toHaveCount(0);
       await expect(page.locator("body")).not.toContainText(RUNNER_KEY);
       await expect.poll(() => said(page, "[data-section='service']"))
-        .toMatch(/Key 4, made .* UTC/);
+        .toContain("A key is in use.");
     });
 
     test("not an administrator: only the sentence", async ({ page }) => {

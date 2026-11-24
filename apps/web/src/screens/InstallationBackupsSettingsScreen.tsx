@@ -9,7 +9,11 @@ import type {
   BackupStatus,
 } from "../api/client.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { BACKUPS_GUIDE_HREF, spanSince } from "./backups/backups-model.ts";
+import {
+  BACKUPS_GUIDE_HREF,
+  BACKUPS_RUNNER_GUIDE_HREF,
+  spanSince,
+} from "./backups/backups-model.ts";
 import {
   keysRequired,
   localTimeOfDay,
@@ -79,10 +83,6 @@ export type PointInTimeSectionProps = {
 
 export type ServiceSectionProps = {
   readonly status: BackupStatus;
-  readonly issued: {
-    readonly generation: number;
-    readonly issuedAt: string;
-  } | null;
   readonly runnerKey: RunnerKeyView;
   readonly confirmingReplace: boolean;
   readonly onAskReplace: () => void;
@@ -252,7 +252,11 @@ export function InstallationBackupsSettingsScreen(
                 nowMs={props.nowMs}
                 offline={props.offline}
               />
-              <ServiceSection {...props.service} offline={props.offline} />
+              <ServiceSection
+                {...props.service}
+                nowMs={props.nowMs}
+                offline={props.offline}
+              />
             </>
           )}
       </UI.Stack>
@@ -744,19 +748,17 @@ function PointInTimeSection(
 }
 
 function ServiceSection(
-  props: ServiceSectionProps & { readonly offline: boolean },
+  props: ServiceSectionProps & {
+    readonly offline: boolean;
+    readonly nowMs: number;
+  },
 ) {
-  const { translate, locale } = useI18n();
+  const { translate } = useI18n();
   const format = useFormatters();
-  const { status, issued } = props;
+  const { status } = props;
   const configured = status.runnerConfigured;
   const lastUsed = status.runnerLastUsedAt;
   const issuing = props.runnerKey.phase === "issuing";
-  const made = issued === null ? null : new Intl.DateTimeFormat(locale, {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "UTC",
-  }).format(new Date(issued.issuedAt));
   return (
     <UI.SettingsSection
       data-section="service"
@@ -766,31 +768,29 @@ function ServiceSection(
       <UI.DescriptionList labels="quiet">
         <UI.DescriptionItem
           data-fact="key"
-          description={issued === null || made === null
-            ? translate(
-              configured
-                ? "installation.backups.settings.service.inUse"
-                : "installation.backups.settings.service.none",
+          description={!configured
+            ? translate("installation.backups.settings.service.none")
+            : lastUsed === null
+            ? (
+              <>
+                {translate(
+                  "installation.backups.settings.service.madeNotUsed.lead",
+                )}
+                <UI.Link href={BACKUPS_RUNNER_GUIDE_HREF} variant="external">
+                  {translate(
+                    "installation.backups.settings.service.madeNotUsed.guide",
+                  )}
+                </UI.Link>
+                {translate(
+                  "installation.backups.settings.service.madeNotUsed.tail",
+                )}
+              </>
             )
-            : translate("installation.backups.settings.service.keyNumber", {
-              generation: issued.generation,
-              time: translate("installation.backups.utc", { time: made }),
+            : translate("installation.backups.settings.service.inUse", {
+              ago: format.ago(spanSince(lastUsed, props.nowMs)),
             })}
           title={translate("installation.backups.settings.service.key")}
         />
-        {configured
-          ? (
-            <UI.DescriptionItem
-              data-fact="last-used"
-              description={lastUsed === null
-                ? translate("installation.backups.settings.service.neverUsed")
-                : format.utc(lastUsed)}
-              title={translate(
-                "installation.backups.settings.service.lastUsed",
-              )}
-            />
-          )
-          : null}
       </UI.DescriptionList>
       {props.runnerKey.phase === "failed"
         ? (

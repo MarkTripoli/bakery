@@ -6941,14 +6941,14 @@
   "installation.backups.settings.pitr.confirm.cancel": "⟦Çàñçëļ…⟧",
   "installation.backups.settings.pitr.confirm.turnOff": "⟦Ŧûŕñ ôƒƒ…⟧",
   "installation.backups.settings.service.key": "⟦Ķëÿ⟧",
-  "installation.backups.settings.service.keyNumber": "⟦Ķëÿ {generation}, ɱàðë {time} ŧëšŧ çôþ⟧",
-  "installation.backups.settings.service.lastUsed": "⟦Ļàšŧ ûšëð ŧ⟧",
-  "installation.backups.settings.service.neverUsed": "⟦Ñôŧ ûšëð ÿëŧ ŧë⟧",
   "installation.backups.settings.service.none": "⟦Ñô ķëÿ ĥàš ƀëëñ ɱàðë ÿëŧ. ŧëšŧ ç⟧",
-  "installation.backups.settings.service.inUse": "⟦À ķëÿ ïš ïñ ûšë. ŧëš⟧",
   "installation.backups.settings.service.replace": "⟦Ŕëþļàçë ŧĥë ķëÿ… ŧëš⟧",
   "installation.backups.settings.service.replace.title": "⟦Ŕëþļàçë ŧĥë ƀàçķûþ šëŕṽïçë'š ķëÿ? ŧëšŧ çôþÿ⟧",
   "installation.backups.settings.service.replace.body": "⟦Ŧĥë ôļð ķëÿ šŧôþš ŵôŕķïñĝ àŧ ôñçë. Ɓàçķûþš šŧôþ ûñŧïļ ŧĥë ñëŵ ķëÿ ïš ôñ ŧĥë šëŕṽëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "installation.backups.settings.service.replace.cancel": "⟦Çàñçëļ…⟧",
-  "installation.backups.settings.service.replace.confirm": "⟦Ŕëþļàçë…⟧"
+  "installation.backups.settings.service.replace.confirm": "⟦Ŕëþļàçë…⟧",
+  "installation.backups.settings.service.inUse": "⟦À ķëÿ ïš ïñ ûšë. Ļàšŧ ûšëð {ago}. ŧëšŧ çôþÿ⟧",
+  "installation.backups.settings.service.madeNotUsed.lead": "⟦À ķëÿ ïš ɱàðë, ƀûŧ ŧĥë ƀàçķûþ šëŕṽïçë ĥàš ñôŧ ûšëð ïŧ ÿëŧ. Ƒôļļôŵ  ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "installation.backups.settings.service.madeNotUsed.guide": "⟦ŧĥë ĝûïðë ŧ⟧",
+  "installation.backups.settings.service.madeNotUsed.tail": "⟦ ŧô šŧàŕŧ ŧĥë šëŕṽïçë. ŧëšŧŧ⟧"
 }
