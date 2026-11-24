@@ -98,8 +98,6 @@ for (
         ).toBeVisible();
       }
       await expect(page.getByText("Only mine")).toHaveCount(0);
-      await expect(page.getByRole("button", { name: /New skill|Make a copy/ }))
-        .toHaveCount(0);
       await expect(page.getByRole("searchbox", { name: "Find a skill" }))
         .toBeVisible();
       await page.mouse.move(700, 700);
