@@ -126,6 +126,7 @@ function Surface(props: WorkflowCanvasProps) {
     let live = true;
     const fail = (reason: unknown) => {
       if (!live) return;
+      engine?.terminateWorker();
       engine = undefined;
       setFailure(reason instanceof Error ? reason : new Error(String(reason)));
     };
