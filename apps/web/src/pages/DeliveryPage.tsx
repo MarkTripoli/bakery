@@ -77,8 +77,8 @@ export function DeliveryPage() {
     () => deliveryWindow(period, now, custom),
     [period, now, custom.from, custom.to],
   );
-  const tooLong = deliveryWindowTooLong(window) ||
-    window.from.getTime() > window.to.getTime();
+  const rangeReversed = window.from.getTime() > window.to.getTime();
+  const tooLong = deliveryWindowTooLong(window) || rangeReversed;
   const base = {
     from: window.from.toISOString(),
     to: window.to.toISOString(),
@@ -217,6 +217,7 @@ export function DeliveryPage() {
           write({ [PERIOD]: "last30", [FROM]: undefined, [TO]: undefined })}
         period={period}
         periodTooLong={tooLong}
+        rangeReversed={rangeReversed}
         reconnectHref={INSTALLATION_INTEGRATIONS_PATH}
         records={{
           status: rowsStatus,

@@ -23,6 +23,8 @@ export type DeliveryOptions = {
   runs?: number;
   /** Every task's recorded intervals cover all of its time: nothing is unaccounted for. */
   allAccountedFor?: boolean;
+  /** The definitions version the series report; null when the server serves none. */
+  revision?: string | null;
 };
 
 const point = (day: number, value: number | null) => ({
@@ -32,6 +34,7 @@ const point = (day: number, value: number | null) => ({
 });
 
 const series = (
+  revision: string | null | undefined,
   name: string,
   unit: "count" | "hours" | "lines",
   values: (number | null)[],
@@ -46,7 +49,7 @@ const series = (
   cohort: "Pull requests merged in the window.",
   sampleCount: values.reduce<number>((sum, value) => sum + (value ?? 0), 0),
   missingCount: 0,
-  measurementRevision: "metrics@3",
+  measurementRevision: revision === undefined ? "metrics@3" : revision,
   lastSyncAt: STAMP,
   completeness: "complete",
   missingReasons: [],
@@ -210,17 +213,19 @@ export async function deliveryFixture(
   ];
   // The organization each metrics read was made for, as the API sees it.
   const organizationHeaders: (string | undefined)[] = [];
+  let metricReads = 0;
   await page.route(
     (url) => url.pathname === "/v1/metrics",
     (route) => {
       organizationHeaders.push(
         route.request().headers()["bakery-organization-id"],
       );
+      metricReads += 1;
       const metric = new URL(route.request().url()).searchParams.get("metric")!;
       if (metric === "tasks.leadTimeHours") {
         return json(
           route,
-          series(metric, "hours", [28, 40, null, 31], {
+          series(options.revision, metric, "hours", [28, 40, null, 31], {
             sampleCount: merged + runs,
             missingCount: options.leftOut ?? 0,
             summary: {
@@ -239,16 +244,24 @@ export async function deliveryFixture(
         );
       }
       if (metric === "prs.openAtCutoff") {
-        return json(route, series(metric, "count", [3, 4, 5, 4]));
+        return json(
+          route,
+          series(options.revision, metric, "count", [3, 4, 5, 4]),
+        );
       }
       return json(
         route,
-        series(metric, metric === "prs.changedLines" ? "lines" : "count", [
-          2,
-          4,
-          0,
-          5,
-        ]),
+        series(
+          options.revision,
+          metric,
+          metric === "prs.changedLines" ? "lines" : "count",
+          [
+            2,
+            4,
+            0,
+            5,
+          ],
+        ),
       );
     },
   );
@@ -262,5 +275,12 @@ export async function deliveryFixture(
       });
     },
   );
-  return { records, pullRequests, organizationHeaders };
+  return {
+    records,
+    pullRequests,
+    organizationHeaders,
+    get metricReads() {
+      return metricReads;
+    },
+  };
 }

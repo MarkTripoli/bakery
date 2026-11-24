@@ -143,6 +143,9 @@ export type MissingKey =
   | "delivery.missing.noMergedTime"
   | "delivery.missing.noClosedTime"
   | "delivery.missing.noDiffTotals"
+  | "delivery.missing.noLineCount"
+  | "delivery.missing.lineCountBinary"
+  | "delivery.missing.lineCountTruncated"
   | "delivery.missing.stillOpen"
   | "delivery.missing.other";
 
@@ -151,6 +154,9 @@ const MISSING_KEYS: Readonly<Record<string, MissingKey>> = {
   no_merged_time: "delivery.missing.noMergedTime",
   no_closed_time: "delivery.missing.noClosedTime",
   no_diff_totals: "delivery.missing.noDiffTotals",
+  no_line_count: "delivery.missing.noLineCount",
+  line_count_binary: "delivery.missing.lineCountBinary",
+  line_count_truncated: "delivery.missing.lineCountTruncated",
   still_open: "delivery.missing.stillOpen",
 };
 

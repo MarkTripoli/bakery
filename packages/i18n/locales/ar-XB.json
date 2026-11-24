@@ -6865,5 +6865,13 @@
   "notifications.time.yesterday": "⟪Yesterday⟫",
   "notifications.time.days": "⟪{count, plural, one {# day ago} other {# days ago}}⟫",
   "notifications.unavailable.marked": "⟪Marked read.⟫",
-  "notifications.kind.stepFailed": "⟪A step failed⟫"
+  "notifications.kind.stepFailed": "⟪A step failed⟫",
+  "delivery.period.reversed": "⟪Choose an end date after the start date.⟫",
+  "delivery.records.rule.merged.noVersion": "⟪Counted by when each was merged, in your time zone ({zone}). A pull request reopened and merged again is one row.⟫",
+  "delivery.records.rule.tasks.noVersion": "⟪Counted by when each was delivered, in your time zone ({zone}).⟫",
+  "delivery.records.rule.open.noVersion": "⟪Pull requests open at the end of the period, in your time zone ({zone}).⟫",
+  "delivery.records.rule.closed.noVersion": "⟪Counted by when each was closed, in your time zone ({zone}).⟫",
+  "delivery.missing.noLineCount": "⟪Not line-counted⟫",
+  "delivery.missing.lineCountBinary": "⟪Not line-counted · binary files⟫",
+  "delivery.missing.lineCountTruncated": "⟪Not line-counted · over 3,000 files⟫"
 }

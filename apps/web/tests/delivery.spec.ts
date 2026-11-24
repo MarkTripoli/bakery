@@ -100,8 +100,10 @@ for (
             .toBeVisible();
         }
       }
-      // No Blocked column while nothing records it.
+      // No Blocked column while nothing records it, and a task row has no repository.
       await expect(records.getByRole("columnheader", { name: "Blocked" }))
+        .toHaveCount(0);
+      await expect(records.getByRole("columnheader", { name: "Repository" }))
         .toHaveCount(0);
       await page.mouse.move(700, 700);
       await still(page, "delivery-records-tasks");
@@ -164,11 +166,6 @@ for (
         pressed: false,
       });
       const before = await tile.boundingBox();
-      const heading = await page.getByRole("heading", {
-        name: "Delivery",
-        level: 1,
-      })
-        .boundingBox();
       await tile.click();
       const chosen = page.getByRole("button", {
         name: /^Tasks delivered, 8\./,
@@ -179,15 +176,37 @@ for (
       await expect(records.getByText("Tidy the settings page")).toBeVisible();
       await expect(records.getByText("The records could not be loaded."))
         .toHaveCount(0);
-      // Choosing a figure marks it without moving it or anything below it.
+      // Choosing a figure sends the reader to the rows it counted.
       const after = await chosen.boundingBox();
       expect(after).toEqual(before);
       expect(
-        await page.getByRole("heading", { name: "Delivery", level: 1 })
-          .boundingBox(),
-      ).toEqual(heading);
+        await page.evaluate(() => document.activeElement?.id),
+      ).toBe("delivery-records-heading");
+      await expect(records.getByRole("heading", { level: 2 }))
+        .toContainText("Tasks delivered");
       await page.mouse.move(700, 700);
       await still(page, "delivery-pull-requests");
+    });
+
+    test("a reversed custom range names the end to fix, and asks for nothing", async ({ page }) => {
+      const seen = await deliveryFixture(page);
+      const before = seen.metricReads;
+      await page.goto("/delivery?period=custom&from=2026-11-20&to=2026-11-10");
+      await expect(
+        page.getByText("Choose an end date after the start date."),
+      ).toBeVisible();
+      expect(seen.metricReads).toBe(before);
+      await page.mouse.move(700, 700);
+      await still(page, "delivery-range-reversed");
+    });
+
+    test("a line the server never versioned keeps the version out of the rule", async ({ page }) => {
+      await deliveryFixture(page, { revision: null });
+      await page.goto("/delivery");
+      const records = page.getByTestId("delivery-records");
+      await expect(records.getByText(/Counted by when each was merged/))
+        .toBeVisible();
+      await expect(records.getByText(/Definitions, version/)).toHaveCount(0);
     });
 
     test("every metrics read is made for the page's organization", async ({ page }) => {

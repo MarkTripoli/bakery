@@ -135,6 +135,16 @@ Deno.test("a missing reason always has words, even one the page does not know", 
   assertEquals(missingKey(null), null);
   assertEquals(missingKey("no_diff_totals"), "delivery.missing.noDiffTotals");
   assertEquals(missingKey("something_new"), "delivery.missing.other");
+  // Each way a line count can be missing says which one it was.
+  assertEquals(missingKey("no_line_count"), "delivery.missing.noLineCount");
+  assertEquals(
+    missingKey("line_count_binary"),
+    "delivery.missing.lineCountBinary",
+  );
+  assertEquals(
+    missingKey("line_count_truncated"),
+    "delivery.missing.lineCountTruncated",
+  );
 });
 
 Deno.test("hours between two times are known only when both are", () => {

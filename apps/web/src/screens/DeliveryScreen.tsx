@@ -56,6 +56,8 @@ export type DeliveryScreenProps = {
   readonly repositoryId: string | null;
   readonly period: DeliveryPeriod;
   readonly periodTooLong: boolean;
+  /** The custom range ends before it starts; the picker says so. */
+  readonly rangeReversed: boolean;
   readonly custom: { readonly from: string; readonly to: string };
   /** The window the figures were asked for, for the empty-period sentence. */
   readonly window: { readonly from: Date; readonly to: Date };
@@ -123,6 +125,21 @@ const RULE_KEYS = {
   closed: "delivery.records.rule.closed",
 } as const satisfies Record<DeliveryShow, string>;
 
+const RULE_KEYS_NO_VERSION = {
+  merged: "delivery.records.rule.merged.noVersion",
+  tasks: "delivery.records.rule.tasks.noVersion",
+  open: "delivery.records.rule.open.noVersion",
+  closed: "delivery.records.rule.closed.noVersion",
+} as const satisfies Record<DeliveryShow, string>;
+
+/** A chosen figure sends the reader to the rows it counted. */
+function showRecordsHeading() {
+  const heading = document.getElementById("delivery-records-heading");
+  if (heading === null) return;
+  heading.scrollIntoView({ block: "start" });
+  heading.focus({ preventScroll: true });
+}
+
 export function DeliveryScreen(props: DeliveryScreenProps) {
   const { translate } = useI18n();
   const { state } = props;
@@ -160,7 +177,13 @@ export function DeliveryScreen(props: DeliveryScreenProps) {
             title={translate("delivery.title")}
           />
         )}
-      {props.periodTooLong
+      {props.rangeReversed
+        ? (
+          <UI.InlineNotice tone="warning">
+            {translate("delivery.period.reversed")}
+          </UI.InlineNotice>
+        )
+        : props.periodTooLong
         ? (
           <UI.InlineNotice tone="warning">
             {translate("delivery.period.tooLong")}
@@ -363,8 +386,11 @@ function Ready(props: DeliveryScreenProps) {
             <UI.StatTile
               action={{
                 label: translate("delivery.figure.show", { label, value }),
-                onSelect: () =>
-                  props.onShow(props.show === figure.show ? null : figure.show),
+                onSelect: () => {
+                  const next = props.show === figure.show ? null : figure.show;
+                  props.onShow(next);
+                  if (next !== null) showRecordsHeading();
+                },
                 selected: props.show === figure.show,
               }}
               detail={props.figures[figure.show].kind === "unknown"
@@ -650,6 +676,7 @@ function RecordsSection(
   const { translate, locale, timeZone } = useI18n();
   const phone = useShellViewport() === "phone";
   const shown: DeliveryShow = props.show ?? "merged";
+  const version = props.records.revision?.split("@")[1] ?? null;
   const chosen = props.show !== null;
   const { records } = props;
   const missing = records.rows.filter((row) => row.missing !== null);
@@ -668,7 +695,8 @@ function RecordsSection(
     return translate(words.key, words.params);
   };
   const repositoryName = (id: string | null) =>
-    props.repositories.find((r) => r.id === id)?.name ?? "\u2014";
+    props.repositories.find((r) => r.id === id)?.name ??
+      translate("delivery.figure.unknown");
   const isTask = shown === "tasks";
   const heading = chosen && figureValue.kind === "value"
     ? translate(
@@ -702,7 +730,7 @@ function RecordsSection(
     );
   };
   const cellOrReason = (row: RecordRow, text: string | null) =>
-    text !== null ? text : reason(row) ?? "\u2014";
+    text !== null ? text : reason(row) ?? translate("delivery.figure.unknown");
 
   const columns: UI.DataTableColumn<RecordRow>[] = [
     {
@@ -717,14 +745,14 @@ function RecordsSection(
         </UI.Stack>
       ),
     },
-    {
+    ...(isTask ? [] : [{
       id: "repository",
       header: translate("delivery.records.column.repository"),
-      cell: (row) =>
+      cell: (row: RecordRow) =>
         row.providerNumber === null
           ? repositoryName(row.repositoryId)
           : `${repositoryName(row.repositoryId)} #${row.providerNumber}`,
-    },
+    }]),
     ...(isTask
       ? [
         {
@@ -937,10 +965,9 @@ function RecordsSection(
           </>
         )}
       <UI.Text variant="muted">
-        {translate(RULE_KEYS[shown], {
-          zone: timeZone,
-          version: records.revision?.split("@")[1] ?? "\u2014",
-        })}
+        {version === null
+          ? translate(RULE_KEYS_NO_VERSION[shown], { zone: timeZone })
+          : translate(RULE_KEYS[shown], { zone: timeZone, version })}
       </UI.Text>
     </UI.Stack>
   );

@@ -6865,5 +6865,13 @@
   "notifications.time.yesterday": "⟦Ÿëšŧëŕðàÿ ŧ⟧",
   "notifications.time.days": "⟦{count, plural, one {# day ago} other {# days ago}} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "notifications.unavailable.marked": "⟦Ṁàŕķëð ŕëàð. ŧë⟧",
-  "notifications.kind.stepFailed": "⟦À šŧëþ ƒàïļëð ŧë⟧"
+  "notifications.kind.stepFailed": "⟦À šŧëþ ƒàïļëð ŧë⟧",
+  "delivery.period.reversed": "⟦Çĥôôšë àñ ëñð ðàŧë àƒŧëŕ ŧĥë šŧàŕŧ ðàŧë. ŧëšŧ çôþÿ ŧ⟧",
+  "delivery.records.rule.merged.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ɱëŕĝëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). À þûļļ ŕëǫûëšŧ ŕëôþëñëð àñð ɱëŕĝëð àĝàïñ ïš ôñë ŕôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "delivery.records.rule.tasks.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ðëļïṽëŕëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "delivery.records.rule.open.noVersion": "⟦Þûļļ ŕëǫûëšŧš ôþëñ àŧ ŧĥë ëñð ôƒ ŧĥë þëŕïôð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "delivery.records.rule.closed.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš çļôšëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "delivery.missing.noLineCount": "⟦Ñôŧ ļïñë-çôûñŧëð ŧëš⟧",
+  "delivery.missing.lineCountBinary": "⟦Ñôŧ ļïñë-çôûñŧëð · ƀïñàŕÿ ƒïļëš ŧëšŧ çôþ⟧",
+  "delivery.missing.lineCountTruncated": "⟦Ñôŧ ļïñë-çôûñŧëð · ôṽëŕ 3,000 ƒïļëš ŧëšŧ çôþÿŧ⟧"
 }
