@@ -1,4 +1,5 @@
 import { assert, assertEquals } from "@std/assert";
+import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { compiled, noop } from "../helpers/workflow-interpreter.ts";
@@ -154,6 +155,23 @@ Deno.test("dispatch records the facts the step's agent was given, with their rev
       assertEquals(recorded.facts[0].revisionId, fact.revisionId);
       assertEquals(recorded.facts[0].wording, "Tests run with pnpm.");
       assertEquals(recorded.facts[0].recordedAt.startsWith("2026-11-20"), true);
+      const parsed = contractSchemas.StepGiven.parse({
+        stepKey: "gate",
+        startedAt: null,
+        ranAnAgent: false,
+        facts: recorded.facts.map((fact) => ({
+          memoryId: fact.memoryId,
+          wording: fact.wording,
+          recordedAt: fact.recordedAt,
+          state: "given",
+        })),
+        factsOmitted: recorded.omitted,
+        documents: [],
+        documentsHidden: 0,
+        documentsGone: 0,
+        documentsUnchecked: 0,
+      });
+      assertEquals(parsed.facts[0].recordedAt, recorded.facts[0].recordedAt);
     } finally {
       await fixture.pgDatabase.query(
         "update bakery.memory_entries set current_revision_id = null where id = $1",

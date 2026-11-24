@@ -52,7 +52,8 @@ export async function chooseStepFacts(
     `select m.id as "memoryId",
             r.id as "revisionId",
             r.body as "wording",
-            r.created_at::text as "recordedAt"
+            to_char(r.created_at at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as "recordedAt"
        from bakery.memory_entries m
        join bakery.memory_revisions r on r.id = m.current_revision_id
       where m.organization_id = $1
