@@ -231,6 +231,10 @@ export type EvaluationsOptions = {
   costRuns?: boolean;
   /** Attempts carry what they cost, and the first one was interrupted. */
   attemptCosts?: boolean;
+  placeholderReasons?: boolean;
+  repeats?: boolean;
+  noStopRight?: boolean;
+  adminWithoutStopRight?: boolean;
 };
 
 export type Seen = {
@@ -255,8 +259,16 @@ export async function evaluationsFixture(
         contentType: "application/json",
         body: JSON.stringify({
           organizationId: MOCK_ORGANIZATION_ID,
-          role: options.viewer === true ? "viewer" : "developer",
-          capabilities: [],
+          role: options.viewer === true
+            ? "viewer"
+            : options.adminWithoutStopRight === true
+            ? "admin"
+            : "developer",
+          capabilities:
+            options.viewer === true || options.noStopRight === true ||
+              options.adminWithoutStopRight === true
+              ? []
+              : ["evaluationRun:write"],
         }),
       }),
   );
@@ -692,6 +704,8 @@ export async function evaluationsFixture(
           state,
           reason: state === "error"
             ? "The model did not answer in time."
+            : state === "missing" && options.placeholderReasons === true
+            ? "Not run yet."
             : state === "missing" && found.state !== "running" &&
                 found.state !== "queued"
             ? "No machine was free to run this test case."
@@ -704,9 +718,28 @@ export async function evaluationsFixture(
           updatedAt: STAMP,
         };
       });
+      const repeated = options.repeats === true
+        ? [
+          ...rows,
+          {
+            ...rows[0],
+            id: uuid(9001),
+            repetition: 2,
+            state: "passed",
+            score: 1,
+          },
+          {
+            ...rows[0],
+            id: uuid(9002),
+            repetition: 3,
+            state: "failed",
+            score: 0.25,
+          },
+        ]
+        : rows;
       const requiredFilter = url.searchParams.get("required");
       const wanted = url.searchParams.get("state");
-      const filtered = rows.filter((row) =>
+      const filtered = repeated.filter((row) =>
         (wanted === null || row.state === wanted) &&
         (requiredFilter === null || String(row.required) === requiredFilter)
       );

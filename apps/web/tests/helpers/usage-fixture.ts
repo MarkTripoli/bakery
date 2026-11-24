@@ -10,6 +10,9 @@ export type UsageOptions = {
   empty?: boolean;
   /** Someone who may not see Usage: the server answers 403. */
   forbidden?: boolean;
+  twoRoutes?: boolean;
+  failing?: boolean;
+  delayMs?: number;
 };
 
 const ROWS = [
@@ -65,9 +68,28 @@ export async function usageFixture(page: Page, options: UsageOptions = {}) {
   const seen: URLSearchParams[] = [];
   await page.route(
     (url) => url.pathname === "/v1/usage",
-    (route) => {
+    async (route) => {
       const query = new URL(route.request().url()).searchParams;
       seen.push(query);
+      if (options.delayMs !== undefined) {
+        await new Promise((done) => setTimeout(done, options.delayMs));
+      }
+      if (options.failing) {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "https://bakery.example/problems/test",
+            title: "Failed",
+            detail: "Failed.",
+            status: 500,
+            code: "INTERNAL_ERROR",
+            retryable: false,
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+        });
+      }
       if (options.forbidden) {
         return route.fulfill({
           status: 403,
@@ -85,20 +107,44 @@ export async function usageFixture(page: Page, options: UsageOptions = {}) {
         });
       }
       const provider = query.get("provider");
-      const rows = options.empty
-        ? []
-        : ROWS.filter((row) => provider === null || row.provider === provider);
+      const allRows = options.empty ? [] : [
+        ...ROWS,
+        ...(options.twoRoutes
+          ? [{
+            ...ROWS[0],
+            billingType: "subscription",
+            knownCostUsd: "0.0000",
+            unverifiedCostUsd: "0.0000",
+            unverifiedCount: 0,
+          }]
+          : []),
+      ];
+      const rows = allRows.filter((row) =>
+        provider === null || row.provider === provider
+      );
+      const total = (pick: (row: (typeof ROWS)[number]) => number) =>
+        rows.reduce((sum, row) => sum + pick(row), 0);
+      const known = total((row) => Number(row.knownCostUsd));
+      const settled = allRows.reduce(
+        (sum, row) => sum + Number(row.knownCostUsd),
+        0,
+      );
+      const unknownCount = total((row) => row.unknownCount);
+      const unverifiedCount = total((row) => row.unverifiedCount);
       return route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           from: query.get("from") ?? STAMP,
           to: query.get("to") ?? STAMP,
-          knownCostUsd: options.empty ? "0.0000" : "500.5000",
-          unverifiedCostUsd: options.empty ? "0.0000" : "37.2000",
-          unknownCount: options.empty ? 0 : 1,
-          unverifiedCount: options.empty ? 0 : 3,
-          completeness: options.empty ? "complete" : "partial",
+          knownCostUsd: known.toFixed(4),
+          unverifiedCostUsd: total((row) => Number(row.unverifiedCostUsd))
+            .toFixed(4),
+          unknownCount,
+          unverifiedCount,
+          completeness: unknownCount + unverifiedCount > 0
+            ? "partial"
+            : "complete",
           byProvider: rows,
           budgetAccounts: options.empty ? [] : [{
             scope: "installation",
@@ -107,8 +153,8 @@ export async function usageFixture(page: Page, options: UsageOptions = {}) {
             periodEnd: "2026-12-01T00:00:00.000Z",
             limitUsd: "1000.0000",
             reservedUsd: "25.0000",
-            settledUsd: "500.5000",
-            availableUsd: "474.5000",
+            settledUsd: settled.toFixed(4),
+            availableUsd: (1000 - 25 - settled).toFixed(4),
             unknownCount: 1,
           }],
         }),
