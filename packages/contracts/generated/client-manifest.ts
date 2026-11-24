@@ -27328,6 +27328,10 @@ export const clientManifest = {
             "fixed-coding",
             "fixed-coding-reviewed"
           ]
+        },
+        "requirePlanApproval": {
+          "description": "When true, this request's task takes a human plan approval, so no run builds until the requester's plan is approved, even when the source policy approves plans automatically. False or omitted keeps the source policy's plan approval; it never removes an approval the policy requires. Only a new admission reads it.",
+          "type": "boolean"
         }
       },
       "required": [

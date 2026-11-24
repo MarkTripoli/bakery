@@ -81223,6 +81223,10 @@
                 "fixed-coding",
                 "fixed-coding-reviewed"
               ]
+            },
+            "requirePlanApproval": {
+              "description": "When true, this request's task takes a human plan approval, so no run builds until the requester's plan is approved, even when the source policy approves plans automatically. False or omitted keeps the source policy's plan approval; it never removes an approval the policy requires. Only a new admission reads it.",
+              "type": "boolean"
             }
           },
           "required": [
@@ -298634,7 +298638,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:821cc857657c3c5dd28372936a1ce857b82d3a477c7047d9214bfcf2a55a071c",
+  "compatibilityDigest": "sha256:d47b822ef0940532d779daa7141f42f0c84c287a231c86113be73ddb6d9f5bbd",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -321459,6 +321463,10 @@
             "fixed-coding",
             "fixed-coding-reviewed"
           ]
+        },
+        "requirePlanApproval": {
+          "description": "When true, this request's task takes a human plan approval, so no run builds until the requester's plan is approved, even when the source policy approves plans automatically. False or omitted keeps the source policy's plan approval; it never removes an approval the policy requires. Only a new admission reads it.",
+          "type": "boolean"
         }
       },
       "required": [

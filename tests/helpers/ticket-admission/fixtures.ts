@@ -987,6 +987,7 @@ export async function openTicketFixture(
           caller?: OrganizationActor | null;
           prefetch?: TicketPrefetch | null;
           requirementsDigest?: string | null;
+          requirePlanApproval?: boolean;
           deps?: AdmissionDeps;
         },
       ): Promise<AdmissionResult> {
@@ -1009,6 +1010,7 @@ export async function openTicketFixture(
           prefetch: call.prefetch ?? null,
           signal: new AbortController().signal,
           requirementsDigest: call.requirementsDigest ?? null,
+          requirePlanApproval: call.requirePlanApproval,
         };
         return await admitTicket(
           call.deps ?? fixture.automationDeps(),

@@ -192,6 +192,7 @@ export type AdmissionCall = {
    * reads it: a request that exists keeps the workflow it was pinned with.
    */
   preset?: TicketPresetPin["id"] | null;
+  requirePlanApproval?: boolean;
   /** Request and trace ids of the calling request; fresh ones are made when absent. */
   trace?: { requestId: string; traceId: string };
 };
@@ -1182,6 +1183,9 @@ async function admitFresh(
   }
   if (report.preset === null) throw workflowRequired();
   const actor = context.actor;
+  const planApproval = call.requirePlanApproval === true
+    ? "human_approval"
+    : source.policy.approval.plan;
 
   // (8) The task, its primary link and the request, in one transaction.
   const snapshot = ticket.snapshot;
@@ -1199,7 +1203,7 @@ async function admitFresh(
     taskType: "feature",
     title: text.title,
     description: text.description,
-    approvalPolicy: { plan: source.policy.approval.plan },
+    approvalPolicy: { plan: planApproval },
     planningOnly: intent === "plan",
   });
   if (!taskInput.success) {
@@ -1273,7 +1277,7 @@ async function admitFresh(
 
   // (9) A start under an automatic plan approval creates the run now: on the
   // request's task, or on each child task when the ticket was routed.
-  if (intent === "start" && source.policy.approval.plan === "automatic") {
+  if (intent === "start" && planApproval === "automatic") {
     if (children === null) {
       const runId = await startRun(frame, actor, request, task);
       request = await updateRequest(transaction, request, {
