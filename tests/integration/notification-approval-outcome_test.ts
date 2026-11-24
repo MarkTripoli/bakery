@@ -56,6 +56,7 @@ async function seedNotification(
   kind: string,
   targetKind: string,
   targetId: string,
+  taskId: string | null = fixture.taskId,
 ): Promise<string> {
   const event = await fixture.insertDomainEvent({
     eventType: "approval.requested",
@@ -73,7 +74,7 @@ async function seedNotification(
       kind,
       targetKind,
       targetId,
-      fixture.taskId,
+      taskId,
       event.id,
     ],
   );
@@ -92,7 +93,11 @@ async function listInbox(fixture: SocketFixture) {
   const text = await response.text();
   assertEquals(response.status, 200, text);
   return (JSON.parse(text) as {
-    items: { id: string; approvalOutcome: Outcome }[];
+    items: {
+      id: string;
+      destination: { available: boolean };
+      approvalOutcome: Outcome;
+    }[];
   }).items;
 }
 
@@ -175,6 +180,40 @@ Deno.test("one inbox read says how each approval ended and by whom", async () =>
     }
     assertEquals(byId.get(mention), null);
     assertEquals(byId.get(missing), null);
+  } finally {
+    await cleanupAuthFixture(fixture.pgDatabase, [fixture.email]);
+    await fixture.close();
+  }
+});
+
+Deno.test("an approval notification whose destination is unavailable carries no outcome", async () => {
+  const fixture = await openSocketFixture();
+  try {
+    const approvalId = await seedApproval(fixture, {
+      status: "answered",
+      decision: "approve",
+      decided: true,
+    });
+    const reachable = await seedNotification(
+      fixture,
+      "approval_requested",
+      "approval",
+      approvalId,
+    );
+    const unreachable = await seedNotification(
+      fixture,
+      "approval_requested",
+      "approval",
+      approvalId,
+      null,
+    );
+    const byId = new Map(
+      (await listInbox(fixture)).map((item) => [item.id, item]),
+    );
+    assertEquals(byId.get(reachable)?.destination.available, true);
+    assertEquals(byId.get(reachable)?.approvalOutcome?.status, "approved");
+    assertEquals(byId.get(unreachable)?.destination.available, false);
+    assertEquals(byId.get(unreachable)?.approvalOutcome, null);
   } finally {
     await cleanupAuthFixture(fixture.pgDatabase, [fixture.email]);
     await fixture.close();
