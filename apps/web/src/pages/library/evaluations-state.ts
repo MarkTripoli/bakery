@@ -322,7 +322,15 @@ export function pinTitle(
 ): Words {
   const pin = candidatePin(value);
   const version = pin.version;
-  if (version === null) return { key: "library.evaluations.title.unknown" };
+  if (version === null) {
+    return {
+      key: pin.kind === "agent"
+        ? "library.evaluations.title.agentUnversioned"
+        : pin.kind === "workflow"
+        ? "library.evaluations.title.workflowUnversioned"
+        : "library.evaluations.title.versionUnversioned",
+    };
+  }
   const name = definition?.name ?? undefined;
   if (name !== undefined) {
     return {
@@ -338,6 +346,22 @@ export function pinTitle(
       : "library.evaluations.title.version",
     values: { version },
   };
+}
+
+const echoesState = (reason: string): boolean =>
+  /^not run( yet)?\.?$/i.test(reason.trim());
+
+export function repeatSummaries(
+  results: readonly Pick<EvaluationBatchResult, "scorerId" | "state">[],
+): ReadonlyMap<string, Readonly<{ passed: number; total: number }>> {
+  const counts = new Map<string, { passed: number; total: number }>();
+  for (const result of results) {
+    const entry = counts.get(result.scorerId) ?? { passed: 0, total: 0 };
+    entry.total += 1;
+    if (result.state === "passed") entry.passed += 1;
+    counts.set(result.scorerId, entry);
+  }
+  return new Map([...counts].filter(([, entry]) => entry.total > 1));
 }
 
 /** The result words and tone for one scorer's line under a test case. */
@@ -362,7 +386,7 @@ export function resultWords(
         ? { key: "library.evaluations.result.notScoredBare" }
         : { key: "library.evaluations.result.notScored", values: { reason } };
     case "missing":
-      return reason !== ""
+      return reason !== "" && !echoesState(reason)
         ? { key: "library.evaluations.result.notRun", values: { reason } }
         : live
         ? { key: "library.evaluations.result.notRunYet" }

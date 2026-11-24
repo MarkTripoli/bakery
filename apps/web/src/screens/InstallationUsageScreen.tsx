@@ -1,3 +1,4 @@
+import { useState } from "react";
 import * as UI from "@bakery/ui";
 import { formatDate } from "@bakery/i18n";
 import type { UsageSummary } from "../api/client.ts";
@@ -34,11 +35,19 @@ export type InstallationUsageScreenProps = {
   readonly state: "loading" | "error" | "ready" | "empty" | "notFound";
   readonly period: UsagePeriod;
   readonly provider: string | null;
-  readonly periodTooLong: boolean;
+  readonly providers: readonly string[];
+  readonly periodError: "incomplete" | "reversed" | "tooLong" | null;
+  readonly customFrom: string;
+  readonly customTo: string;
+  readonly onCustomChange: (
+    range: Readonly<{ from: string; to: string }>,
+  ) => void;
   readonly onPeriodChange: (period: UsagePeriod) => void;
   readonly onProviderChange: (provider: string | null) => void;
   readonly onRetry: () => void;
   readonly onShowLast30Days: () => void;
+  readonly offline: boolean;
+  readonly lastUpdated: string | null;
 };
 
 export function InstallationUsageScreen(
@@ -47,15 +56,24 @@ export function InstallationUsageScreen(
     state,
     period,
     provider,
-    periodTooLong,
+    providers,
+    periodError,
+    customFrom,
+    customTo,
+    onCustomChange,
     onPeriodChange,
     onProviderChange,
     onRetry,
     onShowLast30Days,
+    offline,
+    lastUpdated,
   }: InstallationUsageScreenProps,
 ) {
   const { translate, locale, timeZone } = useI18n();
   const money = useMoney();
+  const phone = useShellViewport() === "phone";
+  const [periodOpen, setPeriodOpen] = useState(false);
+  const [providerOpen, setProviderOpen] = useState(false);
   // Formatted here, so the count is an argument the catalogue can inflect on.
   const records = (count: number) =>
     translate(recordKey(count), { count: String(count) });
@@ -104,82 +122,133 @@ export function InstallationUsageScreen(
       label: translate("installation.usage.provider.all"),
       selected: provider === null,
     },
-    ...rows.map((row) => ({
-      id: row.provider,
-      label: providerName(row.provider),
-      selected: row.provider === provider,
-    })),
+    ...(provider === null || providers.includes(provider)
+      ? providers
+      : [provider, ...providers]).map((name) => ({
+        id: name,
+        label: providerName(name),
+        selected: name === provider,
+      })),
   ];
+  const FieldRow = phone ? UI.Stack : UI.Inline;
+  const customRow = period === "custom"
+    ? (
+      <UI.Stack gap="compact">
+        <FieldRow gap="compact">
+          <UI.Field
+            htmlFor="usage-from"
+            label={translate("installation.usage.period.from")}
+          >
+            <UI.TextInput
+              autoComplete="off"
+              id="usage-from"
+              name="from"
+              onChange={(from) => onCustomChange({ from, to: customTo })}
+              type="date"
+              value={customFrom}
+            />
+          </UI.Field>
+          <UI.Field
+            htmlFor="usage-to"
+            label={translate("installation.usage.period.to")}
+          >
+            <UI.TextInput
+              autoComplete="off"
+              id="usage-to"
+              name="to"
+              onChange={(to) => onCustomChange({ from: customFrom, to })}
+              type="date"
+              value={customTo}
+            />
+          </UI.Field>
+        </FieldRow>
+        {periodError === "tooLong" || periodError === "reversed"
+          ? (
+            <UI.Text role="alert" variant="error">
+              {translate(
+                periodError === "tooLong"
+                  ? "installation.usage.period.tooLong"
+                  : "installation.usage.period.reversed",
+              )}
+            </UI.Text>
+          )
+          : null}
+      </UI.Stack>
+    )
+    : null;
   const filters = (
-    <UI.Inline gap="compact">
-      <UI.Popover
-        align="end"
-        label={periodWord}
-        trigger={
-          <>
-            {periodLabel}
-            <UI.IconGlyph name="chevron-down" size="small" />
-          </>
-        }
-        triggerAppearance="toolbar"
-        triggerLabel={periodLabel}
-        variant="interactive"
-      >
-        <UI.Menu
-          aria-label={periodWord}
-          items={periodItems}
-          onSelect={(id) => {
-            if (isUsagePeriod(id)) onPeriodChange(id);
-          }}
-          variant="selection"
-        />
-      </UI.Popover>
-      <UI.Popover
-        align="end"
-        label={providerWord}
-        trigger={
-          <>
-            {providerLabel}
-            <UI.IconGlyph name="chevron-down" size="small" />
-          </>
-        }
-        triggerAppearance="toolbar"
-        triggerLabel={providerLabel}
-        variant="interactive"
-      >
-        <UI.Menu
-          aria-label={providerWord}
-          items={providerItems}
-          onSelect={(id) => onProviderChange(id === "all" ? null : id)}
-          variant="selection"
-        />
-      </UI.Popover>
-    </UI.Inline>
+    <UI.Stack gap="compact">
+      <UI.Inline gap="compact">
+        <UI.Popover
+          align="end"
+          floating={phone}
+          label={periodWord}
+          onOpenChange={setPeriodOpen}
+          open={periodOpen}
+          trigger={
+            <>
+              {periodLabel}
+              <UI.IconGlyph name="chevron-down" size="small" />
+            </>
+          }
+          triggerAppearance="toolbar"
+          triggerLabel={periodLabel}
+          variant="interactive"
+        >
+          <UI.Menu
+            aria-label={periodWord}
+            items={periodItems}
+            onSelect={(id) => {
+              if (isUsagePeriod(id)) {
+                onPeriodChange(id);
+                setPeriodOpen(false);
+              }
+            }}
+            variant="selection"
+          />
+        </UI.Popover>
+        <UI.Popover
+          align="end"
+          floating={phone}
+          label={providerWord}
+          onOpenChange={setProviderOpen}
+          open={providerOpen}
+          trigger={
+            <>
+              {providerLabel}
+              <UI.IconGlyph name="chevron-down" size="small" />
+            </>
+          }
+          triggerAppearance="toolbar"
+          triggerLabel={providerLabel}
+          variant="interactive"
+        >
+          <UI.Menu
+            aria-label={providerWord}
+            items={providerItems}
+            onSelect={(id) => {
+              onProviderChange(id === "all" ? null : id);
+              setProviderOpen(false);
+            }}
+            variant="selection"
+          />
+        </UI.Popover>
+      </UI.Inline>
+      {customRow}
+    </UI.Stack>
   );
 
   // Loading is its own state, not an empty table: a table of zeros while the
   // first answer is in flight says the period had nothing in it, which is a
   // claim the page has not earned yet.
-  const pageState = state === "ready"
-    ? "default"
-    : state === "error"
-    ? "error"
-    : state === "empty"
-    ? "empty"
-    : "loading";
+  const pageState = state === "empty" ? "empty" : "default";
 
   return (
     <UI.SettingsContent data-page="installation-usage">
       <UI.AccessSettings
         actions={filters}
         description={translate("installation.usage.description")}
-        notice={periodTooLong
-          ? (
-            <UI.AlertBanner tone="warning">
-              <span>{translate("installation.usage.period.tooLong")}</span>
-            </UI.AlertBanner>
-          )
-          : completeness === "partial" && summary
+        notice={completeness === "partial" && summary
           ? (
             <UI.AlertBanner tone="warning">
               {
@@ -189,10 +258,17 @@ export function InstallationUsageScreen(
               <UI.Stack gap="tight">
                 <strong>{translate("installation.usage.partial.title")}</strong>
                 <span>
-                  {translate("installation.usage.partial.body", {
-                    unverified: records(summary.unverifiedCount),
-                    unknown: records(summary.unknownCount),
-                  })}
+                  {translate(
+                    summary.unverifiedCount > 0 && summary.unknownCount > 0
+                      ? "installation.usage.partial.body"
+                      : summary.unverifiedCount > 0
+                      ? "installation.usage.partial.unverifiedOnly"
+                      : "installation.usage.partial.unknownOnly",
+                    {
+                      unverified: summary.unverifiedCount,
+                      unknown: summary.unknownCount,
+                    },
+                  )}
                 </span>
               </UI.Stack>
             </UI.AlertBanner>
@@ -247,6 +323,15 @@ export function InstallationUsageScreen(
         {state === "ready"
           ? (
             <>
+              {offline && lastUpdated !== null
+                ? (
+                  <UI.Text variant="muted">
+                    {translate("installation.usage.lastUpdated", {
+                      time: lastUpdated,
+                    })}
+                  </UI.Text>
+                )
+                : null}
               <UI.Inline gap="standard" variant="thirds">
                 <UI.StatTile
                   detail={confirmed.noReceipts
@@ -256,6 +341,7 @@ export function InstallationUsageScreen(
                     label: translate("installation.usage.confirmed.label"),
                     text: translate("installation.usage.confirmed.help"),
                   }}
+                  aria-label={translate("installation.usage.confirmed.label")}
                   label={translate("installation.usage.confirmed.label")}
                   value={confirmed.noReceipts || summary === null
                     ? "\u2014"
@@ -269,6 +355,7 @@ export function InstallationUsageScreen(
                     label: translate("installation.usage.unverified.label"),
                     text: translate("installation.usage.unverified.help"),
                   }}
+                  aria-label={translate("installation.usage.unverified.label")}
                   label={translate("installation.usage.unverified.label")}
                   value={summary ? money(summary.unverifiedCostUsd) : "\u2014"}
                 />
@@ -278,6 +365,9 @@ export function InstallationUsageScreen(
                     label: translate("installation.usage.unknownCount.label"),
                     text: translate("installation.usage.unknownCount.help"),
                   }}
+                  aria-label={translate(
+                    "installation.usage.unknownCount.label",
+                  )}
                   label={translate("installation.usage.unknownCount.label")}
                   value={summary ? records(summary.unknownCount) : "\u2014"}
                 />
@@ -298,11 +388,47 @@ export function InstallationUsageScreen(
                       "installation.usage.budgets.heading",
                     )}
                   >
+                    {provider === null ? null : (
+                      <UI.Text variant="caption">
+                        {translate("installation.usage.budgets.allProviders", {
+                          provider: providerName(provider),
+                        })}
+                      </UI.Text>
+                    )}
                     <UsageBudgetTable accounts={budgets} />
                   </UI.SettingsSection>
                 )
                 : null}
             </>
+          )
+          : state === "loading"
+          ? (
+            <UI.Stack
+              aria-label={translate("installation.usage.loading")}
+              role="status"
+            >
+              <UI.Inline gap="standard" variant="thirds">
+                <UI.Skeleton shape="surface" />
+                <UI.Skeleton shape="surface" />
+                <UI.Skeleton shape="surface" />
+              </UI.Inline>
+              <UI.Skeleton shape="row" />
+              <UI.Skeleton shape="row" />
+              <UI.Skeleton shape="row" />
+              <UI.Skeleton shape="row" />
+            </UI.Stack>
+          )
+          : state === "error"
+          ? (
+            <UI.ErrorState
+              action={
+                <UI.Button onClick={onRetry}>
+                  {translate("installation.usage.retry")}
+                </UI.Button>
+              }
+              title={translate("installation.usage.error")}
+              variant="region"
+            />
           )
           : null}
       </UI.AccessSettings>
@@ -312,12 +438,13 @@ export function InstallationUsageScreen(
 
 /** Money in the page's words: an amount under a cent reads "Less than $0.01", never "$0.00". */
 function useMoney(): (amount: string) => string {
-  const { translate } = useI18n();
+  const { translate, locale } = useI18n();
   return (amount) =>
     usd(
       amount,
       (smallest) =>
         translate("installation.usage.lessThanCent", { amount: smallest }),
+      locale,
     );
 }
 
@@ -338,6 +465,7 @@ function UsageProviderTable({ rows }: { readonly rows: ProviderRow[] }) {
   const columns: UI.DataTableColumn<ProviderRow>[] = [
     {
       id: "provider",
+      rowHeader: true,
       header: translate("installation.usage.byProvider.provider"),
       cell: (row) => (
         <UI.Stack gap="none">

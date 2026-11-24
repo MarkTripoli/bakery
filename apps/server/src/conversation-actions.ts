@@ -56,6 +56,12 @@ export type ConversationActionHandlers = {
   ) =>
     | z.output<typeof contractSchemas.ConversationTurn>
     | Promise<z.output<typeof contractSchemas.ConversationTurn>>;
+  turnsRetry: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.ConversationTurnRetry>,
+  ) =>
+    | z.output<typeof contractSchemas.ConversationTurn>
+    | Promise<z.output<typeof contractSchemas.ConversationTurn>>;
   questionsList: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.QuestionQuery>,
@@ -270,6 +276,17 @@ export function createConversationActionRegistry(
     explicitIdempotency: "key-and-if-match",
     successStatus: 200,
     handler: handlers.turnsCancel,
+  });
+  registry.register({
+    name: ConversationImplementedAction.ConversationTurnsRetry,
+    method: HttpMethod.Post,
+    path: "/v1/conversation-turns/:id/retry",
+    input: contractSchemas.ConversationTurnRetry,
+    output: contractSchemas.ConversationTurn,
+    policy: { ...queryPolicy, type: ActionKind.Command },
+    explicitIdempotency: "key-and-if-match",
+    successStatus: 200,
+    handler: handlers.turnsRetry,
   });
   registry.register({
     name: ConversationImplementedAction.QuestionsList,

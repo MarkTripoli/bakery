@@ -13,6 +13,12 @@ import {
 } from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { toTurn, type TurnRow } from "./queries.ts";
+import {
+  admitQueuedTurn,
+  hasQueuedTurnCapacity,
+  lockConversationScope,
+  resolveCoordinatorAgentVersion,
+} from "./postgres.ts";
 
 type ConversationRow = {
   id: string;
@@ -377,6 +383,105 @@ export async function cancelConversationTurn(context: ActionContext) {
     requestId: context.requestId,
     traceId: context.traceId,
     details: { conversationId: row.conversation_id, status: next },
+  });
+  return toTurn(row);
+}
+
+function stateConflict(reason: string): never {
+  throw new StandardError({ code: "STATE_CONFLICT", params: { reason } });
+}
+
+export async function retryConversationTurn(context: ActionContext) {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  const id = pathId(context);
+  const expectedVersion = requireCommandMetadata(context).expectedVersion;
+  if (expectedVersion === undefined) {
+    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
+  const found = await transaction.query<{ conversation_id: string }>(
+    `select turn.conversation_id from bakery.conversation_turns turn
+      where turn.organization_id = $1 and turn.id = $2`,
+    [organizationId, id],
+  );
+  const peek = found.rows[0];
+  if (!peek) notFound();
+  const scope = await lockConversationScope(
+    transaction,
+    organizationId,
+    peek.conversation_id,
+    "update",
+  );
+  const locked = await transaction.query<
+    TurnRow & { trigger_sequence: string }
+  >(
+    `select ${TURN_COLUMNS}, message.sequence::text as trigger_sequence
+       from bakery.conversation_turns turn
+       join bakery.messages message
+         on message.organization_id = turn.organization_id
+        and message.conversation_id = turn.conversation_id
+        and message.id = turn.trigger_message_id
+      where turn.organization_id = $1 and turn.id = $2
+      for update of turn`,
+    [organizationId, id],
+  );
+  const turn = locked.rows[0];
+  if (!turn) notFound();
+  if (turn.status !== "failed") stateConflict("turn_not_failed");
+  if (turn.version !== expectedVersion) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  const latest = await transaction.query<{ sequence: string }>(
+    `select max(sequence)::text as sequence from bakery.messages
+      where organization_id = $1 and conversation_id = $2`,
+    [organizationId, turn.conversation_id],
+  );
+  if (latest.rows[0]?.sequence !== turn.trigger_sequence) {
+    stateConflict("newer_message");
+  }
+  const sibling = await transaction.query(
+    `select 1 from bakery.conversation_turns
+      where organization_id = $1 and trigger_message_id = $2
+        and status <> 'failed'`,
+    [organizationId, turn.trigger_message_id],
+  );
+  if (sibling.rows.length > 0) stateConflict("turn_already_retried");
+  if (
+    !await hasQueuedTurnCapacity(
+      transaction,
+      organizationId,
+      turn.conversation_id,
+    )
+  ) stateConflict("conversation_queue_full");
+  const turnId = await admitQueuedTurn(transaction, {
+    organizationId,
+    scope,
+    triggerMessageId: turn.trigger_message_id,
+    contextThroughSequence: turn.trigger_sequence,
+    agentVersionId: await resolveCoordinatorAgentVersion(
+      transaction,
+      organizationId,
+    ),
+    retryOfTurnId: turn.id,
+    traceId: context.traceId,
+  });
+  const created = await transaction.query<TurnRow>(
+    `select ${TURN_COLUMNS} from bakery.conversation_turns turn
+      where turn.organization_id = $1 and turn.id = $2`,
+    [organizationId, turnId],
+  );
+  const row = created.rows[0];
+  if (!row) throw new Error("CONVERSATION_TURN_RETRY_FAILED");
+  await appendAudit(transaction, {
+    organizationId,
+    principalId,
+    operation: "conversationTurns.retry",
+    resourceType: "conversation_turn",
+    resourceId: row.id,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    details: { conversationId: row.conversation_id, retryOfTurnId: turn.id },
   });
   return toTurn(row);
 }

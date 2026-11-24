@@ -53,6 +53,33 @@ export function usageWindow(
   return { from: new Date(now.getTime() - 30 * DAY_MS), to: now };
 }
 
+const DATE_INPUT = /^\d{4}-\d{2}-\d{2}$/;
+
+export const isDateInput = (value: unknown): value is string =>
+  typeof value === "string" && DATE_INPUT.test(value) &&
+  !Number.isNaN(new Date(`${value}T00:00:00`).getTime());
+
+export function dateInput(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+export function customWindow(
+  from: unknown,
+  to: unknown,
+): Readonly<{ from: Date; to: Date }> | null {
+  if (!isDateInput(from) || !isDateInput(to)) return null;
+  return {
+    from: new Date(`${from}T00:00:00`),
+    to: new Date(`${to}T23:59:59.999`),
+  };
+}
+
+export const usageWindowReversed = (
+  window: Readonly<{ from: Date; to: Date }>,
+): boolean => window.from.getTime() > window.to.getTime();
+
 /**
  * Whether a window is longer than the server will answer for.
  *

@@ -1478,6 +1478,23 @@ test("a failed approvals read says it could not check, not that nothing is waiti
   await expect(now.getByRole("button")).toHaveCount(3);
 });
 
+test("the card carries its approval's id, before and after a decision, so a notification lands on it", async ({ page }) => {
+  const mock = await openApproval(page);
+  const now = nowCard(page);
+  const approvalId = approvalRow().id as string;
+  await expect(now).toHaveAttribute("data-approval-id", approvalId);
+  mock.approvals = mock.approvals.map((entry) => ({
+    ...entry,
+    status: "answered",
+    decision: "reject",
+    version: entry.version + 1,
+  }));
+  await expect(now).toContainText("These changes were rejected", {
+    timeout: 15_000,
+  });
+  await expect(now).toHaveAttribute("data-approval-id", approvalId);
+});
+
 test("an Approve dialog closes when someone else decides, and the card shows what they decided", async ({ page }) => {
   const mock = await openApproval(page);
   const now = nowCard(page);
