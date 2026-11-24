@@ -69,7 +69,7 @@ Deno.test("the executor advertises both evaluation actions beside the inner ones
 Deno.test("evaluation.check scores the pinned output bytes", async () => {
   const served = [await pinned("all done")];
   const executor = createEvaluationExecutor(inner, {
-    readAttemptContext: () => Promise.resolve(served),
+    readAttemptContext: () => Promise.resolve({ inputs: served, facts: null }),
   });
   const outcome = await executor.execute(
     assignment("evaluation.check", checkInput),
@@ -104,7 +104,7 @@ Deno.test("an unpinned version, a digest mismatch or a reader crash is an error,
 Deno.test("evaluation.score answers unscored when no judge provider is configured", async () => {
   const served = [await pinned("all done")];
   const outcome = await createEvaluationExecutor(inner, {
-    readAttemptContext: () => Promise.resolve(served),
+    readAttemptContext: () => Promise.resolve({ inputs: served, facts: null }),
   }).execute(
     assignment("evaluation.score", {
       evaluationResultId: RESULT,
