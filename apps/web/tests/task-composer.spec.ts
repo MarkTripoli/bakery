@@ -444,7 +444,7 @@ test("a setup-required preset names every missing requirement and a press sends 
   await still(page, "composer-setup", form(page));
 });
 
-test("Start is disabled for a budget below the reservation", async ({ page }) => {
+test("a budget below the reservation names the smallest one that works and sends nothing", async ({ page }) => {
   const seen = await mockComposer(page, {
     availability: {
       status: "ready",
