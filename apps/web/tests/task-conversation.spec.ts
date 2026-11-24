@@ -566,6 +566,11 @@ async function mockWorld(page: Page, state: World) {
     state.approvals = state.approvals.map((item) =>
       item.id === id ? decided : item
     );
+    if (body.decision === "approve") {
+      state.revisions = state.revisions.map((item) =>
+        item.id === found.subjectId ? { ...item, status: "approved" } : item
+      );
+    }
     return route.fulfill({ json: decided });
   });
   await page.route(
@@ -1059,7 +1064,7 @@ test("an expired approval says so, and Approve again decides it", async ({ page 
   await expect(page.getByRole("button", { name: "Reject", exact: true }))
     .toHaveCount(0);
   await expect(page.getByRole("button", { name: "Request changes" }))
-    .toBeVisible();
+    .toHaveCount(0);
   await page.getByRole("button", { name: "Approve again" }).click();
   await expect.poll(() => state.decisions.length).toBe(1);
   expect(state.decisions[0].id).toBe(approval(3).id);

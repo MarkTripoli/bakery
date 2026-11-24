@@ -320,22 +320,13 @@ export function usePlanRevision(
       )
       : redecidable
       ? (
-        <>
-          <UI.Button
-            variant="outline"
-            disabled={locked || offline}
-            onClick={() => setAsking(true)}
-          >
-            {t("tasks.conversation.plan.requestChanges")}
-          </UI.Button>
-          <UI.Button
-            disabled={locked || offline}
-            loading={phase === "deciding"}
-            onClick={() => onDecide("approve", undefined)}
-          >
-            {t("tasks.conversation.plan.approveAgain")}
-          </UI.Button>
-        </>
+        <UI.Button
+          disabled={locked || offline}
+          loading={phase === "deciding"}
+          onClick={() => onDecide("approve", undefined)}
+        >
+          {t("tasks.conversation.plan.approveAgain")}
+        </UI.Button>
       )
       : (
         <>
