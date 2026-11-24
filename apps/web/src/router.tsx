@@ -1375,10 +1375,16 @@ const issuesRoute = createRoute({
   path: "/issues",
   // `?choose=true` opens the Choose repositories sheet (an issue whose
   // repository is off sends an administrator there).
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { choose?: true; repository?: string } => ({
     choose: search.choose === true || search.choose === "true"
       ? true
       : undefined,
+    repository:
+      typeof search.repository === "string" && search.repository !== ""
+        ? search.repository
+        : undefined,
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),

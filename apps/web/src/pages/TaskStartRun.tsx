@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import type { RunCreate, TaskResponse } from "../api/client.ts";
@@ -22,7 +22,12 @@ import {
   saveIntent,
   startRunIntentKey,
 } from "./task-composer-intent.ts";
-import { composerLabels, presetCopy } from "./task-composer-labels.ts";
+import {
+  composerLabels,
+  presetCopy,
+  validBudget,
+} from "./task-composer-labels.ts";
+import { WorkflowChoice } from "./WorkflowChoice.tsx";
 import {
   approvalFor,
   latestRevision,
@@ -54,6 +59,7 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
   const session = useSession();
   const cache = useQueryClient();
   const { translate: t } = useI18n();
+  const setupId = useId();
   const organizationId = scope.organizationId;
   const principalId = session.identity?.principalId ?? null;
   const key = organizationId !== null && principalId !== null
@@ -80,7 +86,19 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
     ...workflowPresetsQueryOptions(api, scope, task.repositoryId),
     enabled: organizationId !== null && task.repositoryId !== null,
   });
-  const preset = presets.data?.items[0];
+  const [presetId, setPresetId] = useState("");
+  const [budget, setBudget] = useState("");
+  const [budgetTyped, setBudgetTyped] = useState(false);
+  const preset = presets.data?.items.find((item) => item.id === presetId);
+  const [chooseAsked, setChooseAsked] = useState(false);
+  const [budgetAsked, setBudgetAsked] = useState(false);
+  const setupRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const choose = (id: string) => {
+    setPresetId(id);
+    const picked = presets.data?.items.find((item) => item.id === id);
+    if (!budgetTyped) setBudget(picked?.defaultBudgetLimitUsd ?? "");
+  };
   // A task whose plan stage waits for a human starts only from the approved,
   // unconsumed approval of its newest plan revision; the server decides.
   const gated = planPolicy(task) === "human_approval";
@@ -105,7 +123,8 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
     ? preset.availability.reasons
     : [];
   const profileId = task.repositoryProfileId;
-  const blocked = reasons.length > 0 || profileId === null || !preset;
+  const blocked = reasons.length > 0 || profileId === null || !preset ||
+    !validBudget(budget);
 
   const send = async (current: IntentRecord<RunSubmission> & RunSubmission) => {
     if (organizationId === null) return;
@@ -150,16 +169,33 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
   };
 
   const start = () => {
+    if (preset === undefined) {
+      setChooseAsked(true);
+      return;
+    }
     if (
-      key === null || !preset || profileId === null || blocked ||
-      (phase !== "idle" && phase !== "conflict" && phase !== "error" &&
-        phase !== "forbidden")
+      phase !== "idle" && phase !== "conflict" && phase !== "error" &&
+      phase !== "forbidden"
     ) return;
+    if (reasons.length > 0) {
+      setupRef.current?.focus();
+      return;
+    }
+    if (!validBudget(budget)) {
+      setBudgetAsked(true);
+      document.getElementById("start-run-budget")?.focus();
+      return;
+    }
+    if (profileId === null) {
+      profileRef.current?.focus();
+      return;
+    }
+    if (key === null || blocked) return;
     const run: RunCreate = {
       presetId: preset.id,
       repositoryProfileId: profileId,
       executionMode: "repository",
-      budgetLimitUsd: preset.defaultBudgetLimitUsd,
+      budgetLimitUsd: budget.trim(),
       ...(approvalId === undefined ? {} : { approvalId }),
     };
     // The next Start run clears what the last refusal said.
@@ -184,7 +220,9 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
       refusal?.reason === "requirements_changed"
     ? refusal.reason
     : null;
-  const copy = preset ? presetCopy(t, preset.id) : null;
+  if (presets.data !== undefined && presets.data.items.length === 0) {
+    return null;
+  }
   const notice = phase === "unknown"
     ? { tone: "warning" as const, text: t("tasks.startRun.unknown") }
     : phase === "conflict"
@@ -202,15 +240,60 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
   return (
     <UI.Stack data-ui-region="start-run" gap="compact">
       <UI.Heading level="section">{t("tasks.startRun.heading")}</UI.Heading>
-      <UI.Text>{t("tasks.session.state.empty")}</UI.Text>
-      {copy && (
-        <UI.Text variant="caption">
-          {t("tasks.composer.preset")}: {copy.title}
-        </UI.Text>
+      <UI.Text>{t("tasks.startRun.empty")}</UI.Text>
+      <WorkflowChoice
+        disabled={phase === "submitting"}
+        error={chooseAsked && preset === undefined
+          ? t("tasks.startRun.chooseFirst")
+          : undefined}
+        id="start-run-preset"
+        items={(presets.data?.items ?? []).map((item) => {
+          const words = presetCopy(t, item.id);
+          return {
+            id: item.id,
+            title: words.title,
+            ...(words.description === undefined
+              ? {}
+              : { description: words.description }),
+          };
+        })}
+        label={labels.preset}
+        onChange={choose}
+        placeholder={t("tasks.startRun.choose")}
+        value={presetId}
+      />
+      {preset && (
+        <UI.Field
+          error={budgetAsked && !validBudget(budget)
+            ? t("tasks.startRun.budgetInvalid")
+            : undefined}
+          hint={labels.budgetHint}
+          htmlFor="start-run-budget"
+          label={labels.budget}
+        >
+          <UI.TextInput
+            autoComplete="off"
+            id="start-run-budget"
+            inputMode="decimal"
+            name="budget"
+            onChange={(value) => {
+              setBudgetTyped(true);
+              setBudget(value);
+            }}
+            readOnly={phase === "submitting"}
+            type="text"
+            value={budget}
+          />
+        </UI.Field>
       )}
       <div aria-atomic="true" aria-live="polite" role="status">
         {notice && (
-          <UI.InlineNotice role="none" tone={notice.tone}>
+          <UI.InlineNotice
+            ref={profileRef}
+            role="none"
+            tabIndex={-1}
+            tone={notice.tone}
+          >
             {notice.text}
           </UI.InlineNotice>
         )}
@@ -259,7 +342,13 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
         </UI.Text>
       )}
       {reasons.length > 0 && (
-        <UI.InlineNotice role="none" tone="warning">
+        <UI.InlineNotice
+          id={setupId}
+          ref={setupRef}
+          role="none"
+          tabIndex={-1}
+          tone="warning"
+        >
           <UI.Stack gap="compact">
             <UI.Text>{labels.setupHeading}</UI.Text>
             {reasons.map((reason) => (
@@ -278,10 +367,11 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
         )
         : (
           <UI.Button
-            disabled={blocked || phase === "submitting"}
+            aria-describedby={reasons.length > 0 ? setupId : undefined}
+            disabled={phase === "submitting"}
             loading={phase === "submitting"}
             onClick={start}
-            variant={blocked || phase === "submitting" ? "outline" : "primary"}
+            variant="primary"
           >
             {phase === "submitting"
               ? t("tasks.startRun.starting")

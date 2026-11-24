@@ -1219,6 +1219,12 @@ Where a tag appears:
 | A steer or comment on a live run or step, an artifact comment, a chat message | The same @ picker as chat; a chat mention is a tag with intent FYI   |
 | An agent, during a run                                                        | `people.tag` through Bakery's own connection (section 18.1)          |
 
+A Notify step (`uses: people.tag`, #456) names one recipient: a member, a role,
+a group, or the run's starter or task owner. It asks for an FYI or a review as
+the workflow, on behalf of the person who started the run, and tags once per
+step. Only a review can be waited for; the step ends `sent`, `responded` or
+`expired`.
+
 **Agents (O55).** Agent-first applies: an agent tags under the same grants as a
 person, and the tag is labelled as the agent's action. By default it tags people
 already involved (the starter, the owners above, an audience the workflow

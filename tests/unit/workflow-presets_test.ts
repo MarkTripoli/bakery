@@ -98,7 +98,14 @@ Deno.test("the fixed coding preset digest pins its canonical specification", asy
     FIXED_CODING_PRESET.digest,
     await sha256Hex(canonicalJson(FIXED_CODING_PRESET.spec)),
   );
-  assertEquals(WORKFLOW_PRESET_IDS, ["fixed-coding", "fixed-coding-reviewed"]);
+  assertEquals(WORKFLOW_PRESET_IDS, [
+    "fixed-coding",
+    "fixed-coding-reviewed",
+    "deliver-oneshot",
+    "deliver-lean",
+    "deliver-full",
+    "deliver-prd",
+  ]);
   assertEquals(workflowPresetById("fixed-coding"), FIXED_CODING_PRESET);
   assertEquals(workflowPresetById("unknown"), undefined);
   assertEquals(FIXED_CODING_PRESET.defaultBudgetLimitUsd, "5.00");
