@@ -426,6 +426,10 @@ test("a setup-required preset names every missing requirement and a press sends 
   );
   await field.start(page).click();
   await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
+  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCSS(
+    "outline-style",
+    "solid",
+  );
   expect(seen.tasks).toHaveLength(0);
   expect(seen.runs).toHaveLength(0);
   // The rule it names is a link to the page where it is changed.
@@ -461,6 +465,10 @@ test("still: the composer pressed with one requirement missing", async ({ page }
   ).toBeVisible();
   await field.start(page).click();
   await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
+  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCSS(
+    "outline-style",
+    "solid",
+  );
   await still(page, "composer-not-ready-pressed");
 });
 

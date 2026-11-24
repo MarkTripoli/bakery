@@ -288,11 +288,14 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
       )}
       <div aria-atomic="true" aria-live="polite" role="status">
         {notice && (
-          <div ref={profileRef} tabIndex={-1}>
-            <UI.InlineNotice role="none" tone={notice.tone}>
-              {notice.text}
-            </UI.InlineNotice>
-          </div>
+          <UI.InlineNotice
+            ref={profileRef}
+            role="none"
+            tabIndex={-1}
+            tone={notice.tone}
+          >
+            {notice.text}
+          </UI.InlineNotice>
         )}
         {refusal && explained && (
           <UI.InlineNotice role="none" tone="warning">
@@ -339,18 +342,22 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
         </UI.Text>
       )}
       {reasons.length > 0 && (
-        <div id={setupId} ref={setupRef} tabIndex={-1}>
-          <UI.InlineNotice role="none" tone="warning">
-            <UI.Stack gap="compact">
-              <UI.Text>{labels.setupHeading}</UI.Text>
-              {reasons.map((reason) => (
-                <UI.Text key={reason}>
-                  {labels.setupRequired[reason] ?? labels.setupUnknown}
-                </UI.Text>
-              ))}
-            </UI.Stack>
-          </UI.InlineNotice>
-        </div>
+        <UI.InlineNotice
+          id={setupId}
+          ref={setupRef}
+          role="none"
+          tabIndex={-1}
+          tone="warning"
+        >
+          <UI.Stack gap="compact">
+            <UI.Text>{labels.setupHeading}</UI.Text>
+            {reasons.map((reason) => (
+              <UI.Text key={reason}>
+                {labels.setupRequired[reason] ?? labels.setupUnknown}
+              </UI.Text>
+            ))}
+          </UI.Stack>
+        </UI.InlineNotice>
       )}
       {phase === "unknown"
         ? (

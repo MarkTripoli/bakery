@@ -2840,9 +2840,10 @@ test("still: Start run pressed with no workflow chosen", async ({ page }) => {
 });
 
 const startRunNotice = (page: Page) =>
-  page.locator('[data-ui-region="start-run"]').locator("[tabindex='-1']", {
-    hasText: "This workflow cannot start here yet",
-  });
+  page.locator('[data-ui-region="start-run"]').locator(
+    "[data-ui-component='inlineNotice'][tabindex='-1']",
+    { hasText: "This workflow cannot start here yet" },
+  );
 
 test("a press with a requirement missing sends nothing and focuses the reasons", async ({ page }) => {
   const start = await openStartRun(page, {
@@ -2865,6 +2866,8 @@ test("a press with a requirement missing sends nothing and focuses the reasons",
   );
   await start.click();
   await expect(startRunNotice(page)).toBeFocused();
+  await expect(startRunNotice(page)).toHaveCSS("outline-style", "solid");
+  await expect(startRunNotice(page)).toHaveCSS("outline-width", "2px");
   expect(runs).toHaveLength(0);
 });
 
@@ -2909,9 +2912,12 @@ test("a press on a task with no repository profile focuses the notice and sends 
   await expect(start).toBeEnabled();
   await start.click();
   await expect(
-    page.locator('[data-ui-region="start-run"]').locator("[tabindex='-1']", {
-      hasText: "This task has no repository profile, so a run cannot start.",
-    }),
+    page.locator('[data-ui-region="start-run"]').locator(
+      "[data-ui-component='inlineNotice'][tabindex='-1']",
+      {
+        hasText: "This task has no repository profile, so a run cannot start.",
+      },
+    ),
   ).toBeFocused();
   expect(runs).toHaveLength(0);
 });
