@@ -60,15 +60,10 @@ export function skillSlugIsTaken(
   return slug !== "" && existing.includes(slug);
 }
 
-function megabytes(bytes: number): string {
+export function formatDraftBytes(bytes: number): string {
+  if (bytes < 100_000) return `${Math.round(bytes / 1_000)} KB`;
   const value = bytes / 1_000_000;
-  return value === Math.round(value) ? `${value}` : value.toFixed(1);
-}
-
-export function draftSizeCaption(draft: SkillDraftResponse): string {
-  return `${megabytes(draft.totalBytes)} of 10 MB · ${draft.files.length} of ${
-    String(SKILL_DRAFT_LIMIT_FILES)
-  } files`;
+  return `${value === Math.round(value) ? `${value}` : value.toFixed(1)} MB`;
 }
 
 export function draftWouldOverflow(bytes: number): boolean {

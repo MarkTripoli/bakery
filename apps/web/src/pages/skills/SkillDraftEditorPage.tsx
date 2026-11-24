@@ -13,6 +13,7 @@ import { skillQueryOptions } from "../../api/query.ts";
 import { asyncKindForError } from "../../app/async-state.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
+import { ShellSlot } from "../../shell/shell-slots.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import {
   checkIsStale,
@@ -21,6 +22,7 @@ import {
   type DraftProblem,
   draftWouldOverflow,
   encodeSkillText,
+  formatDraftBytes,
   isTextMediaType,
   problemsOf,
   SKILL_DRAFT_LIMIT_BYTES,
@@ -301,8 +303,9 @@ export function SkillDraftEditorPage({ skillId }: { skillId: string }) {
   const showList = !phone || chosen === null || path === null;
   const base = current.baseRevision;
   const problemRows = problems.map((problem, index) => (
-    <UI.Link
+    <UI.Button
       key={`${problem.code}-${String(index)}`}
+      variant="quiet"
       onClick={() => openProblem(problem)}
     >
       {problem.file === null || problem.line === null
@@ -314,11 +317,26 @@ export function SkillDraftEditorPage({ skillId }: { skillId: string }) {
           line: String(problem.line),
           message: problem.message,
         })}
-    </UI.Link>
+    </UI.Button>
   ));
+
+  const actions = (
+    <UI.Inline gap="compact">
+      <UI.Button variant="secondary" onClick={() => setDiscardOpen(true)}>
+        {t("library.skills.editor.discard")}
+      </UI.Button>
+      <UI.Button variant="secondary" onClick={() => void runCheck()}>
+        {t("library.skills.editor.check")}
+      </UI.Button>
+      <UI.Button variant="primary" onClick={() => void publish()}>
+        {t("library.skills.editor.publish")}
+      </UI.Button>
+    </UI.Inline>
+  );
 
   return (
     <>
+      {phone ? null : <ShellSlot name="actions">{actions}</ShellSlot>}
       <UI.PageHeader
         variant="list"
         flush
@@ -326,22 +344,7 @@ export function SkillDraftEditorPage({ skillId }: { skillId: string }) {
         subtitle={base === null
           ? t("library.skills.editor.baseNew")
           : t("library.skills.editor.base", { revision: String(base) })}
-        actions={
-          <UI.Inline gap="compact">
-            <UI.Button
-              variant="secondary"
-              onClick={() => setDiscardOpen(true)}
-            >
-              {t("library.skills.editor.discard")}
-            </UI.Button>
-            <UI.Button variant="secondary" onClick={() => void runCheck()}>
-              {t("library.skills.editor.check")}
-            </UI.Button>
-            <UI.Button variant="primary" onClick={() => void publish()}>
-              {t("library.skills.editor.publish")}
-            </UI.Button>
-          </UI.Inline>
-        }
+        actions={phone ? actions : null}
       />
       <UI.Stack gap="standard" data-testid="skill-draft-editor">
         {published === null ? null : (
@@ -408,8 +411,8 @@ export function SkillDraftEditorPage({ skillId }: { skillId: string }) {
               {problemRows}
             </UI.Stack>
           )}
-        <UI.Inline gap="standard">
-          {showList
+        <UI.FormWithSummary
+          aside={showList
             ? (
               <UI.Stack gap="compact" data-testid="skill-draft-files">
                 <UI.Heading level="section">
@@ -426,25 +429,6 @@ export function SkillDraftEditorPage({ skillId }: { skillId: string }) {
                         setPath(file.path);
                         setRefusal(null);
                       }}
-                      trailing={
-                        <UI.Menu
-                          aria-label={file.path}
-                          items={[
-                            {
-                              id: "rename",
-                              label: t("library.skills.editor.files.rename"),
-                            },
-                            {
-                              id: "remove",
-                              label: t("library.skills.editor.files.remove"),
-                            },
-                          ]}
-                          onSelect={(id) => {
-                            if (id === "rename") setRenaming(file.path);
-                            if (id === "remove") setRemoving(file.path);
-                          }}
-                        />
-                      }
                     />
                   ))}
                 </UI.ListSection>
@@ -453,11 +437,7 @@ export function SkillDraftEditorPage({ skillId }: { skillId: string }) {
                 </UI.Button>
                 <UI.Text variant="muted" data-testid="skill-draft-size">
                   {t("library.skills.editor.size", {
-                    used: `${
-                      (current.totalBytes / 1_000_000).toFixed(
-                        current.totalBytes % 1_000_000 === 0 ? 0 : 1,
-                      )
-                    } MB`,
+                    used: formatDraftBytes(current.totalBytes),
                     files: String(files.length),
                     limit: String(SKILL_DRAFT_LIMIT_FILES),
                   })}
@@ -512,6 +492,7 @@ export function SkillDraftEditorPage({ skillId }: { skillId: string }) {
               </UI.Stack>
             )
             : null}
+        >
           {phone && path !== null
             ? (
               <UI.Button variant="quiet" onClick={() => setPath(null)}>
@@ -533,6 +514,21 @@ export function SkillDraftEditorPage({ skillId }: { skillId: string }) {
             )
             : (
               <UI.Stack gap="compact">
+                <UI.Inline gap="compact">
+                  <UI.Heading level="section">{chosenFile.path}</UI.Heading>
+                  <UI.Button
+                    variant="quiet"
+                    onClick={() => setRenaming(chosenFile.path)}
+                  >
+                    {t("library.skills.editor.files.rename")}
+                  </UI.Button>
+                  <UI.Button
+                    variant="quiet"
+                    onClick={() => setRemoving(chosenFile.path)}
+                  >
+                    {t("library.skills.editor.files.remove")}
+                  </UI.Button>
+                </UI.Inline>
                 <UI.Field
                   label={t("library.skills.editor.file.content")}
                   htmlFor="skill-file-content"
@@ -540,6 +536,7 @@ export function SkillDraftEditorPage({ skillId }: { skillId: string }) {
                   <textarea
                     id="skill-file-content"
                     ref={editorRef}
+                    aria-label={t("library.skills.editor.file.content")}
                     value={text}
                     rows={18}
                     onChange={(event) => {
@@ -559,7 +556,7 @@ export function SkillDraftEditorPage({ skillId }: { skillId: string }) {
                 </UI.Inline>
               </UI.Stack>
             )}
-        </UI.Inline>
+        </UI.FormWithSummary>
       </UI.Stack>
       {discardOpen
         ? (
@@ -833,6 +830,7 @@ function AddFileDialog(
           >
             <textarea
               id="add-skill-file-content"
+              aria-label={t("library.skills.editor.file.content")}
               value={content}
               rows={10}
               onChange={(event) => setContent(event.currentTarget.value)}

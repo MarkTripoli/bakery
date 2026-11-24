@@ -135,7 +135,19 @@ async function draftWorld(
         if (overrides.publishStatus !== undefined) {
           return route.fulfill({
             status: overrides.publishStatus,
-            json: { type: "about:blank", title: "Conflict", status: 412 },
+            contentType: "application/problem+json",
+            body: JSON.stringify({
+              type: "https://bakery.example/problems/precondition_failed",
+              title: "PRECONDITION_FAILED",
+              detail: "Stubbed conflict.",
+              status: overrides.publishStatus,
+              code: "PRECONDITION_FAILED",
+              requestId: SKILL,
+              traceId: SKILL,
+              retryable: false,
+              timestamp: "2026-11-22T12:00:00.000Z",
+              violations: [],
+            }),
           });
         }
         return route.fulfill({
@@ -143,11 +155,17 @@ async function draftWorld(
             id: "dddddddd-0000-4000-8000-000000000001",
             skillId: SKILL,
             revision: 4,
+            sourceRevision: "1",
             digest: "ab".repeat(32),
+            entryPath: "SKILL.md",
+            manifest: [],
             status: "published",
+            createdBy: "00000000-0000-4000-8000-000000000001",
             createdAt: "2026-11-22T12:00:00.000Z",
+            updatedAt: "2026-11-22T12:00:00.000Z",
             version: 1,
-            files: [],
+            publishedAt: "2026-11-22T12:00:00.000Z",
+            label: null,
           },
         });
       }
@@ -169,7 +187,19 @@ async function draftWorld(
         if (overrides.saveStatus !== undefined) {
           return route.fulfill({
             status: overrides.saveStatus,
-            json: { type: "about:blank", title: "Conflict", status: 412 },
+            contentType: "application/problem+json",
+            body: JSON.stringify({
+              type: "https://bakery.example/problems/precondition_failed",
+              title: "PRECONDITION_FAILED",
+              detail: "Stubbed conflict.",
+              status: overrides.saveStatus,
+              code: "PRECONDITION_FAILED",
+              requestId: SKILL,
+              traceId: SKILL,
+              retryable: false,
+              timestamp: "2026-11-22T12:00:00.000Z",
+              violations: [],
+            }),
           });
         }
         const body = entry.body as {
@@ -234,19 +264,27 @@ async function draftWorld(
   );
 
   await page.route(
-    (url) => url.pathname === "/v1/skills" && url.search === "",
+    (url) => url.pathname === "/v1/skills",
     (route) => {
       record(route);
       return route.fulfill({
         status: 201,
         json: {
-          id: "ffffffff-0000-4000-8000-000000000001",
+          id: SKILL,
+          sourceId: null,
+          slug: "house-voice",
           name: "House voice",
-          scope: "organization",
-          enabled: true,
+          description: null,
+          activeVersionId: null,
           activeRevision: null,
+          enabled: true,
+          scope: "organization",
+          ownerPrincipalId: null,
+          createdAt: "2026-11-22T12:00:00.000Z",
           updatedAt: "2026-11-22T12:00:00.000Z",
           version: 1,
+          copiedFromSkillId: null,
+          copiedFromVersionId: null,
         },
       });
     },
@@ -287,12 +325,12 @@ for (
       await draftWorld(page);
       await page.goto(`/library/skills/${SKILL}/edit`);
       await expect(page.getByTestId("skill-draft-editor")).toBeVisible();
-      await expect(page.getByText("SKILL.md")).toHaveCount(1);
+      await expect(
+        page.getByTestId("skill-draft-files").getByText("SKILL.md"),
+      ).toHaveCount(2);
       await expect(page.getByTestId("skill-draft-size"))
         .toContainText("of 10 MB");
-      await expect(page.getByLabel("Contents")).toHaveValue(
-        markdown.trimEnd(),
-      );
+      await expect(page.getByLabel("Contents")).toHaveValue(markdown);
       await still(page, "skill-draft-editor");
     });
 
@@ -334,8 +372,8 @@ for (
         "scripts/notes.sh · line 2: The instructions mention this file, which is not in the skill.",
       );
       await still(page, "skill-draft-problems");
-      await problems.getByRole("link").first().click();
-      await expect(page.getByLabel("Contents")).toHaveValue(script.trimEnd());
+      await problems.getByRole("button").first().click();
+      await expect(page.getByLabel("Contents")).toHaveValue(script);
     });
 
     test("Publish checks first and shows the problems instead of publishing", async ({ page }) => {
