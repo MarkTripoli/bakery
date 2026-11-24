@@ -16,6 +16,7 @@ for size in $SIZES; do
     name="$state-$size${ZOOM:+-zoom$ZOOM}"
     report="$OUT/$name.report.jsonl"
     rm -f "$report"
+    rm -rf "$OUT/$name.cmd"; mkdir -p "$OUT/$name.cmd"
     Xvfb :99 -screen 0 "${W}x${H}x24" -nolisten tcp >/dev/null 2>&1 &
     xvfb=$!
     sleep 1
@@ -23,11 +24,12 @@ for size in $SIZES; do
       /usr/libexec/at-spi-bus-launcher --launch-immediately >/dev/null 2>&1 &
       sleep 1.5
       BAKERY_DESKTOP_PREVIEW="'"$state"'" BAKERY_DESKTOP_SIZE="'"$size"'" BAKERY_DESKTOP_REPORT="'"$report"'" BAKERY_DESKTOP_ZOOM="'"${ZOOM:-}"'" \
+        BAKERY_DESKTOP_COMMANDS="'"$OUT/$name.cmd"'" \
         "'"$BIN"'" >"'"$OUT/$name.log"'" 2>&1 &
       app=$!
       for _ in $(seq 1 60); do grep -q "\"event\":\"page_loaded\"" "'"$report"'" 2>/dev/null && break; sleep 0.5; done
       sleep 1
-      ZOOM="'"${ZOOM:-}"'" python3 "'"$HERE"'/a11y_check.py" "'"$state"'" "'"$size"'" "'"$OUT"'" >"'"$OUT/$name.checks.txt"'" 2>&1
+      CMD_DIR="'"$OUT/$name.cmd"'" ZOOM="'"${ZOOM:-}"'" python3 "'"$HERE"'/a11y_check.py" "'"$state"'" "'"$size"'" "'"$OUT"'" >"'"$OUT/$name.checks.txt"'" 2>&1
       status=$?
       kill $app 2>/dev/null; wait $app 2>/dev/null
       exit $status'

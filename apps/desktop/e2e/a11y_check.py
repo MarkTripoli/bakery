@@ -243,6 +243,23 @@ def activate(name):
         return False
     return bool(Atspi.Action.do_action(button["node"], 0))
 
+REOPEN_OVER_PANEL = (
+    "(async () => {"
+    "const view = await window.__TAURI__.core.invoke('get_view');"
+    "const panel = await import('./panel.js');"
+    "panel.render({...view, link_dialog: null});"
+    "await new Promise((done) => setTimeout(done, 300));"
+    "(document.querySelector('.btn--primary') ?? document.querySelector('#panel-heading'))?.focus();"
+    "panel.render(view);"
+    "})()"
+)
+
+if is_dialog_state and dialogs and os.environ.get("CMD_DIR"):
+    scratch = os.path.join(os.environ["CMD_DIR"], "tmp-eval")
+    open(scratch, "w").write(REOPEN_OVER_PANEL)
+    os.rename(scratch, os.path.join(os.environ["CMD_DIR"], "eval-" + str(int(time.time() * 1000))))
+    time.sleep(2)
+
 if is_dialog_state and dialogs:
     if size.startswith("9"):
         press(ESCAPE)
@@ -254,5 +271,9 @@ if is_dialog_state and dialogs:
         label = f"Pressing {closer}"
     after = wait_for(lambda ns: not any(n["role"] == "dialog" for n in ns), timeout=6)
     check(f"{label} closes the dialog", not any(n["role"] == "dialog" for n in after))
+    landed = [n for n in after if "focused" in n["states"] and n["role"] in INTERACTIVE | {"heading"}]
+    check(f"after {label} focus is on a named control or the heading, not the page body",
+          len(landed) == 1 and bool(landed[0]["name"]),
+          str([(n["role"], n["name"]) for n in after if "focused" in n["states"]]))
 
 sys.exit(0 if all(results) else 1)

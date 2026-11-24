@@ -899,35 +899,38 @@ def phase_a11y_server_page():
     clear_store(web)
     subprocess.run(["pkill", "-f", "at-spi"], capture_output=True)
     time.sleep(1)
-    subprocess.Popen(["/usr/libexec/at-spi-bus-launcher", "--launch-immediately"], stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL)
+    bus_launcher = subprocess.Popen(["/usr/libexec/at-spi-bus-launcher", "--launch-immediately"], stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL)
     time.sleep(2)
     keep_alive_client = subprocess.Popen(
         ["python3", "-c", "import gi; gi.require_version('Atspi','2.0'); from gi.repository import Atspi; "
                           "Atspi.get_desktop(0); Atspi.event_main()"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    start_app(p, server=web, extra={"GTK_A11Y": "atspi", "NO_AT_BRIDGE": None})
-    assert wait_window(p, "sign_in") is not None
-    url = sign_in_to_waiting(p, "[a11y]")
-    if not url:
-        return
-    deliver(confirm(request_id_of(url), session_cookie()))
-    if not wait_report(p, "server_page_opened", 1, timeout=40):
-        check("[a11y] the server's page opens", False)
-        return
-    time.sleep(8)
-    out_dir = os.path.join(OUT, "a11y-server")
-    done = subprocess.run(["python3", "/app/e2e/a11y_check.py", "server-page", "960x640", out_dir],
-                          capture_output=True, text=True, timeout=180)
-    os.makedirs(out_dir, exist_ok=True)
-    open(os.path.join(out_dir, "checks.txt"), "w").write(done.stdout + done.stderr)
-    for line in done.stdout.splitlines():
-        if line.startswith("NOTE"):
-            print(line, flush=True)
-        if line.startswith(("PASS ", "FAIL ")):
-            check(line[5:].split("  ")[0], line.startswith("PASS "), line[5:][-160:] if line.startswith("FAIL ") else "")
-    keep_alive_client.terminate()
-    check("[a11y] the server page check ran to the end", done.returncode in (0, 1), done.stderr[-200:])
+    try:
+        start_app(p, server=web, extra={"GTK_A11Y": "atspi", "NO_AT_BRIDGE": None})
+        assert wait_window(p, "sign_in") is not None
+        url = sign_in_to_waiting(p, "[a11y]")
+        if not url:
+            return
+        deliver(confirm(request_id_of(url), session_cookie()))
+        if not wait_report(p, "server_page_opened", 1, timeout=40):
+            check("[a11y] the server's page opens", False)
+            return
+        time.sleep(8)
+        out_dir = os.path.join(OUT, "a11y-server")
+        done = subprocess.run(["python3", "/app/e2e/a11y_check.py", "server-page", "960x640", out_dir],
+                              capture_output=True, text=True, timeout=180)
+        os.makedirs(out_dir, exist_ok=True)
+        open(os.path.join(out_dir, "checks.txt"), "w").write(done.stdout + done.stderr)
+        for line in done.stdout.splitlines():
+            if line.startswith("NOTE"):
+                print(line, flush=True)
+            if line.startswith(("PASS ", "FAIL ")):
+                check(line[5:].split("  ")[0], line.startswith("PASS "), line[5:][-160:] if line.startswith("FAIL ") else "")
+        check("[a11y] the server page check ran to the end", done.returncode in (0, 1), done.stderr[-200:])
+    finally:
+        keep_alive_client.terminate()
+        bus_launcher.terminate()
 
 
 def phase_web_handoff_retry():

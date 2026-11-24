@@ -336,13 +336,14 @@ function drawLinkDialog(view, _placeholder) {
   if (!dialog) {
     if (linkDialogKind !== null) {
       linkDialogKind = null;
-      const back = beforeLinkDialog;
+      const opener = beforeLinkDialog;
       beforeLinkDialog = null;
-      if (back?.isConnected) back.focus();
+      const twin = opener ? root.querySelector(opener) : null;
+      (twin ?? root.querySelector(".btn--primary") ??
+        root.querySelector("#panel-heading"))?.focus();
     }
     return false;
   }
-  if (linkDialogKind === null) beforeLinkDialog = document.activeElement;
   const { scrim, node, title } = linkDialogNode(dialog);
   root.append(scrim);
   for (const child of root.children) {
@@ -356,12 +357,21 @@ function drawLinkDialog(view, _placeholder) {
   return true;
 }
 
+function selectorOf(node) {
+  if (!(node instanceof HTMLElement) || node === document.body) return null;
+  if (node.dataset.button) return `[data-button="${node.dataset.button}"]`;
+  return node.id ? `#${node.id}` : null;
+}
+
 export function render(view, { keepFocus = false } = {}) {
   // The same view again changes nothing on screen: leave it, so focus stays where it is.
   const fingerprint = JSON.stringify(view);
   if (fingerprint === rendered && !keepFocus) return;
   rendered = fingerprint;
   current = view;
+  if (linkDialogKind === null) {
+    beforeLinkDialog = selectorOf(document.activeElement);
+  }
   root.replaceChildren();
   if (view.window.kind !== "choose") {
     chooserOpen = false;
