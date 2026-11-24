@@ -80,6 +80,28 @@ test("workflow schedules full coverage and aggregate requires consumer job succe
     assert.equal(captures.length, 1, `${job} capture step`);
     assert.equal(captures[0].env.BAKERY_CAPTURE_JOBS, "4");
     assert.match(captures[0].run, /--\$mode/);
+    // Captured screens read the API through the vite proxy, so the capture
+    // needs the server and its database: a shard that starts only the dev
+    // server records 502 pages and compares them against references rendered
+    // with the API (#955).
+    const steps = workflow.jobs[job].steps;
+    const startApi = steps.findIndex((step) => step.name === "Start API");
+    const startWeb = steps.findIndex((step) =>
+      step.name === "Start web dev server for fixture routes"
+    );
+    assert.ok(startApi > 0, `${job} starts the API`);
+    assert.ok(startWeb > startApi, `${job} starts the API before the web`);
+    assert.ok(
+      steps.some((step) => step.name === "Wait for API health"),
+      `${job} waits for the API to be ready`,
+    );
+    const stopApi = steps.find((step) => step.name === "Stop API");
+    assert.equal(stopApi?.if, "always()", `${job} stops the API`);
+    assert.ok(
+      steps.some((step) => step.name === "Configure PostgreSQL connection"),
+      `${job} points the API at its database`,
+    );
+    assert.ok(Object.hasOwn(workflow.jobs[job].services ?? {}, "postgres"));
   }
 });
 
