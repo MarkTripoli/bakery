@@ -41,6 +41,7 @@ type Row = {
     displayName: string;
     avatarUrl: string | null;
   } | null;
+  approvalOutcome: null;
   destination: { available: boolean; title: string | null };
   read: boolean;
   revision: number;
@@ -91,6 +92,7 @@ export async function inboxFixture(page: Page, options: InboxOptions = {}) {
     actor: index % KINDS.length === 0
       ? { principalId: uuid(2), displayName: "Dana Teammate", avatarUrl: null }
       : null,
+    approvalOutcome: null,
     destination: options.unavailable?.includes(index)
       ? { available: false, title: null }
       : { available: true, title: `Task ${index}` },
