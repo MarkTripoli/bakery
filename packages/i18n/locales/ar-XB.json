@@ -6710,7 +6710,6 @@
   "machines.add.line.waiting": "⟪Waiting for the machine · this page updates by itself⟫",
   "machines.add.line.stillWaiting": "⟪Still waiting. If the terminal shows an error, it says what to do.⟫",
   "machines.add.line.checking": "⟪Connected. Checking that it can run work…⟫",
-  "machines.add.line.expired": "⟪Nothing connected.⟫",
   "machines.add.line.canceled": "⟪This command was canceled.⟫",
   "machines.add.ready": "⟪{name} is ready. One thing left: sign in to {agent}.⟫",
   "machines.add.attention": "⟪{name} connected, but it needs attention before it can take work.⟫",

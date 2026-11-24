@@ -25,7 +25,12 @@ import {
   commandInput,
   initialAddAnswers,
 } from "./machine-add.ts";
-import { type CodingAgent, codingAgents } from "./machine-state.ts";
+import { machineLine } from "./MachineList.tsx";
+import {
+  type CodingAgent,
+  codingAgents,
+  machineReason,
+} from "./machine-state.ts";
 import { CODING_AGENTS, supportedRows } from "./machine-systems.ts";
 
 type EnrollmentRow = WorkerEnrollmentListResponse["items"][number];
@@ -150,6 +155,8 @@ function CommandBox(
         code={command}
         language="bash"
         variant="command"
+        state="overflowing"
+        role="region"
         aria-label={translate("machines.add.commandLabel" as never)}
       />
       <UI.Inline gap="compact">
@@ -478,9 +485,11 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
     return frame(
       <UI.Stack gap="standard">
         <UI.AlertBanner tone="warning" role="status">
-          {translate("machines.add.attention" as never, {
-            name: machineName,
-          })}
+          {worker.data && machineReason(worker.data) !== null
+            ? machineLine(worker.data, translate)
+            : translate("machines.add.attention" as never, {
+              name: machineName,
+            })}
         </UI.AlertBanner>
         <UI.Inline gap="compact">
           <UI.Button
@@ -501,24 +510,108 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
     );
   }
 
+  const step2Body = (
+    <UI.Stack gap="standard">
+      {hasCommand
+        ? (
+          <>
+            <CommandBox
+              command={issued.command}
+              translate={translate}
+            />
+            <UI.Text variant="muted">
+              {translate("machines.add.terminal" as never)}
+            </UI.Text>
+            <UI.Text variant="muted">
+              {translate("machines.add.once" as never, {
+                clock: clockText(issued.expiresAt, now),
+                systems: systemsText(translate),
+              })}
+            </UI.Text>
+          </>
+        )
+        : null}
+      {issued === null && progress?.kind === "waiting"
+        ? (
+          <UI.Text variant="muted">
+            {translate("machines.add.shownOnce" as never)}
+          </UI.Text>
+        )
+        : null}
+      {progress?.kind === "expired" || progress?.kind === "canceled" ||
+          (issued === null && progress?.kind === "waiting")
+        ? (
+          <UI.Stack gap="compact">
+            {progress?.kind === "expired"
+              ? (
+                <UI.AlertBanner tone="warning" role="status">
+                  {translate("machines.add.expired" as never)}
+                </UI.AlertBanner>
+              )
+              : null}
+            <UI.Inline gap="compact">
+              <UI.Button
+                variant="primary"
+                disabled={busy || !status.data}
+                onClick={() => void getNewCommand()}
+              >
+                {translate("machines.add.new" as never)}
+              </UI.Button>
+            </UI.Inline>
+          </UI.Stack>
+        )
+        : null}
+      {failed
+        ? (
+          <UI.AlertBanner tone="error">
+            {translate("machines.add.failed" as never)}
+          </UI.AlertBanner>
+        )
+        : null}
+      {progress !== null && progress.kind !== "expired"
+        ? (
+          <UI.Inline gap="compact" data-line="status">
+            {progress.kind === "waiting" || progress.kind === "checking"
+              ? <UI.Spinner />
+              : null}
+            <UI.Text
+              variant="muted"
+              role="status"
+              aria-live="polite"
+              data-testid="machine-add-status"
+            >
+              {translate(
+                `machines.add.line.${
+                  progress.kind === "waiting" && progress.stillWaiting
+                    ? "stillWaiting"
+                    : progress.kind
+                }` as never,
+              )}
+            </UI.Text>
+          </UI.Inline>
+        )
+        : null}
+    </UI.Stack>
+  );
+
   return frame(
     <UI.Stack gap="standard">
       <UI.StepList label={translate("machines.add.stepsLabel" as never)}>
         <UI.StepItem
-          status={showForm ? "waiting" : "done"}
+          status={showForm ? "running" : "done"}
           statusLabel={translate(
             (showForm
-              ? "machines.add.status.todo"
+              ? "machines.add.status.now"
               : "machines.add.status.done") as never,
           )}
           title={translate("machines.add.step1" as never)}
           summary={showForm || settingsFacts === null
             ? undefined
             : settingsLine(settingsFacts, translate)}
-          action={!showForm && hasCommand
+          action={!showForm && hasCommand && !changing
             ? (
               <UI.Button
-                variant="quiet"
+                variant="text"
                 onClick={() => setChanging(true)}
               >
                 {translate("machines.add.change" as never)}
@@ -535,13 +628,22 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
                   showProblems={showProblems}
                   translate={translate}
                 />
+                {failed
+                  ? (
+                    <UI.AlertBanner tone="error" role="alert">
+                      {translate("machines.add.failed" as never)}
+                    </UI.AlertBanner>
+                  )
+                  : null}
                 <UI.Inline gap="compact">
                   <UI.Button
                     variant="primary"
                     disabled={busy}
                     onClick={() => void getCommand()}
                   >
-                    {translate("machines.add.get" as never)}
+                    {translate(
+                      (failed ? "machines.retry" : "machines.add.get") as never,
+                    )}
                   </UI.Button>
                   <UI.Button variant="secondary" onClick={toList}>
                     {translate("machines.wizard.cancel" as never)}
@@ -586,99 +688,11 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
               : "machines.add.status.now") as never,
           )}
           title={translate("machines.add.step2" as never)}
+          summary={showForm || changing || hasCommand ? undefined : step2Body}
         >
-          {showForm || changing ? null : (
-            <UI.Stack gap="standard">
-              {hasCommand
-                ? (
-                  <>
-                    <CommandBox
-                      command={issued.command}
-                      translate={translate}
-                    />
-                    <UI.Text variant="muted">
-                      {translate("machines.add.terminal" as never)}
-                    </UI.Text>
-                    <UI.Text variant="muted">
-                      {translate("machines.add.once" as never, {
-                        clock: clockText(issued.expiresAt, now),
-                        systems: systemsText(translate),
-                      })}
-                    </UI.Text>
-                  </>
-                )
-                : null}
-              {issued === null && progress?.kind === "waiting"
-                ? (
-                  <UI.Text variant="muted">
-                    {translate("machines.add.shownOnce" as never)}
-                  </UI.Text>
-                )
-                : null}
-              {progress?.kind === "expired" || progress?.kind === "canceled" ||
-                  (issued === null && progress?.kind === "waiting")
-                ? (
-                  <UI.Stack gap="compact">
-                    {progress?.kind === "expired"
-                      ? (
-                        <UI.AlertBanner tone="warning" role="status">
-                          {translate("machines.add.expired" as never)}
-                        </UI.AlertBanner>
-                      )
-                      : null}
-                    <UI.Inline gap="compact">
-                      <UI.Button
-                        variant="primary"
-                        disabled={busy || !status.data}
-                        onClick={() => void getNewCommand()}
-                      >
-                        {translate("machines.add.new" as never)}
-                      </UI.Button>
-                    </UI.Inline>
-                  </UI.Stack>
-                )
-                : null}
-              {failed
-                ? (
-                  <UI.AlertBanner tone="error">
-                    {translate("machines.add.failed" as never)}
-                  </UI.AlertBanner>
-                )
-                : null}
-              {progress !== null
-                ? (
-                  <UI.Inline gap="compact" data-line="status">
-                    {progress.kind === "waiting" || progress.kind === "checking"
-                      ? <UI.Spinner />
-                      : null}
-                    <UI.Text
-                      variant="muted"
-                      role="status"
-                      aria-live="polite"
-                      data-testid="machine-add-status"
-                    >
-                      {translate(
-                        `machines.add.line.${
-                          progress.kind === "waiting" && progress.stillWaiting
-                            ? "stillWaiting"
-                            : progress.kind
-                        }` as never,
-                      )}
-                    </UI.Text>
-                  </UI.Inline>
-                )
-                : null}
-            </UI.Stack>
-          )}
+          {showForm || changing || !hasCommand ? null : step2Body}
         </UI.StepItem>
       </UI.StepList>
-      {failed && showForm
-        ? (
-          <UI.AlertBanner tone="error">
-            {translate("machines.add.failed" as never)}
-          </UI.AlertBanner>
-        )
-        : null}
       {connected
         ? null
         : (

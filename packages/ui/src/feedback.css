@@ -594,7 +594,7 @@
   block-size: var(--space-3-5);
   border: var(--border-default) solid var(--color-border);
   border-block-start-color: var(--color-fg-muted);
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   box-sizing: border-box;
   display: inline-block;
   flex: none;

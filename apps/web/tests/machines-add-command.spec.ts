@@ -176,6 +176,8 @@ async function getTheCommand(page: Page) {
 
 const status = (page: Page) => page.getByTestId("machine-add-status");
 
+const steps = (page: Page) => page.locator("[data-ui-component=stepItem]");
+
 test.describe("add a machine with one command", () => {
   test("the settings, then the command, then waiting", async ({ page }) => {
     const f = fixture();
@@ -183,12 +185,21 @@ test.describe("add a machine with one command", () => {
     await expect(
       page.getByRole("heading", { name: "Add a machine", level: 1 }),
     ).toBeVisible();
+    await expect(steps(page).first()).toHaveAttribute("data-state", "running");
     await page.getByLabel("Name").fill("build-box-01");
     await page.getByLabel("How many tasks at once").fill("2");
     await getTheCommand(page);
     await expect(page.locator("[data-ui-component=codeBlock]")).toContainText(
       COMMAND,
     );
+    await expect(steps(page).first()).toHaveAttribute("data-state", "done");
+    expect(
+      await page.locator("[data-ui-component=codeBlock] code").evaluate((
+        code,
+      ) => code.getClientRects().length),
+    ).toBe(1);
+    await expect(steps(page).nth(1).locator(".ui-step-item__detail"))
+      .toHaveCount(1);
     expect(f.creates).toHaveLength(1);
     const sent = f.creates[0]!.postDataJSON();
     expect(sent.name).toBe("build-box-01");
@@ -253,6 +264,8 @@ test.describe("add a machine with one command", () => {
       { timeout: 20_000 },
     );
     await expect(page.locator("[data-ui-component=codeBlock]")).toHaveCount(0);
+    await expect(steps(page).nth(1).locator(".ui-step-item__detail"))
+      .toHaveCount(0);
     f.readiness = "ready";
     await expect(
       page.getByRole("status").filter({
@@ -277,6 +290,12 @@ test.describe("add a machine with one command", () => {
     await expect(page.getByRole("button", { name: "Open build-box-01" }))
       .toBeVisible({ timeout: 20_000 });
     await expect(page.locator("[data-ui-component=codeBlock]")).toHaveCount(0);
+    await expect(
+      page.getByRole("status").filter({ hasText: "1 check failed." }),
+    )
+      .toBeVisible();
+    await expect(page.getByText("needs attention before it can take work"))
+      .toHaveCount(0);
   });
 
   test("a command that expired unused is not drawn; Get a new command makes another", async ({ page }) => {
@@ -287,6 +306,9 @@ test.describe("add a machine with one command", () => {
     await expect(page.getByText("This command expired before it was used."))
       .toBeVisible({ timeout: 20_000 });
     await expect(page.locator("[data-ui-component=codeBlock]")).toHaveCount(0);
+    await expect(page.getByText("Nothing connected.")).toHaveCount(0);
+    await expect(steps(page).nth(1).locator(".ui-step-item__detail"))
+      .toHaveCount(0);
     await page.getByRole("button", { name: "Get a new command" }).click();
     await expect(page.locator("[data-ui-component=codeBlock]")).toContainText(
       NEW_COMMAND,
@@ -298,10 +320,17 @@ test.describe("add a machine with one command", () => {
     const f = fixture();
     await open(page, f);
     await getTheCommand(page);
+    await expect(page.getByRole("button", { name: "Change" })).toHaveCount(1);
     await page.getByRole("button", { name: "Change" }).click();
     await expect(page.getByText(
       "Changing the settings makes a new command. The old one stops working.",
     )).toBeVisible();
+    await expect(page.getByRole("button", { name: "Change" })).toHaveCount(1);
+    await expect(
+      page.getByTestId("machine-add-change").getByRole("button", {
+        name: "Change",
+      }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Keep" }).click();
     await expect(page.locator("[data-ui-component=codeBlock]")).toBeVisible();
     await page.getByRole("button", { name: "Change" }).click();
@@ -336,6 +365,8 @@ test.describe("add a machine with one command", () => {
     await expect(page.getByText("The command is shown once.")).toBeVisible();
     await expect(page.getByText("build-box-01 · 2 tasks at once · Claude Code"))
       .toBeVisible();
+    await expect(steps(page).nth(1).locator(".ui-step-item__detail"))
+      .toHaveCount(0);
     await page.getByRole("button", { name: "Get a new command" }).click();
     await expect(page.locator("[data-ui-component=codeBlock]")).toContainText(
       NEW_COMMAND,
@@ -346,9 +377,13 @@ test.describe("add a machine with one command", () => {
     const f = fixture({ failures: 1 });
     await open(page, f);
     await getTheCommand(page);
-    await expect(page.getByText("Bakery could not make the command."))
-      .toBeVisible();
-    await page.getByRole("button", { name: "Get the command" }).click();
+    await expect(
+      steps(page).first().getByText("Bakery could not make the command."),
+    ).toBeVisible();
+    await expect(steps(page).first()).toHaveAttribute("data-state", "running");
+    await expect(page.getByRole("button", { name: "Get the command" }))
+      .toHaveCount(0);
+    await page.getByRole("button", { name: "Try again" }).click();
     await expect(page.locator("[data-ui-component=codeBlock]")).toBeVisible();
     expect(f.creates).toHaveLength(2);
   });
