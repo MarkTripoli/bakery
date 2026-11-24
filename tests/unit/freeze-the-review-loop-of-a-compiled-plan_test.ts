@@ -4,7 +4,8 @@ import {
   planReviewLoopLimits,
   planReviewRepeatKey,
 } from "../../apps/server/src/modules/review-loop/limits.ts";
-import { compiled } from "../helpers/workflow-interpreter.ts";
+import { compiled, workflow } from "../helpers/workflow-interpreter.ts";
+import { compileWorkflowDocument } from "../../packages/contracts/src/workflow-compiler/compile.ts";
 
 // #397. A compiled plan freezes the review loop's bounds at admission when it
 // holds a `review.independent` step: the repair count is the plan's own
@@ -150,4 +151,38 @@ Deno.test("a review inside a forEach is not in a repair loop: the list's bound i
   ], INPUTS);
   assertEquals(planReviewLoopLimits(document)?.maxRepairCycles, 0);
   assertEquals(planReviewRepeatKey(document), null);
+});
+
+async function declared(wallClock: string) {
+  const result = await compileWorkflowDocument({
+    ...workflow([implement, test, review], INPUTS),
+    limits: { wallClock },
+  });
+  if (!result.ok) {
+    throw new Error(JSON.stringify(result.diagnostics));
+  }
+  return result.document;
+}
+
+Deno.test("a plan that names a shorter clock freezes that clock", async () => {
+  assertEquals(
+    planReviewLoopLimits(await declared("2h"))?.maxLoopDurationMs,
+    2 * 60 * 60 * 1000,
+  );
+});
+
+Deno.test("a plan that names the ceiling keeps it, and longer is refused", async () => {
+  assertEquals(
+    planReviewLoopLimits(await declared("24h"))?.maxLoopDurationMs,
+    REVIEW_LOOP_LIMITS.maxLoopDurationMs,
+  );
+  const refused = await compileWorkflowDocument({
+    ...workflow([implement, test, review], INPUTS),
+    limits: { wallClock: "25h" },
+  });
+  assertEquals(refused.ok, false);
+  assertEquals(
+    refused.ok ? [] : refused.diagnostics.map(({ code }) => code),
+    ["timeout_exceeds_ceiling"],
+  );
 });
