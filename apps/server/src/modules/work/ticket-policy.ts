@@ -71,6 +71,12 @@ export function storedTicketSourcePolicy(
     );
   }
   const enabled = parsed.data.automatic.enabled;
+  if (enabled && parsed.data.preset === undefined) {
+    throw unprocessable(
+      ["policy", "preset"],
+      "ticket_source_workflow_required",
+    );
+  }
   const since = !enabled
     ? null
     : previous?.automatic.enabled === true
@@ -80,6 +86,18 @@ export function storedTicketSourcePolicy(
     ...parsed.data,
     automatic: { enabled, since },
   });
+}
+
+export function workflowRequired() {
+  return unprocessable(["preset"], "ticket_workflow_required");
+}
+
+export function chosenWorkflowId<T extends string>(
+  pinned: T | undefined,
+  chosen: T | null | undefined,
+  sourceDefault: T | undefined,
+): T | null {
+  return pinned ?? chosen ?? sourceDefault ?? null;
 }
 
 /** The `filters` of a preview; absent or empty narrows nothing, anything else unknown is 422. */

@@ -51,6 +51,7 @@ import {
 import {
   hasLivePowerGrant,
   hasLiveRunGrant,
+  type PowerTarget,
   RUN_GRANT_ACTIONS,
   RUN_POWER_ACTIONS,
   type RunGrantKind,
@@ -385,8 +386,9 @@ export function authorizeWithBindings(
   ) => Promise<BindingTarget | undefined>,
   holdsRunGrant: (kind: RunGrantKind) => Promise<boolean> = () =>
     Promise.resolve(false),
-  holdsRunPower: (power: RunPower) => Promise<boolean> = () =>
-    Promise.resolve(false),
+  holdsRunPower: (
+    entry: { power: RunPower; target: PowerTarget },
+  ) => Promise<boolean> = () => Promise.resolve(false),
 ): Promise<OrganizationActor> {
   return (async () => {
     try {
@@ -963,13 +965,19 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
                   kind,
                   context.params.id,
                 ),
-              (power) =>
+              (entry) =>
                 hasLivePowerGrant(
                   transaction,
                   organizationId,
                   claimedSubject.principalId,
-                  power,
-                  context.params.id,
+                  entry.power,
+                  entry.target === "step"
+                    ? {
+                      kind: "step",
+                      runId: context.params.id,
+                      stepKey: context.params.stepKey,
+                    }
+                    : { kind: entry.target, id: context.params.id },
                 ),
             )
               .catch(async (denied) => {

@@ -87,6 +87,10 @@ export type RouteContinuationOffersResponse =
   ClientOutputMap["RouteContinuationOffers"];
 export type RouteContinuationAdmit = ClientInputMap["RouteContinuationAdmit"];
 export type RouteContinuationResponse = ClientOutputMap["RouteContinuation"];
+export type HandoffManifestResponse = ClientOutputMap["HandoffManifestRecord"];
+export type HandoffContinueInput = ClientInputMap["HandoffContinue"];
+export type HandoffContinuationResponse =
+  ClientOutputMap["HandoffContinuation"];
 export type RunStepListResponse = ClientOutputMap["Page<RunStep>"];
 export type AgentSessionPageResponse = ClientOutputMap["AgentSessionPage"];
 export type SessionFeedResponse = ClientOutputMap["SessionFeed"];
@@ -1910,6 +1914,18 @@ export type BakeryApiClient = {
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RouteContinuationResponse>>;
+  readonly getHandoffManifest: (options: {
+    readonly organizationId: string;
+    readonly manifestId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<HandoffManifestResponse>>;
+  readonly continueHandoff: (options: {
+    readonly organizationId: string;
+    readonly manifestId: string;
+    readonly input: HandoffContinueInput;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<HandoffContinuationResponse>>;
   readonly getRunControlCapabilities: (options: {
     readonly organizationId: string;
     readonly runId: string;
@@ -2177,11 +2193,11 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowVersionResponse>>;
-  /** Publishes a draft version (its digest expected back, so a stale page cannot publish). */
   readonly publishWorkflowVersion: (options: {
     readonly organizationId: string;
     readonly workflowId: string;
     readonly versionId: string;
+    readonly version: number;
     readonly expectedDigest: string;
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
@@ -6287,6 +6303,45 @@ export function createBakeryApiClient({
       }
     },
 
+    async getHandoffManifest(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["handoffManifests.get"](
+          { id: options.manifestId },
+          { signal: options.signal },
+        );
+        if (data.id !== options.manifestId) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async continueHandoff(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["handoffManifests.continue"](
+          { id: options.manifestId, ...options.input },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.manifestId !== options.manifestId) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
     async getRunControlCapabilities(options) {
       organizationId = options.organizationId;
       try {
@@ -7032,6 +7087,7 @@ export function createBakeryApiClient({
             expectedDigest: options.expectedDigest,
           },
           {
+            ifMatch: versionEtag(options.version),
             idempotencyKey: options.idempotencyKey,
             signal: options.signal,
           },

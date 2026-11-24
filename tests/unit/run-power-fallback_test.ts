@@ -44,8 +44,8 @@ function spy(answer: boolean) {
   const asked: RunPower[] = [];
   return {
     asked,
-    holds: (power: RunPower) => {
-      asked.push(power);
+    holds: (entry: { power: RunPower }) => {
+      asked.push(entry.power);
       return Promise.resolve(answer);
     },
   };
@@ -103,9 +103,7 @@ Deno.test("an action that is not a power never asks for one", async () => {
     const name of [
       "approvals.revoke",
       "approvals.list",
-      "sessions.steer",
-      "runSteps.takeOver",
-      "artifactComments.create",
+      "artifactComments.list",
     ]
   ) {
     await assertRejects(

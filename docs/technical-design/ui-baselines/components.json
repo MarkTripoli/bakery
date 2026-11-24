@@ -1,5 +1,5 @@
 {
-  "revision": "5c9e27ac4fda3acfa0afd814618431885725a056914eaa416cb1543158089bdb",
+  "revision": "6fe4479550eeff7b15baa03aee29c2bb21473a411b6f3ca13c6dea5a62306c8f",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -22381,6 +22381,504 @@
       },
       "variants": [
         "default"
+      ]
+    },
+    {
+      "a11y": {
+        "accessibleName": "none",
+        "keyboard": []
+      },
+      "coverage": {
+        "automated": {
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.canvasFrame.contract.desktop-light-fine"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "pointer:fine": [
+            "runtime:ui.canvasFrame.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "theme:light": [
+            "runtime:ui.canvasFrame.contract.desktop-light-fine"
+          ]
+        },
+        "notApplicable": {
+          "pointer:coarse": "CanvasFrame renders no interactive target, so coarse-pointer hit-area behavior does not apply."
+        },
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "description": "The bordered surface a workflow diagram is drawn on: it gives the drawing a box with a definite height, as tall as the diagram on a page or filling the window below it in the editor, and while the diagram loads it shows three card-sized skeletons.",
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "id": "ui.canvasFrame",
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "level": "molecule",
+      "name": "CanvasFrame",
+      "owner": "Mark Tripoli",
+      "paper": [],
+      "paperAbsentReason": "Designed in design-ux's #67 canvas design (2026-11-22, with the ruling of 2026-11-23); no Paper frame names it.",
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requiredCases": [
+        {
+          "baselineIds": [],
+          "description": "Shows a page frame with a set height, a fill frame, and a loading frame with its three card-sized skeletons, each holding plain text in place of the diagram unless loading.",
+          "id": "contract",
+          "states": [
+            "default",
+            "loading"
+          ],
+          "variants": [
+            "page",
+            "fill"
+          ]
+        }
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "states": [
+        "default",
+        "loading"
+      ],
+      "status": "implemented",
+      "storyTitle": "Bakery/Molecules/CanvasFrame",
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-canvas",
+        "--radius-surface"
+      ],
+      "usage": {
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "whenNotToUse": "Not for any other framed content and not for text; it only gives a canvas a height.",
+        "whenToUse": "The box a workflow's diagram is drawn in."
+      },
+      "variants": [
+        "page",
+        "fill"
+      ]
+    },
+    {
+      "a11y": {
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "Enter or Space selects the box and opens its panel"
+        ],
+        "notes": "The header is one button when the box can be selected, plain text otherwise. The expansion is announced with aria-expanded and aria-controls naming the panel while it is open; the code mark sits outside the button, so it adds no tab stop.",
+        "role": "group",
+        "targetSize": "min 44px (coarse pointer)"
+      },
+      "coverage": {
+        "automated": {
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.stepGroup.contract.desktop-light-fine"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ],
+          "pointer:fine": [
+            "runtime:ui.stepGroup.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "theme:light": [
+            "runtime:ui.stepGroup.contract.desktop-light-fine"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "description": "A box in the workflow diagram around steps that belong together (For each, Repeat, Fix until it passes, At the same time, and the If holding its arms): the frame and a header with icon, label and limit, or one arm of an If as a caption.",
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "id": "ui.stepGroup",
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "level": "molecule",
+      "name": "StepGroup",
+      "owner": "Mark Tripoli",
+      "paper": [],
+      "paperAbsentReason": "Designed in design-ux's #67 canvas design (2026-11-22, with the ruling of 2026-11-23); no Paper frame names it.",
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requiredCases": [
+        {
+          "baselineIds": [],
+          "description": "Exercises a box with a limit, a selected box, an empty box, a box written in code and the arm of an If.",
+          "id": "contract",
+          "states": [
+            "default",
+            "selected"
+          ],
+          "variants": [
+            "box",
+            "arm"
+          ]
+        }
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "states": [
+        "default",
+        "selected"
+      ],
+      "status": "implemented",
+      "storyTitle": "Bakery/Molecules/StepGroup",
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "tokens": [
+        "--border-default",
+        "--border-emphasis",
+        "--border-none",
+        "--color-border-strong",
+        "--color-fg",
+        "--color-fg-muted",
+        "--color-selection",
+        "--color-surface",
+        "--radius-overlay",
+        "--size-control",
+        "--space-0",
+        "--space-0-5",
+        "--space-1",
+        "--space-2",
+        "--space-3",
+        "--type-caption",
+        "--type-hint",
+        "--type-label"
+      ],
+      "usage": {
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "whenNotToUse": "Not for a single step (use ui.stepCard) and not for grouping unrelated page content.",
+        "whenToUse": "A group of steps in a workflow's diagram: a loop, a parallel set or an If."
+      },
+      "variants": [
+        "box",
+        "arm"
+      ]
+    },
+    {
+      "a11y": {
+        "accessibleName": "aria-label",
+        "keyboard": [],
+        "role": "list"
+      },
+      "coverage": {
+        "automated": {
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.outlineList.contract.desktop-light-fine"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "pointer:fine": [
+            "runtime:ui.outlineList.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "theme:light": [
+            "runtime:ui.outlineList.contract.desktop-light-fine"
+          ]
+        },
+        "notApplicable": {
+          "pointer:coarse": "OutlineList renders no interactive target, so coarse-pointer hit-area behavior does not apply."
+        },
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "description": "A workflow as a nested list: one row per step or box, a box holding its steps as a nested list. It is what a phone shows and what the diagram falls back to.",
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "id": "ui.outlineList",
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "level": "molecule",
+      "name": "OutlineList",
+      "owner": "Mark Tripoli",
+      "paper": [],
+      "paperAbsentReason": "Designed in design-ux's #67 canvas design (2026-11-22, with the ruling of 2026-11-23); no Paper frame names it.",
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requiredCases": [
+        {
+          "baselineIds": [],
+          "description": "Shows a flat row and a box row that holds a nested list.",
+          "id": "contract",
+          "states": [
+            "default"
+          ],
+          "variants": [
+            "default"
+          ]
+        }
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "states": [
+        "default"
+      ],
+      "status": "implemented",
+      "storyTitle": "Bakery/Molecules/OutlineList",
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-border-strong",
+        "--color-fg-muted",
+        "--space-0",
+        "--space-5"
+      ],
+      "usage": {
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "whenNotToUse": "Not for a plain list of steps with no boxes (use ui.stepList).",
+        "whenToUse": "The steps of a workflow as a list, where the diagram does not fit or is not wanted."
+      },
+      "variants": [
+        "default"
+      ]
+    },
+    {
+      "a11y": {
+        "accessibleName": "content",
+        "keyboard": [
+          "Enter or Space selects the row and opens its panel"
+        ],
+        "notes": "The row is a list item holding one button. The expansion is announced with aria-expanded and aria-controls naming the panel while it is open. A step that needs setup says so in words as well as the red outline.",
+        "role": "listitem",
+        "targetSize": "min 44px (coarse pointer)"
+      },
+      "coverage": {
+        "automated": {
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.outlineRow.contract.desktop-light-fine"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ],
+          "pointer:fine": [
+            "runtime:ui.outlineRow.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "theme:light": [
+            "runtime:ui.outlineRow.contract.desktop-light-fine"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "description": "One row of the workflow outline: the step type's icon, the step's name and one muted line, with the words \"Needs setup\" for a step the editor cannot read, a code mark, nested rows for a box, and a caption form that heads one arm of an If.",
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "id": "ui.outlineRow",
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "level": "molecule",
+      "name": "OutlineRow",
+      "owner": "Mark Tripoli",
+      "paper": [],
+      "paperAbsentReason": "Designed in design-ux's #67 canvas design (2026-11-22, with the ruling of 2026-11-23); no Paper frame names it.",
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requiredCases": [
+        {
+          "baselineIds": [],
+          "description": "Exercises an ordinary row, a selected one, one the editor cannot read, one written in code and an arm caption.",
+          "id": "contract",
+          "states": [
+            "default",
+            "selected",
+            "needs-setup"
+          ],
+          "variants": [
+            "row",
+            "caption"
+          ]
+        }
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "states": [
+        "default",
+        "selected",
+        "needs-setup"
+      ],
+      "status": "implemented",
+      "storyTitle": "Bakery/Molecules/OutlineRow",
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "tokens": [
+        "--border-default",
+        "--border-emphasis",
+        "--color-border",
+        "--color-destructive",
+        "--color-fg",
+        "--color-fg-muted",
+        "--color-selection",
+        "--color-surface",
+        "--color-surface-subtle",
+        "--radius-control",
+        "--radius-surface",
+        "--size-control",
+        "--space-0-5",
+        "--space-1",
+        "--space-2",
+        "--target-coarse",
+        "--type-body",
+        "--type-caption",
+        "--type-hint"
+      ],
+      "usage": {
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "whenNotToUse": "Not outside an outline list and not for a step card in the diagram (use ui.stepCard).",
+        "whenToUse": "One step or box in the workflow outline."
+      },
+      "variants": [
+        "row",
+        "caption"
       ]
     },
     {

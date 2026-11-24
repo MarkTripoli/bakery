@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
@@ -7,8 +7,9 @@ import { failureStatus } from "../app/async-state.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { issueNumber, type IssueRow, issueSnapshot } from "./issue-state.ts";
-import { BuiltInWorkflowChoice } from "./BuiltInWorkflowChoice.tsx";
+import { TICKET_PRESETS } from "./issue-sources.ts";
 import { presetCopy } from "./task-composer-labels.ts";
+import { WorkflowChoice } from "./WorkflowChoice.tsx";
 
 /** What a refused start says, from the server's answer. */
 export type StartRefusal =
@@ -46,8 +47,7 @@ export function StartWorkDialog(
     readonly onRefused: (refusal: StartRefusal) => void;
     readonly policyRevision: number | null;
     readonly row: IssueRow;
-    /** The built-in workflow the repository's saved settings run. */
-    readonly sourcePreset: TicketPresetId;
+    readonly sourcePreset: TicketPresetId | null;
   },
 ) {
   const { translate } = useI18n();
@@ -56,10 +56,18 @@ export function StartWorkDialog(
   const queryClient = useQueryClient();
   const number = issueNumber(row);
   const { repository } = issueSnapshot(row);
-  const [preset, setPreset] = useState<TicketPresetId>(sourcePreset);
+  const [preset, setPreset] = useState<TicketPresetId | null>(sourcePreset);
+  const [attempts, setAttempts] = useState(0);
+  const tried = attempts > 0;
+  const fieldId = useId();
+  useEffect(() => {
+    if (attempts === 0) return;
+    document.getElementById(fieldId)?.focus();
+  }, [attempts, fieldId]);
   const start = useMutation({
     mutationKey: ["ticketRequests.create"],
     mutationFn: async () => {
+      if (preset === null) throw new Error("no workflow chosen");
       const result = await api.tickets.request({
         organizationId: scope.organizationId as string,
         id: row.id,
@@ -105,7 +113,13 @@ export function StartWorkDialog(
           variant="primary"
           disabled={start.isPending || policyRevision === null}
           aria-busy={start.isPending || undefined}
-          onClick={() => start.mutate()}
+          onClick={() => {
+            if (preset === null) {
+              setAttempts((count) => count + 1);
+              return;
+            }
+            start.mutate();
+          }}
         >
           {translate(
             (plan
@@ -123,21 +137,32 @@ export function StartWorkDialog(
           )}
         </UI.Text>
         <UI.Stack gap="compact" data-testid="start-work-workflow">
-          <UI.Text variant="strong">
-            {translate("issues.start.workflow" as never)}
-          </UI.Text>
-          <BuiltInWorkflowChoice
+          <WorkflowChoice
             disabled={start.isPending}
+            error={tried && preset === null
+              ? translate("issues.start.workflowRequired" as never)
+              : undefined}
+            id={fieldId}
+            items={TICKET_PRESETS.map((id) => ({
+              id,
+              title: presetCopy(translate, id).title,
+              description: presetCopy(translate, id).description,
+            }))}
             label={translate("issues.start.workflow" as never)}
-            name="start-work-workflow"
-            onChange={setPreset}
-            value={preset}
+            onChange={(id) =>
+              setPreset(TICKET_PRESETS.find((one) => one === id) ?? null)}
+            placeholder={translate("issues.start.workflowPlaceholder" as never)}
+            value={preset ?? ""}
           />
           <UI.Text variant="caption">
-            {translate("issues.start.workflowHelp" as never, {
-              repository,
-              workflow: presetCopy(translate, sourcePreset).title,
-            })}
+            {sourcePreset === null
+              ? translate("issues.start.workflowUnsetHelp" as never, {
+                repository,
+              })
+              : translate("issues.start.workflowHelp" as never, {
+                repository,
+                workflow: presetCopy(translate, sourcePreset).title,
+              })}
           </UI.Text>
         </UI.Stack>
       </UI.Stack>

@@ -308,6 +308,10 @@ Deno.test("Bakery migrations follow the globally unique migration sequence", asy
       "0350_run_placement",
       "0351_usage_records_kind",
       "0352_deployments_rollback_failed",
+      "0353_handoff_continuation_fresh_reason",
+      "0355_storage_connections",
+      "0356_folder_grants",
+      "0359_run_power_grant_targets",
     ],
   );
 });

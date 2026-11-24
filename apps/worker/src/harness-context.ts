@@ -17,7 +17,11 @@
  */
 
 import { join } from "node:path";
-import type { WorkerContextInput } from "./client.ts";
+import {
+  type AttemptProof,
+  attemptProofOf,
+  type WorkerContextInput,
+} from "./client.ts";
 import {
   describeSeedingFault,
   fetcherForAttempt,
@@ -29,6 +33,7 @@ import type { JobAssignment } from "./types.ts";
 /** Reads the bytes the server pinned for one attempt. */
 export type ReadAttemptContext = (
   attemptId: string,
+  proof: AttemptProof,
 ) => Promise<readonly WorkerContextInput[]>;
 
 /** The step key the index shows for a harness step; the assignment carries no run. */
@@ -81,10 +86,21 @@ export async function prepareHarnessContext(options: {
       retryable: false,
     };
   }
+  const proof = attemptProofOf(options.assignment);
+  if (proof === null) {
+    return {
+      ok: false,
+      code: "CONTEXT_READER_MISSING",
+      detail:
+        "The assignment pins context inputs but carries no lease proof to read them with; no process started.",
+      status: 500,
+      retryable: false,
+    };
+  }
   const contextDir = join(options.attemptRoot, "context");
   try {
     const fetch = await fetcherForAttempt(() =>
-      read(options.assignment.attemptId)
+      read(options.assignment.attemptId, proof)
     );
     const seeding = await seedContext(
       {
