@@ -2,6 +2,7 @@ import type { PgTransactionClient } from "../../platform/database.ts";
 import {
   type HandoffManifest,
   manifestArtifactRefs,
+  NON_REPLAY_SAFE_EFFECT_STATES,
 } from "./handoff-manifest.ts";
 
 /**
@@ -211,4 +212,49 @@ export async function loadSourceSession(
   return row
     ? { id: row.id, status: row.status, resumeRef: row.resume_ref }
     : null;
+}
+
+export async function decideManifestResume(
+  transaction: PgTransactionClient,
+  input: {
+    organizationId: string;
+    runId: string;
+    runStepId: string;
+    manifestId: string;
+    manifestDigest: string;
+    manifest: HandoffManifest;
+    sourceHostId: string;
+  },
+): Promise<{ decision: ResumeDecision; effectsSettled: boolean }> {
+  const unsettledEffects = await transaction.query(
+    `select 1 from bakery.external_effects
+      where organization_id = $1 and run_step_id = $2 and status = any($3::text[])
+      limit 1`,
+    [input.organizationId, input.runStepId, [...NON_REPLAY_SAFE_EFFECT_STATES]],
+  );
+  const effectsSettled = unsettledEffects.rows.length === 0;
+  const wantsExact = input.manifest.mode === "exact_harness_resume";
+  const decision = decideResume({
+    manifestId: input.manifestId,
+    manifestDigest: input.manifestDigest,
+    manifest: input.manifest,
+    session: wantsExact
+      ? await loadSourceSession(
+        transaction,
+        input.organizationId,
+        input.manifest.sourceSessionId,
+      )
+      : null,
+    sourceHostId: input.sourceHostId,
+    effectsSettled,
+    historyAuthorized: wantsExact
+      ? await historyIsAuthorized(transaction, {
+        organizationId: input.organizationId,
+        taskId: input.manifest.taskId,
+        runId: input.runId,
+        manifest: input.manifest,
+      })
+      : false,
+  });
+  return { decision, effectsSettled };
 }

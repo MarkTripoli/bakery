@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "07db299f8c3be26180c1fbe08dc5e8f267e6863d"
+    "b63639aa7ee6167b1bf51c7290afe83caa176c4c"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:b0aa3c0fb7f9e6a37dee6a78a090cd72f212aba7b6ac914e7739c2936e3a9431",
-  "reason": "#74 skill-use grants name the revision and its digest, bound to main 07db299f8c3be26180c1fbe08dc5e8f267e6863d under the owner's standing breaking-change authorization (2026-10-09): SkillUseGrant gains revision and revisionDigest as required fields so an installed binding names the same bytes a page showed, without a second read. PM approved this contract change and the rebind on 2026-11-23. The #34 plugin job version pin approval on main fc819c510e55999f77dd9ec034e279926afa03f0 stays below as history.",
+  "targetCompatibilityDigest": "sha256:eedbdc84e4bd67a251ed2a5811497c30aba5d2ee834616c3f0aa8fcab5d880c3",
+  "reason": "#74 skill-use grants name the revision and its digest, bound to main b63639aa7ee6167b1bf51c7290afe83caa176c4c under the owner's standing breaking-change authorization (2026-10-09): SkillUseGrant gains revision and revisionDigest as required fields so an installed binding names the same bytes a page showed, without a second read. PM approved this contract change and the rebind on 2026-11-23. The #34 plugin job version pin approval on main fc819c510e55999f77dd9ec034e279926afa03f0 stays below as history.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "07db299f8c3be26180c1fbe08dc5e8f267e6863d"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b0aa3c0fb7f9e6a37dee6a78a090cd72f212aba7b6ac914e7739c2936e3a9431",
+      "reason": "The #74 skill-use grant approval bound to main 07db299f8c3be26180c1fbe08dc5e8f267e6863d, displaced by the rebind to main b63639aa7ee6167b1bf51c7290afe83caa176c4c after #949 merged. Kept as history."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
