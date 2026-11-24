@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "acc363ccc0017dd8898aa1cd8177e6e91ef65ea0"
+    "688de3d1df9061f03fa89505cddf39791f1aeafe"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:284c681e5d41069056c88940f5e8bf41934c3c778c9273828aa94a5379b8424c",
-  "reason": "#407 batch workflow under the owner's standing breaking-change authorization (2026-10-09), main acc363ccc0017dd8898aa1cd8177e6e91ef65ea0: BatchCreate.presetId becomes a required field (fixed-coding or fixed-coding-reviewed), because a batch start admitted every issue with no workflow and #407 made that a refusal; Batch gains presetId, null for a batch started before the workflow was stored. No other contract shape changed by this branch. The #34 plugin job version pin approval on main fc819c510e55999f77dd9ec034e279926afa03f0 stays below as history.",
+  "reason": "#407 batch workflow under the owner's standing breaking-change authorization (2026-10-09), main 688de3d1df9061f03fa89505cddf39791f1aeafe: BatchCreate.presetId becomes a required field (fixed-coding or fixed-coding-reviewed), because a batch start admitted every issue with no workflow and #407 made that a refusal; Batch gains presetId, null for a batch started before the workflow was stored. No other contract shape changed by this branch. The #34 plugin job version pin approval on main fc819c510e55999f77dd9ec034e279926afa03f0 stays below as history.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
