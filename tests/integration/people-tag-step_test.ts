@@ -192,6 +192,61 @@ Deno.test("a waiting review step waits for the reviewer's comment, then complete
   }
 });
 
+Deno.test("each iteration of a repeated review step asks anew and waits on its own request", async () => {
+  const o = await open();
+  try {
+    const version = await seedArtifactVersion(
+      o.fixture,
+      o.run.taskId,
+      o.run.runId,
+    );
+    const input = {
+      intent: "review",
+      recipientId: o.guest.principalId,
+      artifactVersionId: version,
+      wait: true,
+    };
+    assertEquals(await o.runner.run(o.step(input)), { kind: "pending" });
+    await seedStep(o.fixture, o.run, "notify", 1);
+    const comment = await api(
+      o.fixture,
+      o.guest.cookie,
+      "POST",
+      `/v1/artifact-versions/${version}/comments`,
+      { body: "Looks right to me." },
+    );
+    assertEquals(comment.status, 201, await comment.text());
+    const rows = async () =>
+      (await o.fixture.pgDatabase.query<{
+        id: string;
+        version: number;
+        status: string;
+      }>(
+        `select id, version, status from bakery.person_requests
+          where organization_id = $1 and run_id = $2
+          order by created_at, id`,
+        [o.fixture.organizationId, o.run.runId],
+      )).rows;
+    const [first] = await rows();
+    assert(first !== undefined);
+    assertEquals(
+      await o.runner.run(o.step(input, { iteration: 1 })),
+      { kind: "pending" },
+    );
+    const after = await rows();
+    assertEquals(after.length, 2);
+    assertEquals(after[0], first);
+    assert(after[1]?.id !== first.id);
+    assertEquals(after[1]?.status, "open");
+  } finally {
+    await o.fixture.pgDatabase.query(
+      "delete from bakery.artifact_comments where organization_id = $1",
+      [o.fixture.organizationId],
+    );
+    await o.finish();
+  }
+});
+
 Deno.test("a waiting step whose request expires completes expired, never approved", async () => {
   const o = await open();
   try {

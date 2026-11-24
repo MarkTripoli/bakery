@@ -387,19 +387,24 @@ export type WorkflowStepAsk = Readonly<{
   intent: "fyi" | "review";
   artifactVersionId?: string;
   note?: string;
+  iteration: number;
 }>;
 
 export async function askFromWorkflowStep(
   context: ActionContext,
   ask: WorkflowStepAsk,
 ) {
-  return await requestOnRun(context, ask, { stepKey: ask.stepKey });
+  const { iteration, ...rest } = ask;
+  return await requestOnRun(context, rest, {
+    stepKey: ask.stepKey,
+    iteration,
+  });
 }
 
 async function requestOnRun(
   context: ActionContext,
   input: unknown,
-  step: Readonly<{ stepKey: string }> | null,
+  step: Readonly<{ stepKey: string; iteration: number }> | null,
 ) {
   const { transaction, organizationId, principalId, accessScope } =
     requireWorkTransaction(context);
@@ -677,6 +682,7 @@ async function requestOnRun(
       run,
       intent: value.intent,
       stepKey: value.stepKey ?? null,
+      stepIteration: step?.iteration ?? null,
       targetId,
       power,
       note: note === "" ? null : note,
@@ -875,6 +881,7 @@ async function askOne(
     run: RunFacts;
     intent: RequestIntent;
     stepKey: string | null;
+    stepIteration: number | null;
     targetId: string | null;
     power: RunPower | undefined;
     note: string | null;
@@ -897,25 +904,19 @@ async function askOne(
     audienceGroupId: audience?.groupId ?? null,
   };
   // A request past its time is over; asking again makes a new one.
-  const expired = await transaction.query<{ id: string }>(
+  await transaction.query(
     `update bakery.person_requests
         set status = 'expired', updated_at = now(), version = version + 1
       where organization_id = $1 and run_id = $2 and recipient_id = $3
-        and intent = $4 and status = 'open' and expires_at <= now()
-      returning id`,
+        and intent = $4 and status = 'open' and expires_at <= now()`,
     [organizationId, run.id, recipientId, ask.intent],
-  );
-  await revokeRequestPowers(
-    transaction,
-    organizationId,
-    expired.rows.map((row) => row.id),
-    principalId,
   );
   const open = await transaction.query<{ id: string }>(
     `select id from bakery.person_requests
       where organization_id = $1 and run_id = $2 and recipient_id = $3
         and intent = $4 and coalesce(step_key, '') = $5 and status = 'open'
         and coalesce(target_id, $6::uuid) = coalesce($7::uuid, $6::uuid)
+        and coalesce(step_iteration, -1) = coalesce($8::int, -1)
       for update`,
     [
       organizationId,
@@ -925,6 +926,7 @@ async function askOne(
       ask.stepKey ?? "",
       NO_TARGET,
       ask.targetId,
+      ask.stepIteration,
     ],
   );
   if (open.rows[0]) {
@@ -978,9 +980,10 @@ async function askOne(
     `insert into bakery.person_requests (
        organization_id, run_id, task_id, step_key, intent, recipient_id,
        fallback_for_name, asked_by, asked_by_kind, note, needed_by, expires_at,
-       target_id, audience_role_key, audience_group_id, audience_name)
+       target_id, audience_role_key, audience_group_id, audience_name,
+       step_iteration)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-             now() + make_interval(days => $12), $13, $14, $15, $16)
+             now() + make_interval(days => $12), $13, $14, $15, $16, $17)
      returning id`,
     [
       organizationId,
@@ -999,6 +1002,7 @@ async function askOne(
       audience?.roleKey ?? null,
       audience?.groupId ?? null,
       audience?.name ?? null,
+      ask.stepIteration,
     ],
   );
   const requestId = created.rows[0]?.id;

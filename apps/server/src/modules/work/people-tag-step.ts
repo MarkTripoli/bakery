@@ -17,32 +17,17 @@ export const PEOPLE_TAG_PACING = Object.freeze({
   waitLimitMs: (REQUEST_LIFETIME_DAYS + 1) * 86_400_000,
 });
 
-type Parser = {
-  safeParse(value: unknown): { success: boolean; data?: unknown };
-};
-
-type PeopleTagInput = Readonly<{
-  recipientId?: string;
-  recipientRoleKey?: string;
-  recipientGroupId?: string;
-  recipientRunRole?: "starter" | "task_owner";
-  intent: "fyi" | "review";
-  artifactVersionId?: string;
-  note?: string;
-  wait?: boolean;
-}>;
-
 type TagRow = Readonly<{
   recipient_id: string;
   status: string;
   expires_at: Date;
 }>;
 
-function schema(name: string): Parser & { parse(value: unknown): unknown } {
+function peopleTagOutput(): { parse(value: unknown): unknown } {
   const found = (contractSchemas as unknown as Record<
     string,
-    (Parser & { parse(value: unknown): unknown }) | undefined
-  >)[name];
+    { parse(value: unknown): unknown } | undefined
+  >).PeopleTagOutput;
   if (found === undefined) throw new StandardError({ code: "INTERNAL" });
   return found;
 }
@@ -52,7 +37,10 @@ function failed(code: string, message: string): EngineStepResult {
 }
 
 function completed(value: Record<string, unknown>): EngineStepResult {
-  return { kind: "completed", output: schema("PeopleTagOutput").parse(value) };
+  return {
+    kind: "completed",
+    output: peopleTagOutput().parse(value),
+  };
 }
 
 function refusalReason(error: StandardError): string {
@@ -68,14 +56,18 @@ function refusalReason(error: StandardError): string {
 async function ownTags(
   transaction: PgTransactionClient,
   request: EngineStepRequest,
-  since: Date,
 ): Promise<readonly TagRow[]> {
   const found = await transaction.query<TagRow>(
     `select recipient_id, status, expires_at from bakery.person_requests
       where organization_id = $1 and run_id = $2 and step_key = $3
-        and (created_at >= $4 or updated_at >= $4)
+        and step_iteration = $4
       order by created_at, id`,
-    [request.organizationId, request.runId, request.stepKey, since],
+    [
+      request.organizationId,
+      request.runId,
+      request.stepKey,
+      request.iteration,
+    ],
   );
   return found.rows;
 }
@@ -104,14 +96,14 @@ export function createPeopleTagStepRunner(
   deps: Readonly<{ database: PgDatabase }>,
 ): EngineStepRunner {
   async function run(request: EngineStepRequest): Promise<EngineStepResult> {
-    const parsed = schema("PeopleTagInput").safeParse(request.input);
+    const parsed = contractSchemas.PeopleTagInput.safeParse(request.input);
     if (!parsed.success) {
       return failed(
         "TAG_INPUT_INVALID",
         "The step input does not match the tag contract.",
       );
     }
-    const input = parsed.data as PeopleTagInput;
+    const input = parsed.data;
     const named = [
       input.recipientId,
       input.recipientRoleKey,
@@ -135,8 +127,8 @@ export function createPeopleTagStepRunner(
       | "recipient_unknown";
     try {
       tags = await withPgTransaction(deps.database, async (tx) => {
-        const step = await tx.query<{ created_at: Date }>(
-          `select created_at from bakery.run_steps
+        const step = await tx.query(
+          `select 1 from bakery.run_steps
             where organization_id = $1 and run_id = $2 and step_key = $3
               and iteration = $4`,
           [
@@ -146,9 +138,8 @@ export function createPeopleTagStepRunner(
             request.iteration,
           ],
         );
-        const since = step.rows[0]?.created_at;
-        if (since === undefined) return "step_unknown" as const;
-        const existing = await ownTags(tx, request, since);
+        if (step.rows.length === 0) return "step_unknown" as const;
+        const existing = await ownTags(tx, request);
         if (existing.length > 0) return existing;
         const actor = await liveActor(
           tx,
@@ -169,6 +160,7 @@ export function createPeopleTagStepRunner(
           }),
           {
             stepKey: request.stepKey,
+            iteration: request.iteration,
             intent: input.intent,
             ...(recipientId === undefined ? {} : { recipientId }),
             ...(input.recipientRoleKey === undefined
@@ -183,7 +175,7 @@ export function createPeopleTagStepRunner(
             ...(input.note === undefined ? {} : { note: input.note }),
           },
         );
-        return await ownTags(tx, request, since);
+        return await ownTags(tx, request);
       });
     } catch (error) {
       if (!(error instanceof StandardError)) throw error;
