@@ -1090,6 +1090,7 @@ export type ContractInputName =
   | "IntegrationSubscriptionCreate"
   | "IntegrationSubscriptionUpdate"
   | "IntegrationWebhook"
+  | "IssueDelivery"
   | "JobAttemptListQuery"
   | "JobQuery"
   | "LeaseRenewal"
