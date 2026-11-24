@@ -10,6 +10,7 @@ export type DataTableColumn<Row> = {
   width?: string;
   /** `ruled` layout: align the column's content to the end. */
   align?: "start" | "end";
+  rowHeader?: boolean;
 };
 export type DataTableProps<Row> = {
   caption: string;
@@ -173,22 +174,29 @@ export function DataTable<Row>(
                   ? "true"
                   : getRowAttributes?.(row)["data-selected"]}
               >
-                {columns.map((column, index) => (
-                  <td data-align={column.align} key={column.id}>
-                    {index === 0 && onSelectRow
-                      ? (
-                        <button
-                          aria-pressed={selectedRowKey === getRowKey(row)}
-                          className="ui-data-table__select"
-                          onClick={() => onSelectRow(row)}
-                          type="button"
-                        >
-                          {column.cell(row)}
-                        </button>
-                      )
-                      : column.cell(row)}
-                  </td>
-                ))}
+                {columns.map((column, index) => {
+                  const Cell = column.rowHeader ? "th" : "td";
+                  return (
+                    <Cell
+                      data-align={column.align}
+                      key={column.id}
+                      scope={column.rowHeader ? "row" : undefined}
+                    >
+                      {index === 0 && onSelectRow
+                        ? (
+                          <button
+                            aria-pressed={selectedRowKey === getRowKey(row)}
+                            className="ui-data-table__select"
+                            onClick={() => onSelectRow(row)}
+                            type="button"
+                          >
+                            {column.cell(row)}
+                          </button>
+                        )
+                        : column.cell(row)}
+                    </Cell>
+                  );
+                })}
               </tr>
             ))
             : (
