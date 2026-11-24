@@ -1,23 +1,3 @@
-/**
- * The workflow as the editor draws it (#67, slice 1 of the owner's spec): a
- * definition's nodes turned into the cards and groups a person sees, top to
- * bottom. One model, two renderings — the diagram and the phone outline — so
- * the two cannot drift.
- *
- * The definition is the server's own node tree (`WorkflowNode`): a sequence of
- * nodes, each an action, a branch with two arms, a parallel with lanes, a
- * repeat, or a wait. Slice 1 draws all of them and edits only the actions in a
- * straight line; a group a person cannot change opens a panel saying it is
- * written in code.
- *
- * Nothing is ever left out of the drawing (design-ux's ruling on #67, comment
- * 6917906748): a step Bakery knows but can only change in code is drawn as its
- * own card that opens a panel saying so, a step it cannot read is drawn as a card
- * that needs setup, and a group holds its place even when it is empty. The only
- * case that draws no steps is a definition whose list of steps cannot be read
- * at all, and the page says so in a notice rather than showing an empty editor.
- */
-
 import { ACTION_TITLES, PICKER_STEPS } from "./workflow-state.ts";
 
 /**

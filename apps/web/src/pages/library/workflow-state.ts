@@ -116,12 +116,6 @@ export function exportFileName(slug: string, revision: number): string {
   return `${safe === "" ? "workflow" : safe}-v${revision}.yaml`;
 }
 
-/**
- * The step types the editor's "Add a step" list offers, in the order the
- * design lists them (design-ux, #67). A type Bakery knows but this list does
- * not offer is drawn as its own card that opens a panel saying it is written
- * in code.
- */
 export const PICKER_STEPS: readonly string[] = [
   "rpi.research",
   "rpi.design",
