@@ -6684,5 +6684,14 @@
   "library.editor.group.each": "⟦Ƒôŕ ëàçĥ ïŧëɱ ŧë⟧",
   "library.editor.group.eachLimit": "⟦Àŧ ɱôšŧ {max, plural, one {# item} other {# items}} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.editor.group.eachHelp": "⟦Ŕûñš ŧĥëšë šŧëþš ôñçë ƒôŕ ëàçĥ ïŧëɱ ïñ à ļïšŧ, ôñë ïŧëɱ àŧ à ŧïɱë. À ļïšŧ ŵïŧĥ ɱôŕë ïŧëɱš ŧĥàñ ŧĥë ļïɱïŧ ƒàïļš ŧĥë ŕûñ ƀëƒôŕë àñÿ šŧëþ šŧàŕŧš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ àñôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ àñôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "notifications.undo": "⟦Ûñðô⟧",
+  "notifications.undo.done": "⟦Ŕëšŧôŕëð {count, plural, one {# notification} other {# notifications}} ŧô ûñŕëàð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "notifications.undo.failed": "⟦Çôûļð ñôŧ ûñðô. Ŧŕÿ àĝàïñ. ŧëšŧ çô⟧",
+  "notifications.row.saveFailed": "⟦Ŧĥàŧ çôûļð ñôŧ ƀë šàṽëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿŧ⟧",
+  "notifications.time.justNow": "⟦Ĵûšŧ ñôŵ…⟧",
+  "notifications.time.minutes": "⟦{count} ɱïñ àĝô ŧëš⟧",
+  "notifications.time.hours": "⟦{count} ĥŕ àĝô ŧë⟧",
+  "notifications.time.yesterday": "⟦Ÿëšŧëŕðàÿ ŧ⟧",
+  "notifications.time.days": "⟦{count, plural, one {# day ago} other {# days ago}} ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

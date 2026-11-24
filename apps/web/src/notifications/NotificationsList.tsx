@@ -47,6 +47,22 @@ export function NotificationsList(
 ) {
   const { translate } = useI18n();
   const groups = showGroups ? groupByDay(rows, serverNow) : null;
+  const relativeTime = (createdAt: string, now: Date = new Date()): string => {
+    const minutes = Math.round(
+      (now.getTime() - new Date(createdAt).getTime()) / 60_000,
+    );
+    if (minutes < 1) return translate("notifications.time.justNow");
+    if (minutes < 60) {
+      return translate("notifications.time.minutes", { count: minutes });
+    }
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) {
+      return translate("notifications.time.hours", { count: hours });
+    }
+    const days = Math.round(hours / 24);
+    if (days === 1) return translate("notifications.time.yesterday");
+    return translate("notifications.time.days", { count: days });
+  };
 
   const renderRow = (row: NotificationResponse) => {
     const copy = NOTIFICATION_COPY[row.kind];
@@ -87,7 +103,7 @@ export function NotificationsList(
         href={row.destination.available
           ? `/notifications?open=${row.id}&r=${row.revision}`
           : null}
-        relativeTime={formatRelative(row.createdAt, serverNow)}
+        relativeTime={relativeTime(row.createdAt, serverNow)}
         exactTime={new Date(row.createdAt).toLocaleString()}
         highlighted={row.id === highlightId}
         onSelect={onOpened}
@@ -122,21 +138,4 @@ export function NotificationsList(
       ))}
     </UI.NotificationGroups>
   );
-}
-
-/**
- * "5 min ago", "Yesterday": relative to the moment the list was read, so a row
- * does not drift while the page sits open. The exact date is always the row's
- * `title` and its accessible text, so the shortening never hides the truth.
- */
-function formatRelative(createdAt: string, now: Date = new Date()): string {
-  const created = new Date(createdAt);
-  const minutes = Math.round((now.getTime() - created.getTime()) / 60_000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  const days = Math.round(hours / 24);
-  if (days === 1) return "Yesterday";
-  return `${days} days ago`;
 }

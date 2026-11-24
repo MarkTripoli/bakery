@@ -6684,5 +6684,14 @@
   "library.editor.group.each": "⟪For each item⟫",
   "library.editor.group.eachLimit": "⟪At most {max, plural, one {# item} other {# items}}⟫",
   "library.editor.group.eachHelp": "⟪Runs these steps once for each item in a list, one item at a time. A list with more items than the limit fails the run before any step starts.⟫",
-  "issues.start.workflowHelp": "⟪{repository} is set to {workflow}. Choosing another applies to this issue only.⟫"
+  "issues.start.workflowHelp": "⟪{repository} is set to {workflow}. Choosing another applies to this issue only.⟫",
+  "notifications.undo": "⟪Undo⟫",
+  "notifications.undo.done": "⟪Restored {count, plural, one {# notification} other {# notifications}} to unread.⟫",
+  "notifications.undo.failed": "⟪Could not undo. Try again.⟫",
+  "notifications.row.saveFailed": "⟪That could not be saved. Try again.⟫",
+  "notifications.time.justNow": "⟪Just now⟫",
+  "notifications.time.minutes": "⟪{count} min ago⟫",
+  "notifications.time.hours": "⟪{count} hr ago⟫",
+  "notifications.time.yesterday": "⟪Yesterday⟫",
+  "notifications.time.days": "⟪{count, plural, one {# day ago} other {# days ago}}⟫"
 }
