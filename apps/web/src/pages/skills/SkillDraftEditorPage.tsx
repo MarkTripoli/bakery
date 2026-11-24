@@ -83,12 +83,19 @@ export function SkillDraftEditorPage({ skillId }: { skillId: string }) {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [license, setLicense] = useState<string | null>(null);
+  const [entry, setEntry] = useState<string | null>(null);
   const [published, setPublished] = useState<number | null>(null);
   const problemsHeading = useRef<HTMLHeadingElement | null>(null);
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const [line, setLine] = useState<number | null>(null);
 
   const current = draft.data;
+  useEffect(() => {
+    if (current === undefined) return;
+    setLicense((held) => held ?? current.license ?? "");
+    setEntry((held) => held ?? current.entryPath);
+  }, [current]);
   const files = current === undefined ? [] : draftFilesOf(current);
   const chosen = path ?? current?.entryPath ?? files[0]?.path ?? null;
   const chosenFile = files.find((file) => file.path === chosen) ?? null;
@@ -484,10 +491,24 @@ export function SkillDraftEditorPage({ skillId }: { skillId: string }) {
                     name="skill-licence"
                     type="text"
                     autoComplete="off"
-                    value={current.license ?? ""}
-                    onChange={(value) => void saveSettings({ license: value })}
+                    value={license ?? current.license ?? ""}
+                    onChange={setLicense}
                   />
                 </UI.Field>
+                <UI.Button
+                  variant="secondary"
+                  disabled={(license ?? current.license ?? "") ===
+                      (current.license ?? "") &&
+                    (entry ?? current.entryPath) === current.entryPath}
+                  onClick={() => {
+                    void saveSettings({
+                      license: license ?? current.license ?? "",
+                      entryPath: entry ?? current.entryPath,
+                    });
+                  }}
+                >
+                  {t("library.skills.editor.settings.save")}
+                </UI.Button>
               </UI.Stack>
             )
             : null}
