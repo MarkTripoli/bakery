@@ -2,6 +2,7 @@ import { expect, type Page, type Route, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -308,6 +309,8 @@ test("a run waiting at an approval step says so and offers the review", async ({
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Review the signoff" }))
     .toBeVisible();
+  await page.mouse.move(5, 5);
+  await still(page, "step-approval-waiting");
 });
 
 test("a run with no open step approval shows no review", async ({ page }) => {
@@ -324,6 +327,7 @@ test("a run with no open step approval shows no review", async ({ page }) => {
 test("the pane is titled by its step and leads with the workflow's question", async ({ page }) => {
   await open(page);
   await review(page);
+  await still(page, "step-approval-pane");
   const region = page.locator('[data-ui-region="step-approval"]');
   await expect(region).toContainText(
     "Approve the design before Bakery builds.",
