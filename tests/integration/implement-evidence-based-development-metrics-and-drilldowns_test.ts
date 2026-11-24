@@ -154,6 +154,7 @@ Deno.test("lifecycle facts dedupe, a reopen is one pull request, and the June nu
     );
     const a = await seedPullRequest(f, f.organizationId, repo, 1);
     const b = await seedPullRequest(f, f.organizationId, repo, 2);
+    const bOpened = new Date("2026-06-02T12:00:00Z");
 
     // A: merged June 3, read twice (a webhook delivered twice), then an
     // older open read arrives late.
@@ -181,14 +182,18 @@ Deno.test("lifecycle facts dedupe, a reopen is one pull request, and the June nu
       "stale",
     );
 
-    // B: opened June 1, closed June 5, reopened June 10.
-    await observe(f, repo.repositoryId, read(f.organizationId, 2));
+    await observe(
+      f,
+      repo.repositoryId,
+      read(f.organizationId, 2, { openedAt: bOpened }),
+    );
     await observe(
       f,
       repo.repositoryId,
       read(f.organizationId, 2, {
         state: "closed",
         providerUpdatedAt: new Date("2026-06-05T00:00:00Z"),
+        openedAt: bOpened,
         closedAt: new Date("2026-06-05T00:00:00Z"),
       }),
     );
@@ -197,6 +202,7 @@ Deno.test("lifecycle facts dedupe, a reopen is one pull request, and the June nu
       repo.repositoryId,
       read(f.organizationId, 2, {
         providerUpdatedAt: new Date("2026-06-10T00:00:00Z"),
+        openedAt: bOpened,
       }),
     );
 
@@ -272,11 +278,15 @@ Deno.test("lifecycle facts dedupe, a reopen is one pull request, and the June nu
       ),
     );
     assertEquals(second.nextCursor, null);
-    assertEquals(
-      [...(first.items as Json[]), ...(second.items as Json[])]
-        .map((r) => r.id).sort(),
-      [a, b].sort(),
-    );
+    const sourceRows = [
+      ...(first.items as Json[]),
+      ...(second.items as Json[]),
+    ];
+    assertEquals(sourceRows.map((row) => row.id), [b, a]);
+    assertEquals(sourceRows.map((row) => row.title), [
+      "Metrics task",
+      "Metrics task",
+    ]);
   } finally {
     await f.finish();
   }
