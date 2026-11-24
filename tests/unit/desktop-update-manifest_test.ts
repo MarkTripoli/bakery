@@ -129,16 +129,14 @@ Deno.test("a server without a feed answers 404", async () => {
   );
 });
 
-// In the app the session middleware answers 401 before the action runs; the
-// action's own guard still refuses a request that reaches it unresolved.
-Deno.test("an anonymous caller is refused", async () => {
+Deno.test("an anonymous caller is offered the same build", async () => {
   const response = await ask(
     feed,
-    "target=linux&arch=x86_64&current_version=1.0.0",
+    "target=linux&arch=x86_64&current_version=1.3.2",
     false,
   );
-  assertEquals(response.status, 403);
-  await response.body?.cancel();
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), release);
 });
 
 Deno.test("semver precedence follows the specification", () => {
@@ -231,10 +229,7 @@ Deno.test("RuntimeConfig carries the feed and refuses a bad one at start-up", as
   }
 });
 
-// The tests above build the route by hand. This one goes through the app the
-// server runs: the feed comes from RuntimeConfig, and the caller is known only
-// through the session middleware. Dropping either hand-off fails it.
-Deno.test("the running app serves the configured feed to a signed-in caller only", async () => {
+Deno.test("the running app serves the feed to anyone, and only the feed", async () => {
   const directory = await Deno.makeTempDir();
   try {
     const feedFile = `${directory}/feed.json`;
@@ -242,8 +237,11 @@ Deno.test("the running app serves the configured feed to a signed-in caller only
     const secret = "d".repeat(32);
     const token = "desktop-update-session";
     const expiresAt = new Date(Date.now() + 60_000);
-    const noDatabase = () =>
-      Promise.reject(new Error("no database in this test"));
+    let databaseReads = 0;
+    const noDatabase = () => {
+      databaseReads += 1;
+      return Promise.reject(new Error("no database in this test"));
+    };
     const runningApp = (env: Record<string, string>) =>
       createApp({
         config: readRuntimeConfig({
@@ -290,26 +288,33 @@ Deno.test("the running app serves the configured feed to a signed-in caller only
       });
     const url =
       "http://localhost:8000/v1/desktop/update?target=linux&arch=x86_64&current_version=1.3.2";
-    const cookie = await signSessionCookie(token, secret);
+    const callers: Record<string, HeadersInit> = {
+      "signed out": {},
+      "signed in": { cookie: await signSessionCookie(token, secret) },
+      "revoked desktop token": { authorization: "Bearer bkd_revoked" },
+    };
+    const manifestFields = ["notes", "pub_date", "signature", "url", "version"];
 
     const configured = runningApp({
       BAKERY_DESKTOP_UPDATE_FEED_FILE: feedFile,
     });
-    const signedIn = await configured.fetch(
-      new Request(url, { headers: { cookie } }),
-    );
-    assertEquals(signedIn.status, 200);
-    assertEquals(await signedIn.json(), release);
+    for (const [caller, headers] of Object.entries(callers)) {
+      const response = await configured.fetch(new Request(url, { headers }));
+      assertEquals(response.status, 200, caller);
+      assertEquals(response.headers.get("set-cookie"), null, caller);
+      const body = await response.json() as Record<string, unknown>;
+      assertEquals(body, release, caller);
+      assertEquals(
+        Object.keys(body).filter((key) => !manifestFields.includes(key)),
+        [],
+        caller,
+      );
+    }
 
-    const anonymous = await configured.fetch(new Request(url));
-    assertEquals(anonymous.status, 401);
-    await anonymous.body?.cancel();
-
-    const unconfigured = await runningApp({}).fetch(
-      new Request(url, { headers: { cookie } }),
-    );
+    const unconfigured = await runningApp({}).fetch(new Request(url));
     assertEquals(unconfigured.status, 404);
     await unconfigured.body?.cancel();
+    assertEquals(databaseReads, 0, "the answer comes from the feed alone");
   } finally {
     await Deno.remove(directory, { recursive: true });
   }
