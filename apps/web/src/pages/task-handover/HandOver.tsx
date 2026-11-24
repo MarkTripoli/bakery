@@ -57,6 +57,7 @@ export function HandOver(
   const [openStep, setOpenStep] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [tries, setTries] = useState(0);
+  const [mode, setMode] = useState<"exact" | "fresh">("exact");
   const [problem, setProblem] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const alive = useRef(true);
@@ -89,6 +90,7 @@ export function HandOver(
   const closeCard = () => {
     setOpenStep(null);
     setTries(0);
+    setMode("exact");
     setProblem(null);
     pending.current = null;
     const button = opener.current;
@@ -151,7 +153,7 @@ export function HandOver(
       view === null || view.capturePaused
     ) return;
     const manifestId = open.handoffManifest.id;
-    const input = { runVersion };
+    const input = way?.kind === "exact" ? { runVersion, mode } : { runVersion };
     const signature = JSON.stringify({ manifestId, input });
     const key = pending.current?.signature === signature
       ? pending.current.key
@@ -211,6 +213,7 @@ export function HandOver(
                   }
                   opener.current = event.currentTarget;
                   setTries(0);
+                  setMode("exact");
                   setProblem(null);
                   setNotice(null);
                   pending.current = null;
@@ -240,6 +243,8 @@ export function HandOver(
                   machine={manifest.data?.machineName ?? null}
                   view={view}
                   way={way}
+                  mode={mode}
+                  onMode={setMode}
                   online={online}
                   working={working}
                   problem={problem}
@@ -278,6 +283,8 @@ function Card(
     machine,
     view,
     way,
+    mode,
+    onMode,
     online,
     working,
     problem,
@@ -294,6 +301,8 @@ function Card(
     readonly machine: string | null;
     readonly view: ManifestView | null;
     readonly way: CarryOn | null;
+    readonly mode: "exact" | "fresh";
+    readonly onMode: (mode: "exact" | "fresh") => void;
     readonly online: boolean;
     readonly working: boolean;
     readonly problem: string | null;
@@ -449,42 +458,69 @@ function Card(
           ? t("tasks.run.handover.leadNoMachine")
           : t("tasks.run.handover.lead", { machine })}
       </UI.Text>
-      <UI.InlineNotice
-        data-testid="handover-way"
-        data-way={way.kind}
-        tone={way.kind === "exact" ? "information" : "warning"}
-      >
-        <UI.Stack gap="tight">
-          <UI.Text variant="strong">
-            {way.kind === "exact"
-              ? t("tasks.run.handover.exact.title")
-              : t("tasks.run.handover.fresh.title")}
-          </UI.Text>
-          <UI.Text>
-            {way.kind === "exact"
-              ? t("tasks.run.handover.exact.body", { time: when })
-              : t("tasks.run.handover.fresh.body")}
-          </UI.Text>
-          {way.kind === "exact"
-            ? (
-              <UI.Text variant="muted">
-                {t("tasks.run.handover.exact.caption")}
+      {way.kind === "exact"
+        ? (
+          <UI.Stack gap="compact" data-testid="handover-choice">
+            <UI.Text variant="strong" id="handover-choice-legend">
+              {t("tasks.run.handover.choice.legend")}
+            </UI.Text>
+            <UI.Stack
+              gap="compact"
+              role="radiogroup"
+              aria-labelledby="handover-choice-legend"
+            >
+              <UI.PresetOption
+                name="handover-mode"
+                value="exact"
+                checked={mode === "exact"}
+                disabled={working}
+                onChange={() => onMode("exact")}
+                title={t("tasks.run.handover.choice.exact.title")}
+                description={t("tasks.run.handover.choice.exact.body", {
+                  time: when,
+                })}
+              />
+              <UI.PresetOption
+                name="handover-mode"
+                value="fresh"
+                checked={mode === "fresh"}
+                disabled={working}
+                onChange={() => onMode("fresh")}
+                title={t("tasks.run.handover.choice.fresh.title")}
+                description={t("tasks.run.handover.choice.fresh.body")}
+              />
+            </UI.Stack>
+            {mode === "exact"
+              ? (
+                <UI.Text variant="caption" data-testid="handover-exact-caption">
+                  {t("tasks.run.handover.exact.caption")}
+                </UI.Text>
+              )
+              : null}
+          </UI.Stack>
+        )
+        : (
+          <UI.InlineNotice
+            data-testid="handover-way"
+            data-way={way.kind}
+            tone="warning"
+          >
+            <UI.Stack gap="tight">
+              <UI.Text variant="strong">
+                {t("tasks.run.handover.fresh.title")}
               </UI.Text>
-            )
-            : (
-              <>
-                <UI.Text variant="muted">
-                  {t("tasks.run.handover.fresh.why")}
-                </UI.Text>
-                <UI.Text data-testid="handover-reason">
-                  {t(reasonKey(way.reason) as never, {
-                    count: view.unconfirmedEffects,
-                  })}
-                </UI.Text>
-              </>
-            )}
-        </UI.Stack>
-      </UI.InlineNotice>
+              <UI.Text>{t("tasks.run.handover.fresh.body")}</UI.Text>
+              <UI.Text variant="muted">
+                {t("tasks.run.handover.fresh.why")}
+              </UI.Text>
+              <UI.Text data-testid="handover-reason">
+                {t(reasonKey(way.reason) as never, {
+                  count: view.unconfirmedEffects,
+                })}
+              </UI.Text>
+            </UI.Stack>
+          </UI.InlineNotice>
+        )}
       <Given
         view={view}
         reasonIsOutside={way.kind === "fresh" &&

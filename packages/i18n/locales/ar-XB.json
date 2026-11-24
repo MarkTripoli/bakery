@@ -6602,8 +6602,6 @@
   "tasks.run.handover.keep": "⟪Keep this session⟫",
   "tasks.run.handover.confirm": "⟪Hand over⟫",
   "tasks.run.handover.same": "⟪The step, its budget and its agent stay the same.⟫",
-  "tasks.run.handover.exact.title": "⟪It will try to pick up exactly where it stopped⟫",
-  "tasks.run.handover.exact.body": "⟪The new session reopens the same conversation with the agent at the point saved {time}.⟫",
   "tasks.run.handover.exact.caption": "⟪If Bakery cannot prove that is still safe when the new session starts, it starts fresh from the summary below, and this page says so.⟫",
   "tasks.run.handover.fresh.title": "⟪It will start fresh from a summary⟫",
   "tasks.run.handover.fresh.body": "⟪The new session does not get the old conversation. It gets what is listed below.⟫",
@@ -6684,5 +6682,12 @@
   "library.editor.group.each": "⟪For each item⟫",
   "library.editor.group.eachLimit": "⟪At most {max, plural, one {# item} other {# items}}⟫",
   "library.editor.group.eachHelp": "⟪Runs these steps once for each item in a list, one item at a time. A list with more items than the limit fails the run before any step starts.⟫",
-  "issues.start.workflowHelp": "⟪{repository} is set to {workflow}. Choosing another applies to this issue only.⟫"
+  "issues.start.workflowHelp": "⟪{repository} is set to {workflow}. Choosing another applies to this issue only.⟫",
+  "tasks.run.handover.choice.legend": "⟪How should the new session start?⟫",
+  "tasks.run.handover.choice.exact.title": "⟪Pick up exactly where it stopped⟫",
+  "tasks.run.handover.choice.exact.body": "⟪Keeps the conversation with the agent up to the point saved {time}. Choose this when the work was on track and only the machine or the connection failed.⟫",
+  "tasks.run.handover.choice.fresh.title": "⟪Start fresh from a summary⟫",
+  "tasks.run.handover.choice.fresh.body": "⟪Starts a new conversation that gets only what is listed below. Choose this when the work went off track.⟫",
+  "tasks.run.handover.done.freshChosen": "⟪{name} handed this step to a new session and chose to start fresh from a summary.⟫",
+  "tasks.run.handover.reason.fresh_requested": "⟪A person chose to start fresh from a summary.⟫"
 }

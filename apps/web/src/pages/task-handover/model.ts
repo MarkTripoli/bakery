@@ -10,6 +10,7 @@ export const FRESH_REASONS: readonly FreshReason[] = [
   "no_native_evidence",
   "native_evidence_mismatch",
   "history_revoked",
+  "fresh_requested",
 ];
 
 export type CarryOn =
@@ -133,12 +134,13 @@ export function outcomeKey(
     readonly freshReason?: string | null;
   },
   unconfirmedEffects: number,
-): "waiting" | "exact" | "fresh" {
+): "waiting" | "exact" | "fresh" | "freshChosen" {
   if (continuation.mode === "exact_harness_resume") return "exact";
   if (
     continuation.freshReason === "effects_unresolved" ||
     unconfirmedEffects > 0
   ) return "waiting";
+  if (continuation.freshReason === "fresh_requested") return "freshChosen";
   return "fresh";
 }
 
@@ -210,7 +212,7 @@ export function recordedHandover(
   | Readonly<{
     at: string;
     byName: string | null;
-    outcome: "exact" | "fresh" | "waiting";
+    outcome: "exact" | "fresh" | "freshChosen" | "waiting";
     reason: FreshReason | "unknown";
     unconfirmedEffects: number;
   }>

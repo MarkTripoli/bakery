@@ -307,6 +307,12 @@ async function open(page: Page, w: World) {
         body: r.request().postDataJSON() as Record<string, unknown>,
       });
       if (w.reply) return await w.reply(r);
+      if ((r.request().postDataJSON() as { mode?: string }).mode === "fresh") {
+        w.decision = {
+          decisionMode: "fresh_session",
+          freshReason: "fresh_requested",
+        };
+      }
       w.status = "continued";
       await r.fulfill({
         status: 201,
@@ -503,12 +509,27 @@ test.describe("hand over a running step to a new session", () => {
     await expect(card(page)).toContainText(
       "The session on build-box-01 stops and a new one carries on with this step.",
     );
-    await expect(page.getByTestId("handover-way")).toHaveAttribute(
-      "data-way",
-      "exact",
+    await expect(page.getByTestId("handover-way")).toHaveCount(0);
+    const choice = page.getByTestId("handover-choice");
+    await expect(
+      choice.getByRole("radiogroup", {
+        name: "How should the new session start?",
+      }),
+    ).toBeVisible();
+    await expect(
+      choice.getByRole("radio", { name: "Pick up exactly where it stopped" }),
+    ).toBeChecked();
+    await expect(
+      choice.getByRole("radio", { name: "Start fresh from a summary" }),
+    ).not.toBeChecked();
+    await expect(choice).toContainText(
+      "Keeps the conversation with the agent up to the point saved",
     );
-    await expect(page.getByTestId("handover-way")).toContainText(
-      "It will try to pick up exactly where it stopped",
+    await expect(choice).toContainText(
+      "Starts a new conversation that gets only what is listed below. Choose this when the work went off track.",
+    );
+    await expect(page.getByTestId("handover-exact-caption")).toContainText(
+      "If Bakery cannot prove that is still safe when the new session starts",
     );
     const given = page.getByTestId("handover-given");
     await expect(given).toContainText(
@@ -554,12 +575,91 @@ test.describe("hand over a running step to a new session", () => {
     await page.getByTestId("handover-confirm").click();
     await expect(card(page)).toHaveCount(0);
     expect(w.continues).toHaveLength(1);
-    expect(w.continues[0]!.body).toEqual({ runVersion: RUN_VERSION });
+    expect(w.continues[0]!.body).toEqual({
+      runVersion: RUN_VERSION,
+      mode: "exact",
+    });
     expect(w.continues[0]!.key).toBeTruthy();
     await expect(page.getByText(
       "Ana Silva handed this step to a new session. It picked up exactly where it stopped.",
     )).toBeVisible();
     await still(page, "timeline-exact", false);
+  });
+
+  test("choosing a fresh start hides the safety caption, sends mode fresh, and the timeline says it was chosen", async ({ page }) => {
+    const w = world();
+    await open(page, w);
+    await button(page).click();
+    const choice = page.getByTestId("handover-choice");
+    await choice.getByRole("radio", { name: "Start fresh from a summary" })
+      .check();
+    await expect(page.getByTestId("handover-exact-caption")).toHaveCount(0);
+    await still(page, "handover-choice-fresh");
+    const axe = await new AxeBuilder({ page }).include(
+      '[data-testid="handover"]',
+    ).analyze();
+    expect(axe.violations.map((v) => v.id)).toEqual([]);
+    await page.getByTestId("handover-confirm").click();
+    await expect(card(page)).toHaveCount(0);
+    expect(w.continues).toHaveLength(1);
+    expect(w.continues[0]!.body).toEqual({
+      runVersion: RUN_VERSION,
+      mode: "fresh",
+    });
+    await expect(page.getByText(
+      "Ana Silva handed this step to a new session and chose to start fresh from a summary.",
+    )).toBeVisible();
+    await still(page, "timeline-fresh-chosen", false);
+  });
+
+  test("a changed choice gets a new key, and a retry of the same choice reuses its key", async ({ page }) => {
+    let attempts = 0;
+    const w = world({
+      reply: async (route) => {
+        attempts += 1;
+        await route.abort();
+      },
+    });
+    await open(page, w);
+    await button(page).click();
+    await page.getByTestId("handover-confirm").click();
+    await expect.poll(() => w.continues.length).toBe(1);
+    await expect(page.getByTestId("handover-problem")).toBeVisible();
+    await page.getByTestId("handover-confirm").click();
+    await expect.poll(() => w.continues.length).toBe(2);
+    expect(w.continues[1]!.key).toBe(w.continues[0]!.key);
+    expect(w.continues[1]!.body).toEqual({
+      runVersion: RUN_VERSION,
+      mode: "exact",
+    });
+    await page.getByTestId("handover-choice").getByRole("radio", {
+      name: "Start fresh from a summary",
+    }).check();
+    await page.getByTestId("handover-confirm").click();
+    await expect.poll(() => w.continues.length).toBe(3);
+    expect(w.continues[2]!.key).not.toBe(w.continues[0]!.key);
+    expect(w.continues[2]!.body).toEqual({
+      runVersion: RUN_VERSION,
+      mode: "fresh",
+    });
+    expect(attempts).toBe(3);
+  });
+
+  test("closing the card and opening it again starts on exact again", async ({ page }) => {
+    const w = world();
+    await open(page, w);
+    await button(page).click();
+    await page.getByTestId("handover-choice").getByRole("radio", {
+      name: "Start fresh from a summary",
+    }).check();
+    await page.getByTestId("handover-keep").click();
+    await expect(card(page)).toHaveCount(0);
+    await button(page).click();
+    await expect(
+      page.getByTestId("handover-choice").getByRole("radio", {
+        name: "Pick up exactly where it stopped",
+      }),
+    ).toBeChecked();
   });
 
   test("a fresh start says why before the click, and again on the timeline after it", async ({ page }) => {
@@ -761,7 +861,7 @@ test.describe("hand over a running step to a new session", () => {
     await expect(page.getByTestId("handover-keep")).toBeEnabled();
     await still(page, "read-failed");
     await page.getByTestId("handover-retry").click();
-    await expect(page.getByTestId("handover-way")).toBeVisible();
+    await expect(page.getByTestId("handover-choice")).toBeVisible();
     await expect(page.locator("#handover-heading")).toBeFocused();
   });
 
@@ -840,7 +940,7 @@ test.describe("hand over a running step to a new session", () => {
     await expect(page.getByText("Reading the saved point")).toBeVisible();
     await expect(page.getByTestId("handover-read-failed")).toHaveCount(0);
     release();
-    await expect(page.getByTestId("handover-way")).toBeVisible();
+    await expect(page.getByTestId("handover-choice")).toBeVisible();
   });
 
   test("a dropped connection says so after the automatic retry", async ({ page }) => {
@@ -870,7 +970,7 @@ test.describe("hand over a running step to a new session", () => {
     await expect(card(page).getByRole("progressbar")).toHaveCount(0);
     await still(page, "read-offline");
     await context.setOffline(false);
-    await expect(page.getByTestId("handover-way")).toBeVisible();
+    await expect(page.getByTestId("handover-choice")).toBeVisible();
   });
 
   test("back online, the card does not take focus from where the person is", async ({ page, context }) => {
@@ -883,7 +983,7 @@ test.describe("hand over a running step to a new session", () => {
     const composer = page.getByPlaceholder("Message this task…");
     await composer.focus();
     await context.setOffline(false);
-    await expect(page.getByTestId("handover-way")).toBeVisible();
+    await expect(page.getByTestId("handover-choice")).toBeVisible();
     await expect(composer).toBeFocused();
   });
 

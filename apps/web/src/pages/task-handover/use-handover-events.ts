@@ -33,6 +33,8 @@ export function useHandoverEvents(
     const name = recorded.byName ?? t("tasks.run.handover.someone");
     const description = recorded.outcome === "exact"
       ? t("tasks.run.handover.done.exact", { name })
+      : recorded.outcome === "freshChosen"
+      ? t("tasks.run.handover.done.freshChosen", { name })
       : recorded.outcome === "fresh"
       ? t("tasks.run.handover.done.fresh", {
         name,
