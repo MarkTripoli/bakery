@@ -120,6 +120,7 @@ const approval = (over: Record<string, unknown> = {}) => ({
   createdAt: iso(-60_000),
   updatedAt: iso(-60_000),
   version: 1,
+  mayDecide: true,
   ...over,
 });
 const problem = (status: number, code: string, reason?: string) => ({
