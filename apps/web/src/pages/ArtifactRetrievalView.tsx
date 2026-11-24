@@ -36,14 +36,14 @@ export type ArtifactRetrievalViewProps = {
     readonly onClick: () => void;
     readonly testId?: string;
   };
-  readonly pinControl: ReactNode;
+  readonly pinControl?: ReactNode;
   /** Opens the shared draft for editing, where the person may edit. */
   readonly editControl?: ReactNode;
   /** Isolated-preview handoff; absent where no preview can be offered. */
   readonly previewHandoff?: ReactNode;
   readonly notices?: readonly UI.ArtifactLayoutNotice[];
   readonly banner?: ReactNode;
-  readonly evidence: ArtifactEvidence;
+  readonly evidence?: ArtifactEvidence;
   /** Stays in view above the comments while the text scrolls (a draft's suggestions). */
   readonly aside?: ReactNode;
   readonly preview: ReactNode;
@@ -118,7 +118,7 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
         }
         notices={props.notices}
         banner={props.banner}
-        evidence={
+        evidence={evidence === undefined ? undefined : (
           <>
             <UI.Heading rank={2} level="subsection">
               {evidence.title}
@@ -154,7 +154,7 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
               {evidence.details.content}
             </div>
           </>
-        }
+        )}
         aside={props.aside}
         comments={!isPhone
           ? props.discussion

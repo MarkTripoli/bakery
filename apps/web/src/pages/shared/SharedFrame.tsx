@@ -1,0 +1,23 @@
+import type { ReactNode } from "react";
+import * as UI from "@bakery/ui";
+import { ShellActiveNavigation } from "../../shell/shell-slots.tsx";
+
+export function SharedFrame(
+  { title, notice, testId, children }: {
+    title: ReactNode;
+    notice: ReactNode;
+    testId: string;
+    children: ReactNode;
+  },
+) {
+  return (
+    <>
+      <ShellActiveNavigation id="work" />
+      <UI.Stack gap="spacious" data-testid={testId}>
+        <UI.PageHeader variant="list" flush title={title} />
+        <UI.InlineNotice tone="information">{notice}</UI.InlineNotice>
+        {children}
+      </UI.Stack>
+    </>
+  );
+}
