@@ -8217,7 +8217,7 @@
       "access": "Admin",
       "permission": "review:accept",
       "input": "RepairAllowanceCreate",
-      "output": "DeliveryDecision",
+      "output": "TriesAllowance",
       "event": "",
       "mcp": "bakery_runRepairAllowances_create",
       "idempotency": "Idempotency-Key required; PATCH also If-Match",
@@ -9324,6 +9324,32 @@
       "output": "ConversationTurn",
       "event": "conversation.turn_changed",
       "mcp": "bakery_conversationTurns_cancel",
+      "idempotency": "Idempotency-Key and If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "POST",
+      "path": "/v1/conversation-turns/{id}/retry",
+      "action": "conversationTurns.retry",
+      "access": "Developer",
+      "permission": "conversationTurn:write",
+      "input": "ConversationTurnRetry",
+      "output": "ConversationTurn",
+      "event": "conversation.turn_changed",
+      "mcp": "bakery_conversationTurns_retry",
       "idempotency": "Idempotency-Key and If-Match required",
       "errors": [
         "AUTH_REQUIRED",
@@ -15427,6 +15453,7 @@
     "conversations.update",
     "conversationTurns.get",
     "conversationTurns.cancel",
+    "conversationTurns.retry",
     "questions.list",
     "questions.get",
     "questions.answer",
@@ -39277,7 +39304,7 @@
               "content": {
                 "application/json": {
                   "schema": {
-                    "$ref": "#/components/schemas/DeliveryDecision"
+                    "$ref": "#/components/schemas/TriesAllowance"
                   }
                 }
               }
@@ -42739,6 +42766,82 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ConversationTurnCancel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/conversation-turns/{id}/retry": {
+        "post": {
+          "operationId": "conversationTurns.retry",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationTurn"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT)."
+            },
+            "412": {
+              "description": "Precondition failed (PRECONDITION_FAILED)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationTurnRetry"
                 }
               }
             }
@@ -66249,6 +66352,7 @@
                 "conversationAccess.revoke",
                 "conversationTurns.get",
                 "conversationTurns.cancel",
+                "conversationTurns.retry",
                 "notifications.list",
                 "notifications.count",
                 "notifications.get",
@@ -78579,6 +78683,13 @@
           "additionalProperties": false,
           "description": "Cancels the conversation's active or queued coordinator turn; requires the turn's current If-Match. A queued turn is canceled immediately, while an active turn is marked cancel-requested and interrupts its session, remaining in the active slot until stopped or reconciled."
         },
+        "ConversationTurnRetry": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false,
+          "description": "Retries a failed coordinator turn without posting its message again; requires the failed turn's current If-Match. Returns the new queued turn, which runs the coordinator again as its own job."
+        },
         "SlackEvent": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -89001,7 +89112,7 @@
             "tries"
           ],
           "additionalProperties": false,
-          "description": "Allows a run whose review and repair loop stopped because it ran out of tries to try more, and puts the run back to work (chapter 25, one engine). It answers the stop with the repair decision it buys, which is the response. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
+          "description": "Allows a run that stopped for lack of tries to try more, and puts the run back to work (chapter 25, one engine). Two stops qualify. A review and repair loop that ran out of tries is answered with the repair decision it buys. A repeat that used its allow below its max is answered with a limit decision recorded in the decisions ledger; the repeat then runs on, never past its max, and a request for more rounds than remain is cut at max. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same repair stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
         },
         "BatchCreate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -119279,6 +119390,7 @@
                 "conversationAccess.revoke",
                 "conversationTurns.get",
                 "conversationTurns.cancel",
+                "conversationTurns.retry",
                 "notifications.list",
                 "notifications.count",
                 "notifications.get",
@@ -119995,6 +120107,7 @@
                 "conversationAccess.revoke",
                 "conversationTurns.get",
                 "conversationTurns.cancel",
+                "conversationTurns.retry",
                 "notifications.list",
                 "notifications.count",
                 "notifications.get",
@@ -120711,6 +120824,7 @@
                 "conversationAccess.revoke",
                 "conversationTurns.get",
                 "conversationTurns.cancel",
+                "conversationTurns.retry",
                 "notifications.list",
                 "notifications.count",
                 "notifications.get",
@@ -167088,6 +167202,7 @@
                       "conversationAccess.revoke",
                       "conversationTurns.get",
                       "conversationTurns.cancel",
+                      "conversationTurns.retry",
                       "notifications.list",
                       "notifications.count",
                       "notifications.get",
@@ -176746,6 +176861,61 @@
           ],
           "additionalProperties": false,
           "description": "One immutable decision the review and repair loop took for a run: proceed, repair or stop, with the reason, the candidate it was taken for, the failed checks and blocking fingerprints it acted on, and the limits it was bound by. A stop ends the run with this record as its durable explanation and never approves a candidate; proceed is not an approval either, because a merge still requires the candidate evidence to be current. Rows are never updated, so updatedAt equals createdAt and version is always 1."
+        },
+        "TriesAllowance": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The run that was put back to work."
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "repair_loop",
+                "repeat_limit"
+              ],
+              "description": "Which stop the allowance answered: repair_loop for a review and repair loop that ran out of tries, repeat_limit for a repeat that used its allow below its max."
+            },
+            "addedTries": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8,
+              "description": "How many more tries or rounds were allowed. For a repeat_limit it can be fewer than asked, because a repeat never goes past its max. TriesAllowance.addedTries must be at least 1. TriesAllowance.addedTries must be at most 8."
+            },
+            "decisionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Id of the decision that records the allowance: the repair delivery decision for repair_loop, the decisions ledger entry for repeat_limit."
+            },
+            "repeatKey": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Step key of the repeat that was allowed more rounds, or null for repair_loop."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "TriesAllowance.repeatKey may be null in this transport value."
+            }
+          },
+          "required": [
+            "runId",
+            "kind",
+            "addedTries",
+            "decisionId",
+            "repeatKey"
+          ],
+          "additionalProperties": false,
+          "description": "The answer to an allowance of more tries: which stop it answered, how many tries it added and the decision that records it."
         },
         "RepairTry": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -267861,6 +268031,100 @@
               "additionalProperties": false,
               "description": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target."
             },
+            "approvalOutcome": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "approved",
+                        "changes_requested",
+                        "rejected",
+                        "expired",
+                        "withdrawn"
+                      ],
+                      "description": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn."
+                    },
+                    "decidedBy": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "principalId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                            },
+                            "displayName": {
+                              "type": "string",
+                              "maxLength": 200,
+                              "description": "The person's current display name, or a neutral stand-in when the account is gone; never an email address. NotificationActor.displayName must contain at most 200 characters."
+                            },
+                            "avatarUrl": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 2048,
+                                  "description": "Absolute HTTPS URL of the person's avatar, or null to draw initials. NotificationActor.avatarUrl must contain at most 2048 characters."
+                                },
+                                {
+                                  "type": "null",
+                                  "description": "Null indicates that the value is unavailable."
+                                }
+                              ],
+                              "description": "NotificationActor.avatarUrl may be null in this transport value."
+                            }
+                          },
+                          "required": [
+                            "principalId",
+                            "displayName",
+                            "avatarUrl"
+                          ],
+                          "additionalProperties": false,
+                          "description": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "NotificationApprovalOutcome.decidedBy may be null in this transport value."
+                    },
+                    "decidedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "description": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "NotificationApprovalOutcome.decidedAt may be null in this transport value."
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "decidedBy",
+                    "decidedAt"
+                  ],
+                  "additionalProperties": false,
+                  "description": "How the approval this item points at stands now, read from the approval at read time: open, approved, changes requested, rejected, expired or withdrawn, with who decided and when. Null when the item does not point at an approval or the recipient can no longer reach it."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "Notification.approvalOutcome may be null in this transport value."
+            },
             "read": {
               "type": "boolean",
               "description": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks."
@@ -267891,6 +268155,7 @@
             "taskId",
             "actor",
             "destination",
+            "approvalOutcome",
             "read",
             "revision",
             "createdAt"
@@ -267935,6 +268200,92 @@
           ],
           "additionalProperties": false,
           "description": "The person who caused a notification, reduced to the safe identity the directory already exposes: principal, display name and avatar."
+        },
+        "NotificationApprovalOutcome": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "approved",
+                "changes_requested",
+                "rejected",
+                "expired",
+                "withdrawn"
+              ],
+              "description": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn."
+            },
+            "decidedBy": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "principalId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "description": "The person's current display name, or a neutral stand-in when the account is gone; never an email address. NotificationActor.displayName must contain at most 200 characters."
+                    },
+                    "avatarUrl": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 2048,
+                          "description": "Absolute HTTPS URL of the person's avatar, or null to draw initials. NotificationActor.avatarUrl must contain at most 2048 characters."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "NotificationActor.avatarUrl may be null in this transport value."
+                    }
+                  },
+                  "required": [
+                    "principalId",
+                    "displayName",
+                    "avatarUrl"
+                  ],
+                  "additionalProperties": false,
+                  "description": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "NotificationApprovalOutcome.decidedBy may be null in this transport value."
+            },
+            "decidedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "NotificationApprovalOutcome.decidedAt may be null in this transport value."
+            }
+          },
+          "required": [
+            "status",
+            "decidedBy",
+            "decidedAt"
+          ],
+          "additionalProperties": false,
+          "description": "The current outcome of the approval a notification points at, derived from the approval row when the inbox is read and never stored on the notification."
         },
         "NotificationDestination": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -268162,6 +268513,100 @@
                     "additionalProperties": false,
                     "description": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target."
                   },
+                  "approvalOutcome": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "approved",
+                              "changes_requested",
+                              "rejected",
+                              "expired",
+                              "withdrawn"
+                            ],
+                            "description": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn."
+                          },
+                          "decidedBy": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "principalId": {
+                                    "type": "string",
+                                    "format": "uuid",
+                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                    "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                                  },
+                                  "displayName": {
+                                    "type": "string",
+                                    "maxLength": 200,
+                                    "description": "The person's current display name, or a neutral stand-in when the account is gone; never an email address. NotificationActor.displayName must contain at most 200 characters."
+                                  },
+                                  "avatarUrl": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "maxLength": 2048,
+                                        "description": "Absolute HTTPS URL of the person's avatar, or null to draw initials. NotificationActor.avatarUrl must contain at most 2048 characters."
+                                      },
+                                      {
+                                        "type": "null",
+                                        "description": "Null indicates that the value is unavailable."
+                                      }
+                                    ],
+                                    "description": "NotificationActor.avatarUrl may be null in this transport value."
+                                  }
+                                },
+                                "required": [
+                                  "principalId",
+                                  "displayName",
+                                  "avatarUrl"
+                                ],
+                                "additionalProperties": false,
+                                "description": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "NotificationApprovalOutcome.decidedBy may be null in this transport value."
+                          },
+                          "decidedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                                "description": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+                              },
+                              {
+                                "type": "null",
+                                "description": "Null indicates that the value is unavailable."
+                              }
+                            ],
+                            "description": "NotificationApprovalOutcome.decidedAt may be null in this transport value."
+                          }
+                        },
+                        "required": [
+                          "status",
+                          "decidedBy",
+                          "decidedAt"
+                        ],
+                        "additionalProperties": false,
+                        "description": "How the approval this item points at stands now, read from the approval at read time: open, approved, changes requested, rejected, expired or withdrawn, with who decided and when. Null when the item does not point at an approval or the recipient can no longer reach it."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "Notification.approvalOutcome may be null in this transport value."
+                  },
                   "read": {
                     "type": "boolean",
                     "description": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks."
@@ -268192,6 +268637,7 @@
                   "taskId",
                   "actor",
                   "destination",
+                  "approvalOutcome",
                   "read",
                   "revision",
                   "createdAt"
@@ -306919,6 +307365,7 @@
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -319283,6 +319730,13 @@
       "additionalProperties": false,
       "description": "Cancels the conversation's active or queued coordinator turn; requires the turn's current If-Match. A queued turn is canceled immediately, while an active turn is marked cancel-requested and interrupts its session, remaining in the active slot until stopped or reconciled."
     },
+    "ConversationTurnRetry": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Retries a failed coordinator turn without posting its message again; requires the failed turn's current If-Match. Returns the new queued turn, which runs the coordinator again as its own job."
+    },
     "SlackEvent": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -329743,7 +330197,7 @@
         "tries"
       ],
       "additionalProperties": false,
-      "description": "Allows a run whose review and repair loop stopped because it ran out of tries to try more, and puts the run back to work (chapter 25, one engine). It answers the stop with the repair decision it buys, which is the response. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
+      "description": "Allows a run that stopped for lack of tries to try more, and puts the run back to work (chapter 25, one engine). Two stops qualify. A review and repair loop that ran out of tries is answered with the repair decision it buys. A repeat that used its allow below its max is answered with a limit decision recorded in the decisions ledger; the repeat then runs on, never past its max, and a request for more rounds than remain is cut at max. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same repair stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
     },
     "BatchCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -360133,6 +360587,7 @@
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -360849,6 +361304,7 @@
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -361565,6 +362021,7 @@
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -408092,6 +408549,7 @@
                   "conversationAccess.revoke",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
+                  "conversationTurns.retry",
                   "notifications.list",
                   "notifications.count",
                   "notifications.get",
@@ -417776,6 +418234,61 @@
       ],
       "additionalProperties": false,
       "description": "One immutable decision the review and repair loop took for a run: proceed, repair or stop, with the reason, the candidate it was taken for, the failed checks and blocking fingerprints it acted on, and the limits it was bound by. A stop ends the run with this record as its durable explanation and never approves a candidate; proceed is not an approval either, because a merge still requires the candidate evidence to be current. Rows are never updated, so updatedAt equals createdAt and version is always 1."
+    },
+    "TriesAllowance": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The run that was put back to work."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "repair_loop",
+            "repeat_limit"
+          ],
+          "description": "Which stop the allowance answered: repair_loop for a review and repair loop that ran out of tries, repeat_limit for a repeat that used its allow below its max."
+        },
+        "addedTries": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "description": "How many more tries or rounds were allowed. For a repeat_limit it can be fewer than asked, because a repeat never goes past its max. TriesAllowance.addedTries must be at least 1. TriesAllowance.addedTries must be at most 8."
+        },
+        "decisionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Id of the decision that records the allowance: the repair delivery decision for repair_loop, the decisions ledger entry for repeat_limit."
+        },
+        "repeatKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Step key of the repeat that was allowed more rounds, or null for repair_loop."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TriesAllowance.repeatKey may be null in this transport value."
+        }
+      },
+      "required": [
+        "runId",
+        "kind",
+        "addedTries",
+        "decisionId",
+        "repeatKey"
+      ],
+      "additionalProperties": false,
+      "description": "The answer to an allowance of more tries: which stop it answered, how many tries it added and the decision that records it."
     },
     "RepairTry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -508999,6 +509512,100 @@
           "additionalProperties": false,
           "description": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target."
         },
+        "approvalOutcome": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "approved",
+                    "changes_requested",
+                    "rejected",
+                    "expired",
+                    "withdrawn"
+                  ],
+                  "description": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn."
+                },
+                "decidedBy": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "principalId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "maxLength": 200,
+                          "description": "The person's current display name, or a neutral stand-in when the account is gone; never an email address. NotificationActor.displayName must contain at most 200 characters."
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 2048,
+                              "description": "Absolute HTTPS URL of the person's avatar, or null to draw initials. NotificationActor.avatarUrl must contain at most 2048 characters."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "NotificationActor.avatarUrl may be null in this transport value."
+                        }
+                      },
+                      "required": [
+                        "principalId",
+                        "displayName",
+                        "avatarUrl"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "NotificationApprovalOutcome.decidedBy may be null in this transport value."
+                },
+                "decidedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "NotificationApprovalOutcome.decidedAt may be null in this transport value."
+                }
+              },
+              "required": [
+                "status",
+                "decidedBy",
+                "decidedAt"
+              ],
+              "additionalProperties": false,
+              "description": "How the approval this item points at stands now, read from the approval at read time: open, approved, changes requested, rejected, expired or withdrawn, with who decided and when. Null when the item does not point at an approval or the recipient can no longer reach it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.approvalOutcome may be null in this transport value."
+        },
         "read": {
           "type": "boolean",
           "description": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks."
@@ -509029,6 +509636,7 @@
         "taskId",
         "actor",
         "destination",
+        "approvalOutcome",
         "read",
         "revision",
         "createdAt"
@@ -509073,6 +509681,92 @@
       ],
       "additionalProperties": false,
       "description": "The person who caused a notification, reduced to the safe identity the directory already exposes: principal, display name and avatar."
+    },
+    "NotificationApprovalOutcome": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "approved",
+            "changes_requested",
+            "rejected",
+            "expired",
+            "withdrawn"
+          ],
+          "description": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn."
+        },
+        "decidedBy": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "description": "The person's current display name, or a neutral stand-in when the account is gone; never an email address. NotificationActor.displayName must contain at most 200 characters."
+                },
+                "avatarUrl": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2048,
+                      "description": "Absolute HTTPS URL of the person's avatar, or null to draw initials. NotificationActor.avatarUrl must contain at most 2048 characters."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "NotificationActor.avatarUrl may be null in this transport value."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName",
+                "avatarUrl"
+              ],
+              "additionalProperties": false,
+              "description": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationApprovalOutcome.decidedBy may be null in this transport value."
+        },
+        "decidedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationApprovalOutcome.decidedAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "status",
+        "decidedBy",
+        "decidedAt"
+      ],
+      "additionalProperties": false,
+      "description": "The current outcome of the approval a notification points at, derived from the approval row when the inbox is read and never stored on the notification."
     },
     "NotificationDestination": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -509300,6 +509994,100 @@
                 "additionalProperties": false,
                 "description": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target."
               },
+              "approvalOutcome": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "approved",
+                          "changes_requested",
+                          "rejected",
+                          "expired",
+                          "withdrawn"
+                        ],
+                        "description": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn."
+                      },
+                      "decidedBy": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "principalId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                              },
+                              "displayName": {
+                                "type": "string",
+                                "maxLength": 200,
+                                "description": "The person's current display name, or a neutral stand-in when the account is gone; never an email address. NotificationActor.displayName must contain at most 200 characters."
+                              },
+                              "avatarUrl": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048,
+                                    "description": "Absolute HTTPS URL of the person's avatar, or null to draw initials. NotificationActor.avatarUrl must contain at most 2048 characters."
+                                  },
+                                  {
+                                    "type": "null",
+                                    "description": "Null indicates that the value is unavailable."
+                                  }
+                                ],
+                                "description": "NotificationActor.avatarUrl may be null in this transport value."
+                              }
+                            },
+                            "required": [
+                              "principalId",
+                              "displayName",
+                              "avatarUrl"
+                            ],
+                            "additionalProperties": false,
+                            "description": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "NotificationApprovalOutcome.decidedBy may be null in this transport value."
+                      },
+                      "decidedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "description": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "NotificationApprovalOutcome.decidedAt may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "decidedBy",
+                      "decidedAt"
+                    ],
+                    "additionalProperties": false,
+                    "description": "How the approval this item points at stands now, read from the approval at read time: open, approved, changes requested, rejected, expired or withdrawn, with who decided and when. Null when the item does not point at an approval or the recipient can no longer reach it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.approvalOutcome may be null in this transport value."
+              },
               "read": {
                 "type": "boolean",
                 "description": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks."
@@ -509330,6 +510118,7 @@
               "taskId",
               "actor",
               "destination",
+              "approvalOutcome",
               "read",
               "revision",
               "createdAt"

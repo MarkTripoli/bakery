@@ -6771,6 +6771,13 @@
       ],
       "description": "Cancels the conversation's active or queued coordinator turn; requires the turn's current If-Match. A queued turn is canceled immediately, while an active turn is marked cancel-requested and interrupts its session, remaining in the active slot until stopped or reconciled."
     },
+    "ConversationTurnRetry": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match required. Only a failed turn whose trigger message is still the conversation's latest message may be retried. The retry admits a new queued turn for the same trigger message, linked to the failed turn, and posts no message. Refusals: STATE_CONFLICT with reason turn_not_failed, newer_message, turn_already_retried or conversation_queue_full."
+      ],
+      "description": "Retries a failed coordinator turn without posting its message again; requires the failed turn's current If-Match. Returns the new queued turn, which runs the coordinator again as its own job."
+    },
     "SlackEvent": {
       "fields": [
         {
@@ -13313,7 +13320,7 @@
           "description": "How many more repair tries to allow. The total a run may use never goes past 8, the most any workflow can hold, so a request that would pass it is refused and nothing changes."
         }
       ],
-      "description": "Allows a run whose review and repair loop stopped because it ran out of tries to try more, and puts the run back to work (chapter 25, one engine). It answers the stop with the repair decision it buys, which is the response. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
+      "description": "Allows a run that stopped for lack of tries to try more, and puts the run back to work (chapter 25, one engine). Two stops qualify. A review and repair loop that ran out of tries is answered with the repair decision it buys. A repeat that used its allow below its max is answered with a limit decision recorded in the decisions ledger; the repeat then runs on, never past its max, and a request for more rounds than remain is cut at max. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same repair stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
     },
     "BatchCreate": {
       "fields": [
@@ -22967,6 +22974,39 @@
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable.",
         "version": "Always 1 because delivery decision rows are immutable."
+      }
+    },
+    "TriesAllowance": {
+      "fields": [
+        "runId",
+        "kind",
+        "addedTries",
+        "decisionId",
+        "repeatKey"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "kind": "enum(repair_loop|repeat_limit)",
+        "addedTries": "integer",
+        "decisionId": "uuid",
+        "repeatKey": "string|null"
+      },
+      "fieldBounds": {
+        "addedTries": {
+          "min": 1,
+          "max": 8
+        }
+      },
+      "nullableFields": [
+        "repeatKey"
+      ],
+      "description": "The answer to an allowance of more tries: which stop it answered, how many tries it added and the decision that records it.",
+      "fieldDescriptions": {
+        "runId": "The run that was put back to work.",
+        "kind": "Which stop the allowance answered: repair_loop for a review and repair loop that ran out of tries, repeat_limit for a repeat that used its allow below its max.",
+        "addedTries": "How many more tries or rounds were allowed. For a repeat_limit it can be fewer than asked, because a repeat never goes past its max.",
+        "decisionId": "Id of the decision that records the allowance: the repair delivery decision for repair_loop, the decisions ledger entry for repeat_limit.",
+        "repeatKey": "Step key of the repeat that was allowed more rounds, or null for repair_loop."
       }
     },
     "RepairTry": {
@@ -33389,6 +33429,7 @@
         "taskId",
         "actor",
         "destination",
+        "approvalOutcome",
         "read",
         "revision",
         "createdAt"
@@ -33406,6 +33447,7 @@
         "taskId": "uuid|null",
         "actor": "NotificationActor|null",
         "destination": "NotificationDestination",
+        "approvalOutcome": "NotificationApprovalOutcome|null",
         "read": "boolean",
         "revision": "integer",
         "createdAt": "timestamp"
@@ -33415,7 +33457,8 @@
         "conversationId",
         "runId",
         "taskId",
-        "actor"
+        "actor",
+        "approvalOutcome"
       ],
       "fieldDescriptions": {
         "id": "Stable UUID identifying this notification; it addresses the item inside the recipient's own inbox and never grants access to the destination.",
@@ -33430,6 +33473,7 @@
         "taskId": "UUID of the task the destination lives in, or null.",
         "actor": "Who caused the event, for an avatar and a name in the sentence; null when no person caused it, such as a run that failed on its own.",
         "destination": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target.",
+        "approvalOutcome": "How the approval this item points at stands now, read from the approval at read time: open, approved, changes requested, rejected, expired or withdrawn, with who decided and when. Null when the item does not point at an approval or the recipient can no longer reach it.",
         "read": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks.",
         "revision": "Monotonic revision of this item's read state; clients discard an older response or event than the revision they already hold.",
         "createdAt": "UTC timestamp when the item entered the inbox, which is also its place in the newest-first order."
@@ -33469,6 +33513,28 @@
         "avatarUrl": "Absolute HTTPS URL of the person's avatar, or null to draw initials."
       },
       "description": "The person who caused a notification, reduced to the safe identity the directory already exposes: principal, display name and avatar."
+    },
+    "NotificationApprovalOutcome": {
+      "fields": [
+        "status",
+        "decidedBy",
+        "decidedAt"
+      ],
+      "fieldTypes": {
+        "status": "enum(open|approved|changes_requested|rejected|expired|withdrawn)",
+        "decidedBy": "NotificationActor|null",
+        "decidedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "decidedBy",
+        "decidedAt"
+      ],
+      "fieldDescriptions": {
+        "status": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn.",
+        "decidedBy": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it.",
+        "decidedAt": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+      },
+      "description": "The current outcome of the approval a notification points at, derived from the approval row when the inbox is read and never stored on the notification."
     },
     "NotificationDestination": {
       "fields": [
