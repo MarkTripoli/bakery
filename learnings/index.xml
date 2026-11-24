@@ -167,4 +167,5 @@
   <entry file="never-dead-end-the-user.xml" scope="project" />
   <entry file="busy-screens-say-each-thing-once.xml" scope="process" />
   <entry file="references-are-links.xml" scope="process" />
+  <entry file="test-lane-umask-and-reset-confirmation.xml" scope="project" />
 </learnings>

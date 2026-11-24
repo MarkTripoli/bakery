@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="test-lane-umask-and-reset-confirmation" project="bakery">
+  <title>Run the security and integration lanes with umask 0022 and CI's test database reset confirmation</title>
+  <trigger>A security or integration case fails in the repository onboarding fixture with RepositoryInspectionError: source_authority, or fails with DESTRUCTIVE_RESET_REQUIRES_CONFIRMATION from restoreMigratedBaseline, while the same file passes in CI.</trigger>
+  <mistake>Ran pnpm test:security and pnpm test:integration from an interactive shell whose umask was 0002 and without the CI job's database variables. The fixtures create their repository source and lane directories group-writable (0o775 / 0o664), and the onboarding proof refuses any entry whose mode has 0o022 set, so every case died on an onboarding 500 before reaching its assertion. The same run also refused to reset the migrated baseline because BAKERY_TEST_DATABASE_RESET_CONFIRMATION was unset.</mistake>
+  <rule>Run the security, integration and e2e lanes as CI runs them: umask 0022 in the same command, BAKERY_TEST_DATABASE_RESET_CONFIRMATION=RESET_BAKERY_TEST_DATABASE, BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET=1, and a loopback Postgres with the roles apps/desktop/e2e/e2e.sh creates (bakery a superuser with password bakery-ci-bakery, bakery_app with bakery-ci-app, the bakery database owned by bakery, connect granted to bakery_app). Point DATABASE_URL and BAKERY_APP_DATABASE_URL at it. When a lane run was interrupted, drop and recreate that database before the next run: a review-loop fixture then fails with "implement@0 must admit a job" on leftovers from the aborted run, which looks like a product bug and is not one.</rule>
+  <verification>
+    <command>umask 0022</command>
+    <command>export BAKERY_TEST_DATABASE_RESET_CONFIRMATION=RESET_BAKERY_TEST_DATABASE BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET=1</command>
+    <command>umask 0022 pnpm test:security -- tests/security/implement-independent-review-and-bounded-repair-loops_test.ts</command>
+    <requirement>Every case reports ok, and a failure names an assertion in the case rather than an onboarding 500 or a reset refusal.</requirement>
+  </verification>
+  <boundary>Only an ephemeral loopback container, never a shared or owned database: the reset drops the whole test database. A 500 from onboarding-runs hides the reason; install a problem error reporter in a throwaway probe or read apps/server/src/modules/projects/repository-inspect.ts before attributing it to the change under test.</boundary>
+</learning>
