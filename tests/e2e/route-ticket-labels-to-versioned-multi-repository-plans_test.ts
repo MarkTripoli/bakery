@@ -76,7 +76,10 @@ Deno.test(
         admin,
         "POST",
         "/v1/ticket-sources",
-        sourceBody(authority, defaultTicketSourcePolicy()),
+        sourceBody(authority, {
+          ...defaultTicketSourcePolicy(),
+          preset: "fixed-coding",
+        }),
       );
       assertEquals(created.status, 201, await created.clone().text());
       const source = await created.json() as { id: string; version: number };

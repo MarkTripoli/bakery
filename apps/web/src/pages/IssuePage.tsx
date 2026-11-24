@@ -225,6 +225,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
     item.id === row?.ticketSourceId
   );
   const policyRevision = source?.policyRevision ?? null;
+  const sourcePreset = presetOfPolicy(source?.policy);
   const check = useMutation({
     mutationKey: ["ticketReadiness.create"],
     mutationFn: async () => {
@@ -492,12 +493,13 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
                 ? translate("issues.card.startWhenReadyCaption" as never, {
                   dependency: waitingOn,
                 })
+                : sourcePreset === null
+                ? translate("issues.card.workflowNone" as never, {
+                  repository: snapshot.repository,
+                })
                 : translate("issues.card.workflow" as never, {
                   repository: snapshot.repository,
-                  workflow: presetCopy(
-                    translate,
-                    presetOfPolicy(source?.policy),
-                  ).title,
+                  workflow: presetCopy(translate, sourcePreset).title,
                 })}
             </UI.Text>
           </UI.Stack>
@@ -797,7 +799,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
             intent={dialog}
             row={row}
             policyRevision={policyRevision}
-            sourcePreset={presetOfPolicy(source?.policy)}
+            sourcePreset={sourcePreset}
             onClose={() => {
               setDialog(null);
               // Cancel or Escape: back to the button that opened it.
