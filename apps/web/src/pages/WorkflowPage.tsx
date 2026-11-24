@@ -782,6 +782,7 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
               problems={EMPTY_PROBLEMS}
               canManage={false}
               editable={false}
+              readOnlyPage
               onAdd={() => {}}
               onSelect={() => {}}
               onViewAsCode={() => {
