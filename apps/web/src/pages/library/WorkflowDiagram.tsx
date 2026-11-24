@@ -562,7 +562,13 @@ export function WorkflowDiagram(
         summary={limit}
         title={wordFor(node.label)}
       >
-        {innerList(node.children)}
+        {node.children.length === 0
+          ? (
+            <UI.OutlineList>
+              <UI.OutlineRow caption title={noSteps} />
+            </UI.OutlineList>
+          )
+          : innerList(node.children)}
       </UI.OutlineRow>
     );
   };

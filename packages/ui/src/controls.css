@@ -102,7 +102,6 @@ input:not([type="hidden"], [type="radio"], [type="checkbox"]) {
   padding-inline: var(--space-3-5);
 }
 .ui-button:disabled,
-.ui-button[aria-disabled="true"],
 .ui-icon-button:disabled {
   cursor: not-allowed;
   opacity: .55;
@@ -119,8 +118,7 @@ input:not([type="hidden"], [type="radio"], [type="checkbox"]) {
    the three. --color-fg-muted would also clear the floor (7.29:1) but it is the
    token for text that is really pressable, so it made a disabled primary
    out-shout a disabled secondary and read as available. */
-[data-theme="dark"] .ui-button--primary:disabled,
-[data-theme="dark"] .ui-button--primary[aria-disabled="true"] {
+[data-theme="dark"] .ui-button--primary:disabled {
   background: var(--color-surface-subtle);
   border-color: var(--color-border);
   color: var(--color-fg-tertiary);

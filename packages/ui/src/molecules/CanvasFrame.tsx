@@ -49,7 +49,9 @@ export function CanvasFrame(
       data-variant={variant}
       ref={frame}
       style={variant === "page" && height !== undefined
-        ? { blockSize: `${height}px` }
+        ? (loading
+          ? { minBlockSize: `${height}px` }
+          : { blockSize: `${height}px` })
         : undefined}
     >
       {loading ? null : children}

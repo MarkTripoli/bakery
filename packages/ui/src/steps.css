@@ -885,6 +885,7 @@ button.ui-outline__main:focus-visible {
 .ui-canvas-frame__loading[data-over="true"] {
   background: var(--color-canvas);
   inset: 0;
+  overflow: hidden;
   position: absolute;
 }
 .ui-canvas-frame__loading .ui-skeleton {

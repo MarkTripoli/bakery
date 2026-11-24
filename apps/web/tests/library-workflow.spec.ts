@@ -3071,6 +3071,11 @@ for (
       expect(await cardsInside(each.first())).toHaveLength(2);
       await expect(each.nth(1)).toContainText("At most 3 items");
       await expect(each.nth(1)).toContainText("No steps");
+      if (viewport.name === "phone") {
+        await expect(
+          each.nth(1).locator("ul.ui-outline li", { hasText: "No steps" }),
+        ).toHaveCount(1);
+      }
       const repeat = page.locator("[data-group=repeat]");
       await expect(repeat).toHaveCount(1);
       expect(await insideBox(each.nth(2), repeat)).toBe(true);
