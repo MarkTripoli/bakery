@@ -617,7 +617,6 @@ Deno.test("repeat.min runs that many rounds even when until already holds, and a
   const report = noop("report", {
     with: { i: "$step.loop.iterations", o: "$step.loop.outcome" },
   });
-  // A seed that satisfies until: no min runs nothing, min 2 runs two rounds.
   const none = await compiled([
     counter({ seed: { currentCandidate: { n: 5 } } }),
     report,
@@ -633,14 +632,11 @@ Deno.test("repeat.min runs that many rounds even when until already holds, and a
     i: 2,
     o: "completed",
   });
-  // A loop whose until holds only after round 3 is not cut short by a smaller min,
-  // and one whose until holds after round 2 still stops at 2 under min 1.
   const later = await compiled([counter({ min: 1 })]);
   assertEquals(drive(later, bump, {}, nextStepWithLoopBounds).trace, [
     "loop@1.bump",
     "loop@2.bump",
   ]);
-  // min equal to max is a fixed number of rounds.
   const fixed = await compiled([
     counter({ seed: { currentCandidate: { n: 5 } }, min: 3 }),
   ]);
@@ -667,9 +663,7 @@ Deno.test("repeat.allow pauses the run below max for a limit decision, and no al
     allowed: 2,
     max: 5,
   });
-  // The same answer on every call, and nothing after the repeat runs.
   assert(!held.trace.includes("after"));
-  // The host's allowance extends the soft cap, and pauses again below max.
   const more = drive(
     document,
     bump,
@@ -684,7 +678,6 @@ Deno.test("repeat.allow pauses the run below max for a limit decision, and no al
     allowed: 4,
     max: 5,
   });
-  // An allowance past max is cut at max: the loop is exhausted there, not paused.
   const capped = drive(
     document,
     bump,
@@ -700,15 +693,12 @@ Deno.test("repeat.allow pauses the run below max for a limit decision, and no al
     "after",
   ]);
   assertEquals(capped.next, { kind: "finished" });
-  // allow equal to max never pauses: reaching it is exhaustion.
   const atMax = await compiled([never({ allow: 5 })]);
   assertEquals(drive(atMax, bump).next, { kind: "finished" });
-  // A satisfied until ends the loop before the soft cap.
   const satisfied = await compiled([counter({ max: 5, allow: 3 })]);
   assertEquals(drive(satisfied, bump, {}, nextStepWithLoopBounds).next, {
     kind: "finished",
   });
-  // Without allow the host's allowance still goes past the document's max.
   const legacy = await compiled([never({ max: 2 })]);
   assertEquals(
     drive(legacy, bump, { repeatExtra: { loop: 1 } }, nextStepWithLoopBounds)
@@ -762,6 +752,64 @@ Deno.test("a repeat that pauses inside another repeat's body pauses the run, not
     iterations: 1,
     allowed: 1,
     max: 4,
+  });
+});
+
+Deno.test("a repeat that pauses inside a forEach pauses the run, not the item (#419)", async () => {
+  const document = await compiled([
+    {
+      id: "cases",
+      forEach: {
+        items: ["a", "b"],
+        max: 2,
+        as: "case",
+        steps: [{
+          id: "fix",
+          repeat: {
+            max: 3,
+            allow: 1,
+            seed: { currentCandidate: { n: 0 } },
+            until: "$repeat.currentCandidate.n >= 99",
+            steps: [
+              noop("attempt", { with: { n: "$repeat.currentCandidate.n" } }),
+            ],
+            outputs: {
+              currentCandidate: { n: "$step.cases.fix.attempt.next" },
+            },
+          },
+        }],
+      },
+    },
+    noop("after", { needs: ["cases"] }),
+  ]);
+  const run = drive(document, bump, {}, nextStepWithLoopBounds);
+  assertEquals(run.trace, ["cases@1.fix@1.attempt"]);
+  assert(!run.trace.includes("after"));
+  assertEquals(run.next, {
+    kind: "paused",
+    key: "cases@1.fix",
+    iterations: 1,
+    allowed: 1,
+    max: 3,
+  });
+  const allowed = drive(
+    document,
+    bump,
+    { repeatExtra: { "cases@1.fix": 2 } },
+    nextStepWithLoopBounds,
+  );
+  assertEquals(allowed.trace.slice(0, 3), [
+    "cases@1.fix@1.attempt",
+    "cases@1.fix@2.attempt",
+    "cases@1.fix@3.attempt",
+  ]);
+  assertEquals(allowed.trace[3], "cases@2.fix@1.attempt");
+  assertEquals(allowed.next, {
+    kind: "paused",
+    key: "cases@2.fix",
+    iterations: 1,
+    allowed: 1,
+    max: 3,
   });
 });
 

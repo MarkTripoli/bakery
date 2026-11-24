@@ -853,22 +853,22 @@ async function loadRunEndContext(
   return result.rows[0];
 }
 
+export const PLAN_LIMIT_REACHED_CODE = "limit_reached";
+
 /**
  * Ends a plan run as failed for a reason that belongs to no step (the plan
  * cannot be read, or asks for something this engine does not run yet). The run
  * has no reason column, so the stable code goes to the audit log, which an
  * operator can read, next to the run it names.
  */
-/** The stable code of a run that stopped at a repeat's `allow` below its `max`. */
-export const PLAN_LIMIT_REACHED_CODE = "limit_reached";
-
 async function endPlanRunFailed(
   transaction: PgTransactionClient,
   context: RunEndRow,
   owner: EngineOwner | undefined,
   code: string,
+  details?: Readonly<Record<string, string | number>>,
 ): Promise<void> {
-  await finishPlanRunIn(transaction, context, "failed", owner, code);
+  await finishPlanRunIn(transaction, context, "failed", owner, code, details);
 }
 
 /**
@@ -885,6 +885,7 @@ async function finishPlanRunIn(
   outcome: PlanRunOutcome,
   owner: EngineOwner | undefined,
   code?: string,
+  details?: Readonly<Record<string, string | number>>,
 ): Promise<void> {
   if (typeof outcome !== "string" || !Object.hasOwn(RUN_END_STATUS, outcome)) {
     throw new Error("WORKFLOW_PLAN_OUTCOME_INVALID");
@@ -909,7 +910,7 @@ async function finishPlanRunIn(
     requestId: `plan-run:${context.runId}`,
     traceId: originalTraceId(context),
     outcome: "failed",
-    details: { code },
+    details: { code, ...details },
   });
 }
 
@@ -1032,14 +1033,17 @@ async function findNextPlanKeys(
     return undefined;
   }
   if (answer.kind === "paused") {
-    // A repeat used its `allow` below its `max` with its exit condition still
-    // false. The run does not go on past the soft cap; until a limit decision
-    // can be recorded it ends with a stable code that names the limit.
     await endPlanRunFailed(
       transaction,
       context,
       activeOwner,
       PLAN_LIMIT_REACHED_CODE,
+      {
+        repeatKey: answer.key,
+        iterations: answer.iterations,
+        allowed: answer.allowed,
+        max: answer.max,
+      },
     );
     return undefined;
   }

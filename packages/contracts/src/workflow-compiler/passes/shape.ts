@@ -1251,8 +1251,6 @@ function shapeRepeat(
   } else {
     max = body["max"];
   }
-  // `min` and `allow` are bounded by `max` (and `allow` by `min`), so a loop can
-  // always reach its minimum and a soft cap is never past the hard one.
   let min: number | undefined;
   let allow: number | undefined;
   if (Object.hasOwn(body, "min")) {
@@ -1324,7 +1322,6 @@ function shapeRepeat(
     steps,
     currentCandidate,
   };
-  // Absent stays absent, so a definition without them keeps its digest.
   if (min !== undefined) node.min = min;
   if (allow !== undefined) node.allow = allow;
   if (condition) node.if = condition;

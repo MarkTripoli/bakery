@@ -362,8 +362,8 @@ they cannot invoke an action or read a secret.
 - External effects require `effectKey`; the action records pending, confirmed,
   or unknown outcome in `external_effects` and reconciles before retrying.
 
-`repeat.until` is checked before the first iteration and after each completed
-iteration. The repeat maintains `currentCandidate` as its accumulator: the
+`repeat.until` is asked from round `min` on (before the first iteration when
+`min` is absent) and after each completed iteration. The repeat maintains `currentCandidate` as its accumulator: the
 typed `repeat.seed` initializes it, and `repeat.outputs` is validated and
 applied only after every nested step completes successfully. If the seed
 already satisfies `until`, the repeat performs zero iterations and returns the

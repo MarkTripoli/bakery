@@ -143,7 +143,6 @@ Deno.test("AC3: a deployed revision change leaves a run pinned to the old revisi
   const before = await resolveWorkflowRuntime(pin, document);
   const baseline = drive(document, (step) => grow(step), {}, before);
 
-  // After a later deploy: a revision 5 exists that behaves differently from 1
   // (here it just says the run is done at once). The old run is still pinned
   // to 1, so it resolves to 1 and runs exactly as before.
   const stopsImmediately = (): NextStep => ({ kind: "finished" });
@@ -155,7 +154,6 @@ Deno.test("AC3: a deployed revision change leaves a run pinned to the old revisi
   assertEquals(resumed.next, baseline.next);
   assertNotEquals(baseline.trace.length, 0);
 
-  // A run admitted after the deploy and pinned to 5 gets 5's behavior.
   const newer = await resolveWorkflowRuntime(
     { ...pin, interpreterRevision: "5" },
     document,

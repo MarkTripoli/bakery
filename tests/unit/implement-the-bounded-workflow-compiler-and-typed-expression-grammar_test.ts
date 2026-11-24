@@ -1652,7 +1652,6 @@ Deno.test("repeat: seed forms, outputs and max", async () => {
     ],
   ];
   await runCases(seedCases);
-  // min and allow within 1..max, and min <= allow, compile and ride the node.
   const bounded = await accepted(
     workflow([repeatNode({}, { max: 5, min: 2, allow: 3 })]),
   );
@@ -1661,7 +1660,6 @@ Deno.test("repeat: seed forms, outputs and max", async () => {
     allow?: number;
   };
   assertEquals([boundedNode.min, boundedNode.allow], [2, 3]);
-  // A repeat that names neither keeps its document, and its digest, unchanged.
   const plain = await accepted(workflow([repeatNode()]));
   assert(!("min" in (plain.document.steps[0] as object)));
   assert(!("allow" in (plain.document.steps[0] as object)));

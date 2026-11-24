@@ -365,9 +365,7 @@ export type WorkflowRepeatNode = {
   needs: string[];
   if?: WorkflowExpressionNode | undefined;
   max: number;
-  /** Rounds that run even when `until` already holds; absent means none. */
   min?: number | undefined;
-  /** Rounds allowed before the run pauses below `max`; absent means `max`. */
   allow?: number | undefined;
   seed: WorkflowRepeatSeed;
   until: WorkflowExpressionNode;
@@ -567,7 +565,7 @@ const repeatNodeSchema = z.object({
   ),
   seed: repeatSeedSchema,
   until: z.lazy(() => WorkflowExpressionNodeSchema).describe(
-    "Boolean exit condition checked before the first and after every iteration.",
+    "Boolean exit condition, asked from round min on (before the first round when min is absent) and after every iteration.",
   ),
   steps: stepsSchema(),
   currentCandidate: z.lazy(() => WorkflowValueNodeSchema).describe(

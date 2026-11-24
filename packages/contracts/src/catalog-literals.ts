@@ -1836,6 +1836,7 @@ export type ContractOutputName =
   | "TicketTaskLink"
   | "ToolGatewayCall"
   | "TranscriptStatus"
+  | "TriesAllowance"
   | "UncertainActionKind"
   | "UsageSummary"
   | "UserPreferences"

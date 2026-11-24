@@ -16,16 +16,6 @@ export type InterpreterRevision = (
   state: RunState,
 ) => NextStep;
 
-/**
- * Every interpreter revision a deployed server can still run. A run records the
- * revision it was admitted under and resumes on that revision for its whole
- * life, so a revision is never edited once a run can be pinned to it and never
- * removed while a run pinned to it can still resume. A change in behavior is a
- * new entry. Revision 1's behavior is held in place by a conformance test;
- * revision 2 is revision 1 plus parallel groups; revision 3 is revision 2 plus
- * bounded sequential forEach loops; revision 4 is revision 3 plus a repeat's
- * `min` and `allow`.
- */
 export const INTERPRETER_REVISIONS: Readonly<
   Record<string, InterpreterRevision>
 > = Object.freeze({
@@ -35,11 +25,6 @@ export const INTERPRETER_REVISIONS: Readonly<
   "4": nextStepWithLoopBounds,
 });
 
-/**
- * The revision a run admitted now is pinned to: revision 4 (loop bounds), which
- * gives revision 3's answers for a plan whose repeats name no `min` or `allow`.
- * Runs already pinned to an earlier revision resume on it.
- */
 export const CURRENT_INTERPRETER_REVISION = "4";
 
 /**

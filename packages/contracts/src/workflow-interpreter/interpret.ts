@@ -122,11 +122,6 @@ export type NextStep =
     outcome: "failed" | "canceled" | "timed_out";
     key: string | null;
   }>
-  /**
-   * A repeat that declares `allow` used it up below its `max` with its exit
-   * condition still false. Nothing further runs until the host records an
-   * allowance for `key` (`repeatExtra`); more rounds never go past `max`.
-   */
   | Readonly<{
     kind: "paused";
     key: string;
@@ -180,7 +175,6 @@ type Walk =
     outcome: "failed" | "canceled" | "timed_out";
     key: string;
   }>
-  /** A repeat used its `allow` below its `max`; the run waits for a limit decision. */
   | Readonly<{
     t: "pause";
     key: string;
@@ -224,7 +218,6 @@ class Run {
     private readonly groups: boolean = false,
     /** Revision 3: forEach loops run. Revisions 1 and 2 refuse them by name. */
     private readonly loops: boolean = false,
-    /** Revision 4: a repeat's `min` and `allow` are honored. Earlier ones ignore them. */
     private readonly loopBounds: boolean = false,
   ) {}
 
@@ -643,8 +636,6 @@ class Run {
         laneStatus.set(lane.id, "failed");
         halts.set(lane.id, walk);
       } else if (walk.t === "pause") {
-        // Not failed and not done: the lane waits on a decision, and so do the
-        // lanes that need it.
         laneStatus.set(lane.id, "waiting");
         pauses.push(walk);
       } else if (walk.t === "done") {
@@ -734,7 +725,6 @@ class Run {
         frames: [...scope.frames, { node, iteration: iterations, candidate }],
         each: scope.each,
       };
-      // `until` is not asked before round `min`: those rounds run regardless.
       if (
         iterations >= (this.loopBounds ? node.min ?? 0 : 0) &&
         evaluateCondition(node.until, this.reader(checking))
@@ -743,8 +733,6 @@ class Run {
         break;
       }
       const extra = this.state.repeatExtra?.[key] ?? 0;
-      // A repeat with an `allow` is held to its `max` however much the host
-      // adds; one without keeps the document's bound plus the host's allowance.
       const soft = this.loopBounds ? node.allow : undefined;
       const allowed = soft === undefined
         ? node.max + extra
@@ -814,7 +802,10 @@ class Run {
         each: [...scope.each, { node, iteration: number, item: list[at]! }],
       };
       const walk = this.walkList(node.steps, body);
-      if (walk.t === "pending" || walk.t === "pending_many") return walk;
+      if (
+        walk.t === "pending" || walk.t === "pending_many" ||
+        walk.t === "pause"
+      ) return walk;
       if (walk.t === "halt") {
         outcome = walk.outcome;
         break;
@@ -884,13 +875,6 @@ export function nextStepWithLoops(
   return cloneJson(new Run(document, state, true, true).next()) as NextStep;
 }
 
-/**
- * Interpreter revision 4: revision 3 plus a repeat's `min` (rounds that run
- * even when `until` already holds) and `allow` (a soft cap below `max` at
- * which the run pauses for a limit decision, never past `max`). A plan whose
- * repeats name neither gets revision 3's answers, and earlier revisions ignore
- * both fields, so no pinned run changes.
- */
 export function nextStepWithLoopBounds(
   document: WorkflowSemanticDocument,
   state: RunState,
