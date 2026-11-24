@@ -49,7 +49,7 @@ async function open() {
     "human.approval",
   );
   const ask = (intent: string, questionId: string) =>
-    api(fixture, fixture.cookie, "POST", `/v1/runs/${run.runId}/requests`, {
+    api(fixture, approver.cookie, "POST", `/v1/runs/${run.runId}/requests`, {
       recipientId: guest.principalId,
       intent,
       questionId,
@@ -344,6 +344,112 @@ Deno.test("a developer outside the named audience still cannot read or decide a 
     } finally {
       await cleanupAuthFixture(o.fixture.pgDatabase, [outsider.email]);
     }
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a person hands on only a decision they could make themselves, never one they were handed", async () => {
+  const o = await open();
+  const bystander = await addMember(o.fixture, "Bystander", "developer");
+  try {
+    const askAs = (
+      cookie: string,
+      recipientId: string,
+      intent: string,
+      questionId: string,
+    ) =>
+      api(o.fixture, cookie, "POST", `/v1/runs/${o.run.runId}/requests`, {
+        recipientId,
+        intent,
+        questionId,
+      });
+    const refused = async (response: Response) => {
+      const text = await response.text();
+      assertEquals(response.status, 403, text);
+      assertEquals(
+        (JSON.parse(text) as { code: string }).code,
+        "AUTH_FORBIDDEN",
+      );
+    };
+    const fyi = await api(
+      o.fixture,
+      bystander.cookie,
+      "POST",
+      `/v1/runs/${o.run.runId}/requests`,
+      { recipientId: o.approver.principalId, intent: "fyi" },
+    );
+    assertEquals(fyi.status, 201, await fyi.text());
+    await refused(
+      await askAs(bystander.cookie, o.guest.principalId, "approve", o.approval),
+    );
+    await refused(
+      await askAs(bystander.cookie, o.guest.principalId, "answer", o.question),
+    );
+    await refused(
+      await askAs(o.fixture.cookie, o.guest.principalId, "approve", o.approval),
+    );
+    const handed = await askAs(
+      o.approver.cookie,
+      bystander.principalId,
+      "approve",
+      o.approval,
+    );
+    assertEquals(handed.status, 201, await handed.text());
+    assertEquals(
+      (await o.get(bystander.cookie, `/v1/approvals/${o.approval}`)).status,
+      200,
+    );
+    await refused(
+      await askAs(bystander.cookie, o.guest.principalId, "approve", o.approval),
+    );
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
+      404,
+    );
+    const guestRows = await o.fixture.pgDatabase.query(
+      `select 1 from bakery.run_power_grants
+        where organization_id = $1 and principal_id = $2
+       union all
+       select 1 from bakery.person_requests
+        where organization_id = $1 and recipient_id = $2`,
+      [o.fixture.organizationId, o.guest.principalId],
+    );
+    assertEquals(guestRows.rows.length, 0);
+  } finally {
+    await cleanupAuthFixture(o.fixture.pgDatabase, [bystander.email]);
+    await o.finish();
+  }
+});
+
+Deno.test("an expired request can be asked again, and the new power works", async () => {
+  const o = await open();
+  try {
+    const first = await o.ask("approve", o.approval);
+    assertEquals(first.status, 201, await first.clone().text());
+    const { id: firstId } = await first.json() as { id: string };
+    await o.fixture.pgDatabase.query(
+      `update bakery.person_requests set expires_at = now() - interval '1 minute'
+        where organization_id = $1 and id = $2`,
+      [o.fixture.organizationId, firstId],
+    );
+    await o.fixture.pgDatabase.query(
+      `update bakery.run_power_grants set expires_at = now() - interval '1 minute'
+        where organization_id = $1 and source_request_id = $2`,
+      [o.fixture.organizationId, firstId],
+    );
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
+      404,
+    );
+    const again = await o.ask("approve", o.approval);
+    assertEquals(again.status, 201, await again.clone().text());
+    assertNotEquals((await again.json() as { id: string }).id, firstId);
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
+      200,
+    );
+    assertEquals((await o.decide(o.guest.cookie, o.approval)).status, 200);
   } finally {
     await o.finish();
   }

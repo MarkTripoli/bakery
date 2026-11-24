@@ -33508,10 +33508,10 @@ export const clientManifest = {
             "answer",
             "take_over"
           ],
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer name the questionId they concern, review names the artifactVersionId, and take_over names the stepKey; each gives the person asked the right to do that one thing, until the request expires."
         },
         "stepKey": {
-          "description": "The step the request concerns, or omitted for the run as a whole. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
+          "description": "The step the request concerns, or omitted for the run as a whole. Required for take_over, which gives the right to steer and take over that one step. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 200
@@ -33533,6 +33533,12 @@ export const clientManifest = {
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
+        "artifactVersionId": {
+          "description": "The artifact version of this run the request asks someone to review. Required for review and refused for the other intents. The person asked is given the right to comment on that one version, until the request expires.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
         "recipientRoleKey": {
           "description": "A role to ask instead of one person: admin, developer or a custom role's key. Every active member holding the role, other than the asker, is asked, each with their own request; the members are resolved when the request is made and frozen, so a later change to the role never changes who was asked. An agent may ask only a role its live ask grant names. RunRequestCreate.recipientRoleKey must contain at least 1 characters. RunRequestCreate.recipientRoleKey must contain at most 80 characters.",
           "type": "string",
@@ -33550,7 +33556,7 @@ export const clientManifest = {
         "intent"
       ],
       "additionalProperties": false,
-      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."
+      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve, answer, review and take_over, to do that one thing until the request ends."
     },
     "StorageFileContentQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -114462,6 +114468,21 @@ export const clientManifest = {
               "description": "Null indicates that the value is unavailable."
             }
           ]
+        },
+        "artifactVersionId": {
+          "description": "RunRequest.artifactVersionId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The artifact version the request asks someone to review, or null when it asks for none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -114738,6 +114759,21 @@ export const clientManifest = {
                     ],
                     "additionalProperties": false,
                     "description": "The role or group this request was asked of, or null when one person was asked."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "artifactVersionId": {
+                "description": "RunRequest.artifactVersionId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The artifact version the request asks someone to review, or null when it asks for none."
                   },
                   {
                     "type": "null",
