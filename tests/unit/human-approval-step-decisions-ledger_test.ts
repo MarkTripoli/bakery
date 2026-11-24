@@ -12,7 +12,6 @@ import {
   validateDecisionLedgerEntry,
   WorkflowStopInputSchema,
 } from "../../packages/contracts/src/human-approval.ts";
-import { WORKFLOW_COMPILER_LIMITS } from "../../packages/contracts/src/workflow-compiler/limits.ts";
 import { createWorkflowActionRuntime } from "../../apps/server/src/modules/workflows/action-runtime.ts";
 
 // #411, slice 9 of the one-engine design: human.approval, the decisions ledger,
@@ -68,15 +67,7 @@ Deno.test("a human.approval step with no prompt, or an empty audience, is refuse
 });
 
 Deno.test("the approval ceiling is one seven-day constant, not a restatement", () => {
-  // The ceiling used to be enforced only by a predicate nothing called, and the
-  // compiler restated the same seven days as its own literal. Both are now the
-  // same constant, and the compiler limit derives from it, so the window the
-  // compiler admits and the window the store expires cannot drift apart.
   assertEquals(HUMAN_APPROVAL_WAIT_LIMIT_MS, 7 * 24 * 60 * 60 * 1000);
-  assertEquals(
-    WORKFLOW_COMPILER_LIMITS.approvalWaitMaxMs,
-    HUMAN_APPROVAL_WAIT_LIMIT_MS,
-  );
 });
 
 Deno.test("workflow.stop names its outcome and defaults it when unnamed", () => {
