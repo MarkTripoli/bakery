@@ -13,6 +13,7 @@ import {
   nextStep,
   nextStepWithGroups,
   nextStepWithLoopBounds,
+  nextStepWithLoops,
   readFields,
   type StepRecord,
   WorkflowInterpreterError,
@@ -22,6 +23,7 @@ import {
   completed,
   type Dispatch,
   drive,
+  driveMany,
   noop,
   REPO_ID,
   stateOf,
@@ -813,7 +815,48 @@ Deno.test("a repeat that pauses inside a forEach pauses the run, not the item (#
   });
 });
 
-Deno.test("revisions 1 and 2 ignore a repeat's min and allow, so no pinned run changes (#419)", async () => {
+Deno.test("a repeat that pauses inside a parallel lane pauses the run, not the lane (#419)", async () => {
+  const document = await compiled([{
+    id: "fan",
+    parallel: {
+      maxConcurrency: 2,
+      join: "all-required",
+      failurePolicy: "stop-dependent",
+      branches: [
+        {
+          id: "la",
+          repository: "repo_la",
+          steps: [{
+            id: "fix",
+            repeat: {
+              max: 3,
+              allow: 1,
+              seed: { currentCandidate: { n: 0 } },
+              until: "$repeat.currentCandidate.n >= 99",
+              steps: [
+                noop("attempt", { with: { n: "$repeat.currentCandidate.n" } }),
+              ],
+              outputs: {
+                currentCandidate: { n: "$step.fan.la.fix.attempt.next" },
+              },
+            },
+          }],
+        },
+        { id: "lb", repository: "repo_lb", steps: [noop("other")] },
+      ],
+    },
+  }, noop("after", { needs: ["fan"] })]);
+  const run = driveMany(
+    document,
+    () => completed({ next: 1, n: 1 }),
+    {},
+    { interpreter: nextStepWithLoopBounds },
+  );
+  assert(!run.trace.includes("after"));
+  assertEquals(run.next.kind, "paused");
+});
+
+Deno.test("revisions 1 to 3 ignore a repeat's min and allow, so no pinned run changes (#419)", async () => {
   const document = await compiled([
     counter({
       seed: { currentCandidate: { n: 5 } },
@@ -822,8 +865,14 @@ Deno.test("revisions 1 and 2 ignore a repeat's min and allow, so no pinned run c
       allow: 2,
     }),
   ]);
-  for (const earlier of [nextStep, nextStepWithGroups]) {
+  for (const earlier of [nextStep, nextStepWithGroups, nextStepWithLoops]) {
     assertEquals(drive(document, bump, {}, earlier).trace, []);
+  }
+  const never = await compiled([
+    counter({ until: "$repeat.currentCandidate.n >= 99", max: 5, allow: 2 }),
+  ]);
+  for (const earlier of [nextStep, nextStepWithGroups, nextStepWithLoops]) {
+    assertEquals(drive(never, bump, {}, earlier).trace.length, 5);
   }
   assertEquals(
     drive(document, bump, {}, nextStepWithLoopBounds).trace,
