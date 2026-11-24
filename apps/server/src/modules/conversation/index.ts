@@ -14,6 +14,7 @@ import {
   createConversationsListHandler,
   getConversation,
   getConversationTurn,
+  retryConversationTurn,
   updateConversation,
 } from "./conversations.ts";
 import { createConversationQueryHandlers } from "./queries.ts";
@@ -80,6 +81,7 @@ export function createConversationRegistry(options: {
       questionsAnswer: answerQuestion,
       turnsGet: getConversationTurn,
       turnsCancel: cancelConversationTurn,
+      turnsRetry: retryConversationTurn,
       mentionCandidates: createConversationMentionCandidatesHandler(
         options.cursorSecret,
       ),
