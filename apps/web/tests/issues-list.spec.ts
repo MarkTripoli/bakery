@@ -9,6 +9,7 @@ import {
 } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -123,6 +124,50 @@ for (
       await expect(row(page, 190)).toContainText("Closed on GitHub.");
       expect(seen.lists.some((query) => query.includes("state=closed")))
         .toBe(true);
+    });
+
+    test("work under way whose task has an open question reads Needs an answer, and stays under In progress", async ({ page }) => {
+      await issuesFixture(page, {
+        open: [
+          OPEN[0]!,
+          {
+            ...OPEN[3]!,
+            title: "Fix rounding on order totals",
+            openQuestions: 2,
+          },
+          {
+            number: 206,
+            title: "Tidy the invoice footer",
+            verdict: "ready",
+            checks: ready,
+            request: { disposition: "active" },
+          },
+        ],
+      });
+      await page.goto("/issues");
+      await chooseFilter(page, "In progress");
+      // The question's badge replaces In progress; an issue with no question keeps it.
+      await expect(row(page, 204)).toContainText("Needs an answer");
+      await expect(row(page, 204)).not.toContainText("In progress");
+      // The line under its title says why, not that Bakery is working on it.
+      await expect(row(page, 204)).toContainText(
+        "acme/web · Work is paused until someone answers.",
+      );
+      await expect(row(page, 204)).not.toContainText(
+        "Bakery is working on this.",
+      );
+      await expect(row(page, 206)).toContainText(
+        "acme/web · Bakery is working on this.",
+      );
+      await expect(row(page, 206)).toContainText("In progress");
+      await expect(row(page, 206)).not.toContainText("Needs an answer");
+      await expect(row(page, 201)).toHaveCount(0);
+      // The row's accessible name carries the same word.
+      await expect(
+        row(page, 204).getByRole("link", { name: /Needs an answer/ }),
+      ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "issues-list-needs-answer");
     });
 
     test("nothing ready says why and offers All open", async ({ page }) => {

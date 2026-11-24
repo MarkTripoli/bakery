@@ -159,6 +159,7 @@ export async function openAuthFixture(options: {
   /** Skill storage verification probe; tests inject one so none reaches R2. */
   skillStorageProbe?: Parameters<typeof createApp>[0]["skillStorageProbe"];
   emailSend?: Parameters<typeof createApp>[0]["emailSend"];
+  mcpToolTransport?: Parameters<typeof createApp>[0]["mcpToolTransport"];
   /** Backup destination test; tests inject one so none reaches a real bucket. */
   backupDestinationProbe?: Parameters<
     typeof createApp
@@ -293,6 +294,7 @@ export async function openAuthFixture(options: {
       backupDestinationProbe: options.backupDestinationProbe,
       backupDestinationResolver: options.backupDestinationResolver,
       emailSend: options.emailSend,
+      mcpToolTransport: options.mcpToolTransport,
       telemetryDestinations: options.telemetryDestinations,
       alertChannels: options.alertChannels,
     });

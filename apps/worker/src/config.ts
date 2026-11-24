@@ -1,5 +1,7 @@
 import { join } from "node:path";
+import { TOOL_GATEWAY_CAPABILITY } from "@bakery/contracts/workflow-action-registry";
 import { GIT_EXECUTABLE } from "./git-executable.ts";
+import { parseStdioAllowlist } from "./stdio-mcp.ts";
 import { DF_EXECUTABLE } from "./machine-checks.ts";
 import { assertAbsolutePath } from "./storage.ts";
 import { WORKER_SPOOL_MIN_BYTES, WORKER_SPOOL_MIN_RECORDS } from "./types.ts";
@@ -95,6 +97,7 @@ export type WorkerConfig = {
   spoolMaxRecords: number;
   spoolMaxBytes: number;
   outputRedactionSecrets?: string[];
+  mcpStdioAllowlist?: string[];
   shutdownReceiptLaunchId?: string;
   /** Test-only directory the scripted harness uses for its start and release files. */
   scriptedHarnessDir?: string;
@@ -462,6 +465,7 @@ export const WORKER_RUNTIME_ENVIRONMENT_NAMES = [
   "BAKERY_WORKER_SPOOL_RECORDS",
   "BAKERY_WORKER_SPOOL_BYTES",
   "BAKERY_WORKER_OUTPUT_REDACTION_SECRETS",
+  "BAKERY_WORKER_MCP_STDIO_ALLOWLIST",
   "BAKERY_WORKER_LAUNCH_ID",
   "BAKERY_WORKER_SCRIPTED_HARNESS_DIR",
   "BAKERY_CLAUDE_AUTH_SOURCE_DIR",
@@ -839,6 +843,14 @@ export function readWorkerConfig(
     env,
     harnessConfiguration.codingHarness,
   );
+  // The Claude harness serves each agent session its bound tools through a
+  // local MCP gateway (#436), so a Claude worker advertises `tool-gateway`:
+  // that is how the server knows this host can run a design step without
+  // `paper` (HOST_CAPABILITY_SUBSTITUTES). The host's enrollment must allow it.
+  if (
+    harnessConfiguration.codingHarness?.name === "claude" &&
+    !capabilities.includes(TOOL_GATEWAY_CAPABILITY)
+  ) capabilities.push(TOOL_GATEWAY_CAPABILITY);
   const coordinatorEffort = env.BAKERY_CLAUDE_COORDINATOR_EFFORT?.trim();
   if (coordinatorEffort && !/^[a-z]{1,20}$/.test(coordinatorEffort)) {
     throw new Error("BAKERY_CLAUDE_COORDINATOR_EFFORT_INVALID");
@@ -896,6 +908,9 @@ export function readWorkerConfig(
     spoolMaxBytes,
     outputRedactionSecrets: parseOutputRedactionSecrets(
       env.BAKERY_WORKER_OUTPUT_REDACTION_SECRETS,
+    ),
+    mcpStdioAllowlist: parseStdioAllowlist(
+      env.BAKERY_WORKER_MCP_STDIO_ALLOWLIST,
     ),
     ...(shutdownReceiptLaunchId ? { shutdownReceiptLaunchId } : {}),
     ...(scriptedHarnessDir ? { scriptedHarnessDir } : {}),

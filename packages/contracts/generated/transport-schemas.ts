@@ -1494,6 +1494,16 @@ const transportSchemas = {
           "description": "Filters to bindings scoped to this workflow step key; only meaningful together with workflowVersionId, since a step-scoped binding always belongs to a workflow version."
         },
         {
+          "name": "seatKey",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Filters to bindings owned by this seat of a workflow version; only meaningful together with workflowVersionId."
+        },
+        {
           "name": "allowedOperations",
           "type": "string[]",
           "required": false,
@@ -1540,8 +1550,14 @@ const transportSchemas = {
         {
           "name": "integrationConnectionId",
           "type": "uuid",
-          "required": true,
-          "description": "Binds this invocation to one configured provider account; the server resolves its external account identity."
+          "required": false,
+          "description": "Integration connection the invocation runs on; exactly one of integrationConnectionId and mcpConnectionId is set."
+        },
+        {
+          "name": "mcpConnectionId",
+          "type": "uuid",
+          "required": false,
+          "description": "MCP server connection whose pinned tool the session calls through its tool gateway; exactly one of integrationConnectionId and mcpConnectionId is set."
         },
         {
           "name": "leaseToken",
@@ -1560,6 +1576,18 @@ const transportSchemas = {
             "min": 0
           },
           "description": "Monotonic fence value bound to the current attempt; the server rejects the invocation once a newer attempt has advanced this job's fence."
+        },
+        {
+          "name": "workerSessionId",
+          "type": "uuid",
+          "required": false,
+          "description": "Worker session that holds the attempt; required for protocol v2 hosts."
+        },
+        {
+          "name": "workerSessionGeneration",
+          "type": "decimalString",
+          "required": false,
+          "description": "Generation of that worker session; required with workerSessionId."
         },
         {
           "name": "toolName",
@@ -1591,7 +1619,7 @@ const transportSchemas = {
           "description": "Milliseconds the server allows the brokered provider call to run before the invocation is failed; defaults to 60000, at most 300000. A timed-out call that may have reached the provider is recorded as an uncertain effect and reconciled, not retried blindly."
         }
       ],
-      "description": "Envelope a worker attempt uses to invoke one brokered integration tool mid-run under its current lease; the server checks the capability grant, repository/run budget caps and provider quota before executing, then reconciles the resulting effect."
+      "description": "Envelope a worker attempt uses to invoke one tool from its session's effective tools mid-run under its current lease; the server checks the lease, the capability binding of the attempt's agent, seat or step, the connection's pin and drift before sending, and records the call."
     },
     "CapabilityBindingCreate": {
       "fields": [
@@ -1639,6 +1667,16 @@ const transportSchemas = {
             "maxLength": 200
           },
           "description": "Identifies the specific workflow step this binding scopes to within its owning workflow version; omit to bind at the whole-workflow level rather than one step."
+        },
+        {
+          "name": "seatKey",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 64
+          },
+          "description": "Seat (the role a step runs as) that owns this binding inside a workflow version; requires workflowVersionId, and every step of that version running as this seat gets the bound tools in its tool gateway."
         },
         {
           "name": "mcpConnectionId",
@@ -2485,7 +2523,7 @@ const transportSchemas = {
           "type": "uuid",
           "required": false,
           "nullable": true,
-          "description": "Reserved for a stdio server's worker host; stdio is not accepted yet, so it must be null."
+          "description": "The worker host a stdio server runs on: required for a stdio server and must be a host of this organization that advertises every capability the server requires; a call to the connection is dispatched only there. Must be null for a streamable_http server."
         },
         {
           "name": "label",
@@ -2523,11 +2561,11 @@ const transportSchemas = {
         }
       ],
       "rules": [
-        "a streamable_http connection sets neither integrationConnectionId nor workerHostId; stdio is not accepted yet",
+        "a streamable_http connection sets neither integrationConnectionId nor workerHostId; a stdio connection names its workerHostId (a placement requirement)",
         "enabledCapabilities starts empty and is changed after discovery",
         "an organization connection is registered by an Admin; a personal one by its owner"
       ],
-      "description": "Registers a connection between the organization, or one member, and a remote MCP server definition. The credential is sent once as a write-only secret and sealed in Postgres."
+      "description": "Registers a connection between the organization, or one member, and an MCP server definition: a remote one, or a local stdio one placed on a named worker host. The credential is sent once as a write-only secret and sealed in Postgres."
     },
     "McpConnectionUpdate": {
       "fields": [
@@ -2615,7 +2653,7 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 32000
           },
-          "description": "Allowlisted, pinned command and arguments used to launch a stdio server's subprocess; required for stdio transport and never built from unvalidated shell interpolation."
+          "description": "Pinned launch of a stdio server's subprocess: an absolute command path, its arguments and the command file's SHA-256 (artifactDigest). Required for stdio and null for streamable_http; never run through a shell, and a command file with another digest is refused."
         },
         {
           "name": "endpointTemplate",
@@ -3428,7 +3466,48 @@ const transportSchemas = {
           "name": "repositoryId",
           "type": "uuid",
           "required": false,
-          "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases."
+          "description": "Restrict results to this repository's evaluation cases."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Filters for listing evaluation cases scoped to a repository."
+    },
+    "DeploymentQuery": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to this repository's deployments."
+        },
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to the deployments of this workflow run, so a run's release can be read without paging the repository."
         },
         {
           "name": "environment",
@@ -3466,7 +3545,7 @@ const transportSchemas = {
       "rules": [
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
-      "description": "Filters for listing pull requests, merge entries, deployments, or evaluation cases scoped to a repository."
+      "description": "Filters for listing deployments: by repository, run and environment, with cursor pagination."
     },
     "PullRequestQuery": {
       "fields": [
@@ -4862,7 +4941,7 @@ const transportSchemas = {
           "bounds": {
             "maxItems": 100
           },
-          "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs."
+          "description": "Capabilities this host currently supports, used to match it against the required capabilities of eligible queued jobs. A substitute capability meets the action capability it stands for: tool-gateway, which a worker running the Claude harness advertises because it serves each session its bound tools through a local MCP gateway, meets paper, so such a host may claim rpi.design; a Pi or Codex host must advertise paper itself."
         },
         {
           "name": "supportedActions",
@@ -7367,6 +7446,35 @@ const transportSchemas = {
       ],
       "description": "Input to the tool.call workflow action: which connection, which pinned tool and version, on which resource, with what arguments. One deterministic call, run by the server for the person who started the run."
     },
+    "SplitInput": {
+      "fields": [
+        {
+          "name": "split",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 262144
+          },
+          "description": "The split to run, a fact of the bakery.split kind: the lanes (each names its repository alias, title, instructions, prerequisites, typed outputs and inputs, and may name what it runs so the engine starts it), the most lanes running at once, and the join and failure policy. An agent's split decision and an author's lanes are this one structure. Validated as a plan before anything is created."
+        },
+        {
+          "name": "budgetLimitUsd",
+          "type": "decimal",
+          "required": false,
+          "bounds": {
+            "min": 0,
+            "max": 200
+          },
+          "description": "Shared ceiling in USD across every child run of the plan; omit for no plan-scoped ceiling."
+        }
+      ],
+      "rules": [
+        "A step with no agent. The organization, the parent task and the acting person come from the run, never from this payload.",
+        "The step creates the plan once, keyed by the run and the step, so a step looked at again finds its own plan instead of creating a second one.",
+        "The step completes only when the plan's projection is completed. A plan that fails, is partially delivered or is canceled fails the step with a fixed code; a plan still running leaves it waiting."
+      ],
+      "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows."
+    },
     "IntegrationEffectQuery": {
       "fields": [
         {
@@ -9221,7 +9329,7 @@ const transportSchemas = {
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -13373,6 +13481,35 @@ const transportSchemas = {
       ],
       "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
     },
+    "ToolGatewayCallSettle": {
+      "fields": [
+        {
+          "name": "status",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "The outcome an Admin records for a gateway call whose result never came back: completed when the tool's effect is confirmed to have happened, failed when it is confirmed not to have happened."
+        },
+        {
+          "name": "failureCode",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Short machine-readable reason recorded with a failed settlement, such as not_applied; refused with completed, and defaults to settled_failed when a failed settlement omits it."
+        }
+      ],
+      "rules": [
+        "only a call still in status sent can be settled",
+        "failureCode is refused when status is completed"
+      ],
+      "description": "An Admin's settlement of one tool gateway call left in status sent because its outcome was unknown, so a replay of its idempotency key answers the recorded outcome instead of staying unresolved; the call is never sent again."
+    },
     "McpUseGrantCreate": {
       "fields": [
         {
@@ -15244,6 +15381,100 @@ const transportSchemas = {
         "Skill author. Idempotency-Key and a strong If-Match with the draft's version are required (428 when missing, 412 when someone else changed the draft). The file keeps its content, type and runnable mark."
       ],
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+    },
+    "DesktopUpdateQuery": {
+      "fields": [
+        {
+          "name": "target",
+          "type": "enum(linux|darwin|windows)",
+          "required": true,
+          "description": "Operating system the desktop app runs on, as the app updater names it."
+        },
+        {
+          "name": "arch",
+          "type": "enum(x86_64|aarch64)",
+          "required": true,
+          "description": "Processor architecture the desktop app was built for."
+        },
+        {
+          "name": "current_version",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 128,
+            "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$"
+          },
+          "description": "Semantic version of the running app; only a strictly newer build is offered."
+        }
+      ],
+      "transport": "query",
+      "description": "The desktop app's own target, architecture and version, sent when it asks the connected server whether a newer signed build exists."
+    },
+    "PackageExport": {
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": "Display name of the package, at most 120 characters, written into the package and shown wherever an import of it is listed."
+        },
+        {
+          "name": "workflowIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Workflow definitions to export, at most 50 across all four lists. Each must have an active published version; that version's definition is what travels, with personal skills replaced by open slots."
+        },
+        {
+          "name": "artifactKindKeys",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Keys of the artifact kinds to export, at most 50 across all four lists. The latest published version of each kind travels."
+        },
+        {
+          "name": "skillIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Organization skills to export, at most 50 across all four lists. Each must have a published active version; its manifest and files travel. A personal or global skill is refused: neither belongs to the organization's library."
+        },
+        {
+          "name": "agentIds",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 50
+          },
+          "description": "Agents to export, at most 50 across all four lists. Each must have an active version. Billing never travels, and every skill an agent binds must be in skillIds."
+        }
+      ],
+      "description": "Names the workflows, artifact kinds, skills and agents to write into one T0 package. A package is validated data only: it never carries grants, credentials, connections, repository bindings, run history or active starts, and at least one item must be named."
+    },
+    "PackageImport": {
+      "fields": [
+        {
+          "name": "package",
+          "type": "json",
+          "required": true,
+          "bounds": {
+            "maxBytes": 5000000
+          },
+          "description": "A BakeryPackage exactly as an export wrote it. Every item digest and the package digest are checked, every workflow slug must be free in this organization, and every definition is validated before anything is written; the import then happens whole or not at all."
+        }
+      ],
+      "configSchema": "package: { formatVersion: 1, name: <=120, items: [{ kind: workflow|artifactKind, key, digest: sha256, data }] 1..50, packageDigest: sha256 }. The strict BakeryPackageSchema in @bakery/contracts/library-packages enforces it; unknown members are refused.",
+      "description": "Imports a T0 package into this organization as ordinary drafts (workflows) and new kind versions (artifact kinds), and records where each came from. Nothing is switched on: starts stay off until someone uses a version."
     }
   },
   "projections": {
@@ -21531,7 +21762,11 @@ const transportSchemas = {
         "version",
         "retentionClass",
         "expiresAt",
-        "purgedAt"
+        "purgedAt",
+        "publicationStatus",
+        "refusedKindVersionId",
+        "refusedRuleType",
+        "refusedReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -21550,14 +21785,21 @@ const transportSchemas = {
         "version": "integer",
         "retentionClass": "enum(transient|evidence)",
         "expiresAt": "timestamp|null",
-        "purgedAt": "timestamp|null"
+        "purgedAt": "timestamp|null",
+        "publicationStatus": "enum(current|staged|refused)",
+        "refusedKindVersionId": "uuid|null",
+        "refusedRuleType": "string|null",
+        "refusedReason": "string|null"
       },
       "nullableFields": [
         "runStepId",
         "subjectHeadSha",
         "subjectBaseSha",
         "expiresAt",
-        "purgedAt"
+        "purgedAt",
+        "refusedKindVersionId",
+        "refusedRuleType",
+        "refusedReason"
       ],
       "description": "Metadata for one immutable artifact version published by a worker through its attempt lease: media type, size, server-computed digest, the run step that produced it, optional subject head/base commit SHAs, and validated metadata. Content bytes are not included.",
       "fieldDescriptions": {
@@ -21577,12 +21819,20 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version used when updating the record.",
         "retentionClass": "Trusted publication retention policy class.",
         "expiresAt": "Eligibility deadline; null only during legacy backfill.",
-        "purgedAt": "Collection timestamp, null while content remains retained."
+        "purgedAt": "Collection timestamp, null while content remains retained.",
+        "publicationStatus": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; shown in the version list but never resolved as latest, and its content, preview and extract are not served. refused: the probe answer failed a require rule, the probe refused the file, or the probe was abandoned; shown in the version list with its refusal fields, and its bytes are never served. Omitted reads as current.",
+        "refusedKindVersionId": "The artifact kind version whose rule refused this version; null unless publicationStatus is refused, and null when the probe refused the file itself.",
+        "refusedRuleType": "The platform rule type that refused this version, such as maxPixels or probedMediaType; null unless refused by a rule, including when the probe refused the file (see refusedReason).",
+        "refusedReason": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
       },
       "optionalFields": [
         "retentionClass",
         "expiresAt",
-        "purgedAt"
+        "purgedAt",
+        "publicationStatus",
+        "refusedKindVersionId",
+        "refusedRuleType",
+        "refusedReason"
       ]
     },
     "ArtifactVersionMetadata": {
@@ -21604,7 +21854,11 @@ const transportSchemas = {
         "version",
         "retentionClass",
         "expiresAt",
-        "purgedAt"
+        "purgedAt",
+        "publicationStatus",
+        "refusedKindVersionId",
+        "refusedRuleType",
+        "refusedReason"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -21623,14 +21877,21 @@ const transportSchemas = {
         "version": "integer",
         "retentionClass": "enum(transient|evidence)",
         "expiresAt": "timestamp|null",
-        "purgedAt": "timestamp|null"
+        "purgedAt": "timestamp|null",
+        "publicationStatus": "enum(current|staged|refused)",
+        "refusedKindVersionId": "uuid|null",
+        "refusedRuleType": "string|null",
+        "refusedReason": "string|null"
       },
       "nullableFields": [
         "runStepId",
         "subjectHeadSha",
         "subjectBaseSha",
         "expiresAt",
-        "purgedAt"
+        "purgedAt",
+        "refusedKindVersionId",
+        "refusedRuleType",
+        "refusedReason"
       ],
       "description": "Metadata for one immutable artifact version returned to the developer after artifactVersions.create or artifactVersions.import: digest, size, media type, and server-verified provenance without content bytes.",
       "fieldDescriptions": {
@@ -21650,12 +21911,20 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version used when updating the record.",
         "retentionClass": "Trusted publication retention policy class.",
         "expiresAt": "Eligibility deadline; null only during legacy backfill.",
-        "purgedAt": "Collection timestamp, null while content remains retained."
+        "purgedAt": "Collection timestamp, null while content remains retained.",
+        "publicationStatus": "Whether this version is the artifact's published content. current: readable as the latest version. staged: written under a kind with a probe-backed rule and waiting for the sandboxed probe; shown in the version list but never resolved as latest, and its content, preview and extract are not served. refused: the probe answer failed a require rule, the probe refused the file, or the probe was abandoned; shown in the version list with its refusal fields, and its bytes are never served. Omitted reads as current.",
+        "refusedKindVersionId": "The artifact kind version whose rule refused this version; null unless publicationStatus is refused, and null when the probe refused the file itself.",
+        "refusedRuleType": "The platform rule type that refused this version, such as maxPixels or probedMediaType; null unless refused by a rule, including when the probe refused the file (see refusedReason).",
+        "refusedReason": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
       },
       "optionalFields": [
         "retentionClass",
         "expiresAt",
-        "purgedAt"
+        "purgedAt",
+        "publicationStatus",
+        "refusedKindVersionId",
+        "refusedRuleType",
+        "refusedReason"
       ]
     },
     "ChannelLink": {
@@ -24669,6 +24938,7 @@ const transportSchemas = {
         "skillVersionOwnerId",
         "automationVersionId",
         "stepKey",
+        "seatKey",
         "mcpConnectionId",
         "integrationConnectionId",
         "skillVersionId",
@@ -24686,6 +24956,7 @@ const transportSchemas = {
         "skillVersionOwnerId": "uuid|null",
         "automationVersionId": "uuid|null",
         "stepKey": "string|null",
+        "seatKey": "string|null",
         "mcpConnectionId": "uuid|null",
         "integrationConnectionId": "uuid|null",
         "skillVersionId": "uuid|null",
@@ -24702,6 +24973,7 @@ const transportSchemas = {
         "skillVersionOwnerId",
         "automationVersionId",
         "stepKey",
+        "seatKey",
         "mcpConnectionId",
         "integrationConnectionId",
         "skillVersionId"
@@ -24715,6 +24987,7 @@ const transportSchemas = {
         "skillVersionOwnerId": "Stable UUID linking this record to the related skill version owner entity.",
         "automationVersionId": "Stable UUID linking this record to the related automation version entity.",
         "stepKey": "Stable key identifying the workflow step within the run.",
+        "seatKey": "Seat (step role) of the owning workflow version that holds this binding; null when the owner is not a seat.",
         "mcpConnectionId": "Stable UUID linking this record to the related mcp connection entity.",
         "integrationConnectionId": "Stable UUID linking this record to the related integration connection entity.",
         "skillVersionId": "Stable UUID linking this record to the related skill version entity.",
@@ -25293,9 +25566,11 @@ const transportSchemas = {
         "commitSha",
         "artifactDigest",
         "previousDeploymentId",
+        "previousCommitSha",
         "status",
         "externalEffectId",
         "healthEvidenceId",
+        "rollbackFailed",
         "createdAt",
         "updatedAt",
         "version"
@@ -25308,17 +25583,24 @@ const transportSchemas = {
         "commitSha": "string",
         "artifactDigest": "string",
         "previousDeploymentId": "uuid|null",
+        "previousCommitSha": "string|null",
         "status": "enum(queued|deploying|verifying|healthy|degraded|failed|unknown|rolling_back|rolled_back)",
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
+        "rollbackFailed": "boolean",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
       },
       "nullableFields": [
         "previousDeploymentId",
+        "previousCommitSha",
         "externalEffectId",
         "healthEvidenceId"
+      ],
+      "optionalFields": [
+        "previousCommitSha",
+        "rollbackFailed"
       ],
       "description": "One attempt to release a specific commit/artifact to a named environment for a repository, tracked from `queued` through `deploying`/`verifying` to `healthy`, `failed`, or a rollback; only one deployment per environment is in flight at a time, and `previousDeploymentId` links a rollback to the release it reverts. Created by POST /v1/deployments; reverted by POST /v1/deployments/{id}/rollbacks.",
       "fieldDescriptions": {
@@ -25329,9 +25611,11 @@ const transportSchemas = {
         "commitSha": "Commit SHA deployed by the record.",
         "artifactDigest": "Digest of the artifact deployed by the record.",
         "previousDeploymentId": "Stable UUID linking this record to the related previous deployment entity.",
+        "previousCommitSha": "Commit SHA of the release this one replaced, the one a rollback restores; null when it replaced nothing.",
         "status": "Current lifecycle status of the record.",
         "externalEffectId": "Stable UUID linking this record to the related external effect entity.",
         "healthEvidenceId": "Stable UUID linking this record to the related health evidence entity.",
+        "rollbackFailed": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
@@ -25824,7 +26108,7 @@ const transportSchemas = {
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -25869,7 +26153,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -35144,6 +35428,46 @@ const transportSchemas = {
         "items": "The connection's grants, newest first."
       }
     },
+    "ToolGatewayCall": {
+      "fields": [
+        "id",
+        "attemptId",
+        "mcpConnectionId",
+        "toolName",
+        "readOnly",
+        "status",
+        "failureCode",
+        "createdAt",
+        "settledAt"
+      ],
+      "nullableFields": [
+        "failureCode",
+        "settledAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "attemptId": "uuid",
+        "mcpConnectionId": "uuid",
+        "toolName": "string",
+        "readOnly": "boolean",
+        "status": "enum(sent|completed|failed|refused)",
+        "failureCode": "string",
+        "createdAt": "timestamp",
+        "settledAt": "timestamp"
+      },
+      "description": "One call an agent session made through its worker's tool gateway, as recorded before it was sent: the audit of the call and the at-most-once record of a write. Its tool result is not returned here.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the recorded call.",
+        "attemptId": "The job attempt whose session made the call.",
+        "mcpConnectionId": "The MCP connection the call was sent to.",
+        "toolName": "The tool's name in the connection's pinned snapshot.",
+        "readOnly": "Whether the tool was classified read, so the call changed nothing outside Bakery.",
+        "status": "sent while the outcome is unknown; completed or failed once known; refused when the provider rejected it before any effect.",
+        "failureCode": "Machine-readable reason of a failed call, or null otherwise.",
+        "createdAt": "UTC timestamp when the call was recorded, before it was sent.",
+        "settledAt": "UTC timestamp when the outcome was recorded, or null while the call is still sent."
+      }
+    },
     "StorageEntry": {
       "fields": [
         "id",
@@ -37959,9 +38283,9 @@ const transportSchemas = {
       "bounds": {
         "filesMaxItems": 256
       },
-      "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version it runs (the version the job names, or the install's current one), fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant.",
+      "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version the job was admitted against, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant.",
       "fieldDescriptions": {
-        "bundleDigest": "SHA-256 of the bundle archive of the plugin version the job runs: the version the job names, or the install's current version when it names none.",
+        "bundleDigest": "SHA-256 of the bundle archive of the plugin version the job was admitted against.",
         "entry": "The path inside the bundle that the job was admitted to run.",
         "files": "Every file of the bundle, at most 256 and 8 MiB in all."
       }
@@ -38300,6 +38624,89 @@ const transportSchemas = {
         "skillId": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill.",
         "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
         "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+      }
+    },
+    "DesktopUpdate": {
+      "fields": [
+        "version",
+        "pub_date",
+        "url",
+        "signature",
+        "notes"
+      ],
+      "fieldTypes": {
+        "version": "string",
+        "pub_date": "timestamp",
+        "url": "uri",
+        "signature": "string",
+        "notes": "string?"
+      },
+      "nullableFields": [],
+      "httpVariants": [
+        {
+          "status": 200,
+          "body": "DesktopUpdate",
+          "description": "A newer signed build is offered for this target and architecture."
+        },
+        {
+          "status": 204,
+          "body": null,
+          "description": "No newer build: the offered build is the same or older, or none is offered for this target and architecture."
+        }
+      ],
+      "description": "Update manifest in the desktop app updater's shape: the newer signed build this server offers for the caller's target and architecture. A 404 means this server offers no app updates.",
+      "fieldDescriptions": {
+        "version": "Semantic version of the offered build.",
+        "pub_date": "RFC 3339 time the build was published.",
+        "url": "HTTPS address the app downloads the build from.",
+        "signature": "Minisign signature text the app checks against its built-in release key before installing.",
+        "notes": "Optional release notes for the offered build."
+      }
+    },
+    "BakeryPackage": {
+      "fields": [
+        "formatVersion",
+        "name",
+        "items",
+        "packageDigest"
+      ],
+      "fieldTypes": {
+        "formatVersion": "integer",
+        "name": "string",
+        "items": "json[]",
+        "packageDigest": "sha256"
+      },
+      "bounds": {
+        "itemsMaxItems": 50
+      },
+      "description": "A T0 package: validated data addressed by digest, free of grants, credentials, connections, repository bindings, run history and active starts.",
+      "fieldDescriptions": {
+        "formatVersion": "The package format version; an importer refuses a version it does not know.",
+        "name": "Display name of the package.",
+        "items": "The exported items, each with its kind, key, digest and data.",
+        "packageDigest": "SHA-256 of the canonical JSON of the item digests, in order."
+      }
+    },
+    "PackageImportResult": {
+      "fields": [
+        "packageDigest",
+        "imported",
+        "openBindings"
+      ],
+      "fieldTypes": {
+        "packageDigest": "sha256",
+        "imported": "json[]",
+        "openBindings": "json[]"
+      },
+      "bounds": {
+        "importedMaxItems": 50,
+        "openBindingsMaxItems": 512
+      },
+      "description": "What an import created: one entry per item naming its kind, key, item digest and the id of what it became, plus the bindings still left to make.",
+      "fieldDescriptions": {
+        "packageDigest": "The digest of the imported package, which the lineage rows record.",
+        "imported": "One entry per imported item, in package order.",
+        "openBindings": "What a person still has to bind by hand: skills and agents a workflow named that the package did not carry, and the billing of each imported agent."
       }
     }
   },
@@ -39056,6 +39463,14 @@ const transportSchemas = {
       },
       "inngestTrigger": "bakery/task.dependency_release_requested.v1",
       "description": "Requests release of the runs blocked on a prerequisite task that ended. Consumers re-read the task and its blocked dependants under their own run locks; a repeat changes nothing."
+    },
+    "coordination.lanes_dispatch_requested": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "planId": "uuid"
+      },
+      "inngestTrigger": "bakery/coordination.lanes_dispatch_requested.v1",
+      "description": "Requests that the engine start the ready lanes of a coordination plan that name what they run, up to the plan's concurrency. Consumers re-read the plan and its lanes under their own locks; a repeat starts nothing that is already started."
     },
     "tasks.created": {
       "schemaVersion": 1,
@@ -39983,7 +40398,7 @@ const transportSchemas = {
       "inputFields": {
         "installId": "uuid",
         "entry": "string",
-        "versionId": "uuid?"
+        "versionId": "uuid"
       },
       "outputFields": {
         "resultJson": "string<=65536"
@@ -39991,7 +40406,7 @@ const transportSchemas = {
       "capabilities": [
         "plugin.job.contained"
       ],
-      "description": "Runs one plugin job's code inside a contained runtime with no network. The code comes from the plugin version the job names in versionId, which must be a published version of the install's own package, or from the install's current version when versionId is omitted; the install's status and grants are always the ones checked. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
+      "description": "Runs one plugin job's code inside a contained runtime with no network. The code comes from the plugin version the job names in versionId, which must be a published version of the install's own package. The version is required: it is the pin the job was admitted against, so an install that moves to a newer version never changes the code an in-flight job fetches, and a job that names no version is refused rather than served the install's current one. The install's status and grants are always the ones checked. The job reaches Bakery only through the server's install-scoped broker, which the server holds; no broker token or credential is given to the worker host."
     }
   },
   "workerEvents": {

@@ -203,6 +203,69 @@ async function continueChoosing() {
 let current = null;
 let copiedTimer = null;
 let lastKey = "";
+let beforeLinkDialog = null;
+let linkDialogKind = null;
+
+/// The dialog a link brought up, drawn over whatever the window shows (design-ux, slice 5, section 3).
+function linkDialogNode(dialog) {
+  const scrim = el("div", "scrim");
+  const node = el("section", "panel panel--dialog");
+  node.setAttribute("role", "dialog");
+  node.setAttribute("aria-modal", "true");
+  node.setAttribute("aria-labelledby", "link-dialog-title");
+  node.dataset.linkDialog = dialog.kind;
+  const title = el("h1", "panel__heading", dialog.title);
+  title.id = "link-dialog-title";
+  node.append(title);
+  for (const paragraph of dialog.text) {
+    node.append(el("p", "panel__text", paragraph));
+  }
+  // The dialog for a page that did not open has no link to show, so no box.
+  if (dialog.shown !== "") {
+    const box = el("div", "detail");
+    if (dialog.box_label) {
+      box.append(el("span", "detail__label", dialog.box_label));
+    }
+    box.append(
+      el("span", "detail__value detail__value--address", dialog.shown),
+    );
+    node.append(box);
+  }
+  const row = el("div", "buttons buttons--dialog");
+  for (const button of dialog.buttons) {
+    const b = el(
+      "button",
+      button.primary ? "btn btn--primary" : "btn",
+      button.label,
+    );
+    b.type = "button";
+    b.dataset.button = button.id;
+    b.addEventListener("click", () => pressLinkDialog(dialog, button, b));
+    row.append(b);
+  }
+  node.append(row);
+  scrim.append(node);
+  return { scrim, node, title };
+}
+
+async function pressLinkDialog(dialog, button, node) {
+  if (button.id === "copy_link") {
+    try {
+      await navigator.clipboard.writeText(dialog.full);
+    } catch {
+      return;
+    }
+    // The dialog stays open; the button says so for two seconds.
+    const label = button.label;
+    node.textContent = "Copied";
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => {
+      node.textContent = label;
+    }, 2000);
+    return;
+  }
+  await tauri.core.invoke("press_button", { button: button.id });
+}
 
 async function press(button) {
   if (button.id === "copy_address") {
@@ -226,7 +289,7 @@ async function press(button) {
     await continueChoosing();
     return;
   }
-  await tauri.core.invoke("press", { button: button.id });
+  await tauri.core.invoke("press_button", { button: button.id });
 }
 
 function panelNode(panel, window) {
@@ -264,6 +327,30 @@ function panelNode(panel, window) {
 
 let rendered = "";
 
+/// Draws the link dialog over what is already on screen. Returns true while one is open, so the
+/// panel behind keeps its place and focus stays in the dialog. Closing it returns focus to where it was.
+function drawLinkDialog(view, _placeholder) {
+  const dialog = view.link_dialog;
+  if (!dialog) {
+    if (linkDialogKind !== null) {
+      linkDialogKind = null;
+      const back = beforeLinkDialog;
+      beforeLinkDialog = null;
+      if (back?.isConnected) back.focus();
+    }
+    return false;
+  }
+  if (linkDialogKind === null) beforeLinkDialog = document.activeElement;
+  const { scrim, node, title } = linkDialogNode(dialog);
+  root.append(scrim);
+  if (linkDialogKind !== dialog.kind) {
+    linkDialogKind = dialog.kind;
+    (node.querySelector(".btn--primary") ?? title).focus();
+    announce.textContent = dialog.title;
+  }
+  return true;
+}
+
 export function render(view, { keepFocus = false } = {}) {
   // The same view again changes nothing on screen: leave it, so focus stays where it is.
   const fingerprint = JSON.stringify(view);
@@ -280,6 +367,7 @@ export function render(view, { keepFocus = false } = {}) {
     const node = el("section", "panel");
     node.append(el("h1", "panel__heading", "You are signed in"));
     root.append(node);
+    drawLinkDialog(view, true);
     return;
   }
   const { node, heading, waiting } = panelNode(view.panel, view.window);
@@ -292,6 +380,7 @@ export function render(view, { keepFocus = false } = {}) {
   } else {
     root.append(node);
   }
+  if (drawLinkDialog(view, false)) return;
   const key = JSON.stringify([view.window, view.dialog]);
   if (!keepFocus && key !== lastKey) {
     lastKey = key;
@@ -321,6 +410,15 @@ function theme() {
 }
 
 document.addEventListener("keydown", (event) => {
+  const dialog = current?.link_dialog;
+  if (dialog) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      const close = dialog.buttons.find((b) => b.id === "close");
+      if (close) pressLinkDialog(dialog, close, document.body);
+    }
+    return;
+  }
   if (!current?.panel) return;
   if (event.key === "Escape") {
     const cancel = current.panel.buttons.find((b) => b.id === "cancel");

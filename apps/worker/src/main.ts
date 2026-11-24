@@ -18,6 +18,11 @@ import { createEvaluationExecutor } from "./evaluation-executor.ts";
 import { createPiHarnessExecutor } from "./pi-harness.ts";
 import { designToolAvailableFrom } from "./harness-rpi.ts";
 import { createClaudeHarnessExecutor } from "./claude-harness.ts";
+import { createToolGatewayFactory } from "./tool-gateway.ts";
+import {
+  discoverLocalMcpServers,
+  LOCAL_MCP_DISCOVERY_INTERVAL_MS,
+} from "./local-mcp-discovery.ts";
 import { createCodexHarnessExecutor } from "./codex-harness.ts";
 import { withSessionCredentialFile } from "./session-credential-file.ts";
 import { createReviewerExecutor } from "./reviewer.ts";
@@ -373,7 +378,22 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         redactionSecrets: config.outputRedactionSecrets,
         authSourceDir: config.claudeAuthSourceDir ?? join(home!, ".claude"),
         readAttemptContext,
-        designToolAvailable: designToolAvailableFrom(config.capabilities),
+        // The design tool is a capability binding (#436): a Paper connection
+        // bound to the step, its seat or its agent reaches the session through
+        // the tool gateway, so the worker's own capability list no longer
+        // decides it for the Claude harness.
+        toolGateway: createToolGatewayFactory(client, async () => {
+          const registration = await registrationStore.load();
+          return registration?.workerSessionId === undefined ||
+              registration.workerSessionGeneration === undefined
+            ? null
+            : {
+              workerSessionId: registration.workerSessionId,
+              workerSessionGeneration: String(
+                registration.workerSessionGeneration,
+              ),
+            };
+        }, { stdioAllowlist: config.mcpStdioAllowlist ?? [] }),
         inner: checkedExecutor,
       })
       : codingHarness?.name === "pi"
@@ -485,6 +505,9 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     };
     Deno.addSignalListener("SIGTERM", drainForSigterm);
     Deno.addSignalListener("SIGINT", drainForSigint);
+    const localDiscovery = codingHarness?.name === "claude"
+      ? startLocalMcpDiscovery(client, config.mcpStdioAllowlist ?? [])
+      : undefined;
     try {
       await supervisor.run();
       if (supervisor.fatalReason) {
@@ -497,6 +520,7 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         }
       }
     } finally {
+      localDiscovery?.stop();
       Deno.removeSignalListener("SIGTERM", drainForSigterm);
       Deno.removeSignalListener("SIGINT", drainForSigint);
     }
@@ -519,6 +543,39 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
       identity: shutdownReceiptIdentity,
     });
   }
+}
+
+function startLocalMcpDiscovery(
+  client: WorkerApiClient,
+  allowlist: readonly string[],
+): { stop(): void } {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const pass = async () => {
+    const outcomes = await discoverLocalMcpServers(client, {
+      allowlist,
+      signal: controller.signal,
+    }).catch(() => []);
+    for (const outcome of outcomes) {
+      if (outcome.failure !== null) {
+        console.error(JSON.stringify({
+          event: "local_mcp_discovery_failed",
+          connectionId: outcome.connectionId,
+          code: outcome.failure,
+        }));
+      }
+    }
+    if (!controller.signal.aborted) {
+      timer = setTimeout(pass, LOCAL_MCP_DISCOVERY_INTERVAL_MS);
+    }
+  };
+  timer = setTimeout(pass, 60_000);
+  return {
+    stop() {
+      controller.abort();
+      clearTimeout(timer);
+    },
+  };
 }
 
 if (import.meta.main) {

@@ -406,6 +406,10 @@ export async function openWorkerFixture(options: {
     : never;
   env?: Record<string, string>;
   telemetry?: ExecutionTelemetry;
+  /** Answers remote MCP tool calls without a network (#436). */
+  mcpToolTransport?: Parameters<typeof openAuthFixture>[0] extends infer O
+    ? O extends { mcpToolTransport?: infer T } ? T : never
+    : never;
 } = {}): Promise<WorkerFixture> {
   let releaseFixture!: () => void;
   const turn = new Promise<void>((resolve) => releaseFixture = resolve);
@@ -683,7 +687,7 @@ export async function workerRequest(
   let requestBody = body;
   const mutationPath = path === "/v1/worker/claims" ||
     path === "/v1/worker/heartbeat" ||
-    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|previews|handoff-manifests|result)$/
+    /^\/v1\/worker\/attempts\/[^/]+\/(events|lease-renewals|previews|handoff-manifests|result|session-tools|session-call|effective-tools|tool-invocations|local-tool-calls|local-tool-calls\/[^/]+\/outcome)$/
       .test(path);
   if (mutationPath) {
     const host = await fixture.pgDatabase.query<{
