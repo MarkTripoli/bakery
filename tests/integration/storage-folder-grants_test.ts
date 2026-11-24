@@ -743,7 +743,7 @@ async function aGrantOnATrashedFolderEndsWhenItIsTrashed(
   assertEquals(audited?.map((g) => g.principalId), [carol.principalId]);
 }
 
-async function aRestoreCannotReviveAGrantThatAReopenedRestrictionNeverReached(
+async function aRestoreIntoAnOpenFolderCannotReviveAGrantWhenAnOwnerRestrictsLater(
   fixture: Fixture,
 ): Promise<void> {
   const admin = fixture.adminCookie;
@@ -756,6 +756,35 @@ async function aRestoreCannotReviveAGrantThatAReopenedRestrictionNeverReached(
   const m = await folder(fixture, admin, "/shared/m-restore");
   await ok(await restrict(fixture, carol.cookie, m, true));
   const k = await entryIn(fixture, carol.cookie, "/shared/m-restore/k");
+  const trashed = await ok(await trash(fixture, carol.cookie, k));
+  await fixture.pgDatabase.query(
+    `insert into bakery.storage_folder_grants
+       (organization_id, folder_id, principal_id, level, granted_by)
+     values ($1, $2, $3, 'manage', $3)`,
+    [fixture.organizationId, k.id, carol.principalId],
+  );
+  assertEquals(await liveGrantsOn(fixture, k.id as string), 1);
+  await ok(await restrict(fixture, carol.cookie, m, false));
+  await ok(await restore(fixture, admin, trashed));
+  assertEquals(await liveGrantsOn(fixture, k.id as string), 0);
+  await ok(await restrict(fixture, admin, m, true));
+  assertEquals(
+    await shape(await listing(fixture, carol.cookie, k.id as string)),
+    [404, "RESOURCE_NOT_FOUND"],
+  );
+}
+
+async function aGrantSurvivesAMoveBetweenTwoRestrictedFolders(
+  fixture: Fixture,
+): Promise<void> {
+  const admin = fixture.adminCookie;
+  const seed = { organizationId: fixture.organizationId } as never;
+  const carol: Member = await addMember(fixture as never, seed, "carol-both");
+  const from = await folder(fixture, admin, "/shared/from-both");
+  const into = await folder(fixture, admin, "/shared/into-both");
+  await ok(await restrict(fixture, carol.cookie, from, true));
+  await ok(await restrict(fixture, admin, into, true));
+  const k = await entryIn(fixture, carol.cookie, "/shared/from-both/k");
   await ok(
     await grant(
       fixture,
@@ -766,22 +795,9 @@ async function aRestoreCannotReviveAGrantThatAReopenedRestrictionNeverReached(
     ),
     201,
   );
-  const trashed = await ok(await trash(fixture, carol.cookie, k));
-  await fixture.pgDatabase.query(
-    `insert into bakery.storage_folder_grants
-       (organization_id, folder_id, principal_id, level, granted_by)
-     values ($1, $2, $3, 'manage', $3)`,
-    [fixture.organizationId, k.id, carol.principalId],
-  );
+  await ok(await move(fixture, admin, k, "/shared/into-both/k"));
   assertEquals(await liveGrantsOn(fixture, k.id as string), 1);
-  await ok(await restrict(fixture, carol.cookie, m, false));
-  await ok(await restrict(fixture, admin, m, true));
-  await ok(await restore(fixture, admin, trashed));
-  assertEquals(await liveGrantsOn(fixture, k.id as string), 0);
-  assertEquals(
-    await shape(await listing(fixture, carol.cookie, k.id as string)),
-    [404, "RESOURCE_NOT_FOUND"],
-  );
+  await ok(await listing(fixture, carol.cookie, k.id as string));
 }
 
 async function aTrashedRestrictedFolderIsHiddenFromTrash(
@@ -856,9 +872,10 @@ Deno.test("folder grants and restricted folders", async () => {
       await aRenameKeepsTheGrantsBecauseNothingAboveTheFolderChanged(fixture);
       await aRestrictedFolderKeepsItsOwnGrantsWhenItMoves(fixture);
       await aGrantOnATrashedFolderEndsWhenItIsTrashed(fixture);
-      await aRestoreCannotReviveAGrantThatAReopenedRestrictionNeverReached(
+      await aRestoreIntoAnOpenFolderCannotReviveAGrantWhenAnOwnerRestrictsLater(
         fixture,
       );
+      await aGrantSurvivesAMoveBetweenTwoRestrictedFolders(fixture);
       await aTrashedRestrictedFolderIsHiddenFromTrash(fixture);
       await aFolderTakesAtMostTwoHundredGrants(fixture);
       await aRestrictedRootIsHiddenFromTheRootsList(fixture);

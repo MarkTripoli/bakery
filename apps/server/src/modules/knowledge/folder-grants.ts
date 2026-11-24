@@ -292,6 +292,8 @@ export async function revokeGrantsNotCoveredWithin(
   revokedBy: string,
   rootId: string,
 ): Promise<RevokedGrant[]> {
+  const chain = await ancestorChain(tx, organizationId, rootId);
+  if (chain.some((node) => node.restricted)) return [];
   const revoked = await tx.query<{
     id: string;
     folder_id: string;
@@ -320,22 +322,6 @@ export async function revokeGrantsNotCoveredWithin(
   }));
 }
 
-async function revokeUncoveredGrants(
-  tx: PgTransactionClient,
-  organizationId: string,
-  revokedBy: string,
-  folderId: string,
-): Promise<RevokedGrant[]> {
-  const chain = await ancestorChain(tx, organizationId, folderId);
-  if (chain.some((node) => node.restricted)) return [];
-  return await revokeGrantsNotCoveredWithin(
-    tx,
-    organizationId,
-    revokedBy,
-    folderId,
-  );
-}
-
 export type FolderRestrictionInput = Readonly<{ restricted: boolean }>;
 
 export async function setFolderRestriction(
@@ -358,9 +344,12 @@ export async function setFolderRestriction(
         where organization_id = $1 and id = $2`,
       [organizationId, folder.id, input.restricted],
     );
-    const revoked = input.restricted
-      ? []
-      : await revokeUncoveredGrants(tx, organizationId, principalId, folder.id);
+    const revoked = input.restricted ? [] : await revokeGrantsNotCoveredWithin(
+      tx,
+      organizationId,
+      principalId,
+      folder.id,
+    );
     if (input.restricted) {
       const held = await tx.query(
         `select 1 from bakery.storage_folder_grants
