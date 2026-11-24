@@ -947,6 +947,28 @@ export const clientManifest = {
     {
       "group": "Work",
       "method": "GET",
+      "path": "/v1/runs/{id}/steps/{stepKey}/given",
+      "action": "runSteps.given",
+      "access": "Developer",
+      "permission": "runStep:read",
+      "input": "IdPath",
+      "output": "StepGiven",
+      "event": "",
+      "mcp": "bakery_runSteps_given",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
+      "method": "GET",
       "path": "/v1/output-streams",
       "action": "output.streams.list",
       "access": "Developer",
@@ -20477,6 +20499,7 @@ export const clientManifest = {
             "handoffManifests.get",
             "handoffManifests.continue",
             "runSteps.list",
+            "runSteps.given",
             "output.streams.list",
             "output.streams.read",
             "runs.controlCapabilities",
@@ -50799,6 +50822,7 @@ export const clientManifest = {
                   "handoffManifests.get",
                   "handoffManifests.continue",
                   "runSteps.list",
+                  "runSteps.given",
                   "output.streams.list",
                   "output.streams.read",
                   "runs.controlCapabilities",
@@ -73766,6 +73790,7 @@ export const clientManifest = {
             "handoffManifests.get",
             "handoffManifests.continue",
             "runSteps.list",
+            "runSteps.given",
             "output.streams.list",
             "output.streams.read",
             "runs.controlCapabilities",
@@ -127089,6 +127114,200 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "StepGiven": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "stepKey": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The workflow step this describes. StepGiven.stepKey must contain at most 200 characters."
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the step started, or null before it has."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StepGiven.startedAt may be null in this transport value."
+        },
+        "ranAnAgent": {
+          "type": "boolean",
+          "description": "Whether an agent session ran for this step."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "memoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The memory entry this fact was sourced from."
+              },
+              "wording": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The exact wording the agent was given for this fact. GivenFact.wording must contain at most 4096 characters."
+              },
+              "recordedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When this fact was recorded, in UTC."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "given",
+                  "corrected_since",
+                  "stopped_since"
+                ],
+                "description": "given while the memory still reads the same; corrected_since when the memory was revised after the step started; stopped_since when the memory was retired."
+              }
+            },
+            "required": [
+              "memoryId",
+              "wording",
+              "recordedAt",
+              "state"
+            ],
+            "additionalProperties": false,
+            "description": "The sourced-memory facts the step was given, each with its state now. Each array item follows this format."
+          },
+          "description": "The sourced-memory facts the step was given, each with its state now."
+        },
+        "factsOmitted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How many facts were left out to stay inside the step bound. StepGiven.factsOmitted must be at least 0."
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "artifactVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The pinned artifact version the step was given."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "hidden",
+                  "gone",
+                  "unchecked"
+                ],
+                "description": "available while the reader may still see it; hidden when access ended; gone when its bytes are purged; unchecked when nothing truthful can be said."
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "The document name when the reader may see it, else null. GivenDocument.name must contain at most 200 characters."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "GivenDocument.name may be null in this transport value."
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80,
+                    "description": "The artifact type when the reader may see it, else null. GivenDocument.kind must contain at most 80 characters."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "GivenDocument.kind may be null in this transport value."
+              },
+              "version": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "The revision number when the reader may see it, else null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "GivenDocument.version may be null in this transport value."
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "The pinned byte size, always shown so a count stays truthful. GivenDocument.sizeBytes must be at least 0."
+              }
+            },
+            "required": [
+              "artifactVersionId",
+              "state",
+              "name",
+              "kind",
+              "version",
+              "sizeBytes"
+            ],
+            "additionalProperties": false,
+            "description": "The documents the step was given that the reader may still see. Each array item follows this format."
+          },
+          "description": "The documents the step was given that the reader may still see."
+        },
+        "documentsHidden": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Documents the reader may no longer see, counted but not named. StepGiven.documentsHidden must be at least 0."
+        },
+        "documentsGone": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Documents whose bytes are purged, counted but not named. StepGiven.documentsGone must be at least 0."
+        },
+        "documentsUnchecked": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Documents nothing truthful can be said about, counted but not named. StepGiven.documentsUnchecked must be at least 0."
+        }
+      },
+      "required": [
+        "stepKey",
+        "startedAt",
+        "ranAnAgent",
+        "facts",
+        "factsOmitted",
+        "documents",
+        "documentsHidden",
+        "documentsGone",
+        "documentsUnchecked"
+      ],
+      "additionalProperties": false,
+      "description": "What a step was given: the sourced-memory facts and pinned documents in use when it started, redacted to the reader."
     }
   }
 } as const;

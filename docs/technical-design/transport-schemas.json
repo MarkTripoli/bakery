@@ -39316,6 +39316,131 @@
         "imported": "One entry per imported item, in package order.",
         "openBindings": "What a person still has to bind by hand: skills and agents a workflow named that the package did not carry, and the billing of each imported agent."
       }
+    },
+    "GivenFact": {
+      "fields": [
+        "memoryId",
+        "wording",
+        "recordedAt",
+        "state"
+      ],
+      "fieldTypes": {
+        "memoryId": "uuid",
+        "wording": "string",
+        "recordedAt": "timestamp",
+        "state": "enum(given|corrected_since|stopped_since)"
+      },
+      "fieldBounds": {
+        "wording": {
+          "maxLength": 4096
+        }
+      },
+      "fieldDescriptions": {
+        "memoryId": "The memory entry this fact was sourced from.",
+        "wording": "The exact wording the agent was given for this fact.",
+        "recordedAt": "When this fact was recorded, in UTC.",
+        "state": "given while the memory still reads the same; corrected_since when the memory was revised after the step started; stopped_since when the memory was retired."
+      },
+      "description": "One fact the step was given, with whether it still reads the same now."
+    },
+    "GivenDocument": {
+      "fields": [
+        "artifactVersionId",
+        "state",
+        "name",
+        "kind",
+        "version",
+        "sizeBytes"
+      ],
+      "fieldTypes": {
+        "artifactVersionId": "uuid",
+        "state": "enum(available|hidden|gone|unchecked)",
+        "name": "string|null",
+        "kind": "string|null",
+        "version": "integer|null",
+        "sizeBytes": "integer"
+      },
+      "nullableFields": [
+        "name",
+        "kind",
+        "version"
+      ],
+      "fieldBounds": {
+        "name": {
+          "maxLength": 200
+        },
+        "kind": {
+          "maxLength": 80
+        },
+        "sizeBytes": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "artifactVersionId": "The pinned artifact version the step was given.",
+        "state": "available while the reader may still see it; hidden when access ended; gone when its bytes are purged; unchecked when nothing truthful can be said.",
+        "name": "The document name when the reader may see it, else null.",
+        "kind": "The artifact type when the reader may see it, else null.",
+        "version": "The revision number when the reader may see it, else null.",
+        "sizeBytes": "The pinned byte size, always shown so a count stays truthful."
+      },
+      "description": "One document the step was given, redacted to the reader."
+    },
+    "StepGiven": {
+      "fields": [
+        "stepKey",
+        "startedAt",
+        "ranAnAgent",
+        "facts",
+        "factsOmitted",
+        "documents",
+        "documentsHidden",
+        "documentsGone",
+        "documentsUnchecked"
+      ],
+      "fieldTypes": {
+        "stepKey": "string",
+        "startedAt": "timestamp|null",
+        "ranAnAgent": "boolean",
+        "facts": "GivenFact[]",
+        "factsOmitted": "integer",
+        "documents": "GivenDocument[]",
+        "documentsHidden": "integer",
+        "documentsGone": "integer",
+        "documentsUnchecked": "integer"
+      },
+      "nullableFields": [
+        "startedAt"
+      ],
+      "fieldBounds": {
+        "stepKey": {
+          "maxLength": 200
+        },
+        "factsOmitted": {
+          "min": 0
+        },
+        "documentsHidden": {
+          "min": 0
+        },
+        "documentsGone": {
+          "min": 0
+        },
+        "documentsUnchecked": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "stepKey": "The workflow step this describes.",
+        "startedAt": "When the step started, or null before it has.",
+        "ranAnAgent": "Whether an agent session ran for this step.",
+        "facts": "The sourced-memory facts the step was given, each with its state now.",
+        "factsOmitted": "How many facts were left out to stay inside the step bound.",
+        "documents": "The documents the step was given that the reader may still see.",
+        "documentsHidden": "Documents the reader may no longer see, counted but not named.",
+        "documentsGone": "Documents whose bytes are purged, counted but not named.",
+        "documentsUnchecked": "Documents nothing truthful can be said about, counted but not named."
+      },
+      "description": "What a step was given: the sourced-memory facts and pinned documents in use when it started, redacted to the reader."
     }
   },
   "pageEnvelope": {
