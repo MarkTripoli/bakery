@@ -3636,7 +3636,6 @@
   "notifications.kind.comment": "⟪{actor} commented⟫",
   "notifications.kind.runCompleted": "⟪Your task finished⟫",
   "notifications.kind.runFailed": "⟪Your task failed⟫",
-  "notifications.kind.stepFailed": "⟪A step failed: {step}⟫",
   "notifications.kind.approvalRequested": "⟪Your approval is needed⟫",
   "notifications.kind.questionAsked": "⟪A question needs your answer⟫",
   "notifications.kind.documentVersion": "إصدار جديد جاهز",
@@ -6693,5 +6692,7 @@
   "notifications.time.minutes": "⟪{count} min ago⟫",
   "notifications.time.hours": "⟪{count} hr ago⟫",
   "notifications.time.yesterday": "⟪Yesterday⟫",
-  "notifications.time.days": "⟪{count, plural, one {# day ago} other {# days ago}}⟫"
+  "notifications.time.days": "⟪{count, plural, one {# day ago} other {# days ago}}⟫",
+  "notifications.unavailable.marked": "⟪Marked read.⟫",
+  "notifications.kind.stepFailed": "⟪A step failed⟫"
 }

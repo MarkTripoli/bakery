@@ -3639,7 +3639,6 @@
   "notifications.kind.comment": "⟦{actor} commented — ŧëšŧ çôþÿ⟧",
   "notifications.kind.runCompleted": "⟦Your task finished — ŧëšŧ çôþÿ⟧",
   "notifications.kind.runFailed": "⟦Your task failed — ŧëšŧ çôþÿ⟧",
-  "notifications.kind.stepFailed": "⟦A step failed: {step} — ŧëšŧ çôþÿ⟧",
   "notifications.kind.approvalRequested": "⟦Your approval is needed — ŧëšŧ çôþÿ⟧",
   "notifications.kind.questionAsked": "⟦A question needs your answer — ŧëšŧ çôþÿ⟧",
   "notifications.kind.documentVersion": "Å nëw vërsïön ïs rëädy",
@@ -6693,5 +6692,7 @@
   "notifications.time.minutes": "⟦{count} ɱïñ àĝô ŧëš⟧",
   "notifications.time.hours": "⟦{count} ĥŕ àĝô ŧë⟧",
   "notifications.time.yesterday": "⟦Ÿëšŧëŕðàÿ ŧ⟧",
-  "notifications.time.days": "⟦{count, plural, one {# day ago} other {# days ago}} ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "notifications.time.days": "⟦{count, plural, one {# day ago} other {# days ago}} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "notifications.unavailable.marked": "⟦Ṁàŕķëð ŕëàð. ŧë⟧",
+  "notifications.kind.stepFailed": "⟦À šŧëþ ƒàïļëð ŧë⟧"
 }

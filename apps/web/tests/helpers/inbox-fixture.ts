@@ -12,6 +12,8 @@ export type InboxOptions = {
   unread?: number;
   failRead?: boolean;
   failList?: boolean;
+  unavailable?: readonly number[];
+  targetGone?: boolean;
 };
 
 const KINDS = [
@@ -61,14 +63,20 @@ export async function inboxFixture(page: Page, options: InboxOptions = {}) {
     kind: KINDS[index % KINDS.length].kind,
     targetKind: KINDS[index % KINDS.length].targetKind,
     targetId: uuid(12),
-    targetAnchor: null,
+    targetAnchor: KINDS[index % KINDS.length].kind === "step_failed"
+      ? `step:${uuid(9000 + index)}`
+      : KINDS[index % KINDS.length].kind === "document_version"
+      ? "version:3"
+      : null,
     conversationId: null,
     runId: null,
     taskId: uuid(12),
     actor: index % KINDS.length === 0
       ? { principalId: uuid(2), displayName: "Dana Teammate", avatarUrl: null }
       : null,
-    destination: { available: true, title: `Task ${index}` },
+    destination: options.unavailable?.includes(index)
+      ? { available: false, title: null }
+      : { available: true, title: `Task ${index}` },
     read: index >= unread,
     revision: 1,
     createdAt: new Date(now - (index * 40 + 5) * 60_000).toISOString(),
@@ -81,6 +89,26 @@ export async function inboxFixture(page: Page, options: InboxOptions = {}) {
       { status: 200, contentType: "application/json", json: body } as never,
     );
 
+  await page.route(
+    /\/v1\/notifications\/[0-9a-f-]{36}\/target$/,
+    (route) =>
+      json(
+        route,
+        options.targetGone
+          ? {
+            status: "unavailable",
+            targetKind: "run",
+            path: null,
+            anchor: null,
+          }
+          : {
+            status: "available",
+            targetKind: "run",
+            path: `/tasks/${uuid(12)}`,
+            anchor: null,
+          },
+      ),
+  );
   await page.route(
     "**/v1/notifications/count*",
     (route) => json(route, { unread: unreadCount(), revision: 1 }),

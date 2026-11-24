@@ -4,6 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useRouterState } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import {
@@ -21,10 +22,12 @@ import { isNotificationView, type NotificationView } from "./presentation.ts";
 export type NotificationsPageProps = {
   readonly view: NotificationView;
   readonly onViewChange: (view: NotificationView) => void;
+  readonly onOpenRow?: (row: NotificationResponse) => void;
   /** The row to outline once, from `/notifications?item=`. */
   readonly item?: string | null;
 };
 
+const SCROLL_MEMORY_KEY = "bakery.notifications.scroll";
 const PAGE_SIZE = 30;
 const UNDO_WINDOW_MS = 10_000;
 
@@ -33,7 +36,7 @@ const UNDO_WINDOW_MS = 10_000;
  * a reload return to the tab the person was reading.
  */
 export function NotificationsPage(
-  { item = null, onViewChange, view }: NotificationsPageProps,
+  { item = null, onOpenRow, onViewChange, view }: NotificationsPageProps,
 ) {
   const { translate } = useI18n();
   const client = useBakeryApi();
@@ -41,6 +44,9 @@ export function NotificationsPage(
   const queryClient = useQueryClient();
 
   const offline = useConnectivity() === "offline";
+  const entryKey = useRouterState({
+    select: (state) => state.location.state.__TSR_key,
+  });
   const [marking, setMarking] = useState(false);
   const [pendingReadIds, setPendingReadIds] = useState<ReadonlySet<string>>(
     new Set(),
@@ -78,6 +84,32 @@ export function NotificationsPage(
     }, UNDO_WINDOW_MS);
     return () => globalThis.clearTimeout(timer);
   }, [undo]);
+
+  const openRow = useCallback((row: NotificationResponse) => {
+    globalThis.sessionStorage.setItem(
+      SCROLL_MEMORY_KEY,
+      JSON.stringify({ entry: entryKey, y: globalThis.scrollY }),
+    );
+    onOpenRow?.(row);
+  }, [entryKey, onOpenRow]);
+
+  const scrollRestored = useRef(false);
+  useEffect(() => {
+    if (scrollRestored.current || rows.length === 0) return;
+    scrollRestored.current = true;
+    const remembered = globalThis.sessionStorage.getItem(SCROLL_MEMORY_KEY);
+    globalThis.sessionStorage.removeItem(SCROLL_MEMORY_KEY);
+    if (remembered === null || item !== null) return;
+    const saved: unknown = JSON.parse(remembered);
+    if (
+      typeof saved !== "object" || saved === null || !("entry" in saved) ||
+      !("y" in saved) || saved.entry !== entryKey || typeof saved.y !== "number"
+    ) return;
+    const y = saved.y;
+    globalThis.requestAnimationFrame(() =>
+      globalThis.requestAnimationFrame(() => globalThis.scrollTo(0, y))
+    );
+  }, [entryKey, item, rows]);
 
   const scrolled = useRef<string | null>(null);
   const [outlined, setOutlined] = useState<string | null>(item);
@@ -324,6 +356,7 @@ export function NotificationsPage(
               untitledLabel={translate("notifications.row.untitled")}
               someoneLabel={translate("notifications.row.someone")}
               unavailableLabel={translate("notifications.row.unavailable")}
+              onOpenRow={onOpenRow === undefined ? undefined : openRow}
               onToggleRead={(row) => void toggleRead(row)}
               pendingReadIds={pendingReadIds}
             />
