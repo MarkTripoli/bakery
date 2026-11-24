@@ -28,6 +28,7 @@ import {
 } from "../auth/application/agent-power-grants.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { mayActOnQuestion } from "../auth/application/run-grants.ts";
+import { effectivePermissions } from "../auth/application/authorize.ts";
 import {
   approvalPolicyDigest,
   effectiveApprovalPolicy,
@@ -112,7 +113,7 @@ function conflict(reason: string): never {
   throw new StandardError({ code: "STATE_CONFLICT", params: { reason } });
 }
 
-export function toApproval(row: ApprovalRow) {
+export function toApproval(row: ApprovalRow, mayDecide: boolean) {
   return contractSchemas.Approval.parse({
     id: row.id,
     kind: "approval",
@@ -139,6 +140,7 @@ export function toApproval(row: ApprovalRow) {
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: row.version,
+    mayDecide,
   });
 }
 
@@ -276,19 +278,19 @@ type StageDecisionRow = {
  * delivery decision must be the one asked about, still `proceed`, at the same
  * digest. A newer decision (a repair, a stop or another review) supersedes it.
  */
-async function currentStageCandidate(
+async function findStageCandidate(
   transaction: PgTransactionClient,
   organizationId: string,
   row: { subject_id: string | null; subject_digest: string | null },
-): Promise<{ runId: string; headSha: string }> {
-  if (!row.subject_id || !row.subject_digest) conflict("approval_superseded");
+): Promise<{ runId: string; headSha: string } | null> {
+  if (!row.subject_id || !row.subject_digest) return null;
   const asked = await transaction.query<{ run_id: string }>(
     `select run_id from bakery.delivery_decisions
       where organization_id = $1 and id = $2`,
     [organizationId, row.subject_id],
   );
   const runId = asked.rows[0]?.run_id;
-  if (!runId) conflict("approval_superseded");
+  if (!runId) return null;
   const latest = await transaction.query<StageDecisionRow>(
     `select id, run_id, decision, head_sha, base_sha, policy_digest
        from bakery.delivery_decisions
@@ -302,8 +304,18 @@ async function currentStageCandidate(
     !decision || decision.id !== row.subject_id ||
     decision.decision !== "proceed" ||
     await runStageDigest(decision) !== row.subject_digest
-  ) conflict("approval_superseded");
+  ) return null;
   return { runId: decision.run_id, headSha: decision.head_sha };
+}
+
+async function currentStageCandidate(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  row: { subject_id: string | null; subject_digest: string | null },
+): Promise<{ runId: string; headSha: string }> {
+  const candidate = await findStageCandidate(transaction, organizationId, row);
+  if (!candidate) conflict("approval_superseded");
+  return candidate;
 }
 
 /**
@@ -444,6 +456,31 @@ async function loadApproval(
   return row;
 }
 
+async function mapApprovals(
+  context: ActionContext,
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  rows: readonly ApprovalRow[],
+) {
+  const items = [];
+  for (const row of rows) {
+    items.push(
+      toApproval(
+        row,
+        await approvalMayDecide(
+          context,
+          transaction,
+          organizationId,
+          principalId,
+          row,
+        ),
+      ),
+    );
+  }
+  return items;
+}
+
 export function createApprovalsListHandler(secret: string) {
   return async (context: ActionContext, rawInput: unknown) => {
     const { transaction, organizationId, principalId } = requireWorkTransaction(
@@ -500,7 +537,13 @@ export function createApprovalsListHandler(secret: string) {
     const visible = result.rows.slice(0, limit);
     const last = visible.at(-1);
     return {
-      items: visible.map(toApproval),
+      items: await mapApprovals(
+        context,
+        transaction,
+        organizationId,
+        principalId,
+        visible,
+      ),
       nextCursor: result.rows.length > limit && last
         ? await encodeCursor(secret, binding, {
           createdAt: last.cursor_created_at,
@@ -533,6 +576,154 @@ async function assertMayDecide(
   ) notFound();
 }
 
+type StillCurrent =
+  | { ok: true }
+  | { ok: false; reason: "approval_superseded" | "approval_decided" };
+
+async function stillCurrentSubject(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  row: ApprovalRow,
+  lock = false,
+): Promise<StillCurrent> {
+  if (row.subject_type === "plan_revision") {
+    const revision = await transaction.query<
+      { id: string; revision: number; digest: string; status: string }
+    >(
+      `select id, revision, digest, status from bakery.plan_revisions
+        where organization_id = $1 and id = $2${lock ? " for update" : ""}`,
+      [organizationId, row.subject_id],
+    );
+    const subject = revision.rows[0];
+    if (
+      !subject || subject.digest !== row.subject_digest ||
+      (subject.status !== "proposed" && subject.status !== "approved")
+    ) return { ok: false, reason: "approval_superseded" };
+    const newer = await transaction.query(
+      `select 1 from bakery.plan_revisions
+        where organization_id = $1 and task_id = $2 and revision > $3
+        limit 1`,
+      [organizationId, row.task_id, subject.revision],
+    );
+    if (newer.rows.length > 0) {
+      return { ok: false, reason: "approval_superseded" };
+    }
+  } else if (row.subject_type === "run_stage") {
+    if (!await findStageCandidate(transaction, organizationId, row)) {
+      return { ok: false, reason: "approval_superseded" };
+    }
+  } else {
+    return { ok: false, reason: "approval_superseded" };
+  }
+  const later = await transaction.query<{ status: string }>(
+    `select ${EFFECTIVE_STATUS} as status from bakery.questions q
+      where q.organization_id = $1 and q.kind = 'approval'
+        and q.subject_id = $2 and q.id <> $3 and q.created_at >= $4
+        and (${EFFECTIVE_STATUS}) in ('open', 'answered', 'consumed')
+      order by q.created_at desc
+      limit 1`,
+    [organizationId, row.subject_id, row.id, row.created_at],
+  );
+  const live = later.rows[0];
+  if (live) {
+    return {
+      ok: false,
+      reason: live.status === "open"
+        ? "approval_superseded"
+        : "approval_decided",
+    };
+  }
+  return { ok: true };
+}
+
+function callerMayDecide(context: ActionContext): boolean {
+  const authority = (context as Partial<AuthorizedActionContext>).authority as
+    | OrganizationActor
+    | undefined;
+  if (authority?.subject?.principalType !== PrincipalType.Human) return false;
+  return effectivePermissions(authority).includes("approval:decide");
+}
+
+async function approvalMayDecide(
+  context: ActionContext,
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  row: ApprovalRow,
+): Promise<boolean> {
+  if (!callerMayDecide(context)) return false;
+  if (row.status === "expired") {
+    if (!(await stillCurrentSubject(transaction, organizationId, row)).ok) {
+      return false;
+    }
+  } else if (row.status !== "open") return false;
+  return await mayActOnQuestion(
+    transaction,
+    organizationId,
+    principalId,
+    { id: row.id, audience: row.audience },
+    "approve",
+  );
+}
+
+async function reissueApproval(
+  transaction: PgTransactionClient,
+  context: ActionContext,
+  organizationId: string,
+  principalId: string,
+  expired: ApprovalRow,
+): Promise<ApprovalRow> {
+  const inserted = await transaction.query<{ id: string; version: number }>(
+    `insert into bakery.questions (
+       organization_id, kind, conversation_id, task_id, turn_id, generation,
+       prompt, allow_free_text, audience, expires_at, subject_type, subject_id,
+       subject_digest, scope, policy_digest
+     )
+     select organization_id, kind, conversation_id, task_id, turn_id,
+            generation, prompt, allow_free_text, audience,
+            now() + ($3 || ' seconds')::interval, subject_type, subject_id,
+            subject_digest, scope, policy_digest
+       from bakery.questions
+      where organization_id = $1 and id = $2
+     returning id, version`,
+    [organizationId, expired.id, String(DEFAULT_QUESTION_TTL_SECONDS)],
+  );
+  const created = inserted.rows[0];
+  if (!created) throw new Error("APPROVAL_INSERT_FAILED");
+  const scope = await scopeOf(
+    transaction,
+    organizationId,
+    expired.conversation_id,
+  );
+  await appendDomainEvent(transaction, {
+    organizationId,
+    applicationId: scope.application_id,
+    repositoryId: scope.repository_id,
+    taskId: expired.task_id,
+    conversationId: expired.conversation_id,
+    eventType: "approval.requested",
+    aggregateId: created.id,
+    aggregateVersion: created.version,
+    payload: { resourceId: created.id, resourceVersion: created.version },
+    traceId: context.traceId,
+  });
+  await appendAudit(transaction, {
+    organizationId,
+    principalId,
+    operation: "approvals.request",
+    resourceType: "approval",
+    resourceId: created.id,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    details: {
+      taskId: expired.task_id,
+      subjectDigest: expired.subject_digest,
+      reissuedFromApprovalId: expired.id,
+    },
+  });
+  return await loadApproval(transaction, organizationId, created.id, true);
+}
+
 /** An approval private to named principals does not exist for anyone else. */
 function assertAudienceMember(row: ApprovalRow, principalId: string): void {
   if (
@@ -549,7 +740,16 @@ export async function getApproval(context: ActionContext) {
   if (!id) notFound();
   const row = await loadApproval(transaction, organizationId, id);
   await assertMayDecide(transaction, organizationId, row, principalId);
-  return toApproval(row);
+  return toApproval(
+    row,
+    await approvalMayDecide(
+      context,
+      transaction,
+      organizationId,
+      principalId,
+      row,
+    ),
+  );
 }
 
 type DecisionInput = z.output<typeof contractSchemas.ApprovalDecision>;
@@ -649,7 +849,10 @@ export async function decideApproval(
       applicationId: scope.rows[0]!.application_id,
       repositoryId: scope.rows[0]!.repository_id,
     });
-    return toApproval(await loadApproval(transaction, organizationId, id));
+    return toApproval(
+      await loadApproval(transaction, organizationId, id),
+      false,
+    );
   }
   // Conversation first, then the approval: the order turn admission uses.
   // Archived conversation, application or repository refuse, like questions.answer.
@@ -659,22 +862,46 @@ export async function decideApproval(
     peek.conversation_id,
     "update",
   );
-  const row = await loadApproval(transaction, organizationId, id, true);
-  await assertMayDecide(transaction, organizationId, row, principalId);
+  const locked = await loadApproval(transaction, organizationId, id, true);
+  await assertMayDecide(transaction, organizationId, locked, principalId);
   if (
-    row.subject_type !== "plan_revision" && row.subject_type !== "run_stage"
+    locked.subject_type !== "plan_revision" &&
+    locked.subject_type !== "run_stage"
   ) {
     conflict("unsupported");
   }
   const digest = await sha256Hex(
     canonicalJson({ decision: input.decision, comment }),
   );
-  if (row.status === "answered") {
-    if (row.answer_digest === digest) return toApproval(row);
+  if (locked.status === "answered") {
+    if (locked.answer_digest === digest) return toApproval(locked, false);
     conflict("approval_decided");
   }
+  let row = locked;
+  let expectedVersion = input.expectedVersion;
+  let reissuedFrom: string | undefined;
+  if (locked.status === "expired") {
+    if (locked.version !== input.expectedVersion) conflict("approval_stale");
+    const current = await stillCurrentSubject(
+      transaction,
+      organizationId,
+      locked,
+      true,
+    );
+    if (!current.ok) conflict(current.reason);
+    row = await reissueApproval(
+      transaction,
+      context,
+      organizationId,
+      principalId,
+      locked,
+    );
+    expectedVersion = row.version;
+    reissuedFrom = locked.id;
+  }
   if (row.status !== "open") conflict(`approval_${row.status}`);
-  if (row.version !== input.expectedVersion) conflict("approval_stale");
+  if (row.version !== expectedVersion) conflict("approval_stale");
+  const revisionStates = reissuedFrom ? ["proposed", "approved"] : ["proposed"];
 
   // The subject must still be exactly what was asked about.
   let plan: { id: string; revision: number } | undefined;
@@ -689,7 +916,7 @@ export async function decideApproval(
     );
     const subject = revision.rows[0];
     if (
-      !subject || subject.status !== "proposed" ||
+      !subject || !revisionStates.includes(subject.status) ||
       subject.digest !== row.subject_digest
     ) conflict("approval_superseded");
     plan = { id: subject.id, revision: subject.revision };
@@ -709,13 +936,13 @@ export async function decideApproval(
       returning ${COLUMNS}`,
     [
       organizationId,
-      id,
+      row.id,
       input.decision,
       comment === "" ? null : comment,
       principalId,
       JSON.stringify({ decision: input.decision, comment }),
       digest,
-      input.expectedVersion,
+      expectedVersion,
     ],
   );
   const decided = updated.rows[0];
@@ -725,12 +952,13 @@ export async function decideApproval(
     const revisionUpdate = await transaction.query<{ version: number }>(
       `update bakery.plan_revisions
           set status = $3, updated_at = now(), version = version + 1
-        where organization_id = $1 and id = $2 and status = 'proposed'
+        where organization_id = $1 and id = $2 and status = any($4::text[])
         returning version`,
       [
         organizationId,
         plan.id,
         REVISION_STATUS_BY_DECISION[input.decision],
+        revisionStates,
       ],
     );
     if (revisionUpdate.rows.length !== 1) conflict("approval_superseded");
@@ -802,9 +1030,10 @@ export async function decideApproval(
         headSha: candidate!.headSha,
       }),
       subjectDigest: row.subject_digest,
+      ...(reissuedFrom ? { reissuedFromApprovalId: reissuedFrom } : {}),
     },
   });
-  return toApproval(decided);
+  return toApproval(decided, false);
 }
 
 type RevokeInput = z.output<typeof contractSchemas.ApprovalRevoke>;
@@ -845,7 +1074,7 @@ export async function revokeApproval(
   const row = revoked.rows[0];
   if (!row) {
     const current = await loadApproval(transaction, organizationId, id);
-    if (current.status === "revoked") return toApproval(current);
+    if (current.status === "revoked") return toApproval(current, false);
     if (current.status === "consumed") conflict("approval_consumed");
     conflict(`approval_not_revocable`);
   }
@@ -872,7 +1101,7 @@ export async function revokeApproval(
     traceId: context.traceId,
     details: { reason: input.reason ?? null },
   });
-  return toApproval(row);
+  return toApproval(row, false);
 }
 
 /**

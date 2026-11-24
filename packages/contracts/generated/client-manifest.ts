@@ -97782,6 +97782,10 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when deciding."
+        },
+        "mayDecide": {
+          "type": "boolean",
+          "description": "True when the person asking may decide this approval now: it is open, or it expired while its plan or reviewed commit is still the current one so a new decision can be recorded, and the person is named in its audience or holds a grant for it and may decide approvals. The web shows decision buttons only when this is true."
         }
       },
       "required": [
@@ -97809,7 +97813,8 @@ export const clientManifest = {
         "expiresAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "mayDecide"
       ],
       "additionalProperties": false,
       "description": "Typed approval request bound to an exact subject digest, stage scope, policy digest and expiry; it authorizes one action once and never carries forward to another revision.",
@@ -98553,6 +98558,10 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when deciding."
+              },
+              "mayDecide": {
+                "type": "boolean",
+                "description": "True when the person asking may decide this approval now: it is open, or it expired while its plan or reviewed commit is still the current one so a new decision can be recorded, and the person is named in its audience or holds a grant for it and may decide approvals. The web shows decision buttons only when this is true."
               }
             },
             "required": [
@@ -98580,7 +98589,8 @@ export const clientManifest = {
               "expiresAt",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "mayDecide"
             ],
             "additionalProperties": false,
             "description": "Typed approval request bound to an exact subject digest, stage scope, policy digest and expiry; it authorizes one action once and never carries forward to another revision."

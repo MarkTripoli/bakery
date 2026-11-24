@@ -32017,7 +32017,8 @@ const transportSchemas = {
         "expiresAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "mayDecide"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -32044,7 +32045,8 @@ const transportSchemas = {
         "expiresAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "mayDecide": "boolean"
       },
       "nullableFields": [
         "turnId",
@@ -32085,7 +32087,8 @@ const transportSchemas = {
         "expiresAt": "UTC timestamp after which the approval can no longer be decided or consumed.",
         "createdAt": "UTC timestamp when the approval was requested.",
         "updatedAt": "UTC timestamp when the approval last changed.",
-        "version": "Optimistic-concurrency version used when deciding."
+        "version": "Optimistic-concurrency version used when deciding.",
+        "mayDecide": "True when the person asking may decide this approval now: it is open, or it expired while its plan or reviewed commit is still the current one so a new decision can be recorded, and the person is named in its audience or holds a grant for it and may decide approvals. The web shows decision buttons only when this is true."
       }
     },
     "Page<PlanRevision>": {
