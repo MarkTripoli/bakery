@@ -6684,5 +6684,18 @@
   "library.editor.group.each": "⟪For each item⟫",
   "library.editor.group.eachLimit": "⟪At most {max, plural, one {# item} other {# items}}⟫",
   "library.editor.group.eachHelp": "⟪Runs these steps once for each item in a list, one item at a time. A list with more items than the limit fails the run before any step starts.⟫",
-  "issues.start.workflowHelp": "⟪{repository} is set to {workflow}. Choosing another applies to this issue only.⟫"
+  "issues.start.workflowHelp": "⟪{repository} is set to {workflow}. Choosing another applies to this issue only.⟫",
+  "batches.banner.pausedWorkflow.title": "⟪Paused: {workflow} can no longer start in {repository}⟫",
+  "batches.banner.pausedWorkflow.body": "⟪Stop this batch and start a new one with another workflow.⟫",
+  "batches.page.workflow": "⟪Workflow: {name}⟫",
+  "batches.page.workflowNone": "⟪its workflow⟫",
+  "batches.start.workflow.heading": "⟪Workflow⟫",
+  "batches.start.workflow.label": "⟪Workflow for every issue in this batch⟫",
+  "batches.start.workflow.placeholder": "⟪Choose a workflow⟫",
+  "batches.start.workflow.helpNone": "⟪Every issue in this batch runs the workflow you choose.⟫",
+  "batches.start.workflow.helpSet": "⟪{repository} is set to this workflow; a different choice applies to this batch only.⟫",
+  "batches.start.workflow.helpUnset": "⟪Every issue in this batch runs the workflow you choose. {repository} has none set, so people choose one each time they start work.⟫",
+  "batches.start.summary.workflow": "⟪Each issue runs {workflow}.⟫",
+  "batches.start.summary.workflowUnset": "⟪Each issue runs the workflow you choose.⟫",
+  "batches.start.error.workflowRequired": "⟪Choose a workflow first.⟫"
 }

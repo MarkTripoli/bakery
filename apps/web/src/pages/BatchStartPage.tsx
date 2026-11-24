@@ -28,6 +28,9 @@ import {
 } from "./batches/batch-refusal.ts";
 import { BatchBreadcrumbs } from "./batches/BatchBreadcrumbs.tsx";
 import { useBatchLookups } from "./batches/use-batch-lookups.ts";
+import { TICKET_PRESETS } from "./issue-sources.ts";
+import { presetCopy } from "./task-composer-labels.ts";
+import { WorkflowChoice } from "./WorkflowChoice.tsx";
 
 const BATCHES_PATH = "/issues/batches";
 const NEW_BATCH_PATH = "/issues/batches/new";
@@ -58,11 +61,20 @@ export function BatchStartPage() {
     : "";
 
   const [typed, setTyped] = useState<StartForm>(START_DEFAULTS);
+  const [presetTouched, setPresetTouched] = useState(false);
+  const [workflowAsks, setWorkflowAsks] = useState(0);
+  useEffect(() => {
+    if (workflowAsks === 0) return;
+    document.getElementById("batch-workflow")?.focus();
+  }, [workflowAsks]);
   // Until the person picks one, the repository the address named is the choice.
   const [repositoryTouched, setRepositoryTouched] = useState(false);
+  const repositoryChosen = repositoryTouched ? typed.repositoryId : preselected;
+  const presetDefault = lookups.presetOf(repositoryChosen) ?? "";
   const form: StartForm = {
     ...typed,
-    repositoryId: repositoryTouched ? typed.repositoryId : preselected,
+    repositoryId: repositoryChosen,
+    presetId: presetTouched ? typed.presetId : presetDefault,
   };
   const [attempted, setAttempted] = useState(false);
   const [refusal, setRefusal] = useState<CreateRefusal | null>(null);
@@ -147,11 +159,27 @@ export function BatchStartPage() {
 
   const submit = () => {
     setAttempted(true);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0) {
+      if (errors.presetId !== undefined && errors.repositoryId === undefined) {
+        setWorkflowAsks((count) => count + 1);
+      }
+      return;
+    }
     start.mutate();
   };
 
-  const dirty = isDirty(form, preselected) && !left;
+  const chosenPreset = TICKET_PRESETS.find((id) => id === form.presetId) ??
+    null;
+  const workflowHint = repositoryChosen === ""
+    ? translate("batches.start.workflow.helpNone" as never)
+    : presetDefault === ""
+    ? translate("batches.start.workflow.helpUnset" as never, {
+      repository: repositoryName ?? "",
+    })
+    : translate("batches.start.workflow.helpSet" as never, {
+      repository: repositoryName ?? "",
+    });
+  const dirty = isDirty(form, preselected, presetDefault) && !left;
   const refusalText = refusal === null ? null : translate(
     CREATE_REFUSAL_KEY[refusal] as never,
     { repository: repositoryName ?? "" },
@@ -398,6 +426,13 @@ export function BatchStartPage() {
                     })}
                 </UI.Text>
                 <UI.Text>
+                  {chosenPreset === null
+                    ? translate("batches.start.summary.workflowUnset" as never)
+                    : translate("batches.start.summary.workflow" as never, {
+                      workflow: presetCopy(translate, chosenPreset).title,
+                    })}
+                </UI.Text>
+                <UI.Text>
                   {translate("batches.start.summary.stop" as never, {
                     issues: issuesPart,
                     hours: hoursPart,
@@ -530,6 +565,34 @@ export function BatchStartPage() {
                   {startableSection}
                 </UI.Stack>
               )}
+          </UI.Stack>
+          <UI.Divider />
+          <UI.Stack gap="compact" data-testid="batch-workflow-choice">
+            <UI.Heading level="section">
+              {translate("batches.start.workflow.heading" as never)}
+            </UI.Heading>
+            <WorkflowChoice
+              id="batch-workflow"
+              label={translate("batches.start.workflow.label" as never)}
+              labelHidden
+              items={TICKET_PRESETS.map((id) => ({
+                id,
+                title: presetCopy(translate, id).title,
+                description: presetCopy(translate, id).description,
+              }))}
+              value={form.presetId}
+              onChange={(id) => {
+                setPresetTouched(true);
+                change({ presetId: id });
+              }}
+              placeholder={translate(
+                "batches.start.workflow.placeholder" as never,
+              )}
+              error={shown.presetId === undefined
+                ? undefined
+                : translate(shown.presetId as never)}
+            />
+            <UI.Text variant="hint">{workflowHint}</UI.Text>
           </UI.Stack>
           <UI.Divider />
           <UI.Stack gap="compact">

@@ -39,6 +39,7 @@ export type BatchIssueSeed = {
 export type BatchSeed = {
   id?: string;
   repositoryId?: string;
+  presetId?: "fixed-coding" | "fixed-coding-reviewed" | null;
   startedBy?: string;
   maxIssues?: number;
   maxHours?: number;
@@ -85,6 +86,7 @@ export function batch(seed: BatchSeed = {}) {
   return {
     id,
     repositoryId: seed.repositoryId ?? WEB.id,
+    presetId: seed.presetId === undefined ? "fixed-coding" : seed.presetId,
     startedBy: seed.startedBy ?? ANA,
     maxIssues: seed.maxIssues ?? 5,
     maxHours: seed.maxHours ?? 8,
@@ -175,6 +177,9 @@ export type Options = {
   /** The next control action answers with a conflict, once. */
   conflictOnce?: boolean;
   pageSize?: number;
+  workflows?: Readonly<
+    Record<string, "fixed-coding" | "fixed-coding-reviewed">
+  >;
   /** More repositories taking issues than one page of issue sources holds (100). */
   extraRepositories?: number;
   /**
@@ -295,7 +300,9 @@ export async function batchesFixture(page: Page, options: Options = {}) {
     repositoryId,
     externalContainerId: name,
     enabled: true,
-    policy: {},
+    policy: options.workflows?.[repositoryId] === undefined
+      ? {}
+      : { preset: options.workflows[repositoryId] },
     policyRevision: 1,
     syncHealth: "healthy",
     lastSyncedAt: STAMP,
@@ -399,6 +406,7 @@ export async function batchesFixture(page: Page, options: Options = {}) {
         }
         const created = batch({
           repositoryId: String(body.repositoryId),
+          presetId: body.presetId as "fixed-coding" | "fixed-coding-reviewed",
           maxIssues: Number(body.maxIssues),
           maxHours: Number(body.maxHours),
           maxSpendUsd: String(body.maxSpendUsd),

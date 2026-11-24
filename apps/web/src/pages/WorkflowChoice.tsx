@@ -8,9 +8,20 @@ export type WorkflowChoiceItem = Readonly<{
 }>;
 
 export function WorkflowChoice(
-  { id, label, items, value, onChange, placeholder, error, disabled = false }: {
+  {
+    id,
+    label,
+    labelHidden = false,
+    items,
+    value,
+    onChange,
+    placeholder,
+    error,
+    disabled = false,
+  }: {
     id: string;
     label: string;
+    labelHidden?: boolean;
     items: readonly WorkflowChoiceItem[];
     value: string;
     onChange: (id: string) => void;
@@ -28,6 +39,7 @@ export function WorkflowChoice(
         error={error}
         id={id}
         label={label}
+        labelHidden={labelHidden}
         onChange={(event) => onChange(event.target.value)}
         options={[
           ...(chosen === undefined

@@ -6684,5 +6684,18 @@
   "library.editor.group.each": "⟦Ƒôŕ ëàçĥ ïŧëɱ ŧë⟧",
   "library.editor.group.eachLimit": "⟦Àŧ ɱôšŧ {max, plural, one {# item} other {# items}} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.editor.group.eachHelp": "⟦Ŕûñš ŧĥëšë šŧëþš ôñçë ƒôŕ ëàçĥ ïŧëɱ ïñ à ļïšŧ, ôñë ïŧëɱ àŧ à ŧïɱë. À ļïšŧ ŵïŧĥ ɱôŕë ïŧëɱš ŧĥàñ ŧĥë ļïɱïŧ ƒàïļš ŧĥë ŕûñ ƀëƒôŕë àñÿ šŧëþ šŧàŕŧš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ àñôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ àñôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "batches.banner.pausedWorkflow.title": "⟦Þàûšëð: {workflow} çàñ ñô ļôñĝëŕ šŧàŕŧ ïñ {repository} ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "batches.banner.pausedWorkflow.body": "⟦Šŧôþ ŧĥïš ƀàŧçĥ àñð šŧàŕŧ à ñëŵ ôñë ŵïŧĥ àñôŧĥëŕ ŵôŕķƒļôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "batches.page.workflow": "⟦Ŵôŕķƒļôŵ: {name} ŧëš⟧",
+  "batches.page.workflowNone": "⟦ïŧš ŵôŕķƒļôŵ ŧë⟧",
+  "batches.start.workflow.heading": "⟦Ŵôŕķƒļôŵ…⟧",
+  "batches.start.workflow.label": "⟦Ŵôŕķƒļôŵ ƒôŕ ëṽëŕÿ ïššûë ïñ ŧĥïš ƀàŧçĥ ŧëšŧ çôþÿ ŧ⟧",
+  "batches.start.workflow.placeholder": "⟦Çĥôôšë à ŵôŕķƒļôŵ ŧëš⟧",
+  "batches.start.workflow.helpNone": "⟦Ëṽëŕÿ ïššûë ïñ ŧĥïš ƀàŧçĥ ŕûñš ŧĥë ŵôŕķƒļôŵ ÿôû çĥôôšë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "batches.start.workflow.helpSet": "⟦{repository} ïš šëŧ ŧô ŧĥïš ŵôŕķƒļôŵ; à ðïƒƒëŕëñŧ çĥôïçë àþþļïëš ŧô ŧĥïš ƀàŧçĥ ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "batches.start.workflow.helpUnset": "⟦Ëṽëŕÿ ïššûë ïñ ŧĥïš ƀàŧçĥ ŕûñš ŧĥë ŵôŕķƒļôŵ ÿôû çĥôôšë. {repository} ĥàš ñôñë šëŧ, šô þëôþļë çĥôôšë ôñë ëàçĥ ŧïɱë ŧĥëÿ šŧàŕŧ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "batches.start.summary.workflow": "⟦Ëàçĥ ïššûë ŕûñš {workflow}. ŧëšŧ çô⟧",
+  "batches.start.summary.workflowUnset": "⟦Ëàçĥ ïššûë ŕûñš ŧĥë ŵôŕķƒļôŵ ÿôû çĥôôšë. ŧëšŧ çôþÿ ŧ⟧",
+  "batches.start.error.workflowRequired": "⟦Çĥôôšë à ŵôŕķƒļôŵ ƒïŕšŧ. ŧëšŧ ç⟧"
 }

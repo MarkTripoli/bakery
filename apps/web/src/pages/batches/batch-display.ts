@@ -375,9 +375,7 @@ export type BannerFacts = Readonly<{
   currentNumber: string | null;
   /** The number of the last issue worked on. */
   lastNumber: string | null;
-  /** The name of the batch's workflow, or a plain stand-in. */
   workflow: string;
-  /** The batch's repository, as the page names it. */
   repository: string;
   /** The name of who paused or stopped it, or a plain stand-in. */
   who: string;
