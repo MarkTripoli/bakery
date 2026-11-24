@@ -367,8 +367,19 @@ Deno.test("a person hands on only a decision they could make themselves, never o
     const refused = async (response: Response) => {
       const text = await response.text();
       assertEquals(response.status, 403, text);
-      assertEquals(text.includes("request_power_not_held"), true, text);
+      assertEquals(
+        (JSON.parse(text) as { code: string }).code,
+        "AUTH_FORBIDDEN",
+      );
     };
+    const fyi = await api(
+      o.fixture,
+      bystander.cookie,
+      "POST",
+      `/v1/runs/${o.run.runId}/requests`,
+      { recipientId: o.approver.principalId, intent: "fyi" },
+    );
+    assertEquals(fyi.status, 201, await fyi.text());
     await refused(
       await askAs(bystander.cookie, o.guest.principalId, "approve", o.approval),
     );
