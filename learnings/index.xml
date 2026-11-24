@@ -170,4 +170,5 @@
   <entry file="never-dead-end-the-user.xml" scope="project" />
   <entry file="busy-screens-say-each-thing-once.xml" scope="process" />
   <entry file="references-are-links.xml" scope="process" />
+  <entry file="playwright-browsers-outside-seat-home.xml" scope="project" />
 </learnings>
