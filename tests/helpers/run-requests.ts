@@ -9,7 +9,6 @@ import type { SocketFixture } from "./events-socket.ts";
  * member of the fixture's organization; a guest holds no permission at all.
  */
 
-/** What the member and request helpers need of a fixture: the socket fixture and the worker fixture both fit. */
 export type ApiHost = {
   pgDatabase: SocketFixture["pgDatabase"];
   organizationId: string;
@@ -261,10 +260,6 @@ export async function seedArtifactVersion(
   return versionId;
 }
 
-/**
- * A real agent session on the run's step (#456 slice 2b), so the session routes
- * have a row that belongs to a step of that run.
- */
 export async function seedAgentSession(
   fixture: SocketFixture,
   run: SeededRun,
@@ -311,7 +306,6 @@ export async function seedAgentSession(
   return sessionId;
 }
 
-/** A second step on the run, so "the other step" cases have something to name. */
 export async function seedStep(
   fixture: SocketFixture,
   run: SeededRun,

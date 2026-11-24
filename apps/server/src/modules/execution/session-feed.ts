@@ -97,10 +97,6 @@ export function createSessionFeedHandler(secret: string) {
     const id = sessionPathId(context);
     const input = rawInput as PageInput;
 
-    // A person with no standing access to runs reaches this feed only through a
-    // run grant. The conversation it reads is the task's, so they get the
-    // session's own messages and nothing else of it. Everyone with standing
-    // access sees what they always saw.
     const ownMessagesOnly = !(await hasStandingRunAccess(
       transaction,
       organizationId,

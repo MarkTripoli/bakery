@@ -269,10 +269,8 @@ Deno.test("a review or take-over request must name something of this run that ca
       await refusal(await o.ask({ intent: "take_over", stepKey: "done" })),
       "request_step_finished",
     );
-    // Nothing was granted by any refusal.
     assertEquals(await o.powers(), []);
 
-    // What is asked for is what is granted, on the right typed column.
     const review = await o.ask({ intent: "review", artifactVersionId: mine });
     assertEquals(review.status, 201, await review.clone().text());
     const take = await o.ask({ intent: "take_over", stepKey: "build" });
@@ -302,7 +300,6 @@ Deno.test("a review or take-over request must name something of this run that ca
         ["take_over", "run_step", null, false, true],
       ],
     );
-    // Asking again only reminds: no second power.
     assertEquals(
       (await o.ask({ intent: "review", artifactVersionId: mine })).status,
       201,

@@ -11,15 +11,6 @@ import {
   seedStep,
 } from "../helpers/run-requests.ts";
 
-/**
- * #456 slice 2b, security: a person asked to take over a step may steer, note
- * and take over that one step and nothing else; a person asked to review may
- * comment on that one artifact version and nothing else. The grantee is a bare
- * Guest, so every refusal is the gate closing and every success is the grant.
- * A refusal answers the same 404 a missing id gives; reaching the handler's own
- * state check (a 409 here) or a created answer means the gate let it through.
- */
-
 async function open() {
   const fixture = await openSocketFixture();
   const guest = await addMember(fixture, "Grantee", "guest");
@@ -63,7 +54,6 @@ async function open() {
     ask,
     as,
     finish: async () => {
-      // A comment on an artifact version keeps the version from being deleted.
       await fixture.pgDatabase.query(
         "delete from bakery.artifact_comments where organization_id = $1",
         [fixture.organizationId],
@@ -93,14 +83,10 @@ Deno.test("a take-over power reaches exactly its one step and its session", asyn
       o.as(cookie, "POST", `/v1/sessions/${session}/messages`, {
         body: "Try the other way.",
       });
-    // Before the request the guest has nothing.
     assertEquals(await note(o.guest.cookie, o.run.runId, "build"), 404);
     assertEquals(await steer(o.guest.cookie, o.buildSession), 404);
-    // Asking to take over a step needs that step named.
     const made = await o.ask({ intent: "take_over", stepKey: "build" });
     assertEquals(made.status, 201, await made.clone().text());
-    // The granted step and its session pass the gate: the answer is the
-    // handler's own, never the gate's 404 or 403.
     for (
       const status of [
         await note(o.guest.cookie, o.run.runId, "build"),
@@ -111,13 +97,11 @@ Deno.test("a take-over power reaches exactly its one step and its session", asyn
       assertNotEquals(status, 404);
       assertNotEquals(status, 403);
     }
-    // Not the other step of the same run, nor its session, nor another run's.
     assertEquals(await note(o.guest.cookie, o.run.runId, "other"), 404);
     assertEquals(await takeover(o.guest.cookie, o.run.runId, "other"), 404);
     assertEquals(await steer(o.guest.cookie, o.otherSession), 404);
     assertEquals(await note(o.guest.cookie, o.sibling.runId, "build"), 404);
     assertEquals(await steer(o.guest.cookie, o.siblingSession), 404);
-    // Nobody else gains anything from it.
     assertEquals(await note(o.stranger.cookie, o.run.runId, "build"), 404);
     assertEquals(await steer(o.stranger.cookie, o.buildSession), 404);
   } finally {
@@ -163,14 +147,11 @@ Deno.test("a review power comments on exactly its one artifact version", async (
     };
     assertEquals(request.artifactVersionId, o.mine);
     assertEquals(request.questionId, null);
-    // It comments on that version...
     assertEquals(await comment(o.guest.cookie, o.mine), 201);
-    // ...and on no other: not another run's, not one no run produced.
     for (const version of [o.siblingVersion, o.runless]) {
       assertEquals(await comment(o.guest.cookie, version), 404, version);
     }
     assertEquals(await comment(o.stranger.cookie, o.mine), 404);
-    // The comment handled the request; the right stays for more comments.
     const mineList = await (await api(
       o.fixture,
       o.guest.cookie,
@@ -215,7 +196,6 @@ Deno.test("an observer reads only the granted session's own messages, never the 
     await say(o.buildSession, null, "build output");
     await say(o.otherSession, null, "other output");
     await say(o.siblingSession, null, "sibling output");
-    // The guest is asked to just look: that gives the run to see, not the chat.
     assertEquals(
       (await o.ask({ intent: "fyi" })).status,
       201,
@@ -233,15 +213,12 @@ Deno.test("an observer reads only the granted session's own messages, never the 
       };
       return page.items.map((item) => item.message?.body).sort();
     };
-    // Only the session's own messages: not the person's chat, not another
-    // session's output, not another run's.
     assertEquals(await bodies(o.guest.cookie, o.buildSession), [
       "build output",
     ]);
     assertEquals(await bodies(o.guest.cookie, o.otherSession), [
       "other output",
     ]);
-    // A session of another run is not theirs at all.
     assertEquals(
       await o.as(
         o.guest.cookie,
@@ -258,7 +235,6 @@ Deno.test("an observer reads only the granted session's own messages, never the 
       ),
       404,
     );
-    // Removing the observer's access takes the feed away at once.
     await o.fixture.pgDatabase.query(
       `update bakery.run_access_grants set revoked_at = now()
         where organization_id = $1 and run_id = $2 and principal_id = $3`,
@@ -268,8 +244,6 @@ Deno.test("an observer reads only the granted session's own messages, never the 
       await o.as(o.guest.cookie, "GET", `/v1/sessions/${o.buildSession}/feed`),
       404,
     );
-    // Someone with standing access sees what they always saw: the whole
-    // conversation, unchanged.
     const all = await bodies(developer.cookie, o.buildSession);
     assertEquals(all.includes("private team chat"), true);
     assertEquals(all.includes("build output"), true);

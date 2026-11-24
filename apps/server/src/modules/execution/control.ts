@@ -722,7 +722,6 @@ export function createRunControlRegistry(
     },
     handler: async (context, input) => {
       const taken = await takeOverRunStep(context, input);
-      // The request that asked for this take-over is handled (#456 2b).
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
       await handleTakeOverRequests(

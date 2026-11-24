@@ -42,7 +42,6 @@ export function registerCommentActions(
     policy: write,
     handler: async (context, input) => {
       const comment = await createComment(context, input, blobStore);
-      // The request that asked for this review is handled (#456 2b).
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
       await handleRequestsOnTarget(

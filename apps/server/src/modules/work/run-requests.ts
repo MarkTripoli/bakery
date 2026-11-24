@@ -81,7 +81,6 @@ const AVAILABLE_INTENTS: readonly RequestIntent[] = [
   "take_over",
 ];
 
-/** The intents that give one expiring power on one thing (#456 2a and 2b). */
 const POWER_OF_INTENT: Readonly<Partial<Record<RequestIntent, RunPower>>> = {
   approve: "approve",
   answer: "answer",
@@ -89,10 +88,6 @@ const POWER_OF_INTENT: Readonly<Partial<Record<RequestIntent, RunPower>>> = {
   take_over: "take_over",
 };
 
-/**
- * Which column of run_power_grants holds an intent's target, and the kind it is
- * recorded under. The columns are real foreign keys; exactly one is set.
- */
 const GRANT_TARGET: Readonly<
   Record<RunPower, { kind: string; column: string }>
 > = {
@@ -162,7 +157,6 @@ function toRunRequest(row: RequestRow) {
     id: row.id,
     runId: row.run_id,
     stepKey: row.step_key,
-    // The target is one id; which kind it is follows from the intent.
     questionId: row.intent === "approve" || row.intent === "answer"
       ? row.target_id
       : null,
@@ -411,9 +405,6 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
       "That request cannot be made",
     );
   }
-  // Each power is about one named thing: the person asked is given the right to
-  // act on exactly that, so it has to exist, belong to this run and still be
-  // open to act on. targetId is that thing's id (null for "just let them know").
   const power = POWER_OF_INTENT[value.intent];
   const asksQuestion = value.intent === "approve" || value.intent === "answer";
   if (!asksQuestion && value.questionId !== undefined) {
@@ -496,8 +487,6 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
         "Name the artifact version the request asks someone to review",
       );
     }
-    // Only a version a step of this run produced: another run's, or one no run
-    // produced, is not this run's to hand out.
     const produced = await transaction.query(
       `select 1 from bakery.artifact_versions version
          join bakery.run_steps step
@@ -523,8 +512,6 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
         "Name the step the request asks someone to take over",
       );
     }
-    // The latest iteration of the step, and only while it can still be taken
-    // over; a finished step has nothing left to take.
     const step = await transaction.query<{ id: string; status: string }>(
       `select id, status from bakery.run_steps
         where organization_id = $1 and run_id = $2 and step_key = $3
@@ -1229,12 +1216,6 @@ export async function completeRequestsOnQuestion(
   );
 }
 
-/**
- * A comment on a reviewed version, or the take-over of a step, ends the request
- * that asked for it (#456 slice 2b). The right to act stays until the request
- * expires or is withdrawn, because a review can take several comments and a
- * taken-over step several steers; only the request says it is handled.
- */
 export async function handleRequestsOnTarget(
   transaction: PgTransactionClient,
   organizationId: string,
@@ -1254,7 +1235,6 @@ export async function handleRequestsOnTarget(
   await recordHandled(transaction, organizationId, principalId, closed.rows);
 }
 
-/** The same for a take-over: the request names the step by run and step key. */
 export async function handleTakeOverRequests(
   transaction: PgTransactionClient,
   organizationId: string,

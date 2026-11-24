@@ -38,12 +38,7 @@ export const RUN_GRANT_ACTIONS: Readonly<
   // `:id` is an artifact version; only one a step of the granted run produced.
   "artifactVersions.content": "artifactVersion",
   "artifactComments.list": "artifactVersion",
-  // `:id` is a session; only one of a step of the granted run. The feed is
-  // narrowed to the session's own messages for a person with no standing
-  // access (see session-feed.ts), so it never shows the whole conversation.
   "sessions.feed": "session",
-  // `:id` is an output stream; only one a step of the granted run wrote. It
-  // answers the published transcript's segment references, never the chat.
   "outputStreams.transcript": "outputStream",
 });
 
@@ -65,7 +60,6 @@ export async function hasLiveRunGrant(
   // A malformed id is no grant, not a database error.
   if (id === undefined || !UUID.test(id)) return false;
   const found = kind === "outputStream"
-    // The stream has to belong to the job of a step of the granted run.
     ? await transaction.query(
       `select 1 from bakery.run_access_grants grant_row
          join bakery.run_steps step
@@ -84,7 +78,6 @@ export async function hasLiveRunGrant(
       [organizationId, principalId, id],
     )
     : kind === "session"
-    // The session has to belong to a step of the granted run.
     ? await transaction.query(
       `select 1 from bakery.run_access_grants grant_row
          join bakery.run_steps step
@@ -128,21 +121,10 @@ export async function hasLiveRunGrant(
   return found.rows.length > 0;
 }
 
-/**
- * The one things a person can be given the right to do on a run (#456 slices 2a
- * and 2b), each on exactly one row. The vocabulary is closed and lives here, not
- * in the database.
- */
 export type RunPower = "approve" | "answer" | "review" | "take_over";
 
-/**
- * What an action's path says the grant is about, and so how the grant is
- * matched. A question (an approval is one), an artifact version, a session, or
- * a step named by its run and step key.
- */
 export type PowerTarget = "question" | "artifactVersion" | "session" | "step";
 
-/** The id or ids an action named, resolved from its path. */
 export type PowerTargetRef =
   | Readonly<
     { kind: "question" | "artifactVersion" | "session"; id: string | undefined }
@@ -151,13 +133,6 @@ export type PowerTargetRef =
     { kind: "step"; runId: string | undefined; stepKey: string | undefined }
   >;
 
-/**
- * The actions a power reaches, each with the power it needs and what its path
- * names. The power grant is looked up by person, power and exactly that target,
- * so it reaches no other row, run or organization. Anything not listed here
- * stays closed to a grant-holder, whatever grants they hold; approvals.revoke
- * in particular is not a power.
- */
 export const RUN_POWER_ACTIONS: Readonly<
   Partial<Record<CatalogActionName, { power: RunPower; target: PowerTarget }>>
 > = Object.freeze({
@@ -165,21 +140,12 @@ export const RUN_POWER_ACTIONS: Readonly<
   "approvals.decide": { power: "approve", target: "question" },
   "questions.get": { power: "answer", target: "question" },
   "questions.answer": { power: "answer", target: "question" },
-  // A comment on one artifact version the run produced.
   "artifactComments.create": { power: "review", target: "artifactVersion" },
-  // Steer the one session of the granted step, and take that step over.
   "sessions.steer": { power: "take_over", target: "session" },
   "runSteps.note": { power: "take_over", target: "step" },
   "runSteps.takeOver": { power: "take_over", target: "step" },
 });
 
-/**
- * Whether the person holds a live, unexpired power on this one target. Read
- * `for share`, so a concurrent revoke is ordered before or after the request,
- * never in the middle; every lookup carries organization_id. A step is matched
- * by its run and step key, so the right covers every iteration of that step and
- * nothing else.
- */
 export async function hasLivePowerGrant(
   transaction: Pick<PgTransactionClient, "query">,
   organizationId: string,
@@ -193,7 +159,6 @@ export async function hasLivePowerGrant(
   const base = [organizationId, principalId, power];
   let found;
   if (target.kind === "step") {
-    // A malformed id is no grant, not a database error.
     if (
       target.runId === undefined || !UUID.test(target.runId) ||
       target.stepKey === undefined
