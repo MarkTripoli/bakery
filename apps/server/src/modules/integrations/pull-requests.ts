@@ -28,7 +28,7 @@ export type PullRequestStatus =
 const FULL_SHA = /^[0-9a-f]{40}$/;
 const PULL_REQUEST_COLUMNS = `id, organization_id as "organizationId",
   task_id as "taskId", repository_id as "repositoryId",
-  provider_number as "providerNumber", url, head_sha as "headSha",
+  provider_number as "providerNumber", url, title, head_sha as "headSha",
   base_sha as "baseSha", status, merged_sha as "mergedSha",
   provider_updated_at as "providerUpdatedAt",
   observed_started_at as "observedStartedAt",
@@ -59,6 +59,9 @@ export const PullRequestRecordSchema = z.object({
   ),
   url: z.string().min(1).max(2048).describe(
     "Provider page of the pull request, as GitHub reported it.",
+  ),
+  title: z.string().max(1024).nullable().describe(
+    "Title of the latest read; null until a read carried one.",
   ),
   headSha: ShaSchema,
   baseSha: ShaSchema,
@@ -339,6 +342,9 @@ export const PullRequestObservationSchema = z.object({
   ),
   changedFiles: z.number().int().nonnegative().nullable().default(null)
     .describe("Provider count of changed files; null is unknown."),
+  title: z.string().min(1).max(1024).nullable().default(null).describe(
+    "Title GitHub shows for the pull request; null when the read did not carry one.",
+  ),
 }).strict().refine(
   (observation) => !observation.merged || observation.state === "closed",
   { message: "a merged pull request must read closed" },
@@ -398,7 +404,8 @@ export async function observePullRequest(
   const stored = PullRequestRecordSchema.parse(locked.rows[0]);
   const written = await transaction.query(
     `update bakery.pull_requests
-        set url = $4, head_sha = $5, base_sha = $6, status = $7,
+        set url = $4, title = coalesce($11, title), head_sha = $5,
+            base_sha = $6, status = $7,
             merged_sha = $8, provider_updated_at = $9,
             observed_started_at = $10, last_observed_at = now(),
             updated_at = now(), version = version + 1
@@ -422,6 +429,7 @@ export async function observePullRequest(
       mergedSha,
       observation.providerUpdatedAt,
       observation.observedStartedAt,
+      observation.title,
     ],
   );
   if (written.rowCount === 1) {
@@ -437,7 +445,8 @@ export async function observePullRequest(
   // stored state that began later confirms it; only the read clock moves.
   const confirmed = await transaction.query(
     `update bakery.pull_requests
-        set observed_started_at = $10, last_observed_at = now()
+        set observed_started_at = $10, last_observed_at = now(),
+            title = coalesce($11, title)
       where organization_id = $1 and repository_id = $2
         and provider_number = $3
         and (provider_updated_at, url, head_sha, base_sha, status, merged_sha)
@@ -456,6 +465,7 @@ export async function observePullRequest(
       mergedSha,
       observation.providerUpdatedAt,
       observation.observedStartedAt,
+      observation.title,
     ],
   );
   if (confirmed.rowCount === 1) {

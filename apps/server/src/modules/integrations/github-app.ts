@@ -754,6 +754,9 @@ const GitHubPullRequestSchema = z.object({
   changed_files: z.number().int().nonnegative().optional().describe(
     "Files the pull request's diff changes.",
   ),
+  title: z.string().max(1024).describe(
+    "Title GitHub shows for the pull request.",
+  ),
   html_url: z.string().url().max(2048).describe(
     "Web page of the pull request on GitHub.",
   ),
@@ -764,11 +767,12 @@ const GitHubPullRequestSchema = z.object({
     sha: GitHubCommitShaSchema.describe("Commit at the base of the branch."),
   }).describe("Base branch of the pull request; other fields are dropped."),
 }).describe(
-  "Selected fields of GET /repos/{owner}/{repo}/pulls/{number}; unknown fields, the body and the title are dropped.",
+  "Selected fields of GET /repos/{owner}/{repo}/pulls/{number}; unknown fields and the body are dropped.",
 ).transform((wire) => ({
   number: wire.number,
   state: wire.state,
   merged: wire.merged,
+  title: wire.title,
   headSha: wire.head.sha,
   baseSha: wire.base.sha,
   // Only a merged pull request has a merge commit worth recording.
@@ -782,7 +786,7 @@ const GitHubPullRequestSchema = z.object({
   deletions: wire.deletions ?? null,
   changedFiles: wire.changed_files ?? null,
 })).describe(
-  "Pull request number, state, head, base and merge commit SHAs, lifecycle times, diff totals, update time and web URL.",
+  "Pull request number, state, head, base and merge commit SHAs, title, lifecycle times, diff totals, update time and web URL.",
 );
 export type GitHubPullRequest = z.output<typeof GitHubPullRequestSchema>;
 

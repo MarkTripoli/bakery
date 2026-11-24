@@ -1,14 +1,24 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "b2d43f5341ad9fa9fcc71d64202440231fb97c4f",
-    "bcf250d9b43bacc274e8054b81cb02a2bf5c9843"
+    "46d4bd5fcb2f092946a5e4760557d7c90d753f64"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:da4e6483b255d84e1026de9d528ed29eec7f66cbf2c91a13ee098fae305b27d4",
-  "reason": "#407 batch workflow under the owner's standing breaking-change authorization (2026-10-09), main b2d43f5341ad9fa9fcc71d64202440231fb97c4f: BatchCreate.presetId becomes a required field (fixed-coding or fixed-coding-reviewed), because a batch start admitted every issue with no workflow and #407 made that a refusal; Batch gains presetId, null for a batch started before the workflow was stored. No other contract shape changed by this branch. The #975 approval bound to main 70cec2976e8bc36acf3c7689b53db580f9aa02f2 stays below as history.",
+  "targetCompatibilityDigest": "sha256:2d89145ec26b8a7a183538ec07ecb9860f1ae1df0b34d337267dd7262ae25abc",
+  "reason": "#75 Delivery D1 by dev-agx1 on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 46d4bd5fcb2f092946a5e4760557d7c90d753f64: MetricSeries gains a required median, null for any metric that is not measured in hours and when no record has a known value, so a card can show one typical figure for the whole window instead of only per-bucket means. Every metrics.get response is built by this server, so no caller sends the old shape. Nothing else in the contract shape changes by this branch. The #407 approval bound to main b2d43f5341ad9fa9fcc71d64202440231fb97c4f stays below as history.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "b2d43f5341ad9fa9fcc71d64202440231fb97c4f",
+        "bcf250d9b43bacc274e8054b81cb02a2bf5c9843"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:da4e6483b255d84e1026de9d528ed29eec7f66cbf2c91a13ee098fae305b27d4",
+      "reason": "#407 batch workflow under the owner's standing breaking-change authorization (2026-10-09), main b2d43f5341ad9fa9fcc71d64202440231fb97c4f: BatchCreate.presetId becomes a required field (fixed-coding or fixed-coding-reviewed), because a batch start admitted every issue with no workflow and #407 made that a refusal; Batch gains presetId, null for a batch started before the workflow was stored. No other contract shape changed by this branch. The #975 approval bound to main 70cec2976e8bc36acf3c7689b53db580f9aa02f2 stays below as history."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

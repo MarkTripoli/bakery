@@ -105,6 +105,7 @@ function read(
     additions: null,
     deletions: null,
     changedFiles: null,
+    title: null,
     ...over,
   };
 }
@@ -276,6 +277,119 @@ Deno.test("lifecycle facts dedupe, a reopen is one pull request, and the June nu
       [...(first.items as Json[]), ...(second.items as Json[])]
         .map((r) => r.id).sort(),
       [a, b].sort(),
+    );
+  } finally {
+    await f.finish();
+  }
+});
+
+Deno.test("the drilldown lists the newest record first and pages into the unknown ones last", async () => {
+  const f = await openGitHubAppFixture();
+  try {
+    const { connectionId, selected } = await enabledConnection(f, {
+      repositories: fakeRepositories(1, ["admin"]),
+      selected: 1,
+    });
+    const repo = await seedRepository(
+      f,
+      f.organizationId,
+      connectionId,
+      selected[0].external_id,
+    );
+    const older = await seedPullRequest(f, f.organizationId, repo, 1);
+    const newer = await seedPullRequest(f, f.organizationId, repo, 2);
+    await observe(
+      f,
+      repo.repositoryId,
+      read(f.organizationId, 1, {
+        state: "closed",
+        merged: true,
+        mergedSha: SHA,
+        title: "Count merged pull requests",
+        openedAt: new Date("2026-06-01T00:00:00Z"),
+        providerUpdatedAt: new Date("2026-06-03T00:00:00Z"),
+        closedAt: new Date("2026-06-03T00:00:00Z"),
+        mergedAt: new Date("2026-06-03T00:00:00Z"),
+      }),
+    );
+    await observe(
+      f,
+      repo.repositoryId,
+      read(f.organizationId, 2, {
+        state: "closed",
+        merged: true,
+        mergedSha: SHA,
+        title: "Add the metrics drilldown",
+        openedAt: new Date("2026-06-01T00:00:00Z"),
+        providerUpdatedAt: new Date("2026-06-20T00:00:00Z"),
+        closedAt: new Date("2026-06-20T00:00:00Z"),
+        mergedAt: new Date("2026-06-20T00:00:00Z"),
+      }),
+    );
+    const unplaced = await seedPullRequest(f, f.organizationId, repo, 3);
+    await observe(
+      f,
+      repo.repositoryId,
+      read(f.organizationId, 3, {
+        state: "closed",
+        merged: true,
+        mergedSha: SHA,
+      }),
+    );
+
+    const window = june.replace("&resolution=day", "");
+    const seen: {
+      id: string;
+      countedAt: string | null;
+      title: string | null;
+    }[] = [];
+    let cursor: string | null = null;
+    do {
+      const page = await ok(
+        await get(
+          f,
+          "/v1/metrics/sources?metric=prs.merged&limit=1&" + window +
+            (cursor === null ? "" : "&cursor=" + encodeURIComponent(cursor)),
+        ),
+      );
+      seen.push(...(page.items as typeof seen));
+      cursor = page.nextCursor as string | null;
+    } while (cursor !== null);
+
+    assertEquals(seen.map((row) => row.id), [newer, older, unplaced]);
+    assertEquals(seen.map((row) => row.countedAt), [
+      "2026-06-20T00:00:00.000Z",
+      "2026-06-03T00:00:00.000Z",
+      null,
+    ]);
+    assertEquals(
+      seen.map((row) => row.title),
+      ["Add the metrics drilldown", "Count merged pull requests", null],
+    );
+
+    await observe(
+      f,
+      repo.repositoryId,
+      read(f.organizationId, 2, {
+        state: "closed",
+        merged: true,
+        mergedSha: SHA,
+        title: "Rename the metrics drilldown",
+        openedAt: new Date("2026-06-01T00:00:00Z"),
+        providerUpdatedAt: new Date("2026-06-21T00:00:00Z"),
+        closedAt: new Date("2026-06-20T00:00:00Z"),
+        mergedAt: new Date("2026-06-20T00:00:00Z"),
+      }),
+    );
+    const renamed = await ok(
+      await get(
+        f,
+        "/v1/metrics/sources?metric=prs.merged&limit=1&" + window,
+      ),
+    );
+    assertEquals(
+      (renamed.items as { title: string | null }[])[0].title,
+      "Rename the metrics drilldown",
     );
   } finally {
     await f.finish();

@@ -259,6 +259,7 @@ export type PullRequestFact = Readonly<{
   taskId: string;
   providerNumber: number;
   url: string;
+  title: string | null;
   status: "open" | "closed" | "merged";
   openedAt: Date | null;
   mergedAt: Date | null;
@@ -499,6 +500,16 @@ export function placements(
   return out;
 }
 
+/** The middle of every known value: the mean of the two middles on an even count. */
+export function medianOf(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const ordered = values.toSorted((a, b) => a - b);
+  const middle = Math.floor(ordered.length / 2);
+  return ordered.length % 2 === 1
+    ? ordered[middle]
+    : (ordered[middle - 1] + ordered[middle]) / 2;
+}
+
 export type SeriesBody = {
   points: {
     at: string;
@@ -509,6 +520,8 @@ export type SeriesBody = {
       | "no_deploy_evidence"
       | null;
   }[];
+  /** The middle of every known value in the window, for an hours metric. */
+  median: number | null;
   sampleCount: number;
   missingCount: number;
   missingReasons: { reason: MissingReason; count: number }[];
@@ -528,6 +541,7 @@ export function noDeployEvidence(window: MetricWindow): SeriesBody {
       value: null,
       unknownReason: "no_deploy_evidence" as const,
     })),
+    median: null,
     sampleCount: 0,
     missingCount: 0,
     missingReasons: [],
@@ -547,6 +561,7 @@ export function aggregate(
   const known = new Array<number>(window.buckets).fill(0);
   const members = new Array<number>(window.buckets).fill(0);
   const reasons = new Map<MissingReason, number>();
+  const values: number[] = [];
   let sample = 0;
   let stillOpen = 0;
   for (const p of placed) {
@@ -563,6 +578,7 @@ export function aggregate(
     if (p.value === null) continue;
     sums[index] += p.value;
     known[index] += 1;
+    values.push(p.value);
     sample += 1;
     if (
       key === MetricKey.MergeRate && p.value === 0 && p.fact?.status === "open"
@@ -619,6 +635,7 @@ export function aggregate(
   );
   return {
     points,
+    median: unit === "hours" ? medianOf(values) : null,
     sampleCount: sample,
     missingCount,
     missingReasons,
@@ -636,6 +653,7 @@ type FactRow = {
   task_id: string;
   provider_number: number;
   url: string;
+  title: string | null;
   status: "open" | "closed" | "merged";
   opened_at: Date | null;
   merged_at: Date | null;
@@ -672,7 +690,7 @@ async function readFacts(
   window: MetricWindow,
 ): Promise<{ facts: PullRequestFact[]; lastObserved: Map<string, Date> }> {
   const found = await tx.query<FactRow>(
-    `select id, repository_id, task_id, provider_number, url, status,
+    `select id, repository_id, task_id, provider_number, url, title, status,
             opened_at, merged_at, closed_at, additions, deletions,
             head_sha, last_observed_at
        from bakery.pull_requests
@@ -764,6 +782,7 @@ async function readFacts(
       taskId: row.task_id,
       providerNumber: Number(row.provider_number),
       url: row.url,
+      title: row.title,
       status: row.status,
       openedAt: row.opened_at,
       mergedAt: row.merged_at,
@@ -965,6 +984,21 @@ export function sortKey(p: Placement): [string, string] {
   return [cursorTime(p), p.fact?.id ?? p.task?.taskId ?? ""];
 }
 
+/**
+ * The order metrics.sources answers in: the most recently placed record first,
+ * a record with no placed time after every placed one, ties by id. The cursor
+ * binding names this order, so a cursor minted under any other order is refused
+ * rather than read as a position in this one.
+ */
+export function newestFirst(a: Placement, b: Placement): number {
+  const [at, ai] = sortKey(a);
+  const [bt, bi] = sortKey(b);
+  const aPlaced = at !== UNKNOWN_TIME;
+  if (aPlaced !== (bt !== UNKNOWN_TIME)) return aPlaced ? -1 : 1;
+  if (at !== bt) return at > bt ? -1 : 1;
+  return ai > bi ? -1 : ai < bi ? 1 : 0;
+}
+
 /** metrics.sources */
 export function createMetricSourcesLister(secret: string) {
   return async (
@@ -983,7 +1017,7 @@ export function createMetricSourcesLister(secret: string) {
       action: "metrics.sources",
       principalId,
       organizationId,
-      ordering: "countedAt:asc,id:asc",
+      ordering: "countedAt:desc,id:desc",
       filters: JSON.stringify({
         metric: input.metric,
         from: window.from.toISOString(),
@@ -994,17 +1028,16 @@ export function createMetricSourcesLister(secret: string) {
     };
     const position = await decodeCursor(secret, input.cursor, binding);
     const { placed } = await placementsFor(tx, organizationId, input, window);
-    const rows = placed.sort((a, b) => {
-      const [at, ai] = sortKey(a);
-      const [bt, bi] = sortKey(b);
-      return at < bt ? -1 : at > bt ? 1 : ai < bi ? -1 : ai > bi ? 1 : 0;
-    });
+    const rows = placed.sort(newestFirst);
     const after = position
       ? [String(position.createdAt), position.id] as const
       : null;
     const start = after === null ? 0 : rows.findIndex((p) => {
-      const [t, id] = sortKey(p);
-      return t > after[0] || (t === after[0] && id > after[1]);
+      const [at, id] = sortKey(p);
+      if ((at !== UNKNOWN_TIME) !== (after[0] !== UNKNOWN_TIME)) {
+        return at === UNKNOWN_TIME;
+      }
+      return at !== after[0] ? at < after[0] : id < after[1];
     });
     const page = start < 0 ? [] : rows.slice(start, start + limit);
     const last = page.at(-1);
@@ -1061,7 +1094,7 @@ function sourceRow(p: Placement) {
     openedAt: p.fact.openedAt?.toISOString() ?? null,
     mergedAt: p.fact.mergedAt?.toISOString() ?? null,
     closedAt: p.fact.closedAt?.toISOString() ?? null,
-    title: null,
+    title: p.fact.title,
     requestedAt: null,
     deliveredAt: null,
     deliveryPoint: null,

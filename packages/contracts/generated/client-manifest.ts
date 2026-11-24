@@ -77306,6 +77306,19 @@ export const clientManifest = {
             }
           ],
           "description": "MetricSeries.summary may be null in this transport value."
+        },
+        "median": {
+          "anyOf": [
+            {
+              "type": "number",
+              "description": "The middle of every known value across the window, in hours: the typical figure a card shows for an hours metric. Null for any other metric and when no record has a known value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MetricSeries.median may be null in this transport value."
         }
       },
       "required": [
@@ -77324,7 +77337,8 @@ export const clientManifest = {
         "missingReasons",
         "hiddenCount",
         "repositories",
-        "summary"
+        "summary",
+        "median"
       ],
       "additionalProperties": false,
       "description": "The bounded time series GET /v1/metrics returns for one allowlisted metric key: half-open [from, to) UTC window, resolution, ordered points, and the provenance every card shows: unit, cohort, sample and missing counts, measurement revision, last sync and completeness. A null point is unknown, never zero."

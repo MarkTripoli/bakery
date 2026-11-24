@@ -83,6 +83,8 @@ export type FakePullRequest = {
   baseSha: string;
   mergedSha: string | null;
   updatedAt: string;
+  /** Title GitHub shows; the number's own title when a test sets none. */
+  title?: string;
 };
 
 /** What a test sets on a pull request it seeds; the rest is defaulted. */
@@ -1309,6 +1311,7 @@ export function createFakeGitHubApp(
       baseSha: seed.baseSha ?? fakeCommitSha(),
       mergedSha: seed.mergedSha ?? (merged ? fakeCommitSha() : null),
       updatedAt,
+      ...(seed.title === undefined ? {} : { title: seed.title }),
     };
     reads.pullRequests.set(item.number, pullRequest);
     return pullRequest;
@@ -1745,7 +1748,7 @@ export function createFakeGitHubApp(
     }/pull/${pull.number}`,
     number: pull.number,
     state: pull.state,
-    title: `Pull request ${pull.number}`,
+    title: pull.title ?? `Pull request ${pull.number}`,
     body: `Body of pull request ${pull.number}. Private repository text.`,
     merged: pull.merged,
     // GitHub reports a test merge commit for an open pull request too.

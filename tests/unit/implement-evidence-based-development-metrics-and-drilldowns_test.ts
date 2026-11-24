@@ -38,6 +38,7 @@ function pr(id: string, over: Partial<PullRequestFact> = {}): PullRequestFact {
     taskId: "t",
     providerNumber: 1,
     url: "u",
+    title: null,
     status: "open",
     openedAt: null,
     mergedAt: null,
@@ -193,6 +194,44 @@ Deno.test("AC2: unknown times and line totals stay unknown, never zero", () => {
   assert(never.points.every((p) => p.value === null));
 });
 
+Deno.test("a series carries one typical hour figure for the whole window", () => {
+  const turnaround = aggregate(
+    MetricKey.TurnaroundHours,
+    placements(MetricKey.TurnaroundHours, [A, B], june),
+    june,
+    true,
+  );
+  assertEquals(turnaround.sampleCount, 2);
+  assertEquals(turnaround.median, 48);
+  const three = pr("c", {
+    status: "merged",
+    openedAt: t("2026-06-10T00:00:00Z"),
+    mergedAt: t("2026-06-10T01:00:00Z"),
+  });
+  assertEquals(
+    aggregate(
+      MetricKey.TurnaroundHours,
+      placements(MetricKey.TurnaroundHours, [A, B, three], june),
+      june,
+      true,
+    ).median,
+    24,
+  );
+  assertEquals(
+    aggregate(
+      MetricKey.Merged,
+      placements(MetricKey.Merged, [A, B], june),
+      june,
+      true,
+    ).median,
+    null,
+  );
+  assertEquals(
+    aggregate(MetricKey.TurnaroundHours, [], june, true).median,
+    null,
+  );
+});
+
 Deno.test("AC2: overlapping PRs each count once at a cutoff, and a closed one not at all", () => {
   const one = metricWindow({
     from: "2026-06-01T00:00:00Z",
@@ -276,7 +315,7 @@ Deno.test("the drilldown cursor round-trips a known and an unknown placed time",
     action: "metrics.sources",
     principalId: crypto.randomUUID(),
     organizationId: crypto.randomUUID(),
-    ordering: "countedAt:asc,id:asc",
+    ordering: "countedAt:desc,id:desc",
     filters: "{}",
     schemaVersion: 1,
   };

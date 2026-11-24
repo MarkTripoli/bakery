@@ -729,6 +729,7 @@ async function pullRequestsStep(
                 number: read.number,
                 state: read.state,
                 merged: read.merged,
+                title: read.title,
                 url: read.url,
                 headSha: read.headSha,
                 baseSha: read.baseSha,

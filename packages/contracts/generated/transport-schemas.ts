@@ -26043,7 +26043,8 @@ const transportSchemas = {
         "missingReasons",
         "hiddenCount",
         "repositories",
-        "summary"
+        "summary",
+        "median"
       ],
       "fieldTypes": {
         "name": "string",
@@ -26061,7 +26062,8 @@ const transportSchemas = {
         "missingReasons": "MetricMissingReason[]",
         "hiddenCount": "integer",
         "repositories": "MetricRepositorySource[]",
-        "summary": "MetricTaskSummary|null"
+        "summary": "MetricTaskSummary|null",
+        "median": "number|null"
       },
       "bounds": {
         "pointsMaxItems": 1000
@@ -26083,11 +26085,13 @@ const transportSchemas = {
         "missingReasons": "Why records were left out, one entry per reason with its count; empty when nothing was left out.",
         "hiddenCount": "Records in scope the reader may not open; always 0 today, since every member who may read metrics may open every pull request of the organization.",
         "repositories": "Each repository in scope with the state of its source, so a disconnected or stale source is never read as zero.",
-        "summary": "For tasks.leadTimeHours: the cohort's median, 9-in-10 and mean lead time, where the time went and how many tasks reached each delivery point; null for pull request metrics."
+        "summary": "For tasks.leadTimeHours: the cohort's median, 9-in-10 and mean lead time, where the time went and how many tasks reached each delivery point; null for pull request metrics.",
+        "median": "The middle of every known value across the window, in hours: the typical figure a card shows for an hours metric. Null for any other metric and when no record has a known value."
       },
       "nullableFields": [
         "lastSyncAt",
-        "summary"
+        "summary",
+        "median"
       ]
     },
     "UsageSummary": {

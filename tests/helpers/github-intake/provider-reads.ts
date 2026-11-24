@@ -465,6 +465,7 @@ Deno.test("issue 71 provider reads: a pull request read maps its SHAs and keeps 
     number: open.number,
     state: "open",
     merged: false,
+    title: `Pull request ${open.number}`,
     headSha: SHA,
     baseSha: OTHER_SHA,
     mergedSha: null,
