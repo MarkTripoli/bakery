@@ -13,6 +13,18 @@ const ADMIN_PASSWORD = process.env.BAKERY_REAL_PASSWORD ||
 const TEAMMATE_EMAIL = "collab-dana@example.test";
 const TEAMMATE_NAME = "Dana Teammate";
 
+const DOCUMENT_SEED = {
+  fixtureName: "Shared document fixture",
+  taskDescription: "Seeded document for two editors",
+  taskStatus: "active",
+  artifactType: "plan",
+  artifactName: "Shared document",
+  artifactRevision: 2,
+  mediaType: "text/markdown",
+  metadata: {},
+  text: "# Shared plan\n\nOne line each person edits at the same time.\n",
+};
+
 const helper = (name: string) =>
   fileURLToPath(new URL(`../../../tests/helpers/${name}.ts`, import.meta.url));
 
@@ -91,7 +103,10 @@ test.describe("collaborative documents against the real API", () => {
       WEB_AUTH_SEED_PASSWORD: ADMIN_PASSWORD,
     });
     const seeded = documentSchema.parse(
-      deno("web-document-seed", [ADMIN_EMAIL]),
+      deno("web-browser-artifact-seed", [
+        ADMIN_EMAIL,
+        JSON.stringify(DOCUMENT_SEED),
+      ]),
     );
     const member = memberSchema.parse(
       deno("web-member-seed", [ADMIN_EMAIL, TEAMMATE_EMAIL, TEAMMATE_NAME]),
