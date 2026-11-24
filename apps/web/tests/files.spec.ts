@@ -10,6 +10,8 @@ import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
+test.use({ timezoneId: "America/New_York", locale: "en-US" });
+
 /**
  * The panel is one long-lived component on desktop: choosing another file swaps
  * its contents without remounting it. On a phone the file is a page of its own,

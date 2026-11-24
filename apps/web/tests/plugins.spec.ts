@@ -17,6 +17,7 @@ import { still } from "./helpers/stills.ts";
 // A shared machine can be slow to answer; give each assertion and test room.
 const expect = baseExpect.configure({ timeout: 15_000 });
 test.describe.configure({ timeout: laneBudgetMs(60_000) });
+test.use({ timezoneId: "America/New_York", locale: "en-US" });
 
 // #76: the Plugins settings pages, against a mocked plugin API. What matters is
 // what the person is told (installing gives all of it at once, turning off takes

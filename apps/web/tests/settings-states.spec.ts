@@ -1591,11 +1591,11 @@ test.describe("contextual feature availability", () => {
     ).toHaveCount(0);
   });
 
-  test("/register says Registration paused when signups are off", async ({ page }) => {
+  test("/register says New accounts are paused when signups are off", async ({ page }) => {
     await mockFeatureAvailability(page, { signups: false });
     await page.goto("/register");
     await expect(page.getByTestId("registration-paused")).toContainText(
-      "Registration paused",
+      "New accounts are paused",
     );
     await expectNoAxeViolations(page, "register paused");
   });
@@ -2059,8 +2059,8 @@ test.describe("connected clients and consent", () => {
     await open(page, "consent", "default");
     const list = page.getByRole("list", { name: "Requested access" });
     await expect(list.getByRole("listitem")).toHaveCount(2);
-    await expect(list).toContainText("Read work and artifacts");
-    await expect(list).toContainText("Start and steer tasks");
+    await expect(list).toContainText("Read your work and documents");
+    await expect(list).toContainText("Start and direct tasks");
     const organization = page.getByLabel("Organization");
     await expect(organization).toHaveValue(/a1$/);
     await expect(page.getByText("Only this organization is included"))
