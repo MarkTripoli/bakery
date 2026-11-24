@@ -68,6 +68,7 @@ export type ArtifactCommentComposerModel = {
   readonly onSubmit: () => void;
   readonly submitLabel: string;
   readonly disabled: boolean;
+  readonly posting: boolean;
   /** Why the button is off while a mention waits on someone who can give access; null otherwise. */
   readonly sendReason?: string | null;
   readonly inputRef?: Ref<HTMLTextAreaElement>;
@@ -116,6 +117,8 @@ export function ArtifactCommentComposerView(
         }}
         aria-label={composer.label}
         placeholder={composer.placeholder}
+        rows={1}
+        readOnly={composer.posting}
         value={composer.value}
         onChange={(event) =>
           composer.mentionField
@@ -124,6 +127,14 @@ export function ArtifactCommentComposerView(
         onKeyDown={(event) => {
           composer.mentionField?.fieldProps.onKeyDown(event);
           if (event.defaultPrevented) return;
+          if (
+            event.key === "Enter" && (event.metaKey || event.ctrlKey) &&
+            !composer.disabled
+          ) {
+            event.preventDefault();
+            composer.onSubmit();
+            return;
+          }
           if (event.key === "Escape" && composer.mode.kind === "reply") {
             event.preventDefault();
             composer.mode.onCancel();

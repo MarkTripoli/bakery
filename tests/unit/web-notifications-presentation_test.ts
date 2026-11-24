@@ -142,6 +142,8 @@ Deno.test("the bell's name carries the true count, not the drawn cap", () => {
       ? `Notifications, ${values?.count} unread`
       : key === "notifications.bell.unknown"
       ? "Notifications, count unavailable"
+      : key === "notifications.bell.noneUnread"
+      ? "Notifications, none unread"
       : "Notifications";
 
   assertEquals(
@@ -158,6 +160,6 @@ Deno.test("the bell's name carries the true count, not the drawn cap", () => {
   );
   assertEquals(
     bellAccessibleName({ state: "none" }, translate),
-    "Notifications",
+    "Notifications, none unread",
   );
 });

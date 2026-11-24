@@ -34,7 +34,12 @@ import { createMetricSourcesLister, getMetricSeries } from "./metrics.ts";
 export function createDeliveryHandlers(
   secret: string,
   merge: MergeDispatchDependencies,
+  environmentAddress: (environment: string) => string | null = () => null,
 ): DeliveryActionHandlers {
+  const withAddress = <Item extends { environment: string }>(item: Item) => ({
+    ...item,
+    address: environmentAddress(item.environment),
+  });
   const metricSources = createMetricSourcesLister(secret);
   return {
     checksList: createChecksListHandler(secret),
@@ -102,41 +107,47 @@ export function createDeliveryHandlers(
     deploymentsList: async (context, input) => {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
-      return contractSchemas["Page<Deployment>"].parse(
-        await listDeployments(
-          transaction,
-          organizationId,
-          principalId,
-          secret,
-          input,
-        ),
+      const page = await listDeployments(
+        transaction,
+        organizationId,
+        principalId,
+        secret,
+        input,
       );
+      return contractSchemas["Page<Deployment>"].parse({
+        ...page,
+        items: page.items.map(withAddress),
+      });
     },
     deploymentsCreate: async (context, input) => {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
       return contractSchemas.Deployment.parse(
-        await createDeployment(transaction, organizationId, principalId, {
-          requestId: context.requestId,
-          traceId: context.traceId,
-          create: input,
-        }),
+        withAddress(
+          await createDeployment(transaction, organizationId, principalId, {
+            requestId: context.requestId,
+            traceId: context.traceId,
+            create: input,
+          }),
+        ),
       );
     },
     deploymentsRollback: async (context, input) => {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
       return contractSchemas.Deployment.parse(
-        await rollbackDeployment(
-          transaction,
-          organizationId,
-          principalId,
-          context.params.id,
-          {
-            requestId: context.requestId,
-            traceId: context.traceId,
-            reason: input.reason,
-          },
+        withAddress(
+          await rollbackDeployment(
+            transaction,
+            organizationId,
+            principalId,
+            context.params.id,
+            {
+              requestId: context.requestId,
+              traceId: context.traceId,
+              reason: input.reason,
+            },
+          ),
         ),
       );
     },

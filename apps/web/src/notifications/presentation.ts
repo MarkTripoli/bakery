@@ -71,6 +71,11 @@ export const NOTIFICATION_COPY: Readonly<
   },
 });
 
+export function versionOfAnchor(anchor: string | null): string | null {
+  const match = anchor === null ? null : /^version:(\d+)$/.exec(anchor);
+  return match === null ? null : match[1];
+}
+
 /** Whether the row belongs in the Mentions view. */
 export function isMentionKind(kind: NotificationKind): boolean {
   return kind === "mention" || kind === "comment_mention";
@@ -196,6 +201,6 @@ export function bellAccessibleName(
     case "unknown":
       return translate("notifications.bell.unknown");
     default:
-      return translate("notifications.bell.label");
+      return translate("notifications.bell.noneUnread");
   }
 }

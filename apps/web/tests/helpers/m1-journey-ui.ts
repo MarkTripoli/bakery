@@ -32,7 +32,7 @@ export const PHONE = { width: 390, height: 844 } as const;
 export const conversationRegion = (page: Page) =>
   page.getByRole("region", { name: "Conversation", exact: true });
 export const messageBox = (page: Page) =>
-  page.getByRole("textbox", { name: "Message this task" });
+  page.getByRole("combobox", { name: "Message this task" });
 export const sendButton = (page: Page) =>
   page.getByRole("button", { name: "Send", exact: true });
 export const planRegion = (page: Page) =>

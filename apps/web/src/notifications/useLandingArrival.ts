@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useBakeryApi } from "../api/context.tsx";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { invalidateNotificationQueries } from "../api/query.ts";
 import type { LandingSearch } from "./landing.ts";
 
 /**
@@ -50,8 +51,7 @@ export function useLandingArrival(
           idempotencyKey: `read-${id}-${revision}-true`,
         });
         await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["notifications.list"] }),
-          queryClient.invalidateQueries({ queryKey: ["notifications.count"] }),
+          invalidateNotificationQueries(queryClient),
         ]);
       }
       strip();
