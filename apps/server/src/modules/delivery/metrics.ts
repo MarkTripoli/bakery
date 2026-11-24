@@ -257,6 +257,7 @@ export type PullRequestFact = Readonly<{
   id: string;
   repositoryId: string;
   taskId: string;
+  title: string;
   providerNumber: number;
   url: string;
   status: "open" | "closed" | "merged";
@@ -634,6 +635,7 @@ type FactRow = {
   id: string;
   repository_id: string;
   task_id: string;
+  title: string;
   provider_number: number;
   url: string;
   status: "open" | "closed" | "merged";
@@ -672,19 +674,23 @@ async function readFacts(
   window: MetricWindow,
 ): Promise<{ facts: PullRequestFact[]; lastObserved: Map<string, Date> }> {
   const found = await tx.query<FactRow>(
-    `select id, repository_id, task_id, provider_number, url, status,
-            opened_at, merged_at, closed_at, additions, deletions,
-            head_sha, last_observed_at
-       from bakery.pull_requests
-      where organization_id = $1
-        and ($2::uuid is null or repository_id = $2)
+    `select pr.id, pr.repository_id, pr.task_id, task.title,
+            pr.provider_number, pr.url, pr.status, pr.opened_at, pr.merged_at,
+            pr.closed_at, pr.additions, pr.deletions, pr.head_sha,
+            pr.last_observed_at
+       from bakery.pull_requests as pr
+       join bakery.tasks as task
+         on task.organization_id = pr.organization_id
+        and task.id = pr.task_id
+      where pr.organization_id = $1
+        and ($2::uuid is null or pr.repository_id = $2)
         and (
-          (opened_at < $4 and coalesce(merged_at, closed_at, $4) >= $3)
-          or (opened_at is null and created_at >= $3 and created_at < $4)
-          or (merged_at >= $3 and merged_at < $4)
-          or (closed_at >= $3 and closed_at < $4)
+          (pr.opened_at < $4 and coalesce(pr.merged_at, pr.closed_at, $4) >= $3)
+          or (pr.opened_at is null and pr.created_at >= $3 and pr.created_at < $4)
+          or (pr.merged_at >= $3 and pr.merged_at < $4)
+          or (pr.closed_at >= $3 and pr.closed_at < $4)
         )
-      order by id
+      order by pr.id
       limit $5`,
     [
       organizationId,
@@ -762,6 +768,7 @@ async function readFacts(
       id: row.id,
       repositoryId: row.repository_id,
       taskId: row.task_id,
+      title: row.title,
       providerNumber: Number(row.provider_number),
       url: row.url,
       status: row.status,
@@ -953,7 +960,7 @@ async function placementsFor(
 }
 
 /** The cursor time of a placement; an unknown one sorts after every known. */
-const UNKNOWN_TIME = "9999-12-31T23:59:59.999999Z";
+const UNKNOWN_TIME = "0001-01-01T00:00:00.000000Z";
 function cursorTime(p: Placement): string {
   return p.countedAt === null
     ? UNKNOWN_TIME
@@ -983,7 +990,7 @@ export function createMetricSourcesLister(secret: string) {
       action: "metrics.sources",
       principalId,
       organizationId,
-      ordering: "countedAt:asc,id:asc",
+      ordering: "countedAt:desc,id:desc",
       filters: JSON.stringify({
         metric: input.metric,
         from: window.from.toISOString(),
@@ -997,14 +1004,14 @@ export function createMetricSourcesLister(secret: string) {
     const rows = placed.sort((a, b) => {
       const [at, ai] = sortKey(a);
       const [bt, bi] = sortKey(b);
-      return at < bt ? -1 : at > bt ? 1 : ai < bi ? -1 : ai > bi ? 1 : 0;
+      return at > bt ? -1 : at < bt ? 1 : ai > bi ? -1 : ai < bi ? 1 : 0;
     });
     const after = position
       ? [String(position.createdAt), position.id] as const
       : null;
     const start = after === null ? 0 : rows.findIndex((p) => {
       const [t, id] = sortKey(p);
-      return t > after[0] || (t === after[0] && id > after[1]);
+      return t < after[0] || (t === after[0] && id < after[1]);
     });
     const page = start < 0 ? [] : rows.slice(start, start + limit);
     const last = page.at(-1);
@@ -1061,7 +1068,7 @@ function sourceRow(p: Placement) {
     openedAt: p.fact.openedAt?.toISOString() ?? null,
     mergedAt: p.fact.mergedAt?.toISOString() ?? null,
     closedAt: p.fact.closedAt?.toISOString() ?? null,
-    title: null,
+    title: p.fact.title,
     requestedAt: null,
     deliveredAt: null,
     deliveryPoint: null,
