@@ -42,9 +42,13 @@ export function planReviewLoopLimits(
     Math.max(...repeats),
     REVIEW_LOOP_LIMITS.maxRepairCyclesCeiling,
   );
+  const declared = document.limits.wallClockMs;
   return {
     maxRepairCycles,
-    maxLoopDurationMs: REVIEW_LOOP_LIMITS.maxLoopDurationMs,
+    maxLoopDurationMs: Math.min(
+      declared,
+      REVIEW_LOOP_LIMITS.maxLoopDurationMs,
+    ),
     maxFindings: REVIEW_LOOP_LIMITS.maxFindings,
   };
 }

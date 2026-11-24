@@ -3,6 +3,7 @@ import type { ActionContext } from "../../packages/contracts/src/action-registry
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import type { PgTransactionClient } from "../../apps/server/src/platform/database.ts";
 import {
+  capBudgetAtWorkflowCeiling,
   resolveDependencyReadiness,
   toRun,
   validateBudgetLimitUsd,
@@ -572,6 +573,18 @@ Deno.test("dependency readiness distinguishes completed and incomplete prerequis
     resolveDependencyReadiness([{ taskId: "task-1", status: "active" }]),
     { status: "blocked", reason: "dependency_incomplete" },
   );
+});
+
+Deno.test("a run's budget is the requester's limit capped by the workflow ceiling", () => {
+  assertEquals(capBudgetAtWorkflowCeiling("12", 5), "5");
+  assertEquals(capBudgetAtWorkflowCeiling("5", 5), "5");
+  assertEquals(capBudgetAtWorkflowCeiling("2.50", 5), "2.50");
+  assertEquals(capBudgetAtWorkflowCeiling(undefined, 5), "5");
+  assertEquals(capBudgetAtWorkflowCeiling(undefined, 500), "200");
+  assertEquals(capBudgetAtWorkflowCeiling("0", 5), "0");
+  assertEquals(capBudgetAtWorkflowCeiling("0.00", 5), "0.00");
+  assertEquals(capBudgetAtWorkflowCeiling(undefined, undefined), "0");
+  assertEquals(capBudgetAtWorkflowCeiling("12", undefined), "12");
 });
 
 Deno.test("run admission enforces the USD cap and UTF-8 input bounds", () => {
