@@ -80,10 +80,6 @@ test("workflow schedules full coverage and aggregate requires consumer job succe
     assert.equal(captures.length, 1, `${job} capture step`);
     assert.equal(captures[0].env.BAKERY_CAPTURE_JOBS, "4");
     assert.match(captures[0].run, /--\$mode/);
-    // Captured screens read the API through the vite proxy, so the capture
-    // needs the server and its database: a shard that starts only the dev
-    // server records 502 pages and compares them against references rendered
-    // with the API (#955).
     const steps = workflow.jobs[job].steps;
     const startApi = steps.findIndex((step) => step.name === "Start API");
     const startWeb = steps.findIndex((step) =>
@@ -194,9 +190,6 @@ test("schedule/manual empty diff reaches full consumers and fail-closed aggregat
         `${eventName}/${name} must not count skipped coverage as success`,
       );
     }
-    // Paper parity is informational (owner rule, 2026-11-24): a shard that
-    // failed or never ran cannot fail the aggregate, and its jobs, needs and
-    // artifacts stay in place.
     for (
       const name of [
         "LANE_UI_PAPER_RUNTIME",
@@ -212,7 +205,7 @@ test("schedule/manual empty diff reaches full consumers and fail-closed aggregat
         assert.equal(
           tolerated.status,
           0,
-          `${eventName}/${name}=${result} is informational, not gating: ${tolerated.stderr}`,
+          `${eventName}/${name}=${result} must not gate the aggregate: ${tolerated.stderr}`,
         );
       }
     }
@@ -273,11 +266,13 @@ test("the affected route selects exactly the classified heavy lanes", () => {
       .status,
     1,
   );
-  // A selected Paper shard that failed does not: parity is informational.
-  const parityFailed = { ...env, LANE_UI_PAPER_RUNTIME: "failure" };
+  const informationalParityFailed = {
+    ...env,
+    LANE_UI_PAPER_RUNTIME: "failure",
+  };
   assert.equal(
     spawnSync("bash", ["-c", aggregate.run], {
-      env: parityFailed,
+      env: informationalParityFailed,
       encoding: "utf8",
     }).status,
     0,

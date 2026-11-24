@@ -2113,9 +2113,6 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Pick free web and API ports
-        # Shared hosts run several runner users; fixed 5173/8000 collide. Both
-        # sockets stay open until both ports are read, so they differ. The API
-        # port is what the vite proxy targets (BAKERY_SERVER_PORT).
         run: |
           ports="$(node -e 'const net=require("net");const a=net.createServer(),b=net.createServer();a.listen(0,"127.0.0.1",()=>b.listen(0,"127.0.0.1",()=>{console.log(a.address().port,b.address().port);a.close();b.close()}))')"
           web_port="${ports%% *}"
@@ -2156,12 +2153,7 @@ jobs:
       - name: Ensure psql client
         shell: bash
         run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
           command -v psql >/dev/null 2>&1 || {
-            # Runners that share a host share its apt lock: take one lock for
-            # the whole install so a second job waits instead of failing.
             sudo flock /var/lock/bakery-ci-apt.lock sh -c \
               'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
           }
@@ -2175,9 +2167,6 @@ jobs:
           psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
       - run: pnpm migrate
       - name: Start API
-        # run-main.sh execs `deno run ... src/main.ts`, a cwd-relative path, so
-        # it must run from the server package exactly as apps/server's own
-        # dev/start scripts invoke it.
         working-directory: apps/server
         run: |
           bash scripts/run-main.sh > "$RUNNER_TEMP/server.log" 2>&1 &
@@ -2322,9 +2311,6 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Pick free web and API ports
-        # Shared hosts run several runner users; fixed 5173/8000 collide. Both
-        # sockets stay open until both ports are read, so they differ. The API
-        # port is what the vite proxy targets (BAKERY_SERVER_PORT).
         run: |
           ports="$(node -e 'const net=require("net");const a=net.createServer(),b=net.createServer();a.listen(0,"127.0.0.1",()=>b.listen(0,"127.0.0.1",()=>{console.log(a.address().port,b.address().port);a.close();b.close()}))')"
           web_port="${ports%% *}"
@@ -2367,12 +2353,7 @@ jobs:
       - name: Ensure psql client
         shell: bash
         run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
           command -v psql >/dev/null 2>&1 || {
-            # Runners that share a host share its apt lock: take one lock for
-            # the whole install so a second job waits instead of failing.
             sudo flock /var/lock/bakery-ci-apt.lock sh -c \
               'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
           }
@@ -2386,9 +2367,6 @@ jobs:
           psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
       - run: pnpm migrate
       - name: Start API
-        # run-main.sh execs `deno run ... src/main.ts`, a cwd-relative path, so
-        # it must run from the server package exactly as apps/server's own
-        # dev/start scripts invoke it.
         working-directory: apps/server
         run: |
           bash scripts/run-main.sh > "$RUNNER_TEMP/server.log" 2>&1 &
@@ -2539,9 +2517,6 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Pick free web and API ports
-        # Shared hosts run several runner users; fixed 5173/8000 collide. Both
-        # sockets stay open until both ports are read, so they differ. The API
-        # port is what the vite proxy targets (BAKERY_SERVER_PORT).
         run: |
           ports="$(node -e 'const net=require("net");const a=net.createServer(),b=net.createServer();a.listen(0,"127.0.0.1",()=>b.listen(0,"127.0.0.1",()=>{console.log(a.address().port,b.address().port);a.close();b.close()}))')"
           web_port="${ports%% *}"
@@ -2592,12 +2567,7 @@ jobs:
       - name: Ensure psql client
         shell: bash
         run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
           command -v psql >/dev/null 2>&1 || {
-            # Runners that share a host share its apt lock: take one lock for
-            # the whole install so a second job waits instead of failing.
             sudo flock /var/lock/bakery-ci-apt.lock sh -c \
               'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
           }
@@ -2611,9 +2581,6 @@ jobs:
           psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
       - run: pnpm migrate
       - name: Start API
-        # run-main.sh execs `deno run ... src/main.ts`, a cwd-relative path, so
-        # it must run from the server package exactly as apps/server's own
-        # dev/start scripts invoke it.
         working-directory: apps/server
         run: |
           bash scripts/run-main.sh > "$RUNNER_TEMP/server.log" 2>&1 &
