@@ -118429,7 +118429,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "The task's title; null for a pull request."
+                    "description": "The task's title for both task and pull-request records; null when the task title is unavailable."
                   },
                   {
                     "type": "null",

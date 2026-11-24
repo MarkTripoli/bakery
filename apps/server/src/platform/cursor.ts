@@ -133,6 +133,7 @@ function bindingRowCursorKind(binding: CursorBinding): RowCursorKind {
   if (
     binding.ordering === "createdAt:asc,id:asc" ||
     binding.ordering === "countedAt:asc,id:asc" ||
+    binding.ordering === "countedAt:desc,id:desc" ||
     binding.ordering === "createdAt:desc,id:desc" ||
     binding.ordering === "openedAt:desc,id:desc" ||
     binding.ordering === "trashedAt:desc,id:desc" ||
