@@ -627,7 +627,9 @@ export function TaskRunSection(
             {validRun && run.data
               ? (
                 <>
-                  {t("tasks.run.heading")}: {waitingOnModel
+                  {t("tasks.run.heading")}: {outcome !== null
+                    ? t(`tasks.stepApproval.outcome.badge.${outcome.decision}`)
+                    : waitingOnModel
                     ? t("tasks.waiting.badge")
                     : t(`tasks.run.status.${run.data.status}`)}
                   {stepUpdate && !steps.isError && !invalidSteps

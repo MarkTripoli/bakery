@@ -376,6 +376,8 @@ test("Request changes confirms, needs a note, and shows the run's outcome", asyn
     page.locator('[data-placement="line"]').filter({ hasText: "Ana Ruiz" }),
   ).toBeVisible();
   await expect(page.getByText("Canceled", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("status", { name: "Run updates" })).not
+    .toContainText("Canceled");
   await expect(page.getByRole("button", { name: "Run actions" })).toHaveCount(
     0,
   );
@@ -406,6 +408,8 @@ test("Reject confirms, its reason is optional, and the run reads Rejected", asyn
   await expect(page.getByText("Rejected", { exact: true })).toBeVisible();
   await expect(page.getByText(/rejected signoff\./)).toBeVisible();
   await expect(page.getByText("Canceled", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("status", { name: "Run updates" })).not
+    .toContainText("Canceled");
   await expect(page.getByRole("button", { name: "Run actions" })).toHaveCount(
     0,
   );
