@@ -5615,7 +5615,6 @@
   "library.evaluations.title.agent": "⟪An agent, version {version}⟫",
   "library.evaluations.title.workflow": "⟪A workflow, version {version}⟫",
   "library.evaluations.title.version": "⟪Version {version}⟫",
-  "library.evaluations.title.unknown": "⟪A version that is not named⟫",
   "library.evaluations.badge.queued": "⟪Waiting to start⟫",
   "library.evaluations.badge.running": "⟪Running · {measured} of {required} results measured⟫",
   "library.evaluations.badge.completed": "⟪Finished · {passed} of {required} results passed⟫",
@@ -6174,7 +6173,6 @@
   "library.evaluation.cost.meter.unsettled": "⟪Cannot say what is left⟫",
   "library.evaluation.cost.meter.exhausted": "⟪Nothing left⟫",
   "library.evaluation.cost.unsettled.title": "⟪Bakery cannot say this run stayed within its limit⟫",
-  "library.evaluation.cost.unsettled.body": "⟪No new model call starts until the missing cost is known.⟫",
   "library.evaluation.cost.exhausted.title": "⟪This run reached its limit⟫",
   "library.evaluation.cost.exhausted.body": "⟪Checks still run, and they cost nothing.⟫",
   "library.evaluation.sampled.help": "⟪A model's opinion on a sample of the test cases.⟫",
@@ -6688,5 +6686,10 @@
   "installation.usage.period.from": "⟪From⟫",
   "installation.usage.period.to": "⟪To⟫",
   "installation.usage.partial.body": "⟪{unverified, plural, one {# record is} other {# records are}} not confirmed by a provider and {unknown, plural, one {# record has} other {# records have}} no cost at all.⟫",
-  "installation.usage.lastUpdated": "⟪Last updated {time}⟫"
+  "installation.usage.lastUpdated": "⟪Last updated {time}⟫",
+  "library.evaluations.title.agentUnversioned": "⟪An agent⟫",
+  "library.evaluations.title.workflowUnversioned": "⟪A workflow⟫",
+  "library.evaluations.title.versionUnversioned": "⟪A version⟫",
+  "library.evaluation.cost.unsettled.body": "⟪No new model call starts until the missing cost is known. Bakery checks again by itself.⟫",
+  "library.evaluation.repeats.summary": "⟪{scorer}: {passed} of {n} repeats passed⟫"
 }

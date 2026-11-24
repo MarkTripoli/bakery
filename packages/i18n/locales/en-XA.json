@@ -5616,7 +5616,6 @@
   "library.evaluations.title.agent": "⟦Àñ àĝëñŧ, ṽëŕšïôñ {version} ŧëšŧ çô⟧",
   "library.evaluations.title.workflow": "⟦À ŵôŕķƒļôŵ, ṽëŕšïôñ {version} ŧëšŧ çôþ⟧",
   "library.evaluations.title.version": "⟦Ṽëŕšïôñ {version} ŧëš⟧",
-  "library.evaluations.title.unknown": "⟦À ṽëŕšïôñ ŧĥàŧ ïš ñôŧ ñàɱëð ŧëšŧ çô⟧",
   "library.evaluations.badge.queued": "⟦Ŵàïŧïñĝ ŧô šŧàŕŧ ŧëš⟧",
   "library.evaluations.badge.running": "⟦Ŕûññïñĝ · {measured} ôƒ {required} ŕëšûļŧš ɱëàšûŕëð ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.evaluations.badge.completed": "⟦Ƒïñïšĥëð · {passed} ôƒ {required} ŕëšûļŧš þàššëð ŧëšŧ çôþÿ ŧëšŧ⟧",
@@ -6175,7 +6174,6 @@
   "library.evaluation.cost.meter.unsettled": "⟦Çàññôŧ šàÿ ŵĥàŧ ïš ļëƒŧ ŧëšŧ ç⟧",
   "library.evaluation.cost.meter.exhausted": "⟦Ñôŧĥïñĝ ļëƒŧ ŧë⟧",
   "library.evaluation.cost.unsettled.title": "⟦Ɓàķëŕÿ çàññôŧ šàÿ ŧĥïš ŕûñ šŧàÿëð ŵïŧĥïñ ïŧš ļïɱïŧ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "library.evaluation.cost.unsettled.body": "⟦Ñô ñëŵ ɱôðëļ çàļļ šŧàŕŧš ûñŧïļ ŧĥë ɱïššïñĝ çôšŧ ïš ķñôŵñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "library.evaluation.cost.exhausted.title": "⟦Ŧĥïš ŕûñ ŕëàçĥëð ïŧš ļïɱïŧ ŧëšŧ çô⟧",
   "library.evaluation.cost.exhausted.body": "⟦Çĥëçķš šŧïļļ ŕûñ, àñð ŧĥëÿ çôšŧ ñôŧĥïñĝ. ŧëšŧ çôþÿ ŧ⟧",
   "library.evaluation.sampled.help": "⟦À ɱôðëļ'š ôþïñïôñ ôñ à šàɱþļë ôƒ ŧĥë ŧëšŧ çàšëš. ŧëšŧ çôþÿ ŧëšŧ⟧",
@@ -6688,5 +6686,10 @@
   "installation.usage.period.from": "⟦Ƒŕôɱ⟧",
   "installation.usage.period.to": "⟦Ŧô⟧",
   "installation.usage.partial.body": "⟦{unverified, plural, one {# record is} other {# records are}} ñôŧ çôñƒïŕɱëð ƀÿ à þŕôṽïðëŕ àñð {unknown, plural, one {# record has} other {# records have}} ñô çôšŧ àŧ àļļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "installation.usage.lastUpdated": "⟦Ļàšŧ ûþðàŧëð {time} ŧëšŧ⟧"
+  "installation.usage.lastUpdated": "⟦Ļàšŧ ûþðàŧëð {time} ŧëšŧ⟧",
+  "library.evaluations.title.agentUnversioned": "⟦Àñ àĝëñŧ…⟧",
+  "library.evaluations.title.workflowUnversioned": "⟦À ŵôŕķƒļôŵ ŧ⟧",
+  "library.evaluations.title.versionUnversioned": "⟦À ṽëŕšïôñ ŧ⟧",
+  "library.evaluation.cost.unsettled.body": "⟦Ñô ñëŵ ɱôðëļ çàļļ šŧàŕŧš ûñŧïļ ŧĥë ɱïššïñĝ çôšŧ ïš ķñôŵñ. Ɓàķëŕÿ çĥëçķš àĝàïñ ƀÿ ïŧšëļƒ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "library.evaluation.repeats.summary": "⟦{scorer}: {passed} ôƒ {n} ŕëþëàŧš þàššëð ŧëšŧ çôþÿ ŧ⟧"
 }
