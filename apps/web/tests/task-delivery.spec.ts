@@ -895,9 +895,38 @@ test("a refused allowance keeps the dialog open and says why", async ({ page }) 
   await button(nowCard(page), "Give Bakery more tries").click();
   const dialog = page.getByRole("dialog", { name: "Give Bakery more tries?" });
   await dialog.getByRole("button", { name: "Give more tries" }).click();
-  await expect(dialog.getByTestId("delivery-more-tries-notice")).toContainText(
-    "Bakery cannot hold that many tries.",
+  await expect(dialog).toContainText(
+    "Enter 6 or fewer. A run has at most 8 tries in total.",
   );
+});
+
+test("when all 8 tries are used the card says so and offers no button for more", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, {
+    ...STOPPED,
+    decisions: [
+      decisionRow(0, "repair", "repair_selected", OLD),
+      {
+        ...decisionRow(
+          1,
+          "stop",
+          "repair_cycles_exhausted",
+          NEW,
+          [sha("2")],
+        ),
+        limits: {
+          maxRepairCycles: 8,
+          maxLoopDurationMs: 600000,
+          maxFindings: 25,
+        },
+      },
+    ],
+  });
+  await page.goto(`/tasks/${id}`);
+  await expect(nowCard(page)).toContainText("All 8 tries are used.");
+  await expect(button(nowCard(page), "Give Bakery more tries")).toHaveCount(0);
+  await expect(button(nowCard(page), "Tell Bakery what to change"))
+    .toBeVisible();
 });
 
 test("someone who cannot allow more tries is told who can, and one whose role holds review:accept is offered the button", async ({ page }) => {
@@ -937,6 +966,7 @@ test("a paused run draws no second Paused card in Delivery", async ({ page }) =>
   await page.goto(`/tasks/${id}`);
   await expect(page.getByTestId("delivery-section")).toBeVisible();
   await expect(nowCard(page)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Resume run" })).toBeVisible();
 });
 
 test("a denied read says there is no access and draws no steps", async ({ page }) => {

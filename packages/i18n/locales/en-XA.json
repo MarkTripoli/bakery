@@ -6664,10 +6664,12 @@
   "tasks.delivery.moreTries.hint": "⟦Ƒŕôɱ 1 ŧô {max}. ŧëš⟧",
   "tasks.delivery.moreTries.invalid": "⟦Ëñŧëŕ à ñûɱƀëŕ ƒŕôɱ 1 ŧô {max}. ŧëšŧ çôþ⟧",
   "tasks.delivery.moreTries.confirm": "⟦Ĝïṽë ɱôŕë ŧŕïëš ŧëš⟧",
-  "tasks.delivery.moreTries.notice.tooMany": "⟦Ɓàķëŕÿ çàññôŧ ĥôļð ŧĥàŧ ɱàñÿ ŧŕïëš. Ëñŧëŕ à šɱàļļëŕ ñûɱƀëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "tasks.delivery.moreTries.notice.notStopped": "⟦Ɓàķëŕÿ ïš ñô ļôñĝëŕ šŧôþþëð ƒôŕ ŧŕïëš. Ŧĥë çûŕŕëñŧ šŧàŧë ïš šĥôŵñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
-  "tasks.delivery.moreTries.notice.forbidden": "⟦Ÿôû çàññôŧ ĝïṽë Ɓàķëŕÿ ɱôŕë ŧŕïëš. ŧëšŧ çôþÿ⟧",
   "tasks.delivery.moreTries.notice.error": "⟦Ṁôŕë ŧŕïëš çôûļð ñôŧ ƀë ĝïṽëñ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧë⟧",
-  "tasks.delivery.moreTries.notice.noAnswer": "⟦Ñô àñšŵëŕ ÿëŧ. Ŧŕÿ àĝàïñ: àšķïñĝ ŧŵïçë ĝïṽëš ŧĥë ŧŕïëš ôñçë. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "tasks.delivery.release.healthy.body": "⟦Ŧĥë ŕëļëàšë ïš ĥëàļŧĥÿ. Ŧĥïš çĥàñĝë ïš ðôñë. ŧëšŧ çôþÿ ŧëš⟧"
+  "tasks.delivery.release.healthy.body": "⟦Ŧĥë ŕëļëàšë ïš ĥëàļŧĥÿ. Ŧĥïš çĥàñĝë ïš ðôñë. ŧëšŧ çôþÿ ŧëš⟧",
+  "tasks.delivery.moreTries.tooMany": "⟦Ëñŧëŕ {max} ôŕ ƒëŵëŕ. À ŕûñ ĥàš àŧ ɱôšŧ 8 ŧŕïëš ïñ ŧôŧàļ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "tasks.delivery.moreTries.close": "⟦Çļôšë⟧",
+  "tasks.delivery.now.stopped.allUsed": "⟦Àļļ 8 ŧŕïëš àŕë ûšëð. ŧëšŧŧ⟧",
+  "tasks.delivery.moreTries.notice.notStopped": "⟦Ŧĥïš ŕûñ ïš ñô ļôñĝëŕ ŵàïŧïñĝ ƒôŕ ɱôŕë ŧŕïëš. Ŧĥë þàĝë ñôŵ šĥôŵš ŵĥëŕë ïŧ ïš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "tasks.delivery.moreTries.notice.forbidden": "⟦Ÿôû ðô ñôŧ ĥàṽë þëŕɱïššïôñ ŧô ĝïṽë ɱôŕë ŧŕïëš. Àšķ àñ ôŕĝàñïžàŧïôñ ôŵñëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "tasks.delivery.moreTries.notice.noAnswer": "⟦Ɓàķëŕÿ ðïð ñôŧ àñšŵëŕ. Ŧŕÿ àĝàïñ; ŧĥë ŧŕïëš àŕë ôñļÿ àððëð ôñçë. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
 }

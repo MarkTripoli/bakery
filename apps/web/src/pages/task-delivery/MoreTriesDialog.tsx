@@ -9,7 +9,6 @@ const DEFAULT_TRIES = 2;
 const NOTICE_KEYS: Readonly<
   Partial<Record<MoreTriesPhase, MessageKey>>
 > = {
-  tooMany: "tasks.delivery.moreTries.notice.tooMany",
   notStopped: "tasks.delivery.moreTries.notice.notStopped",
   forbidden: "tasks.delivery.moreTries.notice.forbidden",
   error: "tasks.delivery.moreTries.notice.error",
@@ -53,7 +52,11 @@ export function MoreTriesDialog(
       dismissLabel={t("core.actions.close")}
       onOpenChange={(next) => !next && !working && onClose()}
       open={open}
-      state={working ? "submitting" : notice === undefined ? "open" : "error"}
+      state={working
+        ? "submitting"
+        : notice === undefined && phase !== "tooMany"
+        ? "open"
+        : "error"}
       title={t("tasks.delivery.moreTries.title")}
       variant="form"
     >
@@ -62,11 +65,13 @@ export function MoreTriesDialog(
         <UI.Field
           error={missing
             ? t("tasks.delivery.moreTries.invalid", { max })
+            : phase === "tooMany"
+            ? t("tasks.delivery.moreTries.tooMany", { max })
             : undefined}
           hint={t("tasks.delivery.moreTries.hint", { max })}
           htmlFor={fieldId}
           label={t("tasks.delivery.moreTries.label")}
-          state={missing ? "invalid" : "default"}
+          state={missing || phase === "tooMany" ? "invalid" : "default"}
           width="short"
         >
           <UI.TextInput
@@ -102,16 +107,20 @@ export function MoreTriesDialog(
             onClick={onClose}
             variant="secondary"
           >
-            {t("core.actions.cancel")}
+            {phase === "notStopped"
+              ? t("tasks.delivery.moreTries.close")
+              : t("core.actions.cancel")}
           </UI.Button>
-          <UI.Button
-            disabled={offline || working}
-            loading={working}
-            onClick={() => void give()}
-            variant="primary"
-          >
-            {t("tasks.delivery.moreTries.confirm")}
-          </UI.Button>
+          {phase === "notStopped" ? null : (
+            <UI.Button
+              disabled={offline || working}
+              loading={working}
+              onClick={() => void give()}
+              variant="primary"
+            >
+              {t("tasks.delivery.moreTries.confirm")}
+            </UI.Button>
+          )}
         </UI.Inline>
       </UI.Stack>
     </UI.Dialog>

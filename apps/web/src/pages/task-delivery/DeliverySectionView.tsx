@@ -275,7 +275,10 @@ function stoppedCopy(
           ...told,
           body: `${told.body} ${t("tasks.delivery.now.stopped.askAdmin")}`,
         }
-        : told;
+        : {
+          ...told,
+          body: `${told.body} ${t("tasks.delivery.now.stopped.allUsed")}`,
+        };
     }
     case "repair_time_exhausted":
       return tell(
