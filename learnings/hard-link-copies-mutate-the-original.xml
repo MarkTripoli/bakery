@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="hard-link-copies-mutate-the-original" project="bakery">
+  <title>Break the hard link before a mutation harness writes into a copied tree</title>
+  <trigger>A mutation, red-proof or fixture harness clones a checkout with cp -al or cp -l, then edits files in place. The author's own worktree changes under them, or a run that reports "restored clean" has already written a mutant into the tree it copied from.</trigger>
+  <rule>cp -al does not copy anything; it makes a second name for the same inodes, so a write through either path is a write through both. A harness that edits in place therefore mutates the original worktree, and its restore step mutates it again. Only a write that creates a new inode breaks the link: write a temp file in the same directory and os.replace it over the target, or remove the target and copy the file in afterwards. Decide by what the harness does, not by what the clone is called: read-only lanes can keep cp -al for the speed, and any lane that writes in place needs cp -a, rsync --no-hard-links, or a per-file copy before the first write. Check with stat -c %i on both paths, or find on the original path with -samefile, which answers whether the copy is still sharing an inode with the file the author is watching.</rule>
+  <verification>
+    <requirement>Show inode identity before the write and divergence after it, then show the contrast: cp -al gives both paths the same inode and a write through the copy lands in the original; write-temp-then-os.replace gives the copy a new inode and leaves the original byte-identical, proven with a checksum on the original before and after. Credit qa-qa, who caught the live case on #988 from the author's side: their file held a mutant for about a minute before the harness restored it, so the harness reported success while another seat's tree was wrong.</requirement>
+  </verification>
+</learning>

@@ -1,19 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import {
+  invalidateNotificationQueries,
   notificationCountQueryOptions,
   notificationsListQueryOptions,
 } from "../api/query.ts";
+import { useLiveEvents } from "../api/use-live-events.ts";
 import { useShellViewport } from "../app/responsive.ts";
+import { useSession } from "../app/session-context.tsx";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { NotificationsList } from "./NotificationsList.tsx";
+import { useMarkAllRead } from "./useMarkAllRead.ts";
 import { bellAccessibleName, bellStatusOf } from "./presentation.ts";
 
 const NOTIFICATIONS_PATH = "/notifications";
-const POPOVER_ROWS = 6;
+const POPOVER_ROWS = 5;
 
 /**
  * The bell in the shell's top bar, with the recent-notifications popover on a
@@ -25,7 +30,14 @@ export function NotificationBellControl() {
   const client = useBakeryApi();
   const scope = useProtectedScope();
   const viewport = useShellViewport();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const principalId = useSession().identity?.principalId ?? null;
   const [open, setOpen] = useState(false);
+  useLiveEvents(
+    principalId === null ? [] : [{ type: "inbox", id: principalId }],
+    () => void invalidateNotificationQueries(queryClient),
+  );
   const count = useQuery(notificationCountQueryOptions(client, scope));
   const status = bellStatusOf(
     count.data?.unread ?? null,
@@ -49,9 +61,7 @@ export function NotificationBellControl() {
           translate("notifications.bell.unread", { count: value })}
         unknownLabel={translate("notifications.bell.unknown")}
         arrivalAnnouncement={arrival}
-        onClick={() => {
-          globalThis.location.assign(NOTIFICATIONS_PATH);
-        }}
+        onClick={() => void navigate({ to: NOTIFICATIONS_PATH })}
       />
     );
   }
@@ -128,6 +138,11 @@ function NotificationBellPopover(
   const { translate } = useI18n();
   const client = useBakeryApi();
   const scope = useProtectedScope();
+  const { failed: markAllFailed, markAllRead: runMarkAllRead, marking } =
+    useMarkAllRead("bell");
+  const markAllRead = async () => {
+    if (await runMarkAllRead()) onClose();
+  };
   const list = useQuery(
     notificationsListQueryOptions(client, scope, {
       filter: "all",
@@ -140,16 +155,20 @@ function NotificationBellPopover(
   return (
     <UI.NotificationPopover
       title={translate("notifications.title")}
-      markAllReadLabel={translate("notifications.markAllRead")}
-      markAllReadDisabled={nothingUnread}
-      markAllReadDisabledReason={translate(
-        "notifications.markAllRead.disabled",
-      )}
-      onMarkAllRead={() => {
-        // Marking all read from the popover is the page's action; the page owns
-        // the toast and the cutoff, so the popover just goes there.
-        globalThis.location.assign(NOTIFICATIONS_PATH);
-      }}
+      markAllReadLabel={nothingUnread
+        ? undefined
+        : marking
+        ? translate("notifications.markAllRead.running")
+        : translate("notifications.markAllRead")}
+      markAllReadDisabled={marking}
+      onMarkAllRead={() => void markAllRead()}
+      failedLabel={translate("notifications.failed")}
+      retryLabel={translate("notifications.tryAgain")}
+      onRetry={() => void list.refetch()}
+      actionFailedLabel={markAllFailed
+        ? translate("notifications.markAll.failed")
+        : undefined}
+      onActionRetry={() => void markAllRead()}
       viewAllHref={NOTIFICATIONS_PATH}
       viewAllLabel={translate("notifications.popover.viewAll")}
       footerNote={translate("notifications.popover.empty")}
@@ -157,7 +176,7 @@ function NotificationBellPopover(
         ? "loading"
         : list.isError
         ? "failed"
-        : rows.length === 0
+        : nothingUnread || rows.length === 0
         ? "empty"
         : "ready"}
     >

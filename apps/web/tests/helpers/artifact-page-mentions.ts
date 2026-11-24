@@ -45,6 +45,7 @@ type World = {
   revokeStatus: number;
   /** What the comment POST answers: 200, or a status that carries refusals. */
   postStatus: number;
+  postDelayMs: number;
   postIssues: { path: string; code: string; message: string }[];
   posts: Record<string, unknown>[];
   revokes: { principalId: string; ifMatch: string | undefined }[];
@@ -61,6 +62,7 @@ function world(overrides: Partial<World> = {}): World {
     grants: [],
     revokeStatus: 200,
     postStatus: 200,
+    postDelayMs: 0,
     postIssues: [],
     posts: [],
     revokes: [],
@@ -163,9 +165,12 @@ async function open(page: Page, state: World = world()) {
   );
   await page.route(
     `**/v1/artifact-versions/${VERSION_ID}/comments`,
-    (route) => {
+    async (route) => {
       const body = route.request().postDataJSON() as Record<string, unknown>;
       state.posts.push(body);
+      if (state.postDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, state.postDelayMs));
+      }
       return answerPost(route, state, body);
     },
   );
@@ -213,6 +218,45 @@ async function chooseSamir(page: Page) {
   await page.getByRole("option", { name: "Samir Okafor, no access yet" })
     .click();
 }
+
+test("removing a chip keeps the name as words", async ({ page }) => {
+  await open(page);
+  await chooseSamir(page);
+  await page.getByRole("button", { name: "Remove mention of Samir Okafor" })
+    .click();
+  await expect(commentBox(page)).toHaveValue("Please look Samir Okafor ");
+});
+
+test("the comment box is a combobox that is expanded only while the picker shows", async ({ page }) => {
+  await open(page);
+  const box = page.getByRole("combobox", { name: "Comment", exact: true });
+  await expect(box).toHaveAttribute("aria-expanded", "false");
+  await box.fill("@");
+  await expect(box).toHaveAttribute("aria-expanded", "true");
+  await box.press("Escape");
+  await expect(box).toHaveAttribute("aria-expanded", "false");
+});
+
+test("the comment box grows with what is typed", async ({ page }) => {
+  await open(page);
+  const one = (await commentBox(page).boundingBox())!.height;
+  await commentBox(page).fill("a\nb\nc\nd\ne\nf\ng\nh");
+  const many = (await commentBox(page).boundingBox())!.height;
+  expect(many).toBeGreaterThan(one + 40);
+});
+
+test("Ctrl+Enter posts, the box is read-only while it posts, and focus is back in it after", async ({ page }) => {
+  const state = world({ postDelayMs: 700 });
+  await open(page, state);
+  await commentBox(page).fill("Looks good");
+  await commentBox(page).press("Control+Enter");
+  await expect(commentBox(page)).toHaveAttribute("readonly", "");
+  await expect(commentBox(page)).toHaveValue("Looks good");
+  await expect(commentBox(page)).toHaveValue("");
+  await expect(commentBox(page)).not.toHaveAttribute("readonly", "");
+  await expect(commentBox(page)).toBeFocused();
+  expect(state.posts).toHaveLength(1);
+});
 
 test("typing @ in the comment box offers people: a quiet row, and one badge for anyone without access", async ({ page }) => {
   await open(page);

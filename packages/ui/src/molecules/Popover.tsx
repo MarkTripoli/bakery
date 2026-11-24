@@ -71,6 +71,11 @@ export function Popover(
   };
   const setOpenRef = useRef(setOpen);
   setOpenRef.current = setOpen;
+  const wasOpen = useRef(isOpen);
+  useEffect(() => {
+    if (wasOpen.current && !isOpen) triggerRef.current?.focus();
+    wasOpen.current = isOpen;
+  }, [isOpen]);
   const leavesPanel = (event: KeyboardEvent) => {
     const content = contentRef.current;
     const active = globalThis.document.activeElement;

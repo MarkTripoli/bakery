@@ -398,10 +398,35 @@ async function mockWorld(page: Page, state: World) {
     }));
 }
 
+const scopesByConnection = (stream: Stream) => {
+  const byConnection = new Map<number, string[]>();
+  for (const subscribe of stream.subscribes) {
+    const scopes = byConnection.get(subscribe.connection) ?? [];
+    for (const scope of subscribe.scopes) {
+      const named = `${scope.type}:${scope.id}`;
+      expect(scopes).not.toContain(named);
+      scopes.push(named);
+    }
+    byConnection.set(subscribe.connection, scopes);
+  }
+  return [...byConnection.values()].map((scopes) => scopes.sort());
+};
+
+const shellAndCoordinationScopes = () =>
+  [
+    `application:${applicationId}`,
+    `inbox:${principalId}`,
+    `task:${taskId}`,
+  ].sort();
+
 /** A scripted /v1/events server: hello, then a cursor for every subscribe. */
+type Subscribe = {
+  connection: number;
+  scopes: { type: string; id: string }[];
+};
 type Stream = {
   connections: WebSocketRoute[];
-  subscribes: Record<string, unknown>[];
+  subscribes: Subscribe[];
   push: () => void;
   drop: () => void;
 };
@@ -435,7 +460,10 @@ async function mockStream(page: Page): Promise<Stream> {
     socket.onMessage((message) => {
       const frame = JSON.parse(String(message)) as Record<string, unknown>;
       if (frame.type !== "subscribe") return;
-      stream.subscribes.push(frame);
+      stream.subscribes.push({
+        connection: stream.connections.length,
+        scopes: frame.scopes as { type: string; id: string }[],
+      });
       requests.set(socket, String(frame.requestId));
       cursor(socket);
     });
@@ -716,7 +744,10 @@ test("a stale refresh keeps the last plan and offers a refresh", async ({ page }
   const stream = await mockStream(page);
   await open(page, state);
   await expect(laneRow(page, "api")).toBeVisible();
-  await expect.poll(() => stream.subscribes.length).toBe(1);
+  await expect.poll(() => stream.connections.length).toBe(1);
+  await expect.poll(() => scopesByConnection(stream)).toEqual([
+    shellAndCoordinationScopes(),
+  ]);
   state.plansStatus = 500;
   stream.push();
   await expect(page.getByText("The split could not be refreshed"))
@@ -734,10 +765,9 @@ test("an event refreshes lanes without a reload and a dropped stream reconnects"
   const stream = await mockStream(page);
   await open(page, state);
   await expect(laneRow(page, "docs")).toContainText("Running");
-  await expect.poll(() => stream.subscribes.length).toBe(1);
-  expect(stream.subscribes[0].scopes).toEqual([
-    { type: "task", id: taskId },
-    { type: "application", id: applicationId },
+  await expect.poll(() => stream.connections.length).toBe(1);
+  await expect.poll(() => scopesByConnection(stream)).toEqual([
+    shellAndCoordinationScopes(),
   ]);
   state.plans = [partial()];
   stream.push();
@@ -752,8 +782,12 @@ test("an event refreshes lanes without a reload and a dropped stream reconnects"
   ])];
   stream.drop();
   await expect(page.locator('[data-ui-region="live-lost"]')).toBeVisible();
-  await expect.poll(() => stream.subscribes.length, { timeout: 15_000 })
+  await expect.poll(() => stream.connections.length, { timeout: 15_000 })
     .toBe(2);
+  await expect.poll(() => scopesByConnection(stream)).toEqual([
+    shellAndCoordinationScopes(),
+    shellAndCoordinationScopes(),
+  ]);
   await expect(root(page)).toContainText("3 of 3 lanes completed");
   await expect(page.locator('[data-ui-region="live-lost"]')).toHaveCount(0);
 });
@@ -899,6 +933,16 @@ test("long titles and a dark scheme stay contained", async ({ page }) => {
     ),
   ).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test("the phone header carries the notifications bell", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page);
+  await expect(
+    root(page).getByRole("button", { name: /^Notifications/ }),
+  ).toBeVisible();
+  await page.mouse.move(200, 800);
+  await still(page, "phone-header-bell-coordination");
 });
 
 const withOrigin = (origin: Record<string, unknown>) => ({
@@ -1257,7 +1301,11 @@ test("a stale lane arriving by event shows the notice without a reload", async (
   const state = world();
   const stream = await mockStream(page);
   await open(page, state);
-  await expect.poll(() => stream.subscribes.length).toBe(1);
+  await expect(laneRow(page, "api")).toBeVisible();
+  await expect.poll(() => stream.connections.length).toBe(1);
+  await expect.poll(() => scopesByConnection(stream)).toEqual([
+    shellAndCoordinationScopes(),
+  ]);
   state.plans = [stale()];
   stream.push();
   await expect(laneRow(page, "web")).toContainText("Stale");

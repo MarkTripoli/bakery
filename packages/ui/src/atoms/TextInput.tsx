@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, KeyboardEvent } from "react";
 import "../controls.css";
 
 const LONG_COPY_THRESHOLD = 64;
@@ -24,6 +24,7 @@ export type TextInputProps = {
   step?: number;
   onBlur?: () => void;
   onChange: (value: string) => void;
+  onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
   placeholder?: string;
   readOnly?: boolean;
   required?: boolean;
@@ -46,6 +47,7 @@ export function TextInput(
     step,
     onBlur,
     onChange,
+    onKeyDown,
     placeholder,
     readOnly = false,
     required = false,
@@ -83,6 +85,7 @@ export function TextInput(
         onBlur={onBlur}
         onChange={(event: ChangeEvent<HTMLInputElement>) =>
           onChange(event.target.value)}
+        onKeyDown={onKeyDown}
         placeholder={placeholder}
         readOnly={readOnly}
         required={required}

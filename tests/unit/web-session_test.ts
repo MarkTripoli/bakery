@@ -330,6 +330,7 @@ function fakeApi(
     resolveNotificationTarget: rejecting,
     setNotificationRead: rejecting,
     markAllNotificationsRead: rejecting,
+    undoMarkAllNotificationsRead: rejecting,
     createRun: rejecting,
     listRuns: rejecting,
     controlRun: rejecting,

@@ -1,8 +1,11 @@
-import { useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
-import { notificationTargetQueryOptions } from "../api/query.ts";
+import {
+  invalidateNotificationQueries,
+  notificationTargetQueryOptions,
+} from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { landingDestination } from "./landing.ts";
@@ -26,6 +29,27 @@ export function NotificationOpening(
   const { translate } = useI18n();
   const client = useBakeryApi();
   const scope = useProtectedScope();
+  const queryClient = useQueryClient();
+  const [marking, setMarking] = useState<"idle" | "saving" | "done" | "failed">(
+    "idle",
+  );
+  const markRead = async () => {
+    if (revision === null || scope.organizationId === null) return;
+    setMarking("saving");
+    const result = await client.setNotificationRead({
+      organizationId: scope.organizationId,
+      id,
+      read: true,
+      expectedCasVersion: revision,
+      idempotencyKey: `read-${id}-${revision}-true`,
+    });
+    if (!result.ok) {
+      setMarking("failed");
+      return;
+    }
+    setMarking("done");
+    await invalidateNotificationQueries(queryClient);
+  };
   const target = useQuery({
     ...notificationTargetQueryOptions(client, scope, id),
     enabled: scope.organizationId !== null,
@@ -65,9 +89,20 @@ export function NotificationOpening(
             description={translate("notifications.unavailable.sentence")}
             variant="filtered"
             action={
-              <UI.Button onClick={onBack} variant="secondary">
-                {translate("notifications.unavailable.back")}
-              </UI.Button>
+              <UI.Inline gap="compact">
+                <UI.Button onClick={onBack} variant="primary">
+                  {translate("notifications.unavailable.back")}
+                </UI.Button>
+                {revision === null || marking === "done" ? null : (
+                  <UI.Button
+                    loading={marking === "saving"}
+                    onClick={() => void markRead()}
+                    variant="secondary"
+                  >
+                    {translate("notifications.row.markRead")}
+                  </UI.Button>
+                )}
+              </UI.Inline>
             }
           />
         )
@@ -82,6 +117,20 @@ export function NotificationOpening(
             ))}
           </UI.Stack>
         )}
+      {gone && marking === "done"
+        ? (
+          <UI.InlineNotice tone="information">
+            {translate("notifications.unavailable.marked")}
+          </UI.InlineNotice>
+        )
+        : null}
+      {gone && marking === "failed"
+        ? (
+          <UI.InlineNotice tone="error">
+            {translate("notifications.row.saveFailed")}
+          </UI.InlineNotice>
+        )
+        : null}
     </UI.Stack>
   );
 }
