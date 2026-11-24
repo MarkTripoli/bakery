@@ -141,6 +141,7 @@ function merged(id: string, lineCount: LineCount | null): PullRequestFact {
     id,
     repositoryId: "r",
     taskId: "t",
+    title: `PR ${id}`,
     providerNumber: 1,
     url: "u",
     status: "merged",
