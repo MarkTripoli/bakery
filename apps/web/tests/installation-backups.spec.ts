@@ -505,6 +505,36 @@ for (
       await still(page, "backups-never");
     });
 
+    test("never backed up after a failed first run: the cause, and no raw answer", async ({ page }) => {
+      await fixture(page, {
+        status: {
+          state: "failed",
+          lastGoodBackupAt: null,
+          lastAttemptAt: hoursAgo(1),
+        },
+        runs: [
+          run(1, {
+            status: "failed",
+            failureCode: "disk_full",
+            failureDetail: "no_space_left_on_device",
+            locations: [],
+            sizeBytes: null,
+          }),
+        ],
+      });
+      await page.goto("/installation/backups");
+      const notice = page.locator("[data-notice='never']");
+      await expect.poll(() => said(notice)).toContain(
+        "The last backup failed: the server's disk was full. Free space on the server, then back up now.",
+      );
+      await expect.poll(() => said(body(page))).not.toContain(
+        "no_space_left_on_device",
+      );
+      await noOverflow(page);
+      await page.mouse.move(5, 5);
+      await still(page, "backups-never-failed");
+    });
+
     test("the other states: waiting, running, not copied and stale", async ({ page }) => {
       test.setTimeout(laneBudgetMs(180_000));
       const cases: {
@@ -583,6 +613,10 @@ for (
         if (item.notice === "not_copied") {
           await page.mouse.move(5, 5);
           await still(page, "backups-not-copied");
+        }
+        if (item.notice === "stale") {
+          await page.mouse.move(5, 5);
+          await still(page, "backups-stale");
         }
       }
     });
@@ -676,6 +710,8 @@ for (
       await expect.poll(() => said(page.locator("[data-drill]").nth(1)))
         .toContain("Backup was 2 hours old");
       await noOverflow(page);
+      await page.mouse.move(5, 5);
+      await still(page, "backups-drill-failed");
     });
 
     test("restore checks: every failure code says what to do next", async ({ page }) => {
