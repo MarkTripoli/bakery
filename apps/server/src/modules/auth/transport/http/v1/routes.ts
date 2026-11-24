@@ -1180,7 +1180,6 @@ export function createAuthV1Routes(
     acceptAccessTokens: true,
   });
   app.use("/v1/me", browserSession);
-  app.use("/v1/desktop/update", browserSession);
   app.use("/v1/me/sessions", browserSession);
   app.use("/v1/desktop-handoffs", browserSession);
   app.use("/v1/me/sessions/*", browserSession);

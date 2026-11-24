@@ -180,7 +180,6 @@ if (import.meta.main) {
     actions: generated.actions,
     implementedActions: generated.implementedActions,
     openapi: generated.openapi,
-    compatibilityDigest: generated.compatibilityDigest,
     schemas,
   };
   for (const [name, schema] of Object.entries(document.schemas)) {
