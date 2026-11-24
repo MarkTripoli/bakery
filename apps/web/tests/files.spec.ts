@@ -10,7 +10,7 @@ import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
-test.use({ timezoneId: "America/New_York", locale: "en-US" });
+test.use({ timezoneId: "UTC", locale: "en-US" });
 
 /**
  * The panel is one long-lived component on desktop: choosing another file swaps
@@ -419,7 +419,7 @@ for (
         await expect(page.getByRole("columnheader", { name: "Added" }))
           .toBeVisible();
       } else {
-        await expect(page.getByText(/Added Dec 31, 2025/).first())
+        await expect(page.getByText(/Added Jan 1, 2026/).first())
           .toBeVisible();
       }
       // Nothing under /library can be changed: no rename, move, upload or delete.
