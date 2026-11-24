@@ -41,7 +41,12 @@ const unknownPreset: RunCreateInput = {
 type PresetIdIsClosed = Expect<
   Equal<
     NonNullable<RunCreateInput["presetId"]>,
-    "fixed-coding" | "fixed-coding-reviewed"
+    | "fixed-coding"
+    | "fixed-coding-reviewed"
+    | "deliver-oneshot"
+    | "deliver-lean"
+    | "deliver-full"
+    | "deliver-prd"
   >
 >;
 const _presetIdIsClosed: PresetIdIsClosed = true;
@@ -62,6 +67,7 @@ void unknownPreset;
 
 const ID = "00000000-0000-4000-8000-000000000001";
 const preset = {
+  definition: JSON.parse(JSON.stringify(FIXED_CODING_PRESET.spec)),
   id: "fixed-coding",
   revision: FIXED_CODING_PRESET.revision,
   digest: FIXED_CODING_PRESET.digest,

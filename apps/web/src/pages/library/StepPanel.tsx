@@ -84,6 +84,7 @@ export type PanelTarget =
     readonly name: string;
     /** The problem's sentence, shown above the code-only sentence. */
     readonly problem: string | undefined;
+    readonly agentFromSetup?: boolean;
     /** The Skills section of an agent step written in code: a skill is not part of that code (#431). */
     readonly skills?: StepSkills;
     readonly attach?: StepAttach | null;
@@ -100,6 +101,7 @@ export type PanelTarget =
     /** What the definition states, when the step could not be drawn as an action. */
     readonly code: string | undefined;
     readonly problem: string | undefined;
+    readonly agentFromSetup?: boolean;
     /** The skills the step names (#431). */
     readonly skills: StepSkills;
     /** The picker that attaches a skill; null when the page cannot edit. */
@@ -172,6 +174,13 @@ export function StepPanel(
                 : "library.editor.panel.codeOnlyRest") as never,
             )}
           </UI.Text>
+          {target.agentFromSetup === true
+            ? (
+              <UI.Text variant="muted">
+                {translate("library.editor.panel.agentFromSetup" as never)}
+              </UI.Text>
+            )
+            : null}
         </UI.Stack>
       </UI.InspectorPanel>
     );
@@ -217,6 +226,13 @@ export function StepPanel(
     >
       <UI.Stack gap="compact">
         {line === undefined ? null : <UI.Text>{line}</UI.Text>}
+        {target.agentFromSetup === true
+          ? (
+            <UI.Text variant="muted">
+              {translate("library.editor.panel.agentFromSetup" as never)}
+            </UI.Text>
+          )
+          : null}
         {target.problem === undefined
           ? null
           : (

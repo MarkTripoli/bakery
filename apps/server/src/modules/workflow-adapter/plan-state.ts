@@ -1,4 +1,7 @@
 import {
+  documentOutputSlot,
+  parseStepKey,
+  type WorkflowNode,
   type WorkflowSemanticDocument,
   WorkflowSemanticDocumentSchema,
 } from "@bakery/contracts/workflow-compiler";
@@ -146,6 +149,69 @@ export type PlanStepRow = Readonly<{
   output: unknown;
 }>;
 
+export function documentSlotsOf(
+  document: WorkflowSemanticDocument,
+): ReadonlyMap<string, string> {
+  const slots = new Map<string, string>();
+  const visit = (nodes: readonly WorkflowNode[], prefix: readonly string[]) => {
+    for (const node of nodes) {
+      const qualified = [...prefix, node.id];
+      switch (node.kind) {
+        case "action": {
+          const slot = documentOutputSlot(node.action, node.outputs);
+          if (slot !== undefined) slots.set(qualified.join("."), slot);
+          break;
+        }
+        case "sequence":
+        case "forEach":
+          visit(node.steps, qualified);
+          break;
+        case "branch":
+          visit(node.then, qualified);
+          visit(node.else, qualified);
+          break;
+        case "repeat":
+          if (node.seed.form === "sequence") visit(node.seed.steps, qualified);
+          visit(node.steps, qualified);
+          break;
+        case "parallel":
+          for (const lane of node.lanes) {
+            visit(lane.steps, [...qualified, lane.id]);
+          }
+          break;
+        default:
+          break;
+      }
+    }
+  };
+  visit(document.steps, []);
+  return slots;
+}
+
+function withDocumentSlot(
+  stepKey: string,
+  output: JsonValue,
+  slots: ReadonlyMap<string, string>,
+): JsonValue {
+  if (slots.size === 0 || !isRecord(output)) return output;
+  let qualifiedId: string;
+  try {
+    qualifiedId = parseStepKey(stepKey).qualifiedId;
+  } catch {
+    return output;
+  }
+  const slot = slots.get(qualifiedId);
+  const artifacts = output["artifacts"];
+  if (
+    slot === undefined || !Array.isArray(artifacts) || artifacts.length === 0
+  ) {
+    return output;
+  }
+  const document = artifacts[0];
+  if (!isRecord(document)) return output;
+  return { ...output, outputs: { [slot]: document } } as JsonValue;
+}
+
 /**
  * Step rows become the interpreter's records, keyed by the full step key
  * (`repair@2.repair_test`), which a plan run stores whole in `step_key` with
@@ -158,6 +224,7 @@ export type PlanStepRow = Readonly<{
  */
 export function recordsFromRows(
   rows: readonly PlanStepRow[],
+  slots: ReadonlyMap<string, string> = new Map(),
 ): ReadonlyMap<string, StepRecord> {
   const records = new Map<string, StepRecord>();
   const seen = new Set<string>();
@@ -170,7 +237,11 @@ export function recordsFromRows(
       case "completed":
         records.set(row.stepKey, {
           status: "completed",
-          output: (row.output ?? null) as JsonValue,
+          output: withDocumentSlot(
+            row.stepKey,
+            (row.output ?? null) as JsonValue,
+            slots,
+          ),
         });
         break;
       case "failed":
@@ -231,7 +302,7 @@ export function nextPlanStep(
     ...(input.repeatExtra === undefined
       ? {}
       : { repeatExtra: input.repeatExtra }),
-    steps: recordsFromRows(input.rows),
+    steps: recordsFromRows(input.rows, documentSlotsOf(runtime.document)),
     inFlight: inFlightKeys(input.rows),
     ...(input.cancelRequested === true ? { cancelRequested: true } : {}),
   });
