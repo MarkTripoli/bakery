@@ -381,6 +381,8 @@ function assertBudgetCoversReservations(
   }
 }
 
+const MAX_RUN_BUDGET_USD = "200";
+
 function workflowCeilingUsd(workflow: WorkflowVersionRow): number | undefined {
   const spec = workflow.normalized_spec as
     | { limits?: { maxCostUsd?: number } }
@@ -405,10 +407,9 @@ export function capBudgetAtWorkflowCeiling(
       ? left
       : right
   );
-  const cap = "200";
   return parseMicroUsd(lowest, "budget_limit") >
-      parseMicroUsd(cap, "budget_limit")
-    ? cap
+      parseMicroUsd(MAX_RUN_BUDGET_USD, "budget_limit")
+    ? MAX_RUN_BUDGET_USD
     : lowest;
 }
 
@@ -417,7 +418,7 @@ export function validateBudgetLimitUsd(value: unknown): string {
   if (
     typeof value !== "string" ||
     !/^(?:0|[1-9][0-9]{0,7})(?:\.[0-9]{1,6})?$/.test(value) ||
-    Number(value) > 200
+    Number(value) > Number(MAX_RUN_BUDGET_USD)
   ) {
     throw unprocessable(["budgetLimitUsd"], "budget_limit_invalid");
   }
