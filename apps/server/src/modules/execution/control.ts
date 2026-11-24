@@ -56,6 +56,7 @@ import {
 } from "../work/run-command.ts";
 import { readRunBudgetSummary } from "../work/budget.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { handleTakeOverRequests } from "../work/run-requests.ts";
 import {
   adapterSupportsControl,
   readAdapterCapabilities,
@@ -719,7 +720,19 @@ export function createRunControlRegistry(
       organizationContext:
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
-    handler: takeOverRunStep,
+    handler: async (context, input) => {
+      const taken = await takeOverRunStep(context, input);
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      await handleTakeOverRequests(
+        transaction,
+        organizationId,
+        principalId,
+        context.params.id,
+        context.params.stepKey,
+      );
+      return taken;
+    },
   });
   registry.register({
     name: ExecutionImplementedAction.RunStepsRevertWrites,
