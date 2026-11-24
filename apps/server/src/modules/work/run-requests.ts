@@ -869,19 +869,12 @@ async function askOne(
     audienceGroupId: audience?.groupId ?? null,
   };
   // A request past its time is over; asking again makes a new one.
-  const expired = await transaction.query<{ id: string }>(
+  await transaction.query(
     `update bakery.person_requests
         set status = 'expired', updated_at = now(), version = version + 1
       where organization_id = $1 and run_id = $2 and recipient_id = $3
-        and intent = $4 and status = 'open' and expires_at <= now()
-      returning id`,
+        and intent = $4 and status = 'open' and expires_at <= now()`,
     [organizationId, run.id, recipientId, ask.intent],
-  );
-  await revokeRequestPowers(
-    transaction,
-    organizationId,
-    expired.rows.map((row) => row.id),
-    principalId,
   );
   const open = await transaction.query<{ id: string }>(
     `select id from bakery.person_requests
