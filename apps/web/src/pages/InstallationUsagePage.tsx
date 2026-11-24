@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useBakeryApi } from "../api/context.tsx";
@@ -7,14 +7,19 @@ import { isForbiddenFailure } from "../app/async-state.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { InstallationUsageScreen } from "../screens/InstallationUsageScreen.tsx";
 import {
+  customWindow,
+  dateInput,
   isUsagePeriod,
   usageWindow,
+  usageWindowReversed,
   usageWindowTooLong,
 } from "../screens/usage/usage-window.ts";
 
 /** The period choices as they appear in the address bar. */
 const PERIOD_QUERY = "period";
 const PROVIDER_QUERY = "provider";
+const FROM_QUERY = "from";
+const TO_QUERY = "to";
 
 export function InstallationUsagePage() {
   const api = useBakeryApi();
@@ -39,17 +44,36 @@ export function InstallationUsagePage() {
   // who has been on the page a while: the period label and the numbers agree
   // until the page is opened again.
   const [now] = useState(() => new Date());
-  const window = useMemo(() => usageWindow(period, now), [period, now]);
-  const tooLong = usageWindowTooLong(window);
+  const customFrom = typeof search[FROM_QUERY] === "string"
+    ? search[FROM_QUERY]
+    : "";
+  const customTo = typeof search[TO_QUERY] === "string" ? search[TO_QUERY] : "";
+  const candidate = period === "custom"
+    ? customWindow(customFrom, customTo)
+    : usageWindow(period, now);
+  const reversed = candidate !== null && usageWindowReversed(candidate);
+  const tooLong = candidate !== null && !reversed &&
+    usageWindowTooLong(candidate);
+  const periodError = period !== "custom"
+    ? null
+    : candidate === null
+    ? "incomplete"
+    : reversed
+    ? "reversed"
+    : tooLong
+    ? "tooLong"
+    : null;
+  const lastValid = useRef(usageWindow("last30", now));
+  if (candidate !== null && periodError === null) lastValid.current = candidate;
+  const window = candidate !== null && periodError === null
+    ? candidate
+    : lastValid.current;
   const summary = useQuery({
     ...usageSummaryQueryOptions(api, scope, {
       from: window.from.toISOString(),
       to: window.to.toISOString(),
       ...(provider === null ? {} : { provider }),
     }),
-    // A window the server refuses is not worth asking about: the request would
-    // answer a validation error, and the page already says what to change.
-    enabled: !tooLong,
   });
 
   const write = (next: Record<string, string | undefined>) => {
@@ -66,7 +90,7 @@ export function InstallationUsagePage() {
     isForbiddenFailure(summary.error as never);
   const state = forbidden
     ? "notFound"
-    : summary.isLoading || tooLong
+    : summary.isLoading
     ? "loading"
     : summary.isError
     ? "error"
@@ -78,13 +102,29 @@ export function InstallationUsagePage() {
 
   return (
     <InstallationUsageScreen
-      onPeriodChange={(choice) => write({ [PERIOD_QUERY]: choice })}
+      customFrom={customFrom}
+      customTo={customTo}
+      periodError={periodError}
+      onCustomChange={(next) =>
+        write({ [FROM_QUERY]: next.from, [TO_QUERY]: next.to })}
+      onPeriodChange={(choice) =>
+        write(
+          choice === "custom" &&
+            customWindow(customFrom, customTo) === null
+            ? {
+              [PERIOD_QUERY]: choice,
+              [FROM_QUERY]: dateInput(
+                new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
+              ),
+              [TO_QUERY]: dateInput(now),
+            }
+            : { [PERIOD_QUERY]: choice },
+        )}
       onProviderChange={(choice) =>
         write({ [PROVIDER_QUERY]: choice ?? "all" })}
       onRetry={() => void summary.refetch()}
       onShowLast30Days={() => write({ [PERIOD_QUERY]: "last30" })}
       period={period}
-      periodTooLong={tooLong}
       provider={provider}
       state={state}
       summary={summary.data ?? null}

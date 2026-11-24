@@ -55,6 +55,42 @@ for (
       await still(page, "usage-seeded");
     });
 
+    test("Custom asks for From and To, sends exactly those days, and says why a range is refused while keeping the last good one", async ({ page }) => {
+      const { seen } = await usageFixture(page);
+      await page.goto("/installation/usage");
+      await expect(page.getByRole("heading", { name: "By provider" }))
+        .toBeVisible();
+      await page.getByRole("button", { name: /^Period:/ }).click();
+      await page.getByRole("dialog", { name: "Period" }).getByText("Custom", {
+        exact: true,
+      }).click();
+      const from = page.getByRole("textbox", { name: "From", exact: true });
+      const to = page.getByRole("textbox", { name: "To", exact: true });
+      await expect(page.getByRole("dialog", { name: "Period" })).toBeHidden();
+      await expect(from).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
+      await expect(to).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
+      await from.fill("2026-10-01");
+      await to.fill("2026-10-10");
+      await expect.poll(() => {
+        const last = seen.at(-1);
+        return last === undefined ? null : [
+          new Date(last.get("from")!).getDate(),
+          new Date(last.get("to")!).getDate(),
+        ];
+      }).toEqual([1, 10]);
+      const reads = seen.length;
+      await from.fill("2025-01-01");
+      await expect(
+        page.getByText("Choose a period of 366 days or less."),
+      ).toBeVisible();
+      await to.fill("2024-12-01");
+      await expect(page.getByText("Choose an end date after the start date."))
+        .toBeVisible();
+      expect(seen.length).toBe(reads);
+      await expect(page.getByRole("heading", { name: "By provider" }))
+        .toBeVisible();
+    });
+
     test("nothing in the period is said, and the way back is offered only when it helps", async ({ page }) => {
       await usageFixture(page, { empty: true });
       await page.goto("/installation/usage?period=last7");

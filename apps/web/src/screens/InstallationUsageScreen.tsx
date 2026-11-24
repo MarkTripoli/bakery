@@ -1,3 +1,4 @@
+import { useState } from "react";
 import * as UI from "@bakery/ui";
 import { formatDate } from "@bakery/i18n";
 import type { UsageSummary } from "../api/client.ts";
@@ -34,7 +35,12 @@ export type InstallationUsageScreenProps = {
   readonly state: "loading" | "error" | "ready" | "empty" | "notFound";
   readonly period: UsagePeriod;
   readonly provider: string | null;
-  readonly periodTooLong: boolean;
+  readonly periodError: "incomplete" | "reversed" | "tooLong" | null;
+  readonly customFrom: string;
+  readonly customTo: string;
+  readonly onCustomChange: (
+    range: Readonly<{ from: string; to: string }>,
+  ) => void;
   readonly onPeriodChange: (period: UsagePeriod) => void;
   readonly onProviderChange: (provider: string | null) => void;
   readonly onRetry: () => void;
@@ -47,7 +53,10 @@ export function InstallationUsageScreen(
     state,
     period,
     provider,
-    periodTooLong,
+    periodError,
+    customFrom,
+    customTo,
+    onCustomChange,
     onPeriodChange,
     onProviderChange,
     onRetry,
@@ -56,6 +65,7 @@ export function InstallationUsageScreen(
 ) {
   const { translate, locale, timeZone } = useI18n();
   const money = useMoney();
+  const [periodOpen, setPeriodOpen] = useState(false);
   // Formatted here, so the count is an argument the catalogue can inflect on.
   const records = (count: number) =>
     translate(recordKey(count), { count: String(count) });
@@ -110,51 +120,104 @@ export function InstallationUsageScreen(
       selected: row.provider === provider,
     })),
   ];
+  const customRow = period === "custom"
+    ? (
+      <UI.Stack gap="compact">
+        <UI.Inline gap="compact">
+          <UI.Field
+            htmlFor="usage-from"
+            label={translate("installation.usage.period.from")}
+          >
+            <UI.TextInput
+              autoComplete="off"
+              id="usage-from"
+              name="from"
+              onChange={(from) => onCustomChange({ from, to: customTo })}
+              type="date"
+              value={customFrom}
+            />
+          </UI.Field>
+          <UI.Field
+            htmlFor="usage-to"
+            label={translate("installation.usage.period.to")}
+          >
+            <UI.TextInput
+              autoComplete="off"
+              id="usage-to"
+              name="to"
+              onChange={(to) => onCustomChange({ from: customFrom, to })}
+              type="date"
+              value={customTo}
+            />
+          </UI.Field>
+        </UI.Inline>
+        {periodError === "tooLong" || periodError === "reversed"
+          ? (
+            <UI.Text role="alert" variant="error">
+              {translate(
+                periodError === "tooLong"
+                  ? "installation.usage.period.tooLong"
+                  : "installation.usage.period.reversed",
+              )}
+            </UI.Text>
+          )
+          : null}
+      </UI.Stack>
+    )
+    : null;
   const filters = (
-    <UI.Inline gap="compact">
-      <UI.Popover
-        align="end"
-        label={periodWord}
-        trigger={
-          <>
-            {periodLabel}
-            <UI.IconGlyph name="chevron-down" size="small" />
-          </>
-        }
-        triggerAppearance="toolbar"
-        triggerLabel={periodLabel}
-        variant="interactive"
-      >
-        <UI.Menu
-          aria-label={periodWord}
-          items={periodItems}
-          onSelect={(id) => {
-            if (isUsagePeriod(id)) onPeriodChange(id);
-          }}
-          variant="selection"
-        />
-      </UI.Popover>
-      <UI.Popover
-        align="end"
-        label={providerWord}
-        trigger={
-          <>
-            {providerLabel}
-            <UI.IconGlyph name="chevron-down" size="small" />
-          </>
-        }
-        triggerAppearance="toolbar"
-        triggerLabel={providerLabel}
-        variant="interactive"
-      >
-        <UI.Menu
-          aria-label={providerWord}
-          items={providerItems}
-          onSelect={(id) => onProviderChange(id === "all" ? null : id)}
-          variant="selection"
-        />
-      </UI.Popover>
-    </UI.Inline>
+    <UI.Stack gap="compact">
+      <UI.Inline gap="compact">
+        <UI.Popover
+          align="end"
+          label={periodWord}
+          onOpenChange={setPeriodOpen}
+          open={periodOpen}
+          trigger={
+            <>
+              {periodLabel}
+              <UI.IconGlyph name="chevron-down" size="small" />
+            </>
+          }
+          triggerAppearance="toolbar"
+          triggerLabel={periodLabel}
+          variant="interactive"
+        >
+          <UI.Menu
+            aria-label={periodWord}
+            items={periodItems}
+            onSelect={(id) => {
+              if (isUsagePeriod(id)) {
+                onPeriodChange(id);
+                setPeriodOpen(false);
+              }
+            }}
+            variant="selection"
+          />
+        </UI.Popover>
+        <UI.Popover
+          align="end"
+          label={providerWord}
+          trigger={
+            <>
+              {providerLabel}
+              <UI.IconGlyph name="chevron-down" size="small" />
+            </>
+          }
+          triggerAppearance="toolbar"
+          triggerLabel={providerLabel}
+          variant="interactive"
+        >
+          <UI.Menu
+            aria-label={providerWord}
+            items={providerItems}
+            onSelect={(id) => onProviderChange(id === "all" ? null : id)}
+            variant="selection"
+          />
+        </UI.Popover>
+      </UI.Inline>
+      {customRow}
+    </UI.Stack>
   );
 
   // Loading is its own state, not an empty table: a table of zeros while the
@@ -173,13 +236,7 @@ export function InstallationUsageScreen(
       <UI.AccessSettings
         actions={filters}
         description={translate("installation.usage.description")}
-        notice={periodTooLong
-          ? (
-            <UI.AlertBanner tone="warning">
-              <span>{translate("installation.usage.period.tooLong")}</span>
-            </UI.AlertBanner>
-          )
-          : completeness === "partial" && summary
+        notice={completeness === "partial" && summary
           ? (
             <UI.AlertBanner tone="warning">
               {

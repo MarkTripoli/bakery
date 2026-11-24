@@ -6684,5 +6684,8 @@
   "library.editor.group.each": "⟪For each item⟫",
   "library.editor.group.eachLimit": "⟪At most {max, plural, one {# item} other {# items}}⟫",
   "library.editor.group.eachHelp": "⟪Runs these steps once for each item in a list, one item at a time. A list with more items than the limit fails the run before any step starts.⟫",
-  "issues.start.workflowHelp": "⟪{repository} is set to {workflow}. Choosing another applies to this issue only.⟫"
+  "issues.start.workflowHelp": "⟪{repository} is set to {workflow}. Choosing another applies to this issue only.⟫",
+  "installation.usage.period.reversed": "⟪Choose an end date after the start date.⟫",
+  "installation.usage.period.from": "⟪From⟫",
+  "installation.usage.period.to": "⟪To⟫"
 }

@@ -6684,5 +6684,8 @@
   "library.editor.group.each": "⟦Ƒôŕ ëàçĥ ïŧëɱ ŧë⟧",
   "library.editor.group.eachLimit": "⟦Àŧ ɱôšŧ {max, plural, one {# item} other {# items}} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.editor.group.eachHelp": "⟦Ŕûñš ŧĥëšë šŧëþš ôñçë ƒôŕ ëàçĥ ïŧëɱ ïñ à ļïšŧ, ôñë ïŧëɱ àŧ à ŧïɱë. À ļïšŧ ŵïŧĥ ɱôŕë ïŧëɱš ŧĥàñ ŧĥë ļïɱïŧ ƒàïļš ŧĥë ŕûñ ƀëƒôŕë àñÿ šŧëþ šŧàŕŧš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ àñôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ àñôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "installation.usage.period.reversed": "⟦Çĥôôšë àñ ëñð ðàŧë àƒŧëŕ ŧĥë šŧàŕŧ ðàŧë. ŧëšŧ çôþÿ ŧ⟧",
+  "installation.usage.period.from": "⟦Ƒŕôɱ⟧",
+  "installation.usage.period.to": "⟦Ŧô⟧"
 }
