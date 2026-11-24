@@ -298638,7 +298638,6 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:7e06a6a64bfc2bece6c52729d0be1d8258202954387c23917023da2ad63252b9",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
