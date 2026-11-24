@@ -37399,7 +37399,7 @@ const transportSchemas = {
         "countedAt": "The provider time this metric places it at (opened, merged or closed time); null when unknown.",
         "value": "Its own contribution in the series unit (1 for counts, hours, lines, or 1/0 merged for merge rate); null is unknown.",
         "missingReason": "Why this record's value is unknown and it was left out of the number; null when it counted.",
-        "title": "The task's title; null for a pull request.",
+        "title": "The task's title for both task and pull-request records; null when the task title is unavailable.",
         "requestedAt": "When the task's first run was admitted; null for a pull request.",
         "deliveredAt": "When the task reached its delivery point; null for a pull request.",
         "deliveryPoint": "Which delivery point the task reached; null for a pull request.",
