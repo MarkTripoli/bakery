@@ -20,7 +20,7 @@ const BOT_SCOPES = [
   "commands",
 ] as const;
 
-const tokenResponse = z.strictObject({
+export const slackTokenResponseSchema = z.strictObject({
   ok: z.literal(true).describe("Slack reports the exchange succeeded."),
   access_token: z.string().min(1).describe(
     "The bot token the host stores; never returned to a person or an action.",
@@ -47,8 +47,8 @@ const tokenResponse = z.strictObject({
   }).optional().describe(
     "Present when the workspace is in an Enterprise Grid.",
   ),
-  is_enterprise_install: z.boolean().optional().describe(
-    "True when the grant is organization-wide; such an install is not supported.",
+  is_enterprise_install: z.literal(false).describe(
+    "An organization-wide grant is not a workspace installation Bakery supports, so it fails this response rather than reaching storage.",
   ),
 }).describe(
   "Slack's oauth.v2.access response for a bot installation: the bot identity, the workspace and whether the grant is organization-wide.",
@@ -88,7 +88,7 @@ const oauth2: OAuth2Profile = {
   authorizeUrl: new URL("https://slack.com/oauth/v2/authorize"),
   tokenUrl: new URL("https://slack.com/api/oauth.v2.access"),
   scopes: BOT_SCOPES,
-  tokenResponse,
+  tokenResponse: slackTokenResponseSchema,
   async identify(ctx: DriverContext) {
     const response = await ctx.provider.send({
       method: "POST",

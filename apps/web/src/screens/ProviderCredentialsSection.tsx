@@ -49,6 +49,8 @@ export type ProviderCredentialsSectionProps = {
   readonly status: ProviderCredentialsStatus;
   /** Where the provider's OAuth application is created, if it has a page for it. */
   readonly guideUrl?: string;
+  /** Whether a person can connect this provider yet; false adds the reason line. */
+  readonly connectAvailable?: boolean;
   readonly onChange: (
     field: keyof ProviderCredentialValues,
     value: string,
@@ -83,6 +85,7 @@ export function ProviderCredentialsSection(
     values,
     status,
     guideUrl,
+    connectAvailable,
     onChange,
     onSubmit,
     onReload,
@@ -142,6 +145,13 @@ export function ProviderCredentialsSection(
           />
           {translate(`integrations.${provider}.name` as MessageKey)}
         </UI.Heading>
+        {connectAvailable === false
+          ? (
+            <UI.Text variant="muted">
+              {translate(`integrations.${provider}.soon` as MessageKey)}
+            </UI.Text>
+          )
+          : null}
         {view === "loading"
           ? (
             <UI.AlertBanner tone="information">

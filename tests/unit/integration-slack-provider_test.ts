@@ -8,6 +8,7 @@ import {
   SLACK_BOT_SCOPES,
   slackProviderManifest,
   slackServerProvider,
+  slackTokenResponseSchema,
 } from "../../packages/integration-slack/src/server/mod.ts";
 
 const encoder = new TextEncoder();
@@ -161,5 +162,35 @@ Deno.test("discovery answers nothing because no resource kind is declared", asyn
       ctx: context(() => json({ ok: true })),
     }),
     { resources: [], nextCursor: null },
+  );
+});
+
+Deno.test("an organization-wide grant never validates as a workspace installation", () => {
+  const workspace = {
+    ok: true,
+    access_token: "xoxb-token",
+    token_type: "bot",
+    scope: "chat:write",
+    bot_user_id: "U01234567",
+    app_id: "A01234567",
+    team: { id: "T01234567", name: "Acme" },
+    is_enterprise_install: false,
+  };
+  assertEquals(slackTokenResponseSchema.safeParse(workspace).success, true);
+  assertEquals(
+    slackTokenResponseSchema.safeParse({
+      ...workspace,
+      is_enterprise_install: true,
+    }).success,
+    false,
+  );
+});
+
+Deno.test("a refusal this build does not name still offers a retry", async () => {
+  assertEquals(
+    await slackServerProvider.impl.health.check(
+      context(() => json({ ok: false, error: "not_authed" })),
+    ),
+    { healthy: false, reason: "dependency_refused", retryable: true },
   );
 });
