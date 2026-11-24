@@ -324,7 +324,7 @@ function tail(planStep: string, afterSignoff: string): Json[] {
           uses: "harness.implement",
           with: Object.freeze({
             repositoryId: "$input.repositoryId",
-            planArtifact: BRIEF_REF,
+            planArtifact: `${artifactOf(planStep)}.versionId`,
           }),
         }),
         Object.freeze({

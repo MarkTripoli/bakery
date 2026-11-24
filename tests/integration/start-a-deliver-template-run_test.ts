@@ -18,7 +18,6 @@ type PresetsPage = {
     id: string;
     digest: string;
     definition: { name?: string; inputs?: Record<string, unknown> };
-    startableFromComposer: boolean;
   }>;
 };
 
@@ -50,7 +49,6 @@ Deno.test("the preset read lists the Deliver templates after the coding presets,
       const preset = WORKFLOW_PRESETS.find((p) => p.id === item.id)!;
       assertEquals(item.digest, preset.digest);
       assertEquals(item.definition, JSON.parse(JSON.stringify(preset.spec)));
-      assert(item.startableFromComposer, item.id);
     }
     const deliver = page.items.filter((item) => item.id.startsWith("deliver-"));
     for (const item of deliver) {

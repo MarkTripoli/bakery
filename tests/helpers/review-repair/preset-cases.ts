@@ -492,7 +492,6 @@ function registerPresetShapeCases(): void {
       defaultBudgetLimitUsd: "12.00",
       availability: null,
       definition: {},
-      startableFromComposer: true,
     };
     for (const id of WORKFLOW_PRESET_IDS) {
       assert(contractSchemas.WorkflowPreset.safeParse({ ...base, id }).success);

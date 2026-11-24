@@ -23,7 +23,9 @@ import {
   AgentTreeArea,
   agentTreeAreaOf,
   type AgentWrite,
+  boundConnectionsOf,
   type ChainEntry,
+  connectionMountKey,
   declaredTreeAreas,
   grantRefusal,
   pathSpellingRefusal,
@@ -296,7 +298,18 @@ export type AgentFileReadScope = Readonly<{
    * authority still decide.
    */
   reviewedOutput?: boolean;
+  boundConnections?: readonly string[];
 }>;
+
+function underBoundConnection(
+  entries: readonly ChainEntry[],
+  bound: readonly string[],
+): boolean {
+  if (bound.length === 0) return false;
+  if (entries.length === 1) return true;
+  const mountKey = entries[1]?.systemKey;
+  return bound.some((id) => connectionMountKey(id) === mountKey);
+}
 
 /**
  * Judges one agent read, with the layers a write has: storage scoping (an
@@ -345,6 +358,8 @@ export async function assertAgentFileRead(
       declared: scope.declared,
       liveGrant: decision.grant,
       personalOwnerId: personalOwnerOf(entries),
+      boundConnection: area === AgentTreeArea.Connections &&
+        underBoundConnection(entries, scope.boundConnections ?? []),
     });
   if (refusal !== undefined) forbidden(refusal);
   // Layer 4: never beyond the person the agent acts for.
@@ -384,6 +399,7 @@ export async function agentFileReadFor(
     workflowId: origin.workflowId,
     target: scope.target,
     declared: declaredTreeAreas(context.sessionScopes, AgentFileAccess.Read),
+    boundConnections: boundConnectionsOf(context.sessionScopes),
     own: await ownPlaces(tx, scope.organizationId, origin.taskId),
     now: scope.now ?? new Date(),
     reviewedOutput: await reviewerDeclaredOutput(
@@ -393,6 +409,52 @@ export async function agentFileReadFor(
       scope.target.id,
     ),
   });
+}
+
+export async function agentReadGrantedFolders(
+  tx: PgTransactionClient,
+  context: Pick<ActionContext, "agentSession">,
+  scope: Readonly<{
+    organizationId: string;
+    folderId: string;
+    childIds: readonly string[];
+    now?: Date;
+  }>,
+): Promise<{ folder: boolean; children: ReadonlySet<string> }> {
+  if (context.agentSession === undefined) {
+    return { folder: true, children: new Set(scope.childIds) };
+  }
+  const origin = await attemptOrigin(
+    tx,
+    scope.organizationId,
+    context.agentSession.attemptId,
+  );
+  if (origin === null) return { folder: false, children: new Set() };
+  const chain = (await folderChain(tx, scope.organizationId, scope.folderId))
+    .map((row) => row.id);
+  const grants = await tx.query<GrantRow>(
+    "select id, organization_id, workflow_id, folder_id, access, granted_by," +
+      " expires_at, revoked_at from bakery.agent_file_grants" +
+      " where organization_id = $1 and workflow_id = $2" +
+      " and folder_id = any($3::uuid[])",
+    [scope.organizationId, origin.workflowId, [...chain, ...scope.childIds]],
+  );
+  const live = grants.rows.map(toAgentFileGrant);
+  const now = scope.now ?? new Date();
+  const covers = (folderChain: readonly string[]) =>
+    grantRefusal(live, {
+      organizationId: scope.organizationId,
+      workflowId: origin.workflowId,
+      access: AgentFileAccess.Read,
+      folderChain: [...folderChain],
+      now,
+    }).refusal === undefined;
+  return {
+    folder: covers(chain),
+    children: new Set(
+      scope.childIds.filter((childId) => covers([...chain, childId])),
+    ),
+  };
 }
 
 /** The tree areas an agent session's roots listing may show, or null for a person. */

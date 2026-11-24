@@ -229,7 +229,7 @@ Deno.test("the engine never names a preset slug or imports the presets module", 
 const TICKET_ALLOWED: readonly Allowed[] = Object.freeze([
   // #399 points ticket admission at the republished fixed-coding definition.
   ...[
-    'import { presetAvailability } from "./workflow-presets.ts";',
+    'import { presetAvailability, repositoryFacts } from "./workflow-presets.ts";',
     "FIXED_CODING_PRESET,",
   ].map((line) => ({
     file: "apps/server/src/modules/work/ticket-admission.ts",
@@ -248,18 +248,10 @@ const TICKET_ALLOWED: readonly Allowed[] = Object.freeze([
     line,
     issue: "#61",
   })),
-  // #407 makes the ticket source policy name a published workflow too.
-  ...[
-    'preset: "fixed-coding",',
-  ].map((line) => ({
-    file: "packages/contracts/src/ticket-admission.ts",
-    line,
-    issue: "#407",
-  })),
   ...[
     'import { TICKET_PRESET_IDS } from "./workflow-presets.ts";',
-    "const policyPresetSchema = z.enum(TICKET_PRESET_IDS).describe(",
-    '"Built-in workflow every admission of this source runs unless a person\'s Start work names another for that one issue: fixed-coding (plan, write the code, run the checks, open a pull request) or fixed-coding-reviewed (the same with a review step). A request keeps the workflow, revision and digest it was admitted with; changing this applies to work started afterwards.",',
+    "const policyPresetSchema = z.enum(TICKET_PRESET_IDS).optional().describe(",
+    '"Built-in workflow every admission of this source runs unless a person\'s Start work names another for that one issue: fixed-coding (plan, write the code, run the checks, open a pull request) or fixed-coding-reviewed (the same with a review step). Absent means no workflow is set: people choose one each time they start work, and automatic admission cannot be on. A request keeps the workflow, revision and digest it was admitted with; changing this applies to work started afterwards.",',
     "id: z.enum(TICKET_PRESET_IDS).describe(",
   ].map((line) => ({
     file: "packages/contracts/src/ticket-admission.ts",

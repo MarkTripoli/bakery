@@ -34,6 +34,5 @@ export function presetRead<Item extends { id: string; steps: FlatStep[] }>(
       name: item.id,
       steps: nodes,
     },
-    startableFromComposer: true,
   };
 }

@@ -195,6 +195,31 @@ Deno.test("a template hands a step only the brief or a document an earlier write
   }
 });
 
+Deno.test("the build step reads the approved plan's document, not only the brief (#429)", async () => {
+  const planStepOf: Record<DeliverTemplateId, string> = {
+    "deliver-oneshot": "plan",
+    "deliver-lean": "outline",
+    "deliver-full": "plan",
+    "deliver-prd": "plan",
+  };
+  for (const id of DELIVER_TEMPLATE_IDS) {
+    const definition = deliverTemplateDefinition(id);
+    await compile(definition);
+    const steps = definition.steps as readonly Record<string, unknown>[];
+    const planStep = planStepOf[id];
+    assert(steps.some((step) => step.id === planStep), `${id}: ${planStep}`);
+    const build = steps.find((step) => step.id === "build") as {
+      steps: readonly { id: string; with: Record<string, unknown> }[];
+    };
+    const implement = build.steps.find((step) => step.id === "implement")!;
+    assertEquals(
+      implement.with.planArtifact,
+      `$step.${planStep}.outputs.${planStep}.versionId`,
+      id,
+    );
+  }
+});
+
 Deno.test("the audit names each gap with its design reference and what stands in for it (#429)", () => {
   assert(DELIVER_TEMPLATE_AUDIT_GAPS.length > 0);
   for (const gap of DELIVER_TEMPLATE_AUDIT_GAPS) {

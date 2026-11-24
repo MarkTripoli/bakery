@@ -33,6 +33,11 @@ import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 import { auditAgentSessionId } from "../auth/application/agent-power-grants.ts";
+import { authorize } from "../auth/application/authorize.ts";
+import type {
+  AuthorizedActionContext,
+  OrganizationActor,
+} from "../auth/application/authority.ts";
 import {
   pinDeclaredRunInputs,
   recordInputPaths,
@@ -59,6 +64,7 @@ import {
 } from "@bakery/contracts/scope-profiles";
 import { readProjectScopeProfile } from "../projects/scope-profiles.ts";
 import {
+  formatMicroUsd,
   isModelAction,
   parseMicroUsd,
   type RunBudgetSummary,
@@ -79,6 +85,15 @@ import {
   type PlanAdmission,
   resolvePlanAdmission,
 } from "./plan-run-admission.ts";
+import {
+  assertConnectionsBindable,
+  ingestConnectionInput,
+  type StorageConnectionDeps,
+} from "../knowledge/storage-connections.ts";
+import {
+  boundStepConnections,
+  buildWorkflowPlan,
+} from "@bakery/contracts/workflow-compiler";
 import {
   ensurePresetWorkflowVersion,
   fixedPolicyDeniesSteps,
@@ -381,12 +396,44 @@ function assertBudgetCoversReservations(
   }
 }
 
+const MAX_RUN_BUDGET_USD = "200";
+
+function workflowCeilingUsd(workflow: WorkflowVersionRow): number | undefined {
+  const spec = workflow.normalized_spec as
+    | { limits?: { maxCostUsd?: number } }
+    | null;
+  const ceiling = spec?.limits?.maxCostUsd;
+  return typeof ceiling === "number" ? ceiling : undefined;
+}
+
+export function capBudgetAtWorkflowCeiling(
+  requested: string | undefined,
+  ceilingUsd: number | undefined,
+): string {
+  if (requested === undefined && ceilingUsd === undefined) return "0";
+  const candidates = [
+    requested,
+    ceilingUsd === undefined
+      ? undefined
+      : formatMicroUsd(parseMicroUsd(String(ceilingUsd), "max_cost")),
+  ].filter((value): value is string => value !== undefined);
+  const lowest = candidates.reduce((left, right) =>
+    parseMicroUsd(left, "budget_limit") <= parseMicroUsd(right, "max_cost")
+      ? left
+      : right
+  );
+  return parseMicroUsd(lowest, "budget_limit") >
+      parseMicroUsd(MAX_RUN_BUDGET_USD, "budget_limit")
+    ? MAX_RUN_BUDGET_USD
+    : lowest;
+}
+
 export function validateBudgetLimitUsd(value: unknown): string {
   if (value === undefined) return "0";
   if (
     typeof value !== "string" ||
     !/^(?:0|[1-9][0-9]{0,7})(?:\.[0-9]{1,6})?$/.test(value) ||
-    Number(value) > 200
+    Number(value) > Number(MAX_RUN_BUDGET_USD)
   ) {
     throw unprocessable(["budgetLimitUsd"], "budget_limit_invalid");
   }
@@ -903,7 +950,10 @@ export async function createRunCommand(
    * No public field carries it yet, so a caller that knows a constraint passes
    * it here and every other run records the empty one.
    */
-  options: { placement?: RunPlacement } = {},
+  options: {
+    placement?: RunPlacement;
+    storageConnections?: StorageConnectionDeps;
+  } = {},
 ): Promise<RunOutput> {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
@@ -1002,8 +1052,12 @@ export async function createRunCommand(
   );
   await assertWorkflowVersionValid(workflow);
 
-  const budgetLimitUsd = validateBudgetLimitUsd(
-    input.budgetLimitUsd ?? preset?.defaultBudgetLimitUsd,
+  const namedBudgetUsd = input.budgetLimitUsd ?? preset?.defaultBudgetLimitUsd;
+  const budgetLimitUsd = capBudgetAtWorkflowCeiling(
+    namedBudgetUsd === undefined
+      ? undefined
+      : validateBudgetLimitUsd(namedBudgetUsd),
+    workflowCeilingUsd(workflow),
   );
   const suppliedInputs = preset
     ? presetRunInputs(preset, task, approvedPlan, input.gates)
@@ -1016,9 +1070,26 @@ export async function createRunCommand(
   if (preset && input.inputPaths !== undefined) {
     throw unprocessable(["inputPaths"], "input_paths_not_allowed_with_preset");
   }
+  const storageConnections = options.storageConnections;
   const { inputs, resolved: resolvedInputPaths } = await resolveInputPaths(
     transaction,
-    { organizationId, inputs: suppliedInputs, inputPaths: input.inputPaths },
+    {
+      organizationId,
+      inputs: suppliedInputs,
+      inputPaths: input.inputPaths,
+      ...(storageConnections === undefined ? {} : {
+        connections: (path: string) => {
+          authorizeConnectionReads(context);
+          return ingestConnectionInput(
+            context,
+            transaction,
+            { isAdmin: false },
+            storageConnections,
+            { organizationId, principalId, taskId: task.id, path },
+          );
+        },
+      }),
+    },
   );
   validateRunInputs(inputs);
 
@@ -1091,6 +1162,20 @@ export async function createRunCommand(
       profileAgentBindings: profile?.config.agentBindings,
     },
   );
+
+  const boundConnectionIds = [
+    ...new Set(
+      buildWorkflowPlan(planAdmission.document).steps.flatMap((step) =>
+        boundStepConnections(step.files)
+      ),
+    ),
+  ];
+  if (boundConnectionIds.length > 0) authorizeConnectionReads(context);
+  await assertConnectionsBindable(context, transaction, { isAdmin: false }, {
+    organizationId,
+    principalId,
+    connectionIds: boundConnectionIds,
+  });
 
   // A plan binds a repository through its inputs, and that binding is only
   // meaningful if the run is actually bound to that repository. Without this
@@ -1348,4 +1433,15 @@ export async function createRunCommand(
     traceId: context.traceId,
   });
   return toRun(run);
+}
+
+export function authorizeConnectionReads(context: ActionContext): void {
+  const authority = (context as Partial<AuthorizedActionContext>).authority;
+  if (
+    authority === undefined || !("subject" in authority) ||
+    !("organizationId" in authority)
+  ) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+  authorize(authority as OrganizationActor, "integrationConnection:read");
 }

@@ -33,12 +33,17 @@ export function reviewedPlanDocument(options: {
   readonly name: string;
   readonly agents: Readonly<Record<string, string>>;
   readonly repairs: number;
+  readonly limits?: {
+    readonly wallClock?: string;
+    readonly maxCostUsd?: number;
+  };
 }) {
   return {
     apiVersion: "bakery.dev/v1",
     kind: "workflow",
     name: options.name,
     description: "The reviewed coding workflow as a compiled plan.",
+    ...(options.limits === undefined ? {} : { limits: options.limits }),
     agents: options.agents,
     inputs: {
       repositoryId: { type: "uuid", required: true },
