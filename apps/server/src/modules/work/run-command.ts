@@ -33,6 +33,11 @@ import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 import { auditAgentSessionId } from "../auth/application/agent-power-grants.ts";
+import { authorize } from "../auth/application/authorize.ts";
+import type {
+  AuthorizedActionContext,
+  OrganizationActor,
+} from "../auth/application/authority.ts";
 import {
   pinDeclaredRunInputs,
   recordInputPaths,
@@ -79,6 +84,15 @@ import {
   type PlanAdmission,
   resolvePlanAdmission,
 } from "./plan-run-admission.ts";
+import {
+  assertConnectionsBindable,
+  ingestConnectionInput,
+  type StorageConnectionDeps,
+} from "../knowledge/storage-connections.ts";
+import {
+  boundStepConnections,
+  buildWorkflowPlan,
+} from "@bakery/contracts/workflow-compiler";
 import {
   ensurePresetWorkflowVersion,
   fixedPolicyDeniesSteps,
@@ -902,7 +916,10 @@ export async function createRunCommand(
    * No public field carries it yet, so a caller that knows a constraint passes
    * it here and every other run records the empty one.
    */
-  options: { placement?: RunPlacement } = {},
+  options: {
+    placement?: RunPlacement;
+    storageConnections?: StorageConnectionDeps;
+  } = {},
 ): Promise<RunOutput> {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
@@ -1010,6 +1027,7 @@ export async function createRunCommand(
   if (preset && input.inputPaths !== undefined) {
     throw unprocessable(["inputPaths"], "input_paths_not_allowed_with_preset");
   }
+  const storageConnections = options.storageConnections;
   const { inputs, resolved: resolvedInputPaths } = await resolveInputPaths(
     transaction,
     {
@@ -1018,6 +1036,18 @@ export async function createRunCommand(
       context,
       inputs: suppliedInputs,
       inputPaths: input.inputPaths,
+      ...(storageConnections === undefined ? {} : {
+        connections: (path: string) => {
+          authorizeConnectionReads(context);
+          return ingestConnectionInput(
+            context,
+            transaction,
+            { isAdmin: false },
+            storageConnections,
+            { organizationId, principalId, taskId: task.id, path },
+          );
+        },
+      }),
     },
   );
   validateRunInputs(inputs);
@@ -1091,6 +1121,20 @@ export async function createRunCommand(
       profileAgentBindings: profile?.config.agentBindings,
     },
   );
+
+  const boundConnectionIds = [
+    ...new Set(
+      buildWorkflowPlan(planAdmission.document).steps.flatMap((step) =>
+        boundStepConnections(step.files)
+      ),
+    ),
+  ];
+  if (boundConnectionIds.length > 0) authorizeConnectionReads(context);
+  await assertConnectionsBindable(context, transaction, { isAdmin: false }, {
+    organizationId,
+    principalId,
+    connectionIds: boundConnectionIds,
+  });
 
   // A plan binds a repository through its inputs, and that binding is only
   // meaningful if the run is actually bound to that repository. Without this
@@ -1348,4 +1392,15 @@ export async function createRunCommand(
     traceId: context.traceId,
   });
   return toRun(run);
+}
+
+export function authorizeConnectionReads(context: ActionContext): void {
+  const authority = (context as Partial<AuthorizedActionContext>).authority;
+  if (
+    authority === undefined || !("subject" in authority) ||
+    !("organizationId" in authority)
+  ) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+  authorize(authority as OrganizationActor, "integrationConnection:read");
 }

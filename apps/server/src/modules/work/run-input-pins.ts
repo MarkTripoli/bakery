@@ -6,8 +6,11 @@ import { readableEntry } from "../knowledge/storage-reads.ts";
 import {
   pinStoragePath,
   StorageNameError,
+  type StoragePin,
   storageQueryOf,
 } from "../knowledge/storage-tree.ts";
+
+export type ConnectionInputIngest = (path: string) => Promise<StoragePin>;
 
 /**
  * The key an input value uses to declare a pinned artifact version.
@@ -230,6 +233,7 @@ export async function resolveInputPaths(
     context: Pick<ActionContext, "agentSession" | "sessionScopes">;
     inputs: unknown;
     inputPaths: unknown;
+    connections?: ConnectionInputIngest;
   },
 ): Promise<{ inputs: unknown; resolved: ResolvedInputPath[] }> {
   if (options.inputPaths === undefined || options.inputPaths === null) {
@@ -270,10 +274,14 @@ export async function resolveInputPaths(
     }
     let pin;
     try {
-      pin = await pinStoragePath(db, {
-        organizationId: options.organizationId,
-        path,
-      });
+      pin = isConnectionsPath(path)
+        ? options.connections === undefined
+          ? undefined
+          : await options.connections(path)
+        : await pinStoragePath(db, {
+          organizationId: options.organizationId,
+          path,
+        });
     } catch (error) {
       if (error instanceof StorageNameError) {
         throw unprocessable(
@@ -391,4 +399,10 @@ export async function readRunInputPins(
     sha256: row.sha256,
     sizeBytes: row.size_bytes,
   }));
+}
+
+function isConnectionsPath(path: string): boolean {
+  const first = path.split("/")[1] ?? "";
+  return path.startsWith("/") &&
+    first.normalize("NFC").trim().toLowerCase() === "connections";
 }

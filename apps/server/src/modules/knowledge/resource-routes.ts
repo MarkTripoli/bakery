@@ -114,6 +114,19 @@ import {
   revokePreview,
 } from "./previews/actions.ts";
 import {
+  createConnectionExportAction,
+  createConnectionPathLister,
+  createConnectionSyncAction,
+  createConnectionSyncLister,
+  defaultStorageConnections,
+  mountConnectionAction,
+  pauseConnectionSyncAction,
+  readConnectionPathAction,
+  resumeConnectionSyncAction,
+  statConnectionPathAction,
+  type StorageConnectionDeps,
+} from "./storage-connections.ts";
+import {
   createRunningPreviewAccess,
   listRunningPreviews,
   revokeRunningPreviewAccess,
@@ -137,6 +150,8 @@ export type ArtifactResourceRouteOptions = {
   secret: string;
   /** Validated `BAKERY_ARTIFACT_PREVIEW_ORIGIN`; absent fails previews closed. */
   artifactPreviewOrigin?: string;
+  storageConnections?: StorageConnectionDeps;
+  storageLocalRoot?: string;
   /** A registry already built for MCP; omitted, the routes build their own. */
   artifactActions?: ArtifactActions;
   /** Where completed uploads put their bytes; absent fails completion closed. */
@@ -781,6 +796,15 @@ export function createArtifactActions(
         blobUploads.completeUpload(context, { id: context.params.id }),
     });
   registerStorageActions(registry, options.secret, options.blobStore);
+  registerStorageConnectionActions(
+    registry,
+    options.secret,
+    options.storageConnections ??
+      defaultStorageConnections({
+        blobStore: options.blobStore,
+        storageLocalRoot: options.storageLocalRoot,
+      }),
+  );
   registerCommentActions(registry, options.secret, options.blobStore);
   registerArtifactAccessActions(registry, options.secret);
   assertRegisteredActions(registry);
@@ -792,6 +816,172 @@ export function createArtifactActions(
     ...contextPackImplementedActions,
   ]);
   return { registry, authority, handlers };
+}
+
+function registerStorageConnectionActions(
+  registry: ActionRegistry,
+  secret: string,
+  deps: StorageConnectionDeps,
+) {
+  const A = StorageImplementedAction;
+  const listPaths = createConnectionPathLister(secret, deps);
+  const listSyncs = createConnectionSyncLister(secret);
+  const command = {
+    type: ActionKind.Command,
+    access: ActionAccess.Developer,
+    organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+  } as const;
+  registry
+    .register({
+      name: A.StorageConnectionsMount,
+      method: HttpMethod.Post,
+      path: "/v1/storage/connections/:id/mount",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.StorageConnectionMount,
+      explicitIdempotency: "key",
+      policy: { ...command, access: ActionAccess.Admin },
+      handler: async (context) =>
+        contractSchemas.StorageConnectionMount.parse(
+          await mountConnectionAction(context, deps),
+        ),
+    })
+    .register({
+      name: A.StorageConnectionPathsList,
+      method: HttpMethod.Get,
+      path: "/v1/storage/connection-paths",
+      input: contractSchemas.StorageConnectionPathQuery,
+      output: contractSchemas["Page<StorageConnectionItem>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<StorageConnectionItem>"].parse(
+          await listPaths(
+            context,
+            storageReader(context, A.StorageConnectionPathsList),
+            input as { path: string; cursor?: string; limit?: number },
+          ),
+        ),
+    })
+    .register({
+      name: A.StorageConnectionPathsStat,
+      method: HttpMethod.Get,
+      path: "/v1/storage/connection-paths/stat",
+      input: contractSchemas.StorageConnectionStatQuery,
+      output: contractSchemas.StorageConnectionItem,
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas.StorageConnectionItem.parse(
+          await statConnectionPathAction(
+            context,
+            storageReader(context, A.StorageConnectionPathsStat),
+            deps,
+            input as { path: string },
+          ),
+        ),
+    })
+    .register({
+      name: A.StorageConnectionPathsRead,
+      method: HttpMethod.Get,
+      path: "/v1/storage/connection-paths/content",
+      input: contractSchemas.StorageConnectionReadQuery,
+      output: contractSchemas.StorageConnectionRange,
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas.StorageConnectionRange.parse(
+          await readConnectionPathAction(
+            context,
+            storageReader(context, A.StorageConnectionPathsRead),
+            deps,
+            input as { path: string; offset: number; length: number },
+          ),
+        ),
+    })
+    .register({
+      name: A.StorageConnectionSyncsCreate,
+      method: HttpMethod.Post,
+      path: "/v1/storage/connection-syncs",
+      input: contractSchemas.StorageConnectionSyncCreate,
+      output: contractSchemas.StorageConnectionSync,
+      explicitIdempotency: "key",
+      policy: command,
+      handler: async (context, input) =>
+        contractSchemas.StorageConnectionSync.parse(
+          await createConnectionSyncAction(
+            context,
+            storageReader(context, A.StorageConnectionSyncsCreate),
+            deps,
+            input as { path: string; taskId: string },
+          ),
+        ),
+    })
+    .register({
+      name: A.StorageConnectionSyncsList,
+      method: HttpMethod.Get,
+      path: "/v1/storage/connection-syncs",
+      input: contractSchemas.CursorQuery,
+      output: contractSchemas["Page<StorageConnectionSync>"],
+      policy: readPolicy,
+      handler: async (context, input) =>
+        contractSchemas["Page<StorageConnectionSync>"].parse(
+          await listSyncs(
+            context,
+            input as { cursor?: string; limit?: number },
+          ),
+        ),
+    })
+    .register({
+      name: A.StorageConnectionSyncsPause,
+      method: HttpMethod.Post,
+      path: "/v1/storage/connection-syncs/:id/pause",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.StorageConnectionSync,
+      explicitIdempotency: "key",
+      policy: command,
+      handler: async (context) =>
+        contractSchemas.StorageConnectionSync.parse(
+          await pauseConnectionSyncAction(
+            context,
+            storageReader(context, A.StorageConnectionSyncsPause),
+          ),
+        ),
+    })
+    .register({
+      name: A.StorageConnectionSyncsResume,
+      method: HttpMethod.Post,
+      path: "/v1/storage/connection-syncs/:id/resume",
+      input: contractSchemas.IdPath,
+      output: contractSchemas.StorageConnectionSync,
+      explicitIdempotency: "key",
+      policy: command,
+      handler: async (context) =>
+        contractSchemas.StorageConnectionSync.parse(
+          await resumeConnectionSyncAction(
+            context,
+            storageReader(context, A.StorageConnectionSyncsResume),
+          ),
+        ),
+    })
+    .register({
+      name: A.StorageConnectionExportsCreate,
+      method: HttpMethod.Post,
+      path: "/v1/storage/connection-exports",
+      input: contractSchemas.StorageConnectionExportCreate,
+      output: contractSchemas.StorageConnectionExport,
+      explicitIdempotency: "key",
+      policy: command,
+      handler: async (context, input) =>
+        contractSchemas.StorageConnectionExport.parse(
+          await createConnectionExportAction(
+            context,
+            storageReader(context, A.StorageConnectionExportsCreate),
+            deps,
+            input as {
+              path: string;
+              artifactVersionId: string;
+              ifMatch?: string;
+            },
+          ),
+        ),
+    });
 }
 
 /** The working-area actions over the storage tree (#447). */

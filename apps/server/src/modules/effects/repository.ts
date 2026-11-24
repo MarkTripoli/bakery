@@ -193,6 +193,7 @@ export type PreparedEffectInsert = Readonly<{
   approvalId: string | null;
   approvalStage: string | null;
   approvalPolicyDigest: string | null;
+  argumentArtifactVersionId?: string | null;
 }>;
 
 /**
@@ -212,10 +213,11 @@ export async function insertPreparedEffect(
        idempotency_key, request_digest, safe_arguments, external_account_id,
        external_resource_id, adapter_version, authorization_revision,
        budget_reservation_id, approval_id, approval_stage,
-       approval_policy_digest, mcp_connection_id, status
+       approval_policy_digest, mcp_connection_id,
+       argument_artifact_version_id, status
      ) values (
        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-       $17::jsonb, $18, $19, $20, $21, $22, $23, $24, $25, $26, 'prepared'
+       $17::jsonb, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, 'prepared'
      )
      on conflict (organization_id, operation, target, idempotency_key)
      do nothing
@@ -247,6 +249,7 @@ export async function insertPreparedEffect(
       row.approvalStage,
       row.approvalPolicyDigest,
       row.mcpConnectionId ?? null,
+      row.argumentArtifactVersionId ?? null,
     ],
   );
   return result.rows.length === 0 ? null : parseEffectRow(result.rows[0]);
