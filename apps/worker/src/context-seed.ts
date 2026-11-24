@@ -16,7 +16,11 @@
 
 import type { JobAssignment } from "./types.ts";
 import type { WorkerContextInput } from "./client.ts";
-import type { ContextDocument, ContextInputEntry } from "./context-document.ts";
+import type {
+  ContextDocument,
+  ContextFactEntry,
+  ContextInputEntry,
+} from "./context-document.ts";
 import {
   type ContextMaterializeFault,
   materializeContext,
@@ -90,6 +94,8 @@ export type ContextDocumentFacts = {
   readonly stepKey: string;
   readonly goal: string;
   readonly outputs: readonly string[];
+  readonly facts?: readonly ContextFactEntry[];
+  readonly factsOmitted?: number;
   readonly contextDir: string;
   readonly outputDir: string;
 };
@@ -133,6 +139,8 @@ export async function seedContext(
     goal: facts.goal,
     outputs: facts.outputs,
     inputs: entries,
+    facts: facts.facts ?? [],
+    factsOmitted: facts.factsOmitted ?? 0,
     contextDir: facts.contextDir,
     outputDir: facts.outputDir,
   };

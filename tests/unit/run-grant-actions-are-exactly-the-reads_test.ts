@@ -20,6 +20,7 @@ Deno.test("a run grant reaches exactly the run, its steps, its task, its deliver
       ["runDeliveryDecisions.list", "run"],
       ["runRepairTries.list", "run"],
       ["runReviews.list", "run"],
+      ["runSteps.given", "run"],
       ["runSteps.list", "run"],
       ["runs.get", "run"],
       ["sessions.feed", "session"],

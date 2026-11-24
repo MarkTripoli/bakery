@@ -958,14 +958,17 @@ export function registerRunnerCases(): void {
             contextInputs: [pin],
           }),
           readAttemptContext: () =>
-            Promise.resolve([{
-              artifactVersionId: "11111111-1111-4111-8111-111111111111",
-              artifactId: "22222222-2222-4222-8222-222222222222",
-              digest: pin.digest,
-              sizeBytes: pin.sizeBytes,
-              mediaType: pin.mediaType,
-              contentBase64: btoa("NOT the brief"),
-            }]),
+            Promise.resolve({
+              inputs: [{
+                artifactVersionId: "11111111-1111-4111-8111-111111111111",
+                artifactId: "22222222-2222-4222-8222-222222222222",
+                digest: pin.digest,
+                sizeBytes: pin.sizeBytes,
+                mediaType: pin.mediaType,
+                contentBase64: btoa("NOT the brief"),
+              }],
+              facts: null,
+            }),
           commands: [{ id: "unit", argv: sh(`touch '${ran}'`) }],
         });
         assertEquals(
