@@ -119,7 +119,7 @@ Deno.test("a Deliver run's plan sign-off lands in the task's approvals, and a de
     );
     const database = fixture.pgDatabase;
     const engine = createBakeryPostgresWorkflowRepository({
-      database,
+      database: fixture.runtimePgDatabase,
       maxAttempts: 1,
       budgetPolicy: presetBudgetPolicy,
     });
