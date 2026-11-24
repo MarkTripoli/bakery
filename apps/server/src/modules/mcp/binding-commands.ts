@@ -206,7 +206,7 @@ export async function createCapabilityBinding(
     details: {
       agentVersionId: input.agentVersionId,
       mcpConnectionId: connection.id,
-      snapshotDigest: connection.snapshot_digest,
+      mcpSnapshotId: connection.snapshot_id,
       allowedOperations: tools,
     },
   });

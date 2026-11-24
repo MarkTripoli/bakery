@@ -63181,7 +63181,7 @@
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Reserved for a stdio server's worker host; stdio is not accepted yet, so it must be null."
+                  "description": "The worker host a stdio server runs on: required for a stdio server and must be a host of this organization that advertises every capability the server requires; a call to the connection is dispatched only there. Must be null for a streamable_http server."
                 },
                 {
                   "type": "null",
@@ -63267,7 +63267,7 @@
             "enabledCapabilities"
           ],
           "additionalProperties": false,
-          "description": "Registers a connection between the organization, or one member, and a remote MCP server definition. The credential is sent once as a write-only secret and sealed in Postgres."
+          "description": "Registers a connection between the organization, or one member, and an MCP server definition: a remote one, or a local stdio one placed on a named worker host. The credential is sent once as a write-only secret and sealed in Postgres."
         },
         "McpConnectionCreate____schema0": {
           "description": "JSON value node.",
@@ -63605,7 +63605,7 @@
               "description": "McpServerCreate.launchSpec may be null in this transport value.",
               "anyOf": [
                 {
-                  "description": "Allowlisted, pinned command and arguments used to launch a stdio server's subprocess; required for stdio transport and never built from unvalidated shell interpolation. McpServerCreate.launchSpec must contain at most 32000 UTF-8 bytes.",
+                  "description": "Pinned launch of a stdio server's subprocess: an absolute command path, its arguments and the command file's SHA-256 (artifactDigest). Required for stdio and null for streamable_http; never run through a shell, and a command file with another digest is refused. McpServerCreate.launchSpec must contain at most 32000 UTF-8 bytes.",
                   "anyOf": [
                     {
                       "type": "string",
@@ -229614,10 +229614,10 @@
                       "description": "Registered action input entry."
                     },
                     "versionId": {
-                      "description": "Registered action input versionId.",
                       "type": "string",
                       "format": "uuid",
-                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Registered action input versionId."
                     },
                     "repositoryProfile": {
                       "description": "Server-admitted immutable execution context; absent for standalone inspection and cloud-only jobs.",
@@ -231792,7 +231792,8 @@
                   },
                   "required": [
                     "installId",
-                    "entry"
+                    "entry",
+                    "versionId"
                   ],
                   "additionalProperties": false,
                   "description": "Input schema registered for a worker action."
@@ -290805,7 +290806,7 @@
             "bundleDigest": {
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
-              "description": "SHA-256 of the bundle archive of the plugin version the job runs: the version the job names, or the install's current version when it names none."
+              "description": "SHA-256 of the bundle archive of the plugin version the job was admitted against."
             },
             "entry": {
               "type": "string",
@@ -290844,7 +290845,7 @@
             "files"
           ],
           "additionalProperties": false,
-          "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version it runs (the version the job names, or the install's current one), fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
+          "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version the job was admitted against, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
         },
         "Page<InstallationUpdateEvent>": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -295980,7 +295981,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:7cae554d04d083fc886452ee35413f79f2b0119621300f1135248140df0aa027",
+  "compatibilityDigest": "sha256:6cf7e02078e25d8b369112600ef5dcc8a59865ee86d4b6b531b01730c4ea2b99",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -301972,7 +301973,7 @@
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Reserved for a stdio server's worker host; stdio is not accepted yet, so it must be null."
+              "description": "The worker host a stdio server runs on: required for a stdio server and must be a host of this organization that advertises every capability the server requires; a call to the connection is dispatched only there. Must be null for a streamable_http server."
             },
             {
               "type": "null",
@@ -302058,7 +302059,7 @@
         "enabledCapabilities"
       ],
       "additionalProperties": false,
-      "description": "Registers a connection between the organization, or one member, and a remote MCP server definition. The credential is sent once as a write-only secret and sealed in Postgres.",
+      "description": "Registers a connection between the organization, or one member, and an MCP server definition: a remote one, or a local stdio one placed on a named worker host. The credential is sent once as a write-only secret and sealed in Postgres.",
       "$defs": {
         "__schema0": {
           "description": "JSON value node.",
@@ -302400,7 +302401,7 @@
           "description": "McpServerCreate.launchSpec may be null in this transport value.",
           "anyOf": [
             {
-              "description": "Allowlisted, pinned command and arguments used to launch a stdio server's subprocess; required for stdio transport and never built from unvalidated shell interpolation. McpServerCreate.launchSpec must contain at most 32000 UTF-8 bytes.",
+              "description": "Pinned launch of a stdio server's subprocess: an absolute command path, its arguments and the command file's SHA-256 (artifactDigest). Required for stdio and null for streamable_http; never run through a shell, and a command file with another digest is refused. McpServerCreate.launchSpec must contain at most 32000 UTF-8 bytes.",
               "anyOf": [
                 {
                   "type": "string",
@@ -468811,10 +468812,10 @@
                   "description": "Registered action input entry."
                 },
                 "versionId": {
-                  "description": "Registered action input versionId.",
                   "type": "string",
                   "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Registered action input versionId."
                 },
                 "repositoryProfile": {
                   "description": "Server-admitted immutable execution context; absent for standalone inspection and cloud-only jobs.",
@@ -470989,7 +470990,8 @@
               },
               "required": [
                 "installId",
-                "entry"
+                "entry",
+                "versionId"
               ],
               "additionalProperties": false,
               "description": "Input schema registered for a worker action."
@@ -530102,7 +530104,7 @@
         "bundleDigest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
-          "description": "SHA-256 of the bundle archive of the plugin version the job runs: the version the job names, or the install's current version when it names none."
+          "description": "SHA-256 of the bundle archive of the plugin version the job was admitted against."
         },
         "entry": {
           "type": "string",
@@ -530141,7 +530143,7 @@
         "files"
       ],
       "additionalProperties": false,
-      "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version it runs (the version the job names, or the install's current one), fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
+      "description": "The code of the install a leased plugin job runs: the files of the bundle of the plugin version the job was admitted against, fenced by the lease the worker presented, and the entry the job was admitted with. Refused for an install that is off, removed or without the jobs.schedule grant."
     },
     "Page<InstallationUpdateEvent>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
