@@ -115,7 +115,7 @@ Deno.test("nothing ever finished is an error that asks for a first backup", () =
   assertEquals(result.lines.length, 1);
 });
 
-Deno.test("a failed backup names the cause, the fix and the service's own answer", () => {
+Deno.test("a failed backup names the cause and the fix, and leaves the raw answer out", () => {
   const result = notice(
     {
       state: "failed",
@@ -130,15 +130,14 @@ Deno.test("a failed backup names the cause, the fix and the service's own answer
   assertEquals(result.id, "failed");
   assertEquals(result.tone, "error");
   assertEquals(result.title.values.time, "2026-11-23T03:00:00.000Z");
-  assertEquals(result.lines[0], {
+  assertEquals(result.lines, [{
     key: "installation.backups.notice.failed.cause",
     values: {
       cause: "installation.backups.cause.disk_full",
       fix: "installation.backups.fix.disk_full",
     },
-  });
-  assertEquals(result.lines[1]?.values.time, "2026-11-23T09:00:00.000Z");
-  assertEquals(result.detail, "no space left on device");
+  }]);
+  assertEquals(result.detail, null);
 });
 
 Deno.test("a cause with no fix uses the sentence that ends at the cause", () => {
@@ -329,6 +328,10 @@ Deno.test("rows say who started them, where they are kept and how they ended", (
   assertEquals(
     runResult(run({ status: "failed", failureCode: "disk_full" })).tone,
     "danger",
+  );
+  assertEquals(
+    runResult(run({ status: "failed", failureCode: "disk_full" })).cause,
+    { key: "installation.backups.causeShort.disk_full", values: {} },
   );
   assertEquals(runResult(run({ status: "requested" })).tone, "neutral");
   assertEquals(runResult(run({ status: "running" })).tone, "information");

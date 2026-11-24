@@ -2181,7 +2181,6 @@
   "installation.backups.notice.failed.cause": "⟦Ŧĥë ļàšŧ ƀàçķûþ ƒàïļëð: {cause}. {fix}. ŧëšŧ çôþÿ ŧ⟧",
   "installation.backups.notice.failed.causeOnly": "⟦Ŧĥë ļàšŧ ƀàçķûþ ƒàïļëð: {cause}. ŧëšŧ çôþÿ⟧",
   "installation.backups.notice.failed.unknown": "⟦Ŧĥë ļàšŧ ƀàçķûþ ðïð ñôŧ ƒïñïšĥ. ŧëšŧ çôþ⟧",
-  "installation.backups.notice.failed.lastGood": "⟦Ŧĥë ļàšŧ ĝôôð ƀàçķûþ ïš ƒŕôɱ {time}. Àñÿŧĥïñĝ šïñçë ŧĥëñ ŵôûļð ƀë ļôšŧ ŵïŧĥ ŧĥïš šëŕṽëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "installation.backups.notice.holding": "⟦Ñëŵ ŵôŕķ ŵàïŧš ƒôŕ à ɱôɱëñŧ ŵĥïļë ŧĥë ƀàçķûþ ŧàķëš ïŧš šñàþšĥôŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "installation.backups.cause.disk_full": "⟦ŧĥë šëŕṽëŕ'š ðïšķ ŵàš ƒûļļ ŧëšŧ çô⟧",
   "installation.backups.fix.disk_full": "⟦Ƒŕëë šþàçë ôñ ŧĥë šëŕṽëŕ, ŧĥëñ ƀàçķ ûþ ñôŵ ŧëšŧ çôþÿ ŧë⟧",
@@ -2226,8 +2225,6 @@
   "installation.backups.result.failed": "⟦Ƒàïļëð…⟧",
   "installation.backups.result.waiting": "⟦Ŵàïŧïñĝ…⟧",
   "installation.backups.result.running": "⟦Ŕûññïñĝ…⟧",
-  "installation.backups.row.cause": "⟦Ŕëàšôñ: {cause}. {fix}. ŧëšŧ ç⟧",
-  "installation.backups.row.causeOnly": "⟦Ŕëàšôñ: {cause}. ŧëš⟧",
   "installation.backups.showOlder": "⟦Šĥôŵ ôļðëŕ ŧ⟧",
   "installation.backups.drills.title": "⟦Ŕëšŧôŕë çĥëçķš ŧë⟧",
   "installation.backups.drills.empty": "⟦Ñô ŕëšŧôŕë çĥëçķ ĥàš ƀëëñ ŕûñ. Ôñë ïš ŕûñ ôñ ŧĥë šëŕṽëŕ; ŧĥë ĝûïðë šàÿš ĥôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
@@ -7054,5 +7051,12 @@
   "tasks.delivery.release.dialog.noAnswer": "⟦Ɓàķëŕÿ ðïð ñôŧ àñšŵëŕ, šô ïŧ ɱàÿ àļŕëàðÿ ƀë ĝôïñĝ ƀàçķ. Ÿôû çàñ þŕëšš Ĝô ƀàçķ àĝàïñ; ïŧ ŕëþëàŧš ŧĥë šàɱë ŕëǫûëšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.delivery.release.dialog.reason.empty": "⟦Ŵŕïŧë ŵĥÿ ÿôû àŕë ĝôïñĝ ƀàçķ. ŧëšŧ çôþ⟧",
   "installation.backups.facts.lastGood.value": "⟦Ñëṽëŕ⟧",
-  "installation.backups.settings.offsite.on": "⟦Ôñ⟧"
+  "installation.backups.settings.offsite.on": "⟦Ôñ⟧",
+  "installation.backups.causeShort.disk_full": "⟦Ðïšķ ƒûļļ. ŧ⟧",
+  "installation.backups.causeShort.destination_refused": "⟦Ŧĥë ƀûçķëŧ ŕëƒûšëð ŧĥë çôþÿ. ŧëšŧ çô⟧",
+  "installation.backups.causeShort.destination_unreachable": "⟦Ŧĥë ƀûçķëŧ çôûļð ñôŧ ƀë ŕëàçĥëð. ŧëšŧ çôþÿ⟧",
+  "installation.backups.causeShort.key_missing": "⟦Ñô ƀàçķûþ ķëÿ ôñ ŧĥë šëŕṽëŕ. ŧëšŧ çô⟧",
+  "installation.backups.causeShort.incomplete_set": "⟦Ŧĥë ƀàçķûþ ŵàš ɱïššïñĝ þàŕŧš. ŧëšŧ çôþ⟧",
+  "installation.backups.causeShort.drain_timeout": "⟦Ŕûññïñĝ ŵôŕķ ðïð ñôŧ þàûšë. ŧëšŧ çô⟧",
+  "installation.backups.causeShort.runner_error": "⟦Ŧĥë ƀàçķûþ šëŕṽïçë šŧôþþëð ŵïŧĥ àñ ëŕŕôŕ. ŧëšŧ çôþÿ ŧë⟧"
 }

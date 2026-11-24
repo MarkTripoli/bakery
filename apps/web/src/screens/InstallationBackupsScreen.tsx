@@ -25,6 +25,7 @@ import {
   isQuiet,
   keptInKey,
   nextBackup,
+  type Notice,
   offsiteWords,
   type Phrase,
   pointInTimeWords,
@@ -330,11 +331,17 @@ function Ready(
   props: InstallationBackupsScreenProps & { readonly status: BackupStatus },
 ) {
   const { status } = props;
+  const notice = backupNotice({
+    status,
+    latest: props.runs.rows[0] ?? null,
+    offsiteConfigured: props.offsite === null ? null : props.offsite.configured,
+    nowMs: props.nowMs,
+  });
   return (
     <UI.Stack gap="standard">
-      <StatusNotice {...props} />
+      <StatusNotice notice={notice} />
       {props.startFailed ? <StartFailed /> : null}
-      <Facts {...props} />
+      <Facts {...props} notice={notice} />
       <RunList {...props} />
       <DrillList {...props} />
       <SettingsCard {...props} />
@@ -354,16 +361,10 @@ function StartFailed() {
 }
 
 function StatusNotice(
-  props: InstallationBackupsScreenProps & { readonly status: BackupStatus },
+  { notice }: { readonly notice: Notice },
 ) {
   const { translate } = useI18n();
   const format = useFormatters();
-  const notice = backupNotice({
-    status: props.status,
-    latest: props.runs.rows[0] ?? null,
-    offsiteConfigured: props.offsite === null ? null : props.offsite.configured,
-    nowMs: props.nowMs,
-  });
   return (
     <UI.Stack gap="compact">
       <UI.InlineNotice
@@ -395,12 +396,16 @@ function StatusNotice(
 }
 
 function Facts(
-  props: InstallationBackupsScreenProps & { readonly status: BackupStatus },
+  props: InstallationBackupsScreenProps & {
+    readonly status: BackupStatus;
+    readonly notice: Notice;
+  },
 ) {
   const { translate } = useI18n();
   const format = useFormatters();
   const { status, nowMs } = props;
   const lastGood = status.lastGoodBackupAt;
+  const bannerNamesAge = props.notice.id === "protected";
   const next = props.schedule === null
     ? null
     : nextBackup(props.schedule, nowMs);
@@ -409,7 +414,7 @@ function Facts(
     <UI.Inline gap="standard" variant="thirds">
       <UI.StatTile
         data-fact="last-good"
-        detail={lastGood === null
+        detail={lastGood === null || bannerNamesAge
           ? undefined
           : format.ago(spanSince(lastGood, nowMs))}
         label={translate("installation.backups.facts.lastGood.label")}

@@ -54,34 +54,44 @@ export function isQuiet(iso: string | null, nowMs: number): boolean {
 export type FailureCode = NonNullable<BackupRun["failureCode"]>;
 
 export const CAUSE_KEYS: Readonly<
-  Record<FailureCode, { cause: MessageKey; fix: MessageKey | null }>
+  Record<
+    FailureCode,
+    { cause: MessageKey; short: MessageKey; fix: MessageKey | null }
+  >
 > = {
   disk_full: {
     cause: "installation.backups.cause.disk_full",
+    short: "installation.backups.causeShort.disk_full",
     fix: "installation.backups.fix.disk_full",
   },
   destination_refused: {
     cause: "installation.backups.cause.destination_refused",
+    short: "installation.backups.causeShort.destination_refused",
     fix: "installation.backups.fix.destination_refused",
   },
   destination_unreachable: {
     cause: "installation.backups.cause.destination_unreachable",
+    short: "installation.backups.causeShort.destination_unreachable",
     fix: "installation.backups.fix.destination_unreachable",
   },
   key_missing: {
     cause: "installation.backups.cause.key_missing",
+    short: "installation.backups.causeShort.key_missing",
     fix: "installation.backups.fix.key_missing",
   },
   incomplete_set: {
     cause: "installation.backups.cause.incomplete_set",
+    short: "installation.backups.causeShort.incomplete_set",
     fix: "installation.backups.fix.incomplete_set",
   },
   drain_timeout: {
     cause: "installation.backups.cause.drain_timeout",
+    short: "installation.backups.causeShort.drain_timeout",
     fix: "installation.backups.fix.drain_timeout",
   },
   runner_error: {
     cause: "installation.backups.cause.runner_error",
+    short: "installation.backups.causeShort.runner_error",
     fix: null,
   },
 };
@@ -276,14 +286,8 @@ export function backupNotice(input: NoticeInput): Notice {
       key: "installation.backups.notice.failed.title",
       values: { time: since },
     },
-    lines: [
-      failureLine(latest, FAILED_KEYS),
-      {
-        key: "installation.backups.notice.failed.lastGood",
-        values: { time: lastGood },
-      },
-    ],
-    detail: latestFailureDetail(latest),
+    lines: [failureLine(latest, FAILED_KEYS)],
+    detail: null,
     holdingWork,
   };
 }
@@ -396,13 +400,8 @@ export function runResult(run: BackupRun): RunResult {
     },
   };
   const cause: Phrase | null = code === null ? null : {
-    key: CAUSE_KEYS[code].fix === null
-      ? "installation.backups.row.causeOnly"
-      : "installation.backups.row.cause",
-    values: {
-      cause: CAUSE_KEYS[code].cause,
-      ...(CAUSE_KEYS[code].fix === null ? {} : { fix: CAUSE_KEYS[code].fix }),
-    },
+    key: CAUSE_KEYS[code].short,
+    values: {},
   };
   switch (run.status) {
     case "completed":

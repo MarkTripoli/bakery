@@ -343,7 +343,7 @@ for (
       await expect.poll(() => said(page.locator("[data-fact='last-good']")))
         .toContain("Last good backup");
       await expect.poll(() => said(page.locator("[data-fact='last-good']")))
-        .toContain("3 hours ago");
+        .not.toContain("ago");
       await expect.poll(() => said(page.locator("[data-fact='next']")))
         .toMatch(/Next backup.*03:00 UTC|Next backup.* UTC/);
       await expect.poll(() => said(page.locator("[data-fact='restore-check']")))
@@ -441,13 +441,21 @@ for (
       await expect.poll(() => said(notice)).toContain(
         "The last backup failed: the server's disk was full. Free space on the server, then back up now.",
       );
-      await expect.poll(() => said(notice)).toContain(
+      await expect.poll(() => said(notice)).not.toContain(
         "The last good backup is from",
       );
-      await expect.poll(() => said(notice)).toContain(
+      await expect.poll(() => said(page.locator("[data-fact='last-good']")))
+        .toContain("ago");
+      await expect.poll(() => said(notice)).not.toContain(
         "no space left on device",
       );
       await expect(page.locator("[data-run]").first()).toContainText("Failed");
+      await expect(page.locator("[data-run]").first()).toContainText(
+        "Disk full.",
+      );
+      await expect(page.locator("[data-run]").first()).not.toContainText(
+        "Free space on the server",
+      );
       await expect(page.locator("[data-run]").first()).toContainText(
         "Not taken",
       );
