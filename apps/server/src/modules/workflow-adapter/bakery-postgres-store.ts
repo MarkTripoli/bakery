@@ -54,6 +54,7 @@ import {
   assertLogicalKey,
   type LogicalInvocationKey,
 } from "./invocation-contract.ts";
+import { chooseStepFacts } from "../knowledge/step-facts.ts";
 import { type AuthoritativeState, decideResume } from "./resume-decision.ts";
 import {
   recordNotesDelivered,
@@ -2388,6 +2389,25 @@ export function createBakeryPostgresWorkflowRepository(options: {
             owner,
           );
           return { key, terminal: true };
+        }
+        if (planDispatch !== undefined && row.runRepositoryId !== null) {
+          const stepFacts = await chooseStepFacts(transaction, {
+            organizationId: row.organizationId,
+            repositoryId: row.runRepositoryId,
+          });
+          if (stepFacts.facts.length > 0 || stepFacts.omitted > 0) {
+            await transaction.query(
+              `update bakery.run_steps
+                  set dispatch = dispatch || jsonb_build_object('facts', $4::jsonb)
+                where organization_id = $1 and run_id = $2 and id = $3`,
+              [
+                row.organizationId,
+                row.runId,
+                row.runStepId,
+                JSON.stringify(stepFacts),
+              ],
+            );
+          }
         }
         const ownRequirements = repositoryExecutionRequirements(
           profile,
