@@ -154,17 +154,21 @@ export function NewTaskComposer(
   const preset = presets.data?.items.find((item) =>
     item.id === values.presetId
   );
-  useEffect(() => {
-    const first = presets.data?.items[0];
-    if (!first || (values.presetId !== "" && preset)) return;
-    setValues((current) => ({
-      ...current,
-      presetId: first.id,
-      budget: current.budget === ""
-        ? first.defaultBudgetLimitUsd
-        : current.budget,
-    }));
-  }, [preset, presets.data, values.presetId]);
+  const [budgetTyped, setBudgetTyped] = useState(false);
+  const change = (field: keyof Values, value: string) => {
+    if (field === "budget") setBudgetTyped(true);
+    setValues((current) => {
+      if (field !== "presetId") return { ...current, [field]: value };
+      const picked = presets.data?.items.find((item) => item.id === value);
+      return {
+        ...current,
+        presetId: value,
+        budget: picked !== undefined && !budgetTyped
+          ? picked.defaultBudgetLimitUsd
+          : current.budget,
+      };
+    });
+  };
 
   const minimumBudget = preset?.availability?.minimumBudgetLimitUsd ?? null;
   const labels = composerLabels(
@@ -258,14 +262,14 @@ export function NewTaskComposer(
   const submit = () => {
     if (
       organizationId === null || intentKey === null ||
-      repository === undefined ||
-      (!planFirst && preset === undefined)
+      repository === undefined
     ) {
       return setPhase("error");
     }
     const profileId = repository.activeProfileId;
     if (
-      (!planFirst && (profileId === null || !validBudget(values.budget)))
+      (!planFirst && preset !== undefined &&
+        (profileId === null || !validBudget(values.budget)))
     ) {
       return setPhase("error");
     }
@@ -335,8 +339,7 @@ export function NewTaskComposer(
     <UI.TaskComposerForm
       headingLevel={layout === "sheet" ? 1 : 2}
       labels={labels}
-      onChange={(field, value) =>
-        setValues((current) => ({ ...current, [field]: value }))}
+      onChange={change}
       onDiscard={discard}
       onRetry={retry}
       onSubmit={submit}
@@ -353,7 +356,6 @@ export function NewTaskComposer(
           id: item.id,
           title: copy.title,
           description: copy.description,
-          line: copy.line,
         };
       })}
       repositories={(repositories.data?.items ?? []).map((item) => ({

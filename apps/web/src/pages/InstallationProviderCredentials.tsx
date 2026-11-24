@@ -19,7 +19,11 @@ import {
  * as typed until the save succeeds.
  */
 export function InstallationProviderCredentials(
-  { provider, guideUrl }: { provider: string; guideUrl?: string },
+  { provider, guideUrl, connectAvailable }: {
+    provider: string;
+    guideUrl?: string;
+    connectAvailable?: boolean;
+  },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -93,6 +97,7 @@ export function InstallationProviderCredentials(
     : "loading";
   return (
     <ProviderCredentialsSection
+      connectAvailable={connectAvailable}
       guideUrl={guideUrl}
       onChange={(field, value) =>
         setValues((current) => ({ ...current, [field]: value }))}

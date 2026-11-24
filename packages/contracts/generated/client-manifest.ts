@@ -947,6 +947,28 @@ export const clientManifest = {
     {
       "group": "Work",
       "method": "GET",
+      "path": "/v1/runs/{id}/steps/{stepKey}/given",
+      "action": "runSteps.given",
+      "access": "Developer",
+      "permission": "runStep:read",
+      "input": "IdPath",
+      "output": "StepGiven",
+      "event": "",
+      "mcp": "bakery_runSteps_given",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
+      "method": "GET",
       "path": "/v1/output-streams",
       "action": "output.streams.list",
       "access": "Developer",
@@ -3437,6 +3459,31 @@ export const clientManifest = {
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/use-grants",
+      "action": "skills.useGrants.create",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillUseGrantCreate",
+      "output": "SkillUseGrant",
+      "event": "skillUseGrant.created",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
@@ -7636,7 +7683,7 @@ export const clientManifest = {
       "access": "Admin",
       "permission": "review:accept",
       "input": "RepairAllowanceCreate",
-      "output": "DeliveryDecision",
+      "output": "TriesAllowance",
       "event": "",
       "mcp": "bakery_runRepairAllowances_create",
       "idempotency": "Idempotency-Key required; PATCH also If-Match",
@@ -8488,6 +8535,32 @@ export const clientManifest = {
       "output": "ConversationTurn",
       "event": "conversation.turn_changed",
       "mcp": "bakery_conversationTurns_cancel",
+      "idempotency": "Idempotency-Key and If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "POST",
+      "path": "/v1/conversation-turns/{id}/retry",
+      "action": "conversationTurns.retry",
+      "access": "Developer",
+      "permission": "conversationTurn:write",
+      "input": "ConversationTurnRetry",
+      "output": "ConversationTurn",
+      "event": "conversation.turn_changed",
+      "mcp": "bakery_conversationTurns_retry",
       "idempotency": "Idempotency-Key and If-Match required",
       "errors": [
         "AUTH_REQUIRED",
@@ -20426,6 +20499,7 @@ export const clientManifest = {
             "handoffManifests.get",
             "handoffManifests.continue",
             "runSteps.list",
+            "runSteps.given",
             "output.streams.list",
             "output.streams.read",
             "runs.controlCapabilities",
@@ -20528,6 +20602,7 @@ export const clientManifest = {
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -20765,6 +20840,7 @@ export const clientManifest = {
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -22170,7 +22246,19 @@ export const clientManifest = {
           "type": "string",
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
+          ]
+        },
+        "gates": {
+          "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan.",
+          "type": "string",
+          "enum": [
+            "plan",
+            "none"
           ]
         },
         "workflowId": {
@@ -23006,6 +23094,27 @@ export const clientManifest = {
             "append",
             "interrupt"
           ]
+        },
+        "mentions": {
+          "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. A steerer without request permission (runRequest:write) can mention only people who can already see the run; mentioning anyone else is refused with AUTH_FORBIDDEN and writes nothing, not even the steer. Text that merely looks like @name never mentions anyone. SteeringMessage.mentions must contain at most 20 items.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. A steerer without request permission (runRequest:write) can mention only people who can already see the run; mentioning anyone else is refused with AUTH_FORBIDDEN and writes nothing, not even the steer. Text that merely looks like @name never mentions anyone. Each array item follows this format."
+          }
+        },
+        "mentionHandles": {
+          "description": "Groups or roles this steer @-mentions by their mention name, such as @design-reviewers, @admins or @developers; the leading @ is optional. Every active member other than the steerer is asked to just let them know on this run's step, and any one of them can handle it. A name that matches no group or role, or a group with nobody in it, falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. The same request permission rule as mentions applies to every member reached. SteeringMessage.mentionHandles must contain at most 20 items.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Groups or roles this steer @-mentions by their mention name, such as @design-reviewers, @admins or @developers; the leading @ is optional. Every active member other than the steerer is asked to just let them know on this run's step, and any one of them can handle it. A name that matches no group or role, or a group with nobody in it, falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. The same request permission rule as mentions applies to every member reached. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -25759,6 +25868,13 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cancels the conversation's active or queued coordinator turn; requires the turn's current If-Match. A queued turn is canceled immediately, while an active turn is marked cancel-requested and interrupts its session, remaining in the active slot until stopped or reconciled."
     },
+    "ConversationTurnRetry": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Retries a failed coordinator turn without posting its message again; requires the failed turn's current If-Match. Returns the new queued turn, which runs the coordinator again as its own job."
+    },
     "OrganizationCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -27328,6 +27444,10 @@ export const clientManifest = {
             "fixed-coding",
             "fixed-coding-reviewed"
           ]
+        },
+        "requirePlanApproval": {
+          "description": "When true, this request's task takes a human plan approval, so no run builds until the requester's plan is approved, even when the source policy approves plans automatically. False or omitted keeps the source policy's plan approval; it never removes an approval the policy requires. Only a new admission reads it.",
+          "type": "boolean"
         }
       },
       "required": [
@@ -29115,6 +29235,7 @@ export const clientManifest = {
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -33023,7 +33144,7 @@ export const clientManifest = {
         "tries"
       ],
       "additionalProperties": false,
-      "description": "Allows a run whose review and repair loop stopped because it ran out of tries to try more, and puts the run back to work (chapter 25, one engine). It answers the stop with the repair decision it buys, which is the response. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
+      "description": "Allows a run that stopped for lack of tries to try more, and puts the run back to work (chapter 25, one engine). Two stops qualify. A review and repair loop that ran out of tries is answered with the repair decision it buys. A repeat that used its allow below its max is answered with a limit decision recorded in the decisions ledger; the repeat then runs on, never past its max, and a request for more rounds than remain is cut at max. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same repair stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
     },
     "BatchCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -33034,6 +33155,14 @@ export const clientManifest = {
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "The repository the batch works through. It must be taking issues (an enabled ticket source), and no other batch may be live in it."
+        },
+        "presetId": {
+          "type": "string",
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ],
+          "description": "The built-in workflow every issue in this batch runs: fixed-coding or fixed-coding-reviewed. Required: a batch is never started without a workflow chosen, so no one is given a workflow they did not choose. Each issue is admitted with it; a workflow the repository cannot run stops the batch with the pause reason workflow_cannot_start."
         },
         "maxIssues": {
           "type": "integer",
@@ -33063,6 +33192,7 @@ export const clientManifest = {
       },
       "required": [
         "repositoryId",
+        "presetId",
         "maxIssues",
         "maxHours",
         "maxSpendUsd",
@@ -35676,6 +35806,43 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
+    },
+    "SkillUseGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+        },
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow that may use the skill again."
+        },
+        "skillVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The exact version of the skill the step names; the grant covers this version only."
+        },
+        "stepPath": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+        }
+      },
+      "required": [
+        "id",
+        "workflowId",
+        "skillVersionId",
+        "stepPath"
+      ],
+      "additionalProperties": false,
+      "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
     },
     "SkillActiveVersionSet": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -42170,6 +42337,15 @@ export const clientManifest = {
               "waitingOnModel": {
                 "description": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses.",
                 "type": "boolean"
+              },
+              "releaseStep": {
+                "description": "Whether the run's frozen workflow plan runs a release step after its merge step: yes when a delivery.deploy step follows delivery.merge, no when none follows or the plan has no merge step, and unknown when the plan cannot be read. Served by runs.get; omitted by other run responses.",
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unknown"
+                ]
               }
             },
             "required": [
@@ -50689,6 +50865,7 @@ export const clientManifest = {
                   "handoffManifests.get",
                   "handoffManifests.continue",
                   "runSteps.list",
+                  "runSteps.given",
                   "output.streams.list",
                   "output.streams.read",
                   "runs.controlCapabilities",
@@ -50791,6 +50968,7 @@ export const clientManifest = {
                   "skillDraftFiles.get",
                   "skillDraftFiles.delete",
                   "skills.useGrants.list",
+                  "skills.useGrants.create",
                   "skills.useGrants.delete",
                   "skillVersions.list",
                   "skillVersions.get",
@@ -51028,6 +51206,7 @@ export const clientManifest = {
                   "conversationAccess.revoke",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
+                  "conversationTurns.retry",
                   "notifications.list",
                   "notifications.count",
                   "notifications.get",
@@ -57223,6 +57402,20 @@ export const clientManifest = {
                 "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
                 "type": "boolean"
               },
+              "address": {
+                "description": "Deployment.address may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Absolute address of the environment's running release, the page a person opens to see it; null when this install configures no address for that environment."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
               "createdAt": {
                 "type": "string",
                 "format": "date-time",
@@ -60631,259 +60824,60 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "One immutable independent automated review of one exact candidate of a run: the head and base commits and the effective policy digest it judged, the reviewer's fresh server-created agent session and worker principal, and the implementing session and principal it reviewed. A cycle is recorded only after the server verified the report against its own pins and the independence rules, so its approval is evidence for that exact candidate and is invalid once the head, base or policy digest changes. Only approved and changes_requested are written; running and failed are never stored because a review that did not complete leaves no cycle. Rows are never updated, so updatedAt equals createdAt and version is always 1."
     },
-    "DeliveryDecision": {
+    "TriesAllowance": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID identifying the delivery decision record."
-        },
         "runId": {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID of the workflow run this decision governs."
+          "description": "The run that was put back to work."
         },
-        "ordinal": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Zero-based position of this decision among the run's decisions; the latest ordinal is the one that governs delivery. DeliveryDecision.ordinal must be at least 0."
-        },
-        "reviewCycleId": {
-          "anyOf": [
-            {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Review cycle the decision followed, or null for a stop taken without a recorded cycle such as an unavailable reviewer."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "DeliveryDecision.reviewCycleId may be null in this transport value."
-        },
-        "decision": {
+        "kind": {
           "type": "string",
           "enum": [
-            "proceed",
-            "repair",
-            "stop"
+            "repair_loop",
+            "repeat_limit"
           ],
-          "description": "What the run does next: proceed when the candidate is clean, repair when a bounded repair iteration was appended, stop when the loop ended."
+          "description": "Which stop the allowance answered: repair_loop for a review and repair loop that ran out of tries, repeat_limit for a repeat that used its allow below its max."
         },
-        "reason": {
-          "type": "string",
-          "enum": [
-            "clean",
-            "repair_selected",
-            "policy_missing",
-            "stale_evidence",
-            "checks_unavailable",
-            "repeated_blocker",
-            "repair_cycles_exhausted",
-            "repair_time_exhausted",
-            "repair_budget_exhausted",
-            "reviewer_unavailable",
-            "review_failed"
-          ],
-          "description": "Machine-readable reason for the decision, such as clean, repair_selected, repeated_blocker or repair_cycles_exhausted."
-        },
-        "headSha": {
-          "type": "string",
-          "maxLength": 65536,
-          "description": "Head commit SHA of the candidate the decision was taken for."
-        },
-        "baseSha": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Base commit SHA pinned for the run, or null when it was not known to the decision."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "DeliveryDecision.baseSha may be null in this transport value."
-        },
-        "policyDigest": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 65536,
-              "description": "Digest of the effective policy the decision was evaluated under, or null when it was not known to the decision."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "DeliveryDecision.policyDigest may be null in this transport value."
-        },
-        "failedChecks": {
-          "maxItems": 32,
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "checkRunId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Identifier of the immutable check run row that recorded the failed observation; the repair evidence is this row, not the output text."
-              },
-              "checkId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 100,
-                "description": "Fixed policy command id of the check that did not pass, as pinned in the repository profile. FailedCheck.checkId must contain at least 1 characters. FailedCheck.checkId must contain at most 100 characters."
-              },
-              "result": {
-                "type": "string",
-                "enum": [
-                  "pending",
-                  "failed",
-                  "unavailable",
-                  "canceled"
-                ],
-                "description": "Observed outcome of the check; never passed, because a passing check is not a failed check."
-              },
-              "reason": {
-                "type": "string",
-                "enum": [
-                  "exit_nonzero",
-                  "signal",
-                  "deadline",
-                  "output_limit",
-                  "rule_violation",
-                  "description_placeholder",
-                  "tool_missing",
-                  "unsupported_checker",
-                  "revision_unavailable",
-                  "skipped",
-                  "metadata_missing",
-                  "metadata_too_large",
-                  "rule_unbound",
-                  "rule_binding_ambiguous",
-                  "policy_missing",
-                  "awaiting_result",
-                  "canceled"
-                ],
-                "description": "Machine-readable reason for the result, such as exit_nonzero, deadline or tool_missing; verified is excluded because it explains only a pass."
-              },
-              "exitCode": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 255,
-                    "description": "Process exit code the check produced, or null when it produced no exit status. FailedCheck.exitCode must be at least 0. FailedCheck.exitCode must be at most 255."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "FailedCheck.exitCode may be null in this transport value."
-              }
-            },
-            "required": [
-              "checkRunId",
-              "checkId",
-              "result",
-              "reason",
-              "exitCode"
-            ],
-            "additionalProperties": false,
-            "description": "Required checks that did not pass on the candidate when the decision was taken, with their check run ids; the evidence a repair acts on. Each array item follows this format."
-          },
-          "description": "Required checks that did not pass on the candidate when the decision was taken, with their check run ids; the evidence a repair acts on. DeliveryDecision.failedChecks must contain at most 32 items."
-        },
-        "blockingFingerprints": {
-          "maxItems": 25,
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-f0-9]{64}$",
-            "description": "Fingerprints of the blocking findings of the reviewed cycle, which the loop compares across cycles to recognize an unchanged blocker. Each array item follows this format."
-          },
-          "description": "Fingerprints of the blocking findings of the reviewed cycle, which the loop compares across cycles to recognize an unchanged blocker. DeliveryDecision.blockingFingerprints must contain at most 25 items."
-        },
-        "limits": {
-          "type": "object",
-          "properties": {
-            "maxRepairCycles": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 8,
-              "description": "Most repair iterations the run may spend; the loop stops with repair_cycles_exhausted once that many repairs were used and a blocker remains. DeliveryLoopLimits.maxRepairCycles must be at least 0. DeliveryLoopLimits.maxRepairCycles must be at most 8."
-            },
-            "maxLoopDurationMs": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 86400000,
-              "description": "Longest time in milliseconds from the first review cycle to the latest decision; the loop stops with repair_time_exhausted once it is reached. DeliveryLoopLimits.maxLoopDurationMs must be at least 1. DeliveryLoopLimits.maxLoopDurationMs must be at most 86400000."
-            },
-            "maxFindings": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 25,
-              "description": "Most findings one review report may carry; the server rejects a longer report. DeliveryLoopLimits.maxFindings must be at least 1. DeliveryLoopLimits.maxFindings must be at most 25."
-            }
-          },
-          "required": [
-            "maxRepairCycles",
-            "maxLoopDurationMs",
-            "maxFindings"
-          ],
-          "additionalProperties": false,
-          "description": "Loop bounds the decision was taken under, frozen when the run was admitted."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the record was created."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-          "description": "UTC timestamp when the record was last updated; equals createdAt because rows are immutable."
-        },
-        "version": {
+        "addedTries": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 9007199254740991,
-          "description": "Always 1 because delivery decision rows are immutable. DeliveryDecision.version must be at least 1."
+          "maximum": 8,
+          "description": "How many more tries or rounds were allowed. For a repeat_limit it can be fewer than asked, because a repeat never goes past its max. TriesAllowance.addedTries must be at least 1. TriesAllowance.addedTries must be at most 8."
+        },
+        "decisionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Id of the decision that records the allowance: the repair delivery decision for repair_loop, the decisions ledger entry for repeat_limit."
+        },
+        "repeatKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Step key of the repeat that was allowed more rounds, or null for repair_loop."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "TriesAllowance.repeatKey may be null in this transport value."
         }
       },
       "required": [
-        "id",
         "runId",
-        "ordinal",
-        "reviewCycleId",
-        "decision",
-        "reason",
-        "headSha",
-        "baseSha",
-        "policyDigest",
-        "failedChecks",
-        "blockingFingerprints",
-        "limits",
-        "createdAt",
-        "updatedAt",
-        "version"
+        "kind",
+        "addedTries",
+        "decisionId",
+        "repeatKey"
       ],
       "additionalProperties": false,
-      "description": "One immutable decision the review and repair loop took for a run: proceed, repair or stop, with the reason, the candidate it was taken for, the failed checks and blocking fingerprints it acted on, and the limits it was bound by. A stop ends the run with this record as its durable explanation and never approves a candidate; proceed is not an approval either, because a merge still requires the candidate evidence to be current. Rows are never updated, so updatedAt equals createdAt and version is always 1."
+      "description": "The answer to an allowance of more tries: which stop it answered, how many tries it added and the decision that records it."
     },
     "Application": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -63042,6 +63036,15 @@ export const clientManifest = {
         "waitingOnModel": {
           "description": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses.",
           "type": "boolean"
+        },
+        "releaseStep": {
+          "description": "Whether the run's frozen workflow plan runs a release step after its merge step: yes when a delivery.deploy step follows delivery.merge, no when none follows or the plan has no merge step, and unknown when the plan cannot be read. Served by runs.get; omitted by other run responses.",
+          "type": "string",
+          "enum": [
+            "yes",
+            "no",
+            "unknown"
+          ]
         }
       },
       "required": [
@@ -73853,6 +73856,7 @@ export const clientManifest = {
             "handoffManifests.get",
             "handoffManifests.continue",
             "runSteps.list",
+            "runSteps.given",
             "output.streams.list",
             "output.streams.read",
             "runs.controlCapabilities",
@@ -73955,6 +73959,7 @@ export const clientManifest = {
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -74192,6 +74197,7 @@ export const clientManifest = {
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -76930,6 +76936,20 @@ export const clientManifest = {
           "description": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
           "type": "boolean"
         },
+        "address": {
+          "description": "Deployment.address may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Absolute address of the environment's running release, the page a person opens to see it; null when this install configures no address for that environment."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -78478,6 +78498,7 @@ export const clientManifest = {
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -78642,6 +78663,7 @@ export const clientManifest = {
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -79002,6 +79024,7 @@ export const clientManifest = {
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -96234,7 +96257,11 @@ export const clientManifest = {
                 "type": "string",
                 "enum": [
                   "fixed-coding",
-                  "fixed-coding-reviewed"
+                  "fixed-coding-reviewed",
+                  "deliver-oneshot",
+                  "deliver-lean",
+                  "deliver-full",
+                  "deliver-prd"
                 ],
                 "description": "Stable preset identifier accepted by runs.create presetId."
               },
@@ -96362,6 +96389,45 @@ export const clientManifest = {
                   }
                 ],
                 "description": "WorkflowPreset.availability may be null in this transport value."
+              },
+              "definition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
               }
             },
             "required": [
@@ -96371,7 +96437,8 @@ export const clientManifest = {
               "nameKey",
               "steps",
               "defaultBudgetLimitUsd",
-              "availability"
+              "availability",
+              "definition"
             ],
             "additionalProperties": false,
             "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
@@ -96428,7 +96495,120 @@ export const clientManifest = {
         "nextCursor"
       ],
       "additionalProperties": false,
-      "description": "Cursor page of WorkflowPreset."
+      "description": "Cursor page of WorkflowPreset.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "ArtifactPinResult": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -98330,6 +98510,10 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when deciding."
+        },
+        "mayDecide": {
+          "type": "boolean",
+          "description": "True when the person asking may decide this approval now: it is open, or it expired while its plan or reviewed commit is still the current one so a new decision can be recorded, and the person is named in its audience or holds a grant for it and may decide approvals. The web shows decision buttons only when this is true."
         }
       },
       "required": [
@@ -98357,7 +98541,8 @@ export const clientManifest = {
         "expiresAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "mayDecide"
       ],
       "additionalProperties": false,
       "description": "Typed approval request bound to an exact subject digest, stage scope, policy digest and expiry; it authorizes one action once and never carries forward to another revision.",
@@ -99101,6 +99286,10 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when deciding."
+              },
+              "mayDecide": {
+                "type": "boolean",
+                "description": "True when the person asking may decide this approval now: it is open, or it expired while its plan or reviewed commit is still the current one so a new decision can be recorded, and the person is named in its audience or holds a grant for it and may decide approvals. The web shows decision buttons only when this is true."
               }
             },
             "required": [
@@ -99128,7 +99317,8 @@ export const clientManifest = {
               "expiresAt",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "mayDecide"
             ],
             "additionalProperties": false,
             "description": "Typed approval request bound to an exact subject digest, stage scope, policy digest and expiry; it authorizes one action once and never carries forward to another revision."
@@ -105072,6 +105262,100 @@ export const clientManifest = {
           "additionalProperties": false,
           "description": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target."
         },
+        "approvalOutcome": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "approved",
+                    "changes_requested",
+                    "rejected",
+                    "expired",
+                    "withdrawn"
+                  ],
+                  "description": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn."
+                },
+                "decidedBy": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "principalId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "maxLength": 200,
+                          "description": "The person's current display name, or a neutral stand-in when the account is gone; never an email address. NotificationActor.displayName must contain at most 200 characters."
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 2048,
+                              "description": "Absolute HTTPS URL of the person's avatar, or null to draw initials. NotificationActor.avatarUrl must contain at most 2048 characters."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "NotificationActor.avatarUrl may be null in this transport value."
+                        }
+                      },
+                      "required": [
+                        "principalId",
+                        "displayName",
+                        "avatarUrl"
+                      ],
+                      "additionalProperties": false,
+                      "description": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "NotificationApprovalOutcome.decidedBy may be null in this transport value."
+                },
+                "decidedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "NotificationApprovalOutcome.decidedAt may be null in this transport value."
+                }
+              },
+              "required": [
+                "status",
+                "decidedBy",
+                "decidedAt"
+              ],
+              "additionalProperties": false,
+              "description": "How the approval this item points at stands now, read from the approval at read time: open, approved, changes requested, rejected, expired or withdrawn, with who decided and when. Null when the item does not point at an approval or the recipient can no longer reach it."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.approvalOutcome may be null in this transport value."
+        },
         "read": {
           "type": "boolean",
           "description": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks."
@@ -105102,6 +105386,7 @@ export const clientManifest = {
         "taskId",
         "actor",
         "destination",
+        "approvalOutcome",
         "read",
         "revision",
         "createdAt"
@@ -105305,6 +105590,100 @@ export const clientManifest = {
                 "additionalProperties": false,
                 "description": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target."
               },
+              "approvalOutcome": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "approved",
+                          "changes_requested",
+                          "rejected",
+                          "expired",
+                          "withdrawn"
+                        ],
+                        "description": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn."
+                      },
+                      "decidedBy": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "principalId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                              },
+                              "displayName": {
+                                "type": "string",
+                                "maxLength": 200,
+                                "description": "The person's current display name, or a neutral stand-in when the account is gone; never an email address. NotificationActor.displayName must contain at most 200 characters."
+                              },
+                              "avatarUrl": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "maxLength": 2048,
+                                    "description": "Absolute HTTPS URL of the person's avatar, or null to draw initials. NotificationActor.avatarUrl must contain at most 2048 characters."
+                                  },
+                                  {
+                                    "type": "null",
+                                    "description": "Null indicates that the value is unavailable."
+                                  }
+                                ],
+                                "description": "NotificationActor.avatarUrl may be null in this transport value."
+                              }
+                            },
+                            "required": [
+                              "principalId",
+                              "displayName",
+                              "avatarUrl"
+                            ],
+                            "additionalProperties": false,
+                            "description": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "NotificationApprovalOutcome.decidedBy may be null in this transport value."
+                      },
+                      "decidedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "description": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "NotificationApprovalOutcome.decidedAt may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "decidedBy",
+                      "decidedAt"
+                    ],
+                    "additionalProperties": false,
+                    "description": "How the approval this item points at stands now, read from the approval at read time: open, approved, changes requested, rejected, expired or withdrawn, with who decided and when. Null when the item does not point at an approval or the recipient can no longer reach it."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.approvalOutcome may be null in this transport value."
+              },
               "read": {
                 "type": "boolean",
                 "description": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks."
@@ -105335,6 +105714,7 @@ export const clientManifest = {
               "taskId",
               "actor",
               "destination",
+              "approvalOutcome",
               "read",
               "revision",
               "createdAt"
@@ -105469,7 +105849,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 2048,
-              "description": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible. NotificationTarget.path must contain at most 2048 characters."
+              "description": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible. A reader who can open the task gets a task route (/tasks/{taskId} or /tasks/{taskId}/artifacts/{artifactId}); a reader whose access comes only from a direct grant gets /shared/documents/{artifactId}?version={versionId} with &comment={commentId} for a comment, or /shared/conversations/{conversationId}?message={messageId}. NotificationTarget.path must contain at most 2048 characters."
             },
             {
               "type": "null",
@@ -105491,6 +105871,26 @@ export const clientManifest = {
             }
           ],
           "description": "NotificationTarget.anchor may be null in this transport value."
+        },
+        "reason": {
+          "description": "Why an unavailable destination cannot be opened, present only when status is unavailable. gone means the document, conversation or task was deleted; no_longer_shared means it still exists but the recipient's access ended; unknown means the server cannot tell. A client reading an unavailable target with no reason, as older responses have, treats it as unknown.",
+          "type": "string",
+          "enum": [
+            "gone",
+            "no_longer_shared",
+            "unknown"
+          ]
+        },
+        "sharedByName": {
+          "description": "Current display name of the person who shared the document or conversation with the recipient through a direct grant, present only when the destination is reached through a grant or a revoked grant still records who gave it; never an email address. NotificationTarget.sharedByName must contain at most 200 characters.",
+          "type": "string",
+          "maxLength": 200
+        },
+        "sharedAt": {
+          "description": "When the direct grant that opens, or last opened, this document or conversation for the recipient was given; present alongside sharedByName.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
         }
       },
       "required": [
@@ -111302,6 +111702,23 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "The repository it works in."
         },
+        "presetId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "fixed-coding",
+                "fixed-coding-reviewed"
+              ],
+              "description": "The built-in workflow each of its issues runs; null for a batch started before the workflow was stored."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "Batch.presetId may be null in the safe projection."
+        },
         "startedBy": {
           "type": "string",
           "format": "uuid",
@@ -111712,6 +112129,7 @@ export const clientManifest = {
       "required": [
         "id",
         "repositoryId",
+        "presetId",
         "startedBy",
         "maxIssues",
         "maxHours",
@@ -111759,6 +112177,23 @@ export const clientManifest = {
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "The repository it works in."
+              },
+              "presetId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "fixed-coding",
+                      "fixed-coding-reviewed"
+                    ],
+                    "description": "The built-in workflow each of its issues runs; null for a batch started before the workflow was stored."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "Batch.presetId may be null in the safe projection."
               },
               "startedBy": {
                 "type": "string",
@@ -112170,6 +112605,7 @@ export const clientManifest = {
             "required": [
               "id",
               "repositoryId",
+              "presetId",
               "startedBy",
               "maxIssues",
               "maxHours",
@@ -113747,6 +114183,90 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused."
     },
+    "SkillUseGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the grant."
+        },
+        "skillId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the personal skill the grant is for."
+        },
+        "skillVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+        },
+        "revisionDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+        },
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the workflow the skill was attached to."
+        },
+        "workflowName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Display name of that workflow, so the owner can recognise it."
+        },
+        "stepPath": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill."
+        },
+        "grantedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Person who confirmed the grant, always the skill owner."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant was made."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version a stop must name in If-Match."
+        }
+      },
+      "required": [
+        "id",
+        "skillId",
+        "skillVersionId",
+        "revision",
+        "revisionDigest",
+        "workflowId",
+        "workflowName",
+        "stepPath",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both."
+    },
     "SkillSourceUpdateCheck": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -114652,6 +115172,11 @@ export const clientManifest = {
                 "maximum": 9007199254740991,
                 "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
               },
+              "revisionDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+              },
               "workflowId": {
                 "type": "string",
                 "format": "uuid",
@@ -114692,6 +115217,7 @@ export const clientManifest = {
               "skillId",
               "skillVersionId",
               "revision",
+              "revisionDigest",
               "workflowId",
               "workflowName",
               "stepPath",
@@ -114907,7 +115433,7 @@ export const clientManifest = {
         },
         "ownerFallback": {
           "type": "boolean",
-          "description": "True when the person asked for could not be resolved and the run's starter was asked instead."
+          "description": "True when the person asked for could not be resolved and the workflow's owner, or the run's starter when the workflow has no owner, was asked instead."
         },
         "fallbackForName": {
           "anyOf": [
@@ -115204,7 +115730,7 @@ export const clientManifest = {
               },
               "ownerFallback": {
                 "type": "boolean",
-                "description": "True when the person asked for could not be resolved and the run's starter was asked instead."
+                "description": "True when the person asked for could not be resolved and the workflow's owner, or the run's starter when the workflow has no owner, was asked instead."
               },
               "fallbackForName": {
                 "anyOf": [
@@ -127280,6 +127806,200 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "StepGiven": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "stepKey": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "The workflow step this describes. StepGiven.stepKey must contain at most 200 characters."
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the step started, or null before it has."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "StepGiven.startedAt may be null in this transport value."
+        },
+        "ranAnAgent": {
+          "type": "boolean",
+          "description": "Whether an agent session ran for this step."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "memoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The memory entry this fact was sourced from."
+              },
+              "wording": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "The exact wording the agent was given for this fact. GivenFact.wording must contain at most 4096 characters."
+              },
+              "recordedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When this fact was recorded, in UTC."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "given",
+                  "corrected_since",
+                  "stopped_since"
+                ],
+                "description": "given while the memory still reads the same; corrected_since when the memory was revised after the step started; stopped_since when the memory was retired."
+              }
+            },
+            "required": [
+              "memoryId",
+              "wording",
+              "recordedAt",
+              "state"
+            ],
+            "additionalProperties": false,
+            "description": "The sourced-memory facts the step was given, each with its state now. Each array item follows this format."
+          },
+          "description": "The sourced-memory facts the step was given, each with its state now."
+        },
+        "factsOmitted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "How many facts were left out to stay inside the step bound. StepGiven.factsOmitted must be at least 0."
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "artifactVersionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "The pinned artifact version the step was given."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "hidden",
+                  "gone",
+                  "unchecked"
+                ],
+                "description": "available while the reader may still see it; hidden when access ended; gone when its bytes are purged; unchecked when nothing truthful can be said."
+              },
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "The document name when the reader may see it, else null. GivenDocument.name must contain at most 200 characters."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "GivenDocument.name may be null in this transport value."
+              },
+              "kind": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 80,
+                    "description": "The artifact type when the reader may see it, else null. GivenDocument.kind must contain at most 80 characters."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "GivenDocument.kind may be null in this transport value."
+              },
+              "version": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "The revision number when the reader may see it, else null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "GivenDocument.version may be null in this transport value."
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "The pinned byte size, always shown so a count stays truthful. GivenDocument.sizeBytes must be at least 0."
+              }
+            },
+            "required": [
+              "artifactVersionId",
+              "state",
+              "name",
+              "kind",
+              "version",
+              "sizeBytes"
+            ],
+            "additionalProperties": false,
+            "description": "The documents the step was given that the reader may still see. Each array item follows this format."
+          },
+          "description": "The documents the step was given that the reader may still see."
+        },
+        "documentsHidden": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Documents the reader may no longer see, counted but not named. StepGiven.documentsHidden must be at least 0."
+        },
+        "documentsGone": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Documents whose bytes are purged, counted but not named. StepGiven.documentsGone must be at least 0."
+        },
+        "documentsUnchecked": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Documents nothing truthful can be said about, counted but not named. StepGiven.documentsUnchecked must be at least 0."
+        }
+      },
+      "required": [
+        "stepKey",
+        "startedAt",
+        "ranAnAgent",
+        "facts",
+        "factsOmitted",
+        "documents",
+        "documentsHidden",
+        "documentsGone",
+        "documentsUnchecked"
+      ],
+      "additionalProperties": false,
+      "description": "What a step was given: the sourced-memory facts and pinned documents in use when it started, redacted to the reader."
     }
   }
 } as const;

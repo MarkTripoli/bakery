@@ -162,8 +162,9 @@ test(
         .getAttribute("value");
     expect(repositoryId, "a repository to run against").toBeTruthy();
     await repositories.selectOption(repositoryId!);
-    await expect(page.getByRole("radio", { name: /Fixed coding/ }))
-      .toBeChecked();
+    await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+      label: "Fixed coding",
+    });
     await page.getByRole("textbox", { name: /^Title/ }).fill(
       `FS06 run observation (${harnessKind}) ${new Date().toISOString()}`,
     );
@@ -171,7 +172,10 @@ test(
       process.env.BAKERY_FS06_INSTRUCTIONS ??
         (harnessKind === "real" ? REAL_INSTRUCTIONS : FAKE_INSTRUCTIONS),
     );
-    await page.getByRole("button", { name: "Start task", exact: true }).click();
+    await page.getByRole("button", {
+      name: "Create task and start run",
+      exact: true,
+    }).click();
     await expect(page).toHaveURL(/\/tasks\/[0-9a-f-]{36}$/);
     const taskId = page.url().split("/").at(-1)!;
     console.log(JSON.stringify({ fs06: "task", taskId, harnessKind }));

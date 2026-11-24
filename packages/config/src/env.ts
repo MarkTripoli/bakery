@@ -347,6 +347,9 @@ export const DeliveryTargetConfigSchema = z.object({
   environment: z.enum(["preview", "staging", "production"]).describe(
     "The one environment this target serves.",
   ),
+  address: z.url().optional().describe(
+    "Absolute address a person opens to see the release this environment serves; absent when the install has no page to open.",
+  ),
 }).strict().describe(
   "Server-only settings of the local deployment target the delivery steps deploy to.",
 );
@@ -358,6 +361,8 @@ export const DELIVERY_TARGET_VARIABLES = [
   "BAKERY_DELIVERY_HEALTH_URL",
   "BAKERY_DELIVERY_ENVIRONMENT",
 ] as const;
+
+export const DELIVERY_TARGET_ADDRESS_VARIABLE = "BAKERY_DELIVERY_ADDRESS";
 
 /**
  * The local deployment target, from four variables that come together or not
@@ -374,11 +379,13 @@ export function readDeliveryTargetConfig(
       value === undefined
     )
   ) return undefined;
+  const address = env[DELIVERY_TARGET_ADDRESS_VARIABLE]?.trim() || undefined;
   const parsed = DeliveryTargetConfigSchema.safeParse({
     releaseRoot,
     artifactsDir,
     healthUrl,
     environment,
+    ...(address === undefined ? {} : { address }),
   });
   if (!parsed.success) throw new Error("DELIVERY_TARGET_INVALID");
   return parsed.data;

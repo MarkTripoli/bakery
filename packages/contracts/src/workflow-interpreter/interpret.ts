@@ -121,6 +121,13 @@ export type NextStep =
     kind: "halted";
     outcome: "failed" | "canceled" | "timed_out";
     key: string | null;
+  }>
+  | Readonly<{
+    kind: "paused";
+    key: string;
+    iterations: number;
+    allowed: number;
+    max: number;
   }>;
 
 type Segment = Readonly<{ id: string; iteration?: number }>;
@@ -167,6 +174,13 @@ type Walk =
     t: "halt";
     outcome: "failed" | "canceled" | "timed_out";
     key: string;
+  }>
+  | Readonly<{
+    t: "pause";
+    key: string;
+    iterations: number;
+    allowed: number;
+    max: number;
   }>;
 
 const SCALAR_KEY_PART = new Set(["string", "number", "boolean"]);
@@ -204,6 +218,7 @@ class Run {
     private readonly groups: boolean = false,
     /** Revision 3: forEach loops run. Revisions 1 and 2 refuse them by name. */
     private readonly loops: boolean = false,
+    private readonly loopBounds: boolean = false,
   ) {}
 
   next(): NextStep {
@@ -222,6 +237,14 @@ class Run {
         return { kind: "dispatch_many", steps: walk.steps };
       case "halt":
         return { kind: "halted", outcome: walk.outcome, key: walk.key };
+      case "pause":
+        return {
+          kind: "paused",
+          key: walk.key,
+          iterations: walk.iterations,
+          allowed: walk.allowed,
+          max: walk.max,
+        };
       case "done":
         return { kind: "finished" };
     }
@@ -567,6 +590,7 @@ class Run {
       "done" | "failed" | "waiting" | "active"
     >();
     const halts = new Map<string, Extract<Walk, { t: "halt" }>>();
+    const pauses: Extract<Walk, { t: "pause" }>[] = [];
     const pending = new Map<
       string,
       readonly (ActionDispatch | WaitDispatch)[]
@@ -611,6 +635,9 @@ class Run {
       if (walk.t === "halt") {
         laneStatus.set(lane.id, "failed");
         halts.set(lane.id, walk);
+      } else if (walk.t === "pause") {
+        laneStatus.set(lane.id, "waiting");
+        pauses.push(walk);
       } else if (walk.t === "done") {
         const exports: Record<string, JsonValue> = {};
         for (
@@ -648,6 +675,7 @@ class Run {
     );
     if (steps.length > 0) return { t: "pending_many", steps };
     if (failed.length > 0) return halts.get(failed[0]!.id)!;
+    if (pauses.length > 0) return pauses[0]!;
     if (node.lanes.every((lane) => laneStatus.get(lane.id) === "done")) {
       return { t: "done" };
     }
@@ -697,12 +725,22 @@ class Run {
         frames: [...scope.frames, { node, iteration: iterations, candidate }],
         each: scope.each,
       };
-      if (evaluateCondition(node.until, this.reader(checking))) {
+      if (
+        iterations >= (this.loopBounds ? node.min ?? 0 : 0) &&
+        evaluateCondition(node.until, this.reader(checking))
+      ) {
         outcome = "completed";
         break;
       }
-      const allowed = node.max + (this.state.repeatExtra?.[key] ?? 0);
+      const extra = this.state.repeatExtra?.[key] ?? 0;
+      const soft = this.loopBounds ? node.allow : undefined;
+      const allowed = soft === undefined
+        ? node.max + extra
+        : Math.min(soft + extra, node.max);
       if (iterations === allowed) {
+        if (soft !== undefined && allowed < node.max) {
+          return { t: "pause", key, iterations, allowed, max: node.max };
+        }
         outcome = "exhausted";
         break;
       }
@@ -713,7 +751,10 @@ class Run {
         each: scope.each,
       };
       const walk = this.walkList(node.steps, body);
-      if (walk.t === "pending" || walk.t === "pending_many") return walk;
+      if (
+        walk.t === "pending" || walk.t === "pending_many" ||
+        walk.t === "pause"
+      ) return walk;
       if (walk.t === "halt") {
         outcome = walk.outcome;
         break;
@@ -761,7 +802,10 @@ class Run {
         each: [...scope.each, { node, iteration: number, item: list[at]! }],
       };
       const walk = this.walkList(node.steps, body);
-      if (walk.t === "pending" || walk.t === "pending_many") return walk;
+      if (
+        walk.t === "pending" || walk.t === "pending_many" ||
+        walk.t === "pause"
+      ) return walk;
       if (walk.t === "halt") {
         outcome = walk.outcome;
         break;
@@ -829,4 +873,13 @@ export function nextStepWithLoops(
   state: RunState,
 ): NextStep {
   return cloneJson(new Run(document, state, true, true).next()) as NextStep;
+}
+
+export function nextStepWithLoopBounds(
+  document: WorkflowSemanticDocument,
+  state: RunState,
+): NextStep {
+  return cloneJson(
+    new Run(document, state, true, true, true).next(),
+  ) as NextStep;
 }

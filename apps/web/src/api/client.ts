@@ -58,6 +58,8 @@ export type NotificationListResponse = ClientOutputMap["Page<Notification>"];
 export type NotificationResponse = ClientOutputMap["Notification"];
 export type NotificationCountResponse = ClientOutputMap["NotificationCount"];
 export type NotificationTargetResponse = ClientOutputMap["NotificationTarget"];
+export type NotificationUndoMarkAllReadResponse =
+  ClientOutputMap["NotificationUndoMarkAllReadResult"];
 export type NotificationMarkAllReadResponse =
   ClientOutputMap["NotificationMarkAllReadResult"];
 export type NotificationCursorQuery = ClientInputMap["NotificationCursorQuery"];
@@ -122,6 +124,21 @@ export type InstallationCapabilities =
 export type InstallationSettings = ClientOutputMap["InstallationSettings"];
 /** The restore that holds the installation, and how far its ordered re-enable has got (#64 E3). */
 export type InstallationRestore = ClientOutputMap["InstallationRestore"];
+export type BackupRun = ClientOutputMap["BackupRun"];
+export type BackupRunPage = ClientOutputMap["Page<BackupRun>"];
+export type BackupStatus = ClientOutputMap["BackupStatus"];
+export type BackupDrill = ClientOutputMap["BackupDrill"];
+export type BackupDrillPage = ClientOutputMap["Page<BackupDrill>"];
+export type BackupSchedule = ClientOutputMap["BackupSchedule"];
+export type BackupPointInTime = ClientOutputMap["BackupPointInTime"];
+export type BackupOffsite = ClientOutputMap["BackupOffsite"];
+export type BackupSchedulePut = ClientInputMap["BackupSchedulePut"];
+export type BackupOffsitePut = ClientInputMap["BackupOffsitePut"];
+export type BackupPointInTimePut = ClientInputMap["BackupPointInTimePut"];
+export type BackupOffsiteVerification =
+  ClientOutputMap["BackupOffsiteVerification"];
+export type BackupRunnerCredentialIssued =
+  ClientOutputMap["BackupRunnerCredentialIssued"];
 /** Which release runs, the one kept to go back to, and the last update that did not go through (#59). */
 export type InstallationUpdateStatus =
   ClientOutputMap["InstallationUpdateStatus"];
@@ -1608,6 +1625,59 @@ export type BakeryApiClient = {
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<InstallationRestore>>;
   };
+  readonly backups: {
+    readonly status: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupStatus>>;
+    readonly list: (options: {
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupRunPage>>;
+    readonly drills: (options: {
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupDrillPage>>;
+    readonly start: (options: {
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupRun>>;
+    readonly schedule: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupSchedule>>;
+    readonly pointInTime: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupPointInTime>>;
+    readonly offsite: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupOffsite>>;
+    readonly issueRunnerCredential: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupRunnerCredentialIssued>>;
+    readonly putSchedule: (options: {
+      readonly input: BackupSchedulePut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupSchedule>>;
+    readonly putOffsite: (options: {
+      readonly input: BackupOffsitePut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupOffsite>>;
+    readonly putPointInTime: (options: {
+      readonly input: BackupPointInTimePut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupPointInTime>>;
+    readonly verifyOffsite: (options: {
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupOffsiteVerification>>;
+  };
   readonly installationUpdates: {
     /** `GET /v1/installation/updates/status`: the running release, the kept one and the last failure; administrators only. */
     readonly status: (
@@ -1843,6 +1913,12 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<NotificationMarkAllReadResponse>>;
+  readonly undoMarkAllNotificationsRead: (options: {
+    readonly organizationId: string;
+    readonly batchId: string;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<NotificationUndoMarkAllReadResponse>>;
   readonly createTask: (options: {
     readonly organizationId: string;
     readonly input: TaskCreate;
@@ -2039,6 +2115,13 @@ export type BakeryApiClient = {
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<DeploymentResponse>>;
+  readonly allowMoreRepairTries: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly tries: number;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<null>>;
   /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
   readonly reconcileMergeAttempts: (options: {
     readonly organizationId: string;
@@ -2154,6 +2237,30 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
+  readonly updateSkill: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: DefinitionUpdate;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillResponse>>;
+  readonly copySkill: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly name: string;
+    readonly scope: "organization" | "personal";
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillResponse>>;
+  readonly deleteSkillUseGrant: (options: {
+    readonly organizationId: string;
+    readonly skillId: string;
+    readonly id: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<undefined>>;
   /** One agent definition of the organization. */
   readonly getAgent: (options: {
     readonly organizationId: string;
@@ -4860,6 +4967,165 @@ export function createBakeryApiClient({
       },
     },
 
+    backups: {
+      async status(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backups.status"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async list(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backups.list"]({
+              ...(options.cursor === undefined
+                ? {}
+                : { cursor: options.cursor }),
+              ...(options.limit === undefined ? {} : { limit: options.limit }),
+            }, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async drills(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backups.drills.list"]({
+              ...(options.cursor === undefined
+                ? {}
+                : { cursor: options.cursor }),
+              ...(options.limit === undefined ? {} : { limit: options.limit }),
+            }, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async start(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backups.start"]({}, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async schedule(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupSchedule.get"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async pointInTime(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupPointInTime.get"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async offsite(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupOffsite.get"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async issueRunnerCredential(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupRunnerCredential.issue"]({}, {
+              signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async putSchedule(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupSchedule.put"](options.input, {
+              ...(options.version === undefined
+                ? {}
+                : { ifMatch: versionEtag(options.version) }),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async putOffsite(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupOffsite.put"](options.input, {
+              ...(options.version === undefined
+                ? {}
+                : { ifMatch: versionEtag(options.version) }),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async putPointInTime(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupPointInTime.put"](options.input, {
+              ...(options.version === undefined
+                ? {}
+                : { ifMatch: versionEtag(options.version) }),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async verifyOffsite(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupOffsite.verify"]({}, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
     installationUpdates: {
       async status(signal) {
         try {
@@ -6227,6 +6493,26 @@ export function createBakeryApiClient({
       }
     },
 
+    async undoMarkAllNotificationsRead(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["notifications.undoMarkAllRead"](
+          { batchId: options.batchId },
+          {
+            signal: options.signal,
+            ...(options.idempotencyKey === undefined
+              ? {}
+              : { idempotencyKey: options.idempotencyKey }),
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
     async listRuns(options) {
       organizationId = options.organizationId;
       try {
@@ -6643,6 +6929,21 @@ export function createBakeryApiClient({
           { idempotencyKey: options.idempotencyKey, signal: options.signal },
         );
         return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async allowMoreRepairTries(options) {
+      organizationId = options.organizationId;
+      try {
+        await client.actions["runRepairAllowances.create"](
+          { id: options.runId, tries: options.tries },
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        return { ok: true, data: null };
       } catch (error) {
         return failed(error);
       } finally {
@@ -7093,6 +7394,65 @@ export function createBakeryApiClient({
           },
         );
         return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateSkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.update"](
+          { id: options.id, ...options.input },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async copySkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.copy"](
+          { id: options.id, name: options.name, scope: options.scope },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async deleteSkillUseGrant(options) {
+      organizationId = options.organizationId;
+      try {
+        await client.actions["skills.useGrants.delete"](
+          { id: options.skillId, grantId: options.id },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data: undefined };
       } catch (error) {
         return failed(error);
       } finally {

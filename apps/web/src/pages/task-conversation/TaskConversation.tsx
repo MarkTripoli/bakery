@@ -32,6 +32,7 @@ import { useLiveEvents } from "../../api/use-live-events.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import { RouterLink } from "../../app/router-link.tsx";
+import { NotificationBellControl } from "../../notifications/NotificationBellControl.tsx";
 import { WORK_HOME } from "../../shell/breadcrumb-paths.ts";
 import { ShellFlushMain, ShellSlot } from "../../shell/shell-slots.tsx";
 import { NowLineOutlet, NowLineProvider } from "../now-line-slot.tsx";
@@ -56,9 +57,12 @@ import {
   chronological,
   commandFailure,
   currentStage,
+  expiredApproval,
   latestRevision,
   participantsOf,
   planBody,
+  type PlanRefusal,
+  planRefusal,
   questionOptions,
   stageWait,
 } from "./model.ts";
@@ -92,11 +96,13 @@ export function TaskConversation(
     extras,
     questionDefaults,
     references,
+    renderStepReview,
     state = "ready",
     task,
   }: {
     /** More inspector content, such as the task's artifact pane. */
     aside?: ReactNode;
+    renderStepReview?: (layout: "rail" | "sheet") => ReactNode;
     /** A notice that belongs right under the stages, such as a landing's. */
     banner?: ReactNode;
     /** Transcript-end content: run controls, output and artifacts. */
@@ -308,6 +314,7 @@ export function TaskConversation(
     } | null
   >(null);
   const [obsolete, setObsolete] = useState<number | null>(null);
+  const [refusal, setRefusal] = useState<PlanRefusal | null>(null);
   // Pending decisions are scoped to the approval id and version they were
   // sent for; another approval always gets the person's current choice and a
   // fresh idempotency key.
@@ -331,6 +338,7 @@ export function TaskConversation(
       input: { decision: choice, ...(comment ? { comment } : {}) },
     };
     pendingDecision.current = next;
+    setRefusal(null);
     setDecision({ revision: revision.revision, phase: "deciding", done: null });
     const result = await api.decideApproval({
       organizationId,
@@ -366,6 +374,7 @@ export function TaskConversation(
       return;
     }
     pendingDecision.current = null;
+    setRefusal(planRefusal(result.error));
     if (failure === "conflict") setObsolete(revision.revision);
     setDecision({
       revision: revision.revision,
@@ -503,7 +512,17 @@ export function TaskConversation(
   const decided = decision && revision &&
       decision.revision === revision.revision && decision.done
     ? decision.done
+    : approval?.status === "expired"
+    ? null
     : approval?.decision ?? null;
+  const expired = approval?.status === "expired"
+    ? expiredApproval(
+      approval,
+      approval.decidedBy === principalId
+        ? t("tasks.conversation.author.you")
+        : nameOf(approval.decidedBy),
+    )
+    : null;
 
   const obsoleteNotice = obsolete !== null && revision &&
       revision.revision > obsolete
@@ -521,6 +540,10 @@ export function TaskConversation(
       ? nameOf(approval.decidedBy)
       : null,
     phase: planPhase,
+    mayDecide: approval?.mayDecide ?? false,
+    startRunAvailable: task.status === "draft",
+    expired,
+    refusal,
     offline: !online,
     paused: liveTurn !== undefined,
     approvalId: approval?.id,
@@ -528,6 +551,7 @@ export function TaskConversation(
     onRetry: retryDecision,
     onRefresh: () => {
       setObsolete(null);
+      setRefusal(null);
       void refresh();
     },
   });
@@ -546,7 +570,6 @@ export function TaskConversation(
     repository.data
       ? `${repository.data.owner}/${repository.data.name}`
       : undefined,
-    t("tasks.conversation.subtitle.preset"),
   ].filter((part) => part !== undefined).join(" · ");
   const reference = references?.[task.id] ?? task.id.slice(0, 8);
   const coordinationLink = (coordination.data?.items.length ?? 0) > 0;
@@ -672,7 +695,13 @@ export function TaskConversation(
           </UI.Inline>
         </ShellSlot>
       )}
-      {!phone && (
+      {!phone && renderStepReview?.("rail") && (
+        <ShellSlot name="inspector" size="medium">
+          {renderStepReview("rail")}
+        </ShellSlot>
+      )}
+      {phone && renderStepReview?.("sheet")}
+      {!phone && !renderStepReview?.("rail") && (
         <ShellSlot name="inspector" size="medium">
           <UI.SessionPane
             label={t("tasks.conversation.plan.heading")}
@@ -760,6 +789,7 @@ export function TaskConversation(
             </RouterLink>
           )
           : undefined}
+        trailing={phone ? <NotificationBellControl /> : undefined}
         state={state}
         meta={<TaskFromIssue taskId={task.id} />}
         data-ui-region="task-conversation"

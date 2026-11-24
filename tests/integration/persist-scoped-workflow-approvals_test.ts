@@ -5,6 +5,7 @@ import {
 } from "../../apps/server/src/platform/canonical-json.ts";
 import {
   type ApprovalFixture,
+  type ApprovalView,
   HUMAN_APPROVAL,
   openApprovalFixture,
   PLAN_EFFECT,
@@ -313,6 +314,117 @@ Deno.test("an approval for task A with an identical plan cannot admit task B", (
       (await f.startRun(a.taskId, { approvalId: approvalA.id })).status,
       201,
     );
+  }));
+
+Deno.test("an expired approval whose plan is still current is decided again as a new approval", () =>
+  withFixture(async (f) => {
+    const task = await f.newTask({ policy: HUMAN_APPROVAL });
+    await f.askAgent(task, [PLAN_EFFECT("Again")]);
+    const [first] = await f.approvalsFor(task.taskId);
+    await f.fx.owner`
+      update bakery.questions set expires_at = now() - interval '1 minute'
+       where id = ${first.id}`;
+    const expired = await f.getApproval(first.id);
+    assertEquals(expired.status, "expired");
+    assertEquals(expired.mayDecide, true);
+
+    const response = await f.decide(expired, "approve");
+    assertEquals(response.status, 200, await response.clone().text());
+    const again = await response.json() as ApprovalView;
+    assertNotEquals(again.id, first.id);
+    assertEquals(again.status, "answered");
+    assertEquals(again.decision, "approve");
+    assertEquals(again.subjectId, first.subjectId);
+    assertEquals(again.subjectDigest, first.subjectDigest);
+    assertEquals(again.mayDecide, false);
+
+    const old = await f.getApproval(first.id);
+    assertEquals(old.status, "expired");
+    assertEquals(old.mayDecide, false);
+    assertEquals(
+      (await f.approvalsFor(task.taskId)).map((a) => a.id),
+      [first.id, again.id],
+    );
+    assertEquals((await f.revisionsFor(task.taskId))[0].status, "approved");
+    const audit = await f.fx.owner`
+      select details from bakery.audit_events
+       where resource_id = ${again.id} and operation = 'approvals.request'`;
+    assertEquals(audit.length, 1);
+    assertEquals(audit[0].details.reissuedFromApprovalId, first.id);
+
+    assertEquals((await f.decide(old, "reject")).status, 409);
+    const started = await f.startRun(task.taskId, { approvalId: again.id });
+    assertEquals(started.status, 201, await started.clone().text());
+  }));
+
+Deno.test("an approval that was given and then expired can be given again, and a replaced plan cannot", () =>
+  withFixture(async (f) => {
+    const task = await f.newTask({ policy: HUMAN_APPROVAL });
+    const given = await f.approvedPlan(task, "Given");
+    await f.fx.owner`
+      update bakery.questions set expires_at = now() - interval '1 minute'
+       where id = ${given.id}`;
+    const expired = await f.getApproval(given.id);
+    assertEquals(expired.status, "expired");
+    assertEquals(expired.mayDecide, true);
+    assertEquals(
+      (await f.startRun(task.taskId, { approvalId: given.id })).status,
+      409,
+    );
+    const refused = await f.startRun(task.taskId, { approvalId: given.id });
+    const body = await refused.json();
+    assertEquals([body.code, body.reason], [
+      "STATE_CONFLICT",
+      "approval_expired",
+    ]);
+    assertEquals(await f.runCount(task.taskId), 0);
+    const response = await f.decide(expired, "approve");
+    assertEquals(response.status, 200, await response.clone().text());
+    const again = await response.json() as ApprovalView;
+    assertNotEquals(again.id, given.id);
+    const started = await f.startRun(task.taskId, { approvalId: again.id });
+    assertEquals(started.status, 201, await started.clone().text());
+
+    const second = await f.newTask({
+      policy: HUMAN_APPROVAL,
+      title: "replaced",
+    });
+    await f.askAgent(second, [PLAN_EFFECT("v1")]);
+    const [first] = await f.approvalsFor(second.taskId);
+    await f.askAgent(second, [PLAN_EFFECT("v2")], "revise");
+    await f.fx.owner`
+      update bakery.questions set expires_at = now() - interval '1 minute'
+       where id = ${first.id}`;
+    const stale = await f.getApproval(first.id);
+    assertEquals(stale.mayDecide, false);
+    assertEquals((await f.decide(stale, "approve")).status, 409);
+    assertEquals((await f.approvalsFor(second.taskId)).length, 2);
+  }));
+
+Deno.test("an approval says whether the person asking may decide it", () =>
+  withFixture(async (f) => {
+    const task = await f.newTask({ policy: HUMAN_APPROVAL });
+    await f.askAgent(task, [PLAN_EFFECT("Who")]);
+    const [approval] = await f.approvalsFor(task.taskId);
+    assertEquals(approval.mayDecide, true);
+    const asViewer = await f.call(
+      await f.as(f.fx.viewer),
+      "GET",
+      `/v1/approvals/${approval.id}`,
+    );
+    assertEquals(asViewer.status, 200);
+    assertEquals((await asViewer.json()).mayDecide, false);
+    const listed = await f.call(
+      await f.as(f.fx.viewer),
+      "GET",
+      `/v1/approvals?taskId=${task.taskId}`,
+    );
+    assertEquals(
+      (await listed.json()).items.map((a: ApprovalView) => a.mayDecide),
+      [false],
+    );
+    assertEquals((await f.decide(approval, "approve")).status, 200);
+    assertEquals((await f.getApproval(approval.id)).mayDecide, false);
   }));
 
 Deno.test("expired or revoked approvals keep the stage paused while discussion continues", () =>

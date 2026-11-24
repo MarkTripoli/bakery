@@ -5176,7 +5176,14 @@
       "routeId": "machine-new",
       "path": "/machines/new",
       "status": "no-mock",
-      "rationale": "The add-a-machine wizard (#70): three steps (name and system, coding agent, install) that create one setup and then wait for the machine to connect. Its design is the UX design on #70 (design-ux, 2026-11-12 and 2026-11-13) and the Paper worker-readiness K-0 manifest has no wizard frame, so none is invented. Organization-scoped API data and a setup code shown once make it real-API only; it is not scored against synthetic records.",
+      "rationale": "The one-command add page (#70, UX design revision 2 on comment 7087868212): the settings, then one command to paste, and one status line that follows the machine to ready. No Paper frame names it, so none is invented. Organization-scoped API data and a command shown once make it real-API only; it is not scored against synthetic records.",
+      "frames": []
+    },
+    {
+      "routeId": "machine-new-by-hand",
+      "path": "/machines/new/by-hand",
+      "status": "no-mock",
+      "rationale": "The add-a-machine wizard (#70), kept as the by-hand way: three steps (name and system, coding agent, install) that create one setup and then wait for the machine to connect. Its design is the UX design on #70 (design-ux, 2026-11-12 and 2026-11-13) and the Paper worker-readiness K-0 manifest has no wizard frame, so none is invented. Organization-scoped API data and a setup code shown once make it real-API only.",
       "frames": []
     },
     {
@@ -5289,6 +5296,20 @@
       "path": "/installation/updates",
       "status": "no-mock",
       "rationale": "The Updates page (#59 slice 4) is designed by design-ux on #59 (revisions 3 and 4, mock at pr-evidence design-59/v3/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-backups",
+      "path": "/installation/backups",
+      "status": "no-mock",
+      "rationale": "The Backups page (#64 slice 1) is designed by design-ux on #64 (comment 7071834654, mocks at design-64/backups/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-backups-settings",
+      "path": "/installation/backups/settings",
+      "status": "no-mock",
+      "rationale": "The Backup settings page (#64 slice 2) is designed by design-ux on #64 (comment 7071834654, section 3, mock settings-desktop-light at design-64/backups/); Paper has no frame for it.",
       "frames": []
     },
     {

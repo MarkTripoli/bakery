@@ -1,4 +1,9 @@
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  infiniteQueryOptions,
+  type QueryClient,
+  queryOptions,
+} from "@tanstack/react-query";
 import type { MembershipPage } from "./access-client.ts";
 import type {
   AgentDefinitionResponse,
@@ -22,6 +27,12 @@ import type {
   ArtifactSharers,
   ArtifactStorageResponse,
   ArtifactVersionListResponse,
+  BackupDrillPage,
+  BackupOffsite,
+  BackupPointInTime,
+  BackupRunPage,
+  BackupSchedule,
+  BackupStatus,
   BakeryApiClient,
   BatchListResponse,
   BatchResponse,
@@ -1026,6 +1037,56 @@ export function notificationsListQueryOptions(
     },
     retry: retryNetworkOnce,
   });
+}
+
+export function notificationsInfiniteQueryOptions(
+  client: Pick<BakeryApiClient, "listNotifications">,
+  scope: ApiScope,
+  input: Readonly<{ filter: NotificationCursorQuery["filter"]; limit: number }>,
+) {
+  return infiniteQueryOptions<
+    NotificationListResponse,
+    ApiFailure,
+    InfiniteData<NotificationListResponse, string | null>,
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "notifications.list", {
+      filter: input.filter,
+      limit: input.limit,
+      accumulating: true,
+    }),
+    initialPageParam: null,
+    queryFn: async ({ pageParam, signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.listNotifications({
+          organizationId: scope.organizationId,
+          filter: input.filter,
+          limit: input.limit,
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+          signal,
+        }),
+      );
+    },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    retry: retryNetworkOnce,
+  });
+}
+
+export function invalidateNotificationQueries(
+  queryClient: Pick<QueryClient, "invalidateQueries">,
+) {
+  return Promise.all([
+    queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey[3] === "notifications.list",
+    }),
+    queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey[3] === "notifications.count",
+    }),
+  ]);
 }
 
 /**
@@ -2275,6 +2336,106 @@ export function installationUpdatesQueryOptions(
           signal,
         }),
       ),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupStatusQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return queryOptions<BackupStatus, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "backups.status", {}),
+    queryFn: async ({ signal }) => unwrap(await client.backups.status(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupRunsQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+  limit = 10,
+) {
+  return infiniteQueryOptions<
+    BackupRunPage,
+    ApiFailure,
+    { pages: BackupRunPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "backups.list", { limit }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.backups.list({
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+          limit,
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupDrillsQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+  limit = 5,
+) {
+  return infiniteQueryOptions<
+    BackupDrillPage,
+    ApiFailure,
+    { pages: BackupDrillPage[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "backups.drills.list", { limit }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.backups.drills({
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+          limit,
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupScheduleQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return queryOptions<BackupSchedule, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "backupSchedule.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.backups.schedule(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupPointInTimeQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return queryOptions<BackupPointInTime, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "backupPointInTime.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(await client.backups.pointInTime(signal)),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function backupOffsiteQueryOptions(
+  client: Pick<BakeryApiClient, "backups">,
+  scope: ApiScope,
+) {
+  return queryOptions<BackupOffsite, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "backupOffsite.get", {}),
+    queryFn: async ({ signal }) => unwrap(await client.backups.offsite(signal)),
     retry: retryNetworkOnce,
   });
 }

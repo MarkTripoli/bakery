@@ -27,6 +27,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { NotificationBellControl } from "../notifications/NotificationBellControl.tsx";
+import { MarkAllReadToast } from "../notifications/MarkAllReadToast.tsx";
 import { SettingsNavigation } from "../fixtures/SettingsFixture.tsx";
 import {
   ProductionSettingsNavigation,
@@ -699,6 +700,8 @@ function ShellFrame() {
     pathname === "/installation/usage" ||
     pathname === "/installation/restore" ||
     pathname === "/installation/updates" ||
+    pathname === "/installation/backups" ||
+    pathname === "/installation/backups/settings" ||
     pathname === INSTALLATION_INTEGRATIONS_PATH ||
     pathname === "/__fixtures__/installation/settings";
   const organizationSettings = ORGANIZATION_FIXTURE_PATHS.includes(pathname);
@@ -794,8 +797,11 @@ function ShellFrame() {
                   pathname === "/installation/usage" ||
                   pathname === "/installation/restore" ||
                   pathname === "/installation/updates" ||
+                  pathname === "/installation/backups" ||
                   pathname === INSTALLATION_INTEGRATIONS_PATH
                 ? pathname
+                : pathname === "/installation/backups/settings"
+                ? "/installation/backups"
                 : "/installation/settings"}
               onNavigate={onNavigate}
               viewport={viewport}
@@ -921,6 +927,7 @@ function ShellFrame() {
         ? null
         : <HeldBanner pathname={pathname} updatePaused={update.paused} />}
       <UpdateNotices update={update} />
+      <MarkAllReadToast surface="bell" />
       {update.updating ? <UpdatingPage update={update} /> : null}
       {
         /* Hidden, never unmounted, while Bakery is being updated (#59): what

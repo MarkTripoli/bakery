@@ -32,6 +32,7 @@ export type TaskDetailProps =
     presence?: ReactNode;
     /** Conversation layout, phone: back control before the title. */
     leading?: ReactNode;
+    trailing?: ReactNode;
     /** Conversation layout: stage strip under the title block. */
     stages?: ReactNode;
     /** Conversation layout: one muted line under the title. */
@@ -58,6 +59,7 @@ export function TaskDetail(
     state = "ready",
     subtitle,
     title,
+    trailing,
     variant = "rail",
     ...props
   }: TaskDetailProps,
@@ -90,6 +92,9 @@ export function TaskDetail(
                   ? <p className="ui-task-detail__subtitle">{subtitle}</p>
                   : null}
               </div>
+              {trailing
+                ? <div className="ui-task-detail__trailing">{trailing}</div>
+                : null}
             </header>
             {meta ? <div className="ui-task-detail__linked">{meta}</div> : null}
             {stages

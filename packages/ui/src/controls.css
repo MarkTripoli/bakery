@@ -645,20 +645,9 @@ input.ui-password-input__field {
   gap: var(--space-2);
   min-inline-size: 0;
 }
-.ui-task-composer__presets {
-  border: var(--border-none);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: var(--space-0);
-  min-inline-size: 0;
-  padding: var(--space-0);
-}
-.ui-task-composer__presets legend {
-  font: var(--type-control);
-  margin-block-end: var(--space-2);
-  overflow-wrap: anywhere;
-  padding: var(--space-0);
+.ui-task-composer__setup:focus {
+  outline: var(--border-emphasis) solid var(--color-selection);
+  outline-offset: var(--space-0-5);
 }
 .ui-task-composer__setup {
   background: var(--color-status-warning-surface);

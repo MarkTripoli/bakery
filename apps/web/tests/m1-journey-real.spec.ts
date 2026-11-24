@@ -41,6 +41,7 @@ import {
   answerQuestion,
   approve,
   axeClean,
+  chooseWorkflow,
   conversationRegion,
   DESKTOP,
   fillComposer,
@@ -817,7 +818,7 @@ test("P4 plan: a real coordinator turn, a question, a revision and a refused sta
   remember("conversationId", j.conversationId);
   await expect(conversationRegion(page)).toBeVisible();
   await expect(page.locator('[data-stage="plan"]')).toContainText(
-    "Waits for your approval",
+    "Human approval",
   );
   expect(await runsOf(api, j.taskId)).toHaveLength(0);
   await axeClean(page, "/tasks/<id> empty conversation");
@@ -1111,6 +1112,7 @@ test("P6 approve and run: revision 2 by keyboard, one run on the enrolled host",
   )).toHaveCount(0);
   await fundedStep("P6 executor run");
   // A double click on Start run admits one run, not two.
+  await chooseWorkflow(page);
   await startRunButton(page).dblclick();
   await expect.poll(
     async () => (await api.get<Task>(`/v1/tasks/${j.taskId}`)).currentRunId,
@@ -1372,7 +1374,10 @@ test("P8 faults on a run: lost response, offline window, worker killed mid-run, 
     title,
     task.description,
   );
-  await form.getByRole("button", { name: "Start task", exact: true }).click();
+  await form.getByRole("button", {
+    name: "Create task and start run",
+    exact: true,
+  }).click();
   const retry = form.getByRole("button", {
     name: "Retry submission",
     exact: true,
@@ -1511,7 +1516,10 @@ test("P9 changes, cancel and recover: revision 3, a cancelled run, a run queued 
     title,
     cancelTask.description,
   );
-  await form.getByRole("button", { name: "Start task", exact: true }).click();
+  await form.getByRole("button", {
+    name: "Create task and start run",
+    exact: true,
+  }).click();
   await expect(page).toHaveURL(/\/tasks\/[0-9a-f-]{36}$/, { timeout: 60_000 });
   const cancelTaskId = page.url().split("/").at(-1)!;
   remember("cancelTaskId", cancelTaskId);
@@ -1557,7 +1565,10 @@ test("P9 changes, cancel and recover: revision 3, a cancelled run, a run queued 
     queuedTitle,
     queuedTask.description,
   );
-  await queuedForm.getByRole("button", { name: "Start task", exact: true })
+  await queuedForm.getByRole("button", {
+    name: "Create task and start run",
+    exact: true,
+  })
     .click();
   await expect(page).toHaveURL(/\/tasks\/[0-9a-f-]{36}$/, { timeout: 60_000 });
   const recoverTaskId = page.url().split("/").at(-1)!;
@@ -1634,7 +1645,12 @@ test("P10 negatives: reject, expiry, stale and duplicate approvals never execute
   await say(page, "Ask agent", M1_PLAN_ONLY_REQUEST);
   await expect(approve(page, 1)).toBeEnabled({ timeout: 8 * MINUTE });
   await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Reject", exact: true })
+    .click();
   await expect(page.getByText("You rejected revision 1")).toBeVisible();
+  await chooseWorkflow(page);
   await startRunButton(page).click();
   await expect(page.getByText("The server did not admit the run."))
     .toBeVisible({ timeout: 30_000 });
@@ -1746,6 +1762,7 @@ test("P10 negatives: reject, expiry, stale and duplicate approvals never execute
   );
   expect(approvedReadThrough.status, "API read-through status").toBe("expired");
   // Start run, with no approval to send and with the expired one, is refused.
+  await chooseWorkflow(page);
   await startRunButton(page).click();
   await expect(page.getByText("The server did not admit the run."))
     .toBeVisible({ timeout: 30_000 });

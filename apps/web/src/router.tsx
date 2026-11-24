@@ -49,6 +49,7 @@ import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
 import { MachineModelNewPage } from "./pages/MachineModelNewPage.tsx";
+import { MachineAddPage } from "./pages/MachineAddPage.tsx";
 import { MachineWizardPage } from "./pages/MachineWizardPage.tsx";
 import { TaskCoordinationPage } from "./pages/task-coordination/TaskCoordinationPage.tsx";
 import { WorkflowEditorPage } from "./pages/library/WorkflowEditorPage.tsx";
@@ -97,6 +98,8 @@ import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
 import { InstallationMonitoringPage } from "./pages/InstallationMonitoringPage.tsx";
 import { MonitoringDestinationPage } from "./pages/MonitoringDestinationPage.tsx";
+import { InstallationBackupsPage } from "./pages/InstallationBackupsPage.tsx";
+import { InstallationBackupsSettingsPage } from "./pages/InstallationBackupsSettingsPage.tsx";
 import { InstallationRestorePage } from "./pages/InstallationRestorePage.tsx";
 import { InstallationUpdatesPage } from "./pages/InstallationUpdatesPage.tsx";
 import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
@@ -500,6 +503,19 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "machine-new-by-hand",
+    path: "/machines/new/by-hand",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "reconnecting",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
     id: "machine-detail",
     path: "/machines/$machineId",
     classification: "production",
@@ -775,6 +791,32 @@ export const routeCoverage = [
       "complete",
       "empty",
       "error",
+      "forbidden",
+    ],
+  },
+  {
+    id: "installation-backups",
+    path: "/installation/backups",
+    classification: "production",
+    states: [
+      "loading",
+      "default",
+      "busy",
+      "empty",
+      "error",
+      "forbidden",
+    ],
+  },
+  {
+    id: "installation-backups-settings",
+    path: "/installation/backups/settings",
+    classification: "production",
+    states: [
+      "loading",
+      "default",
+      "busy",
+      "error",
+      "conflict",
       "forbidden",
     ],
   },
@@ -1375,10 +1417,16 @@ const issuesRoute = createRoute({
   path: "/issues",
   // `?choose=true` opens the Choose repositories sheet (an issue whose
   // repository is off sends an administrator there).
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { choose?: true; repository?: string } => ({
     choose: search.choose === true || search.choose === "true"
       ? true
       : undefined,
+    repository:
+      typeof search.repository === "string" && search.repository !== ""
+        ? search.repository
+        : undefined,
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
@@ -1664,7 +1712,23 @@ const machineNewRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <MachineWizardPage finishId={machineNewRoute.useSearch().finish} />
+    <MachineAddPage finishId={machineNewRoute.useSearch().finish} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const machineNewByHandRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/new/by-hand",
+  validateSearch: (search: Record<string, unknown>) => ({
+    finish: typeof search.finish === "string" && isUuid(search.finish)
+      ? search.finish
+      : undefined,
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <MachineWizardPage finishId={machineNewByHandRoute.useSearch().finish} />
   ),
   errorComponent: ProtectedRouteError,
 });
@@ -1985,6 +2049,28 @@ const installationRestoreRoute = createRoute({
       <InstallationRestorePage />
     </InstallationBreadcrumbs>
   ),
+  errorComponent: ProtectedRouteError,
+});
+
+const installationBackupsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/backups",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="installation.backups.title">
+      <InstallationBackupsPage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const installationBackupsSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/backups/settings",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <InstallationBackupsSettingsPage />,
   errorComponent: ProtectedRouteError,
 });
 
@@ -2539,6 +2625,11 @@ const notificationsRoute = createRoute({
       <NotificationsPage
         item={item ?? null}
         view={view ?? "all"}
+        onOpenRow={(row) =>
+          void navigate({
+            to: NOTIFICATIONS_PATH,
+            search: { open: row.id, r: row.revision },
+          })}
         onViewChange={(next) =>
           void navigate({
             to: NOTIFICATIONS_PATH,
@@ -2841,6 +2932,7 @@ const routeTree = rootRoute.addChildren([
   skillRoute,
   evaluationRunRoute,
   machineNewRoute,
+  machineNewByHandRoute,
   machineDetailRoute,
   machineModelsRoute,
   machineModelNewRoute,
@@ -2867,6 +2959,8 @@ const routeTree = rootRoute.addChildren([
   installationUsageRoute,
   installationRestoreRoute,
   installationUpdatesRoute,
+  installationBackupsRoute,
+  installationBackupsSettingsRoute,
   deliveryRoute,
   installationAuditRoute,
   installationIntegrationsRoute,

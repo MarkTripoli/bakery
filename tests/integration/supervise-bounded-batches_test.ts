@@ -71,6 +71,7 @@ function withBatches<T>(
 }
 
 type BatchInit = {
+  presetId?: string;
   startedBy?: string;
   maxIssues?: number;
   maxHours?: number;
@@ -86,13 +87,14 @@ async function insertBatch(
   const id = crypto.randomUUID();
   await fx.runtime.query(
     `insert into bakery.batches (
-       id, organization_id, repository_id, started_by, max_issues, max_hours,
-       max_spend_usd, continue_mode, state
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+       id, organization_id, repository_id, preset_id, started_by, max_issues,
+       max_hours, max_spend_usd, continue_mode, state
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       id,
       fx.organizationId,
       fx.repositoryId,
+      init.presetId ?? "fixed-coding",
       init.startedBy ?? fx.adminId,
       init.maxIssues ?? 2,
       init.maxHours ?? 8,
@@ -139,7 +141,11 @@ async function issueRows(fx: TicketFixture, batchId: string) {
 /** A start port that admits the next numbered issue through the real admission. */
 function admittingPorts(fx: TicketFixture, sourceId: string) {
   const calls = {
-    start: [] as { startedBy: string; batchId: string }[],
+    start: [] as {
+      startedBy: string;
+      batchId: string;
+      presetId: string | null;
+    }[],
     cancel: [] as { startedBy: string; ticketRequestId: string }[],
   };
   let next = 1;
@@ -149,6 +155,7 @@ function admittingPorts(fx: TicketFixture, sourceId: string) {
       calls.start.push({
         startedBy: input.startedBy,
         batchId: input.batchId,
+        presetId: input.presetId,
       });
       const number = next++;
       fx.reader.setIssue({ number, labels: [EXECUTE_LABEL] });
@@ -343,6 +350,7 @@ Deno.test("batches: a tick starts one issue as the starter, waits while it runs,
     await superviseBatches(fx.runtime, ports);
     assertEquals(calls.start.length, 1);
     assertEquals(calls.start[0].startedBy, fx.adminId);
+    assertEquals(calls.start[0].presetId, "fixed-coding");
     let issues = await issueRows(fx, batchId);
     assertEquals(issues.map((issue) => issue.state), ["started"]);
     const firstRequest = issues[0].ticket_request_id!;
@@ -375,6 +383,32 @@ Deno.test("batches: a tick starts one issue as the starter, waits while it runs,
     assertEquals(ended.finish_reason, "issues_reached");
     assert(ended.finished_at !== null, "a finished batch records when");
     assertEquals(calls.start.length, 2, "nothing starts after the limit");
+  }));
+
+Deno.test("batches: a workflow that cannot start pauses the batch with its own reason and nothing is asked after it", () =>
+  withBatches(async (fx) => {
+    await fx.insertSource({ policy: automaticPolicy(fx) });
+    seedLabeler(fx);
+    const batchId = await insertBatch(fx, { maxIssues: 3 });
+    let asked = 0;
+    const ports: BatchPorts = {
+      startNext: () => {
+        asked++;
+        return Promise.resolve({
+          started: false,
+          pause: "workflow_cannot_start",
+        });
+      },
+      cancelRun: () => Promise.resolve(),
+    };
+
+    await superviseBatches(fx.runtime, ports);
+    const paused = await batchRow(fx, batchId);
+    assertEquals(paused.state, "paused");
+    assertEquals(paused.pause_reason, "workflow_cannot_start");
+
+    await superviseBatches(fx.runtime, ports);
+    assertEquals(asked, 1, "a paused batch asks nothing more");
   }));
 
 Deno.test("batches: a failed or cancelled issue ends the batch with that reason and starts nothing more", () =>
@@ -1023,6 +1057,7 @@ Deno.test("batches: the smallest spend is the preset's minimum, and a start belo
     const create = (maxSpendUsd: string) =>
       createBatchHandler({ budget: presetBudgetPolicy })(actionContext(fx), {
         repositoryId: fx.repositoryId,
+        presetId: "fixed-coding",
         maxIssues: 2,
         maxHours: 8,
         maxSpendUsd,
@@ -1046,6 +1081,14 @@ Deno.test("batches: the smallest spend is the preset's minimum, and a start belo
     );
     const accepted = await create(smallest);
     assertEquals(accepted.state, "running");
+    assertEquals(accepted.presetId, "fixed-coding");
+    assertEquals(
+      (await fx.owner.query<{ preset_id: string }>(
+        "select preset_id from bakery.batches where id = $1",
+        [accepted.id],
+      )).rows[0].preset_id,
+      "fixed-coding",
+    );
   }));
 
 Deno.test("batches: the list filters by state, keeps its cursor to that filter, and each issue names its ticket", () =>

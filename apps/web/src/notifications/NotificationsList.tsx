@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { NotificationResponse } from "../api/client.ts";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../i18n/I18nProvider.tsx";
@@ -5,6 +6,7 @@ import {
   DAY_GROUP_LABEL,
   groupByDay,
   NOTIFICATION_COPY,
+  versionOfAnchor,
 } from "./presentation.ts";
 
 export type NotificationsListProps = {
@@ -17,6 +19,7 @@ export type NotificationsListProps = {
   /** Closes the popover when a row is chosen; the page passes nothing. */
   readonly onOpened?: () => void;
   readonly onToggleRead?: (row: NotificationResponse) => void;
+  readonly onOpenRow?: (row: NotificationResponse) => void;
   readonly showMenu?: boolean;
   readonly showGroups?: boolean;
   readonly pendingReadIds?: ReadonlySet<string>;
@@ -32,6 +35,7 @@ export function NotificationsList(
   {
     highlightId = null,
     menuLabel,
+    onOpenRow,
     onOpened,
     onToggleRead,
     pendingReadIds,
@@ -46,7 +50,24 @@ export function NotificationsList(
   }: NotificationsListProps & { readonly serverNow?: Date },
 ) {
   const { translate } = useI18n();
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const groups = showGroups ? groupByDay(rows, serverNow) : null;
+  const relativeTime = (createdAt: string, now: Date = new Date()): string => {
+    const minutes = Math.round(
+      (now.getTime() - new Date(createdAt).getTime()) / 60_000,
+    );
+    if (minutes < 1) return translate("notifications.time.justNow");
+    if (minutes < 60) {
+      return translate("notifications.time.minutes", { count: minutes });
+    }
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) {
+      return translate("notifications.time.hours", { count: hours });
+    }
+    const days = Math.round(hours / 24);
+    if (days === 1) return translate("notifications.time.yesterday");
+    return translate("notifications.time.days", { count: days });
+  };
 
   const renderRow = (row: NotificationResponse) => {
     const copy = NOTIFICATION_COPY[row.kind];
@@ -54,19 +75,15 @@ export function NotificationsList(
     const destinationTitle = row.destination.available
       ? row.destination.title ?? untitledLabel
       : unavailableLabel;
-    // The step's own name and the document's own version number travel in the
-    // row's anchor, the position within the target. Falling back to the task
-    // title would print the same words on both lines, and the notification
-    // revision is not the document's revision, so neither is a substitute.
-    const headline = translate(copy.headline, {
-      actor: actorName,
-      step: row.targetAnchor ?? row.destination.title ?? untitledLabel,
-      document: row.destination.title ?? untitledLabel,
-    });
-    const destination = copy.destination
+    const headline = translate(copy.headline, { actor: actorName });
+    const version = row.kind === "document_version"
+      ? versionOfAnchor(row.targetAnchor)
+      : null;
+    const destination = copy.destination && version !== null &&
+        row.destination.available
       ? translate(copy.destination, {
         document: row.destination.title ?? untitledLabel,
-        version: row.targetAnchor ?? String(row.revision),
+        version,
       })
       : destinationTitle;
     return (
@@ -87,19 +104,47 @@ export function NotificationsList(
         href={row.destination.available
           ? `/notifications?open=${row.id}&r=${row.revision}`
           : null}
-        relativeTime={formatRelative(row.createdAt, serverNow)}
+        relativeTime={relativeTime(row.createdAt, serverNow)}
         exactTime={new Date(row.createdAt).toLocaleString()}
         highlighted={row.id === highlightId}
-        onSelect={onOpened}
+        onSelect={(event) => {
+          onOpened?.();
+          if (
+            onOpenRow === undefined || event.button !== 0 ||
+            event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+          ) return;
+          event.preventDefault();
+          onOpenRow(row);
+        }}
         menu={showMenu && onToggleRead
           ? (
-            <UI.IconButton
+            <UI.Popover
+              align="end"
+              floating
               label={menuLabel}
-              onClick={() => onToggleRead(row)}
-              state={pendingReadIds?.has(row.id) ? "loading" : "default"}
+              onOpenChange={(open) => setMenuOpenId(open ? row.id : null)}
+              open={menuOpenId === row.id}
+              trigger={<UI.IconGlyph name="menu" size="small" />}
+              triggerLabel={menuLabel}
+              variant="interactive"
             >
-              <UI.IconGlyph name="menu" size="small" />
-            </UI.IconButton>
+              <UI.Menu
+                aria-label={menuLabel}
+                items={[{
+                  id: "toggle-read",
+                  label: translate(
+                    row.read
+                      ? "notifications.row.markUnread"
+                      : "notifications.row.markRead",
+                  ),
+                  disabled: pendingReadIds?.has(row.id) ?? false,
+                }]}
+                onSelect={() => {
+                  setMenuOpenId(null);
+                  onToggleRead(row);
+                }}
+              />
+            </UI.Popover>
           )
           : undefined}
       />
@@ -122,21 +167,4 @@ export function NotificationsList(
       ))}
     </UI.NotificationGroups>
   );
-}
-
-/**
- * "5 min ago", "Yesterday": relative to the moment the list was read, so a row
- * does not drift while the page sits open. The exact date is always the row's
- * `title` and its accessible text, so the shortening never hides the truth.
- */
-function formatRelative(createdAt: string, now: Date = new Date()): string {
-  const created = new Date(createdAt);
-  const minutes = Math.round((now.getTime() - created.getTime()) / 60_000);
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
-  const days = Math.round(hours / 24);
-  if (days === 1) return "Yesterday";
-  return `${days} days ago`;
 }

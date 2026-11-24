@@ -37,7 +37,11 @@ export const NO_RESOLVABLE_APPROVER = "no-resolvable-approver";
 
 /** What resolves as the approver of one approval step. */
 export type ApprovalResolution =
-  | Readonly<{ resolved: true; approverPrincipalIds: readonly string[] }>
+  | Readonly<{
+    resolved: true;
+    approverPrincipalIds: readonly string[];
+    fallback?: true;
+  }>
   | Readonly<{ resolved: false; refusal: typeof NO_RESOLVABLE_APPROVER }>;
 
 /**
@@ -75,12 +79,17 @@ export function resolveApprover(input: {
     const resolvable = audience.filter((entry) =>
       input.principals === undefined || input.principals.has(entry)
     );
-    if (resolvable.length === 0) {
-      // A named audience nobody belongs to is not an approval waiting to be
-      // answered; it is one that can only expire. Refuse it now and say so.
-      return { resolved: false, refusal: NO_RESOLVABLE_APPROVER };
+    if (resolvable.length > 0) {
+      return { resolved: true, approverPrincipalIds: resolvable };
     }
-    return { resolved: true, approverPrincipalIds: resolvable };
+    const owner = resolveApprover({
+      audience: undefined,
+      ownerPrincipalId: input.ownerPrincipalId,
+      ...(input.principals === undefined
+        ? {}
+        : { principals: input.principals }),
+    });
+    return owner.resolved ? { ...owner, fallback: true } : owner;
   }
   if (input.ownerPrincipalId !== null) {
     // The owner is a candidate like any other, so the same membership check

@@ -17,6 +17,7 @@ import { still } from "./helpers/stills.ts";
 // A shared machine can be slow to answer; give each assertion and test room.
 const expect = baseExpect.configure({ timeout: 15_000 });
 test.describe.configure({ timeout: laneBudgetMs(60_000) });
+test.use({ timezoneId: "UTC", locale: "en-US" });
 
 // #76: the Plugins settings pages, against a mocked plugin API. What matters is
 // what the person is told (installing gives all of it at once, turning off takes
@@ -981,7 +982,7 @@ for (
       const about = page.getByTestId("plugin-about");
       await expect(about.getByRole("heading", { name: "About this version" }))
         .toBeVisible();
-      await expect(about.getByText("Nov 2, 2026")).toBeVisible();
+      await expect(about.getByText("Nov 3, 2026")).toBeVisible();
       await expect(about.getByText("Fingerprint").first()).toBeVisible();
       await expect(about.getByText("abababab…abab")).toBeVisible();
       await expect(

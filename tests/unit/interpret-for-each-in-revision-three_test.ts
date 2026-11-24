@@ -60,9 +60,9 @@ const withCases = (
 
 const asRevision3 = { interpreter: nextStepWithLoops };
 
-Deno.test("new runs are pinned to revision 3; revisions 1 and 2 refuse a forEach by name", async () => {
-  assertEquals(CURRENT_INTERPRETER_REVISION, "3");
-  assertEquals(Object.keys(INTERPRETER_REVISIONS), ["1", "2", "3"]);
+Deno.test("revision 3 is the forEach interpreter, kept beside the current one; revisions 1 and 2 refuse a forEach by name", async () => {
+  assertEquals(CURRENT_INTERPRETER_REVISION, "4");
+  assertEquals(Object.keys(INTERPRETER_REVISIONS), ["1", "2", "3", "4"]);
   assert(INTERPRETER_REVISIONS["3"] === nextStepWithLoops);
   const document = await compiled([
     noop("prepare"),

@@ -18,6 +18,11 @@ export type ContextInputEntry = {
   readonly mediaType: string;
 };
 
+export type ContextFactEntry = {
+  readonly wording: string;
+  readonly recordedAt: string;
+};
+
 export type ContextDocument = {
   readonly runId: string;
   readonly stepKey: string;
@@ -26,6 +31,8 @@ export type ContextDocument = {
   /** The output slots the step must publish, by name. */
   readonly outputs: readonly string[];
   readonly inputs: readonly ContextInputEntry[];
+  readonly facts?: readonly ContextFactEntry[];
+  readonly factsOmitted?: number;
   readonly contextDir: string;
   readonly outputDir: string;
 };
@@ -97,6 +104,28 @@ export function renderContextDocument(document: ContextDocument): string {
         `| ${codeCell(input.slot)} | ${codeCell(input.path)} | ${
           codeCell(input.digest)
         } | ${input.sizeBytes} bytes | ${codeCell(input.mediaType)} |`,
+      );
+    }
+  }
+  const facts = document.facts ?? [];
+  const omitted = document.factsOmitted ?? 0;
+  if (facts.length > 0 || omitted > 0) {
+    lines.push("", "## Remembered facts", "");
+    lines.push(
+      "What this repository had learned when this step started, as it was",
+      "written into this context. A newer wording may exist since; this file",
+      "does not change afterwards.",
+      "",
+    );
+    for (const fact of facts) {
+      lines.push(`- ${fact.wording.trim()}`, `  - recorded ${fact.recordedAt}`);
+    }
+    if (omitted > 0) {
+      lines.push(
+        "",
+        `${omitted} more ${
+          omitted === 1 ? "fact was" : "facts were"
+        } left out to stay inside this step's limit.`,
       );
     }
   }

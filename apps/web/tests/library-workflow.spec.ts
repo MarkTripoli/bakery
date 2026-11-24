@@ -1,3 +1,4 @@
+import { presetRead } from "./helpers/preset-read.ts";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import {
   type AgentVersionRow,
@@ -914,9 +915,6 @@ for (
         .getByTestId("step-picker")
         .locator("[data-pick-step='review.independent']")
         .click();
-      // The step the picker added is the one slice 1 can move: a step type the
-      // picker does not offer (task.brief) is drawn "Edited in code" and its
-      // panel offers no Move or Remove (design-ux's ruling, comment 6917906748).
       await page
         .locator("[data-card]")
         .filter({ hasText: "Review" })
@@ -1699,6 +1697,23 @@ test("the leave warning is armed only while a change is unsaved", async ({ page 
   await expect.poll(net).toBe(baseline);
 });
 
+test("an agent not chosen yet is advice: the editor opens ready and the panel says where the agent comes from", async ({ page }) => {
+  await libraryFixture(page, { ...WORLD, validation: "unbound" });
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+  await expect(page.getByTestId("editor-problems")).toHaveText(
+    "Ready to publish",
+  );
+  const card = page.locator("[data-card]").nth(1);
+  await expect(card).not.toContainText("Needs setup");
+  await card.click();
+  const panel = page.getByRole("complementary", {
+    name: "The selected step",
+  });
+  await expect(panel).toContainText(
+    "Uses the agent chosen in the repository's setup.",
+  );
+});
+
 test("a step with a problem keeps its card and shows the sentence", async ({ page }) => {
   // (4) the problem card: the report's pointer lands on its step, and the card
   // stays a card with the sentence under it. The warning points at the drawn
@@ -1712,10 +1727,10 @@ test("a step with a problem keeps its card and shows the sentence", async ({ pag
   const problemCard = page.locator("[data-card]").nth(1);
   await expect(problemCard).toContainText("Needs setup");
   await expect(problemCard).not.toContainText(
-    "The step runs a model but no agent is bound.",
+    "The step's action cannot run yet.",
   );
   const sentence =
-    "This step has no agent to run it, and agents cannot be chosen on this page yet. Delete the step, or ask an administrator to set the workflow's agents.";
+    "This kind of step cannot run yet. Delete it or put another step in its place.";
   const chip = page.getByTestId("editor-problems");
   await expect(chip).toHaveText("1 problem");
   await chip.click();
@@ -2569,6 +2584,69 @@ for (
       expect(savedSkills(seen).confirmed).toEqual([uuid(8101)]);
     });
 
+    test("the owner who stopped a workflow can allow it again; the confirmation says how to stop", async ({ page }) => {
+      const { skills } = await openSkills(page, {
+        skills: {
+          items: [
+            skill({
+              stepPath: "/steps/1",
+              skillVersionId: uuid(8101),
+              skillName: "Release notes",
+              revision: 3,
+              scope: "personal",
+              ownerDisplayName: "Ana Ruiz",
+              mine: true,
+              status: "stopped",
+            }),
+            skill({
+              stepPath: "/steps/1",
+              skillVersionId: uuid(8102),
+              skillName: "Paused notes",
+              revision: 1,
+              scope: "personal",
+              ownerDisplayName: "Ben Kim",
+              mine: false,
+              status: "stopped",
+            }),
+          ],
+        },
+        catalog: [
+          catalogSkill({
+            slug: "release-notes",
+            name: "Release notes",
+            activeVersionId: uuid(8101),
+            activeRevision: 3,
+            scope: "personal",
+          }),
+        ],
+      });
+      const mine = skills.getByRole("listitem").filter({
+        hasText: "Release notes",
+      });
+      await expect(mine.getByText("You stopped this workflow using it."))
+        .toBeVisible();
+      const theirs = skills.getByRole("listitem").filter({
+        hasText: "Paused notes",
+      });
+      await expect(
+        theirs.getByText(
+          "Its owner does not allow this workflow to use it. Only its owner can allow it.",
+        ),
+      ).toBeVisible();
+      await expect(theirs.getByRole("button", { name: "Allow again" }))
+        .toHaveCount(0);
+      await mine.getByRole("button", { name: "Allow again" }).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toContainText(
+        "Let this workflow use your private skill?",
+      );
+      await expect(dialog).toContainText(
+        "To stop later, open the skill and choose Stop allowing. New runs of this workflow then cannot start until this step is changed.",
+      );
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-skills-allow-again");
+    });
+
     test("removing a skill says so and Undo puts it back", async ({ page }) => {
       const { seen, skills } = await openSkills(page, {
         skills: { items: [skill({ stepPath: "/steps/1" })] },
@@ -2902,17 +2980,95 @@ for (
       await expect(fix).toContainText("At most 2 tries");
       await expect.poll(async () => (await cardsInside(fix)).join(" "))
         .toContain("Fix problems");
-      // The other repeat is still just a repeat, with no limit claimed.
       const plain = page.locator("[data-group=repeat]");
       await expect(plain).toHaveCount(1);
       await expect(plain).toContainText("Repeat");
-      await expect(plain).not.toContainText("tries");
+      await expect(plain).toContainText("At most 3 tries");
       // A read-only page never says "Edited in code".
       await expect(page.getByTestId("workflow-steps")).not.toContainText(
         "Edited in code",
       );
       await page.mouse.move(700, 700);
       await shot(page, "workflow-fix-block");
+    });
+
+    test("the block's panel edits its three numbers and the card says the range", async ({ page }) => {
+      const seen = await libraryFixture(page, FIXING);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const fix = page.locator("[data-group=fix]");
+      await fix.getByRole("button", { name: "Fix until it passes" }).click();
+      await expect(fix.getByRole("img", { name: "Edited in code" }))
+        .toBeVisible();
+      const panel = page.locator("#editor-step-panel");
+      await expect(panel).toContainText("Fix until it passes");
+      await expect(panel.getByRole("spinbutton", { name: "Fewest tries" }))
+        .toBeVisible();
+      const most = panel.getByRole("spinbutton", { name: "Most tries" });
+      await expect(most).toHaveValue("2");
+      await expect(panel).toContainText("From 1 to 8.");
+      await expect(panel).toContainText(
+        "When to stop early is written in code.",
+      );
+
+      await panel.getByRole("spinbutton", { name: "Fewest tries" })
+        .fill("2");
+      await most.fill("5");
+      await most.blur();
+      await expect(fix).toContainText("2 to 5 tries");
+      const fewest = panel.getByRole("spinbutton", { name: "Fewest tries" });
+      await fewest.fill("3");
+      await fewest.press("Enter");
+      await expect(fix).toContainText("3 to 5 tries");
+      await panel.getByRole("spinbutton", { name: "Ask a person after" })
+        .fill("3");
+      await panel.getByRole("spinbutton", { name: "Ask a person after" })
+        .blur();
+      await expect(fix).toContainText("3 to 5 tries · asks after 3");
+      await expect(page.getByRole("button", { name: "View as code" }))
+        .toHaveCount(1);
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBeGreaterThan(0);
+      const written = seen.draftSaves.at(-1)!.body.definition as {
+        steps: Record<string, unknown>[];
+      };
+      expect(written.steps[1]).toMatchObject({ min: 3, max: 5, allow: 3 });
+    });
+
+    test("a block whose Fewest equals its Most says Exactly on the card", async ({ page }) => {
+      await libraryFixture(page, FIXING);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const fix = page.locator("[data-group=fix]");
+      await fix.getByRole("button", { name: "Fix until it passes" }).click();
+      const fewest = page.locator("#editor-step-panel").getByRole(
+        "spinbutton",
+        { name: "Fewest tries" },
+      );
+      await fewest.fill("2");
+      await fewest.blur();
+      await expect(fix).toContainText("Exactly 2 tries");
+    });
+
+    test("a Most below what the block needs shows one error and saves nothing", async ({ page }) => {
+      const seen = await libraryFixture(page, FIXING);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const fix = page.locator("[data-group=fix]");
+      await fix.getByRole("button", { name: "Fix until it passes" }).click();
+      const panel = page.locator("#editor-step-panel");
+      const most = panel.getByRole("spinbutton", { name: "Most tries" });
+      await most.fill("0");
+      await most.blur();
+      await expect(panel).toContainText(
+        "Enter a whole number from 1 to 8. Not saved.",
+      );
+      await expect(most).toHaveValue("0");
+      await expect(fix).toContainText("At most 2 tries");
+      expect(seen.draftSaves).toHaveLength(0);
+      await most.fill("4");
+      await most.blur();
+      await expect(panel).not.toContainText("Not saved.");
+      await expect(fix).toContainText("At most 4 tries");
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBe(1);
     });
 
     test("the built-in page draws the repair loop as the same block, with its limit", async ({ page }) => {
@@ -2952,7 +3108,7 @@ for (
                 ],
                 defaultBudgetLimitUsd: "8.00",
                 availability: null,
-              }],
+              }].map(presetRead),
               nextCursor: null,
             },
           }),
@@ -2971,37 +3127,35 @@ for (
       await shot(page, "workflow-built-in-fix-block");
     });
 
-    test("in the editor the block says what it does and its limit as text, with no field", async ({ page }) => {
+    test("the block's panel is its three numbers, and one card keeps one noun", async ({ page }) => {
       await libraryFixture(page, FIXING);
       await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
       const fix = page.locator("[data-group=fix]");
       await expect(fix).toContainText("Fix until it passes");
       await expect(fix).toContainText("At most 2 tries");
-      await expect(fix.getByRole("img", { name: "Edited in code" }))
-        .toBeVisible();
       await fix.getByRole("button", { name: "Fix until it passes" }).click();
-      const panel = page.getByRole("complementary", {
-        name: "The selected step",
-      });
-      await expect(panel).toContainText("Fix until it passes");
+      const panel = page.locator("#editor-step-panel");
       await expect(panel).toContainText(
         "Fixes what the checks and the review found, then checks and reviews again.",
       );
-      await expect(panel).toContainText(
+      await expect(panel).not.toContainText(
         "If the first review is already clean, this block is skipped.",
       );
-      // The limit is said once, on the block, not again in the panel.
+      await expect(panel.getByRole("spinbutton")).toHaveCount(3);
       await expect(panel).not.toContainText("At most");
-      await expect(panel.getByRole("textbox")).toHaveCount(0);
-      await expect(panel.getByRole("spinbutton")).toHaveCount(0);
-      // The other repeat's panel claims nothing of the kind.
-      await page.locator("[data-group=repeat]").getByRole("button", {
-        name: "Repeat",
-      }).click();
-      await expect(panel).not.toContainText("At most");
-      await fix.getByRole("button", { name: "Fix until it passes" }).click();
+      const repeat = page.locator("[data-group=repeat]");
+      await repeat.getByRole("button", { name: "Repeat" }).click();
+      await expect(panel).toContainText("Repeat");
+      await expect(panel).not.toContainText("Rounds");
+      await expect(panel.getByRole("spinbutton", { name: "Most tries" }))
+        .toHaveValue("3");
+      await panel.getByRole("spinbutton", { name: "Fewest tries" }).fill("2");
+      await panel.getByRole("spinbutton", { name: "Fewest tries" }).blur();
+      await expect(repeat).toContainText("2 to 3 tries");
+      await expect(page.getByRole("button", { name: "View as code" }))
+        .toHaveCount(1);
       await page.mouse.move(600, 700);
-      await shot(page, "workflow-fix-block-editor");
+      await shot(page, "workflow-loop-panel");
     });
   });
 }

@@ -3859,9 +3859,23 @@
           "required": false,
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
           ],
           "description": "Code-owned workflow preset this run starts; the server materializes the organization's published, digest-verified workflow version for it and builds the run inputs from the task. Exactly one of workflowVersionId, presetId and workflowId must be supplied; a preset run rejects inputs with 422 because the server builds them from the task."
+        },
+        {
+          "name": "gates",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "plan",
+            "none"
+          ],
+          "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan."
         },
         {
           "name": "workflowId",
@@ -4423,6 +4437,24 @@
             "interrupt"
           ],
           "description": "How the message reaches the active harness: \"steer\" redirects the running work immediately, while \"follow_up\" queues it after current work; legacy \"interrupt\" means steer and \"append\" means follow_up. A mode the session's adapter has not advertised returns an explicit unsupported conflict and creates no command."
+        },
+        {
+          "name": "mentions",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 20
+          },
+          "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. A steerer without request permission (runRequest:write) can mention only people who can already see the run; mentioning anyone else is refused with AUTH_FORBIDDEN and writes nothing, not even the steer. Text that merely looks like @name never mentions anyone."
+        },
+        {
+          "name": "mentionHandles",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 20
+          },
+          "description": "Groups or roles this steer @-mentions by their mention name, such as @design-reviewers, @admins or @developers; the leading @ is optional. Every active member other than the steerer is asked to just let them know on this run's step, and any one of them can handle it. A name that matches no group or role, or a group with nobody in it, falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. The same request permission rule as mentions applies to every member reached."
         }
       ],
       "description": "Delivers a message to a running agent session's active harness process, steering it immediately or queuing a follow-up, depending on mode and the adapter capabilities the worker advertised."
@@ -6748,6 +6780,13 @@
       ],
       "description": "Cancels the conversation's active or queued coordinator turn; requires the turn's current If-Match. A queued turn is canceled immediately, while an active turn is marked cancel-requested and interrupts its session, remaining in the active slot until stopped or reconciled."
     },
+    "ConversationTurnRetry": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match required. Only a failed turn whose trigger message is still the conversation's latest message may be retried. The retry admits a new queued turn for the same trigger message, linked to the failed turn, and posts no message. Refusals: STATE_CONFLICT with reason turn_not_failed, newer_message, turn_already_retried or conversation_queue_full."
+      ],
+      "description": "Retries a failed coordinator turn without posting its message again; requires the failed turn's current If-Match. Returns the new queued turn, which runs the coordinator again as its own job."
+    },
     "SlackEvent": {
       "fields": [
         {
@@ -7468,6 +7507,72 @@
         "The step completes only when the plan's projection is completed. A plan that fails, is partially delivered or is canceled fails the step with a fixed code; a plan still running leaves it waiting."
       ],
       "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows."
+    },
+    "PeopleTagInput": {
+      "fields": [
+        {
+          "name": "recipientId",
+          "type": "uuid",
+          "required": false,
+          "description": "The one person to tag: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one of recipientId, recipientRoleKey, recipientGroupId and recipientRunRole."
+        },
+        {
+          "name": "recipientRoleKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "A role to tag instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs."
+        },
+        {
+          "name": "recipientGroupId",
+          "type": "uuid",
+          "required": false,
+          "description": "A group to tag instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs."
+        },
+        {
+          "name": "recipientRunRole",
+          "type": "enum(starter|task_owner)",
+          "required": false,
+          "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item."
+        },
+        {
+          "name": "intent",
+          "type": "enum(fyi|review)",
+          "required": true,
+          "description": "What the tag asks for: fyi lets the people tagged know and lets them see the run; review also gives them the right to comment on the one artifactVersionId, until the request expires."
+        },
+        {
+          "name": "artifactVersionId",
+          "type": "uuid",
+          "required": false,
+          "description": "The artifact version of this run to review. Required for review and refused for fyi."
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 280
+          },
+          "description": "Optional one line shown to the people tagged."
+        },
+        {
+          "name": "wait",
+          "type": "boolean",
+          "required": false,
+          "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back."
+        }
+      ],
+      "rules": [
+        "A step with no agent. The workflow tags on behalf of the person who started the run, who must still be able to write runs; the organization, the run and the step come from the run, never from this payload.",
+        "Name exactly one recipient. Every rule of a request made on the run holds: a recipient who cannot be resolved falls back to the person who started the run, with a visible note, and a role or group too large to ask is refused whole.",
+        "The step tags once, keyed by the run and the step, so a step looked at again finds its requests instead of tagging again.",
+        "A waiting step completes responded when anyone tagged responds, and expired when every request has expired or been withdrawn first. Nothing is approved by silence."
+      ],
+      "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
     },
     "IntegrationEffectQuery": {
       "fields": [
@@ -8228,6 +8333,12 @@
             "fixed-coding-reviewed"
           ],
           "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own."
+        },
+        {
+          "name": "requirePlanApproval",
+          "type": "boolean",
+          "required": false,
+          "description": "When true, this request's task takes a human plan approval, so no run builds until the requester's plan is approved, even when the source policy approves plans automatically. False or omitted keeps the source policy's plan approval; it never removes an approval the policy requires. Only a new admission reads it."
         }
       ],
       "rules": [
@@ -9195,7 +9306,7 @@
           "bounds": {
             "maxBytes": 8192
           },
-          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire."
+          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver, or, for a workflow with no owner such as a built-in one, the person who started the run; an empty list is refused because a step nobody can answer could only expire."
         },
         {
           "name": "approveLabel",
@@ -9323,7 +9434,7 @@
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -13224,7 +13335,7 @@
           "description": "How many more repair tries to allow. The total a run may use never goes past 8, the most any workflow can hold, so a request that would pass it is refused and nothing changes."
         }
       ],
-      "description": "Allows a run whose review and repair loop stopped because it ran out of tries to try more, and puts the run back to work (chapter 25, one engine). It answers the stop with the repair decision it buys, which is the response. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
+      "description": "Allows a run that stopped for lack of tries to try more, and puts the run back to work (chapter 25, one engine). Two stops qualify. A review and repair loop that ran out of tries is answered with the repair decision it buys. A repeat that used its allow below its max is answered with a limit decision recorded in the decisions ledger; the repeat then runs on, never past its max, and a request for more rounds than remain is cut at max. The policy frozen when the run was admitted is never rewritten: the limit in force is that policy plus every allowance. It is refused for a loop that stopped for any other reason, for a run that failed some other way, for a run that is not a compiled plan, and for a task that is a lane of a coordination plan. Asking twice for the same repair stop allows once. An organization administrator may allow, and so may a member whose role holds the review:accept permission; an agent never may."
     },
     "BatchCreate": {
       "fields": [
@@ -13233,6 +13344,16 @@
           "type": "uuid",
           "required": true,
           "description": "The repository the batch works through. It must be taking issues (an enabled ticket source), and no other batch may be live in it."
+        },
+        {
+          "name": "presetId",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ],
+          "description": "The built-in workflow every issue in this batch runs: fixed-coding or fixed-coding-reviewed. Required: a batch is never started without a workflow chosen, so no one is given a workflow they did not choose. Each issue is admitted with it; a workflow the repository cannot run stops the batch with the pause reason workflow_cannot_start."
         },
         {
           "name": "maxIssues",
@@ -15276,6 +15397,36 @@
         "Idempotency-Key is required (PRECONDITION_REQUIRED without it). A repeat with the same key and the same body answers with the run the key started instead of starting and paying for another; the same key with another body is IDEMPOTENCY_PAYLOAD_MISMATCH, and a repeat while that run is still working is IDEMPOTENCY_IN_FLIGHT."
       ],
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
+    },
+    "SkillUseGrantCreate": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "location": "path",
+          "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "workflowId",
+          "type": "uuid",
+          "required": true,
+          "description": "The workflow that may use the skill again."
+        },
+        {
+          "name": "skillVersionId",
+          "type": "uuid",
+          "required": true,
+          "description": "The exact version of the skill the step names; the grant covers this version only."
+        },
+        {
+          "name": "stepPath",
+          "type": "string",
+          "required": true,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+        }
+      ],
+      "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
     },
     "SkillActiveVersionSet": {
       "fields": [
@@ -22945,6 +23096,39 @@
         "version": "Always 1 because delivery decision rows are immutable."
       }
     },
+    "TriesAllowance": {
+      "fields": [
+        "runId",
+        "kind",
+        "addedTries",
+        "decisionId",
+        "repeatKey"
+      ],
+      "fieldTypes": {
+        "runId": "uuid",
+        "kind": "enum(repair_loop|repeat_limit)",
+        "addedTries": "integer",
+        "decisionId": "uuid",
+        "repeatKey": "string|null"
+      },
+      "fieldBounds": {
+        "addedTries": {
+          "min": 1,
+          "max": 8
+        }
+      },
+      "nullableFields": [
+        "repeatKey"
+      ],
+      "description": "The answer to an allowance of more tries: which stop it answered, how many tries it added and the decision that records it.",
+      "fieldDescriptions": {
+        "runId": "The run that was put back to work.",
+        "kind": "Which stop the allowance answered: repair_loop for a review and repair loop that ran out of tries, repeat_limit for a repeat that used its allow below its max.",
+        "addedTries": "How many more tries or rounds were allowed. For a repeat_limit it can be fewer than asked, because a repeat never goes past its max.",
+        "decisionId": "Id of the decision that records the allowance: the repair delivery decision for repair_loop, the decisions ledger entry for repeat_limit.",
+        "repeatKey": "Step key of the repeat that was allowed more rounds, or null for repair_loop."
+      }
+    },
     "RepairTry": {
       "fields": [
         "id",
@@ -23530,7 +23714,8 @@
         "budgetSummary",
         "blockedReason",
         "blockingTasks",
-        "waitingOnModel"
+        "waitingOnModel",
+        "releaseStep"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -23558,7 +23743,8 @@
         "budgetSummary": "RunBudgetSummary",
         "blockedReason": "string|null",
         "blockingTasks": "RunBlockingTask[]",
-        "waitingOnModel": "boolean"
+        "waitingOnModel": "boolean",
+        "releaseStep": "enum(yes|no|unknown)"
       },
       "description": "Kind-aware safe run projection. Workflow runs retain task and workflow ownership; skill imports expose null workflow owners and one registered source owner.",
       "nullableFields": [
@@ -23583,14 +23769,16 @@
         "workspaceBaseSha",
         "blockedReason",
         "blockingTasks",
-        "waitingOnModel"
+        "waitingOnModel",
+        "releaseStep"
       ],
       "computedFields": {
         "budgetSummary": "Join budget_accounts + outstanding reservations for this run and the applicable installation period under one consistent read snapshot.",
         "workspaceBaseSha": "Base commit reported by the first completed harness step of this run: the step's output baseSha when it is a git SHA, else null. Read from run_steps joined to jobs by harness action; never written to workflow_runs.",
         "blockedReason": "snapshot.admission.reason of the run while status is blocked; null otherwise.",
         "blockingTasks": "task_dependencies of the run's task joined to tasks of the same organization whose status is not completed, only while blockedReason is dependency_incomplete.",
-        "waitingOnModel": "True when a live job of a non-terminal run is pinned to an active provider route with an open incident that the step has not been continued past; the same rule as routeContinuations.list."
+        "waitingOnModel": "True when a live job of a non-terminal run is pinned to an active provider route with an open incident that the step has not been continued past; the same rule as routeContinuations.list.",
+        "releaseStep": "Whether the run's frozen workflow plan runs a release step (delivery.deploy) after its merge step (delivery.merge): yes when one follows, no when none follows or the plan has no merge step, unknown when the plan cannot be read. Served on the run read."
       },
       "fieldDescriptions": {
         "id": "Stable UUID identifying the run record.",
@@ -23618,7 +23806,8 @@
         "skillSourceId": "Registered source UUID for skill import runs; null for workflow runs.",
         "blockedReason": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses.",
         "blockingTasks": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses.",
-        "waitingOnModel": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses."
+        "waitingOnModel": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses.",
+        "releaseStep": "Whether the run's frozen workflow plan runs a release step after its merge step: yes when a delivery.deploy step follows delivery.merge, no when none follows or the plan has no merge step, and unknown when the plan cannot be read. Served by runs.get; omitted by other run responses."
       },
       "fieldBounds": {
         "blockingTasks": {
@@ -25853,6 +26042,7 @@
         "externalEffectId",
         "healthEvidenceId",
         "rollbackFailed",
+        "address",
         "createdAt",
         "updatedAt",
         "version"
@@ -25870,6 +26060,7 @@
         "externalEffectId": "uuid|null",
         "healthEvidenceId": "uuid|null",
         "rollbackFailed": "boolean",
+        "address": "string|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer"
@@ -25878,11 +26069,13 @@
         "previousDeploymentId",
         "previousCommitSha",
         "externalEffectId",
-        "healthEvidenceId"
+        "healthEvidenceId",
+        "address"
       ],
       "optionalFields": [
         "previousCommitSha",
-        "rollbackFailed"
+        "rollbackFailed",
+        "address"
       ],
       "description": "One attempt to release a specific commit/artifact to a named environment for a repository, tracked from `queued` through `deploying`/`verifying` to `healthy`, `failed`, or a rollback; only one deployment per environment is in flight at a time, and `previousDeploymentId` links a rollback to the release it reverts. Created by POST /v1/deployments; reverted by POST /v1/deployments/{id}/rollbacks.",
       "fieldDescriptions": {
@@ -25898,6 +26091,7 @@
         "externalEffectId": "Stable UUID linking this record to the related external effect entity.",
         "healthEvidenceId": "Stable UUID linking this record to the related health evidence entity.",
         "rollbackFailed": "True when a rollback of this release ended in failed, so the environment may not run the release before it; never cleared.",
+        "address": "Absolute address of the environment's running release, the page a person opens to see it; null when this install configures no address for that environment.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
@@ -26390,7 +26584,7 @@
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -26435,7 +26629,7 @@
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",
@@ -31543,16 +31737,18 @@
         "nameKey",
         "steps",
         "defaultBudgetLimitUsd",
-        "availability"
+        "availability",
+        "definition"
       ],
       "fieldTypes": {
-        "id": "enum(fixed-coding|fixed-coding-reviewed)",
+        "id": "enum(fixed-coding|fixed-coding-reviewed|deliver-oneshot|deliver-lean|deliver-full|deliver-prd)",
         "revision": "integer",
         "digest": "sha256",
         "nameKey": "string",
         "steps": "WorkflowPresetStep[]",
         "defaultBudgetLimitUsd": "decimal",
-        "availability": "WorkflowPresetAvailability|null"
+        "availability": "WorkflowPresetAvailability|null",
+        "definition": "json"
       },
       "bounds": {
         "stepsMaxItems": 100
@@ -31568,7 +31764,8 @@
         "nameKey": "Translation key naming the preset for display.",
         "steps": "Ordered steps the preset runs.",
         "defaultBudgetLimitUsd": "Run budget the preset applies when the caller does not supply one, in US dollars.",
-        "availability": "Availability verdict for the requested repository, or null when no repository was supplied."
+        "availability": "Availability verdict for the requested repository, or null when no repository was supplied.",
+        "definition": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
       }
     },
     "Page<WorkflowPreset>": {
@@ -32112,7 +32309,8 @@
         "expiresAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "mayDecide"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -32139,7 +32337,8 @@
         "expiresAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "mayDecide": "boolean"
       },
       "nullableFields": [
         "turnId",
@@ -32180,7 +32379,8 @@
         "expiresAt": "UTC timestamp after which the approval can no longer be decided or consumed.",
         "createdAt": "UTC timestamp when the approval was requested.",
         "updatedAt": "UTC timestamp when the approval last changed.",
-        "version": "Optimistic-concurrency version used when deciding."
+        "version": "Optimistic-concurrency version used when deciding.",
+        "mayDecide": "True when the person asking may decide this approval now: it is open, or it expired while its plan or reviewed commit is still the current one so a new decision can be recorded, and the person is named in its audience or holds a grant for it and may decide approvals. The web shows decision buttons only when this is true."
       }
     },
     "Page<PlanRevision>": {
@@ -33367,6 +33567,7 @@
         "taskId",
         "actor",
         "destination",
+        "approvalOutcome",
         "read",
         "revision",
         "createdAt"
@@ -33384,6 +33585,7 @@
         "taskId": "uuid|null",
         "actor": "NotificationActor|null",
         "destination": "NotificationDestination",
+        "approvalOutcome": "NotificationApprovalOutcome|null",
         "read": "boolean",
         "revision": "integer",
         "createdAt": "timestamp"
@@ -33393,7 +33595,8 @@
         "conversationId",
         "runId",
         "taskId",
-        "actor"
+        "actor",
+        "approvalOutcome"
       ],
       "fieldDescriptions": {
         "id": "Stable UUID identifying this notification; it addresses the item inside the recipient's own inbox and never grants access to the destination.",
@@ -33408,6 +33611,7 @@
         "taskId": "UUID of the task the destination lives in, or null.",
         "actor": "Who caused the event, for an avatar and a name in the sentence; null when no person caused it, such as a run that failed on its own.",
         "destination": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target.",
+        "approvalOutcome": "How the approval this item points at stands now, read from the approval at read time: open, approved, changes requested, rejected, expired or withdrawn, with who decided and when. Null when the item does not point at an approval or the recipient can no longer reach it.",
         "read": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks.",
         "revision": "Monotonic revision of this item's read state; clients discard an older response or event than the revision they already hold.",
         "createdAt": "UTC timestamp when the item entered the inbox, which is also its place in the newest-first order."
@@ -33447,6 +33651,28 @@
         "avatarUrl": "Absolute HTTPS URL of the person's avatar, or null to draw initials."
       },
       "description": "The person who caused a notification, reduced to the safe identity the directory already exposes: principal, display name and avatar."
+    },
+    "NotificationApprovalOutcome": {
+      "fields": [
+        "status",
+        "decidedBy",
+        "decidedAt"
+      ],
+      "fieldTypes": {
+        "status": "enum(open|approved|changes_requested|rejected|expired|withdrawn)",
+        "decidedBy": "NotificationActor|null",
+        "decidedAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "decidedBy",
+        "decidedAt"
+      ],
+      "fieldDescriptions": {
+        "status": "Where the approval stands: open while it still waits for a decision; approved, changes_requested or rejected once someone decided; expired when its deadline passed undecided; withdrawn when it was revoked, superseded by a newer revision or withdrawn.",
+        "decidedBy": "The person who decided or revoked the approval, reduced to the safe directory identity; null while open, after expiry, or when no person ended it.",
+        "decidedAt": "UTC timestamp when the approval was decided or revoked; null while open, after expiry, or when no person ended it."
+      },
+      "description": "The current outcome of the approval a notification points at, derived from the approval row when the inbox is read and never stored on the notification."
     },
     "NotificationDestination": {
       "fields": [
@@ -33507,13 +33733,24 @@
         "status",
         "targetKind",
         "path",
-        "anchor"
+        "anchor",
+        "reason",
+        "sharedByName",
+        "sharedAt"
+      ],
+      "optionalFields": [
+        "reason",
+        "sharedByName",
+        "sharedAt"
       ],
       "fieldTypes": {
         "status": "enum(available|part_unavailable|unavailable)",
         "targetKind": "enum(conversation_message|run|run_step|approval|question|document_version|comment)",
         "path": "string|null",
-        "anchor": "string|null"
+        "anchor": "string|null",
+        "reason": "enum(gone|no_longer_shared|unknown)",
+        "sharedByName": "string",
+        "sharedAt": "timestamp"
       },
       "nullableFields": [
         "path",
@@ -33525,13 +33762,19 @@
         },
         "anchor": {
           "maxLength": 200
+        },
+        "sharedByName": {
+          "maxLength": 200
         }
       },
       "fieldDescriptions": {
         "status": "Whether the stored destination still resolves and the recipient is still authorized to open it. part_unavailable means the task or document opens but the inner part (step, card, message or comment) is gone, so the client opens the page with no anchor and says so; unavailable means the client shows the no-longer-available state.",
         "targetKind": "The typed kind of the resolved destination, echoed so the client can pick the right view.",
-        "path": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible.",
-        "anchor": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null."
+        "path": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible. A reader who can open the task gets a task route (/tasks/{taskId} or /tasks/{taskId}/artifacts/{artifactId}); a reader whose access comes only from a direct grant gets /shared/documents/{artifactId}?version={versionId} with &comment={commentId} for a comment, or /shared/conversations/{conversationId}?message={messageId}.",
+        "anchor": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null.",
+        "reason": "Why an unavailable destination cannot be opened, present only when status is unavailable. gone means the document, conversation or task was deleted; no_longer_shared means it still exists but the recipient's access ended; unknown means the server cannot tell. A client reading an unavailable target with no reason, as older responses have, treats it as unknown.",
+        "sharedByName": "Current display name of the person who shared the document or conversation with the recipient through a direct grant, present only when the destination is reached through a grant or a revoked grant still records who gave it; never an email address.",
+        "sharedAt": "When the direct grant that opens, or last opened, this document or conversation for the recipient was given; present alongside sharedByName."
       },
       "rules": [
         "Recipient-only, and reauthorizes the destination on every call. A notification ID never grants access; an unauthorized target returns unavailable, not its title."
@@ -35356,6 +35599,7 @@
       "fields": [
         "id",
         "repositoryId",
+        "presetId",
         "startedBy",
         "maxIssues",
         "maxHours",
@@ -35380,6 +35624,7 @@
         "version"
       ],
       "nullableFields": [
+        "presetId",
         "pauseReason",
         "pausedBy",
         "pausedAt",
@@ -35391,6 +35636,7 @@
       "fieldTypes": {
         "id": "uuid",
         "repositoryId": "uuid",
+        "presetId": "enum(fixed-coding|fixed-coding-reviewed)",
         "startedBy": "uuid",
         "maxIssues": "integer",
         "maxHours": "integer",
@@ -35418,6 +35664,7 @@
       "fieldDescriptions": {
         "id": "Stable UUID of the batch.",
         "repositoryId": "The repository it works in.",
+        "presetId": "The built-in workflow each of its issues runs; null for a batch started before the workflow was stored.",
         "startedBy": "The person who started it; their authority is re-checked before every issue.",
         "maxIssues": "Limit: issues to merge.",
         "maxHours": "Limit: hours before nothing new starts.",
@@ -35927,6 +36174,7 @@
         "skillId",
         "skillVersionId",
         "revision",
+        "revisionDigest",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -35944,7 +36192,8 @@
         "stepPath": "string",
         "grantedBy": "uuid",
         "createdAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "revisionDigest": "string"
       },
       "nullableFields": [],
       "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both.",
@@ -35953,6 +36202,7 @@
         "skillId": "Stable UUID of the personal skill the grant is for.",
         "skillVersionId": "Immutable skill version the workflow may use; a newer version needs a new grant.",
         "revision": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read.",
+        "revisionDigest": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read.",
         "workflowId": "Stable UUID of the workflow the skill was attached to.",
         "workflowName": "Display name of that workflow, so the owner can recognise it.",
         "stepPath": "JSON Pointer of the step in the workflow definition that uses the skill.",
@@ -36246,7 +36496,7 @@
         "neededBy": "The optional deadline, or null.",
         "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
         "expiresAt": "UTC time the request expires; silence never approves.",
-        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
+        "ownerFallback": "True when the person asked for could not be resolved and the workflow's owner, or the run's starter when the workflow has no owner, was asked instead.",
         "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
         "createdAt": "UTC time the request was made.",
         "updatedAt": "UTC time it last changed.",
@@ -39234,6 +39484,131 @@
         "imported": "One entry per imported item, in package order.",
         "openBindings": "What a person still has to bind by hand: skills and agents a workflow named that the package did not carry, and the billing of each imported agent."
       }
+    },
+    "GivenFact": {
+      "fields": [
+        "memoryId",
+        "wording",
+        "recordedAt",
+        "state"
+      ],
+      "fieldTypes": {
+        "memoryId": "uuid",
+        "wording": "string",
+        "recordedAt": "timestamp",
+        "state": "enum(given|corrected_since|stopped_since)"
+      },
+      "fieldBounds": {
+        "wording": {
+          "maxLength": 4096
+        }
+      },
+      "fieldDescriptions": {
+        "memoryId": "The memory entry this fact was sourced from.",
+        "wording": "The exact wording the agent was given for this fact.",
+        "recordedAt": "When this fact was recorded, in UTC.",
+        "state": "given while the memory still reads the same; corrected_since when the memory was revised after the step started; stopped_since when the memory was retired."
+      },
+      "description": "One fact the step was given, with whether it still reads the same now."
+    },
+    "GivenDocument": {
+      "fields": [
+        "artifactVersionId",
+        "state",
+        "name",
+        "kind",
+        "version",
+        "sizeBytes"
+      ],
+      "fieldTypes": {
+        "artifactVersionId": "uuid",
+        "state": "enum(available|hidden|gone|unchecked)",
+        "name": "string|null",
+        "kind": "string|null",
+        "version": "integer|null",
+        "sizeBytes": "integer"
+      },
+      "nullableFields": [
+        "name",
+        "kind",
+        "version"
+      ],
+      "fieldBounds": {
+        "name": {
+          "maxLength": 200
+        },
+        "kind": {
+          "maxLength": 80
+        },
+        "sizeBytes": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "artifactVersionId": "The pinned artifact version the step was given.",
+        "state": "available while the reader may still see it; hidden when access ended; gone when its bytes are purged; unchecked when nothing truthful can be said.",
+        "name": "The document name when the reader may see it, else null.",
+        "kind": "The artifact type when the reader may see it, else null.",
+        "version": "The revision number when the reader may see it, else null.",
+        "sizeBytes": "The pinned byte size, always shown so a count stays truthful."
+      },
+      "description": "One document the step was given, redacted to the reader."
+    },
+    "StepGiven": {
+      "fields": [
+        "stepKey",
+        "startedAt",
+        "ranAnAgent",
+        "facts",
+        "factsOmitted",
+        "documents",
+        "documentsHidden",
+        "documentsGone",
+        "documentsUnchecked"
+      ],
+      "fieldTypes": {
+        "stepKey": "string",
+        "startedAt": "timestamp|null",
+        "ranAnAgent": "boolean",
+        "facts": "GivenFact[]",
+        "factsOmitted": "integer",
+        "documents": "GivenDocument[]",
+        "documentsHidden": "integer",
+        "documentsGone": "integer",
+        "documentsUnchecked": "integer"
+      },
+      "nullableFields": [
+        "startedAt"
+      ],
+      "fieldBounds": {
+        "stepKey": {
+          "maxLength": 200
+        },
+        "factsOmitted": {
+          "min": 0
+        },
+        "documentsHidden": {
+          "min": 0
+        },
+        "documentsGone": {
+          "min": 0
+        },
+        "documentsUnchecked": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "stepKey": "The workflow step this describes.",
+        "startedAt": "When the step started, or null before it has.",
+        "ranAnAgent": "Whether an agent session ran for this step.",
+        "facts": "The sourced-memory facts the step was given, each with its state now.",
+        "factsOmitted": "How many facts were left out to stay inside the step bound.",
+        "documents": "The documents the step was given that the reader may still see.",
+        "documentsHidden": "Documents the reader may no longer see, counted but not named.",
+        "documentsGone": "Documents whose bytes are purged, counted but not named.",
+        "documentsUnchecked": "Documents nothing truthful can be said about, counted but not named."
+      },
+      "description": "What a step was given: the sourced-memory facts and pinned documents in use when it started, redacted to the reader."
     }
   },
   "pageEnvelope": {

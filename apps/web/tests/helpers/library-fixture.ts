@@ -1,3 +1,4 @@
+import { presetRead } from "./preset-read.ts";
 import type { Page } from "@playwright/test";
 import {
   MOCK_ORGANIZATION_ID,
@@ -75,7 +76,7 @@ export type Options = {
   /** Every workflow versions page says there is another, two versions to a page. */
   endlessVersions?: boolean;
   /** What the checker says about a definition: fine (default), with problems, with only warnings, or it cannot answer. */
-  validation?: "ok" | "errors" | "named" | "warnings" | "fail";
+  validation?: "ok" | "errors" | "named" | "warnings" | "unbound" | "fail";
   /** A copy whose workflow cannot be made, or whose steps cannot be added (always, or on the first try). */
   copy?:
     | "workflow-fails"
@@ -626,6 +627,12 @@ export async function libraryFixture(page: Page, options: Options = {}) {
       const warnings = options.validation === "warnings"
         ? [{
           path: "/steps/0/uses",
+          code: "action_not_executable",
+          message: "The step's action cannot run yet.",
+        }]
+        : options.validation === "unbound"
+        ? [{
+          path: "/steps/0/uses",
           code: "model_agent_unbound",
           message: "The step runs a model but no agent is bound.",
         }]
@@ -644,33 +651,36 @@ export async function libraryFixture(page: Page, options: Options = {}) {
     (url) => url.pathname === "/v1/workflow-presets",
     (route) => {
       seen.presetReads += 1;
-      return answer("presets", [
-        {
-          id: "fixed-coding",
-          revision: 2,
-          digest: "a".repeat(64),
-          nameKey: "workflowPresets.fixedCoding.name",
-          steps: [{ id: "brief", uses: "task.brief" }, {
-            id: "implement",
-            uses: "harness.implement",
-          }],
-          defaultBudgetLimitUsd: "5.00",
-          availability: null,
-        },
-        {
-          id: "fixed-coding-reviewed",
-          revision: 3,
-          digest: "b".repeat(64),
-          nameKey: "workflowPresets.fixedCodingReviewed.name",
-          steps: [
-            { id: "brief", uses: "task.brief" },
-            { id: "implement", uses: "harness.implement" },
-            { id: "review", uses: "agent.review" },
-          ],
-          defaultBudgetLimitUsd: "8.00",
-          availability: null,
-        },
-      ])(route);
+      return answer(
+        "presets",
+        [
+          {
+            id: "fixed-coding",
+            revision: 2,
+            digest: "a".repeat(64),
+            nameKey: "workflowPresets.fixedCoding.name",
+            steps: [{ id: "brief", uses: "task.brief" }, {
+              id: "implement",
+              uses: "harness.implement",
+            }],
+            defaultBudgetLimitUsd: "5.00",
+            availability: null,
+          },
+          {
+            id: "fixed-coding-reviewed",
+            revision: 3,
+            digest: "b".repeat(64),
+            nameKey: "workflowPresets.fixedCodingReviewed.name",
+            steps: [
+              { id: "brief", uses: "task.brief" },
+              { id: "implement", uses: "harness.implement" },
+              { id: "review", uses: "agent.review" },
+            ],
+            defaultBudgetLimitUsd: "8.00",
+            availability: null,
+          },
+        ].map(presetRead),
+      )(route);
     },
   );
   return seen;

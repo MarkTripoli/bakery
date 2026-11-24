@@ -16,10 +16,10 @@ import {
   type ExecutionOutcome,
   type WorkerExecutor,
 } from "../../../apps/worker/src/executor.ts";
+import type { ReadAttemptContext } from "../../../apps/worker/src/harness-context.ts";
 import type { NativeOutputSink } from "../../../apps/worker/src/native-output.ts";
 import type { PublishArtifact } from "../../../apps/worker/src/task-brief.ts";
 import type { JobAssignment } from "../../../apps/worker/src/types.ts";
-import type { WorkerContextInput } from "../../../apps/worker/src/client.ts";
 import {
   canonicalJson,
   sha256Hex,
@@ -341,9 +341,7 @@ export type RunOptions = {
   readonly commandTimeLimitMs?: number;
   readonly limits?: CheckExecutorOptions["limits"];
   readonly groupKillExecutable?: string;
-  readonly readAttemptContext?: (
-    attemptId: string,
-  ) => Promise<readonly WorkerContextInput[]>;
+  readonly readAttemptContext?: ReadAttemptContext;
   readonly killGroup?: CheckExecutorOptions["killGroup"];
   readonly redactionSecrets?: readonly string[];
   readonly credentialPaths?: (state: {

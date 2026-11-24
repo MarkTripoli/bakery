@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import {
+  backupStatusQueryOptions,
   installationRestoreQueryOptions,
   installationUpdateStatusQueryOptions,
 } from "../api/query.ts";
@@ -38,6 +39,9 @@ export function InstallationSettingsNavigation(
   const updates = useQuery(installationUpdateStatusQueryOptions(api, scope));
   const updatesRefused = updates.isError &&
     isForbiddenFailure(updates.error as never);
+  const backups = useQuery(backupStatusQueryOptions(api, scope));
+  const backupsRefused = backups.isError &&
+    isForbiddenFailure(backups.error as never);
   return (
     <UI.SectionNavigation
       heading={viewport === "desktop"
@@ -51,6 +55,11 @@ export function InstallationSettingsNavigation(
           href: "/installation/settings",
           label: translate("settings.installation.title"),
         },
+        ...(backupsRefused ? [] : [{
+          id: "installation-backups",
+          href: "/installation/backups",
+          label: translate("installation.backups.title"),
+        }]),
         ...(restore === null ? [] : [{
           id: "installation-restore",
           href: "/installation/restore",
