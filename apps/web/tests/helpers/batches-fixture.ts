@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { ticket, uuid } from "./issues-fixture.ts";
 import { MOCK_ORGANIZATION_ID, MOCK_PRINCIPAL_ID } from "./mock-session.ts";
+import { presetRead } from "./preset-read.ts";
 import {
   application,
   projectsFixture,
@@ -338,19 +339,21 @@ export async function batchesFixture(page: Page, options: Options = {}) {
       json: {
         items: (["fixed-coding", "fixed-coding-reviewed"] as const).map((
           id,
-        ) => ({
-          id,
-          revision: 1,
-          digest: "a".repeat(64),
-          nameKey: `workflowPresets.${id}.name`,
-          steps: [{ id: "brief", uses: "task.brief" }],
-          defaultBudgetLimitUsd: "5.00",
-          availability: {
-            minimumBudgetLimitUsd: null,
-            ...(options.presetAvailability?.[id] ??
-              { status: "ready", reasons: [] }),
-          },
-        })),
+        ) =>
+          presetRead({
+            id,
+            revision: 1,
+            digest: "a".repeat(64),
+            nameKey: `workflowPresets.${id}.name`,
+            steps: [{ id: "brief", uses: "task.brief" }],
+            defaultBudgetLimitUsd: "5.00",
+            availability: {
+              minimumBudgetLimitUsd: null,
+              ...(options.presetAvailability?.[id] ??
+                { status: "ready", reasons: [] }),
+            },
+          })
+        ),
         nextCursor: null,
       },
     }));
