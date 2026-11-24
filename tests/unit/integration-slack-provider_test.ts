@@ -166,20 +166,42 @@ Deno.test("discovery answers nothing because no resource kind is declared", asyn
 });
 
 Deno.test("an organization-wide grant never validates as a workspace installation", () => {
-  const workspace = {
+  const documented = {
     ok: true,
-    access_token: "xoxb-token",
+    access_token: "bot-access-token-placeholder",
     token_type: "bot",
-    scope: "chat:write",
-    bot_user_id: "U01234567",
-    app_id: "A01234567",
-    team: { id: "T01234567", name: "Acme" },
+    scope: "commands,incoming-webhook",
+    bot_user_id: "U0KRQLJ9H",
+    app_id: "A0KRD7HC3",
+    team: { name: "Slack Softball Team", id: "T9TK3CUKW" },
+    enterprise: { name: "slack-sports", id: "E12345678" },
+    authed_user: {
+      id: "U1234",
+      scope: "chat:write",
+      access_token: "user-access-token-placeholder",
+      token_type: "user",
+    },
     is_enterprise_install: false,
   };
-  assertEquals(slackTokenResponseSchema.safeParse(workspace).success, true);
+  assertEquals(slackTokenResponseSchema.safeParse(documented).success, true);
+  assertEquals(
+    slackTokenResponseSchema.safeParse({ ...documented, enterprise: null })
+      .success,
+    true,
+  );
   assertEquals(
     slackTokenResponseSchema.safeParse({
-      ...workspace,
+      ok: true,
+      access_token: documented.access_token,
+      bot_user_id: documented.bot_user_id,
+      app_id: documented.app_id,
+      team: documented.team,
+    }).success,
+    true,
+  );
+  assertEquals(
+    slackTokenResponseSchema.safeParse({
+      ...documented,
       is_enterprise_install: true,
     }).success,
     false,

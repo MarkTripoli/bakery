@@ -44,11 +44,25 @@ export const slackTokenResponseSchema = z.strictObject({
       "The Enterprise Grid organization id.",
     ),
     name: z.string().optional().describe("The organization name."),
-  }).optional().describe(
-    "Present when the workspace is in an Enterprise Grid.",
+  }).nullable().optional().describe(
+    "Present when the workspace is in an Enterprise Grid, null when Slack reports none.",
   ),
-  is_enterprise_install: z.literal(false).describe(
-    "An organization-wide grant is not a workspace installation Bakery supports, so it fails this response rather than reaching storage.",
+  authed_user: z.strictObject({
+    id: z.string().optional().describe(
+      "The person whose approval carried the installation.",
+    ),
+    scope: z.string().optional().describe(
+      "Space-separated user scopes Slack granted, when the install asked for any.",
+    ),
+    access_token: z.string().optional().describe(
+      "A user token Slack issued; it is never stored, the bot token is the credential.",
+    ),
+    token_type: z.string().optional().describe("The user token's scheme."),
+  }).optional().describe(
+    "The approving person as Slack reports them; Slack omits it on some installs.",
+  ),
+  is_enterprise_install: z.literal(false).optional().describe(
+    "Slack omits it unless the grant is organization-wide; an organization-wide grant is not a workspace installation Bakery supports, so it fails this response rather than reaching storage.",
   ),
 }).describe(
   "Slack's oauth.v2.access response for a bot installation: the bot identity, the workspace and whether the grant is organization-wide.",
