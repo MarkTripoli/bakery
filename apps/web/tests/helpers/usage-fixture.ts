@@ -107,7 +107,7 @@ export async function usageFixture(page: Page, options: UsageOptions = {}) {
         });
       }
       const provider = query.get("provider");
-      const rows = options.empty ? [] : [
+      const allRows = options.empty ? [] : [
         ...ROWS,
         ...(options.twoRoutes
           ? [{
@@ -118,10 +118,17 @@ export async function usageFixture(page: Page, options: UsageOptions = {}) {
             unverifiedCount: 0,
           }]
           : []),
-      ].filter((row) => provider === null || row.provider === provider);
+      ];
+      const rows = allRows.filter((row) =>
+        provider === null || row.provider === provider
+      );
       const total = (pick: (row: (typeof ROWS)[number]) => number) =>
         rows.reduce((sum, row) => sum + pick(row), 0);
       const known = total((row) => Number(row.knownCostUsd));
+      const settled = allRows.reduce(
+        (sum, row) => sum + Number(row.knownCostUsd),
+        0,
+      );
       const unknownCount = total((row) => row.unknownCount);
       const unverifiedCount = total((row) => row.unverifiedCount);
       return route.fulfill({
@@ -146,8 +153,8 @@ export async function usageFixture(page: Page, options: UsageOptions = {}) {
             periodEnd: "2026-12-01T00:00:00.000Z",
             limitUsd: "1000.0000",
             reservedUsd: "25.0000",
-            settledUsd: known.toFixed(4),
-            availableUsd: (1000 - 25 - known).toFixed(4),
+            settledUsd: settled.toFixed(4),
+            availableUsd: (1000 - 25 - settled).toFixed(4),
             unknownCount: 1,
           }],
         }),

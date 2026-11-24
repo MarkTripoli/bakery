@@ -113,8 +113,8 @@ for (
       if (viewport.name === "phone") {
         expect(to.y).toBeGreaterThan(from.y + from.height - 1);
         expect(from.x + from.width).toBeLessThanOrEqual(viewport.width);
-        expect(from.width).toBeGreaterThan(viewport.width * 0.7);
-        expect(to.width).toBeGreaterThan(viewport.width * 0.7);
+        expect(from.width).toBeGreaterThan(viewport.width - 48);
+        expect(to.width).toBeGreaterThan(viewport.width - 48);
       } else {
         expect(Math.abs(to.y - from.y)).toBeLessThan(4);
       }
