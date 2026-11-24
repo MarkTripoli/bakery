@@ -477,13 +477,19 @@ export function BatchStartPage() {
                       repository: plan.repository,
                     })}
                 </UI.Text>
-                <UI.Text>
-                  {chosenPreset === null
-                    ? translate("batches.start.summary.workflowUnset" as never)
-                    : translate("batches.start.summary.workflow" as never, {
-                      workflow: presetCopy(translate, chosenPreset).title,
-                    })}
-                </UI.Text>
+                {chosenPreset === null && shown.presetId !== undefined
+                  ? null
+                  : (
+                    <UI.Text>
+                      {chosenPreset === null
+                        ? translate(
+                          "batches.start.summary.workflowUnset" as never,
+                        )
+                        : translate("batches.start.summary.workflow" as never, {
+                          workflow: presetCopy(translate, chosenPreset).title,
+                        })}
+                    </UI.Text>
+                  )}
                 <UI.Text>
                   {translate(stopKey as never, {
                     issues: issuesPart,
@@ -491,13 +497,17 @@ export function BatchStartPage() {
                     spend: spendPart,
                   })}
                 </UI.Text>
-                <UI.Text>
-                  {modeLabel === null
-                    ? translate("batches.start.summary.modeNone" as never)
-                    : translate("batches.start.summary.mode" as never, {
-                      mode: modeLabel,
-                    })}
-                </UI.Text>
+                {modeLabel === null && shown.continueMode !== undefined
+                  ? null
+                  : (
+                    <UI.Text>
+                      {modeLabel === null
+                        ? translate("batches.start.summary.modeNone" as never)
+                        : translate("batches.start.summary.mode" as never, {
+                          mode: modeLabel,
+                        })}
+                    </UI.Text>
+                  )}
                 <UI.Text>
                   {translate("batches.start.summary.approvals" as never)}
                 </UI.Text>

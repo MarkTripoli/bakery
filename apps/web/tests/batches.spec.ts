@@ -374,6 +374,14 @@ for (
         "Work through ready issues one at a time.",
       );
       await expect(page.getByTestId("batch-plan")).not.toContainText("…");
+      const plan = page.getByTestId("batch-plan");
+      await expect(plan).not.toContainText(
+        "Each issue runs the workflow you choose.",
+      );
+      await expect(plan).not.toContainText(
+        "Choose what happens after each merge.",
+      );
+      await expect(plan).toContainText("Choose when the batch stops.");
       await expect(page.getByText("Choose a workflow first.")).toBeVisible();
       await expect(page.getByText("Use a number from 1 to 20.")).toBeVisible();
       await expect(page.getByText("Use 1 to 24 hours.")).toBeVisible();
