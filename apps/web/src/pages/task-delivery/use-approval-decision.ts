@@ -45,6 +45,9 @@ export function useApprovalDecision(
   const scope = useProtectedScope();
   const organizationId = scope.organizationId;
   const [phase, setPhase] = useState<DecisionPhase>("idle");
+  const [refusal, setRefusal] = useState<
+    { status: number | null; reason: string | null } | null
+  >(null);
   const alive = useRef(true);
   const held = useRef<Held | null>(null);
   useEffect(() => {
@@ -74,6 +77,7 @@ export function useApprovalDecision(
           };
       held.current = next;
       setPhase("deciding");
+      setRefusal(null);
       const result = await api.decideApproval({
         organizationId,
         approvalId: next.approvalId,
@@ -101,6 +105,13 @@ export function useApprovalDecision(
         return "unknown";
       }
       held.current = null;
+      const problem = result.error.kind === "problem"
+        ? result.error.problem
+        : null;
+      setRefusal({
+        status: problem?.status ?? null,
+        reason: problem?.reason ?? null,
+      });
       setPhase(failure);
       void refresh();
       return failure;
@@ -108,5 +119,5 @@ export function useApprovalDecision(
     [api, approval, organizationId, refresh],
   );
 
-  return { phase, decide };
+  return { phase, decide, refusal };
 }

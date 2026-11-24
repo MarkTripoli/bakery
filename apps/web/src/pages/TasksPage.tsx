@@ -28,6 +28,7 @@ import { FingerprintRow } from "./FingerprintRow.tsx";
 import { NewTaskComposer } from "./NewTaskComposer.tsx";
 import { TaskArtifactPane } from "./TaskArtifactPane.tsx";
 import { TaskRunSection } from "./TaskRunSection.tsx";
+import { StepApprovalPane } from "./task-step-approval/StepApprovalPane.tsx";
 import { TaskRunArtifactCard } from "./TaskRunArtifactCard.tsx";
 import { TaskStartRun } from "./TaskStartRun.tsx";
 import { RunPreviewCard } from "./RunPreviewCard.tsx";
@@ -536,6 +537,7 @@ function Detail(
   const scope = useProtectedScope();
   const api = useBakeryApi();
   const online = useOnline();
+  const [reviewingStep, setReviewingStep] = useState(false);
   const [syncConnectivity, setSyncConnectivity] = useState<
     DurableSyncConnectivity
   >("unknown");
@@ -580,6 +582,19 @@ function Detail(
           )
           : undefined}
         state={syncConnectivity === "reconnecting" ? "reconnecting" : "ready"}
+        renderStepReview={(layout) =>
+          reviewingStep && task.currentRunId
+            ? (
+              <StepApprovalPane
+                key={task.currentRunId}
+                taskId={id}
+                runId={task.currentRunId}
+                layout={layout}
+                online={online}
+                onClose={() => setReviewingStep(false)}
+              />
+            )
+            : null}
         aside={task.currentRunId
           ? (
             <UI.Stack gap="standard">
@@ -627,6 +642,7 @@ function Detail(
               task={task}
               enabled={!query.isError && valid}
               landingStepId={landingStepId}
+              onReviewStep={() => setReviewingStep(true)}
               onConnectivity={setSyncConnectivity}
               artifacts={task.currentRunId
                 ? <TaskArtifacts hideEmpty taskId={id} presentation="run" />
@@ -737,8 +753,9 @@ function Detail(
 }
 
 function TaskLiveReads(
-  { task, enabled, landingStepId, onConnectivity, artifacts }: {
+  { task, enabled, landingStepId, onConnectivity, onReviewStep, artifacts }: {
     task: TaskResponse;
+    onReviewStep: () => void;
     enabled: boolean;
     landingStepId?: string | null;
     onConnectivity: (connectivity: DurableSyncConnectivity) => void;
@@ -760,6 +777,7 @@ function TaskLiveReads(
         connectivity={observed}
         artifacts={artifacts}
         landingStepId={landingStepId}
+        onReviewStep={onReviewStep}
       />
     )
     : enabled && task.status === "draft"

@@ -37,6 +37,8 @@ import {
 } from "./RunRules.tsx";
 import { stepTimelineEvents, stepTitle } from "./task-timeline.ts";
 import { TaskRunSectionView } from "./task-run-section-view.tsx";
+import { stepName } from "./task-step-approval/model.ts";
+import { useStepApproval } from "./task-step-approval/use-step-approval.ts";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
 import { focusMessageField } from "./task-delivery/focus-message.ts";
@@ -162,17 +164,23 @@ function BlockedNotice(
 
 /** Read the task's authoritative current run, never infer one from list order. */
 export function TaskRunSection(
-  { taskId, runId, enabled, connectivity = "online", artifacts, landingStepId }:
-    {
-      taskId: string;
-      runId: string;
-      enabled: boolean;
-      /** The step a notification opened: selected once, paging forward to find it. */
-      landingStepId?: string | null;
-      /** Sync connectivity; anything but `online` shows as a banner, never a row. */
-      connectivity?: DurableSyncConnectivity;
-      artifacts?: ReactNode;
-    },
+  {
+    taskId,
+    runId,
+    enabled,
+    connectivity = "online",
+    artifacts,
+    landingStepId,
+    onReviewStep,
+  }: {
+    onReviewStep?: () => void;
+    taskId: string;
+    runId: string;
+    enabled: boolean;
+    landingStepId?: string | null;
+    connectivity?: DurableSyncConnectivity;
+    artifacts?: ReactNode;
+  },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -218,6 +226,9 @@ export function TaskRunSection(
   const waitingOffers = waiting.offers;
   // A failed read of the choices still leaves the run waiting on a model.
   const waitingOnModel = waitingOffers.length > 0 || waiting.failed;
+  const stepApproval = useStepApproval(taskId, runId);
+  const waitingOnYou = enabled && stepApproval.approval !== null;
+  const approvalStep = stepName(stepApproval.step?.stepKey ?? null);
   const stepLanded = useRef(false);
   useEffect(() => {
     if (!landingStepId || stepLanded.current || !steps.data) return;
@@ -361,6 +372,18 @@ export function TaskRunSection(
   const runLine = (() => {
     if (!validRun || !run.data) return null;
     const current = run.data;
+    if (waitingOnYou && online) {
+      return (
+        <>
+          <UI.Text data-placement="line">
+            {t("tasks.stepApproval.line", { step: approvalStep })}
+          </UI.Text>
+          <UI.Button onClick={onReviewStep}>
+            {t("tasks.stepApproval.review", { step: approvalStep })}
+          </UI.Button>
+        </>
+      );
+    }
     if (!online) {
       return (
         <UI.Text data-placement="line">{t("tasks.controls.offline")}</UI.Text>
@@ -490,9 +513,13 @@ export function TaskRunSection(
             {validRun && run.data
               ? (
                 <UI.Badge
-                  tone={waitingOnModel ? "warning" : RUN_TONES[run.data.status]}
+                  tone={waitingOnModel || waitingOnYou
+                    ? "warning"
+                    : RUN_TONES[run.data.status]}
                 >
-                  {waitingOnModel
+                  {waitingOnYou
+                    ? t("tasks.stepApproval.badge")
+                    : waitingOnModel
                     ? t("tasks.waiting.badge")
                     : t(`tasks.run.status.${run.data.status}`)}
                 </UI.Badge>

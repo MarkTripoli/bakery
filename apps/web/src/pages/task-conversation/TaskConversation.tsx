@@ -92,11 +92,13 @@ export function TaskConversation(
     extras,
     questionDefaults,
     references,
+    renderStepReview,
     state = "ready",
     task,
   }: {
     /** More inspector content, such as the task's artifact pane. */
     aside?: ReactNode;
+    renderStepReview?: (layout: "rail" | "sheet") => ReactNode;
     /** A notice that belongs right under the stages, such as a landing's. */
     banner?: ReactNode;
     /** Transcript-end content: run controls, output and artifacts. */
@@ -672,7 +674,13 @@ export function TaskConversation(
           </UI.Inline>
         </ShellSlot>
       )}
-      {!phone && (
+      {!phone && renderStepReview?.("rail") && (
+        <ShellSlot name="inspector" size="medium">
+          {renderStepReview("rail")}
+        </ShellSlot>
+      )}
+      {phone && renderStepReview?.("sheet")}
+      {!phone && !renderStepReview?.("rail") && (
         <ShellSlot name="inspector" size="medium">
           <UI.SessionPane
             label={t("tasks.conversation.plan.heading")}
