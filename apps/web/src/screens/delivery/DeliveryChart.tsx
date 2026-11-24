@@ -11,7 +11,7 @@ import {
 const WIDTH = 640;
 const HEIGHT = 180;
 const PAD = { top: 16, right: 16, bottom: 28, left: 56 };
-const TICK_STYLE = { fontSize: 12, letterSpacing: 0, fontFamily: "inherit" };
+const TICK_SIZE = 12;
 
 export function DeliveryChart(
   {
@@ -92,8 +92,8 @@ export function DeliveryChart(
             aria-label={label}
             data-testid="delivery-chart"
             role="img"
-            style={{ display: "block", height: "auto", width: "100%" }}
             viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+            width="100%"
           >
             {bands.map((band) => (
               <g key={`${band.gap.from}-${band.gap.to}`}>
@@ -109,7 +109,8 @@ export function DeliveryChart(
                 {band.width < 96 ? null : (
                   <text
                     fill="currentColor"
-                    style={TICK_STYLE}
+                    fontSize={11}
+                    letterSpacing={0}
                     textAnchor="middle"
                     x={band.left + band.width / 2}
                     y={PAD.top + 14}
@@ -140,7 +141,8 @@ export function DeliveryChart(
               textAnchor="end"
               x={PAD.left - 8}
               y={up(maximum) + 4}
-              style={TICK_STYLE}
+              fontSize={TICK_SIZE}
+              letterSpacing={0}
             >
               {maximum}
             </text>
@@ -148,7 +150,8 @@ export function DeliveryChart(
               fill="currentColor"
               x={PAD.left}
               y={HEIGHT - 8}
-              style={TICK_STYLE}
+              fontSize={TICK_SIZE}
+              letterSpacing={0}
             >
               {points.length === 0 ? "" : day.format(new Date(points[0]!.at))}
             </text>
@@ -158,7 +161,8 @@ export function DeliveryChart(
               textAnchor="end"
               x={WIDTH - PAD.right}
               y={HEIGHT - 8}
-              style={TICK_STYLE}
+              fontSize={TICK_SIZE}
+              letterSpacing={0}
             >
               {points.length === 0
                 ? ""
