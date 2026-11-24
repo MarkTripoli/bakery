@@ -2,7 +2,6 @@ import { useId, useState } from "react";
 import * as UI from "@bakery/ui";
 import { formatDate } from "@bakery/i18n";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { ReferenceLink } from "../../app/ReferenceLink.tsx";
 import { useApprovalDecision } from "../task-delivery/use-approval-decision.ts";
 import {
   capitalized,
@@ -85,14 +84,10 @@ export function StepApprovalPane(
       : decision === "reject"
       ? "alreadyReject"
       : "alreadyRequestChanges";
-    return (
-      <>
-        <ReferenceLink kind="person" value={name} />{" "}
-        {t(`tasks.stepApproval.refusal.${key}`, {
-          time: timeOf(read.latest.decidedAt),
-        })}
-      </>
-    );
+    return t(`tasks.stepApproval.refusal.${key}`, {
+      name,
+      time: timeOf(read.latest.decidedAt),
+    });
   };
   const notice = phase === "deciding"
     ? { tone: "information" as const, text: t("tasks.stepApproval.deciding") }

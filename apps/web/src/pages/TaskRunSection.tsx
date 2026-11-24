@@ -382,14 +382,15 @@ export function TaskRunSection(
     if (outcome !== null && outcomePerson !== null) {
       return (
         <UI.Text data-placement="line">
-          <ReferenceLink kind="person" value={outcomePerson} />{" "}
           {outcome.decision === "reject"
             ? t("tasks.stepApproval.outcome.rejected", {
+              name: outcomePerson,
               step: approvalStepName,
             })
             : outcome.note === ""
-            ? t("tasks.stepApproval.outcome.changes")
+            ? t("tasks.stepApproval.outcome.changes", { name: outcomePerson })
             : t("tasks.stepApproval.outcome.changesNote", {
+              name: outcomePerson,
               note: outcome.note,
             })}
         </UI.Text>

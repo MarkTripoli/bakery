@@ -6834,9 +6834,6 @@
   "tasks.stepApproval.rejectField": "⟦Ŵĥÿ?⟧",
   "tasks.stepApproval.rejectConfirm": "⟦Ŕëĵëçŧ…⟧",
   "tasks.stepApproval.cancel": "⟦Çàñçëļ…⟧",
-  "tasks.stepApproval.refusal.alreadyApprove": "⟦àļŕëàðÿ àþþŕôṽëð ŧĥïš {time}. ŧëšŧ çôþ⟧",
-  "tasks.stepApproval.refusal.alreadyRequestChanges": "⟦àļŕëàðÿ àšķëð ƒôŕ çĥàñĝëš {time}. ŧëšŧ çôþÿ⟧",
-  "tasks.stepApproval.refusal.alreadyReject": "⟦àļŕëàðÿ ŕëĵëçŧëð ŧĥïš {time}. ŧëšŧ çôþ⟧",
   "tasks.stepApproval.refusal.decidedWord": "⟦Šôɱëôñë àļŕëàðÿ ðëçïðëð ŧĥïš: {decision}. ŧëšŧ çôþÿ ŧë⟧",
   "tasks.stepApproval.word.approve": "⟦Àþþŕôṽëð…⟧",
   "tasks.stepApproval.word.request_changes": "⟦Çĥàñĝëš ŕëǫûëšŧëð ŧëš⟧",
@@ -6846,9 +6843,6 @@
   "tasks.stepApproval.announce.reject": "⟦Ŕëĵëçŧëð. Ŧĥë ŕûñ ĥàš ëñðëð. ŧëšŧ çô⟧",
   "tasks.stepApproval.outcome.badge.request_changes": "⟦Çĥàñĝëš ŕëǫûëšŧëð ŧëš⟧",
   "tasks.stepApproval.outcome.badge.reject": "⟦Ŕëĵëçŧëð…⟧",
-  "tasks.stepApproval.outcome.changesNote": "⟦àšķëð ƒôŕ çĥàñĝëš: “{note}”. Šëñð à ɱëššàĝë ŧô šàÿ ŵĥàŧ ŧô ðô ñëẋŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
-  "tasks.stepApproval.outcome.changes": "⟦àšķëð ƒôŕ çĥàñĝëš. Šëñð à ɱëššàĝë ŧô šàÿ ŵĥàŧ ŧô ðô ñëẋŧ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "tasks.stepApproval.outcome.rejected": "⟦ŕëĵëçŧëð {step}. ŧëš⟧",
   "tasks.stepApproval.outcome.someone": "⟦Šôɱëôñë…⟧",
   "tasks.stepApproval.line": "⟦Ŧĥë {step} ñëëðš ÿôûŕ àþþŕôṽàļ ƀëƒôŕë Ɓàķëŕÿ ƀûïļðš. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "tasks.stepApproval.review": "⟦Ŕëṽïëŵ ŧĥë {step} ŧëš⟧",
@@ -6863,5 +6857,11 @@
   "tasks.stepApproval.refusal.outside": "⟦Ŧĥïš ðëçïšïôñ ïš ƒôŕ ŧĥë þëôþļë ôñ ŧĥïš ŧàšķ. Àšķ ôñë ôƒ ŧĥëɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "tasks.stepApproval.refusal.failed": "⟦Ÿôûŕ ðëçïšïôñ ŵàš ñôŧ ŕëçôŕðëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧë⟧",
   "tasks.stepApproval.refusal.forbidden": "⟦Ÿôû àŕë ñôŧ àļļôŵëð ŧô ðëçïðë ôñ ŧĥïš. ŧëšŧ çôþÿ ŧ⟧",
-  "tasks.stepApproval.refusal.unknown": "⟦Ÿôûŕ ðëçïšïôñ ɱàÿ ñôŧ ĥàṽë ƀëëñ ŕëçôŕðëð. Ŕëŧŕÿ šëñðš ŧĥë šàɱë ðëçïšïôñ ôñçë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "tasks.stepApproval.refusal.unknown": "⟦Ÿôûŕ ðëçïšïôñ ɱàÿ ñôŧ ĥàṽë ƀëëñ ŕëçôŕðëð. Ŕëŧŕÿ šëñðš ŧĥë šàɱë ðëçïšïôñ ôñçë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "tasks.stepApproval.refusal.alreadyApprove": "⟦{name} àļŕëàðÿ àþþŕôṽëð ŧĥïš {time}. ŧëšŧ çôþÿŧ⟧",
+  "tasks.stepApproval.refusal.alreadyRequestChanges": "⟦{name} àļŕëàðÿ àšķëð ƒôŕ çĥàñĝëš {time}. ŧëšŧ çôþÿ ŧ⟧",
+  "tasks.stepApproval.refusal.alreadyReject": "⟦{name} àļŕëàðÿ ŕëĵëçŧëð ŧĥïš {time}. ŧëšŧ çôþÿŧ⟧",
+  "tasks.stepApproval.outcome.changesNote": "⟦{name} àšķëð ƒôŕ çĥàñĝëš: “{note}”. Šëñð à ɱëššàĝë ŧô šàÿ ŵĥàŧ ŧô ðô ñëẋŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "tasks.stepApproval.outcome.changes": "⟦{name} àšķëð ƒôŕ çĥàñĝëš. Šëñð à ɱëššàĝë ŧô šàÿ ŵĥàŧ ŧô ðô ñëẋŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "tasks.stepApproval.outcome.rejected": "⟦{name} ŕëĵëçŧëð {step}. ŧëšŧ ç⟧"
 }

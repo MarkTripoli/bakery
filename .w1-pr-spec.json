@@ -1,0 +1,40 @@
+{
+  "ticket": 60,
+  "closes": false,
+  "purpose": "A workflow's approval step now has a screen: the task page says it waits for you, and the step's decision opens in the side pane.",
+  "risk": {
+    "level": "Medium",
+    "bullets": [
+      "The task page grows a step-review pane and a second live region; a bad render could cover the conversation.",
+      "Decision buttons reuse the delivery decision route, so a copy mistake would mislabel a refusal.",
+      "Roll back by reverting the commit; nothing is written to the database by the web app."
+    ]
+  },
+  "notes": [
+    "Slice W1 of the #60 UX design. It does not raise run_step approvals itself; the real-API spec seeds the wait.",
+    "The pane sits in the inspector slot on desktop and in a sheet on phones."
+  ],
+  "outline": {
+    "views": [
+      {
+        "lang": "text",
+        "body": "apps/web/src/pages/task-step-approval/\n  StepApprovalPane.tsx  + the run line, the pane, Approve / Request changes / Reject\n  model.ts              + which approval, which step, each refusal's key\n  use-step-approval.ts  + the task's approvals, the run's steps, the deciding people\napps/web/src/pages/\n  TaskRunSection.tsx    + \"Waiting for you\", Review the {step}, the run's outcome\n  TasksPage.tsx         + the pane's slot, the decision, the live region\n  task-conversation/    + an inspector slot for the pane\ntests/\n  web-step-approval-seed.ts  + asks a waiting step's approval, as the database owner"
+      }
+    ]
+  },
+  "decisions": [
+    "Chose the existing approvals read over a new endpoint, because it already carries run_step rows and decides through approvals.decide.",
+    "Chose the shared decision hook over a copy, because a refusal must read the same on the plan and on a step."
+  ],
+  "evidence": {
+    "head": "3fa15cdf8",
+    "items": [
+      "apps/web/tests/step-approval-real-api.spec.ts: the wait line, the pane, Approve keeps the run, Request changes and Reject end it, on the real server.",
+      "apps/web/tests/task-step-approval.spec.ts: the pane's states and refusals against fixtures.",
+      "tests/unit/web-task-step-approval_test.ts: 6 cases on which approval, which step and each refusal."
+    ]
+  },
+  "notApplicable": {
+    "backend": "W1 is web only; approvals.decide already takes run_step and the read already returns it."
+  }
+}

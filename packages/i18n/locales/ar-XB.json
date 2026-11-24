@@ -6834,9 +6834,6 @@
   "tasks.stepApproval.rejectField": "⟪Why?⟫",
   "tasks.stepApproval.rejectConfirm": "⟪Reject⟫",
   "tasks.stepApproval.cancel": "⟪Cancel⟫",
-  "tasks.stepApproval.refusal.alreadyApprove": "⟪already approved this {time}.⟫",
-  "tasks.stepApproval.refusal.alreadyRequestChanges": "⟪already asked for changes {time}.⟫",
-  "tasks.stepApproval.refusal.alreadyReject": "⟪already rejected this {time}.⟫",
   "tasks.stepApproval.refusal.decidedWord": "⟪Someone already decided this: {decision}.⟫",
   "tasks.stepApproval.word.approve": "⟪Approved⟫",
   "tasks.stepApproval.word.request_changes": "⟪Changes requested⟫",
@@ -6846,9 +6843,6 @@
   "tasks.stepApproval.announce.reject": "⟪Rejected. The run has ended.⟫",
   "tasks.stepApproval.outcome.badge.request_changes": "⟪Changes requested⟫",
   "tasks.stepApproval.outcome.badge.reject": "⟪Rejected⟫",
-  "tasks.stepApproval.outcome.changesNote": "⟪asked for changes: “{note}”. Send a message to say what to do next.⟫",
-  "tasks.stepApproval.outcome.changes": "⟪asked for changes. Send a message to say what to do next.⟫",
-  "tasks.stepApproval.outcome.rejected": "⟪rejected {step}.⟫",
   "tasks.stepApproval.outcome.someone": "⟪Someone⟫",
   "tasks.stepApproval.line": "⟪The {step} needs your approval before Bakery builds.⟫",
   "tasks.stepApproval.review": "⟪Review the {step}⟫",
@@ -6863,5 +6857,11 @@
   "tasks.stepApproval.refusal.outside": "⟪This decision is for the people on this task. Ask one of them.⟫",
   "tasks.stepApproval.refusal.failed": "⟪Your decision was not recorded. Try again.⟫",
   "tasks.stepApproval.refusal.forbidden": "⟪You are not allowed to decide on this.⟫",
-  "tasks.stepApproval.refusal.unknown": "⟪Your decision may not have been recorded. Retry sends the same decision once.⟫"
+  "tasks.stepApproval.refusal.unknown": "⟪Your decision may not have been recorded. Retry sends the same decision once.⟫",
+  "tasks.stepApproval.refusal.alreadyApprove": "⟪{name} already approved this {time}.⟫",
+  "tasks.stepApproval.refusal.alreadyRequestChanges": "⟪{name} already asked for changes {time}.⟫",
+  "tasks.stepApproval.refusal.alreadyReject": "⟪{name} already rejected this {time}.⟫",
+  "tasks.stepApproval.outcome.changesNote": "⟪{name} asked for changes: “{note}”. Send a message to say what to do next.⟫",
+  "tasks.stepApproval.outcome.changes": "⟪{name} asked for changes. Send a message to say what to do next.⟫",
+  "tasks.stepApproval.outcome.rejected": "⟪{name} rejected {step}.⟫"
 }
