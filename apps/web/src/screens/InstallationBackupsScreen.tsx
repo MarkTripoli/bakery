@@ -1,4 +1,5 @@
 import { type MouseEvent, type ReactNode } from "react";
+import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import type {
   BackupDrill,
@@ -873,20 +874,21 @@ function ServiceCard(
   const heard = status.runnerLastUsedAt;
   const quiet = isQuiet(heard, nowMs);
   const span = heard === null ? null : spanSince(heard, nowMs);
-  const state = heard === null
-    ? {
-      label: "installation.backups.service.state.waiting",
-      value: "installation.backups.service.waiting",
-    }
-    : quiet
-    ? {
-      label: "installation.backups.service.state.quiet",
-      value: "installation.backups.service.quiet",
-    }
-    : {
-      label: "installation.backups.service.state.running",
-      value: "installation.backups.service.running",
-    };
+  const state: { readonly label: MessageKey; readonly value: MessageKey } =
+    heard === null
+      ? {
+        label: "installation.backups.service.state.waiting",
+        value: "installation.backups.service.waiting",
+      }
+      : quiet
+      ? {
+        label: "installation.backups.service.state.quiet",
+        value: "installation.backups.service.quiet",
+      }
+      : {
+        label: "installation.backups.service.state.running",
+        value: "installation.backups.service.running",
+      };
   return (
     <UI.SettingsSection
       data-section="service"
