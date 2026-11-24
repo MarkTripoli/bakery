@@ -6773,6 +6773,13 @@ const transportSchemas = {
       ],
       "description": "Cancels the conversation's active or queued coordinator turn; requires the turn's current If-Match. A queued turn is canceled immediately, while an active turn is marked cancel-requested and interrupts its session, remaining in the active slot until stopped or reconciled."
     },
+    "ConversationTurnRetry": {
+      "fields": [],
+      "rules": [
+        "Idempotency-Key and If-Match required. Only a failed turn whose trigger message is still the conversation's latest message may be retried. The retry admits a new queued turn for the same trigger message, linked to the failed turn, and posts no message. Refusals: STATE_CONFLICT with reason turn_not_failed, newer_message, turn_already_retried or conversation_queue_full."
+      ],
+      "description": "Retries a failed coordinator turn without posting its message again; requires the failed turn's current If-Match. Returns the new queued turn, which runs the coordinator again as its own job."
+    },
     "SlackEvent": {
       "fields": [
         {

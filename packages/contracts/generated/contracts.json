@@ -9341,6 +9341,32 @@
     },
     {
       "group": "Conversation",
+      "method": "POST",
+      "path": "/v1/conversation-turns/{id}/retry",
+      "action": "conversationTurns.retry",
+      "access": "Developer",
+      "permission": "conversationTurn:write",
+      "input": "ConversationTurnRetry",
+      "output": "ConversationTurn",
+      "event": "conversation.turn_changed",
+      "mcp": "bakery_conversationTurns_retry",
+      "idempotency": "Idempotency-Key and If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
       "method": "GET",
       "path": "/v1/notifications",
       "action": "notifications.list",
@@ -15427,6 +15453,7 @@
     "conversations.update",
     "conversationTurns.get",
     "conversationTurns.cancel",
+    "conversationTurns.retry",
     "questions.list",
     "questions.get",
     "questions.answer",
@@ -42745,6 +42772,82 @@
           }
         }
       },
+      "/v1/conversation-turns/{id}/retry": {
+        "post": {
+          "operationId": "conversationTurns.retry",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationTurn"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT)."
+            },
+            "412": {
+              "description": "Precondition failed (PRECONDITION_FAILED)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationTurnRetry"
+                }
+              }
+            }
+          }
+        }
+      },
       "/v1/notifications": {
         "get": {
           "operationId": "notifications.list",
@@ -66249,6 +66352,7 @@
                 "conversationAccess.revoke",
                 "conversationTurns.get",
                 "conversationTurns.cancel",
+                "conversationTurns.retry",
                 "notifications.list",
                 "notifications.count",
                 "notifications.get",
@@ -78567,6 +78671,13 @@
           "properties": {},
           "additionalProperties": false,
           "description": "Cancels the conversation's active or queued coordinator turn; requires the turn's current If-Match. A queued turn is canceled immediately, while an active turn is marked cancel-requested and interrupts its session, remaining in the active slot until stopped or reconciled."
+        },
+        "ConversationTurnRetry": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false,
+          "description": "Retries a failed coordinator turn without posting its message again; requires the failed turn's current If-Match. Returns the new queued turn, which runs the coordinator again as its own job."
         },
         "SlackEvent": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -119268,6 +119379,7 @@
                 "conversationAccess.revoke",
                 "conversationTurns.get",
                 "conversationTurns.cancel",
+                "conversationTurns.retry",
                 "notifications.list",
                 "notifications.count",
                 "notifications.get",
@@ -119984,6 +120096,7 @@
                 "conversationAccess.revoke",
                 "conversationTurns.get",
                 "conversationTurns.cancel",
+                "conversationTurns.retry",
                 "notifications.list",
                 "notifications.count",
                 "notifications.get",
@@ -120700,6 +120813,7 @@
                 "conversationAccess.revoke",
                 "conversationTurns.get",
                 "conversationTurns.cancel",
+                "conversationTurns.retry",
                 "notifications.list",
                 "notifications.count",
                 "notifications.get",
@@ -167077,6 +167191,7 @@
                       "conversationAccess.revoke",
                       "conversationTurns.get",
                       "conversationTurns.cancel",
+                      "conversationTurns.retry",
                       "notifications.list",
                       "notifications.count",
                       "notifications.get",
@@ -307239,6 +307354,7 @@
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -319591,6 +319707,13 @@
       "properties": {},
       "additionalProperties": false,
       "description": "Cancels the conversation's active or queued coordinator turn; requires the turn's current If-Match. A queued turn is canceled immediately, while an active turn is marked cancel-requested and interrupts its session, remaining in the active slot until stopped or reconciled."
+    },
+    "ConversationTurnRetry": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Retries a failed coordinator turn without posting its message again; requires the failed turn's current If-Match. Returns the new queued turn, which runs the coordinator again as its own job."
     },
     "SlackEvent": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -360442,6 +360565,7 @@
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -361158,6 +361282,7 @@
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -361874,6 +361999,7 @@
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -408401,6 +408527,7 @@
                   "conversationAccess.revoke",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
+                  "conversationTurns.retry",
                   "notifications.list",
                   "notifications.count",
                   "notifications.get",
