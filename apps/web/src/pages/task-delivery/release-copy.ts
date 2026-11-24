@@ -11,7 +11,7 @@ type ReleaseNow = Extract<NowCard, { kind: "release" }>;
 export type ReleaseCopy = Readonly<{
   title: string;
   body: string;
-  action: "goBack" | "tell" | null;
+  action: "goBack" | "tell" | "chooseNext" | null;
 }>;
 
 export function environmentWord(
@@ -67,7 +67,7 @@ export function releaseCopy(t: Translate, now: ReleaseNow): ReleaseCopy {
       return {
         title: t("tasks.delivery.release.healthy.title", { environment }),
         body: t("tasks.delivery.release.healthy.body"),
-        action: null,
+        action: "chooseNext",
       };
     case "degraded":
       return {

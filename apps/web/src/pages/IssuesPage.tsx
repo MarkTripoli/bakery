@@ -72,7 +72,10 @@ export function IssuesPage() {
   const [sourceId, setSourceId] = useState("");
   const [started, setStarted] = useState(false);
   // The Choose repositories sheet: opened here, or by an issue that says its repository is off.
-  const search = useSearch({ strict: false }) as { choose?: boolean };
+  const search = useSearch({ strict: false }) as {
+    choose?: boolean;
+    repository?: string;
+  };
   const [choosing, setChoosingOpen] = useState(search.choose === true);
   const chooser = useRef<HTMLElement | null>(null);
   const setChoosing = (open: boolean) => {
@@ -169,6 +172,14 @@ export function IssuesPage() {
   });
   // A different organization means a different list.
   useEffect(() => setSourceId(""), [scope.organizationId]);
+  const chosenByHand = useRef(false);
+  useEffect(() => {
+    if (chosenByHand.current || search.repository === undefined) return;
+    const source = sources.data?.items.find((entry) =>
+      entry.repositoryId === search.repository
+    );
+    if (source !== undefined) setSourceId(source.id);
+  }, [sources.data, search.repository, scope.organizationId]);
 
   const refresh = useMutation({
     mutationKey: ["ticketSources.sync"],
@@ -415,7 +426,10 @@ export function IssuesPage() {
                     <UI.ResourcePicker
                       label={translate("issues.filter.repository" as never)}
                       value={sourceId}
-                      onChange={(event) => setSourceId(event.target.value)}
+                      onChange={(event) => {
+                        chosenByHand.current = true;
+                        setSourceId(event.target.value);
+                      }}
                       options={[
                         {
                           value: "",
