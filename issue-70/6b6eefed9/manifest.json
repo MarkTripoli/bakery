@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generatedAt": "2026-11-24T06:54:09.272Z",
+  "generatedAt": "2026-11-24T06:56:36.752Z",
   "distinct": true,
   "files": [
     {
@@ -142,6 +142,26 @@
       "path": "add-not-admin-390-light.png",
       "bytes": 21320,
       "sha256": "b99074ea8a1e7bedbea924160fcd088d375acefb024c80a366fdd4ba101de56c"
+    },
+    {
+      "path": "add-read-failed-1440-dark.png",
+      "bytes": 52897,
+      "sha256": "f0ae2287923fcc27bcc62fd4c644ecab7dc074e69c508bf59f58de8332136e9d"
+    },
+    {
+      "path": "add-read-failed-1440-light.png",
+      "bytes": 52577,
+      "sha256": "e1312db9e8c2713432dd424882f02d895c1fe45cd95f85832699ad2ba2a0fad2"
+    },
+    {
+      "path": "add-read-failed-390-dark.png",
+      "bytes": 27782,
+      "sha256": "3687b978e5a7049ca8789aa01211852a401ce0c2220ef3534a8c563a1aae7310"
+    },
+    {
+      "path": "add-read-failed-390-light.png",
+      "bytes": 27475,
+      "sha256": "7196d7427fd4e24df4870f82f18757450972b2bba3417231aee69359aee523df"
     },
     {
       "path": "add-ready-1440-dark.png",
