@@ -421,3 +421,36 @@ Deno.test("a person hands on only a decision they could make themselves, never o
     await o.finish();
   }
 });
+
+Deno.test("an expired request can be asked again, and the new power works", async () => {
+  const o = await open();
+  try {
+    const first = await o.ask("approve", o.approval);
+    assertEquals(first.status, 201, await first.clone().text());
+    const { id: firstId } = await first.json() as { id: string };
+    await o.fixture.pgDatabase.query(
+      `update bakery.person_requests set expires_at = now() - interval '1 minute'
+        where organization_id = $1 and id = $2`,
+      [o.fixture.organizationId, firstId],
+    );
+    await o.fixture.pgDatabase.query(
+      `update bakery.run_power_grants set expires_at = now() - interval '1 minute'
+        where organization_id = $1 and source_request_id = $2`,
+      [o.fixture.organizationId, firstId],
+    );
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
+      404,
+    );
+    const again = await o.ask("approve", o.approval);
+    assertEquals(again.status, 201, await again.clone().text());
+    assertNotEquals((await again.json() as { id: string }).id, firstId);
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
+      200,
+    );
+    assertEquals((await o.decide(o.guest.cookie, o.approval)).status, 200);
+  } finally {
+    await o.finish();
+  }
+});

@@ -67,7 +67,10 @@ Deno.test(
       await t.step(
         "ticketSources create, get and list answer and persist; a Viewer cannot read sources",
         async () => {
-          const body = sourceBody(authority, defaultTicketSourcePolicy());
+          const body = sourceBody(authority, {
+            ...defaultTicketSourcePolicy(),
+            preset: "fixed-coding",
+          });
           const created = await send(admin, "POST", "/v1/ticket-sources", body);
           assertEquals(created.status, 201, await created.clone().text());
           const source = await created.json() as {

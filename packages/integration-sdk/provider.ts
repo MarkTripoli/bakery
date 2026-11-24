@@ -22,6 +22,7 @@ export type {
   ProviderDefect,
   ServerImpl,
   ServerProvider,
+  StorageFor,
   TicketsFor,
 } from "./src/server-provider.ts";
 export {
@@ -58,6 +59,39 @@ export type {
   TicketSnapshot,
   TicketsPort,
 } from "./src/family-ports.ts";
+export {
+  isStoragePath,
+  MAX_STORAGE_CHANGES_PAGE,
+  MAX_STORAGE_PAGE_SIZE,
+  MAX_STORAGE_PATH_LENGTH,
+  MAX_STORAGE_READ_BYTES,
+  StorageChangeEventSchema,
+  StorageChangesInputSchema,
+  StorageChangesPageSchema,
+  StorageListInputSchema,
+  StorageListPageSchema,
+  StorageObjectSchema,
+  storageParentPath,
+  StoragePathSchema,
+  StorageReadInputSchema,
+  StorageReadRangeSchema,
+  StorageWriteInputSchema,
+  StorageWriteResultSchema,
+} from "./src/storage-port.ts";
+export type {
+  StorageChangeEvent,
+  StorageChangesInput,
+  StorageChangesPage,
+  StorageListInput,
+  StorageListPage,
+  StorageObject,
+  StoragePort,
+  StorageReadInput,
+  StorageReadRange,
+  StorageReadResult,
+  StorageWriteInput,
+  StorageWriteResult,
+} from "./src/storage-port.ts";
 export type {
   ApiTokenProbe,
   ConnectStrategy,

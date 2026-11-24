@@ -143,7 +143,15 @@ export function createSessionFeedHandler(secret: string) {
             $3::bigint is null or
             (message.sequence, message.id) > ($3::bigint, $4::uuid)
           )
-          and (not $6::boolean or message.agent_session_id = $7::uuid)
+          and (
+            not $6::boolean or message.agent_session_id = $7::uuid or exists (
+              select 1 from bakery.decisions_ledger steer
+               where steer.organization_id = message.organization_id
+                 and steer.kind = 'steer' and steer.subject_kind = 'session'
+                 and steer.subject_id = $7::uuid
+                 and steer.detail ->> 'messageId' = message.id::text
+            )
+          )
         order by message.sequence asc, message.id asc
         limit $5`,
       [
