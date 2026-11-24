@@ -182,9 +182,6 @@ test("schedule/manual empty diff reaches full consumers and fail-closed aggregat
       const name of [
         "LANE_UI_WEB_BROWSER",
         "LANE_UI_STORYBOOK_BROWSER",
-        "LANE_UI_PAPER_RUNTIME",
-        "LANE_UI_PAPER_ENTITLEMENTS",
-        "LANE_UI_PAPER_ARTIFACTS",
       ]
     ) {
       const refused = spawnSync("bash", ["-c", aggregate.run], {
@@ -196,6 +193,28 @@ test("schedule/manual empty diff reaches full consumers and fail-closed aggregat
         1,
         `${eventName}/${name} must not count skipped coverage as success`,
       );
+    }
+    // Paper parity is informational (owner rule, 2026-11-24): a shard that
+    // failed or never ran cannot fail the aggregate, and its jobs, needs and
+    // artifacts stay in place.
+    for (
+      const name of [
+        "LANE_UI_PAPER_RUNTIME",
+        "LANE_UI_PAPER_ENTITLEMENTS",
+        "LANE_UI_PAPER_ARTIFACTS",
+      ]
+    ) {
+      for (const result of ["skipped", "failure", "cancelled"]) {
+        const tolerated = spawnSync("bash", ["-c", aggregate.run], {
+          env: { ...env, [name]: result },
+          encoding: "utf8",
+        });
+        assert.equal(
+          tolerated.status,
+          0,
+          `${eventName}/${name}=${result} is informational, not gating: ${tolerated.stderr}`,
+        );
+      }
     }
   }
 });
@@ -248,11 +267,20 @@ test("the affected route selects exactly the classified heavy lanes", () => {
   });
   assert.equal(pass.status, 0, pass.stderr);
   // A selected lane that did not succeed rejects.
-  const failed = { ...env, LANE_UI_PAPER_RUNTIME: "failure" };
+  const failed = { ...env, LANE_UI_WEB_BROWSER: "failure" };
   assert.equal(
     spawnSync("bash", ["-c", aggregate.run], { env: failed, encoding: "utf8" })
       .status,
     1,
+  );
+  // A selected Paper shard that failed does not: parity is informational.
+  const parityFailed = { ...env, LANE_UI_PAPER_RUNTIME: "failure" };
+  assert.equal(
+    spawnSync("bash", ["-c", aggregate.run], {
+      env: parityFailed,
+      encoding: "utf8",
+    }).status,
+    0,
   );
   // A selected lane that was skipped rejects just as hard.
   const skippedSelected = { ...env, LANE_UI_WEB_BROWSER: "skipped" };

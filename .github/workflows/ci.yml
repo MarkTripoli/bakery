@@ -3061,9 +3061,6 @@ jobs:
               "$LANE_UI_WEB_BROWSER_C" \
               "$LANE_UI_WEB_BROWSER_D" \
               "$LANE_E2E_TESTS" \
-              "$LANE_UI_PAPER_RUNTIME" \
-              "$LANE_UI_PAPER_ENTITLEMENTS" \
-              "$LANE_UI_PAPER_ARTIFACTS" \
               "$LANE_NATIVE_WORKER"
             do
               if [[ "$heavy_lane" != skipped ]]; then
@@ -3111,9 +3108,6 @@ jobs:
               e2e_tests \
               ui_architecture \
               ui_storybook_browser \
-              ui_paper_runtime \
-              ui_paper_entitlements \
-              ui_paper_artifacts \
               native_worker
             do
               lane_env="LANE_${lane_key^^}"
@@ -3160,9 +3154,6 @@ jobs:
             "$LANE_UI_WEB_BROWSER_C" \
             "$LANE_UI_WEB_BROWSER_D" \
             "$LANE_E2E_TESTS" \
-            "$LANE_UI_PAPER_RUNTIME" \
-            "$LANE_UI_PAPER_ENTITLEMENTS" \
-            "$LANE_UI_PAPER_ARTIFACTS" \
             "$LANE_NATIVE_WORKER"
           do
             if [[ "$lane_result" != success ]]; then
