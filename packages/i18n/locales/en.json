@@ -4789,7 +4789,7 @@
   "library.evaluations.title.version": "Version {version}",
   "library.evaluations.title.agentUnversioned": "An agent",
   "library.evaluations.title.workflowUnversioned": "A workflow",
-  "library.evaluations.title.versionUnversioned": "A version",
+  "library.evaluations.title.versionUnversioned": "Version not recorded",
   "library.evaluations.badge.queued": "Waiting to start",
   "library.evaluations.badge.running": "Running · {measured} of {required} results measured",
   "library.evaluations.badge.completed": "Finished · {passed} of {required} results passed",

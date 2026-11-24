@@ -6729,7 +6729,7 @@
   "installation.usage.lastUpdated": "⟦Ļàšŧ ûþðàŧëð {time} ŧëšŧ⟧",
   "library.evaluations.title.agentUnversioned": "⟦Àñ àĝëñŧ…⟧",
   "library.evaluations.title.workflowUnversioned": "⟦À ŵôŕķƒļôŵ ŧ⟧",
-  "library.evaluations.title.versionUnversioned": "⟦À ṽëŕšïôñ ŧ⟧",
   "library.evaluation.cost.unsettled.body": "⟦Ñô ñëŵ ɱôðëļ çàļļ šŧàŕŧš ûñŧïļ ŧĥë ɱïššïñĝ çôšŧ ïš ķñôŵñ. Ɓàķëŕÿ çĥëçķš àĝàïñ ƀÿ ïŧšëļƒ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "library.evaluation.repeats.summary": "⟦{scorer}: {passed} ôƒ {n} ŕëþëàŧš þàššëð ŧëšŧ çôþÿ ŧ⟧"
+  "library.evaluation.repeats.summary": "⟦{scorer}: {passed} ôƒ {n} ŕëþëàŧš þàššëð ŧëšŧ çôþÿ ŧ⟧",
+  "library.evaluations.title.versionUnversioned": "⟦Ṽëŕšïôñ ñôŧ ŕëçôŕðëð ŧëšŧ⟧"
 }
