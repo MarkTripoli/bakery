@@ -124,7 +124,6 @@ export type Notice = {
   readonly tone: NoticeTone;
   readonly title: Phrase;
   readonly lines: readonly Phrase[];
-  readonly detail: string | null;
   readonly holdingWork: boolean;
 };
 
@@ -149,11 +148,6 @@ function failureLine(
   return fix === null
     ? { key: keys.causeOnly, values: { cause } }
     : { key: keys.full, values: { cause, fix } };
-}
-
-function latestFailureDetail(latest: BackupRun | null): string | null {
-  const detail = latest?.failureDetail ?? null;
-  return detail === null || detail === "" ? null : detail;
 }
 
 const FAILED_KEYS = {
@@ -209,7 +203,6 @@ export function backupNotice(input: NoticeInput): Notice {
           values: {},
         },
       ],
-      detail: null,
       holdingWork,
     };
   }
@@ -223,7 +216,6 @@ export function backupNotice(input: NoticeInput): Notice {
         { key: "installation.backups.notice.never.body", values: {} },
         ...(failed === null ? [] : [failureLine(failed, FAILED_KEYS)]),
       ],
-      detail: latestFailureDetail(latestFailed(latest)),
       holdingWork,
     };
   }
@@ -238,7 +230,6 @@ export function backupNotice(input: NoticeInput): Notice {
           : "installation.backups.notice.protected.offsite",
         values: { ago: spanSince(lastGood, nowMs) },
       }],
-      detail: null,
       holdingWork,
     };
   }
@@ -254,7 +245,6 @@ export function backupNotice(input: NoticeInput): Notice {
         failureLine(latest, OFFSITE_KEYS),
         { key: "installation.backups.notice.notCopied.hostGood", values: {} },
       ],
-      detail: latestFailureDetail(latest),
       holdingWork,
     };
   }
@@ -274,7 +264,6 @@ export function backupNotice(input: NoticeInput): Notice {
         },
         ...(failed === null ? [] : [failureLine(failed, STALE_KEYS)]),
       ],
-      detail: latestFailureDetail(failed),
       holdingWork,
     };
   }
@@ -287,7 +276,6 @@ export function backupNotice(input: NoticeInput): Notice {
       values: { time: since },
     },
     lines: [failureLine(latest, FAILED_KEYS)],
-    detail: null,
     holdingWork,
   };
 }
@@ -471,7 +459,6 @@ export type DrillResult = {
   readonly passed: boolean;
   readonly cause: MessageKey | null;
   readonly fix: MessageKey | null;
-  readonly detail: string | null;
   readonly failedChecks: readonly string[];
 };
 
@@ -516,9 +503,6 @@ export function drillResult(drill: BackupDrill): DrillResult {
       : known
       ? DRILL_FIX_KEYS[code]
       : "installation.backups.drillFix.unknown",
-    detail: passed || drill.detail === null || drill.detail === ""
-      ? null
-      : drill.detail,
     failedChecks: passed ? [] : drill.checksFailed,
   };
 }

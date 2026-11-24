@@ -137,7 +137,6 @@ Deno.test("a failed backup names the cause and the fix, and leaves the raw answe
       fix: "installation.backups.fix.disk_full",
     },
   }]);
-  assertEquals(result.detail, null);
 });
 
 Deno.test("a cause with no fix uses the sentence that ends at the cause", () => {

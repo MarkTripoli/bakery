@@ -580,6 +580,10 @@ for (
         const button = page.getByRole("button", { name: item.button });
         await expect(button).toBeVisible();
         if (item.button === "Backing up…") await expect(button).toBeDisabled();
+        if (item.notice === "not_copied") {
+          await page.mouse.move(5, 5);
+          await still(page, "backups-not-copied");
+        }
       }
     });
 
@@ -664,7 +668,7 @@ for (
       await expect.poll(() => said(failed)).toContain(
         "Did not pass: database, files",
       );
-      await expect.poll(() => said(failed)).toContain(
+      await expect.poll(() => said(failed)).not.toContain(
         "age: no identity matched",
       );
       await expect.poll(() => said(page.locator("[data-fact='restore-check']")))

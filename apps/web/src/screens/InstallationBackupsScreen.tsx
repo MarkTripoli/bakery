@@ -377,11 +377,6 @@ function StatusNotice(
           {notice.lines.map((line) => (
             <UI.Text key={line.key}>{format.phrase(line)}</UI.Text>
           ))}
-          {notice.detail === null ? null : (
-            <UI.DataText fit variant="code">
-              {notice.detail}
-            </UI.DataText>
-          )}
         </UI.Stack>
       </UI.InlineNotice>
       {notice.holdingWork
@@ -711,11 +706,6 @@ function DrillList(props: InstallationBackupsScreenProps) {
         {result.fix === null
           ? null
           : <UI.Text variant="caption">{translate(result.fix)}</UI.Text>}
-        {result.detail === null ? null : (
-          <UI.DataText fit variant="code">
-            {result.detail}
-          </UI.DataText>
-        )}
         {result.failedChecks.length === 0 ? null : (
           <UI.Text variant="caption">
             {translate("installation.backups.drills.failedChecks", {
