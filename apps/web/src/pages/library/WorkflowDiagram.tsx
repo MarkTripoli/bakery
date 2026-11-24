@@ -32,6 +32,7 @@ import type {
   GroupLabel,
   Tree,
   TreeGroup,
+  TreeLoop,
   TreeNode,
   TreeStep,
 } from "./workflow-tree.ts";
@@ -405,7 +406,39 @@ export function WorkflowDiagram(
       </UI.Tooltip>
     );
 
+  const loopLimit = (label: GroupLabel, loop: TreeLoop): string => {
+    const noun = label === "fix" ? "tries" : "rounds";
+    const ask = loop.allow === null
+      ? ""
+      : ` · ${
+        translate("library.editor.group.fixAsk" as never, {
+          from: loop.allow,
+        })
+      }`;
+    if (loop.min !== null && loop.min === loop.max) {
+      return translate("library.editor.group.fixExact" as never, {
+        max: loop.max,
+        noun,
+      }) + ask;
+    }
+    if (loop.min !== null) {
+      return translate("library.editor.group.fixRange" as never, {
+        min: loop.min,
+        max: loop.max,
+        noun,
+      }) + ask;
+    }
+    return translate("library.editor.group.fixLimit" as never, {
+      max: loop.max,
+      noun,
+    }) + ask;
+  };
   const limitOf = (group: TreeGroup): string | undefined => {
+    if (
+      group.loop !== undefined && group.loop.fix === (group.label === "fix")
+    ) {
+      return loopLimit(group.label, group.loop);
+    }
     if (group.max === undefined) return undefined;
     if (group.label === "each") {
       return translate("library.editor.group.eachLimit" as never, {

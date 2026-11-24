@@ -31,6 +31,7 @@ import { WorkflowDiagram } from "./WorkflowDiagram.tsx";
 import { DiagramViewSwitch, useDiagramView } from "./diagram-view.tsx";
 import { versionSource } from "./copy-workflow.ts";
 import {
+  applyLoops,
   definitionOf,
   editorReducer,
   editorStateOf,
@@ -100,6 +101,19 @@ type ProblemRow = {
   readonly sentence: string;
   readonly stepId: string | null;
 };
+
+/**
+ * The most tries a repeat may take: WORKFLOW_COMPILER_LIMITS.repeatMax, or the
+ * workflow's own repair-cycle limit when that is lower (#419).
+ */
+function repeatCap(spec: Readonly<Record<string, unknown>> | null): number {
+  const limits = record(spec?.limits);
+  const own = limits.maxRepairCycles;
+  return typeof own === "number" && Number.isInteger(own) && own >= 1 &&
+      own < 8
+    ? own
+    : 8;
+}
 
 const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   yes: "library.editor.group.yes",
@@ -255,7 +269,7 @@ export function WorkflowEditorPage(
   // A different version being edited starts the editor again.
   useEffect(() => {
     dispatch({ kind: "reset", steps: versionSteps });
-    lastSaved.current = JSON.stringify(versionSteps);
+    lastSaved.current = JSON.stringify({ steps: versionSteps, loops: [] });
     setSaveState({ kind: "saved" });
   }, [draft?.id, versionSteps]);
 
@@ -285,6 +299,7 @@ export function WorkflowEditorPage(
           definition: definitionOf(
             record(draft.normalizedSpec),
             steps,
+            editor.loops,
           ) as never,
           // Slots the person settled, so the server drops their placeholders with this save.
           ...(() => {
@@ -317,7 +332,10 @@ export function WorkflowEditorPage(
     onMutate: () => setSaveState({ kind: "saving" }),
     onSuccess: (_saved, written) => {
       // What was written is what is saved: an edit made meanwhile is still to save.
-      lastSaved.current = JSON.stringify(written);
+      lastSaved.current = JSON.stringify({
+        steps: written,
+        loops: editor.loops,
+      });
       // The slots this save settled are done; one settled meanwhile is still to save.
       setResolving((previous) =>
         new Set(
@@ -389,8 +407,11 @@ export function WorkflowEditorPage(
   // their place. A definition that is a straight line of actions is drawn from
   // the editor's own list, so an add, move or remove shows at once.
   const rawSpec = useMemo(
-    () => draft === null ? null : record(draft.normalizedSpec),
-    [draft],
+    () =>
+      draft === null
+        ? null
+        : applyLoops(record(draft.normalizedSpec), editor.loops),
+    [draft, editor.loops],
   );
   const rawSteps = useMemo<readonly unknown[] | null>(() => {
     if (rawSpec === null) return null;
@@ -445,6 +466,7 @@ export function WorkflowEditorPage(
       const definition = definitionOf(
         draft === null ? null : record(draft.normalizedSpec),
         held,
+        editor.loops,
       );
       const result = await api.validateWorkflow({
         organizationId: scope.organizationId as string,
@@ -500,10 +522,11 @@ export function WorkflowEditorPage(
     }
     const timer = setTimeout(() => check.mutate(steps), SAVE_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [steps]);
+  }, [steps, editor.loops]);
 
+  const edited = JSON.stringify({ steps, loops: editor.loops });
   const changed = lastSaved.current !== null &&
-    (JSON.stringify(steps) !== lastSaved.current || resolving.size > 0);
+    (edited !== lastSaved.current || resolving.size > 0);
 
   // A change saves itself once the person stops typing; a failed save waits for
   // "Try again" rather than looping.
@@ -520,6 +543,7 @@ export function WorkflowEditorPage(
     publishAfterSave,
     changed,
     steps,
+    editor.loops,
     canManage,
     draft,
     saveState.kind,
@@ -735,6 +759,24 @@ export function WorkflowEditorPage(
     if (selectedId === "start") return { kind: "start" };
     const group = groupsOfTree(tree).find((held) => held.id === selectedId);
     if (group !== undefined) {
+      if (group.loop !== undefined) {
+        const loop = group.loop;
+        return {
+          kind: "loop",
+          name: translate(GROUP_LABEL[group.label] as never),
+          noun: loop.fix ? "tries" : "rounds",
+          fix: loop.fix,
+          values: { min: loop.min, max: loop.max, allow: loop.allow },
+          cap: repeatCap(rawSpec),
+          readOnly: !canManage,
+          ...(loop.fix
+            ? { help: translate("library.editor.group.fixHelpShort" as never) }
+            : {}),
+          onCommit: (values) => {
+            dispatch({ kind: "loop", path: loop.path, ...values });
+          },
+        };
+      }
       return {
         kind: "codeOnly",
         name: translate(GROUP_LABEL[group.label] as never),

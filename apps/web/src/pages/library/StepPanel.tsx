@@ -76,9 +76,31 @@ export type StepSkills =
   | { readonly kind: "failed"; readonly onRetry: () => void }
   | { readonly kind: "ready"; readonly rows: readonly StepSkillRow[] };
 
+/** A repeat's numbers as the panel edits them (#419). */
+export type LoopValues = {
+  readonly min: number | null;
+  readonly max: number;
+  readonly allow: number | null;
+};
+
 /** What the panel is showing. */
 export type PanelTarget =
   | { readonly kind: "start" }
+  | {
+    readonly kind: "loop";
+    /** The block's own name: Fix until it passes, or Repeat. */
+    readonly name: string;
+    /** The noun every label uses: Tries for a fix block, Rounds for a repeat. */
+    readonly noun: "tries" | "rounds";
+    readonly fix: boolean;
+    readonly values: LoopValues;
+    /** The most this workflow allows: 8, or its own repair-cycle limit when lower. */
+    readonly cap: number;
+    readonly readOnly: boolean;
+    /** What the block does, in the words the group already uses. */
+    readonly help?: string | undefined;
+    readonly onCommit: (values: LoopValues) => void;
+  }
   | {
     readonly kind: "codeOnly";
     readonly name: string;
@@ -140,6 +162,10 @@ export function StepPanel(
         </UI.Text>
       </UI.InspectorPanel>
     );
+  }
+
+  if (target.kind === "loop") {
+    return <LoopPanel onViewAsCode={onViewAsCode} target={target} />;
   }
 
   if (target.kind === "codeOnly") {
@@ -250,6 +276,158 @@ export function StepPanel(
         {target.skills.kind === "hidden"
           ? null
           : <Skills attach={target.attach} skills={target.skills} />}
+      </UI.Stack>
+    </UI.InspectorPanel>
+  );
+}
+
+type LoopField = "min" | "max" | "allow";
+
+const wholeNumber = (text: string): number | null => {
+  const trimmed = text.trim();
+  return /^[0-9]{1,3}$/.test(trimmed) ? Number(trimmed) : null;
+};
+
+type LoopDraft = Record<LoopField, string>;
+type LoopProblem = { readonly field: LoopField; readonly error: string };
+
+/**
+ * What stops a draft from being saved, or null when it can be: one problem at
+ * a time, top-down, so the first bad field is the one the person fixes (#419).
+ */
+function loopProblem(
+  draft: LoopDraft,
+  cap: number,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): LoopProblem | null {
+  const max = wholeNumber(draft.max);
+  if (max === null || max < 1 || max > cap) {
+    return { field: "max", error: t("mostInvalid", { cap }) };
+  }
+  const minTyped = draft.min.trim();
+  const min = minTyped === "" ? null : wholeNumber(draft.min);
+  if (min !== null && min > max) {
+    return { field: "min", error: t("fewestAboveMost", { max }) };
+  }
+  const allowTyped = draft.allow.trim();
+  const allow = allowTyped === "" ? null : wholeNumber(draft.allow);
+  const low = min ?? 1;
+  const high = Math.max(low, max - 1);
+  if (allow !== null && (allow < low || allow > high)) {
+    return { field: "allow", error: t("askRange", { low, high }) };
+  }
+  return null;
+}
+
+/**
+ * A repeat's numbers (#419): Fewest tries, Most tries and Ask a person after.
+ * They commit on blur or Enter into the editor's draft, so the existing Undo
+ * and Publish carry them; the panel keeps the typed text until the draft takes
+ * it, and an invalid value shows one error and changes nothing.
+ */
+function LoopPanel(
+  { target, onViewAsCode }: {
+    readonly target: Extract<PanelTarget, { readonly kind: "loop" }>;
+    readonly onViewAsCode: () => void;
+  },
+) {
+  const { translate } = useI18n();
+  const t = (key: string, values?: Record<string, string | number>) =>
+    translate(`library.editor.loop.${key}` as never, values as never);
+  const asDraft = (values: LoopValues): LoopDraft => ({
+    min: values.min === null ? "" : String(values.min),
+    max: String(values.max),
+    allow: values.allow === null ? "" : String(values.allow),
+  });
+  const committed =
+    `${target.values.min}/${target.values.max}/${target.values.allow}`;
+  const [draft, setDraft] = useState<LoopDraft>(asDraft(target.values));
+  const [shown, setShown] = useState<LoopProblem | null>(null);
+  const [seen, setSeen] = useState(committed);
+  if (seen !== committed) {
+    setSeen(committed);
+    setDraft(asDraft(target.values));
+    setShown(null);
+  }
+  const commit = () => {
+    const problem = loopProblem(draft, target.cap, t);
+    setShown(problem);
+    if (problem !== null) return;
+    const min = draft.min.trim() === "" ? null : wholeNumber(draft.min);
+    const allow = draft.allow.trim() === "" ? null : wholeNumber(draft.allow);
+    target.onCommit({ min, max: wholeNumber(draft.max) as number, allow });
+  };
+  const hintFor = (field: LoopField): string => {
+    if (field === "min") {
+      if (draft.min.trim() !== "") {
+        return t(target.fix ? "fewestSet" : "fewestSetRepeat");
+      }
+      return t(target.fix ? "fewestEmpty" : "fewestEmptyRepeat");
+    }
+    if (field === "max") {
+      return target.cap < 8
+        ? t("mostHintCapped", { cap: target.cap })
+        : t("mostHint", { cap: target.cap });
+    }
+    return t("askHint");
+  };
+  const fields: readonly {
+    field: LoopField;
+    label: string;
+    locked: boolean;
+  }[] = [
+    { field: "min", label: t("fewest"), locked: target.readOnly },
+    { field: "max", label: t("most"), locked: false },
+    { field: "allow", label: t("ask"), locked: target.readOnly },
+  ];
+  return (
+    <UI.InspectorPanel
+      id="editor-step-panel"
+      label={translate("library.editor.panel.label" as never)}
+      variant="column"
+      header={<UI.Text variant="strong">{target.name}</UI.Text>}
+      footer={
+        <UI.Button variant="secondary" onClick={onViewAsCode}>
+          {translate("library.editor.viewAsCode" as never)}
+        </UI.Button>
+      }
+    >
+      <UI.Stack gap="compact">
+        {target.help === undefined ? null : <UI.Text>{target.help}</UI.Text>}
+        <UI.Text variant="strong">{t(target.noun)}</UI.Text>
+        {fields.map(({ field, label, locked }) => (
+          <UI.Field
+            key={field}
+            error={shown?.field === field ? shown.error : undefined}
+            hint={locked ? t("newFormat") : hintFor(field)}
+            htmlFor={`loop-${field}`}
+            label={label}
+          >
+            <UI.TextInput
+              autoComplete="off"
+              id={`loop-${field}`}
+              inputMode="numeric"
+              max={field === "max" ? target.cap : undefined}
+              min={1}
+              name={field}
+              onBlur={commit}
+              onChange={(value) => {
+                setDraft((held) => ({ ...held, [field]: value }));
+                if (shown?.field === field) setShown(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commit();
+                }
+              }}
+              readOnly={locked}
+              type="number"
+              value={draft[field]}
+            />
+          </UI.Field>
+        ))}
+        <UI.Text variant="muted">{t("codeUntil")}</UI.Text>
       </UI.Stack>
     </UI.InspectorPanel>
   );
