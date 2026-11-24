@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { openByTitle } from "./storybook-harness.ts";
+import {
+  openByTitle,
+  storyPath,
+  waitForSpecimen,
+} from "./storybook-harness.ts";
 
 test.describe("Storybook overlay interactions", () => {
   test("keeps ResourcePicker unavailable state visible", async ({ page }) => {
@@ -102,6 +106,29 @@ test.describe("Storybook overlay interactions", () => {
     await cancel.click();
     await expect(dialog).not.toBeVisible();
     await expect(trigger).toBeFocused();
+  });
+
+  test("closing an AlertDialog inside a Sheet leaves the Sheet open", async ({ page }) => {
+    await page.goto(
+      storyPath("bakery-interactions-alertdialog-in-sheet--nested"),
+    );
+    await waitForSpecimen(page);
+    const sheet = page.getByTestId("nested-sheet");
+    const alert = page.getByTestId("nested-alert");
+    await page.getByTestId("nested-sheet-trigger").click();
+    await expect(sheet).toBeVisible();
+    await page.getByTestId("nested-alert-trigger").click();
+    await expect(alert).toBeVisible();
+    await alert.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(alert).not.toBeVisible();
+    await expect(sheet).toBeVisible();
+    await page.getByTestId("nested-alert-trigger").click();
+    await expect(alert).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(alert).not.toBeVisible();
+    await expect(sheet).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(sheet).not.toBeVisible();
   });
 
   test("keeps the error Sheet native and keyboard-modal", async ({ page }) => {

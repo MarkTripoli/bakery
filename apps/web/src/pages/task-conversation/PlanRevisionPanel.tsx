@@ -119,8 +119,7 @@ export function usePlanRevision(
         outcome: t(`tasks.conversation.plan.refusal.outcome.${decided}`),
       })
     : t(`tasks.conversation.plan.refusal.${refusal}`);
-  const refused = refusalText !== null &&
-    (phase === "conflict" || phase === "error" || phase === "forbidden");
+  const refused = refusalText !== null;
   const notice = refused
     ? { tone: "error" as const, text: refusalText }
     : phase === "conflict"
@@ -165,7 +164,7 @@ export function usePlanRevision(
       aria-label={t("tasks.conversation.plan.heading")}
       role="region"
     >
-      {(obsoleteNotice !== null || obsolete) && (
+      {refusal !== "newer" && (obsoleteNotice !== null || obsolete) && (
         <UI.InlineNotice layout="bar" icon="caution" tone="warning">
           {t("tasks.conversation.plan.obsolete", {
             revision: String(obsoleteNotice ?? revision),
