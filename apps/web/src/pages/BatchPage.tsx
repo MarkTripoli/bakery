@@ -41,6 +41,7 @@ import {
   controlRefusal,
 } from "./batches/batch-refusal.ts";
 import { say } from "./batches/say.ts";
+import { presetCopy } from "./task-composer-labels.ts";
 import { BatchBreadcrumbs } from "./batches/BatchBreadcrumbs.tsx";
 import { useBatchLookups } from "./batches/use-batch-lookups.ts";
 
@@ -229,7 +230,12 @@ export function BatchPage({ batchId }: { batchId: string }) {
     ),
   };
   const stateBadge = stateBadgeFor(batch, waitingFor);
+  const workflowName = batch.presetId === null
+    ? translate("batches.page.workflowNone" as never)
+    : presetCopy(translate, batch.presetId).title;
   const facts: BannerFacts = {
+    workflow: workflowName,
+    repository,
     currentNumber: number(current),
     lastNumber: number(last),
     who,
@@ -503,11 +509,26 @@ export function BatchPage({ batchId }: { batchId: string }) {
               </UI.Badge>
             </>
           }
-          subtitle={translate("batches.page.subtitle" as never, {
-            name: lookups.personName(batch.startedBy) ?? someone,
-            time: lookups.time(batch.startedAt),
-            mode,
-          })}
+          subtitle={
+            <UI.Stack gap="compact">
+              <UI.Text variant="muted">
+                {translate("batches.page.subtitle" as never, {
+                  name: lookups.personName(batch.startedBy) ?? someone,
+                  time: lookups.time(batch.startedAt),
+                  mode,
+                })}
+              </UI.Text>
+              {batch.presetId === null
+                ? null
+                : (
+                  <UI.Text variant="muted" data-testid="batch-workflow">
+                    {translate("batches.page.workflow" as never, {
+                      name: workflowName,
+                    })}
+                  </UI.Text>
+                )}
+            </UI.Stack>
+          }
           actions={headerNodes.length === 0 || !phone ? null : headerRow}
         />
         {notice === null
