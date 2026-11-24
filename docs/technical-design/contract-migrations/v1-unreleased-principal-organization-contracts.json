@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "33633736b3f873e705ff50999f03329dc674f472"
+    "e12eadac05172e807be21f9a1c2cf30d5097f60b"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:7fdf7f4cab7d8bc4e549446360745ac97604f1823868ba31468e388443d2c878",
-  "reason": "#419 repeat limit decisions by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 33633736b3f873e705ff50999f03329dc674f472: runRepairAllowances.create answers with a TriesAllowance (runId, kind, addedTries, decisionId, repeatKey) instead of a DeliveryDecision, because the same route now also resumes a run that stopped at a repeat's allow, which has no delivery decision. No client has been released that reads the old response.",
+  "targetCompatibilityDigest": "sha256:1e1d9c816de830faaf4a12c468d48b35b9092a5c942a988d02b576a0c3ba90e0",
+  "reason": "#419 repeat limit decisions by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main e12eadac05172e807be21f9a1c2cf30d5097f60b: runRepairAllowances.create answers with a TriesAllowance (runId, kind, addedTries, decisionId, repeatKey) instead of a DeliveryDecision, because the same route now also resumes a run that stopped at a repeat's allow, which has no delivery decision. No client has been released that reads the old response.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "33633736b3f873e705ff50999f03329dc674f472"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7fdf7f4cab7d8bc4e549446360745ac97604f1823868ba31468e388443d2c878",
+      "reason": "#419 repeat limit decisions by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 33633736b3f873e705ff50999f03329dc674f472: runRepairAllowances.create answers with a TriesAllowance (runId, kind, addedTries, decisionId, repeatKey) instead of a DeliveryDecision, because the same route now also resumes a run that stopped at a repeat's allow, which has no delivery decision. No client has been released that reads the old response."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
