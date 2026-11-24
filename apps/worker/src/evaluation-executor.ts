@@ -3,7 +3,8 @@ import {
   evaluateCheck,
   type EvaluationCheckSpec,
 } from "../../../packages/contracts/src/evaluation-scoring.ts";
-import type { WorkerContextInput } from "./client.ts";
+import { attemptProofOf } from "./client.ts";
+import type { ReadAttemptContext } from "./harness-context.ts";
 import type { ExecutionOutcome, WorkerExecutor } from "./executor.ts";
 import { NativeExecutorError } from "./executor.ts";
 import { type JudgeOptions, runBoundedJudge } from "./bounded-judge.ts";
@@ -18,9 +19,7 @@ export type EvaluationExecutorOptions = {
    * Reads the attempt's pinned inputs with their bytes. The output artifact
    * version to score must be one of them; a worker cannot ask for anything else.
    */
-  readonly readAttemptContext?: (
-    attemptId: string,
-  ) => Promise<readonly WorkerContextInput[]>;
+  readonly readAttemptContext?: ReadAttemptContext;
   /**
    * The bounded judge `evaluation.score` calls. Without a transport every
    * score is unscored with an explicit "no model provider" reason.
@@ -90,7 +89,9 @@ async function readOutputBytes(
   if (!options.readAttemptContext) {
     return "this worker has no reader for pinned inputs";
   }
-  const inputs = await options.readAttemptContext(assignment.attemptId);
+  const proof = attemptProofOf(assignment);
+  if (proof === null) return "this assignment carries no lease proof";
+  const inputs = await options.readAttemptContext(assignment.attemptId, proof);
   const pinned = inputs.find((item) => item.artifactVersionId === versionId);
   if (!pinned) {
     return "the output artifact version is not pinned to the attempt";

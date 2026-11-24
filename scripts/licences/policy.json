@@ -55,6 +55,12 @@
       "versions": ["1.1.0"],
       "licence": "MIT License",
       "reason": "package metadata declares the non-SPDX string MIT License"
+    },
+    {
+      "name": "elkjs",
+      "versions": ["0.12.1"],
+      "licence": "EPL-2.0 OR GPL-3.0-or-later",
+      "reason": "dual licence, used under EPL-2.0 (weak copyleft) unmodified: the workflow canvas lays out its boxes in a lazily loaded browser worker; listed in NOTICE with its source location"
     }
   ],
   "families": [

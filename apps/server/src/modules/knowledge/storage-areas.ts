@@ -86,7 +86,8 @@ export type AreaRefusal =
   | "library_area"
   | "trash_area"
   | "system_area"
-  | "system_folder";
+  | "system_folder"
+  | "folder_view_only";
 
 /** An entry as the rules see it. */
 export type AreaEntry = Readonly<{

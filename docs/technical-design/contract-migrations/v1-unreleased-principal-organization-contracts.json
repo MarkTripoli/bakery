@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "fc819c510e55999f77dd9ec034e279926afa03f0"
+    "33633736b3f873e705ff50999f03329dc674f472"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:d1c89fac9f7cfc3f9f9eb7fe5e1cb3ddb2ac1aa8d61a8a77337ccc4c718f1044",
-  "reason": "#34 plugin job version pin by dev-agx2 on 2026-11-23 under the owner's standing breaking-change authorization (2026-10-09), main fc819c510e55999f77dd9ec034e279926afa03f0: workerActions['plugin.job'].input.versionId becomes required (uuid, was uuid?), because a job that named no version was served the install's current version, so an upgrade changed the code a leased job fetched. The worker refuses a job without a pin as plugin_job_version_unpinned, the file route joins the pinned version instead of coalescing to plugin_installs.plugin_version_id, and every description that offered the install's current version now names only the version the job was admitted against. No other contract shape changed by this branch.",
+  "targetCompatibilityDigest": "sha256:24bfec4c60286b79800b6fa47c731f2b43a54957b3a879d0dd25b5b0ae22ff87",
+  "reason": "#407 batch workflow under the owner's standing breaking-change authorization (2026-10-09), main 33633736b3f873e705ff50999f03329dc674f472: BatchCreate.presetId becomes a required field (fixed-coding or fixed-coding-reviewed), because a batch start admitted every issue with no workflow and #407 made that a refusal; Batch gains presetId, null for a batch started before the workflow was stored. No other contract shape changed by this branch. The #34 plugin job version pin approval on main fc819c510e55999f77dd9ec034e279926afa03f0 stays below as history.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "fc819c510e55999f77dd9ec034e279926afa03f0"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:d1c89fac9f7cfc3f9f9eb7fe5e1cb3ddb2ac1aa8d61a8a77337ccc4c718f1044",
+      "reason": "The #34 plugin job version pin approval bound to main fc819c510e55999f77dd9ec034e279926afa03f0, displaced by the #407 batch workflow rebind to main 33633736b3f873e705ff50999f03329dc674f472. Kept as history."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

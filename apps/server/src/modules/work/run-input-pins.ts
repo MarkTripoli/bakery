@@ -1,10 +1,16 @@
 import type { PgTransactionClient } from "@bakery/persistence";
+import type { ActionContext } from "@bakery/contracts/action-registry";
 import { StandardError, unprocessable } from "@bakery/contracts/http";
+import { isOrganizationAdmin } from "../knowledge/folder-access-store.ts";
+import { readableEntry } from "../knowledge/storage-reads.ts";
 import {
   pinStoragePath,
   StorageNameError,
+  type StoragePin,
   storageQueryOf,
 } from "../knowledge/storage-tree.ts";
+
+export type ConnectionInputIngest = (path: string) => Promise<StoragePin>;
 
 /**
  * The key an input value uses to declare a pinned artifact version.
@@ -186,12 +192,48 @@ export type ResolvedInputPath = Readonly<{
  * file with a current version is refused with one code, whether it is missing or
  * in another organization, so a caller learns nothing about another tree.
  */
+async function readableByCaller(
+  transaction: PgTransactionClient,
+  options: {
+    organizationId: string;
+    principalId: string;
+    context: Pick<ActionContext, "agentSession" | "sessionScopes">;
+  },
+  entryId: string,
+): Promise<boolean> {
+  try {
+    await readableEntry(
+      options.context,
+      transaction,
+      options.organizationId,
+      options.principalId,
+      {
+        isAdmin: await isOrganizationAdmin(
+          transaction,
+          options.organizationId,
+          options.principalId,
+        ),
+      },
+      entryId,
+    );
+    return true;
+  } catch (error) {
+    if (error instanceof StandardError && error.code === "RESOURCE_NOT_FOUND") {
+      return false;
+    }
+    throw error;
+  }
+}
+
 export async function resolveInputPaths(
   transaction: PgTransactionClient,
   options: {
     organizationId: string;
+    principalId: string;
+    context: Pick<ActionContext, "agentSession" | "sessionScopes">;
     inputs: unknown;
     inputPaths: unknown;
+    connections?: ConnectionInputIngest;
   },
 ): Promise<{ inputs: unknown; resolved: ResolvedInputPath[] }> {
   if (options.inputPaths === undefined || options.inputPaths === null) {
@@ -232,10 +274,14 @@ export async function resolveInputPaths(
     }
     let pin;
     try {
-      pin = await pinStoragePath(db, {
-        organizationId: options.organizationId,
-        path,
-      });
+      pin = isConnectionsPath(path)
+        ? options.connections === undefined
+          ? undefined
+          : await options.connections(path)
+        : await pinStoragePath(db, {
+          organizationId: options.organizationId,
+          path,
+        });
     } catch (error) {
       if (error instanceof StorageNameError) {
         throw unprocessable(
@@ -245,7 +291,7 @@ export async function resolveInputPaths(
       }
       throw error;
     }
-    if (!pin) {
+    if (!pin || !(await readableByCaller(transaction, options, pin.entryId))) {
       throw unprocessable(
         ["inputPaths", inputName],
         "input_storage_path_unavailable",
@@ -353,4 +399,10 @@ export async function readRunInputPins(
     sha256: row.sha256,
     sizeBytes: row.size_bytes,
   }));
+}
+
+function isConnectionsPath(path: string): boolean {
+  const first = path.split("/")[1] ?? "";
+  return path.startsWith("/") &&
+    first.normalize("NFC").trim().toLowerCase() === "connections";
 }

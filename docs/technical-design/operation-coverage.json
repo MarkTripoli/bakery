@@ -1003,6 +1003,18 @@
         "module": "knowledge",
         "migration": "apps/server/src/modules/knowledge/migrations/bakery/0285_step_write_set.sql"
       },
+      "storage_connection_ingests": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0355_storage_connections.sql"
+      },
+      "storage_connection_mounts": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0355_storage_connections.sql"
+      },
+      "storage_connection_syncs": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0355_storage_connections.sql"
+      },
       "storage_entries": {
         "module": "knowledge",
         "migration": "apps/server/src/modules/knowledge/migrations/bakery/0232_storage_entries.sql"
@@ -1010,6 +1022,10 @@
       "storage_file_versions": {
         "module": "knowledge",
         "migration": "apps/server/src/modules/knowledge/migrations/bakery/0249_storage_working_areas.sql"
+      },
+      "storage_folder_grants": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0356_folder_grants.sql"
       },
       "storage_purge_requests": {
         "module": "knowledge",
