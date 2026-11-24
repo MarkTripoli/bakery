@@ -1,4 +1,5 @@
 import type { PgTransactionClient } from "@bakery/persistence";
+import { resolveMemorySources } from "./memory-source-state.ts";
 import type { StepFact } from "./step-facts.ts";
 
 export type GivenFactState = "given" | "corrected_since" | "stopped_since";
@@ -42,11 +43,18 @@ export function describeGivenFacts(
   );
 }
 
+export type GivenDocumentState =
+  | "available"
+  | "hidden"
+  | "gone"
+  | "unchecked";
+
 export type GivenDocument = Readonly<{
   artifactVersionId: string;
-  name: string;
-  kind: string;
-  version: number;
+  state: GivenDocumentState;
+  name: string | null;
+  kind: string | null;
+  version: number | null;
   sizeBytes: number;
 }>;
 
@@ -57,6 +65,12 @@ export type StepGiven = Readonly<{
   facts: readonly GivenFact[];
   factsOmitted: number;
   documents: readonly GivenDocument[];
+  /** Documents the reader may not see at all, counted but never named. */
+  documentsHidden: number;
+  /** Documents whose bytes are purged, counted but never named. */
+  documentsGone: number;
+  /** Documents nothing truthful can be said about, counted but never named. */
+  documentsUnchecked: number;
 }>;
 
 type StepFactsRecord = Readonly<{
@@ -70,6 +84,7 @@ export async function readStepGiven(
     organizationId: string;
     runId: string;
     stepKey: string;
+    readerMayRead?: boolean;
   }>,
 ): Promise<StepGiven | null> {
   const step = (await transaction.query<{
@@ -123,26 +138,86 @@ export async function readStepGiven(
     ranAnAgent,
     facts: describeGivenFacts(recorded, now),
     factsOmitted: step.recorded?.omitted ?? 0,
-    documents: await readGivenDocuments(transaction, input),
+    ...await readGivenDocuments(transaction, input),
   };
 }
 
 async function readGivenDocuments(
   transaction: PgTransactionClient,
-  input: Readonly<{ organizationId: string; runId: string }>,
-): Promise<readonly GivenDocument[]> {
-  const rows = await transaction.query<GivenDocument>(
+  input: Readonly<{
+    organizationId: string;
+    runId: string;
+    readerMayRead?: boolean;
+  }>,
+): Promise<
+  Readonly<{
+    documents: readonly GivenDocument[];
+    documentsHidden: number;
+    documentsGone: number;
+    documentsUnchecked: number;
+  }>
+> {
+  const pins = (await transaction.query<{
+    artifactVersionId: string;
+    name: string;
+    kind: string;
+    version: number;
+    sizeBytes: number;
+  }>(
     `select version.id as "artifactVersionId",
             artifact.name as "name",
             artifact.artifact_type as "kind",
             version.revision::integer as "version",
             version.size_bytes as "sizeBytes"
        from bakery.run_input_pins pin
-       join bakery.artifact_versions version on version.id = pin.artifact_version_id
-       join bakery.artifacts artifact on artifact.id = version.artifact_id
+       join bakery.artifact_versions version
+         on version.organization_id = pin.organization_id
+        and version.id = pin.artifact_version_id
+       join bakery.artifacts artifact
+         on artifact.organization_id = version.organization_id
+        and artifact.id = version.artifact_id
       where pin.organization_id = $1 and pin.run_id = $2
       order by pin.created_at, pin.id`,
     [input.organizationId, input.runId],
-  );
-  return rows.rows;
+  )).rows;
+
+  const sources = await resolveMemorySources(transaction, {
+    organizationId: input.organizationId,
+    readerMayRead: input.readerMayRead ?? true,
+    versionIds: pins.map((pin) => pin.artifactVersionId),
+  });
+
+  const documents: GivenDocument[] = [];
+  let documentsHidden = 0;
+  let documentsGone = 0;
+  let documentsUnchecked = 0;
+  for (const pin of pins) {
+    const source = sources.get(pin.artifactVersionId);
+    const state: GivenDocumentState = source?.state === "available"
+      ? "available"
+      : source?.state === "deleted"
+      ? "gone"
+      : source?.state === "no_access"
+      ? "hidden"
+      : "unchecked";
+    if (state === "hidden") {
+      documentsHidden++;
+      continue;
+    }
+    if (state === "gone") {
+      documentsGone++;
+      continue;
+    }
+    if (state === "unchecked") {
+      documentsUnchecked++;
+      continue;
+    }
+    documents.push({ ...pin, state });
+  }
+  return {
+    documents,
+    documentsHidden,
+    documentsGone,
+    documentsUnchecked,
+  };
 }
