@@ -107,6 +107,7 @@ export const REAL_API_SPECS: readonly string[] = [
   "**/task-conversation-real-api.spec.ts",
   "**/shared-conversation-real-api.spec.ts",
   "**/task-run-control-real-api.spec.ts",
+  "**/step-approval-real-api.spec.ts",
 ];
 
 /**
