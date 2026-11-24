@@ -6684,5 +6684,21 @@
   "library.editor.group.each": "⟦Ƒôŕ ëàçĥ ïŧëɱ ŧë⟧",
   "library.editor.group.eachLimit": "⟦Àŧ ɱôšŧ {max, plural, one {# item} other {# items}} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.editor.group.eachHelp": "⟦Ŕûñš ŧĥëšë šŧëþš ôñçë ƒôŕ ëàçĥ ïŧëɱ ïñ à ļïšŧ, ôñë ïŧëɱ àŧ à ŧïɱë. À ļïšŧ ŵïŧĥ ɱôŕë ïŧëɱš ŧĥàñ ŧĥë ļïɱïŧ ƒàïļš ŧĥë ŕûñ ƀëƒôŕë àñÿ šŧëþ šŧàŕŧš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ àñôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "issues.start.workflowHelp": "⟦{repository} ïš šëŧ ŧô {workflow}. Çĥôôšïñĝ àñôŧĥëŕ àþþļïëš ŧô ŧĥïš ïššûë ôñļÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "tasks.conversation.plan.status.expired": "⟦Àþþŕôṽàļ ëẋþïŕëð ŧëš⟧",
+  "tasks.conversation.plan.approveAgain": "⟦Àþþŕôṽë àĝàïñ ŧë⟧",
+  "tasks.conversation.plan.expired.approved": "⟦{who} àþþŕôṽëð ṽëŕšïôñ {revision} ôñ {date}. Àñ àþþŕôṽàļ ļàšŧš {days} ðàÿš, àñð ñô ŕûñ šŧàŕŧëð ïñ ŧĥàŧ ŧïɱë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "tasks.conversation.plan.expired.undecided": "⟦Ñôƀôðÿ ðëçïðëð ṽëŕšïôñ {revision} ïñ ŧïɱë. Àñ àþþŕôṽàļ ŕëǫûëšŧ ļàšŧš {days} ðàÿš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "tasks.conversation.plan.awaiting": "⟦Ŵàïŧïñĝ ƒôŕ à ðëṽëļôþëŕ ôñ ŧĥïš ŧàšķ. ŧëšŧ çôþÿŧ⟧",
+  "tasks.conversation.plan.refusal.decided": "⟦{name} àļŕëàðÿ ðëçïðëð ŧĥïš: {outcome}. ŧëšŧ çôþÿ ŧ⟧",
+  "tasks.conversation.plan.refusal.decidedUnknown": "⟦Šôɱëôñë àļŕëàðÿ ðëçïðëð ŧĥïš. Ŧĥë çûŕŕëñŧ šŧàŧë ïš šĥôŵñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "tasks.conversation.plan.refusal.outcome.approve": "⟦Àþþŕôṽëð…⟧",
+  "tasks.conversation.plan.refusal.outcome.request_changes": "⟦Àšķëð ƒôŕ çĥàñĝëš ŧëš⟧",
+  "tasks.conversation.plan.refusal.outcome.reject": "⟦Ŕëĵëçŧëð…⟧",
+  "tasks.conversation.plan.refusal.newer": "⟦Ŧĥëŕë ïš à ñëŵëŕ ṽëŕšïôñ. Ïŧ ïš šĥôŵñ ñôŵ. ŧëšŧ çôþÿ ŧë⟧",
+  "tasks.conversation.plan.refusal.withdrawn": "⟦Ŧĥïš ŕëǫûëšŧ ŵàš ŵïŧĥðŕàŵñ. Ñôŧĥïñĝ ŵàïŧš ƒôŕ à ðëçïšïôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "tasks.conversation.plan.refusal.closed": "⟦Ŧĥïš ŕëǫûëšŧ çļôšëð ŵĥïļë ÿôû ŵëŕë ðëçïðïñĝ. Ŧĥë çûŕŕëñŧ šŧàŧë ïš šĥôŵñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "tasks.conversation.plan.refusal.audience": "⟦Ŧĥïš ðëçïšïôñ ïš ƒôŕ ŧĥë þëôþļë ôñ ŧĥïš ŧàšķ. Àšķ ôñë ôƒ ŧĥëɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "tasks.conversation.plan.rejectDialog.title": "⟦Ŕëĵëçŧ ŧĥïš þļàñ? ŧëš⟧",
+  "tasks.conversation.plan.rejectDialog.body": "⟦Ɓàķëŕÿ ŵïļļ ñôŧ ƀûïļð ƒŕôɱ ṽëŕšïôñ {revision}. Ÿôû çàñ àšķ ƒôŕ çĥàñĝëš ïñšŧëàð. Ŧĥïš çàññôŧ ƀë ûñðôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
 }

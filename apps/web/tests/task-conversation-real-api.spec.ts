@@ -470,6 +470,10 @@ test(
     await say(page, "Ask agent", "Plan this one.");
     await expect(approve(page, 1)).toBeEnabled({ timeout: 60_000 });
     await page.getByRole("button", { name: "Reject", exact: true }).click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Reject", exact: true })
+      .click();
     await expect(page.getByText("You rejected plan, version 1")).toBeVisible();
     await page.getByRole("button", { name: "Start run" }).click();
     await expect(page.getByText("The server did not admit the run."))

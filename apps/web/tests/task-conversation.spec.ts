@@ -171,6 +171,7 @@ const approval = (
   createdAt: stamp(12),
   updatedAt: stamp(12),
   version: 7,
+  mayDecide: true,
   ...extra,
 });
 const question = (extra: Record<string, unknown> = {}) => ({
@@ -200,7 +201,12 @@ const question = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-const problem = (status: number, code: string, retryable = false) => ({
+const problem = (
+  status: number,
+  code: string,
+  retryable = false,
+  reason?: string,
+) => ({
   type: "about:blank",
   title: code,
   status,
@@ -209,6 +215,7 @@ const problem = (status: number, code: string, retryable = false) => ({
   requestId: "00000000-0000-4000-8000-000000000110",
   traceId: "00000000-0000-4000-8000-000000000111",
   retryable,
+  ...(reason === undefined ? {} : { reason }),
 });
 
 const teammate = {
@@ -977,10 +984,19 @@ test("an accepted change request closes the form and the next revision is decida
     .toHaveCount(0);
 });
 
-test("reject records the decision and removes the controls", async ({ page }) => {
+const rejectDialog = (page: Page) => page.getByRole("alertdialog");
+
+test("reject asks first; cancelling records nothing, confirming records the decision", async ({ page }) => {
   const state = await open(page);
   await showPlan(page);
   await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await expect(rejectDialog(page)).toContainText("Reject this plan?");
+  await rejectDialog(page).getByRole("button", { name: "Cancel" }).click();
+  await expect(rejectDialog(page)).toHaveCount(0);
+  expect(state.decisions).toHaveLength(0);
+  await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await rejectDialog(page).getByRole("button", { name: "Reject", exact: true })
+    .click();
   await expect.poll(() => state.decisions.length).toBe(1);
   expect(state.decisions[0].body).toEqual({
     decision: "reject",
@@ -1016,6 +1032,159 @@ test("approving an obsolete revision is refused with a conflict and the new revi
   expect(state.decisions[1].id).toBe(approval(4).id);
   expect(state.decisions[1].body).toMatchObject({ expectedVersion: 2 });
 });
+
+test("an expired approval says so, and Approve again decides it", async ({ page }) => {
+  const state = world();
+  state.approvals = [
+    approval(3, {
+      status: "expired",
+      decision: "approve",
+      decidedBy: principalId,
+      decidedAt: stamp(13),
+      expiresAt: new Date(Date.parse(stamp(12)) + 7 * 86_400_000).toISOString(),
+    }),
+  ];
+  await open(page, state);
+  await showPlan(page);
+  await expect(plan(page)).toContainText("Approval expired");
+  await expect(plan(page)).toContainText("You approved version 3 on");
+  await expect(plan(page)).toContainText(
+    "An approval lasts 7 days, and no run started in that time.",
+  );
+  await expect(approve(page, 3)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Reject", exact: true }))
+    .toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Request changes" }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "Approve again" }).click();
+  await expect.poll(() => state.decisions.length).toBe(1);
+  expect(state.decisions[0].id).toBe(approval(3).id);
+  expect(state.decisions[0].body).toEqual({
+    decision: "approve",
+    expectedVersion: 7,
+  });
+  await expect(page.getByText("You approved plan, version 3")).toBeVisible();
+});
+
+test("an expired request nobody decided says so and offers Approve again", async ({ page }) => {
+  const state = world();
+  state.approvals = [
+    approval(3, {
+      status: "expired",
+      expiresAt: new Date(Date.parse(stamp(12)) + 7 * 86_400_000).toISOString(),
+    }),
+  ];
+  await open(page, state);
+  await showPlan(page);
+  await expect(plan(page)).toContainText(
+    "Nobody decided version 3 in time. An approval request lasts 7 days.",
+  );
+  await expect(page.getByRole("button", { name: "Approve again" }))
+    .toBeEnabled();
+});
+
+test("a person who may not decide sees no decision buttons and why", async ({ page }) => {
+  const state = world();
+  state.approvals = [approval(3, { mayDecide: false })];
+  await open(page, state);
+  await showPlan(page);
+  await expect(plan(page)).toContainText(
+    "Waiting for a developer on this task.",
+  );
+  await expect(approve(page, 3)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Request changes" }))
+    .toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Reject", exact: true }))
+    .toHaveCount(0);
+});
+
+const refusals: readonly {
+  readonly name: string;
+  readonly status: number;
+  readonly code: string;
+  readonly reason?: string;
+  readonly after: (state: World) => void;
+  readonly text: string;
+}[] = [
+  {
+    name: "already decided",
+    status: 409,
+    code: "STATE_CONFLICT",
+    reason: "approval_decided",
+    after: (state) => {
+      state.approvals = [
+        approval(3, {
+          status: "answered",
+          decision: "approve",
+          decidedBy: otherPrincipalId,
+          version: 8,
+        }),
+      ];
+    },
+    text: "already decided this: Approved.",
+  },
+  {
+    name: "a newer version",
+    status: 409,
+    code: "STATE_CONFLICT",
+    reason: "approval_superseded",
+    after: (state) => {
+      state.revisions = [revision(3, "superseded"), revision(4)];
+      state.approvals = [
+        approval(3, { status: "superseded", version: 8 }),
+        approval(4, { version: 2 }),
+      ];
+    },
+    text: "There is a newer version. It is shown now.",
+  },
+  {
+    name: "withdrawn",
+    status: 409,
+    code: "STATE_CONFLICT",
+    reason: "approval_revoked",
+    after: (state) => {
+      state.approvals = [approval(3, { status: "revoked", version: 8 })];
+    },
+    text: "This request was withdrawn. Nothing waits for a decision.",
+  },
+  {
+    name: "closed while deciding",
+    status: 409,
+    code: "STATE_CONFLICT",
+    reason: "approval_unavailable",
+    after: () => {},
+    text:
+      "This request closed while you were deciding. The current state is shown.",
+  },
+  {
+    name: "outside the audience",
+    status: 404,
+    code: "RESOURCE_NOT_FOUND",
+    after: () => {},
+    text: "This decision is for the people on this task. Ask one of them.",
+  },
+];
+
+for (const refusal of refusals) {
+  test(`a refused decision says one plain sentence: ${refusal.name}`, async ({ page }) => {
+    const state = world();
+    state.decideReply = (route) => {
+      refusal.after(state);
+      return route.fulfill({
+        status: refusal.status,
+        contentType: "application/problem+json",
+        json: problem(refusal.status, refusal.code, false, refusal.reason),
+      });
+    };
+    await open(page, state);
+    await showPlan(page);
+    await approve(page, 3).click();
+    await expect(plan(page)).toContainText(refusal.text);
+    await expect(plan(page)).not.toContainText(
+      "This plan changed before your decision was recorded",
+    );
+  });
+}
 
 test("an unknown decision outcome retries the same key", async ({ page }) => {
   const state = world();
@@ -1067,6 +1236,8 @@ test("an unknown outcome on revision 3 never leaks into revision 4", async ({ pa
   ];
   await expect(approve(page, 4)).toBeEnabled({ timeout: 15_000 });
   await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await rejectDialog(page).getByRole("button", { name: "Reject", exact: true })
+    .click();
   await expect.poll(() => state.decisions.length).toBe(2);
   expect(state.decisions[0].id).toBe(approval(3).id);
   expect(state.decisions[1].id).toBe(approval(4).id);

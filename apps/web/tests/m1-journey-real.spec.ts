@@ -1634,6 +1634,10 @@ test("P10 negatives: reject, expiry, stale and duplicate approvals never execute
   await say(page, "Ask agent", M1_PLAN_ONLY_REQUEST);
   await expect(approve(page, 1)).toBeEnabled({ timeout: 8 * MINUTE });
   await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Reject", exact: true })
+    .click();
   await expect(page.getByText("You rejected revision 1")).toBeVisible();
   await startRunButton(page).click();
   await expect(page.getByText("The server did not admit the run."))
