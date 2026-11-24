@@ -60,6 +60,8 @@ const PAGE_MIN_ZOOM = 0.6;
 const isContainer = (block: CanvasBlock) =>
   block.kind === "box" || block.kind === "if" || block.kind === "arm";
 
+const LAYOUT_PATIENCE_MS = 6000;
+
 let engine: InstanceType<typeof ELK> | undefined;
 function elk(): InstanceType<typeof ELK> {
   engine ??= new ELK({
@@ -119,17 +121,30 @@ function Surface(props: WorkflowCanvasProps) {
     [sizes],
   );
 
+  const [failure, setFailure] = useState<Error | null>(null);
   useEffect(() => {
     let live = true;
+    const fail = (reason: unknown) => {
+      if (!live) return;
+      engine = undefined;
+      setFailure(reason instanceof Error ? reason : new Error(String(reason)));
+    };
+    const giveUp = globalThis.setTimeout(
+      () => fail(new Error("The layout engine gave no answer")),
+      LAYOUT_PATIENCE_MS,
+    );
     elk().layout(elkGraph(graph, sizes)).then((result) => {
+      globalThis.clearTimeout(giveUp);
       if (!live) return;
       setLaid(placements(result));
       setLaidKey(sizesKey);
-    });
+    }, fail);
     return () => {
       live = false;
+      globalThis.clearTimeout(giveUp);
     };
   }, [signature, sizesKey]);
+  if (failure !== null) throw failure;
   useEffect(() => {
     passes.current = 0;
     setStable(false);

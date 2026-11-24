@@ -36,6 +36,9 @@ export type PopoverProps =
     variant?: "information" | "interactive";
   };
 
+const REACHABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 /** Shows compact secondary content from an explicit trigger. */
 export function Popover(
   {
@@ -68,6 +71,18 @@ export function Popover(
   };
   const setOpenRef = useRef(setOpen);
   setOpenRef.current = setOpen;
+  const leavesPanel = (event: KeyboardEvent) => {
+    const content = contentRef.current;
+    const active = globalThis.document.activeElement;
+    if (!content || !active || !content.contains(active)) return false;
+    const reachable = [
+      ...content.querySelectorAll<HTMLElement>(REACHABLE),
+    ];
+    const edge = event.shiftKey
+      ? (reachable[0] ?? content)
+      : (reachable[reachable.length - 1] ?? content);
+    return active === edge || (event.shiftKey && active === content);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -75,6 +90,10 @@ export function Popover(
     const dismiss = (event: PointerEvent | KeyboardEvent) => {
       if (event instanceof KeyboardEvent) {
         if (event.key === "Escape") {
+          event.preventDefault();
+          setOpenRef.current(false);
+        }
+        if (event.key === "Tab" && floating && leavesPanel(event)) {
           event.preventDefault();
           setOpenRef.current(false);
         }
@@ -91,7 +110,7 @@ export function Popover(
       document.removeEventListener("keydown", dismiss);
       document.removeEventListener("pointerdown", dismiss);
     };
-  }, [isOpen]);
+  }, [isOpen, floating]);
 
   const [floatingStyle, setFloatingStyle] = useState<CSSProperties>({
     position: "fixed",

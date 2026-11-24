@@ -114,10 +114,6 @@ export function canvasGraph(tree: Tree): CanvasGraph {
   return { blocks, edges };
 }
 
-export function tabOrder(graph: CanvasGraph): readonly string[] {
-  return graph.blocks.map((block) => block.id);
-}
-
 function sizeOf(block: CanvasBlock, measured: ReadonlyMap<string, Size>): Size {
   const known = measured.get(block.id);
   if (known !== undefined) return known;
@@ -128,7 +124,6 @@ export function elkGraph(
   graph: CanvasGraph,
   measured: ReadonlyMap<string, Size> = new Map(),
 ): ElkNode {
-  const byId = new Map(graph.blocks.map((block) => [block.id, block]));
   const childrenOf = new Map<string | null, CanvasBlock[]>();
   for (const block of graph.blocks) {
     const list = childrenOf.get(block.parent) ?? [];
@@ -179,7 +174,6 @@ export function elkGraph(
 
   const top = childrenOf.get(null) ?? [];
   const ids = new Set(top.map((block) => block.id));
-  void byId;
   return {
     id: "root",
     layoutOptions: {

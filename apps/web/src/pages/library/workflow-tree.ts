@@ -142,13 +142,10 @@ function fixLimitOf(node: Record<string, unknown>): number | undefined {
   const uses = body.map((step) => text(record(step).uses));
   if (!uses.includes(FIX_ACTION)) return undefined;
   if (uses[uses.length - 1] !== REVIEW_ACTION) return undefined;
-  const max = node.max;
-  return typeof max === "number" && Number.isInteger(max) && max >= 1
-    ? max
-    : undefined;
+  return maxOf(node);
 }
 
-function eachLimitOf(node: Record<string, unknown>): number | undefined {
+function maxOf(node: Record<string, unknown>): number | undefined {
   const max = node.max;
   return typeof max === "number" && Number.isInteger(max) && max >= 1
     ? max
@@ -293,7 +290,7 @@ function drawNode(
     }];
   }
   if (kind === "forEach") {
-    const max = eachLimitOf(node);
+    const max = maxOf(node);
     return [{
       kind: "group",
       id: anonymousId(counter, "group"),

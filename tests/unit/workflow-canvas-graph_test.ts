@@ -1,13 +1,16 @@
 import { assertEquals } from "@std/assert";
 import {
+  type CanvasGraph,
   canvasGraph,
   elkGraph,
   placements,
-  tabOrder,
 } from "../../apps/web/src/pages/library/canvas-graph.ts";
 import { treeOf } from "../../apps/web/src/pages/library/workflow-tree.ts";
 
 type ElkNode = ReturnType<typeof elkGraph>;
+
+const tabOrder = (graph: CanvasGraph): readonly string[] =>
+  graph.blocks.map((block) => block.id);
 
 const step = (id: string, uses = "task.brief") => ({
   kind: "action",

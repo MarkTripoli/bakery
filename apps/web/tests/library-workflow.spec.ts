@@ -1329,6 +1329,54 @@ test.describe("the workflow canvas on a wide window", () => {
   });
 });
 
+test.describe("a layout that never answers", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test("a layout worker that cannot load falls back to the outline and says so", async ({ page }) => {
+    test.setTimeout(laneBudgetMs(90_000));
+    await libraryFixture(
+      page,
+      flatDraft([{ id: "brief", uses: "task.brief" }]),
+    );
+    await page.route(/elk-worker/, (route) => route.abort());
+    await page.goto(editorUrl);
+    await expect(
+      page.getByText(
+        "The diagram could not be loaded. This list is the same workflow.",
+      ),
+    ).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('[data-ui-region="workflow-outline"]'))
+      .toBeVisible();
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveCount(0);
+    await page.mouse.move(5, 5);
+    await windowStill(page, "canvas-layout-failed");
+  });
+
+  test("Tab past the last item of the add menu closes it and returns to its plus", async ({ page }) => {
+    await libraryFixture(
+      page,
+      flatDraft([
+        { id: "brief", uses: "task.brief" },
+        { id: "add", uses: "harness.implement" },
+      ]),
+    );
+    await page.goto(editorUrl);
+    await expect(page.locator('[data-ui-region="workflow-canvas"]'))
+      .toHaveAttribute("data-layout", "ready");
+    const plus = page.locator("[data-connector='brief'] button");
+    await plus.click();
+    const menu = page.getByTestId("step-picker");
+    await expect(menu).toBeVisible();
+    for (let presses = 0; presses < 40; presses += 1) {
+      if (!(await menu.isVisible())) break;
+      await page.keyboard.press("Tab");
+    }
+    await expect(menu).toBeHidden();
+    await expect(plus).toBeFocused();
+  });
+});
+
 test.describe("Publish and the save", () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
