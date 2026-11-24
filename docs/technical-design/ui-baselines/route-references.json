@@ -5292,6 +5292,13 @@
       "frames": []
     },
     {
+      "routeId": "installation-backups",
+      "path": "/installation/backups",
+      "status": "no-mock",
+      "rationale": "The Backups page (#64 slice 1) is designed by design-ux on #64 (comment 7071834654, mocks at design-64/backups/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "installation-restore",
       "path": "/installation/restore",
       "status": "no-mock",

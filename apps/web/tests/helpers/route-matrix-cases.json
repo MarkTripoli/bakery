@@ -204,6 +204,14 @@
     "path": "/installation/restore"
   },
   {
+    "id": "installation-backups",
+    "path": "/installation/backups"
+  },
+  {
+    "id": "installation-updates",
+    "path": "/installation/updates"
+  },
+  {
     "id": "installation-audit",
     "path": "/installation/audit"
   },

@@ -122,6 +122,16 @@ export type InstallationCapabilities =
 export type InstallationSettings = ClientOutputMap["InstallationSettings"];
 /** The restore that holds the installation, and how far its ordered re-enable has got (#64 E3). */
 export type InstallationRestore = ClientOutputMap["InstallationRestore"];
+export type BackupRun = ClientOutputMap["BackupRun"];
+export type BackupRunPage = ClientOutputMap["Page<BackupRun>"];
+export type BackupStatus = ClientOutputMap["BackupStatus"];
+export type BackupDrill = ClientOutputMap["BackupDrill"];
+export type BackupDrillPage = ClientOutputMap["Page<BackupDrill>"];
+export type BackupSchedule = ClientOutputMap["BackupSchedule"];
+export type BackupPointInTime = ClientOutputMap["BackupPointInTime"];
+export type BackupOffsite = ClientOutputMap["BackupOffsite"];
+export type BackupRunnerCredentialIssued =
+  ClientOutputMap["BackupRunnerCredentialIssued"];
 /** Which release runs, the one kept to go back to, and the last update that did not go through (#59). */
 export type InstallationUpdateStatus =
   ClientOutputMap["InstallationUpdateStatus"];
@@ -1607,6 +1617,37 @@ export type BakeryApiClient = {
       readonly idempotencyKey: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<InstallationRestore>>;
+  };
+  readonly backups: {
+    readonly status: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupStatus>>;
+    readonly list: (options: {
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupRunPage>>;
+    readonly drills: (options: {
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupDrillPage>>;
+    readonly start: (options: {
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupRun>>;
+    readonly schedule: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupSchedule>>;
+    readonly pointInTime: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupPointInTime>>;
+    readonly offsite: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupOffsite>>;
+    readonly issueRunnerCredential: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<BackupRunnerCredentialIssued>>;
   };
   readonly installationUpdates: {
     /** `GET /v1/installation/updates/status`: the running release, the kept one and the last failure; administrators only. */
@@ -4853,6 +4894,104 @@ export function createBakeryApiClient({
                 signal: options.signal,
               },
             ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    backups: {
+      async status(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backups.status"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async list(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backups.list"]({
+              ...(options.cursor === undefined
+                ? {}
+                : { cursor: options.cursor }),
+              ...(options.limit === undefined ? {} : { limit: options.limit }),
+            }, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async drills(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backups.drills.list"]({
+              ...(options.cursor === undefined
+                ? {}
+                : { cursor: options.cursor }),
+              ...(options.limit === undefined ? {} : { limit: options.limit }),
+            }, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async start(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backups.start"]({}, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async schedule(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupSchedule.get"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async pointInTime(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupPointInTime.get"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async offsite(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupOffsite.get"]({}, { signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async issueRunnerCredential(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupRunnerCredential.issue"]({}, {
+              signal,
+            }),
           };
         } catch (error) {
           return failed(error);

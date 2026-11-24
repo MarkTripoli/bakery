@@ -699,6 +699,7 @@ function ShellFrame() {
     pathname === "/installation/usage" ||
     pathname === "/installation/restore" ||
     pathname === "/installation/updates" ||
+    pathname === "/installation/backups" ||
     pathname === INSTALLATION_INTEGRATIONS_PATH ||
     pathname === "/__fixtures__/installation/settings";
   const organizationSettings = ORGANIZATION_FIXTURE_PATHS.includes(pathname);
@@ -794,6 +795,7 @@ function ShellFrame() {
                   pathname === "/installation/usage" ||
                   pathname === "/installation/restore" ||
                   pathname === "/installation/updates" ||
+                  pathname === "/installation/backups" ||
                   pathname === INSTALLATION_INTEGRATIONS_PATH
                 ? pathname
                 : "/installation/settings"}

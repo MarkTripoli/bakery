@@ -179,6 +179,16 @@ function fakeApi(
       test: rejecting,
     },
     installationRestore: { get: rejecting, step: rejecting },
+    backups: {
+      status: rejecting,
+      list: rejecting,
+      drills: rejecting,
+      start: rejecting,
+      schedule: rejecting,
+      pointInTime: rejecting,
+      offsite: rejecting,
+      issueRunnerCredential: rejecting,
+    },
     installationUpdates: {
       status: rejecting,
       list: rejecting,
