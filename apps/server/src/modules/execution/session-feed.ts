@@ -10,6 +10,7 @@ import {
   encodeSequenceIdCursor,
 } from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { hasStandingRunAccess } from "../work/run-requests.ts";
 
 type PageInput = { cursor?: string; limit?: number; sequenceAfter?: string };
 
@@ -96,6 +97,11 @@ export function createSessionFeedHandler(secret: string) {
     const id = sessionPathId(context);
     const input = rawInput as PageInput;
 
+    const ownMessagesOnly = !(await hasStandingRunAccess(
+      transaction,
+      organizationId,
+      principalId,
+    ));
     const session = await transaction.query<{ conversation_id: string }>(
       `select conversation_id from bakery.agent_sessions
         where organization_id = $1 and id = $2`,
@@ -111,7 +117,7 @@ export function createSessionFeedHandler(secret: string) {
       organizationId,
       principalId,
       ordering: "sequence:asc,id:asc",
-      filters: `session:${id}`,
+      filters: `session:${id}:${ownMessagesOnly ? "own" : "all"}`,
       schemaVersion: 1,
     };
     const position = await decodeSequenceIdCursor(
@@ -137,6 +143,15 @@ export function createSessionFeedHandler(secret: string) {
             $3::bigint is null or
             (message.sequence, message.id) > ($3::bigint, $4::uuid)
           )
+          and (
+            not $6::boolean or message.agent_session_id = $7::uuid or exists (
+              select 1 from bakery.decisions_ledger steer
+               where steer.organization_id = message.organization_id
+                 and steer.kind = 'steer' and steer.subject_kind = 'session'
+                 and steer.subject_id = $7::uuid
+                 and steer.detail ->> 'messageId' = message.id::text
+            )
+          )
         order by message.sequence asc, message.id asc
         limit $5`,
       [
@@ -145,6 +160,8 @@ export function createSessionFeedHandler(secret: string) {
         afterSequence,
         afterId,
         limit + 1,
+        ownMessagesOnly,
+        id,
       ],
     );
 
