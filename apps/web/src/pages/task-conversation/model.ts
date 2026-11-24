@@ -172,6 +172,52 @@ export function commandFailure(failure: {
   return "error";
 }
 
+export type PlanRefusal =
+  | "decided"
+  | "newer"
+  | "withdrawn"
+  | "closed"
+  | "audience";
+
+const REFUSAL_BY_REASON: Readonly<Record<string, PlanRefusal>> = {
+  approval_decided: "decided",
+  approval_superseded: "newer",
+  approval_stale: "newer",
+  approval_revoked: "withdrawn",
+  approval_unavailable: "closed",
+};
+
+export function planRefusal(failure: {
+  kind: string;
+  problem?: { status: number; reason?: string };
+}): PlanRefusal | null {
+  if (failure.kind !== "problem" || !failure.problem) return null;
+  if (failure.problem.status === 404) return "audience";
+  return REFUSAL_BY_REASON[failure.problem.reason ?? ""] ?? null;
+}
+
+export type ExpiredApproval = Readonly<{
+  who: string | null;
+  approvedAt: string | null;
+  days: number;
+}>;
+
+const DAY_MS = 86_400_000;
+
+export function expiredApproval(
+  approval: ApprovalResponse,
+  who: string | null,
+): ExpiredApproval {
+  const lasted = approval.expiresAt === null
+    ? 0
+    : Date.parse(approval.expiresAt) - Date.parse(approval.createdAt);
+  return {
+    who: approval.decision === "approve" ? who : null,
+    approvedAt: approval.decision === "approve" ? approval.decidedAt : null,
+    days: Math.max(1, Math.round(lasted / DAY_MS)),
+  };
+}
+
 /** One person in the shared conversation, named from the API projection. */
 export type Person = Readonly<{
   id: string;

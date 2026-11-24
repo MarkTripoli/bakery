@@ -17,16 +17,13 @@
  */
 
 import { join } from "node:path";
-import {
-  type AttemptProof,
-  attemptProofOf,
-  type WorkerContextInput,
-} from "./client.ts";
+import { type AttemptProof, attemptProofOf } from "./client.ts";
 import {
   describeSeedingFault,
   fetcherForAttempt,
   seedContext,
 } from "./context-seed.ts";
+import type { AttemptContextSlice } from "./client.ts";
 import { renderContextDocument } from "./context-document.ts";
 import type { JobAssignment } from "./types.ts";
 
@@ -34,7 +31,7 @@ import type { JobAssignment } from "./types.ts";
 export type ReadAttemptContext = (
   attemptId: string,
   proof: AttemptProof,
-) => Promise<readonly WorkerContextInput[]>;
+) => Promise<AttemptContextSlice>;
 
 /** The step key the index shows for a harness step; the assignment carries no run. */
 const HARNESS_CONTEXT_STEP_KEY = "harness";
@@ -99,9 +96,8 @@ export async function prepareHarnessContext(options: {
   }
   const contextDir = join(options.attemptRoot, "context");
   try {
-    const fetch = await fetcherForAttempt(() =>
-      read(options.assignment.attemptId, proof)
-    );
+    const slice = await read(options.assignment.attemptId, proof);
+    const fetch = await fetcherForAttempt(() => Promise.resolve(slice.inputs));
     const seeding = await seedContext(
       {
         // The assignment names a job and an attempt, never a run, so the job id
@@ -110,6 +106,8 @@ export async function prepareHarnessContext(options: {
         stepKey: HARNESS_CONTEXT_STEP_KEY,
         goal: options.goal,
         outputs: [],
+        facts: slice.facts?.facts ?? [],
+        factsOmitted: slice.facts?.omitted ?? 0,
         contextDir,
         outputDir: options.workDir,
       },

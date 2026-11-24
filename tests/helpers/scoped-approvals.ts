@@ -28,6 +28,7 @@ export type ApprovalView = {
   consumedByRunId: string | null;
   runId: string | null;
   expiresAt: string | null;
+  mayDecide: boolean;
 };
 export type PlanRevisionView = {
   id: string;
