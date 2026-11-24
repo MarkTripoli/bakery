@@ -243,22 +243,38 @@ def activate(name):
         return False
     return bool(Atspi.Action.do_action(button["node"], 0))
 
-REOPEN_OVER_PANEL = (
+TAKE_DIALOG_AWAY = (
     "(async () => {"
     "const view = await window.__TAURI__.core.invoke('get_view');"
+    "window.__withDialog = view;"
     "const panel = await import('./panel.js');"
     "panel.render({...view, link_dialog: null});"
     "await new Promise((done) => setTimeout(done, 300));"
-    "(document.querySelector('.btn--primary') ?? document.querySelector('#panel-heading'))?.focus();"
-    "panel.render(view);"
+    "document.querySelector('.panel .btn:not(.btn--primary), .panel input[type=radio]')?.focus();"
     "})()"
 )
+PUT_DIALOG_BACK = "import('./panel.js').then((panel) => panel.render(window.__withDialog))"
 
-if is_dialog_state and dialogs and os.environ.get("CMD_DIR"):
+def send_eval(script):
     scratch = os.path.join(os.environ["CMD_DIR"], "tmp-eval")
-    open(scratch, "w").write(REOPEN_OVER_PANEL)
+    open(scratch, "w").write(script)
     os.rename(scratch, os.path.join(os.environ["CMD_DIR"], "eval-" + str(int(time.time() * 1000))))
+
+opener_name = None
+if is_dialog_state and dialogs and os.environ.get("CMD_DIR"):
+    send_eval(TAKE_DIALOG_AWAY)
     time.sleep(2)
+    held = [n for n in snapshot() if "focused" in n["states"] and n["role"] in INTERACTIVE and n["name"]]
+    if len(held) == 1:
+        opener_name = held[0]["name"]
+        send_eval(PUT_DIALOG_BACK)
+        time.sleep(2)
+        check("the dialog opens over a panel whose control the person was on",
+              any(n["role"] == "dialog" for n in snapshot()))
+    else:
+        send_eval(PUT_DIALOG_BACK)
+        time.sleep(2)
+        print(f"NOTE {state} {size}: the panel behind has no control apart from the close fallback, so the opener is not checked", flush=True)
 
 if is_dialog_state and dialogs:
     if size.startswith("9"):
@@ -275,5 +291,9 @@ if is_dialog_state and dialogs:
     check(f"after {label} focus is on a named control or the heading, not the page body",
           len(landed) == 1 and bool(landed[0]["name"]),
           str([(n["role"], n["name"]) for n in after if "focused" in n["states"]]))
+    if opener_name is not None:
+        check(f"after {label} focus is back on {opener_name!r}, the control that opened the dialog",
+              len(landed) == 1 and landed[0]["name"] == opener_name,
+              str([(n["role"], n["name"]) for n in after if "focused" in n["states"]]))
 
 sys.exit(0 if all(results) else 1)

@@ -381,13 +381,11 @@ pub fn preview(name: &str) -> Option<Preview> {
                     address: OTHER.into(),
                 }),
         ),
-        "switched-long-address" => plain(
-            Session::start(false)
-                .on_server(OTHER)
-                .with_notice(Notice::Switched {
-                    address: LONG_ADDRESS.into(),
-                }),
-        ),
+        "switched-long-address" => plain(Session::start(false).on_server(OTHER).with_notice(
+            Notice::Switched {
+                address: LONG_ADDRESS.into(),
+            },
+        )),
         "switched-signed-in" => Preview {
             session: Session::start(true)
                 .on_server(OTHER)
