@@ -109,8 +109,8 @@ Deno.test("a worker reads the bytes its run pinned, and only its own run's", () 
     );
     assertEquals(response.status, 200);
     const body = await response.json();
-    assertEquals(body.items.length, 1);
-    const [item] = body.items;
+    assertEquals(body.inputs.length, 1);
+    const [item] = body.inputs;
     assertEquals(item.artifactVersionId, mine.versionId);
     assertEquals(item.digest, await sha256Bytes(mine.bytes));
     assertEquals(
@@ -185,7 +185,7 @@ Deno.test("a read under a moved fence answers with nothing", () =>
     const body = await response.json();
     assertEquals(body.code, "LEASE_FENCED");
     // Nothing rides along with the refusal: no bytes, no digests, no paths.
-    assertEquals(body.items, undefined);
+    assertEquals(body.inputs, undefined);
   }));
 
 Deno.test("a read whose lease runs out mid-flight answers with nothing", () =>
@@ -219,8 +219,7 @@ Deno.test("a read whose lease runs out mid-flight answers with nothing", () =>
       assertEquals(response.status, 409);
       const body = await response.json();
       assertEquals(body.code, "LEASE_EXPIRED");
-      // Nothing rides along with the refusal.
-      assertEquals(body.items, undefined);
+      assertEquals(body.inputs, undefined);
     } finally {
       setInputReadAfterGatherForTest(null);
     }
