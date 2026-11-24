@@ -25560,7 +25560,8 @@ const transportSchemas = {
         "continuedMode",
         "continuedFreshReason",
         "continuedByName",
-        "continuedAt"
+        "continuedAt",
+        "continuedWaiting"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -25581,7 +25582,8 @@ const transportSchemas = {
         "continuedMode": "enum(fresh_session|exact_harness_resume)|null",
         "continuedFreshReason": "enum(exact_resume_not_requested|boundary_unsafe|effects_unresolved|session_changed|no_native_evidence|native_evidence_mismatch|history_revoked|fresh_requested)|null",
         "continuedByName": "string|null",
-        "continuedAt": "timestamp|null"
+        "continuedAt": "timestamp|null",
+        "continuedWaiting": "boolean|null"
       },
       "description": "A stored handoff manifest: where one source attempt stopped, with the server's own safe-boundary computation and the digest a continuation pins. It is a record to be re-verified, never the authority for run state.",
       "fieldDescriptions": {
@@ -25603,7 +25605,8 @@ const transportSchemas = {
         "continuedMode": "How the continuation started once the step was handed over; null until then.",
         "continuedFreshReason": "Why the continuation started fresh; null for an exact resume, before a hand-over, and for hand-overs recorded before the reason was kept.",
         "continuedByName": "Current display name of the person who handed the step over, as the server recorded it. The same for every reader; null until a hand-over, or when that person no longer has a name.",
-        "continuedAt": "UTC timestamp when the step was handed over; null until then."
+        "continuedAt": "UTC timestamp when the step was handed over; null until then.",
+        "continuedWaiting": "True while the continuation is parked waiting for an uncertain outside action to settle, so the new session has not started; false once it is queued or running; null before a hand-over."
       },
       "optionalFields": [
         "decisionMode",
@@ -25612,7 +25615,8 @@ const transportSchemas = {
         "continuedMode",
         "continuedFreshReason",
         "continuedByName",
-        "continuedAt"
+        "continuedAt",
+        "continuedWaiting"
       ]
     },
     "HandoffContinuation": {

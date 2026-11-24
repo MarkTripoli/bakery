@@ -186996,6 +186996,19 @@
                   "description": "Null indicates that the value is unavailable."
                 }
               ]
+            },
+            "continuedWaiting": {
+              "description": "HandoffManifestRecord.continuedWaiting may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "boolean",
+                  "description": "True while the continuation is parked waiting for an uncertain outside action to settle, so the new session has not started; false once it is queued or running; null before a hand-over."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
             }
           },
           "required": [
@@ -297886,7 +297899,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:c9189f06b598b54971dbd77d50c489ada96289b614c6edd80927eef75634f4de",
+  "compatibilityDigest": "sha256:c3f27669144f2f9a76609eb8362d22d52a91bd2e7972a6a479a7b59ad56e6095",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -427186,6 +427199,19 @@
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
               "description": "UTC timestamp when the step was handed over; null until then."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "continuedWaiting": {
+          "description": "HandoffManifestRecord.continuedWaiting may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "True while the continuation is parked waiting for an uncertain outside action to settle, so the new session has not started; false once it is queued or running; null before a hand-over."
             },
             {
               "type": "null",

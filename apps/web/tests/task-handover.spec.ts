@@ -187,6 +187,8 @@ type World = {
   continues: { key: string; body: Record<string, unknown> }[];
   continuedBy: string | null;
   reply?: (route: Route) => Promise<void>;
+  waitingNow?: boolean;
+  manifestAfter?: Record<string, unknown>;
   reads: number;
   secondStep?: boolean;
 };
@@ -294,6 +296,7 @@ async function open(page: Page, w: World) {
             continuedFreshReason: w.decision.freshReason,
             continuedByName: w.continuedBy,
             continuedAt: "2026-01-01T00:05:00.000Z",
+            continuedWaiting: w.waitingNow ?? null,
           }
           : w.decision),
       },
@@ -314,6 +317,7 @@ async function open(page: Page, w: World) {
         };
       }
       w.status = "continued";
+      if (w.manifestAfter) w.manifest = w.manifestAfter;
       await r.fulfill({
         status: 201,
         json: {
@@ -610,6 +614,38 @@ test.describe("hand over a running step to a new session", () => {
       "Ana Silva handed this step to a new session and chose to start fresh from a summary.",
     )).toBeVisible();
     await still(page, "timeline-fresh-chosen", false);
+  });
+
+  test("a fresh start chosen while outside actions are unconfirmed shows the waiting line, then the chosen line, never both", async ({ page }) => {
+    const w = world({
+      manifestAfter: storedManifest({
+        pendingEffects: [{ effectId: uuid(1), state: "uncertain" }],
+      }),
+      waitingNow: true,
+    });
+    await open(page, w);
+    await button(page).click();
+    await page.getByTestId("handover-choice").getByRole("radio", {
+      name: "Start fresh from a summary",
+    }).check();
+    await page.getByTestId("handover-confirm").click();
+    await expect(card(page)).toHaveCount(0);
+    expect(w.continues[0]!.body).toEqual({
+      runVersion: RUN_VERSION,
+      mode: "fresh",
+    });
+    const waiting = page.getByText(
+      "Handed over. The old session has stopped. The new one starts when Bakery knows whether 1 outside action happened.",
+    );
+    const chosen = page.getByText(
+      "Ana Silva handed this step to a new session and chose to start fresh from a summary.",
+    );
+    await expect(waiting).toBeVisible();
+    await expect(chosen).toHaveCount(0);
+    w.waitingNow = false;
+    await page.reload();
+    await expect(chosen).toBeVisible();
+    await expect(waiting).toHaveCount(0);
   });
 
   test("a changed choice gets a new key, and a retry of the same choice reuses its key", async ({ page }) => {

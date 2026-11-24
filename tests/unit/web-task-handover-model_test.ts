@@ -126,7 +126,7 @@ Deno.test("an exact pick-up is promised only when the server says exact, the poi
 });
 
 Deno.test("every reason the server can give has its own sentence key", () => {
-  assertEquals(FRESH_REASONS.length, 8);
+  assertEquals(FRESH_REASONS.length, 7);
   for (const reason of FRESH_REASONS) {
     assertEquals(reasonKey(reason), `tasks.run.handover.reason.${reason}`);
   }
@@ -153,6 +153,22 @@ Deno.test("the line after a hand-over says exact, fresh, or that the step waits 
   assertEquals(
     outcomeKey({ mode: "fresh_session", freshReason: "fresh_requested" }, 2),
     "waiting",
+  );
+  assertEquals(
+    outcomeKey({
+      mode: "fresh_session",
+      freshReason: "fresh_requested",
+      waiting: true,
+    }, 2),
+    "waiting",
+  );
+  assertEquals(
+    outcomeKey({
+      mode: "fresh_session",
+      freshReason: "fresh_requested",
+      waiting: false,
+    }, 2),
+    "freshChosen",
   );
 });
 

@@ -710,6 +710,11 @@ Deno.test("an effect in flight parks the continuation, and settling it releases 
     const details = await auditDetails(fixture, String(continuation.id));
     assertEquals(details.jobStatus, "awaiting_reconciliation");
     assertEquals(details.reason, "effects_unresolved");
+    assertEquals(
+      (await body(await readManifest(fixture, String(record.id))))
+        .continuedWaiting,
+      true,
+    );
 
     // While the effect is unsettled a coordinator pass releases nothing.
     assertEquals(await release(fixture), 0);
@@ -729,6 +734,11 @@ Deno.test("an effect in flight parks the continuation, and settling it releases 
     assertEquals(queued.job.status, "queued");
     assertEquals(queued.job.current_fence, parked.job.current_fence);
     assertEquals(queued.job.input, before.job.input);
+    assertEquals(
+      (await body(await readManifest(fixture, String(record.id))))
+        .continuedWaiting,
+      false,
+    );
 
     // The effect was reconciled, never repeated: still the one row.
     const effects = await fixture.pgDatabase.query<{ n: number }>(
@@ -796,6 +806,11 @@ Deno.test("asking for a fresh start when an exact resume is possible starts fres
     const continuation = await body(response);
     assertEquals(continuation.mode, "fresh_session");
     assertEquals(continuation.freshReason, "fresh_requested");
+    assertEquals(
+      (await body(await readManifest(fixture, String(record.id))))
+        .continuedWaiting,
+      false,
+    );
     assertEquals(await checkpoints(fixture, live), []);
     assertEquals(
       await recordedReason(fixture, String(continuation.id)),

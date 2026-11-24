@@ -76282,6 +76282,19 @@ export const clientManifest = {
               "description": "Null indicates that the value is unavailable."
             }
           ]
+        },
+        "continuedWaiting": {
+          "description": "HandoffManifestRecord.continuedWaiting may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "True while the continuation is parked waiting for an uncertain outside action to settle, so the new session has not started; false once it is queued or running; null before a hand-over."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [

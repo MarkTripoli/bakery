@@ -6688,6 +6688,5 @@
   "tasks.run.handover.choice.exact.body": "⟪Keeps the conversation with the agent up to the point saved {time}. Choose this when the work was on track and only the machine or the connection failed.⟫",
   "tasks.run.handover.choice.fresh.title": "⟪Start fresh from a summary⟫",
   "tasks.run.handover.choice.fresh.body": "⟪Starts a new conversation that gets only what is listed below. Choose this when the work went off track.⟫",
-  "tasks.run.handover.done.freshChosen": "⟪{name} handed this step to a new session and chose to start fresh from a summary.⟫",
-  "tasks.run.handover.reason.fresh_requested": "⟪A person chose to start fresh from a summary.⟫"
+  "tasks.run.handover.done.freshChosen": "⟪{name} handed this step to a new session and chose to start fresh from a summary.⟫"
 }
