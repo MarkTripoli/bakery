@@ -1,13 +1,13 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "ef00f063aa3e22b147748e1201659b26a1d99178",
-    "70cec2976e8bc36acf3c7689b53db580f9aa02f2"
+    "b2d43f5341ad9fa9fcc71d64202440231fb97c4f",
+    "bcf250d9b43bacc274e8054b81cb02a2bf5c9843"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:14fb93b455ba510df918059a53278241a6c0d28753f6e44d7a98627964b2152f",
-  "reason": "#60 W2 plan approval by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 70cec2976e8bc36acf3c7689b53db580f9aa02f2: Approval gains a required mayDecide (true when the person may decide that approval now: a human with approval:decide in the approval's audience while it is open, or after it expired while its plan revision or run stage is still current), so the web shows decision buttons only to people who can use them. A person who decides an expired approval whose plan or run stage is still current is served a new approval, and the old one stays expired. No client has been released that builds an Approval, so no caller sends the old shape.",
+  "targetCompatibilityDigest": "sha256:da4e6483b255d84e1026de9d528ed29eec7f66cbf2c91a13ee098fae305b27d4",
+  "reason": "#407 batch workflow under the owner's standing breaking-change authorization (2026-10-09), main b2d43f5341ad9fa9fcc71d64202440231fb97c4f: BatchCreate.presetId becomes a required field (fixed-coding or fixed-coding-reviewed), because a batch start admitted every issue with no workflow and #407 made that a refusal; Batch gains presetId, null for a batch started before the workflow was stored. No other contract shape changed by this branch. The #975 approval bound to main 70cec2976e8bc36acf3c7689b53db580f9aa02f2 stays below as history.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",

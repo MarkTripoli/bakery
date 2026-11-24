@@ -1093,15 +1093,7 @@ async function appendPlanStep(
     return await appendApprovalWait(transaction, context, activeOwner, planned);
   }
   if (planned.kind === "wait") {
-    // A human.approval wait is the one event wait with a producer: a person's
-    // decision writes it. Its dispatch pins the approval id, so the step waits
-    // on exactly one approval and the answer can never be paired to the wrong
-    // step. Every other event wait still has no producer and is refused at
-    // admission with a stable code rather than left to hang.
-    const approvalWait = planned.wait.kind === "event" &&
-      planned.wait.event === HUMAN_APPROVAL_EVENT &&
-      planned.wait.approvalId !== undefined;
-    if (planned.wait.kind !== "duration" && !approvalWait) {
+    if (planned.wait.kind !== "duration") {
       await endPlanRunFailed(
         transaction,
         context,
