@@ -1,12 +1,13 @@
 import { assertEquals } from "@std/assert";
 import {
+  approvalStep,
   capitalized,
-  documentVersion,
-  minutesLeft,
+  decisionOf,
+  latestStepApproval,
   openStepApproval,
   refusalOf,
+  runOutcome,
   stepName,
-  waitingStep,
 } from "../../apps/web/src/pages/task-step-approval/model.ts";
 
 const RUN = "00000000-0000-4000-8000-000000000001";
@@ -38,16 +39,6 @@ Deno.test("only an open run_step approval of this run is offered, newest first",
   assertEquals(openStepApproval(list.slice(2), RUN), null);
 });
 
-Deno.test("the waiting step is the newest one that waits", () => {
-  const steps = [
-    { id: "s1", status: "completed", createdAt: "2026-11-24T09:00:00.000Z" },
-    { id: "s2", status: "waiting", createdAt: "2026-11-24T09:30:00.000Z" },
-    { id: "s3", status: "waiting", createdAt: "2026-11-24T09:45:00.000Z" },
-  ] as never[];
-  assertEquals(waitingStep(steps)?.id, "s3");
-  assertEquals(waitingStep(steps.slice(0, 1)), null);
-});
-
 Deno.test("a step key reads as plain words", () => {
   assertEquals(stepName("design_signoff"), "design signoff");
   assertEquals(stepName("Design-Review"), "design review");
@@ -56,47 +47,65 @@ Deno.test("a step key reads as plain words", () => {
   assertEquals(capitalized("design"), "Design");
 });
 
-Deno.test("the document is the newest text version from another step of the run", () => {
-  const version = (
-    id: string,
-    runStepId: string | null,
-    mediaType: string,
-    createdAt: string,
-  ) => ({ id, runStepId, mediaType, createdAt }) as never;
-  const versions = [
-    version("v1", "s1", "text/markdown", "2026-11-24T09:00:00.000Z"),
-    version("v2", "s1", "text/markdown", "2026-11-24T09:10:00.000Z"),
-    version("v3", "s2", "text/markdown", "2026-11-24T09:20:00.000Z"),
-    version("v4", "s1", "image/png", "2026-11-24T09:30:00.000Z"),
-    version("v5", "x9", "text/markdown", "2026-11-24T09:40:00.000Z"),
-    version("v6", null, "text/markdown", "2026-11-24T09:50:00.000Z"),
+Deno.test("the latest step approval is the newest of this run, decided or not", () => {
+  const list = [
+    approval({
+      id: "old",
+      status: "answered",
+      createdAt: "2026-11-24T09:00:00.000Z",
+    }),
+    approval({ id: "new", status: "answered", decision: "reject" }),
+    approval({
+      id: "other",
+      subjectId: "00000000-0000-4000-8000-000000000002",
+    }),
+    approval({ id: "plan", subjectType: "plan_revision" }),
   ];
-  const ids = new Set(["s1", "s2"]);
-  assertEquals(
-    documentVersion(versions, ids, "s2") as unknown as { id: string },
-    versions[1],
-  );
-  assertEquals(
-    documentVersion(versions, ids, null) as unknown as { id: string },
-    versions[2],
-  );
-  assertEquals(documentVersion([], ids, null), null);
+  assertEquals(latestStepApproval(list, RUN)?.id, "new");
+  assertEquals(latestStepApproval([], RUN), null);
 });
 
-Deno.test("time left is said in the largest whole unit", () => {
-  const now = Date.parse("2026-11-24T10:00:00.000Z");
-  const at = (ms: number) => new Date(now + ms).toISOString();
-  assertEquals(minutesLeft(at(7 * 86_400_000), now), {
-    unit: "days",
-    count: 7,
-  });
-  assertEquals(minutesLeft(at(3 * 3_600_000 + 5_000), now), {
-    unit: "hours",
-    count: 3,
-  });
-  assertEquals(minutesLeft(at(90_000), now), { unit: "minutes", count: 1 });
-  assertEquals(minutesLeft(at(-5_000), now), { unit: "minutes", count: 0 });
-  assertEquals(minutesLeft(null, now), null);
+Deno.test("the step an approval is about is the waiting one, else the newest", () => {
+  const step = (id: string, status: string, createdAt: string) =>
+    ({ id, status, createdAt }) as never;
+  const steps = [
+    step("s1", "completed", "2026-11-24T09:00:00.000Z"),
+    step("s2", "failed", "2026-11-24T09:30:00.000Z"),
+  ];
+  assertEquals(approvalStep(steps)?.id, "s2");
+  assertEquals(
+    approvalStep([...steps, step("s3", "waiting", "2026-11-24T08:00:00.000Z")])
+      ?.id,
+    "s3",
+  );
+  assertEquals(approvalStep([]), null);
+});
+
+Deno.test("a run's outcome is read from the decision, never from its canceled status", () => {
+  const decided = (decision: string, comment: string | null) =>
+    approval({
+      status: "answered",
+      decision,
+      decisionComment: comment,
+      decidedBy: "p1",
+    });
+  assertEquals(
+    runOutcome(decided("request_changes", " Cover refunds. "), "canceled"),
+    {
+      decision: "request_changes",
+      note: "Cover refunds.",
+      decidedBy: "p1",
+    },
+  );
+  assertEquals(
+    runOutcome(decided("reject", null), "canceled")?.decision,
+    "reject",
+  );
+  assertEquals(runOutcome(decided("approve", null), "canceled"), null);
+  assertEquals(runOutcome(decided("reject", null), "running"), null);
+  assertEquals(runOutcome(null, "canceled"), null);
+  assertEquals(decisionOf(decided("approve", null)), "approve");
+  assertEquals(decisionOf(approval({})), null);
 });
 
 Deno.test("each refusal gets its own sentence key", () => {

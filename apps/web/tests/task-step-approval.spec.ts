@@ -139,13 +139,21 @@ type State = {
   approvals: ReturnType<typeof approval>[];
   decisions: { key: string | undefined; body: Record<string, unknown> }[];
   reply?: (route: Route) => Promise<void>;
+  runStatus: string;
 };
 
 async function open(page: Page): Promise<State> {
-  const state: State = { approvals: [approval()], decisions: [] };
+  const state: State = {
+    approvals: [approval()],
+    decisions: [],
+    runStatus: "running",
+  };
   await mockAuthenticatedSession(page);
   await page.route(`**/v1/tasks/${id}`, (r) => r.fulfill({ json: task }));
-  await page.route(`**/v1/runs/${runId}`, (r) => r.fulfill({ json: run }));
+  await page.route(
+    `**/v1/runs/${runId}`,
+    (r) => r.fulfill({ json: { ...run, status: state.runStatus } }),
+  );
   await page.route(
     `**/v1/runs/${runId}/steps*`,
     (r) =>
@@ -173,7 +181,6 @@ async function open(page: Page): Promise<State> {
       "**/v1/artifacts?*",
       "**/v1/conversations/*/messages*",
       "**/v1/conversations/*/turns*",
-      "**/v1/conversations/*/participants*",
       "**/v1/plan-revisions*",
       "**/v1/questions*",
       "**/v1/coordination-plans*",
@@ -185,6 +192,16 @@ async function open(page: Page): Promise<State> {
       `**/v1/runs/${runId}/route-continuations`,
     ]
   ) await page.route(pattern, empty);
+  await page.route("**/v1/conversations/*/participants*", (r) =>
+    r.fulfill({
+      json: list([
+        {
+          principalId: uuid(1),
+          principalType: "human",
+          displayName: "Ana Ruiz",
+        },
+      ]),
+    }));
   await page.route(
     "**/v1/approvals?*",
     (r) => r.fulfill({ json: list(state.approvals) }),
@@ -222,12 +239,35 @@ async function open(page: Page): Promise<State> {
   return state;
 }
 
-const pane = (page: Page) => page.locator('[data-ui-region^="step-approval"]');
+const pane = (page: Page) =>
+  page.locator(
+    '[data-ui-region="step-approval"], [data-ui-region="step-approval-sheet"]',
+  );
 
 async function review(page: Page) {
   await page.getByRole("button", { name: "Review the signoff" }).click();
   await expect(pane(page).first()).toBeVisible();
 }
+
+const DECIDED = "Your decision on the signoff was recorded.";
+const answered = (decision: string, comment: string | null = null) =>
+  approval({
+    status: "answered",
+    decision,
+    decisionComment: comment,
+    decidedBy: uuid(1),
+    decidedAt: iso(-30_000),
+    version: 2,
+  });
+
+const decideAs = (state: State, decision: string) => {
+  state.reply = async (route) => {
+    const body = route.request().postDataJSON() as { comment?: string };
+    state.approvals = [answered(decision, body.comment ?? null)];
+    state.runStatus = decision === "approve" ? "running" : "canceled";
+    await route.fulfill({ json: state.approvals[0] });
+  };
+};
 
 test("a run waiting at an approval step says so and offers the review", async ({ page }) => {
   await open(page);
@@ -236,9 +276,8 @@ test("a run waiting at an approval step says so and offers the review", async ({
   await expect(
     page.getByText("The signoff needs your approval before Bakery builds."),
   ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Review the signoff" }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Review the signoff" }))
+    .toBeVisible();
 });
 
 test("a run with no open step approval shows no review", async ({ page }) => {
@@ -252,25 +291,52 @@ test("a run with no open step approval shows no review", async ({ page }) => {
   );
 });
 
-test("the pane shows the request and its three decisions", async ({ page }) => {
+test("the pane is titled by its step and leads with the workflow's question", async ({ page }) => {
   await open(page);
   await review(page);
   const region = page.locator('[data-ui-region="step-approval"]');
   await expect(region).toContainText(
     "Approve the design before Bakery builds.",
   );
-  await expect(region).toContainText("the request expires in 7 days");
+  await expect(region).toContainText("the request expires");
+  await expect(region).not.toContainText("Step ");
+  await expect(region).not.toContainText("7 days");
+  await expect(region.getByRole("link", { name: "See what this run wrote" }))
+    .toBeVisible();
   for (const name of ["Reject", "Request changes", "Approve"]) {
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
   }
 });
 
-test("Approve sends one decision bound to the approval and its version", async ({ page }) => {
+test("the pane shows no document, however the run's artifacts look", async ({ page }) => {
+  await open(page);
+  await review(page);
+  await expect(page.locator('[data-ui-region="step-approval"]')).not
+    .toContainText("Reading the document");
+  await expect(page.getByLabel("The signoff document")).toHaveCount(0);
+});
+
+test("Close is an icon button in the header, not a footer button", async ({ page }) => {
+  await open(page);
+  await review(page);
+  const close = page.getByRole("button", { name: "Close", exact: true });
+  await expect(close).toHaveCount(1);
+  await close.click();
+  await expect(pane(page)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Review the signoff" }))
+    .toBeVisible();
+});
+
+test("Approve decides at once, closes the pane, announces it and says nothing is recorded", async ({ page }) => {
   const state = await open(page);
+  decideAs(state, "approve");
   await review(page);
   await page.getByRole("button", { name: "Approve", exact: true }).click();
-  await expect(page.getByText("Your decision on the signoff was recorded."))
-    .toBeVisible();
+  await expect(pane(page)).toHaveCount(0);
+  await expect(page.locator('[data-ui-region="step-approval-announcement"]'))
+    .toHaveText("Approved. The run goes on.");
+  await expect(page.getByText(DECIDED)).toHaveCount(0);
+  await expect(page.locator("#task-run-heading")).toBeFocused();
   expect(state.decisions).toHaveLength(1);
   expect(state.decisions[0].body).toEqual({
     decision: "approve",
@@ -279,50 +345,131 @@ test("Approve sends one decision bound to the approval and its version", async (
   expect(state.decisions[0].key).toBeTruthy();
 });
 
-test("Request changes needs a comment and sends it", async ({ page }) => {
+test("Request changes confirms, needs a note, and shows the run's outcome", async ({ page }) => {
   const state = await open(page);
+  decideAs(state, "request_changes");
   await review(page);
   await page.getByRole("button", { name: "Request changes" }).click();
-  const send = page.getByRole("button", { name: "Send change request" });
-  await expect(send).toBeDisabled();
-  await page.getByLabel("What should change?").fill("Cover refunds too.");
-  await send.click();
-  await expect(page.getByText("Your decision on the signoff was recorded."))
-    .toBeVisible();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toContainText("Ask for changes to signoff?");
+  await expect(dialog).toContainText(
+    "This ends the run. Your note is recorded on the task for whoever starts the next run.",
+  );
+  await dialog.getByRole("button", { name: "Ask for changes" }).click();
+  await expect(dialog.getByText("Say what should change.")).toBeVisible();
+  expect(state.decisions).toHaveLength(0);
+  await dialog.getByLabel("What should change?").fill("Cover refunds too.");
+  await dialog.getByRole("button", { name: "Ask for changes" }).click();
+  await expect(pane(page)).toHaveCount(0);
   expect(state.decisions[0].body).toEqual({
     decision: "request_changes",
     comment: "Cover refunds too.",
     expectedVersion: 1,
   });
+  await expect(page.locator('[data-ui-region="step-approval-announcement"]'))
+    .toHaveText("Changes asked for. The run has ended.");
+  await expect(page.getByText("Changes requested", { exact: true }))
+    .toBeVisible();
+  await expect(page.getByText("asked for changes: “Cover refunds too.”"))
+    .toBeVisible();
+  await expect(
+    page.locator('[data-placement="line"]').filter({ hasText: "Ana Ruiz" }),
+  ).toBeVisible();
+  await expect(page.getByText("Canceled", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Run actions" })).toHaveCount(
+    0,
+  );
 });
 
-test("Reject asks first, and keeping the review sends nothing", async ({ page }) => {
+test("Reject confirms, its reason is optional, and the run reads Rejected", async ({ page }) => {
   const state = await open(page);
+  decideAs(state, "reject");
   await review(page);
   await page.getByRole("button", { name: "Reject", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toContainText("Reject the signoff?");
-  await dialog.getByRole("button", { name: "Keep reviewing" }).click();
+  await expect(dialog).toContainText("Reject signoff?");
+  await expect(dialog).toContainText(
+    "This ends the run, and nothing more is built from it. Your decision is recorded on the task.",
+  );
+  await dialog.getByRole("button", { name: "Cancel" }).click();
   expect(state.decisions).toHaveLength(0);
   await page.getByRole("button", { name: "Reject", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", {
     name: "Reject",
     exact: true,
   }).click();
-  await expect(page.getByText("Your decision on the signoff was recorded."))
-    .toBeVisible();
-  expect(state.decisions.map((entry) => entry.body.decision)).toEqual([
-    "reject",
-  ]);
+  await expect(pane(page)).toHaveCount(0);
+  expect(state.decisions[0].body).toEqual({
+    decision: "reject",
+    expectedVersion: 1,
+  });
+  await expect(page.getByText("Rejected", { exact: true })).toBeVisible();
+  await expect(page.getByText(/rejected signoff\./)).toBeVisible();
+  await expect(page.getByText("Canceled", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Run actions" })).toHaveCount(
+    0,
+  );
+});
+
+test("a reason typed for Reject is sent", async ({ page }) => {
+  const state = await open(page);
+  decideAs(state, "reject");
+  await review(page);
+  await page.getByRole("button", { name: "Reject", exact: true }).click();
+  const dialog = page.getByRole("alertdialog");
+  await dialog.getByLabel("Why?").fill("Wrong scope.");
+  await dialog.getByRole("button", { name: "Reject", exact: true }).click();
+  await expect(pane(page)).toHaveCount(0);
+  expect(state.decisions[0].body).toEqual({
+    decision: "reject",
+    comment: "Wrong scope.",
+    expectedVersion: 1,
+  });
+});
+
+for (
+  const [decision, sentence] of [
+    ["approve", /already approved this/],
+    ["request_changes", /already asked for changes/],
+    ["reject", /already rejected this/],
+  ] as const
+) {
+  test(`a 409 after someone decided names them: ${decision}`, async ({ page }) => {
+    const state = await open(page);
+    state.reply = async (route) => {
+      state.approvals = [answered(decision)];
+      await route.fulfill({
+        status: 409,
+        contentType: "application/problem+json",
+        json: problem(409, "STATE_CONFLICT", "approval_decided"),
+      });
+    };
+    await review(page);
+    await page.getByRole("button", { name: "Approve", exact: true }).click();
+    const region = page.locator('[data-ui-region="step-approval"]');
+    await expect(region).toContainText("Ana Ruiz");
+    await expect(region).toContainText(sentence);
+  });
+}
+
+test("a 409 after a decision by someone unnamed says what was decided", async ({ page }) => {
+  const state = await open(page);
+  state.reply = async (route) => {
+    state.approvals = [{ ...answered("request_changes"), decidedBy: uuid(77) }];
+    await route.fulfill({
+      status: 409,
+      contentType: "application/problem+json",
+      json: problem(409, "STATE_CONFLICT", "approval_decided"),
+    });
+  };
+  await review(page);
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(
+    page.getByText("Someone already decided this: Changes requested."),
+  ).toBeVisible();
 });
 
 const REFUSALS: [string, number, string | undefined, string][] = [
-  [
-    "approval_decided",
-    409,
-    "approval_decided",
-    "Someone already decided this. The current state is shown.",
-  ],
   [
     "approval_superseded",
     409,
@@ -393,18 +540,14 @@ test("a lost answer keeps the decision and Retry sends it with the same key", as
         json: { ...problem(503, "UNAVAILABLE"), retryable: true },
       });
     }
-    state.reply = undefined;
-    state.approvals = [
-      approval({ status: "answered", decision: "approve", version: 2 }),
-    ];
-    await route.fulfill({ json: state.approvals[0] });
+    decideAs(state, "approve");
+    await state.reply!(route);
   };
   await review(page);
   await page.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(page.getByText(/may not have been recorded/)).toBeVisible();
   await page.getByRole("button", { name: "Retry" }).click();
-  await expect(page.getByText("Your decision on the signoff was recorded."))
-    .toBeVisible();
+  await expect(pane(page)).toHaveCount(0);
   expect(state.decisions).toHaveLength(2);
   expect(state.decisions[1].key).toBe(state.decisions[0].key);
 });
@@ -416,14 +559,17 @@ test("the pane has no accessibility violations", async ({ page }) => {
   expect(results.violations).toEqual([]);
 });
 
-test("on a phone the review opens as the sheet and decides there", async ({ page }) => {
+test("the review as a phone shows it: the sheet, Approve there, then the run line", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const state = await open(page);
+  decideAs(state, "approve");
   await review(page);
   await expect(page.locator('[data-ui-region="step-approval-sheet"]'))
     .toBeVisible();
   await page.getByRole("button", { name: "Approve", exact: true }).click();
-  await expect(page.getByText("Your decision on the signoff was recorded."))
-    .toBeVisible();
+  await expect(page.locator('[data-ui-region="step-approval-sheet"]'))
+    .toHaveCount(0);
+  await expect(page.locator('[data-ui-region="step-approval-announcement"]'))
+    .toHaveText("Approved. The run goes on.");
   expect(state.decisions).toHaveLength(1);
 });

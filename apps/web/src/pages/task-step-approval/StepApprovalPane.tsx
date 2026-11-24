@@ -1,48 +1,98 @@
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import * as UI from "@bakery/ui";
 import { formatDate } from "@bakery/i18n";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { ReferenceLink } from "../../app/ReferenceLink.tsx";
 import { useApprovalDecision } from "../task-delivery/use-approval-decision.ts";
-import { ArtifactPreviewBody } from "../ArtifactContentPreview.tsx";
-import { capitalized, minutesLeft, refusalOf, stepName } from "./model.ts";
+import {
+  capitalized,
+  type Decision,
+  decisionOf,
+  refusalOf,
+  stepName,
+} from "./model.ts";
 import { useStepApproval } from "./use-step-approval.ts";
 
-type Choice = "approve" | "request_changes" | "reject";
+type Asking = "request_changes" | "reject" | null;
 
 export function StepApprovalPane(
-  { taskId, runId, layout, online, onClose }: {
+  { taskId, runId, layout, online, onClose, onDecided }: {
     taskId: string;
     runId: string;
     layout: "rail" | "sheet";
     online: boolean;
     onClose: () => void;
+    onDecided: (decision: Decision) => void;
   },
 ) {
   const { translate: t, locale, timeZone } = useI18n();
   const id = useId();
-  const read = useStepApproval(taskId, runId, { withDocument: true });
-  const [kept, setKept] = useState(read.approval);
-  const [done, setDone] = useState<Choice | null>(null);
-  const [asking, setAsking] = useState(false);
-  const [comment, setComment] = useState("");
-  const [rejecting, setRejecting] = useState(false);
-  useEffect(() => {
-    if (read.approval !== null) setKept(read.approval);
-  }, [read.approval]);
-  const approval = read.approval ?? kept;
+  const read = useStepApproval(taskId, runId);
   const { phase, decide, refusal } = useApprovalDecision(
     read.approval,
     read.refresh,
   );
+  const [asking, setAsking] = useState<Asking>(null);
+  const [note, setNote] = useState("");
+  const [empty, setEmpty] = useState(false);
+  const approval = read.approval ?? read.latest;
+  const title = capitalized(stepName(read.step?.stepKey ?? null));
   const step = stepName(read.step?.stepKey ?? null);
   const locked = phase === "deciding" || phase === "unknown";
-  const open = read.approval !== null && done === null;
-  const send = async (choice: Choice) => {
-    const result = await decide(
-      choice,
-      choice === "request_changes" ? comment.trim() : "",
+  const open = read.approval !== null;
+  const timeOf = (iso: string) =>
+    formatDate(new Date(iso), locale, { timeZone, timeStyle: "short" });
+  const dateOf = (iso: string) =>
+    formatDate(new Date(iso), locale, { timeZone, dateStyle: "medium" });
+  const send = async (choice: Decision, comment: string) => {
+    const result = await decide(choice, comment);
+    if (result === "idle") onDecided(choice);
+  };
+  const confirmAsk = async () => {
+    if (asking === null) return;
+    const text = note.trim();
+    if (asking === "request_changes" && text === "") {
+      setEmpty(true);
+      return;
+    }
+    const choice = asking;
+    setAsking(null);
+    setNote("");
+    setEmpty(false);
+    await send(choice, text);
+  };
+  const cancelAsk = () => {
+    setAsking(null);
+    setNote("");
+    setEmpty(false);
+  };
+  const earlier = read.latest !== null && read.approval === null
+    ? decisionOf(read.latest)
+    : null;
+  const refusalText = () => {
+    const kind = refusalOf(refusal ?? { status: null, reason: null });
+    if (kind !== "decided") return t(`tasks.stepApproval.refusal.${kind}`);
+    const decision = decisionOf(read.latest);
+    if (decision === null) return t("tasks.stepApproval.refusal.failed");
+    const name = read.nameOf(read.latest?.decidedBy ?? null);
+    if (name === null || read.latest?.decidedAt == null) {
+      return t("tasks.stepApproval.refusal.decidedWord", {
+        decision: t(`tasks.stepApproval.word.${decision}`),
+      });
+    }
+    const key = decision === "approve"
+      ? "alreadyApprove"
+      : decision === "reject"
+      ? "alreadyReject"
+      : "alreadyRequestChanges";
+    return (
+      <>
+        <ReferenceLink kind="person" value={name} />{" "}
+        {t(`tasks.stepApproval.refusal.${key}`, {
+          time: timeOf(read.latest.decidedAt),
+        })}
+      </>
     );
-    if (result === "idle") setDone(choice);
   };
   const notice = phase === "deciding"
     ? { tone: "information" as const, text: t("tasks.stepApproval.deciding") }
@@ -57,58 +107,41 @@ export function StepApprovalPane(
       text: t("tasks.stepApproval.refusal.forbidden"),
     }
     : phase === "conflict" || phase === "error"
-    ? {
-      tone: "error" as const,
-      text: t(
-        `tasks.stepApproval.refusal.${
-          refusalOf(refusal ?? { status: null, reason: null })
-        }`,
-      ),
-    }
-    : done !== null
-    ? {
-      tone: "success" as const,
-      text: t("tasks.stepApproval.decided", { step }),
-    }
-    : null;
-  const left = minutesLeft(approval?.expiresAt ?? null, Date.now());
-  const asked = approval
-    ? t("tasks.stepApproval.asked", {
-      time: formatDate(new Date(approval.createdAt), locale, {
-        timeZone,
-        timeStyle: "short",
-      }),
-      left: left === null
-        ? ""
-        : t(`tasks.stepApproval.left.${left.unit}`, { count: left.count }),
-    })
+    ? { tone: "error" as const, text: refusalText() }
+    : earlier !== null
+    ? { tone: "information" as const, text: refusalText() }
     : null;
   const body = (
     <UI.PaneSection
       data-ui-region="step-approval"
       data-approval-id={approval?.id}
-      aria-label={capitalized(step)}
+      aria-label={title}
       role="region"
     >
       <UI.Stack gap="standard">
-        {asked && left !== null && <UI.Text variant="hint">{asked}</UI.Text>}
-        {read.document
-          ? (
-            <ArtifactPreviewBody
-              version={read.document}
-              label={t("tasks.stepApproval.documentLabel", { step })}
-              cutText
-            />
-          )
-          : read.documentPending
-          ? (
-            <UI.Text variant="hint">
-              {t("tasks.stepApproval.documentLoading")}
-            </UI.Text>
-          )
-          : approval
-          ? <UI.Text>{approval.prompt}</UI.Text>
-          : null}
+        {approval && (
+          <UI.Text variant="hint">
+            {t("tasks.stepApproval.asked", {
+              time: timeOf(approval.createdAt),
+              date: approval.expiresAt === null
+                ? ""
+                : dateOf(approval.expiresAt),
+            })}
+          </UI.Text>
+        )}
+        {approval && <UI.Text>{approval.prompt}</UI.Text>}
+        <UI.Link
+          href="#task-run-artifacts"
+          variant="sentence"
+          onClick={(event) => {
+            event.preventDefault();
+            const target = document.getElementById("task-run-artifacts");
+            target?.scrollIntoView({ block: "start" });
+            target?.focus();
+          }}
+        >
+          {t("tasks.stepApproval.seeWrote")}
+        </UI.Link>
         <div aria-atomic="true" aria-live="polite" role="status">
           {notice && (
             <UI.InlineNotice role="none" tone={notice.tone}>
@@ -116,112 +149,105 @@ export function StepApprovalPane(
             </UI.InlineNotice>
           )}
         </div>
-        {open && asking && (
-          <UI.Field
-            htmlFor={`${id}-comment`}
-            label={t("tasks.stepApproval.comment")}
-            hint={t("tasks.stepApproval.commentHint", { step })}
-            variant="textarea"
-          >
-            <textarea
-              id={`${id}-comment`}
-              name="comment"
-              rows={3}
-              value={comment}
-              readOnly={locked}
-              onChange={(event) => setComment(event.currentTarget.value)}
-            />
-          </UI.Field>
-        )}
       </UI.Stack>
     </UI.PaneSection>
   );
-  const footer = !open
-    ? (
-      <UI.Button variant="outline" onClick={onClose}>
-        {t("tasks.stepApproval.close")}
-      </UI.Button>
-    )
-    : phase === "unknown"
+  const footer = !open ? null : phase === "unknown"
     ? (
       <UI.Button
         disabled={!online}
-        onClick={() => void send(asking ? "request_changes" : "approve")}
+        onClick={() => void send("approve", "")}
       >
         {t("tasks.stepApproval.retry")}
       </UI.Button>
-    )
-    : asking
-    ? (
-      <>
-        <UI.Button
-          variant="outline"
-          disabled={locked}
-          onClick={() => setAsking(false)}
-        >
-          {t("tasks.stepApproval.keepReviewing")}
-        </UI.Button>
-        <UI.Button
-          disabled={locked || !online || comment.trim() === ""}
-          loading={phase === "deciding"}
-          onClick={() => void send("request_changes")}
-        >
-          {t("tasks.stepApproval.sendChanges")}
-        </UI.Button>
-      </>
     )
     : (
       <>
         <UI.Button
           variant="destructive-outline"
           disabled={locked || !online}
-          onClick={() => setRejecting(true)}
+          onClick={() => setAsking("reject")}
         >
           {t("tasks.stepApproval.reject")}
         </UI.Button>
         <UI.Button
           variant="outline"
           disabled={locked || !online}
-          onClick={() => setAsking(true)}
+          onClick={() => setAsking("request_changes")}
         >
           {t("tasks.stepApproval.requestChanges")}
         </UI.Button>
         <UI.Button
           disabled={locked || !online}
           loading={phase === "deciding"}
-          onClick={() => void send("approve")}
+          onClick={() => void send("approve", "")}
         >
           {t("tasks.stepApproval.approve")}
         </UI.Button>
       </>
     );
+  const asksChanges = asking === "request_changes";
   const dialog = (
     <UI.AlertDialog
       cancelAction={
-        <UI.Button
-          variant="outline"
-          onClick={() => setRejecting(false)}
-        >
-          {t("tasks.stepApproval.rejectCancel")}
+        <UI.Button variant="outline" onClick={cancelAsk}>
+          {t("tasks.stepApproval.cancel")}
         </UI.Button>
       }
       confirmAction={
         <UI.Button
-          variant="destructive"
-          onClick={() => {
-            setRejecting(false);
-            void send("reject");
-          }}
+          variant={asksChanges ? "primary" : "destructive"}
+          onClick={() => void confirmAsk()}
         >
-          {t("tasks.stepApproval.rejectConfirm")}
+          {asksChanges
+            ? t("tasks.stepApproval.changesConfirm")
+            : t("tasks.stepApproval.rejectConfirm")}
         </UI.Button>
       }
-      onOpenChange={(next) => !next && setRejecting(false)}
-      open={rejecting}
-      title={t("tasks.stepApproval.rejectTitle", { step })}
+      onOpenChange={(next) => !next && cancelAsk()}
+      open={asking !== null}
+      title={asksChanges
+        ? t("tasks.stepApproval.changesTitle", { step })
+        : t("tasks.stepApproval.rejectTitle", { step })}
     >
-      {t("tasks.stepApproval.rejectBody")}
+      <UI.Stack gap="standard">
+        <UI.Text>
+          {asksChanges
+            ? t("tasks.stepApproval.changesBody")
+            : t("tasks.stepApproval.rejectBody")}
+        </UI.Text>
+        <UI.Field
+          htmlFor={`${id}-note`}
+          label={asksChanges
+            ? t("tasks.stepApproval.changesField")
+            : t("tasks.stepApproval.rejectField")}
+          error={asksChanges && empty
+            ? t("tasks.stepApproval.changesRequired")
+            : undefined}
+          variant="textarea"
+        >
+          <textarea
+            id={`${id}-note`}
+            name="note"
+            rows={3}
+            value={note}
+            onChange={(event) => {
+              setNote(event.currentTarget.value);
+              setEmpty(false);
+            }}
+          />
+        </UI.Field>
+      </UI.Stack>
     </UI.AlertDialog>
+  );
+  const closeButton = (
+    <UI.IconButton
+      label={t("tasks.stepApproval.close")}
+      variant="compact"
+      onClick={onClose}
+    >
+      <UI.IconGlyph name="close" />
+    </UI.IconButton>
   );
   if (layout === "sheet") {
     return (
@@ -229,12 +255,12 @@ export function StepApprovalPane(
         <UI.Sheet
           open
           onOpenChange={(next) => !next && onClose()}
-          title={capitalized(step)}
+          title={title}
           dismissLabel={t("tasks.stepApproval.close")}
           data-ui-region="step-approval-sheet"
         >
           {body}
-          <UI.Inline variant="actions">{footer}</UI.Inline>
+          {footer && <UI.Inline variant="actions">{footer}</UI.Inline>}
         </UI.Sheet>
         {dialog}
       </>
@@ -243,12 +269,12 @@ export function StepApprovalPane(
   return (
     <>
       <UI.SessionPane
-        label={capitalized(step)}
+        label={title}
         layout="sections"
         header={
           <>
-            <UI.Text>{capitalized(step)}</UI.Text>
-            <UI.Text variant="hint">{t("tasks.stepApproval.caption")}</UI.Text>
+            <UI.Text>{title}</UI.Text>
+            {closeButton}
           </>
         }
         footer={footer}

@@ -538,6 +538,7 @@ function Detail(
   const api = useBakeryApi();
   const online = useOnline();
   const [reviewingStep, setReviewingStep] = useState(false);
+  const [decisionNote, setDecisionNote] = useState("");
   const [syncConnectivity, setSyncConnectivity] = useState<
     DurableSyncConnectivity
   >("unknown");
@@ -592,6 +593,16 @@ function Detail(
                 layout={layout}
                 online={online}
                 onClose={() => setReviewingStep(false)}
+                onDecided={(decision) => {
+                  setReviewingStep(false);
+                  setDecisionNote(
+                    t(`tasks.stepApproval.announce.${decision}`),
+                  );
+                  globalThis.setTimeout(
+                    () => document.getElementById("task-run-heading")?.focus(),
+                    0,
+                  );
+                }}
               />
             )
             : null}
@@ -617,6 +628,14 @@ function Detail(
           <>
             <UI.VisuallyHidden aria-live="polite" as="div" role="status">
               {arrival}
+            </UI.VisuallyHidden>
+            <UI.VisuallyHidden
+              aria-live="polite"
+              as="div"
+              role="status"
+              data-ui-region="step-approval-announcement"
+            >
+              {decisionNote}
             </UI.VisuallyHidden>
             {!online && (
               <UI.InlineNotice tone="warning">

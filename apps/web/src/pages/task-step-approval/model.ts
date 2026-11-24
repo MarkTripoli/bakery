@@ -1,34 +1,45 @@
 import type {
   ApprovalResponse,
-  ArtifactVersionResponse,
   RunStepListResponse,
 } from "../../api/client.ts";
 
 type RunStepItem = RunStepListResponse["items"][number];
 
-export type StepApproval = Readonly<{
-  approval: ApprovalResponse;
-  step: RunStepItem | null;
-}>;
+function stepApprovals(
+  approvals: readonly ApprovalResponse[],
+  runId: string,
+): ApprovalResponse[] {
+  return [...approvals]
+    .filter((approval) =>
+      approval.subjectType === "run_step" && approval.subjectId === runId
+    )
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
 
 export function openStepApproval(
   approvals: readonly ApprovalResponse[],
   runId: string,
 ): ApprovalResponse | null {
-  return [...approvals]
-    .filter((approval) =>
-      approval.subjectType === "run_step" && approval.status === "open" &&
-      approval.subjectId === runId
-    )
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
+  return stepApprovals(approvals, runId).find((approval) =>
+    approval.status === "open"
+  ) ?? null;
 }
 
-export function waitingStep(
+export function latestStepApproval(
+  approvals: readonly ApprovalResponse[],
+  runId: string,
+): ApprovalResponse | null {
+  return stepApprovals(approvals, runId)[0] ?? null;
+}
+
+export function approvalStep(
   steps: readonly RunStepItem[],
 ): RunStepItem | null {
-  return [...steps]
-    .filter((step) => step.status === "waiting")
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
+  const newest = (items: readonly RunStepItem[]) =>
+    [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ??
+      null;
+  return newest(steps.filter((step) => step.status === "waiting")) ??
+    newest(steps);
 }
 
 export function stepName(stepKey: string | null): string {
@@ -41,35 +52,36 @@ export function capitalized(text: string): string {
   return text.length === 0 ? text : text[0]!.toUpperCase() + text.slice(1);
 }
 
-export function documentVersion(
-  versions: readonly ArtifactVersionResponse[],
-  stepIds: ReadonlySet<string>,
-  waitingStepId: string | null,
-): ArtifactVersionResponse | null {
-  return [...versions]
-    .filter((version) =>
-      version.runStepId !== null && stepIds.has(version.runStepId) &&
-      version.runStepId !== waitingStepId &&
-      (version.mediaType.startsWith("text/") ||
-        version.mediaType === "application/json")
-    )
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
+export type Decision = "approve" | "request_changes" | "reject";
+
+export function decisionOf(approval: ApprovalResponse | null): Decision | null {
+  const decision = approval?.decision;
+  return decision === "approve" || decision === "request_changes" ||
+      decision === "reject"
+    ? decision
+    : null;
 }
 
-export function minutesLeft(
-  expiresAt: string | null,
-  now: number,
-): { unit: "days" | "hours" | "minutes"; count: number } | null {
-  if (expiresAt === null) return null;
-  const minutes = Math.max(
-    0,
-    Math.floor((Date.parse(expiresAt) - now) / 60_000),
-  );
-  if (minutes >= 1_440) {
-    return { unit: "days", count: Math.floor(minutes / 1_440) };
-  }
-  if (minutes >= 60) return { unit: "hours", count: Math.floor(minutes / 60) };
-  return { unit: "minutes", count: minutes };
+export type RunOutcome = Readonly<{
+  decision: "request_changes" | "reject";
+  note: string;
+  decidedBy: string | null;
+}>;
+
+export function runOutcome(
+  approval: ApprovalResponse | null,
+  runStatus: string | undefined,
+): RunOutcome | null {
+  const decision = decisionOf(approval);
+  if (
+    approval === null || runStatus !== "canceled" ||
+    (decision !== "request_changes" && decision !== "reject")
+  ) return null;
+  return {
+    decision,
+    note: (approval.decisionComment ?? "").trim(),
+    decidedBy: approval.decidedBy,
+  };
 }
 
 export type Refusal =
