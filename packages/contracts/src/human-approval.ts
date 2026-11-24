@@ -163,6 +163,10 @@ export const DECISION_LEDGER_KINDS = Object.freeze(
     "limit_change",
     "accept_with_reason",
     "stop",
+    "request",
+    "request_reminded",
+    "request_withdrawn",
+    "request_handled",
   ] as const,
 );
 export type DecisionLedgerKind = typeof DECISION_LEDGER_KINDS[number];

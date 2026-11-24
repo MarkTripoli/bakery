@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "33633736b3f873e705ff50999f03329dc674f472"
+    "acc363ccc0017dd8898aa1cd8177e6e91ef65ea0"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:24bfec4c60286b79800b6fa47c731f2b43a54957b3a879d0dd25b5b0ae22ff87",
-  "reason": "#407 batch workflow under the owner's standing breaking-change authorization (2026-10-09), main 33633736b3f873e705ff50999f03329dc674f472: BatchCreate.presetId becomes a required field (fixed-coding or fixed-coding-reviewed), because a batch start admitted every issue with no workflow and #407 made that a refusal; Batch gains presetId, null for a batch started before the workflow was stored. No other contract shape changed by this branch. The #34 plugin job version pin approval on main fc819c510e55999f77dd9ec034e279926afa03f0 stays below as history.",
+  "targetCompatibilityDigest": "sha256:284c681e5d41069056c88940f5e8bf41934c3c778c9273828aa94a5379b8424c",
+  "reason": "#407 batch workflow under the owner's standing breaking-change authorization (2026-10-09), main acc363ccc0017dd8898aa1cd8177e6e91ef65ea0: BatchCreate.presetId becomes a required field (fixed-coding or fixed-coding-reviewed), because a batch start admitted every issue with no workflow and #407 made that a refusal; Batch gains presetId, null for a batch started before the workflow was stored. No other contract shape changed by this branch. The #34 plugin job version pin approval on main fc819c510e55999f77dd9ec034e279926afa03f0 stays below as history.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "33633736b3f873e705ff50999f03329dc674f472"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:24bfec4c60286b79800b6fa47c731f2b43a54957b3a879d0dd25b5b0ae22ff87",
+      "reason": "The #407 batch workflow approval bound to main 33633736b3f873e705ff50999f03329dc674f472, displaced by the rebind to main acc363ccc0017dd8898aa1cd8177e6e91ef65ea0 after #967 and #962 changed main. Kept as history."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
