@@ -291,7 +291,9 @@ function agentOf(inspection: Inspection): string | null {
   return null;
 }
 
-function supportedList(inspection: Inspection): string {
+function supportedList(
+  inspection: Pick<Inspection, "supportedSystems">,
+): string {
   return inspection.supportedSystems.map((system) =>
     `${system.os === "macos" ? "macOS" : systemName(system.os)} ${
       processorName(system.architecture)
@@ -411,6 +413,8 @@ type Created = Readonly<{
   deviceSecret: string;
   expiresAt: string;
   pollIntervalSeconds: number;
+  supported?: boolean;
+  supportedSystems?: readonly { os: string; architecture: string }[];
 }>;
 
 function parseCreated(value: unknown): Created {
@@ -451,6 +455,21 @@ async function linkByApproval(
         return 2;
       }
       throw error;
+    }
+    if (created.supported === false) {
+      const supported = created.supportedSystems ?? [];
+      io.write(
+        `Bakery does not support ${systemName(io.machine.platform)} ${
+          processorName(io.machine.arch)
+        } yet. Nothing was installed.${
+          supported.length > 0
+            ? ` Supported today: ${
+              supportedList({ supportedSystems: supported })
+            }.`
+            : ""
+        }\n`,
+      );
+      return 2;
     }
     io.write(
       `Nothing is installed yet. Ask a Bakery administrator to approve this code:\n\n  ${created.userCode}\n\n  ${origin}/machines/link   (opens on any device)\n\nWaiting for approval… ${

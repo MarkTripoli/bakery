@@ -471,3 +471,41 @@ Deno.test("the Bakery origin serves the link command as an npm tarball", () =>
     );
     assertEquals(again.status, 304);
   }));
+
+Deno.test("a request from an unsupported system says so and cannot be approved", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const response = await publicPost(fixture, "/v1/worker/link-requests", {
+      ...MACHINE,
+      os: "macos",
+      architecture: "arm64",
+    });
+    assertEquals(response.status, 201, await response.clone().text());
+    const request = await response.json();
+    assertEquals(request.supported, false);
+    assertEquals(request.supportedSystems, [{
+      os: "linux",
+      architecture: "arm64",
+    }, { os: "linux", architecture: "x64" }]);
+    const found = await adminRequest(
+      fixture,
+      "/v1/worker-link-requests/lookups",
+      { userCode: request.userCode },
+    );
+    assertEquals((await found.json()).supported, false);
+    const approve = await adminRequest(
+      fixture,
+      `/v1/worker-link-requests/${request.requestId}/approvals`,
+      { slots: 1, capabilities: ["git"] },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(approve.status, 409);
+    assertEquals((await problem(approve)).reason, "unsupported_system");
+    const declined = await adminRequest(
+      fixture,
+      `/v1/worker-link-requests/${request.requestId}/declines`,
+      {},
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(declined.status, 200, await declined.clone().text());
+  }));

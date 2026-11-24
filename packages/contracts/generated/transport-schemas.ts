@@ -38320,14 +38320,18 @@ const transportSchemas = {
         "userCode",
         "deviceSecret",
         "expiresAt",
-        "pollIntervalSeconds"
+        "pollIntervalSeconds",
+        "supported",
+        "supportedSystems"
       ],
       "fieldTypes": {
         "requestId": "uuid",
         "userCode": "string",
         "deviceSecret": "secretString",
         "expiresAt": "timestamp",
-        "pollIntervalSeconds": "integer"
+        "pollIntervalSeconds": "integer",
+        "supported": "boolean",
+        "supportedSystems": "json"
       },
       "sensitiveFields": [
         "deviceSecret"
@@ -38338,7 +38342,9 @@ const transportSchemas = {
         "userCode": "Short code (XXXX-XXXX) the terminal prints for an Admin to approve.",
         "deviceSecret": "Secret only this terminal holds, returned once; every poll must present it.",
         "expiresAt": "UTC timestamp, ten minutes after creation, when an undecided request expires.",
-        "pollIntervalSeconds": "How many seconds the terminal waits between polls."
+        "pollIntervalSeconds": "How many seconds the terminal waits between polls.",
+        "supported": "Whether the reported system and processor are supported; false means the terminal stops before showing a code and an Admin cannot approve the request.",
+        "supportedSystems": "The supported systems as a list of {os, architecture} pairs, such as linux arm64."
       }
     },
     "WorkerLinkRequestPollResult": {

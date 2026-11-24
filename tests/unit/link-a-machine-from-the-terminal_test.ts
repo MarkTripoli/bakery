@@ -307,10 +307,11 @@ Deno.test("a failed install says what failed, where the log is, and to rerun", a
 const CREATE = "/v1/worker/link-requests";
 const POLL = "/v1/worker/link-requests/{id}/polls";
 const REQUEST_ID = "11111111-2222-4333-8444-555555555555";
-function created(userCode = CODE) {
+function created(userCode = CODE, extra: Record<string, unknown> = {}) {
   return {
     status: 201,
     body: {
+      ...extra,
       requestId: REQUEST_ID,
       userCode,
       deviceSecret: "device-secret-kept-here",
@@ -445,4 +446,30 @@ Deno.test("link takes no token flag or token environment", () => {
     }),
     { server: SERVER, code: CODE, root: "/r" },
   );
+});
+
+Deno.test("with no code: an unsupported system stops before it shows a code", async () => {
+  const h = await harness({
+    platform: "darwin",
+    arch: "arm64",
+    routes: {
+      [CREATE]: [
+        created(CODE, {
+          supported: false,
+          supportedSystems: [{ os: "linux", architecture: "arm64" }],
+        }),
+      ],
+    },
+  });
+  try {
+    assertEquals(await h.run(null), 2);
+    assertEquals(
+      h.text(),
+      "Bakery does not support macOS arm64 yet. Nothing was installed. Supported today: Linux arm64.\n",
+    );
+    assert(!h.text().includes(CODE));
+    assertEquals(h.calls.filter((call) => call.path === POLL).length, 0);
+  } finally {
+    await h.close();
+  }
 });

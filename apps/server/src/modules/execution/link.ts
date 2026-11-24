@@ -57,7 +57,12 @@ export const REGISTER_LINK_PER_CODE = { max: 10, windowMs: TEN_MINUTES_MS };
 
 const RATE_LIMIT_PREFIX = "bakery:worker-link";
 
-export type LinkRefusalReason = "not_found" | "expired" | "used" | "declined";
+export type LinkRefusalReason =
+  | "not_found"
+  | "expired"
+  | "used"
+  | "declined"
+  | "unsupported_system";
 
 /** Unknown is a 404, the rest a 409; each names its reason and nothing about the organization. */
 export function linkRefusal(reason: LinkRefusalReason): StandardError {
@@ -265,6 +270,11 @@ export async function createLinkRequest(
         deviceSecret,
         expiresAt: iso(row.expires_at),
         pollIntervalSeconds: POLL_INTERVAL_SECONDS,
+        supported: system.supported,
+        supportedSystems: SUPPORTED_WORKER_SYSTEMS.map((entry) => ({
+          os: entry.os,
+          architecture: entry.architecture,
+        })),
       });
       return noStoreJsonResponse(created, 201);
     }
@@ -524,6 +534,9 @@ async function decideLinkRequest(
         });
       }
       if (row.expires_at <= row.now) throw linkRefusal("expired");
+      if (decision === "approved" && !row.supported) {
+        throw linkRefusal("unsupported_system");
+      }
       let enrollmentId: string | null = null;
       if (decision === "approved" && input !== null) {
         if (
