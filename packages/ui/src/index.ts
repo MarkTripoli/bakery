@@ -91,6 +91,7 @@ export {
 } from "./brand/scene-assets.ts";
 export * from "./atoms/Radio.tsx";
 export * from "./atoms/Skeleton.tsx";
+export * from "./atoms/Spinner.tsx";
 export * from "./atoms/HandoffForm.tsx";
 export * from "./atoms/VisuallyHidden.tsx";
 export * from "./atoms/Spacer.tsx";

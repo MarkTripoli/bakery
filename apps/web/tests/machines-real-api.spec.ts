@@ -123,7 +123,7 @@ test.describe("real API machines authenticated projections", () => {
       page.getByRole("button", { name: "Add machine", exact: true }),
     ).toHaveCount(0);
     await expect(page.getByTestId("machines-finishing-setup")).toHaveCount(0);
-    await page.goto("/machines/new");
+    await page.goto("/machines/new/by-hand");
     await expect(page.getByText("Only administrators can add machines"))
       .toBeVisible();
     await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
