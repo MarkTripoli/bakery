@@ -1902,6 +1902,21 @@ const actionSpecs: Record<
       completedLanes: "How many of them completed.",
     },
   },
+  PeopleTagOutput: {
+    fields: {
+      outcome: "enum(sent|responded|expired)",
+      asked: "integer",
+      respondedBy: "uuid?",
+    },
+    bounds: { asked: { min: 1, max: 50 } },
+    meanings: {
+      outcome:
+        "How the step ended: sent when it carried on once the tag was sent, responded when someone tagged responded, expired when every request expired or was withdrawn with no response.",
+      asked: "How many people the tag asked, one request each.",
+      respondedBy:
+        "The person whose response completed a waiting step; absent unless the outcome is responded.",
+    },
+  },
   WorkflowStopOutput: {
     fields: {
       outcome: "string",

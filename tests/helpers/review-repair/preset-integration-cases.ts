@@ -109,7 +109,7 @@ const policyDraft = (allowedEffects: readonly string[]) => ({
 });
 
 /** A hand-built observed (v2) profile config, enough for availability reads. */
-async function observedConfigExtra(
+export async function observedConfigExtra(
   bindings: Bindings,
   allowedEffects: readonly string[] = ALL_EFFECTS,
 ) {

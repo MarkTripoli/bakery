@@ -35,12 +35,12 @@ Deno.test("workflow action routes register the authenticated list and detail end
   const list = await listResponse.json();
 
   assertEquals(listResponse.status, 200);
-  assertEquals(list.nextCursor, null);
+  const firstPage = WORKFLOW_ACTION_NAMES.slice(0, 25);
+  assertEquals(list.nextCursor === null, WORKFLOW_ACTION_NAMES.length <= 25);
   assertEquals(
     list.items.map((item: { actionId: string }) => item.actionId),
-    [...WORKFLOW_ACTION_NAMES],
+    firstPage,
   );
-  assertEquals(list.items.length, WORKFLOW_ACTION_NAMES.length);
   assertEquals(list.items[0], {
     actionId: WORKFLOW_ACTION_NAMES[0],
     version: WORKFLOW_ACTION_REGISTRY_VERSION,

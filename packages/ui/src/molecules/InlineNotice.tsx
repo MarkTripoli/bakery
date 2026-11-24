@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import type { HTMLAttributes, ReactNode, Ref } from "react";
 import { IconGlyph, type IconGlyphName } from "../atoms/IconGlyph.tsx";
 import type { SemanticNativeProps } from "../foundations/semantic-native-props.ts";
 import "../feedback.css";
@@ -20,6 +20,7 @@ export type InlineNoticeProps =
     /** `page` insets a bar by the 32px page inset (p-18-0 coordination). */
     inset?: "none" | "page";
     onDismiss?: () => void;
+    ref?: Ref<HTMLDivElement>;
     state?: "default" | "dismissed";
     tone?: "neutral" | "information" | "success" | "warning" | "error";
   };

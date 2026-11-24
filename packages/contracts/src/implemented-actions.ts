@@ -188,6 +188,7 @@ export const ConversationImplementedAction = Object.freeze(
     ConversationsUpdate: "conversations.update",
     ConversationTurnsGet: "conversationTurns.get",
     ConversationTurnsCancel: "conversationTurns.cancel",
+    ConversationTurnsRetry: "conversationTurns.retry",
     QuestionsList: "questions.list",
     QuestionsGet: "questions.get",
     QuestionsAnswer: "questions.answer",
@@ -920,6 +921,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillVersionsCreate: "skillVersions.create",
     SkillUseGrantsList: "skills.useGrants.list",
     SkillUseGrantsDelete: "skills.useGrants.delete",
+    SkillUseGrantsCreate: "skills.useGrants.create",
     SkillsSetActiveVersion: "skills.setActiveVersion",
     SkillImportsGet: "skillImports.get",
     SkillsTakeSourceUpdate: "skills.takeSourceUpdate",
@@ -1139,6 +1141,7 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     // The parent run's step that owns a plan of child work items and completes
     // from the plan's terminal projection (docs/technical-design/25-one-engine.md 5).
     CoordinationSplit: "coordination.split",
+    PeopleTag: "people.tag",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 
@@ -1158,6 +1161,7 @@ export const ENGINE_SETTLED_STEP_ACTIONS = Object.freeze(
     WorkflowRuntimeImplementedAction.DeliveryHealth,
     WorkflowRuntimeImplementedAction.ToolCall,
     WorkflowRuntimeImplementedAction.CoordinationSplit,
+    WorkflowRuntimeImplementedAction.PeopleTag,
   ] as const,
 );
 

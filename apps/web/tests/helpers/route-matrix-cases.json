@@ -96,6 +96,10 @@
     "path": "/machines/new"
   },
   {
+    "id": "machine-new-by-hand",
+    "path": "/machines/new/by-hand"
+  },
+  {
     "id": "machine-detail",
     "path": "/machines/$machineId"
   },

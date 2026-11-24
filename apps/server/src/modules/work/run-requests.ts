@@ -376,8 +376,39 @@ async function readRequest(
 
 /** runRequests.create */
 export async function createRunRequest(context: ActionContext, input: unknown) {
+  return await requestOnRun(context, input, null);
+}
+
+export type WorkflowStepAsk = Readonly<{
+  stepKey: string;
+  recipientId?: string;
+  recipientRoleKey?: string;
+  recipientGroupId?: string;
+  intent: "fyi" | "review";
+  artifactVersionId?: string;
+  note?: string;
+  iteration: number;
+}>;
+
+export async function askFromWorkflowStep(
+  context: ActionContext,
+  ask: WorkflowStepAsk,
+) {
+  const { iteration, ...rest } = ask;
+  return await requestOnRun(context, rest, {
+    stepKey: ask.stepKey,
+    iteration,
+  });
+}
+
+async function requestOnRun(
+  context: ActionContext,
+  input: unknown,
+  step: Readonly<{ stepKey: string; iteration: number }> | null,
+) {
   const { transaction, organizationId, principalId, accessScope } =
     requireWorkTransaction(context);
+  const asker = step === null ? principalId : null;
   const value = input as {
     recipientId?: string;
     recipientRoleKey?: string;
@@ -581,7 +612,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
       groupId,
     );
     audience = { roleKey, groupId, name: resolved.name };
-    const others = resolved.members.filter((id) => id !== principalId);
+    const others = resolved.members.filter((id) => id !== asker);
     if (others.length === 0) {
       const path = roleKey !== null ? "recipientRoleKey" : "recipientGroupId";
       if (resolved.members.length > 0) {
@@ -604,7 +635,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     }
   } else {
     const meantId = value.recipientId as string;
-    if (meantId === principalId) {
+    if (meantId === asker) {
       unprocessable(["recipientId"], "request_self", "You cannot ask yourself");
     }
     // The person asked is resolved once, here, and frozen on the request. One
@@ -620,7 +651,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
       const ownerPerson = owner === null
         ? null
         : await activeHuman(transaction, organizationId, owner);
-      if (owner === null || ownerPerson === null || owner === principalId) {
+      if (owner === null || ownerPerson === null || owner === asker) {
         unprocessable(
           ["recipientId"],
           "request_recipient_unavailable",
@@ -637,7 +668,9 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
   }
 
   const actor: Actor = {
-    kind: attributeAction(context, principalId).actorKind,
+    kind: step === null
+      ? attributeAction(context, principalId).actorKind
+      : "workflow",
     sessionId: exercised?.origin?.agentSessionId ?? null,
     fromRunId: exercised?.origin?.runId ?? null,
   };
@@ -649,6 +682,7 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
       run,
       intent: value.intent,
       stepKey: value.stepKey ?? null,
+      stepIteration: step?.iteration ?? null,
       targetId,
       power,
       note: note === "" ? null : note,
@@ -682,7 +716,7 @@ type Audience = Readonly<{
  * person's only in these values (O50).
  */
 type Actor = Readonly<{
-  kind: "person" | "agent";
+  kind: "person" | "agent" | "workflow";
   sessionId: string | null;
   fromRunId: string | null;
 }>;
@@ -847,6 +881,7 @@ async function askOne(
     run: RunFacts;
     intent: RequestIntent;
     stepKey: string | null;
+    stepIteration: number | null;
     targetId: string | null;
     power: RunPower | undefined;
     note: string | null;
@@ -862,7 +897,7 @@ async function askOne(
   // The same keys on every row a person or an agent writes (O50).
   const actorDetail = {
     actorKind: actor.kind,
-    onBehalfOf: actor.kind === "agent" ? principalId : null,
+    onBehalfOf: actor.kind === "person" ? null : principalId,
     sessionId: actor.sessionId,
     fromRunId: actor.fromRunId,
     audienceRoleKey: audience?.roleKey ?? null,
@@ -881,6 +916,7 @@ async function askOne(
       where organization_id = $1 and run_id = $2 and recipient_id = $3
         and intent = $4 and coalesce(step_key, '') = $5 and status = 'open'
         and coalesce(target_id, $6::uuid) = coalesce($7::uuid, $6::uuid)
+        and coalesce(step_iteration, -1) = coalesce($8::int, -1)
       for update`,
     [
       organizationId,
@@ -890,6 +926,7 @@ async function askOne(
       ask.stepKey ?? "",
       NO_TARGET,
       ask.targetId,
+      ask.stepIteration,
     ],
   );
   if (open.rows[0]) {
@@ -943,9 +980,10 @@ async function askOne(
     `insert into bakery.person_requests (
        organization_id, run_id, task_id, step_key, intent, recipient_id,
        fallback_for_name, asked_by, asked_by_kind, note, needed_by, expires_at,
-       target_id, audience_role_key, audience_group_id, audience_name)
+       target_id, audience_role_key, audience_group_id, audience_name,
+       step_iteration)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-             now() + make_interval(days => $12), $13, $14, $15, $16)
+             now() + make_interval(days => $12), $13, $14, $15, $16, $17)
      returning id`,
     [
       organizationId,
@@ -964,6 +1002,7 @@ async function askOne(
       audience?.roleKey ?? null,
       audience?.groupId ?? null,
       audience?.name ?? null,
+      ask.stepIteration,
     ],
   );
   const requestId = created.rows[0]?.id;

@@ -9,6 +9,7 @@ import {
   gateLine,
   groupByCase,
   pinTitle,
+  repeatSummaries,
   resultStateFilter,
   resultWords,
   runBadge,
@@ -257,7 +258,7 @@ Deno.test("a run's title uses the definition's name the server gives, else the k
   );
   assertEquals(
     pinTitle({ kind: "x" }, null).key,
-    "library.evaluations.title.unknown",
+    "library.evaluations.title.versionUnversioned",
   );
 });
 
@@ -386,4 +387,44 @@ Deno.test("the sampled scorers of a run are the pinned ones outside its quality 
     ["b"],
   );
   assertEquals(sampledScorers({ scorers: [] }), []);
+});
+
+Deno.test("a missing result never repeats its state as the reason", () => {
+  assertEquals(
+    resultWords({ state: "missing", reason: "Not run yet." }, true).key,
+    "library.evaluations.result.notRunYet",
+  );
+  assertEquals(
+    resultWords({ state: "missing", reason: "Not run yet." }, false).key,
+    "library.evaluations.result.notRunBare",
+  );
+  assertEquals(
+    resultWords({ state: "missing", reason: " not run " }, false).key,
+    "library.evaluations.result.notRunBare",
+  );
+});
+
+Deno.test("a pin with no readable version still says its kind, never 'not named'", () => {
+  assertEquals(
+    pinTitle({ kind: "agentVersion" }, null).key,
+    "library.evaluations.title.agentUnversioned",
+  );
+  assertEquals(
+    pinTitle({ kind: "workflowVersion" }, null).key,
+    "library.evaluations.title.workflowUnversioned",
+  );
+  assertEquals(
+    pinTitle({ kind: "x" }, null).key,
+    "library.evaluations.title.versionUnversioned",
+  );
+});
+
+Deno.test("repeats are summarised per scorer, and a single result is not", () => {
+  const summary = repeatSummaries([
+    { scorerId: "a", state: "passed" },
+    { scorerId: "a", state: "failed" },
+    { scorerId: "a", state: "passed" },
+    { scorerId: "b", state: "passed" },
+  ]);
+  assertEquals([...summary], [["a", { passed: 2, total: 3 }]]);
 });
