@@ -52,7 +52,7 @@ function contextFor(
   } as unknown as ActionContext;
 }
 
-Deno.test("the deployment read names the environment's address, or null when none is configured", () =>
+Deno.test("deployment reads and writes name the environment's address, or null when none is configured", () =>
   withWorkerFixture(async (fixture) => {
     const database = fixture.pgDatabase;
     const organizationId = fixture.organizationId;
@@ -126,6 +126,59 @@ Deno.test("the deployment read names the environment's address, or null when non
 
       const unconfigured = await page(() => null);
       assertEquals(unconfigured.items[0]?.address, null);
+
+      await database.query(
+        `update bakery.deployments set status = 'healthy'
+          where organization_id = $1 and id = $2`,
+        [organizationId, created.id],
+      );
+      const configuredHandlers = createDeliveryHandlers(
+        SECRET,
+        mergeDispatchStub("deployment address test"),
+        () => STAGING,
+      );
+      const createdWithAddress = contractSchemas.Deployment.parse(
+        await withPgTransaction(
+          database,
+          (transaction) =>
+            configuredHandlers.deploymentsCreate(
+              contextFor(organizationId, principal, transaction),
+              {
+                repositoryId,
+                runId: job.runId,
+                environment: "staging",
+                commitSha: SHA(1000),
+                artifactDigest: DIGEST(1000),
+              },
+            ),
+        ),
+      );
+      assertEquals(createdWithAddress.address, STAGING);
+
+      await database.query(
+        `update bakery.deployments set status = 'healthy'
+          where organization_id = $1 and id = $2`,
+        [organizationId, createdWithAddress.id],
+      );
+      const noAddressHandlers = createDeliveryHandlers(
+        SECRET,
+        mergeDispatchStub("deployment address test"),
+        () => null,
+      );
+      const rolledBackWithoutAddress = contractSchemas.Deployment.parse(
+        await withPgTransaction(
+          database,
+          (transaction) =>
+            noAddressHandlers.deploymentsRollback(
+              {
+                ...contextFor(organizationId, principal, transaction),
+                params: { id: createdWithAddress.id },
+              },
+              { reason: "Address regression" },
+            ),
+        ),
+      );
+      assertEquals(rolledBackWithoutAddress.address, null);
     } finally {
       await database.query(
         "delete from bakery.pull_requests where organization_id = $1 and run_id = $2",
