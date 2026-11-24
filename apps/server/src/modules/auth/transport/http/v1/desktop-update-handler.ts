@@ -7,7 +7,6 @@ import {
 } from "@bakery/contracts/action-registry";
 import { AuthImplementedAction } from "@bakery/contracts/implemented-actions";
 import { ActionAccess, contractSchemas } from "@bakery/contracts/contracts";
-import { requirePrincipal } from "./handlers.ts";
 import { StandardError } from "@bakery/contracts/http";
 import {
   type DesktopUpdateFeed,
@@ -33,10 +32,6 @@ export function desktopUpdatesGet(
   });
 }
 
-/**
- * GET /v1/desktop/update. Any signed-in principal may ask: the desktop app
- * sends its own bearer token, and the manifest names no organization data.
- */
 export function desktopUpdatesGetAction(
   feed: DesktopUpdateFeed | undefined,
 ): ActionDefinition<typeof contractSchemas.DesktopUpdateQuery> {
@@ -50,10 +45,7 @@ export function desktopUpdatesGetAction(
     noContentWhenNull: true,
     policy: {
       type: ActionKind.Query,
-      access: ActionAccess.Authenticated,
-      authorize: (context) => {
-        requirePrincipal(context.principal);
-      },
+      access: ActionAccess.Public,
     },
     handler: (context, input) => desktopUpdatesGet(context, input, feed),
   };
