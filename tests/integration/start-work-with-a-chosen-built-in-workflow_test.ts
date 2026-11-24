@@ -135,7 +135,7 @@ Deno.test("issue 61: a source policy's built-in workflow is the one admission ju
       [check.status, check.reason, check.evidence[0].ref],
       ["wait", "preset_setup_required", "preset:fixed-coding-reviewed"],
     );
-    assertEquals(admitted.report.preset.id, "fixed-coding-reviewed");
+    assertEquals(admitted.report.preset?.id, "fixed-coding-reviewed");
   }, { budget: true }));
 
 Deno.test("issue 61: a ready reviewed workflow is admitted and its run is that workflow", () =>
@@ -147,7 +147,7 @@ Deno.test("issue 61: a ready reviewed workflow is admitted and its run is that w
     const admitted = await fx.admit(sourceId, { number: 616, intent: "start" });
     const request = admitted.request;
     assert(request, JSON.stringify(admitted.report.checks));
-    assertEquals(admitted.report.preset.id, "fixed-coding-reviewed");
+    assertEquals(admitted.report.preset?.id, "fixed-coding-reviewed");
     const run = await fx.owner.query<{ workflow_run_id: string | null }>(
       `select workflow_run_id from bakery.ticket_requests where id = $1`,
       [request.id],
