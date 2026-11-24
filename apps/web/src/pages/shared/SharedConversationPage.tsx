@@ -1,4 +1,4 @@
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../../api/context.tsx";
@@ -14,6 +14,7 @@ import {
   type LandingSearch,
   parseLanding,
 } from "../../notifications/landing.ts";
+import { landOn } from "../../notifications/landed.ts";
 import { useLandingArrival } from "../../notifications/useLandingArrival.ts";
 import { useLandingMessageSearch } from "../../notifications/useLandingMessageSearch.ts";
 import { useTaskLanding } from "../../notifications/useTaskLanding.ts";
@@ -66,6 +67,14 @@ export function SharedConversationPage(
     scoped && messages.data !== undefined &&
       (targetId === null || loaded || messages.isError),
   );
+  const outlined = useRef(false);
+  useEffect(() => {
+    if (!loaded || targetId === null || landing.gone === true) return;
+    if (outlined.current) return;
+    outlined.current = landOn(
+      document.querySelector(`[data-message-id="${targetId}"]`),
+    );
+  }, [landing.gone, loaded, targetId]);
   const arrival = useLandingArrival({
     search: landing,
     ready: messages.isError ||
