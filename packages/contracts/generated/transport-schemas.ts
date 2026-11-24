@@ -33564,13 +33564,24 @@ const transportSchemas = {
         "status",
         "targetKind",
         "path",
-        "anchor"
+        "anchor",
+        "reason",
+        "sharedByName",
+        "sharedAt"
+      ],
+      "optionalFields": [
+        "reason",
+        "sharedByName",
+        "sharedAt"
       ],
       "fieldTypes": {
         "status": "enum(available|part_unavailable|unavailable)",
         "targetKind": "enum(conversation_message|run|run_step|approval|question|document_version|comment)",
         "path": "string|null",
-        "anchor": "string|null"
+        "anchor": "string|null",
+        "reason": "enum(gone|no_longer_shared|unknown)",
+        "sharedByName": "string",
+        "sharedAt": "timestamp"
       },
       "nullableFields": [
         "path",
@@ -33582,13 +33593,19 @@ const transportSchemas = {
         },
         "anchor": {
           "maxLength": 200
+        },
+        "sharedByName": {
+          "maxLength": 200
         }
       },
       "fieldDescriptions": {
         "status": "Whether the stored destination still resolves and the recipient is still authorized to open it. part_unavailable means the task or document opens but the inner part (step, card, message or comment) is gone, so the client opens the page with no anchor and says so; unavailable means the client shows the no-longer-available state.",
         "targetKind": "The typed kind of the resolved destination, echoed so the client can pick the right view.",
-        "path": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible.",
-        "anchor": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null."
+        "path": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible. A reader who can open the task gets a task route (/tasks/{taskId} or /tasks/{taskId}/artifacts/{artifactId}); a reader whose access comes only from a direct grant gets /shared/documents/{artifactId}?version={versionId} with &comment={commentId} for a comment, or /shared/conversations/{conversationId}?message={messageId}.",
+        "anchor": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null.",
+        "reason": "Why an unavailable destination cannot be opened, present only when status is unavailable. gone means the document, conversation or task was deleted; no_longer_shared means it still exists but the recipient's access ended; unknown means the server cannot tell. A client reading an unavailable target with no reason, as older responses have, treats it as unknown.",
+        "sharedByName": "Current display name of the person who shared the document or conversation with the recipient through a direct grant, present only when the destination is reached through a grant or a revoked grant still records who gave it; never an email address.",
+        "sharedAt": "When the direct grant that opens, or last opened, this document or conversation for the recipient was given; present alongside sharedByName."
       },
       "rules": [
         "Recipient-only, and reauthorizes the destination on every call. A notification ID never grants access; an unauthorized target returns unavailable, not its title."

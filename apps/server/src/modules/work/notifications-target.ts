@@ -21,36 +21,44 @@ export type NotificationTargetKind =
   | "document_version"
   | "comment";
 
+export type UnavailableReason = "gone" | "no_longer_shared" | "unknown";
+
+export type SharedBy = { sharedByName?: string; sharedAt?: string };
+
 export type ResolvedTarget =
-  | {
+  | ({
     status: "available";
     targetKind: NotificationTargetKind;
     path: string;
     anchor: string | null;
-    /** Reached through a direct document grant, not through the task. */
-    viaDocumentGrant?: true;
-  }
-  | {
-    // The task or document still opens but the inner part (step, card,
-    // message, comment) is gone: open the page with no anchor and say so.
+    viaGrant?: true;
+  } & SharedBy)
+  | ({
     status: "part_unavailable";
     targetKind: NotificationTargetKind;
     path: string;
     anchor: null;
-    viaDocumentGrant?: true;
-  }
-  | {
+    viaGrant?: true;
+  } & SharedBy)
+  | ({
     status: "unavailable";
     targetKind: NotificationTargetKind;
     path: null;
     anchor: null;
-  };
+    reason: UnavailableReason;
+  } & SharedBy);
 
-const UNAVAILABLE = (targetKind: NotificationTargetKind): ResolvedTarget => ({
+const UNAVAILABLE = (
+  targetKind: NotificationTargetKind,
+  reason: UnavailableReason,
+  sharedBy: SharedBy = {},
+): ResolvedTarget => ({
   status: "unavailable",
   targetKind,
   path: null,
   anchor: null,
+  reason,
+  ...sharedBy,
 });
 
 /** `/tasks/{id}` with an in-page anchor when the design needs an exact place. */
@@ -68,10 +76,27 @@ const TARGET_KINDS = new Set<string>([
   "comment",
 ]);
 
+const GRANT_KINDS = new Set<NotificationTargetKind>([
+  "conversation_message",
+  "document_version",
+  "comment",
+]);
+
 /** Narrows a stored `target_kind` text column to the contract's closed union. */
 function asTargetKind(value: string): NotificationTargetKind | null {
   return TARGET_KINDS.has(value) ? (value as NotificationTargetKind) : null;
 }
+
+type Scope = {
+  organizationId: string;
+  recipientId: string;
+  accessScope?: AccessScope;
+};
+
+type TargetRow = Pick<
+  NotificationRow,
+  "targetKind" | "targetId" | "targetAnchor" | "taskId" | "runId"
+>;
 
 /**
  * Reauthorizes a stored target against the reader's *current* authority and
@@ -85,48 +110,41 @@ function asTargetKind(value: string): NotificationTargetKind | null {
  */
 export async function resolveNotificationTarget(
   transaction: PgTransactionClient,
-  scope: {
-    organizationId: string;
-    recipientId: string;
-    accessScope?: AccessScope;
-  },
-  row: Pick<
-    NotificationRow,
-    "targetKind" | "targetId" | "targetAnchor" | "taskId" | "runId"
-  >,
+  scope: Scope,
+  row: TargetRow,
 ): Promise<ResolvedTarget> {
   const targetKind = asTargetKind(row.targetKind);
-  if (targetKind === null) return UNAVAILABLE("comment");
-
-  // A person who holds only a direct grant on the document cannot open its task
-  // page, so a comment mention opens the document itself.
-  const viaGrant = async () =>
-    targetKind === "comment"
-      ? await resolveDocumentGrantTarget(transaction, scope, row)
-      : UNAVAILABLE(targetKind);
-
-  // Someone who holds a live grant on the document and whose role cannot read
-  // tasks is sent to the document, whatever the task's own scope says: the task
-  // page is one they cannot open.
-  if (targetKind === "comment") {
-    const document = await resolveDocumentGrantTarget(transaction, scope, row);
-    if (
-      document.status !== "unavailable" &&
-      !await memberRoleHolds(
+  if (targetKind === null) return UNAVAILABLE("comment", "unknown");
+  const grantable = GRANT_KINDS.has(targetKind);
+  const task = row.taskId === null
+    ? "none"
+    : await taskAccess(transaction, scope, row.taskId);
+  if (
+    row.taskId !== null && task === "open" &&
+    (!grantable ||
+      await memberRoleHolds(
         transaction,
         scope.organizationId,
         scope.recipientId,
         "task:read",
-      )
-    ) return document;
+      ))
+  ) return await resolveTaskTarget(transaction, scope, row, targetKind);
+  if (grantable) {
+    return await resolveSharedTarget(transaction, scope, row, targetKind);
   }
+  if (task === "none") return UNAVAILABLE(targetKind, "unknown");
+  return UNAVAILABLE(
+    targetKind,
+    task === "missing" ? "gone" : "no_longer_shared",
+  );
+}
 
-  // Every other destination is reached through its task page. A target with no
-  // task cannot be routed to a real surface yet, so it stays unavailable
-  // rather than pointing at a guess.
-  if (row.taskId === null) return await viaGrant();
-
-  const values: unknown[] = [scope.organizationId, row.taskId];
+async function taskAccess(
+  transaction: PgTransactionClient,
+  scope: Scope,
+  taskId: string,
+): Promise<"open" | "hidden" | "missing"> {
+  const values: unknown[] = [scope.organizationId, taskId];
   let scopeSql = "";
   if (scope.accessScope !== undefined) {
     const scoped = accessScopeClause(
@@ -142,23 +160,32 @@ export async function resolveNotificationTarget(
      where organization_id = $1::uuid and id = $2::uuid${scopeSql}`,
     values,
   );
-  if (task.rows.length === 0) return await viaGrant();
+  if (task.rows.length > 0) return "open";
+  if (scope.accessScope === undefined) return "missing";
+  const exists = await transaction.query<{ id: string }>(
+    `select id from bakery.tasks
+     where organization_id = $1::uuid and id = $2::uuid`,
+    [scope.organizationId, taskId],
+  );
+  return exists.rows.length > 0 ? "hidden" : "missing";
+}
 
-  // Confirm the target row still exists inside this task, so a deleted step,
-  // question or version reports a missing part rather than a dead anchor.
+async function resolveTaskTarget(
+  transaction: PgTransactionClient,
+  scope: Scope,
+  row: TargetRow,
+  targetKind: NotificationTargetKind,
+): Promise<ResolvedTarget> {
+  const taskId = row.taskId as string;
   const exists = await targetExists(transaction, scope.organizationId, row);
   if (!exists) {
     return {
       status: "part_unavailable",
       targetKind,
-      path: taskPath(row.taskId),
+      path: taskPath(taskId),
       anchor: null,
     };
   }
-
-  // Versions and comments live on the document page; everything else on the
-  // task page. The anchor grammar is `kind:id`, with the version's number for
-  // a version (`version:3`), so a reload or shared link lands in the same place.
   if (targetKind === "document_version" || targetKind === "comment") {
     const located = await transaction.query<
       { artifactId: string; revision: number }
@@ -180,65 +207,133 @@ export async function resolveNotificationTarget(
       return {
         status: "available",
         targetKind,
-        path: `${taskPath(row.taskId)}/artifacts/${found.artifactId}`,
+        path: `${taskPath(taskId)}/artifacts/${found.artifactId}`,
         anchor: targetKind === "document_version"
           ? `version:${found.revision}`
           : `comment:${row.targetId}`,
       };
     }
   }
-
   return {
     status: "available",
     targetKind,
-    path: taskPath(row.taskId),
+    path: taskPath(taskId),
     anchor: row.targetAnchor,
   };
 }
 
-/**
- * The destination of a comment mention for someone who may not open its task:
- * the document page, at the comment, while their grant on that document is
- * live. A revoked grant, a foreign comment or a deleted document answers
- * unavailable, so the row degrades to "no longer shared" and names nothing.
- */
-async function resolveDocumentGrantTarget(
-  transaction: PgTransactionClient,
-  scope: { organizationId: string; recipientId: string },
-  row: Pick<NotificationRow, "targetId">,
-): Promise<ResolvedTarget> {
-  const found = await transaction.query<
-    { versionId: string; deleted: boolean }
-  >(
-    `select version.id as "versionId", comment.deleted_at is not null as deleted
+type SharedRow = {
+  containerId: string;
+  versionId: string | null;
+  revision: number | null;
+  partDeleted: boolean;
+  grantLive: boolean | null;
+  sharedByName: string | null;
+  sharedAt: Date | null;
+};
+
+const DOCUMENT_GRANT_JOIN =
+  `left join bakery.artifact_access_grants as grant_row
+         on grant_row.organization_id = version.organization_id
+        and grant_row.artifact_id = version.artifact_id
+        and grant_row.principal_id = $3::uuid
+       left join bakery.principals as granter
+         on granter.id = grant_row.granted_by`;
+
+const GRANT_COLUMNS = `grant_row.id is null as "noGrant",
+       grant_row.revoked_at is null as "grantLive",
+       granter.display_name as "sharedByName",
+       grant_row.granted_at as "sharedAt"`;
+
+const SHARED_SQL: Record<
+  "comment" | "document_version" | "conversation_message",
+  string
+> = {
+  comment: `select version.artifact_id as "containerId",
+       version.id as "versionId", version.revision,
+       comment.deleted_at is not null as "partDeleted", ${GRANT_COLUMNS}
        from bakery.artifact_comments as comment
        join bakery.artifact_versions as version
          on version.organization_id = comment.organization_id
         and version.id = comment.artifact_version_id
-       join bakery.artifact_access_grants as grant_row
-         on grant_row.organization_id = version.organization_id
-        and grant_row.artifact_id = version.artifact_id
-      where comment.organization_id = $1::uuid and comment.id = $2::uuid
-        and grant_row.principal_id = $3::uuid and grant_row.revoked_at is null`,
+       ${DOCUMENT_GRANT_JOIN}
+      where comment.organization_id = $1::uuid and comment.id = $2::uuid`,
+  document_version: `select version.artifact_id as "containerId",
+       version.id as "versionId", version.revision,
+       false as "partDeleted", ${GRANT_COLUMNS}
+       from bakery.artifact_versions as version
+       ${DOCUMENT_GRANT_JOIN}
+      where version.organization_id = $1::uuid and version.id = $2::uuid`,
+  conversation_message: `select message.conversation_id as "containerId",
+       null::uuid as "versionId", null::integer as revision,
+       false as "partDeleted", ${GRANT_COLUMNS}
+       from bakery.messages as message
+       left join bakery.conversation_access_grants as grant_row
+         on grant_row.organization_id = message.organization_id
+        and grant_row.conversation_id = message.conversation_id
+        and grant_row.principal_id = $3::uuid
+       left join bakery.principals as granter
+         on granter.id = grant_row.granted_by
+      where message.organization_id = $1::uuid and message.id = $2::uuid`,
+};
+
+async function resolveSharedTarget(
+  transaction: PgTransactionClient,
+  scope: Scope,
+  row: TargetRow,
+  targetKind: NotificationTargetKind,
+): Promise<ResolvedTarget> {
+  const found = await transaction.query<SharedRow & { noGrant: boolean }>(
+    SHARED_SQL[targetKind as keyof typeof SHARED_SQL],
     [scope.organizationId, row.targetId, scope.recipientId],
   );
   const hit = found.rows[0];
-  if (hit === undefined) return UNAVAILABLE("comment");
-  const path = `/files/versions/${hit.versionId}`;
-  return hit.deleted
-    ? {
+  if (hit === undefined) return UNAVAILABLE(targetKind, "gone");
+  const sharedBy: SharedBy = hit.noGrant ? {} : {
+    ...(hit.sharedByName === null ? {} : { sharedByName: hit.sharedByName }),
+    ...(hit.sharedAt === null ? {} : { sharedAt: hit.sharedAt.toISOString() }),
+  };
+  if (hit.noGrant || hit.grantLive !== true) {
+    return UNAVAILABLE(targetKind, "no_longer_shared", sharedBy);
+  }
+  if (targetKind === "conversation_message") {
+    return {
+      status: "available",
+      targetKind,
+      path: `/shared/conversations/${hit.containerId}?message=${row.targetId}`,
+      anchor: `message:${row.targetId}`,
+      viaGrant: true,
+      ...sharedBy,
+    };
+  }
+  const documentPath =
+    `/shared/documents/${hit.containerId}?version=${hit.versionId}`;
+  if (hit.partDeleted) {
+    return {
       status: "part_unavailable",
-      targetKind: "comment",
-      path,
+      targetKind,
+      path: documentPath,
       anchor: null,
-      viaDocumentGrant: true,
+      viaGrant: true,
+      ...sharedBy,
+    };
+  }
+  return targetKind === "comment"
+    ? {
+      status: "available",
+      targetKind,
+      path: `${documentPath}&comment=${row.targetId}`,
+      anchor: `comment:${row.targetId}`,
+      viaGrant: true,
+      ...sharedBy,
     }
     : {
       status: "available",
-      targetKind: "comment",
-      path,
-      anchor: `comment:${row.targetId}`,
-      viaDocumentGrant: true,
+      targetKind,
+      path: documentPath,
+      anchor: `version:${hit.revision}`,
+      viaGrant: true,
+      ...sharedBy,
     };
 }
 
@@ -335,21 +430,14 @@ export async function resolveDestinationSummary(
   if (target.status === "unavailable") {
     return { title: null, available: false };
   }
-  // Through a document grant only the document's own name may show, never the
-  // task's title.
-  const title = target.viaDocumentGrant
-    ? await documentGrantTitle(transaction, scope.organizationId, row.targetId)
+  const title = target.viaGrant
+    ? await sharedTitle(transaction, scope.organizationId, row)
     : await destinationTitle(transaction, scope.organizationId, row);
   return { title, available: true };
 }
 
-async function documentGrantTitle(
-  transaction: PgTransactionClient,
-  organizationId: string,
-  commentId: string,
-): Promise<string | null> {
-  const found = await transaction.query<{ name: string }>(
-    `select artifact.name
+const SHARED_TITLE_SQL: Record<string, string> = {
+  comment: `select artifact.name
        from bakery.artifact_comments as comment
        join bakery.artifact_versions as version
          on version.organization_id = comment.organization_id
@@ -358,8 +446,31 @@ async function documentGrantTitle(
          on artifact.organization_id = version.organization_id
         and artifact.id = version.artifact_id
       where comment.organization_id = $1::uuid and comment.id = $2::uuid`,
-    [organizationId, commentId],
-  );
+  document_version: `select artifact.name
+       from bakery.artifact_versions as version
+       join bakery.artifacts as artifact
+         on artifact.organization_id = version.organization_id
+        and artifact.id = version.artifact_id
+      where version.organization_id = $1::uuid and version.id = $2::uuid`,
+  conversation_message: `select conversation.title as name
+       from bakery.messages as message
+       join bakery.conversations as conversation
+         on conversation.organization_id = message.organization_id
+        and conversation.id = message.conversation_id
+      where message.organization_id = $1::uuid and message.id = $2::uuid`,
+};
+
+async function sharedTitle(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  row: NotificationRow,
+): Promise<string | null> {
+  const sql = SHARED_TITLE_SQL[row.targetKind];
+  if (sql === undefined) return null;
+  const found = await transaction.query<{ name: string | null }>(sql, [
+    organizationId,
+    row.targetId,
+  ]);
   const name = found.rows[0]?.name?.trim();
   return name ? name : null;
 }
