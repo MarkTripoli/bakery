@@ -137,6 +137,23 @@ const question = {
   expiresAt: null,
 };
 
+const chatMessage = (id: string, sequence: string, body: string) => ({
+  id,
+  conversationId: task.conversationId,
+  authorId: "00000000-0000-4000-8000-000000000001",
+  agentSessionId: null,
+  messageType: "user",
+  body,
+  clientMessageId: `client-${id}`,
+  replyToId: null,
+  createdAt: stamp,
+  updatedAt: stamp,
+  version: 1,
+  sequence,
+  intent: "discussion",
+  commentContext: null,
+});
+
 const approvalId = "00000000-0000-4000-8000-000000000501";
 const revision = {
   id: "00000000-0000-4000-8000-000000000401",
@@ -432,19 +449,50 @@ test.describe("Opening a notification", () => {
     await landedStill(page, "landing-approval", card);
   });
 
-  test("a chat message has no address yet: the page opens, is read, and claims nothing is gone", async ({ page }) => {
+  test("a chat message: earlier messages load, its row is outlined once, and the notification is read", async ({ page }) => {
+    const messageId = "00000000-0000-4000-8000-000000000701";
     const { reads } = await world(page, {
       status: "available",
       targetKind: "conversation_message",
       path: `/tasks/${taskId}`,
-      anchor: "message:00000000-0000-4000-8000-000000000701",
+      anchor: `message:${messageId}`,
     });
+    const asked: (string | null)[] = [];
+    await page.route(
+      `**/v1/conversations/${task.conversationId}/messages*`,
+      (route) => {
+        const cursor = new URL(route.request().url()).searchParams.get(
+          "cursor",
+        );
+        asked.push(cursor);
+        return route.fulfill({
+          json: {
+            items: [
+              cursor === null
+                ? chatMessage(
+                  "00000000-0000-4000-8000-000000000709",
+                  "9",
+                  "The newest thing, which is not the one named.",
+                )
+                : chatMessage(messageId, "7", "Please look at this one."),
+            ],
+            nextCursor: cursor === null ? "older" : null,
+          },
+        });
+      },
+    );
     await open(page);
-    await expect.poll(() => reads.length).toBe(1);
+    const row = page.locator(`[data-message-id="${messageId}"]`);
+    await expect(row).toHaveAttribute("data-landed", "true");
+    await expect(row).toBeFocused();
+    await shellLeavesLandingFocus(page);
+    expect(asked).toEqual([null, "older"]);
     await expect(announcer(page)).toHaveCount(1);
+    await expect.poll(() => reads.length).toBe(1);
     await expect(
       page.getByText("The part this notification was about is no longer here."),
     ).toHaveCount(0);
+    await landedStill(page, "landing-message", row);
   });
 
   test("a part that is gone: the page opens, says so, outlines nothing, and is read", async ({ page }) => {

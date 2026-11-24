@@ -40,6 +40,7 @@ import { useSession } from "../../app/session-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { TaskFromIssue } from "../TaskFromIssue.tsx";
 import { useMentionField } from "../../mentions/useMentionField.tsx";
+import { useLandingMessageSearch } from "../../notifications/useLandingMessageSearch.ts";
 import { Composer } from "./Composer.tsx";
 import { PeopleAddedDialog } from "../../mentions/PeopleAddedDialog.tsx";
 import {
@@ -90,6 +91,8 @@ export function TaskConversation(
     aside,
     banner,
     extras,
+    landingMessageId = null,
+    onLandingMessageLoaded,
     questionDefaults,
     references,
     state = "ready",
@@ -101,6 +104,13 @@ export function TaskConversation(
     banner?: ReactNode;
     /** Transcript-end content: run controls, output and artifacts. */
     extras?: ReactNode;
+    /** The conversation message a notification named, for the page to land on. */
+    landingMessageId?: string | null;
+    /**
+     * Called once that message is on the page, or once the earlier messages
+     * have all been read and it is not: the landing waits for this.
+     */
+    onLandingMessageLoaded?: () => void;
     /** Option preselected per question id; a design fixture supplies it. */
     questionDefaults?: Readonly<Record<string, string>>;
     /** Task reference text by id; a design fixture supplies Paper's keys. */
@@ -135,6 +145,13 @@ export function TaskConversation(
     enabled,
     refetchInterval: poll,
   });
+  const landingSearch = useLandingMessageSearch(messages, landingMessageId);
+  const landingMessageReady = landingSearch.loaded || !landingSearch.searching;
+  useEffect(() => {
+    if (landingMessageId !== null && landingMessageReady) {
+      onLandingMessageLoaded?.();
+    }
+  }, [landingMessageId, landingMessageReady, onLandingMessageLoaded]);
   const turns = useQuery({
     ...conversationTurnsQueryOptions(api, scope, conversationId),
     enabled,

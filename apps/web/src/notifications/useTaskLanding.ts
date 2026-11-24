@@ -13,9 +13,8 @@ const STABLE_MS = 400;
 
 /**
  * The element a landing names; the run section's heading when it names none.
- * Null when there is nothing to look for: a chat message has no address on the
- * page yet (no notification is produced for one), so it lands on the page
- * without looking and without claiming the part is gone.
+ * Null when there is nothing to look for, so the page opens at the top without
+ * claiming the part is gone.
  */
 function selectorFor(landing: LandingSearch): string | null {
   const target = parseLanding(landing.at);
@@ -29,6 +28,8 @@ function selectorFor(landing: LandingSearch): string | null {
       return `[data-question-id="${target.id}"]`;
     case "approval":
       return `[data-approval-id="${target.id}"]`;
+    case "message":
+      return `[data-message-id="${target.id}"]`;
     default:
       return null;
   }

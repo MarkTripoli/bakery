@@ -1,4 +1,10 @@
-import { type MouseEvent, type ReactNode, useEffect, useState } from "react";
+import {
+  type MouseEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createLink, useNavigate } from "@tanstack/react-router";
 import { isUuid } from "@bakery/contracts/contracts";
@@ -553,9 +559,18 @@ function Detail(
   // mark the notification read once the part is on screen.
   const landingStep = parseLanding(landing.at);
   const landingStepId = landingStep?.kind === "step" ? landingStep.id : null;
+  const landingMessageId = landingStep?.kind === "message"
+    ? landingStep.id
+    : null;
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const onLandingMessageLoaded = useCallback(
+    () => setLoadedFor(landingMessageId),
+    [landingMessageId],
+  );
   const landed = useTaskLanding(
     landing,
-    valid && !query.isPending && query.data !== undefined,
+    valid && !query.isPending && query.data !== undefined &&
+      (landingMessageId === null || loadedFor === landingMessageId),
   );
   const partGone = landing.gone === true || landed.missing;
   const arrival = useLandingArrival({
@@ -572,6 +587,8 @@ function Detail(
         task={task}
         references={references}
         questionDefaults={questionDefaults}
+        landingMessageId={landingMessageId}
+        onLandingMessageLoaded={onLandingMessageLoaded}
         banner={partGone
           ? (
             <UI.InlineNotice tone="information">

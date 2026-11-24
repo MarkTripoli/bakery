@@ -13,6 +13,7 @@ Deno.test("an anchor is a kind and an id, or a version number", () => {
   assertEquals(parseLanding(`step:${ID}`), { kind: "step", id: ID });
   assertEquals(parseLanding("version:3"), { kind: "version", id: "3" });
   assertEquals(parseLanding(`comment:${ID}`), { kind: "comment", id: ID });
+  assertEquals(parseLanding(`message:${ID}`), { kind: "message", id: ID });
 });
 
 Deno.test("anything else is no landing", () => {

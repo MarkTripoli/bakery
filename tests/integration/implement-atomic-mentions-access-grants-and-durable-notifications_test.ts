@@ -328,6 +328,27 @@ Deno.test("two senders mentioning the same person at once give one grant and one
   }
 });
 
+Deno.test("a conversation mention names its message, so the inbox row lands on it", async () => {
+  const w = await world();
+  try {
+    const writer = await w.human("Wren Writer", "developer");
+    const reader = await w.human("Rey Reader", "developer");
+    const chat = await w.conversation(writer);
+    const sent = await w.send(writer, chat, { mentions: [reader.principalId] });
+    assertEquals(sent.status, 201, await sent.clone().text());
+    const messageId = (await sent.json() as { id: string }).id;
+    const rows = await w.fixture.pgDatabase.query<{ anchor: string | null }>(
+      `select target_anchor as "anchor" from bakery.notifications
+       where organization_id = $1 and recipient_id = $2
+         and target_kind = 'conversation_message'`,
+      [w.org, reader.principalId],
+    );
+    assertEquals(rows.rows.map((row) => row.anchor), [`message:${messageId}`]);
+  } finally {
+    await w.close();
+  }
+});
+
 Deno.test("a send racing the recipient's removal or the sender's demotion is all or nothing", async () => {
   const w = await world();
   try {
