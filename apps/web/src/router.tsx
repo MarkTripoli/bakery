@@ -98,6 +98,8 @@ import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
 import { InstallationMonitoringPage } from "./pages/InstallationMonitoringPage.tsx";
 import { MonitoringDestinationPage } from "./pages/MonitoringDestinationPage.tsx";
+import { InstallationBackupsPage } from "./pages/InstallationBackupsPage.tsx";
+import { InstallationBackupsSettingsPage } from "./pages/InstallationBackupsSettingsPage.tsx";
 import { InstallationRestorePage } from "./pages/InstallationRestorePage.tsx";
 import { InstallationUpdatesPage } from "./pages/InstallationUpdatesPage.tsx";
 import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
@@ -789,6 +791,32 @@ export const routeCoverage = [
       "complete",
       "empty",
       "error",
+      "forbidden",
+    ],
+  },
+  {
+    id: "installation-backups",
+    path: "/installation/backups",
+    classification: "production",
+    states: [
+      "loading",
+      "default",
+      "busy",
+      "empty",
+      "error",
+      "forbidden",
+    ],
+  },
+  {
+    id: "installation-backups-settings",
+    path: "/installation/backups/settings",
+    classification: "production",
+    states: [
+      "loading",
+      "default",
+      "busy",
+      "error",
+      "conflict",
       "forbidden",
     ],
   },
@@ -2024,6 +2052,28 @@ const installationRestoreRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const installationBackupsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/backups",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="installation.backups.title">
+      <InstallationBackupsPage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const installationBackupsSettingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/backups/settings",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <InstallationBackupsSettingsPage />,
+  errorComponent: ProtectedRouteError,
+});
+
 const installationUpdatesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/installation/updates",
@@ -2909,6 +2959,8 @@ const routeTree = rootRoute.addChildren([
   installationUsageRoute,
   installationRestoreRoute,
   installationUpdatesRoute,
+  installationBackupsRoute,
+  installationBackupsSettingsRoute,
   deliveryRoute,
   installationAuditRoute,
   installationIntegrationsRoute,
