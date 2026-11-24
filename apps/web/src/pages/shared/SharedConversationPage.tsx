@@ -60,11 +60,11 @@ export function SharedConversationPage(
   const targetId = landing.gone === true
     ? null
     : message ?? (anchored?.kind === "message" ? anchored.id : null);
-  const { searching } = useLandingMessageSearch(messages, targetId);
+  const { loaded } = useLandingMessageSearch(messages, targetId);
   const landed = useTaskLanding(
     { ...landing, at: targetId === null ? undefined : `message:${targetId}` },
-    scoped && messages.data !== undefined && targetId !== null,
-    searching,
+    scoped && messages.data !== undefined &&
+      (targetId === null || loaded || messages.isError),
   );
   const arrival = useLandingArrival({
     search: landing,
