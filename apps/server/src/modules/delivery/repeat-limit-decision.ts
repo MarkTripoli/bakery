@@ -76,17 +76,18 @@ async function findAnsweredRepeatLimit(
     `with stop as (
        select created_at from bakery.audit_events
         where organization_id = $1 and operation = 'workflow.plan_failed'
-          and resource_id = $2 and details ->> 'code' = $3
+          and resource_id::text = $2::text and details ->> 'code' = $3
         order by created_at desc, id desc limit 1)
      select d.id, d.detail from bakery.decisions_ledger d, stop
       where d.organization_id = $1 and d.subject_kind = $4
-        and d.subject_id = $2 and d.kind = 'limit_change'
+        and d.subject_id::text = $2::text and d.kind = 'limit_change'
         and d.decided_at > stop.created_at
         and not exists (
           select 1 from bakery.audit_events later
            where later.organization_id = $1
              and later.operation = 'workflow.plan_failed'
-             and later.resource_id = $2 and later.created_at > stop.created_at
+             and later.resource_id::text = $2::text
+             and later.created_at > stop.created_at
              and later.details ->> 'code' <> $3)
       order by d.decided_at desc, d.id desc limit 1`,
     [
