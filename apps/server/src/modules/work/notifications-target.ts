@@ -15,27 +15,32 @@ export type NotificationTargetKind =
   | "document_version"
   | "comment";
 
+export type UnavailableReason = "gone" | "no_longer_shared" | "unknown";
+
+export type SharedBy = { sharedByName?: string; sharedAt?: string };
+
 export type ResolvedTarget =
-  | {
+  | ({
     status: "available";
     targetKind: NotificationTargetKind;
     path: string;
     anchor: string | null;
-    viaDocumentGrant?: true;
-  }
-  | {
+    viaGrant?: true;
+  } & SharedBy)
+  | ({
     status: "part_unavailable";
     targetKind: NotificationTargetKind;
     path: string;
     anchor: null;
-    viaDocumentGrant?: true;
-  }
-  | {
+    viaGrant?: true;
+  } & SharedBy)
+  | ({
     status: "unavailable";
     targetKind: NotificationTargetKind;
     path: null;
     anchor: null;
-  };
+    reason: UnavailableReason;
+  } & SharedBy);
 
 type TargetScope = {
   organizationId: string;
@@ -48,22 +53,38 @@ type TargetRow = Pick<
   "targetKind" | "targetId" | "targetAnchor" | "taskId" | "runId"
 >;
 
-type GrantHit = { versionId: string; deleted: boolean; name: string };
+type SharedHit = {
+  containerId: string;
+  versionId: string | null;
+  revision: number | null;
+  partDeleted: boolean;
+  grantLive: boolean | null;
+  name: string | null;
+  sharedByName: string | null;
+  sharedAt: Date | null;
+};
 
 type PageFacts = {
   tasks: Map<string, string>;
+  taskExists: Set<string>;
   existing: Set<string>;
   versions: Map<string, { artifactId: string; revision: number; name: string }>;
   comments: Map<string, { artifactId: string; revision: number }>;
-  grants: Map<string, GrantHit>;
+  shared: Map<string, SharedHit>;
   readsTasks: boolean;
 };
 
-const UNAVAILABLE = (targetKind: NotificationTargetKind): ResolvedTarget => ({
+const UNAVAILABLE = (
+  targetKind: NotificationTargetKind,
+  reason: UnavailableReason,
+  sharedBy: SharedBy = {},
+): ResolvedTarget => ({
   status: "unavailable",
   targetKind,
   path: null,
   anchor: null,
+  reason,
+  ...sharedBy,
 });
 
 function taskPath(taskId: string): string {
@@ -76,6 +97,12 @@ const TARGET_KINDS = new Set<string>([
   "run_step",
   "approval",
   "question",
+  "document_version",
+  "comment",
+]);
+
+const GRANT_KINDS = new Set<string>([
+  "conversation_message",
   "document_version",
   "comment",
 ]);
@@ -97,17 +124,19 @@ function idsOf(
   ];
 }
 
-async function reachableTasks(
+async function taskFacts(
   transaction: PgTransactionClient,
   scope: TargetScope,
   rows: readonly TargetRow[],
-): Promise<Map<string, string>> {
+): Promise<{ reachable: Map<string, string>; existing: Set<string> }> {
   const taskIds = [
     ...new Set(
       rows.flatMap((row) => row.taskId === null ? [] : [row.taskId]),
     ),
   ];
-  if (taskIds.length === 0) return new Map();
+  if (taskIds.length === 0) {
+    return { reachable: new Map(), existing: new Set() };
+  }
   const values: unknown[] = [scope.organizationId, taskIds];
   let scopeSql = "";
   if (scope.accessScope !== undefined) {
@@ -124,7 +153,20 @@ async function reachableTasks(
      where organization_id = $1::uuid and id = any($2::uuid[])${scopeSql}`,
     values,
   );
-  return new Map(found.rows.map((row) => [row.id, row.title ?? ""]));
+  const reachable = new Map(
+    found.rows.map((row) => [row.id, row.title ?? ""]),
+  );
+  const existing = new Set(reachable.keys());
+  const hidden = taskIds.filter((id) => !existing.has(id));
+  if (hidden.length > 0) {
+    const rows_ = await transaction.query<{ id: string }>(
+      `select id from bakery.tasks
+       where organization_id = $1::uuid and id = any($2::uuid[])`,
+      [scope.organizationId, hidden],
+    );
+    for (const row of rows_.rows) existing.add(row.id);
+  }
+  return { reachable, existing };
 }
 
 function pairsOf(rows: readonly TargetRow[], kinds: readonly string[]) {
@@ -257,47 +299,112 @@ async function commentFacts(
   );
 }
 
-async function grantFacts(
+const SHARED_GRANT_COLUMNS = `grant_row.revoked_at is null as "grantLive",
+       granter.display_name as "sharedByName",
+       grant_row.granted_at as "sharedAt"`;
+
+const SHARED_SQL: Record<
+  "conversation_message" | "document_version" | "comment",
+  string
+> = {
+  conversation_message: `select message.id as "targetId",
+       message.conversation_id as "containerId",
+       null::uuid as "versionId", null::integer as revision,
+       false as "partDeleted", conversation.title as name, ${SHARED_GRANT_COLUMNS}
+       from bakery.messages as message
+       join bakery.conversations as conversation
+         on conversation.organization_id = message.organization_id
+        and conversation.id = message.conversation_id
+       left join bakery.conversation_access_grants as grant_row
+         on grant_row.organization_id = message.organization_id
+        and grant_row.conversation_id = message.conversation_id
+        and grant_row.principal_id = $3::uuid
+       left join bakery.principals as granter
+         on granter.id = grant_row.granted_by
+      where message.organization_id = $1::uuid
+        and message.id = any($2::uuid[])`,
+  document_version: `select version.id as "targetId",
+       version.artifact_id as "containerId",
+       version.id as "versionId", version.revision,
+       false as "partDeleted", artifact.name as name, ${SHARED_GRANT_COLUMNS}
+       from bakery.artifact_versions as version
+       left join bakery.artifacts as artifact
+         on artifact.organization_id = version.organization_id
+        and artifact.id = version.artifact_id
+       left join bakery.artifact_access_grants as grant_row
+         on grant_row.organization_id = version.organization_id
+        and grant_row.artifact_id = version.artifact_id
+        and grant_row.principal_id = $3::uuid
+       left join bakery.principals as granter
+         on granter.id = grant_row.granted_by
+      where version.organization_id = $1::uuid
+        and version.id = any($2::uuid[])`,
+  comment: `select comment.id as "targetId",
+       version.artifact_id as "containerId",
+       version.id as "versionId", version.revision,
+       comment.deleted_at is not null as "partDeleted",
+       artifact.name as name, ${SHARED_GRANT_COLUMNS}
+       from bakery.artifact_comments as comment
+       join bakery.artifact_versions as version
+         on version.organization_id = comment.organization_id
+        and version.id = comment.artifact_version_id
+       left join bakery.artifacts as artifact
+         on artifact.organization_id = version.organization_id
+        and artifact.id = version.artifact_id
+       left join bakery.artifact_access_grants as grant_row
+         on grant_row.organization_id = version.organization_id
+        and grant_row.artifact_id = version.artifact_id
+        and grant_row.principal_id = $3::uuid
+       left join bakery.principals as granter
+         on granter.id = grant_row.granted_by
+      where comment.organization_id = $1::uuid
+        and comment.id = any($2::uuid[])`,
+};
+
+async function sharedFacts(
   transaction: PgTransactionClient,
   scope: TargetScope,
   rows: readonly TargetRow[],
-): Promise<Map<string, GrantHit>> {
-  const ids = idsOf(rows, ["comment"]);
-  if (ids.length === 0) return new Map();
-  const found = await transaction.query<
-    {
-      commentId: string;
-      versionId: string;
-      deleted: boolean;
-      name: string | null;
+): Promise<Map<string, SharedHit>> {
+  const shared = new Map<string, SharedHit>();
+  for (
+    const kind of Object.keys(SHARED_SQL) as Array<
+      keyof typeof SHARED_SQL
+    >
+  ) {
+    const ids = idsOf(rows, [kind]);
+    if (ids.length === 0) continue;
+    const found = await transaction.query<
+      {
+        targetId: string;
+        containerId: string;
+        versionId: string | null;
+        revision: number | null;
+        partDeleted: boolean;
+        grantLive: boolean | null;
+        name: string | null;
+        sharedByName: string | null;
+        sharedAt: Date | null;
+      }
+    >(
+      SHARED_SQL[kind],
+      [scope.organizationId, ids, scope.recipientId],
+    );
+    for (const row of found.rows) {
+      if (shared.has(row.targetId)) continue;
+      shared.set(row.targetId, {
+        containerId: row.containerId,
+        versionId: row.versionId,
+        revision: row.revision,
+        partDeleted: row.partDeleted,
+        grantLive: row.grantLive,
+        name: row.name?.trim() ?? null,
+        sharedByName: row.sharedByName,
+        sharedAt: row.sharedAt,
+      });
     }
-  >(
-    `select comment.id as "commentId", version.id as "versionId",
-       comment.deleted_at is not null as deleted, artifact.name
-     from bakery.artifact_comments as comment
-     join bakery.artifact_versions as version
-       on version.organization_id = comment.organization_id
-      and version.id = comment.artifact_version_id
-     join bakery.artifact_access_grants as grant_row
-       on grant_row.organization_id = version.organization_id
-      and grant_row.artifact_id = version.artifact_id
-     left join bakery.artifacts as artifact
-       on artifact.organization_id = version.organization_id
-      and artifact.id = version.artifact_id
-     where comment.organization_id = $1::uuid and comment.id = any($2::uuid[])
-       and grant_row.principal_id = $3::uuid and grant_row.revoked_at is null`,
-    [scope.organizationId, ids, scope.recipientId],
-  );
-  const hits = new Map<string, GrantHit>();
-  for (const row of found.rows) {
-    if (hits.has(row.commentId)) continue;
-    hits.set(row.commentId, {
-      versionId: row.versionId,
-      deleted: row.deleted,
-      name: row.name?.trim() ?? "",
-    });
   }
-  return hits;
+  return shared;
 }
 
 async function pageFacts(
@@ -305,15 +412,15 @@ async function pageFacts(
   scope: TargetScope,
   rows: readonly TargetRow[],
 ): Promise<PageFacts> {
-  const hasComment = rows.some((row) => row.targetKind === "comment");
-  const [tasks, existing, versions, comments, grants, readsTasks] =
+  const hasGrantable = rows.some((row) => GRANT_KINDS.has(row.targetKind));
+  const [taskInfo, existing, versions, comments, shared, readsTasks] =
     await Promise.all([
-      reachableTasks(transaction, scope, rows),
+      taskFacts(transaction, scope, rows),
       existingTargets(transaction, scope.organizationId, rows),
       versionFacts(transaction, scope.organizationId, rows),
       commentFacts(transaction, scope.organizationId, rows),
-      grantFacts(transaction, scope, rows),
-      hasComment
+      sharedFacts(transaction, scope, rows),
+      hasGrantable
         ? memberRoleHolds(
           transaction,
           scope.organizationId,
@@ -322,49 +429,86 @@ async function pageFacts(
         )
         : Promise.resolve(true),
     ]);
-  return { tasks, existing, versions, comments, grants, readsTasks };
+  return {
+    tasks: taskInfo.reachable,
+    taskExists: taskInfo.existing,
+    existing,
+    versions,
+    comments,
+    shared,
+    readsTasks,
+  };
 }
 
-function grantTarget(facts: PageFacts, row: TargetRow): ResolvedTarget {
-  const hit = facts.grants.get(row.targetId);
-  if (hit === undefined) return UNAVAILABLE("comment");
-  const path = `/files/versions/${hit.versionId}`;
-  return hit.deleted
-    ? {
+function sharedByOf(hit: SharedHit): SharedBy {
+  return {
+    ...(hit.sharedByName === null ? {} : { sharedByName: hit.sharedByName }),
+    ...(hit.sharedAt === null ? {} : { sharedAt: hit.sharedAt.toISOString() }),
+  };
+}
+
+function sharedTarget(
+  facts: PageFacts,
+  row: TargetRow,
+  targetKind: NotificationTargetKind,
+): ResolvedTarget {
+  const hit = facts.shared.get(row.targetId);
+  if (hit === undefined) return UNAVAILABLE(targetKind, "gone");
+  const sharedBy = sharedByOf(hit);
+  if (hit.grantLive !== true) {
+    return UNAVAILABLE(targetKind, "no_longer_shared", sharedBy);
+  }
+  if (targetKind === "conversation_message") {
+    return {
+      status: "available",
+      targetKind,
+      path: `/shared/conversations/${hit.containerId}?message=${row.targetId}`,
+      anchor: `message:${row.targetId}`,
+      viaGrant: true,
+      ...sharedBy,
+    };
+  }
+  const documentPath =
+    `/shared/documents/${hit.containerId}?version=${hit.versionId}`;
+  if (hit.partDeleted) {
+    return {
       status: "part_unavailable",
-      targetKind: "comment",
-      path,
+      targetKind,
+      path: documentPath,
       anchor: null,
-      viaDocumentGrant: true,
+      viaGrant: true,
+      ...sharedBy,
+    };
+  }
+  return targetKind === "comment"
+    ? {
+      status: "available",
+      targetKind,
+      path: `${documentPath}&comment=${row.targetId}`,
+      anchor: `comment:${row.targetId}`,
+      viaGrant: true,
+      ...sharedBy,
     }
     : {
       status: "available",
-      targetKind: "comment",
-      path,
-      anchor: `comment:${row.targetId}`,
-      viaDocumentGrant: true,
+      targetKind,
+      path: documentPath,
+      anchor: `version:${hit.revision}`,
+      viaGrant: true,
+      ...sharedBy,
     };
 }
 
-function resolveFromFacts(facts: PageFacts, row: TargetRow): ResolvedTarget {
-  const targetKind = asTargetKind(row.targetKind);
-  if (targetKind === null) return UNAVAILABLE("comment");
-  const viaGrant = () =>
-    targetKind === "comment"
-      ? grantTarget(facts, row)
-      : UNAVAILABLE(targetKind);
-  if (targetKind === "comment") {
-    const document = grantTarget(facts, row);
-    if (document.status !== "unavailable" && !facts.readsTasks) {
-      return document;
-    }
-  }
-  if (row.taskId === null || !facts.tasks.has(row.taskId)) return viaGrant();
+function taskTarget(
+  facts: PageFacts,
+  row: TargetRow,
+  targetKind: NotificationTargetKind,
+): ResolvedTarget {
   if (!facts.existing.has(`${targetKind}:${row.targetId}`)) {
     return {
       status: "part_unavailable",
       targetKind,
-      path: taskPath(row.taskId),
+      path: taskPath(row.taskId as string),
       anchor: null,
     };
   }
@@ -377,7 +521,7 @@ function resolveFromFacts(facts: PageFacts, row: TargetRow): ResolvedTarget {
     return {
       status: "available",
       targetKind,
-      path: `${taskPath(row.taskId)}/artifacts/${located.artifactId}`,
+      path: `${taskPath(row.taskId as string)}/artifacts/${located.artifactId}`,
       anchor: targetKind === "document_version"
         ? `version:${located.revision}`
         : `comment:${row.targetId}`,
@@ -386,9 +530,34 @@ function resolveFromFacts(facts: PageFacts, row: TargetRow): ResolvedTarget {
   return {
     status: "available",
     targetKind,
-    path: taskPath(row.taskId),
+    path: taskPath(row.taskId as string),
     anchor: row.targetAnchor,
   };
+}
+
+function taskUnavailableReason(
+  facts: PageFacts,
+  taskId: string | null,
+): UnavailableReason {
+  if (taskId === null) return "unknown";
+  return facts.taskExists.has(taskId) ? "no_longer_shared" : "gone";
+}
+
+function resolveFromFacts(facts: PageFacts, row: TargetRow): ResolvedTarget {
+  const targetKind = asTargetKind(row.targetKind);
+  if (targetKind === null) return UNAVAILABLE("comment", "unknown");
+  const grantable = GRANT_KINDS.has(targetKind);
+  const taskReachable = row.taskId !== null && facts.tasks.has(row.taskId);
+  if (taskReachable && (!grantable || facts.readsTasks)) {
+    return taskTarget(facts, row, targetKind);
+  }
+  if (grantable) {
+    return sharedTarget(facts, row, targetKind);
+  }
+  return UNAVAILABLE(
+    targetKind,
+    taskUnavailableReason(facts, row.taskId),
+  );
 }
 
 function titleFromFacts(
@@ -396,8 +565,8 @@ function titleFromFacts(
   row: TargetRow,
   target: ResolvedTarget,
 ): string | null {
-  if (target.status !== "unavailable" && target.viaDocumentGrant) {
-    return facts.grants.get(row.targetId)?.name || null;
+  if (target.status !== "unavailable" && target.viaGrant) {
+    return facts.shared.get(row.targetId)?.name ?? null;
   }
   if (row.targetKind === "document_version") {
     const name = facts.versions.get(row.targetId)?.name;

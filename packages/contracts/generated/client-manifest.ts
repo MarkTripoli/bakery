@@ -36696,6 +36696,70 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "One person's private appearance, language and time zone within one organization, plus the effective language and the languages the server offers, guarded by casVersion for conditional updates. Returned only to its owning member, never as part of a public catalog or list projection, and never containing credentials; changing these preferences configures presentation only and grants no additional access."
     },
+    "NotificationTarget": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "available",
+            "part_unavailable",
+            "unavailable"
+          ],
+          "description": "Whether the stored destination still resolves and the recipient is still authorized to open it. part_unavailable means the task or document opens but the inner part (step, card, message or comment) is gone, so the client opens the page with no anchor and says so; unavailable means the client shows the no-longer-available state."
+        },
+        "targetKind": {
+          "type": "string",
+          "enum": [
+            "conversation_message",
+            "run",
+            "run_step",
+            "approval",
+            "question",
+            "document_version",
+            "comment"
+          ],
+          "description": "The typed kind of the resolved destination, echoed so the client can pick the right view."
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2048,
+              "description": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible. NotificationTarget.path must contain at most 2048 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationTarget.path may be null in this transport value."
+        },
+        "anchor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null. NotificationTarget.anchor must contain at most 200 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationTarget.anchor may be null in this transport value."
+        }
+      },
+      "required": [
+        "status",
+        "targetKind",
+        "path",
+        "anchor"
+      ],
+      "additionalProperties": false,
+      "description": "The authoritative answer to \"can I still open this notification's destination\": a validated internal route and anchor when reachable, or an unavailable status."
+    },
     "CoordinationPlan": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -105156,70 +105220,6 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The authenticated recipient's unread total in one organization, with the revision it was read at; unread and revision are null when no authoritative count is available."
-    },
-    "NotificationTarget": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "type": "object",
-      "properties": {
-        "status": {
-          "type": "string",
-          "enum": [
-            "available",
-            "part_unavailable",
-            "unavailable"
-          ],
-          "description": "Whether the stored destination still resolves and the recipient is still authorized to open it. part_unavailable means the task or document opens but the inner part (step, card, message or comment) is gone, so the client opens the page with no anchor and says so; unavailable means the client shows the no-longer-available state."
-        },
-        "targetKind": {
-          "type": "string",
-          "enum": [
-            "conversation_message",
-            "run",
-            "run_step",
-            "approval",
-            "question",
-            "document_version",
-            "comment"
-          ],
-          "description": "The typed kind of the resolved destination, echoed so the client can pick the right view."
-        },
-        "path": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 2048,
-              "description": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible. NotificationTarget.path must contain at most 2048 characters."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "NotificationTarget.path may be null in this transport value."
-        },
-        "anchor": {
-          "anyOf": [
-            {
-              "type": "string",
-              "maxLength": 200,
-              "description": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null. NotificationTarget.anchor must contain at most 200 characters."
-            },
-            {
-              "type": "null",
-              "description": "Null indicates that the value is unavailable."
-            }
-          ],
-          "description": "NotificationTarget.anchor may be null in this transport value."
-        }
-      },
-      "required": [
-        "status",
-        "targetKind",
-        "path",
-        "anchor"
-      ],
-      "additionalProperties": false,
-      "description": "The authoritative answer to \"can I still open this notification's destination\": a validated internal route and anchor when reachable, or an unavailable status."
     },
     "NotificationMarkAllReadResult": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
