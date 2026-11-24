@@ -182,6 +182,7 @@ const approval = {
   createdAt: stamp,
   updatedAt: stamp,
   version: 7,
+  mayDecide: true,
 };
 
 /** The task page's reads and one notification whose target is `target`. */

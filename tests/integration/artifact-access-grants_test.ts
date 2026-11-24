@@ -518,13 +518,19 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
             targetKind: string;
             path: string;
             anchor: string | null;
+            sharedByName?: string;
+            sharedAt?: string;
           }
         >(await as(cy, `/v1/notifications/${item.id}/target`), 200);
-        assertEquals(target, {
+        const { sharedAt, ...route } = target;
+        assert(sharedAt !== undefined, "the target says when it was shared");
+        assertEquals(route, {
           status: "available",
           targetKind: "comment",
-          path: `/files/versions/${version}`,
+          path:
+            `/shared/documents/${artifact}?version=${version}&comment=${posted.id}`,
           anchor: `comment:${posted.id}`,
+          sharedByName: "Comments",
         });
         // A plain comment notification for the same person and document is not a
         // mention: it must survive the Undo.

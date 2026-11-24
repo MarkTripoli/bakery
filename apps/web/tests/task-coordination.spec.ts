@@ -868,7 +868,7 @@ test(
     await open(page);
     const targets = [
       page.getByRole("button", { name: "Cancel split", exact: true }),
-      laneRow(page, "api").getByRole("link", { name: "Open child task" }),
+      laneRow(page, "api").getByRole("link", { name: "Open task" }),
     ];
     for (const control of targets) {
       await control.scrollIntoViewIfNeeded();

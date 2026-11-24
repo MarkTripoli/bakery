@@ -7,6 +7,7 @@ import {
   ticketSourcesAllQueryOptions,
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
+import { presetOfPolicy } from "../issue-sources.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import {
   formatBatchTime,
@@ -56,6 +57,12 @@ export function useBatchLookups() {
   }
 
   const repositoryName = (id: string): string | null => names.get(id) ?? null;
+  const presetOf = (id: string) =>
+    presetOfPolicy(
+      sources.data?.find((source) =>
+        source.enabled && source.repositoryId === id
+      )?.policy,
+    );
   const personName = (principalId: string | null): string | null =>
     principalId === null
       ? null
@@ -91,6 +98,7 @@ export function useBatchLookups() {
     /** True once the issue sources have been read, so "none are taking issues" can be said. */
     sourcesReady: sources.isSuccess,
     repositoryName,
+    presetOf,
     personName,
     canControl: capabilities.includes("batch:control"),
     canRead: capabilities.includes("batch:read"),

@@ -57,9 +57,12 @@ import {
   chronological,
   commandFailure,
   currentStage,
+  expiredApproval,
   latestRevision,
   participantsOf,
   planBody,
+  type PlanRefusal,
+  planRefusal,
   questionOptions,
   stageWait,
 } from "./model.ts";
@@ -309,6 +312,7 @@ export function TaskConversation(
     } | null
   >(null);
   const [obsolete, setObsolete] = useState<number | null>(null);
+  const [refusal, setRefusal] = useState<PlanRefusal | null>(null);
   // Pending decisions are scoped to the approval id and version they were
   // sent for; another approval always gets the person's current choice and a
   // fresh idempotency key.
@@ -332,6 +336,7 @@ export function TaskConversation(
       input: { decision: choice, ...(comment ? { comment } : {}) },
     };
     pendingDecision.current = next;
+    setRefusal(null);
     setDecision({ revision: revision.revision, phase: "deciding", done: null });
     const result = await api.decideApproval({
       organizationId,
@@ -367,6 +372,7 @@ export function TaskConversation(
       return;
     }
     pendingDecision.current = null;
+    setRefusal(planRefusal(result.error));
     if (failure === "conflict") setObsolete(revision.revision);
     setDecision({
       revision: revision.revision,
@@ -504,7 +510,17 @@ export function TaskConversation(
   const decided = decision && revision &&
       decision.revision === revision.revision && decision.done
     ? decision.done
+    : approval?.status === "expired"
+    ? null
     : approval?.decision ?? null;
+  const expired = approval?.status === "expired"
+    ? expiredApproval(
+      approval,
+      approval.decidedBy === principalId
+        ? t("tasks.conversation.author.you")
+        : nameOf(approval.decidedBy),
+    )
+    : null;
 
   const obsoleteNotice = obsolete !== null && revision &&
       revision.revision > obsolete
@@ -522,6 +538,10 @@ export function TaskConversation(
       ? nameOf(approval.decidedBy)
       : null,
     phase: planPhase,
+    mayDecide: approval?.mayDecide ?? false,
+    startRunAvailable: task.status === "draft",
+    expired,
+    refusal,
     offline: !online,
     paused: liveTurn !== undefined,
     approvalId: approval?.id,
@@ -529,6 +549,7 @@ export function TaskConversation(
     onRetry: retryDecision,
     onRefresh: () => {
       setObsolete(null);
+      setRefusal(null);
       void refresh();
     },
   });

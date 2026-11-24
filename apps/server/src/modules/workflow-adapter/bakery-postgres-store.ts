@@ -56,6 +56,7 @@ import {
   assertLogicalKey,
   type LogicalInvocationKey,
 } from "./invocation-contract.ts";
+import { chooseStepFacts } from "../knowledge/step-facts.ts";
 import { type AuthoritativeState, decideResume } from "./resume-decision.ts";
 import {
   recordNotesDelivered,
@@ -1093,15 +1094,7 @@ async function appendPlanStep(
     return await appendApprovalWait(transaction, context, activeOwner, planned);
   }
   if (planned.kind === "wait") {
-    // A human.approval wait is the one event wait with a producer: a person's
-    // decision writes it. Its dispatch pins the approval id, so the step waits
-    // on exactly one approval and the answer can never be paired to the wrong
-    // step. Every other event wait still has no producer and is refused at
-    // admission with a stable code rather than left to hang.
-    const approvalWait = planned.wait.kind === "event" &&
-      planned.wait.event === HUMAN_APPROVAL_EVENT &&
-      planned.wait.approvalId !== undefined;
-    if (planned.wait.kind !== "duration" && !approvalWait) {
+    if (planned.wait.kind !== "duration") {
       await endPlanRunFailed(
         transaction,
         context,
@@ -1225,6 +1218,7 @@ async function appendApprovalWait(
       traceId: context.originalTraceId ?? crypto.randomUUID(),
       applicationId: context.applicationId,
       repositoryId: context.repositoryId,
+      stepIteration: key.iteration,
     });
   } catch (error) {
     if (!(error instanceof StandardError)) throw error;
@@ -2509,6 +2503,25 @@ export function createBakeryPostgresWorkflowRepository(options: {
             owner,
           );
           return { key, terminal: true };
+        }
+        if (planDispatch !== undefined && row.runRepositoryId !== null) {
+          const stepFacts = await chooseStepFacts(transaction, {
+            organizationId: row.organizationId,
+            repositoryId: row.runRepositoryId,
+          });
+          if (stepFacts.facts.length > 0 || stepFacts.omitted > 0) {
+            await transaction.query(
+              `update bakery.run_steps
+                  set dispatch = dispatch || jsonb_build_object('facts', $4::jsonb)
+                where organization_id = $1 and run_id = $2 and id = $3`,
+              [
+                row.organizationId,
+                row.runId,
+                row.runStepId,
+                JSON.stringify(stepFacts),
+              ],
+            );
+          }
         }
         const ownRequirements = repositoryExecutionRequirements(
           profile,

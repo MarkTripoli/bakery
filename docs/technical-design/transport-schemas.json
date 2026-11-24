@@ -4437,6 +4437,24 @@
             "interrupt"
           ],
           "description": "How the message reaches the active harness: \"steer\" redirects the running work immediately, while \"follow_up\" queues it after current work; legacy \"interrupt\" means steer and \"append\" means follow_up. A mode the session's adapter has not advertised returns an explicit unsupported conflict and creates no command."
+        },
+        {
+          "name": "mentions",
+          "type": "uuid[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 20
+          },
+          "description": "Principal ids of the people this steer @-mentions. Each distinct non-self person is asked, as a request to just let them know on this run's step: they can see the run and are notified once; asking again reminds. A person who cannot be found falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. A steerer without request permission (runRequest:write) can mention only people who can already see the run; mentioning anyone else is refused with AUTH_FORBIDDEN and writes nothing, not even the steer. Text that merely looks like @name never mentions anyone."
+        },
+        {
+          "name": "mentionHandles",
+          "type": "string[]",
+          "required": false,
+          "bounds": {
+            "maxItems": 20
+          },
+          "description": "Groups or roles this steer @-mentions by their mention name, such as @design-reviewers, @admins or @developers; the leading @ is optional. Every active member other than the steerer is asked to just let them know on this run's step, and any one of them can handle it. A name that matches no group or role, or a group with nobody in it, falls back to the workflow's owner, or the run's starter when the workflow has no owner, with a visible note. The same request permission rule as mentions applies to every member reached."
         }
       ],
       "description": "Delivers a message to a running agent session's active harness process, steering it immediately or queuing a follow-up, depending on mode and the adapter capabilities the worker advertised."
@@ -13320,6 +13338,16 @@
           "type": "uuid",
           "required": true,
           "description": "The repository the batch works through. It must be taking issues (an enabled ticket source), and no other batch may be live in it."
+        },
+        {
+          "name": "presetId",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ],
+          "description": "The built-in workflow every issue in this batch runs: fixed-coding or fixed-coding-reviewed. Required: a batch is never started without a workflow chosen, so no one is given a workflow they did not choose. Each issue is admitted with it; a workflow the repository cannot run stops the batch with the pause reason workflow_cannot_start."
         },
         {
           "name": "maxIssues",
@@ -32165,7 +32193,8 @@
         "expiresAt",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "mayDecide"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -32192,7 +32221,8 @@
         "expiresAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "mayDecide": "boolean"
       },
       "nullableFields": [
         "turnId",
@@ -32233,7 +32263,8 @@
         "expiresAt": "UTC timestamp after which the approval can no longer be decided or consumed.",
         "createdAt": "UTC timestamp when the approval was requested.",
         "updatedAt": "UTC timestamp when the approval last changed.",
-        "version": "Optimistic-concurrency version used when deciding."
+        "version": "Optimistic-concurrency version used when deciding.",
+        "mayDecide": "True when the person asking may decide this approval now: it is open, or it expired while its plan or reviewed commit is still the current one so a new decision can be recorded, and the person is named in its audience or holds a grant for it and may decide approvals. The web shows decision buttons only when this is true."
       }
     },
     "Page<PlanRevision>": {
@@ -33586,13 +33617,24 @@
         "status",
         "targetKind",
         "path",
-        "anchor"
+        "anchor",
+        "reason",
+        "sharedByName",
+        "sharedAt"
+      ],
+      "optionalFields": [
+        "reason",
+        "sharedByName",
+        "sharedAt"
       ],
       "fieldTypes": {
         "status": "enum(available|part_unavailable|unavailable)",
         "targetKind": "enum(conversation_message|run|run_step|approval|question|document_version|comment)",
         "path": "string|null",
-        "anchor": "string|null"
+        "anchor": "string|null",
+        "reason": "enum(gone|no_longer_shared|unknown)",
+        "sharedByName": "string",
+        "sharedAt": "timestamp"
       },
       "nullableFields": [
         "path",
@@ -33604,13 +33646,19 @@
         },
         "anchor": {
           "maxLength": 200
+        },
+        "sharedByName": {
+          "maxLength": 200
         }
       },
       "fieldDescriptions": {
         "status": "Whether the stored destination still resolves and the recipient is still authorized to open it. part_unavailable means the task or document opens but the inner part (step, card, message or comment) is gone, so the client opens the page with no anchor and says so; unavailable means the client shows the no-longer-available state.",
         "targetKind": "The typed kind of the resolved destination, echoed so the client can pick the right view.",
-        "path": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible.",
-        "anchor": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null."
+        "path": "A validated relative internal route to open when available or part_unavailable, or null when the destination is gone or no longer accessible. A reader who can open the task gets a task route (/tasks/{taskId} or /tasks/{taskId}/artifacts/{artifactId}); a reader whose access comes only from a direct grant gets /shared/documents/{artifactId}?version={versionId} with &comment={commentId} for a comment, or /shared/conversations/{conversationId}?message={messageId}.",
+        "anchor": "Optional exact anchor inside the destination, in kind:id form (step:, approval:, question:, message:, comment:) or version:N for a document version, or null.",
+        "reason": "Why an unavailable destination cannot be opened, present only when status is unavailable. gone means the document, conversation or task was deleted; no_longer_shared means it still exists but the recipient's access ended; unknown means the server cannot tell. A client reading an unavailable target with no reason, as older responses have, treats it as unknown.",
+        "sharedByName": "Current display name of the person who shared the document or conversation with the recipient through a direct grant, present only when the destination is reached through a grant or a revoked grant still records who gave it; never an email address.",
+        "sharedAt": "When the direct grant that opens, or last opened, this document or conversation for the recipient was given; present alongside sharedByName."
       },
       "rules": [
         "Recipient-only, and reauthorizes the destination on every call. A notification ID never grants access; an unauthorized target returns unavailable, not its title."
@@ -35435,6 +35483,7 @@
       "fields": [
         "id",
         "repositoryId",
+        "presetId",
         "startedBy",
         "maxIssues",
         "maxHours",
@@ -35459,6 +35508,7 @@
         "version"
       ],
       "nullableFields": [
+        "presetId",
         "pauseReason",
         "pausedBy",
         "pausedAt",
@@ -35470,6 +35520,7 @@
       "fieldTypes": {
         "id": "uuid",
         "repositoryId": "uuid",
+        "presetId": "enum(fixed-coding|fixed-coding-reviewed)",
         "startedBy": "uuid",
         "maxIssues": "integer",
         "maxHours": "integer",
@@ -35497,6 +35548,7 @@
       "fieldDescriptions": {
         "id": "Stable UUID of the batch.",
         "repositoryId": "The repository it works in.",
+        "presetId": "The built-in workflow each of its issues runs; null for a batch started before the workflow was stored.",
         "startedBy": "The person who started it; their authority is re-checked before every issue.",
         "maxIssues": "Limit: issues to merge.",
         "maxHours": "Limit: hours before nothing new starts.",
@@ -36328,7 +36380,7 @@
         "neededBy": "The optional deadline, or null.",
         "status": "open until answered, handled by someone else, expired seven days after it was made, or withdrawn.",
         "expiresAt": "UTC time the request expires; silence never approves.",
-        "ownerFallback": "True when the person asked for could not be resolved and the run's starter was asked instead.",
+        "ownerFallback": "True when the person asked for could not be resolved and the workflow's owner, or the run's starter when the workflow has no owner, was asked instead.",
         "fallbackForName": "Who was meant when ownerFallback is true, otherwise null.",
         "createdAt": "UTC time the request was made.",
         "updatedAt": "UTC time it last changed.",
@@ -39316,6 +39368,131 @@
         "imported": "One entry per imported item, in package order.",
         "openBindings": "What a person still has to bind by hand: skills and agents a workflow named that the package did not carry, and the billing of each imported agent."
       }
+    },
+    "GivenFact": {
+      "fields": [
+        "memoryId",
+        "wording",
+        "recordedAt",
+        "state"
+      ],
+      "fieldTypes": {
+        "memoryId": "uuid",
+        "wording": "string",
+        "recordedAt": "timestamp",
+        "state": "enum(given|corrected_since|stopped_since)"
+      },
+      "fieldBounds": {
+        "wording": {
+          "maxLength": 4096
+        }
+      },
+      "fieldDescriptions": {
+        "memoryId": "The memory entry this fact was sourced from.",
+        "wording": "The exact wording the agent was given for this fact.",
+        "recordedAt": "When this fact was recorded, in UTC.",
+        "state": "given while the memory still reads the same; corrected_since when the memory was revised after the step started; stopped_since when the memory was retired."
+      },
+      "description": "One fact the step was given, with whether it still reads the same now."
+    },
+    "GivenDocument": {
+      "fields": [
+        "artifactVersionId",
+        "state",
+        "name",
+        "kind",
+        "version",
+        "sizeBytes"
+      ],
+      "fieldTypes": {
+        "artifactVersionId": "uuid",
+        "state": "enum(available|hidden|gone|unchecked)",
+        "name": "string|null",
+        "kind": "string|null",
+        "version": "integer|null",
+        "sizeBytes": "integer"
+      },
+      "nullableFields": [
+        "name",
+        "kind",
+        "version"
+      ],
+      "fieldBounds": {
+        "name": {
+          "maxLength": 200
+        },
+        "kind": {
+          "maxLength": 80
+        },
+        "sizeBytes": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "artifactVersionId": "The pinned artifact version the step was given.",
+        "state": "available while the reader may still see it; hidden when access ended; gone when its bytes are purged; unchecked when nothing truthful can be said.",
+        "name": "The document name when the reader may see it, else null.",
+        "kind": "The artifact type when the reader may see it, else null.",
+        "version": "The revision number when the reader may see it, else null.",
+        "sizeBytes": "The pinned byte size, always shown so a count stays truthful."
+      },
+      "description": "One document the step was given, redacted to the reader."
+    },
+    "StepGiven": {
+      "fields": [
+        "stepKey",
+        "startedAt",
+        "ranAnAgent",
+        "facts",
+        "factsOmitted",
+        "documents",
+        "documentsHidden",
+        "documentsGone",
+        "documentsUnchecked"
+      ],
+      "fieldTypes": {
+        "stepKey": "string",
+        "startedAt": "timestamp|null",
+        "ranAnAgent": "boolean",
+        "facts": "GivenFact[]",
+        "factsOmitted": "integer",
+        "documents": "GivenDocument[]",
+        "documentsHidden": "integer",
+        "documentsGone": "integer",
+        "documentsUnchecked": "integer"
+      },
+      "nullableFields": [
+        "startedAt"
+      ],
+      "fieldBounds": {
+        "stepKey": {
+          "maxLength": 200
+        },
+        "factsOmitted": {
+          "min": 0
+        },
+        "documentsHidden": {
+          "min": 0
+        },
+        "documentsGone": {
+          "min": 0
+        },
+        "documentsUnchecked": {
+          "min": 0
+        }
+      },
+      "fieldDescriptions": {
+        "stepKey": "The workflow step this describes.",
+        "startedAt": "When the step started, or null before it has.",
+        "ranAnAgent": "Whether an agent session ran for this step.",
+        "facts": "The sourced-memory facts the step was given, each with its state now.",
+        "factsOmitted": "How many facts were left out to stay inside the step bound.",
+        "documents": "The documents the step was given that the reader may still see.",
+        "documentsHidden": "Documents the reader may no longer see, counted but not named.",
+        "documentsGone": "Documents whose bytes are purged, counted but not named.",
+        "documentsUnchecked": "Documents nothing truthful can be said about, counted but not named."
+      },
+      "description": "What a step was given: the sourced-memory facts and pinned documents in use when it started, redacted to the reader."
     }
   },
   "pageEnvelope": {
