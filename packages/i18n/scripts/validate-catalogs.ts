@@ -40,6 +40,7 @@ const namespacePrefixes = [
   "library.",
   "repository.rules.",
   "notifications.",
+  "shared.",
   "session.",
   // Installation-wide pages that are not settings forms: usage is what the
   // installation spent, and the design names its keys `installation.usage.*`
@@ -87,6 +88,7 @@ const pseudoExpansionPrefixes = [
   "delivery.",
   "mentions.",
   "batches.",
+  "shared.",
 ] as const;
 
 function argumentNames(message: string): string[] {

@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../../api/context.tsx";
+import { notificationTargetQueryOptions } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation } from "../../shell/shell-slots.tsx";
@@ -21,11 +23,10 @@ export function sharedReasonOf(error: unknown): SharedReason {
 }
 
 export function SharedUnavailable(
-  { kind, reason, landing, granter = null }: {
+  { kind, reason: fromRead, landing }: {
     kind: SharedKind;
     reason: SharedReason;
     landing: LandingSearch;
-    granter?: string | null;
   },
 ) {
   const { translate } = useI18n();
@@ -33,6 +34,12 @@ export function SharedUnavailable(
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const [marked, setMarked] = useState(false);
+  const target = useQuery({
+    ...notificationTargetQueryOptions(api, scope, landing.n ?? ""),
+    enabled: landing.n !== undefined && scope.organizationId !== null,
+  });
+  const reason: SharedReason = target.data?.reason ?? fromRead;
+  const granter = target.data?.sharedByName ?? null;
   const canMark = reason !== "gone" && landing.n !== undefined &&
     landing.r !== undefined && scope.organizationId !== null;
   const markRead = async () => {
