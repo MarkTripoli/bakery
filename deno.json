@@ -64,6 +64,9 @@
     "@bakery/integration-linear/manifest": "./packages/integration-linear/src/manifest.ts",
     "@bakery/integration-linear/server": "./packages/integration-linear/src/server/mod.ts",
     "@bakery/integration-linear/web": "./packages/integration-linear/src/web/mod.ts",
+    "@bakery/integration-slack/manifest": "./packages/integration-slack/src/manifest.ts",
+    "@bakery/integration-slack/server": "./packages/integration-slack/src/server/mod.ts",
+    "@bakery/integration-slack/web": "./packages/integration-slack/src/web/mod.ts",
     "@bakery/integration-sdk/provider": "./packages/integration-sdk/provider.ts",
     "@bakery/integration-sdk/web": "./packages/integration-sdk/web.ts"
   },

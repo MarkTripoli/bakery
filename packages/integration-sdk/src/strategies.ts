@@ -103,7 +103,7 @@ export type CredentialStrategy = {
     ctx: DriverContext;
   }): Promise<{
     token: string;
-    expiresAt: Date;
+    expiresAt: Date | null;
     /**
      * Where the credential goes on the wire. Closed, because each placement is a
      * different header and the host owns the request.
