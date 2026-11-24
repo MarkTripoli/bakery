@@ -27,9 +27,9 @@ import {
 } from "./attempt-worktree.ts";
 import {
   type ArtifactRef,
+  type AttemptContextSlice,
   type AttemptProof,
   attemptProofOf,
-  type WorkerContextInput,
 } from "./client.ts";
 import {
   type ContextSeeding,
@@ -197,7 +197,7 @@ export type CheckExecutorOptions = {
   readonly readAttemptContext?: (
     attemptId: string,
     proof: AttemptProof,
-  ) => Promise<readonly WorkerContextInput[]>;
+  ) => Promise<AttemptContextSlice>;
   /**
    * Test seam: the signal-a-group call itself. The real default is Deno.kill,
    * which the unit lane cannot be granted, so a test that asserts what happens
@@ -753,8 +753,9 @@ async function executeCheck(
     let seeding: ContextSeeding;
     try {
       const read = options.readAttemptContext;
+      const slice = await read(assignment.attemptId, proof);
       const fetch = await fetcherForAttempt(() =>
-        read(assignment.attemptId, proof)
+        Promise.resolve(slice.inputs)
       );
       seeding = await seedContext(
         {
@@ -766,6 +767,8 @@ async function executeCheck(
           stepKey: CHECK_CONTEXT_STEP_KEY,
           goal: CHECK_CONTEXT_GOAL,
           outputs: [],
+          facts: slice.facts?.facts ?? [],
+          factsOmitted: slice.facts?.omitted ?? 0,
           contextDir: layout.context,
           outputDir: layout.home,
         },

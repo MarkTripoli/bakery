@@ -7,16 +7,17 @@ export type PinnedBrief = {
   /** The assignment carrying the one declared slot and its pin. */
   readonly withContext: (assignment: JobAssignment) => JobAssignment;
   /** The route's answer: the bytes admission pinned, as the worker reads them. */
-  readonly readAttemptContext: () => Promise<
-    ReadonlyArray<{
+  readonly readAttemptContext: () => Promise<{
+    readonly inputs: ReadonlyArray<{
       readonly artifactVersionId: string;
       readonly artifactId: string;
       readonly digest: string;
       readonly sizeBytes: number;
       readonly mediaType: string;
       readonly contentBase64: string;
-    }>
-  >;
+    }>;
+    readonly facts: null;
+  }>;
 };
 
 const BRIEF = "# The brief";
@@ -48,7 +49,8 @@ export async function pinnedBrief(): Promise<PinnedBrief> {
         mediaType: "text/markdown",
       }],
     } as JobAssignment),
-    readAttemptContext: () => Promise.resolve([served]),
+    readAttemptContext: () =>
+      Promise.resolve({ inputs: [served], facts: null }),
   };
 }
 
@@ -90,6 +92,7 @@ export async function pinnedInput(options: {
           mediaType: "text/markdown",
         }],
       }) as JobAssignment,
-    readAttemptContext: () => Promise.resolve([served]),
+    readAttemptContext: () =>
+      Promise.resolve({ inputs: [served], facts: null }),
   };
 }

@@ -65,7 +65,7 @@ Deno.test("a step with no pinned inputs is left exactly as it was", async () => 
       workDir: "/work",
       readAttemptContext: () => {
         reads++;
-        return Promise.resolve([]);
+        return Promise.resolve({ inputs: [], facts: null });
       },
     });
     assertEquals(result, { ok: true, promptSection: "" });
@@ -86,7 +86,11 @@ Deno.test("pinned inputs become files and an index that names every slot", async
       attemptRoot: root,
       goal: "Implement the plan.",
       workDir: "/work",
-      readAttemptContext: () => Promise.resolve([plan.served, brief.served]),
+      readAttemptContext: () =>
+        Promise.resolve({
+          inputs: [plan.served, brief.served],
+          facts: null,
+        }),
     });
     assert(result.ok);
     assertEquals(result.contextDir, `${root}/context`);
@@ -112,6 +116,49 @@ Deno.test("pinned inputs become files and an index that names every slot", async
   }
 });
 
+Deno.test("the facts the read carries reach the index the agent reads", async () => {
+  const root = await scratch();
+  try {
+    const plan = await pinned("plan", "plan.md", "# The plan");
+    const result = await prepareHarnessContext({
+      assignment: withPins([plan.pin]),
+      attemptRoot: root,
+      goal: "Implement the plan.",
+      workDir: "/work",
+      readAttemptContext: () =>
+        Promise.resolve({
+          inputs: [plan.served],
+          facts: {
+            facts: [{
+              wording: "Tests run with pnpm.",
+              recordedAt: "2026-11-20",
+            }],
+            omitted: 4,
+          },
+        }),
+    });
+    assert(result.ok);
+    assertEquals(
+      await Deno.readTextFile(`${root}/context/CONTEXT.md`).then((text) =>
+        text.includes("Tests run with pnpm.")
+      ),
+      true,
+    );
+    assertEquals(
+      result.promptSection.includes("Tests run with pnpm."),
+      true,
+    );
+    assertEquals(
+      result.promptSection.includes(
+        "4 more facts were left out to stay inside this step's limit.",
+      ),
+      true,
+    );
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("bytes that are not the pinned bytes refuse the attempt", async () => {
   const root = await scratch();
   try {
@@ -125,7 +172,8 @@ Deno.test("bytes that are not the pinned bytes refuse the attempt", async () => 
       attemptRoot: root,
       goal: "Implement the plan.",
       workDir: "/work",
-      readAttemptContext: () => Promise.resolve([swapped]),
+      readAttemptContext: () =>
+        Promise.resolve({ inputs: [swapped], facts: null }),
     });
     assertFalse(result.ok);
     if (result.ok) throw new Error("unreachable");

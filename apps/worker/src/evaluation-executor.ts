@@ -91,7 +91,10 @@ async function readOutputBytes(
   }
   const proof = attemptProofOf(assignment);
   if (proof === null) return "this assignment carries no lease proof";
-  const inputs = await options.readAttemptContext(assignment.attemptId, proof);
+  const { inputs } = await options.readAttemptContext(
+    assignment.attemptId,
+    proof,
+  );
   const pinned = inputs.find((item) => item.artifactVersionId === versionId);
   if (!pinned) {
     return "the output artifact version is not pinned to the attempt";
