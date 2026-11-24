@@ -1,27 +1,27 @@
 {
   "format": "bakery-dependency-licences/1",
   "lockfileSha256": {
-    "pnpm-lock.yaml": "603c92433dd0a695174db4901193f325935e866b945c9cfe848ff841e34db24b",
-    "deno.lock": "b68b22b13ca1c8fadf7d4816d47c59efe3a3e5cd35ff901a5931802fd6b009e6"
+    "pnpm-lock.yaml": "4802f9a03629d794383fe615235b24271c27b335f55020237737cc080044c7f9",
+    "deno.lock": "e277936d75a02557ac10d3a755fec0f204c80f2215f4d3fd6b6ade0a4e5df3d4"
   },
   "summary": {
-    "total": 1309,
+    "total": 1330,
     "byEcosystem": {
-      "pnpm": 748,
+      "pnpm": 769,
       "deno-npm": 559,
       "jsr": 2
     },
     "byStatus": {
-      "allowed": 1271,
+      "allowed": 1291,
       "exception": 0,
-      "pendingOwnerDecision": 38,
+      "pendingOwnerDecision": 39,
       "unresolved": 0
     },
     "byEcosystemStatus": {
       "pnpm": {
-        "allowed": 724,
+        "allowed": 744,
         "exception": 0,
-        "pendingOwnerDecision": 24,
+        "pendingOwnerDecision": 25,
         "unresolved": 0
       },
       "deno-npm": {
@@ -7737,6 +7737,54 @@
     },
     {
       "ecosystem": "pnpm",
+      "name": "@types/d3-color",
+      "version": "3.1.3",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "@types/d3-drag",
+      "version": "3.0.7",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "@types/d3-interpolate",
+      "version": "3.0.4",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "@types/d3-selection",
+      "version": "3.0.12",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "@types/d3-transition",
+      "version": "3.0.9",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "@types/d3-zoom",
+      "version": "3.0.9",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
       "name": "@types/debug",
       "version": "4.1.13",
       "licence": "MIT",
@@ -8081,6 +8129,22 @@
     },
     {
       "ecosystem": "pnpm",
+      "name": "@xyflow/react",
+      "version": "13.0.2",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "@xyflow/system",
+      "version": "1.0.0",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
       "name": "acorn",
       "version": "8.18.0",
       "licence": "MIT",
@@ -8361,6 +8425,14 @@
     },
     {
       "ecosystem": "pnpm",
+      "name": "classcat",
+      "version": "5.0.5",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
       "name": "cliui",
       "version": "6.0.0",
       "licence": "ISC",
@@ -8444,6 +8516,78 @@
       "name": "csstype",
       "version": "3.2.3",
       "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "d3-color",
+      "version": "3.1.1",
+      "licence": "ISC",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "d3-dispatch",
+      "version": "3.0.2",
+      "licence": "ISC",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "d3-drag",
+      "version": "3.0.1",
+      "licence": "ISC",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "d3-ease",
+      "version": "3.0.2",
+      "licence": "BSD-3-Clause",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "d3-interpolate",
+      "version": "3.0.2",
+      "licence": "ISC",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "d3-selection",
+      "version": "3.0.1",
+      "licence": "ISC",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "d3-timer",
+      "version": "3.0.2",
+      "licence": "ISC",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "d3-transition",
+      "version": "3.0.2",
+      "licence": "ISC",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "d3-zoom",
+      "version": "3.0.1",
+      "licence": "ISC",
       "resolution": "package.json",
       "status": "allowed"
     },
@@ -8582,6 +8726,14 @@
       "licence": "ISC",
       "resolution": "package.json",
       "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "elkjs",
+      "version": "0.12.1",
+      "licence": "EPL-2.0 OR GPL-3.0-or-later",
+      "resolution": "package.json",
+      "status": "pendingOwnerDecision"
     },
     {
       "ecosystem": "pnpm",
@@ -9737,6 +9889,14 @@
     },
     {
       "ecosystem": "pnpm",
+      "name": "react-compiler-runtime",
+      "version": "1.0.0",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
       "name": "react-docgen",
       "version": "8.0.3",
       "licence": "MIT",
@@ -10507,6 +10667,14 @@
       "ecosystem": "pnpm",
       "name": "zod",
       "version": "4.5.4",
+      "licence": "MIT",
+      "resolution": "package.json",
+      "status": "allowed"
+    },
+    {
+      "ecosystem": "pnpm",
+      "name": "zustand",
+      "version": "5.1.0",
       "licence": "MIT",
       "resolution": "package.json",
       "status": "allowed"

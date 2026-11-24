@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { MaintenanceExecutor, MaintenanceJournalStore } from "./maintenance.ts";
 import { workerMaintenanceAdapters } from "./maintenance-release.ts";
-import { WorkerApiClient } from "./client.ts";
+import { type AttemptProof, WorkerApiClient } from "./client.ts";
 import {
   disabledMonitoring,
   initializeDenoMonitoring,
@@ -311,8 +311,8 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
     // other harness leaves it without a transport, so scores are unscored.
     const executor = options.executor === undefined
       ? createEvaluationExecutor(baseExecutor, {
-        readAttemptContext: async (attemptId) => {
-          const served = await client.attemptContext(attemptId);
+        readAttemptContext: async (attemptId, proof) => {
+          const served = await client.attemptContext(attemptId, proof);
           return served.value;
         },
         judge: codingHarness?.name === "claude"
@@ -351,15 +351,18 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
         // pins. Without this the executor refuses every assignment that pins
         // inputs, so the reader is not an optimisation: it is the only way a
         // check with declared inputs can run at all.
-        readAttemptContext: async (attemptId) => {
-          const served = await client.attemptContext(attemptId);
+        readAttemptContext: async (attemptId, proof) => {
+          const served = await client.attemptContext(attemptId, proof);
           return served.value;
         },
       });
     // A coding harness writes a step's pinned inputs into its attempt root
     // before it starts, from the same route the check executor reads.
-    const readAttemptContext = async (attemptId: string) => {
-      const served = await client.attemptContext(attemptId);
+    const readAttemptContext = async (
+      attemptId: string,
+      proof: AttemptProof,
+    ) => {
+      const served = await client.attemptContext(attemptId, proof);
       return served.value;
     };
     const harnessExecutor = codingHarness?.name === "claude"

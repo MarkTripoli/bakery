@@ -50,12 +50,14 @@ export type IconGlyphName =
   | "chat"
   | "chevron-left"
   | "lanes"
+  | "branch"
   | "info"
   | "issue"
   | "close"
   | "bell"
   | "warning"
-  | "question";
+  | "question"
+  | "code";
 
 // Additional shell glyphs: approved K-0 9VJ-0/9ZB-0 exports; listening bars:
 // AR1-0. Exact paths and viewports, theme-aware ink; never a font substitute.
@@ -432,6 +434,7 @@ const GLYPH_PATHS: Record<IconGlyphName, ReactNode> = {
   chat: <path d="M4 5h16v11H9l-5 4z" />,
   "chevron-left": <path d="m15 6-6 6 6 6" />,
   lanes: <path d="M4 6h6M4 12h10M4 18h16M14 6h6" />,
+  branch: <path d="M12 21v-8m0 0L6 5m6 8 6-8" />,
   arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
   back: <path d="M19 12H5m6-6-6 6 6 6" />,
   building: <path d="M4 21V3h11v18m0-12h5v12M2 21h20M8 7h3m-3 4h3m-3 4h3" />,
@@ -505,6 +508,14 @@ const GLYPH_PATHS: Record<IconGlyphName, ReactNode> = {
       <circle cx="12" cy="12" r="9" />
       <path d="M9.5 9.5a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.6" />
       <path d="M12 17h.01" />
+    </>
+  ),
+
+  code: (
+    <>
+      <path d="m8 7-5 5 5 5" />
+      <path d="m16 7 5 5-5 5" />
+      <path d="m13.5 5-3 14" />
     </>
   ),
 };

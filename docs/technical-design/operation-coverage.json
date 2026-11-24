@@ -1003,6 +1003,18 @@
         "module": "knowledge",
         "migration": "apps/server/src/modules/knowledge/migrations/bakery/0285_step_write_set.sql"
       },
+      "storage_connection_ingests": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0355_storage_connections.sql"
+      },
+      "storage_connection_mounts": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0355_storage_connections.sql"
+      },
+      "storage_connection_syncs": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0355_storage_connections.sql"
+      },
       "storage_entries": {
         "module": "knowledge",
         "migration": "apps/server/src/modules/knowledge/migrations/bakery/0232_storage_entries.sql"

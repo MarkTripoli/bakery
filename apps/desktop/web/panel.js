@@ -142,6 +142,7 @@ function chooserNode(detail) {
     });
     const text = el("label", "chooser__label", label);
     text.htmlFor = input.id;
+    text.id = `choice-label-${value}`;
     const head = el("div", "chooser__head");
     head.append(input, text);
     row.append(head);
@@ -164,6 +165,7 @@ function chooserNode(detail) {
   box.value = draft.typed;
   box.autocomplete = "off";
   box.spellcheck = false;
+  box.setAttribute("aria-labelledby", "choice-label-another");
   box.setAttribute("aria-describedby", "server-address-note");
   box.addEventListener("input", () => {
     draft.typed = box.value;
@@ -334,15 +336,19 @@ function drawLinkDialog(view, _placeholder) {
   if (!dialog) {
     if (linkDialogKind !== null) {
       linkDialogKind = null;
-      const back = beforeLinkDialog;
+      const opener = beforeLinkDialog;
       beforeLinkDialog = null;
-      if (back?.isConnected) back.focus();
+      const twin = opener ? root.querySelector(opener) : null;
+      (twin ?? root.querySelector(".btn--primary") ??
+        root.querySelector("#panel-heading"))?.focus();
     }
     return false;
   }
-  if (linkDialogKind === null) beforeLinkDialog = document.activeElement;
   const { scrim, node, title } = linkDialogNode(dialog);
   root.append(scrim);
+  for (const child of root.children) {
+    if (child !== scrim) child.inert = true;
+  }
   if (linkDialogKind !== dialog.kind) {
     linkDialogKind = dialog.kind;
     (node.querySelector(".btn--primary") ?? title).focus();
@@ -351,12 +357,21 @@ function drawLinkDialog(view, _placeholder) {
   return true;
 }
 
+function selectorOf(node) {
+  if (!(node instanceof HTMLElement) || node === document.body) return null;
+  if (node.dataset.button) return `[data-button="${node.dataset.button}"]`;
+  return node.id ? `#${node.id}` : null;
+}
+
 export function render(view, { keepFocus = false } = {}) {
   // The same view again changes nothing on screen: leave it, so focus stays where it is.
   const fingerprint = JSON.stringify(view);
   if (fingerprint === rendered && !keepFocus) return;
   rendered = fingerprint;
   current = view;
+  if (linkDialogKind === null) {
+    beforeLinkDialog = selectorOf(document.activeElement);
+  }
   root.replaceChildren();
   if (view.window.kind !== "choose") {
     chooserOpen = false;

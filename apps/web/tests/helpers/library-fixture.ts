@@ -174,6 +174,8 @@ const versionBody = (row: VersionRow) => ({
 });
 
 /** Stubs the session, the role and the three Library reads; returns what it saw and a switch to stop failing. */
+export const SAVED_DIGEST = "ab".repeat(32);
+
 export async function libraryFixture(page: Page, options: Options = {}) {
   await mockAuthenticatedSession(page);
   const workflows = (options.workflows ?? []).map((item) => ({ ...item }));
@@ -407,7 +409,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
             definition?: { steps?: unknown };
           }).definition?.steps ?? [],
         },
-        digest: "sha256:0",
+        digest: SAVED_DIGEST,
         status: "draft",
         createdBy: uuid(9000),
         createdAt: "2026-01-01T00:00:00.000Z",

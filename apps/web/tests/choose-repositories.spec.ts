@@ -267,7 +267,7 @@ for (
       await shot(page, "choose-repositories-labels", [], { windowOnly: true });
     });
 
-    test("Save starts taking issues from a repository with exactly its defaults", async ({ page }) => {
+    test("Save starts taking issues from a repository with exactly its defaults, and no workflow", async ({ page }) => {
       const seen = await fixture(page);
       const sheet = await openSheet(page);
       // The first row in name order is acme/billing.
@@ -288,9 +288,9 @@ for (
           automatic: { enabled: false },
           readiness: { requireAcceptanceCriteria: true },
           approval: { plan: "human_approval" },
-          preset: "fixed-coding",
         },
       });
+      expect(seen.created[0]?.policy).not.toHaveProperty("preset");
       await expect(page.getByRole("dialog")).toHaveCount(0);
     });
 

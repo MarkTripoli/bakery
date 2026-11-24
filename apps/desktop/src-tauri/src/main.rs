@@ -129,6 +129,11 @@ fn test_hooks(app: &tauri::App, shell: &Arc<Shell>, server: &str) {
             let _ = window.set_size(tauri::LogicalSize::new(w, h));
         }
     }
+    if let Ok(zoom) = std::env::var("BAKERY_DESKTOP_ZOOM") {
+        if let Ok(factor) = zoom.parse::<f64>() {
+            let _ = window.set_zoom(factor);
+        }
+    }
     if let Ok(dir) = std::env::var("BAKERY_DESKTOP_COMMANDS") {
         shell.watch_commands(std::path::PathBuf::from(dir));
     }

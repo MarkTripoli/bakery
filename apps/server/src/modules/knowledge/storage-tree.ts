@@ -136,7 +136,7 @@ function toEntry(row: EntryRow): StorageEntry {
  * must not fail the write this rides on, so the name falls back to one made
  * unique by the key, and the last resort is the key itself.
  */
-async function ensureFolder(
+export async function ensureFolder(
   db: StorageQuery,
   input: {
     organizationId: string;
@@ -313,7 +313,7 @@ export async function ensureWorkItemFolder(
  * A folder of this name under `parentId`, made if it is missing. Returns
  * undefined when the name is taken by a file, so the caller can fall back.
  */
-async function ensureChildFolder(
+export async function ensureChildFolder(
   db: StorageQuery,
   input: { organizationId: string; parentId: string; segment: string },
 ): Promise<string | undefined> {
@@ -350,7 +350,7 @@ function flatName(name: string, artifactId: string): string {
 }
 
 /** Tries to insert one file entry; returns its id, or undefined if the name is taken. */
-async function insertFileEntry(
+export async function insertFileEntry(
   db: StorageQuery,
   input: {
     organizationId: string;
