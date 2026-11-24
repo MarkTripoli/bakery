@@ -379,7 +379,7 @@ test.describe("installation integrations against the real API", () => {
       await expect(
         memberPage.getByText(
           "Only installation administrators can view or change integrations.",
-        ),
+        ).first(),
       ).toBeVisible();
       await expect(createButton(memberPage)).toHaveCount(0);
       const read = await memberPage.request.get(

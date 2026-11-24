@@ -273,6 +273,8 @@ Deno.test("a run that uses an outside file ingests it once per revision and pins
     const pinned = await as(r, async (context, tx) => {
       const resolved = await resolveInputPaths(tx, {
         organizationId: r.organizationId,
+        principalId: r.principalId,
+        context,
         inputs: {},
         inputPaths: { brief: path },
         connections: (inputPath) =>
@@ -1082,6 +1084,8 @@ Deno.test("a connections path in any case goes through the guarded ingest", () =
     await withPgTransaction(r.db, (tx) =>
       resolveInputPaths(tx, {
         organizationId: r.organizationId,
+        principalId: r.principalId,
+        context: personContext(tx, r.organizationId, r.principalId),
         inputs: {},
         inputPaths: { brief: spelled },
         connections: (path: string) => {
@@ -1105,6 +1109,8 @@ Deno.test("a connections path in any case goes through the guarded ingest", () =
       withPgTransaction(r.db, (tx) =>
         resolveInputPaths(tx, {
           organizationId: r.organizationId,
+          principalId: r.principalId,
+          context: personContext(tx, r.organizationId, r.principalId),
           inputs: {},
           inputPaths: { brief: r.mount.path + "/docs/a.txt" },
         }))

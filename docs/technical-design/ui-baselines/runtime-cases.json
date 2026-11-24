@@ -2208,6 +2208,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.spinner.contract.desktop-light-fine",
+      "catalogId": "ui.spinner",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-spinner--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.spacer.contract.desktop-light-fine",
       "catalogId": "ui.spacer",
       "requiredCaseId": "contract",

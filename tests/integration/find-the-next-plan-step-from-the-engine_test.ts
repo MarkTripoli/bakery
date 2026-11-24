@@ -390,7 +390,6 @@ Deno.test("an event wait is not run yet: the run fails with a stable code in the
 
 Deno.test("a human.approval wait is admitted and waits instead of failing the run", () =>
   withWorkerFixture(async (fixture) => {
-    const approvalId = "00000000-0000-4000-8000-0000000000c1";
     const seeded = await seedPlanRun(
       fixture,
       await compiled([
@@ -398,11 +397,8 @@ Deno.test("a human.approval wait is admitted and waits instead of failing the ru
         {
           id: "signoff",
           needs: ["first"],
-          wait: {
-            event: "human.approval.decided",
-            timeout: "7d",
-            approvalId,
-          },
+          uses: "human.approval",
+          with: { prompt: "Ship it?" },
         },
       ]),
     );
@@ -428,12 +424,12 @@ Deno.test("a human.approval wait is admitted and waits instead of failing the ru
     );
     assertEquals(stored.rows.length, 1, "the approval wait is one row");
     assertEquals(stored.rows[0].status, "waiting");
-    assertEquals(stored.rows[0].dispatch?.wait?.approvalId, approvalId);
+    const approvalId = stored.rows[0].dispatch?.wait?.approvalId;
+    assert(approvalId, "the wait pins the approval the engine created");
   }));
 
 Deno.test("an approval wait that is never answered expires instead of running forever", () =>
   withWorkerFixture(async (fixture) => {
-    const approvalId = "00000000-0000-4000-8000-0000000000c2";
     const seeded = await seedPlanRun(
       fixture,
       await compiled([
@@ -441,11 +437,8 @@ Deno.test("an approval wait that is never answered expires instead of running fo
         {
           id: "signoff",
           needs: ["first"],
-          wait: {
-            event: "human.approval.decided",
-            timeout: "7d",
-            approvalId,
-          },
+          uses: "human.approval",
+          with: { prompt: "Ship it?" },
         },
       ]),
     );

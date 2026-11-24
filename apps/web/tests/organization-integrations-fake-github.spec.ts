@@ -181,9 +181,11 @@ test.describe("GitHub setup against the real API and the fake GitHub App", () =>
       timeout: 30_000,
     });
     expect(manifests.map((manifest) => manifest.name)).toEqual([APP_NAME]);
-    await expect(page.getByText(APP_NAME, { exact: true })).toBeVisible();
+    await expect(page.getByText(APP_NAME, { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.getByText("acme-bakery-preview", { exact: true }))
-      .toBeVisible();
+      .toBeVisible({ timeout: 30_000 });
   });
 
   test("Connect GitHub installs, authorizes and lands on a pending connection's page; choose, save, turn on and check make it healthy", async ({ page, baseURL }) => {

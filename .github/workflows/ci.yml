@@ -2067,6 +2067,24 @@ jobs:
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_paper_runtime'))) && needs.ui_catalog.result == 'success' && needs.ui_quality.result == 'success' && needs.ui_storybook_browser.result == 'success' }}
     # K-0 reference rasters are `linux-x64` (assertK0Environment): x64 only.
     runs-on: [self-hosted, linux, bakery-heavy, X64]
+    env:
+      BAKERY_ENV: test
+      BAKERY_SERVER_HOST: 127.0.0.1
+      BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -2094,12 +2112,15 @@ jobs:
         }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
-      - name: Pick a free web port
+      - name: Pick free web and API ports
         run: |
-          port="$(node scripts/ci/pick-free-port.mjs 2>/dev/null || echo 5173)"
+          ports="$(node -e 'const net=require("net");const a=net.createServer(),b=net.createServer();a.listen(0,"127.0.0.1",()=>b.listen(0,"127.0.0.1",()=>{console.log(a.address().port,b.address().port);a.close();b.close()}))')"
+          web_port="${ports%% *}"
+          server_port="${ports##* }"
           {
-            echo "BAKERY_WEB_PORT=$port"
-            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$port"
+            echo "BAKERY_WEB_PORT=$web_port"
+            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$web_port"
+            echo "BAKERY_SERVER_PORT=$server_port"
           } >> "$GITHUB_ENV"
       - name: Sweep persistent-runner leftovers
         shell: bash
@@ -2120,11 +2141,44 @@ jobs:
       - name: Set the capture base for changed runs
         if: github.event_name == 'pull_request'
         run: echo "BAKERY_CAPTURE_BASE_SHA=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_ENV"
+      - name: Configure PostgreSQL connection
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Ensure psql client
+        shell: bash
+        run: |
+          command -v psql >/dev/null 2>&1 || {
+            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
+              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
+          }
+      - name: Provision migration test roles and database
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - run: pnpm migrate
+      - name: Start API
+        working-directory: apps/server
+        run: |
+          bash scripts/run-main.sh > "$RUNNER_TEMP/server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/server.pid"
+      - name: Wait for API health
+        run: |
+          for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready" && break; sleep 1; done
+          curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready"
       - name: Start web dev server for fixture routes
         # Design route candidates compare against the app's real fixture
         # routes (`/__fixtures__/...`), which only exist under the Vite dev
-        # server (`import.meta.env.DEV`) — a production build 404s them, and
-        # no API/DB is needed since capture-stories.mjs stubs every request.
+        # server (`import.meta.env.DEV`) — a production build 404s them.
         run: |
           pnpm --dir apps/web dev --host 127.0.0.1 --port "$BAKERY_WEB_PORT" > "$RUNNER_TEMP/web-dev.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/web-dev.pid"
@@ -2145,6 +2199,9 @@ jobs:
       - name: Stop web dev server
         if: always()
         run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
+      - name: Stop API
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/server.pid")" || true
       - name: Complete git history before the provenance gate
         # A persistent runner can carry a leftover .git/shallow entry from the
         # repository's pre-recreation history (bakery-hetzner-4, runs
@@ -2183,6 +2240,7 @@ jobs:
             grep -vE '^PASSED ' artifacts/ui-baseline/paper/comparison.txt | tee -a "$GITHUB_STEP_SUMMARY"
           fi
           tail -n 40 "$RUNNER_TEMP/web-dev.log" || true
+          tail -n 40 "$RUNNER_TEMP/server.log" || true
       - name: Write ui_paper_runtime evidence
         if: always()
         env:
@@ -2204,6 +2262,24 @@ jobs:
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_paper_entitlements'))) && needs.ui_catalog.result == 'success' && needs.ui_quality.result == 'success' && needs.ui_storybook_browser.result == 'success' }}
     # K-0 reference rasters are `linux-x64` (assertK0Environment): x64 only.
     runs-on: [self-hosted, linux, bakery-heavy, X64]
+    env:
+      BAKERY_ENV: test
+      BAKERY_SERVER_HOST: 127.0.0.1
+      BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -2231,12 +2307,15 @@ jobs:
         }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
-      - name: Pick a free web port
+      - name: Pick free web and API ports
         run: |
-          port="$(node scripts/ci/pick-free-port.mjs 2>/dev/null || echo 5173)"
+          ports="$(node -e 'const net=require("net");const a=net.createServer(),b=net.createServer();a.listen(0,"127.0.0.1",()=>b.listen(0,"127.0.0.1",()=>{console.log(a.address().port,b.address().port);a.close();b.close()}))')"
+          web_port="${ports%% *}"
+          server_port="${ports##* }"
           {
-            echo "BAKERY_WEB_PORT=$port"
-            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$port"
+            echo "BAKERY_WEB_PORT=$web_port"
+            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$web_port"
+            echo "BAKERY_SERVER_PORT=$server_port"
           } >> "$GITHUB_ENV"
       - name: Sweep persistent-runner leftovers
         shell: bash
@@ -2259,11 +2338,44 @@ jobs:
       - name: Set the capture base for changed runs
         if: github.event_name == 'pull_request'
         run: echo "BAKERY_CAPTURE_BASE_SHA=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_ENV"
+      - name: Configure PostgreSQL connection
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Ensure psql client
+        shell: bash
+        run: |
+          command -v psql >/dev/null 2>&1 || {
+            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
+              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
+          }
+      - name: Provision migration test roles and database
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - run: pnpm migrate
+      - name: Start API
+        working-directory: apps/server
+        run: |
+          bash scripts/run-main.sh > "$RUNNER_TEMP/server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/server.pid"
+      - name: Wait for API health
+        run: |
+          for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready" && break; sleep 1; done
+          curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready"
       - name: Start web dev server for fixture routes
         # Design route candidates compare against the app's real fixture
         # routes (`/__fixtures__/...`), which only exist under the Vite dev
-        # server (`import.meta.env.DEV`) — a production build 404s them, and
-        # no API/DB is needed since capture-stories.mjs stubs every request.
+        # server (`import.meta.env.DEV`) — a production build 404s them.
         run: |
           pnpm --dir apps/web dev --host 127.0.0.1 --port "$BAKERY_WEB_PORT" > "$RUNNER_TEMP/web-dev.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/web-dev.pid"
@@ -2284,6 +2396,9 @@ jobs:
       - name: Stop web dev server
         if: always()
         run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
+      - name: Stop API
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/server.pid")" || true
       - name: Complete git history before the provenance gate
         # A persistent runner can carry a leftover .git/shallow entry from the
         # repository's pre-recreation history (bakery-hetzner-4, runs
@@ -2328,6 +2443,7 @@ jobs:
             grep -vE '^(PASSED|PLANNED) ' artifacts/ui-baseline/settings/paper/comparison.txt | tee -a "$GITHUB_STEP_SUMMARY"
           fi
           tail -n 40 "$RUNNER_TEMP/web-dev.log" || true
+          tail -n 40 "$RUNNER_TEMP/server.log" || true
       - name: Write ui_paper_entitlements evidence
         if: always()
         env:
@@ -2349,6 +2465,24 @@ jobs:
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_paper_artifacts'))) && needs.ui_catalog.result == 'success' && needs.ui_quality.result == 'success' && needs.ui_storybook_browser.result == 'success' }}
     # K-0 reference rasters are `linux-x64` (assertK0Environment): x64 only.
     runs-on: [self-hosted, linux, bakery-heavy, X64]
+    env:
+      BAKERY_ENV: test
+      BAKERY_SERVER_HOST: 127.0.0.1
+      BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -2376,12 +2510,15 @@ jobs:
         }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
-      - name: Pick a free web port
+      - name: Pick free web and API ports
         run: |
-          port="$(node scripts/ci/pick-free-port.mjs 2>/dev/null || echo 5173)"
+          ports="$(node -e 'const net=require("net");const a=net.createServer(),b=net.createServer();a.listen(0,"127.0.0.1",()=>b.listen(0,"127.0.0.1",()=>{console.log(a.address().port,b.address().port);a.close();b.close()}))')"
+          web_port="${ports%% *}"
+          server_port="${ports##* }"
           {
-            echo "BAKERY_WEB_PORT=$port"
-            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$port"
+            echo "BAKERY_WEB_PORT=$web_port"
+            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$web_port"
+            echo "BAKERY_SERVER_PORT=$server_port"
           } >> "$GITHUB_ENV"
       - name: Sweep persistent-runner leftovers
         shell: bash
@@ -2412,11 +2549,44 @@ jobs:
       - name: Set the capture base for changed runs
         if: github.event_name == 'pull_request'
         run: echo "BAKERY_CAPTURE_BASE_SHA=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_ENV"
+      - name: Configure PostgreSQL connection
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Ensure psql client
+        shell: bash
+        run: |
+          command -v psql >/dev/null 2>&1 || {
+            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
+              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
+          }
+      - name: Provision migration test roles and database
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - run: pnpm migrate
+      - name: Start API
+        working-directory: apps/server
+        run: |
+          bash scripts/run-main.sh > "$RUNNER_TEMP/server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/server.pid"
+      - name: Wait for API health
+        run: |
+          for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready" && break; sleep 1; done
+          curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready"
       - name: Start web dev server for fixture routes
         # Design route candidates compare against the app's real fixture
         # routes (`/__fixtures__/...`), which only exist under the Vite dev
-        # server (`import.meta.env.DEV`) — a production build 404s them, and
-        # no API/DB is needed since capture-stories.mjs stubs every request.
+        # server (`import.meta.env.DEV`) — a production build 404s them.
         run: |
           pnpm --dir apps/web dev --host 127.0.0.1 --port "$BAKERY_WEB_PORT" > "$RUNNER_TEMP/web-dev.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/web-dev.pid"
@@ -2437,6 +2607,9 @@ jobs:
       - name: Stop web dev server
         if: always()
         run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
+      - name: Stop API
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/server.pid")" || true
       - name: Complete git history before the provenance gate
         # A persistent runner can carry a leftover .git/shallow entry from the
         # repository's pre-recreation history (bakery-hetzner-4, runs
@@ -2487,6 +2660,7 @@ jobs:
             grep -vE '^PASSED ' artifacts/ui-baseline/worker-dark/paper/comparison.txt | tee -a "$GITHUB_STEP_SUMMARY"
           fi
           tail -n 40 "$RUNNER_TEMP/web-dev.log" || true
+          tail -n 40 "$RUNNER_TEMP/server.log" || true
       - name: Write ui_paper_artifacts evidence
         if: always()
         env:
@@ -2845,9 +3019,6 @@ jobs:
               "$LANE_UI_WEB_BROWSER_C" \
               "$LANE_UI_WEB_BROWSER_D" \
               "$LANE_E2E_TESTS" \
-              "$LANE_UI_PAPER_RUNTIME" \
-              "$LANE_UI_PAPER_ENTITLEMENTS" \
-              "$LANE_UI_PAPER_ARTIFACTS" \
               "$LANE_NATIVE_WORKER"
             do
               if [[ "$heavy_lane" != skipped ]]; then
@@ -2895,9 +3066,6 @@ jobs:
               e2e_tests \
               ui_architecture \
               ui_storybook_browser \
-              ui_paper_runtime \
-              ui_paper_entitlements \
-              ui_paper_artifacts \
               native_worker
             do
               lane_env="LANE_${lane_key^^}"
@@ -2944,9 +3112,6 @@ jobs:
             "$LANE_UI_WEB_BROWSER_C" \
             "$LANE_UI_WEB_BROWSER_D" \
             "$LANE_E2E_TESTS" \
-            "$LANE_UI_PAPER_RUNTIME" \
-            "$LANE_UI_PAPER_ENTITLEMENTS" \
-            "$LANE_UI_PAPER_ARTIFACTS" \
             "$LANE_NATIVE_WORKER"
           do
             if [[ "$lane_result" != success ]]; then

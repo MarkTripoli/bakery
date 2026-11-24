@@ -38,6 +38,7 @@ import {
   groupByCase,
   hasModelScorer,
   pinTitle,
+  repeatSummaries,
   type ResultFilter,
   resultWords,
   runBadge,
@@ -485,9 +486,8 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["protected"] }),
   });
 
-  // The server lets a developer or an administrator stop a run (evaluationRun:write).
-  const canStop = access.data?.role === "admin" ||
-    access.data?.role === "developer";
+  const canStop =
+    access.data?.capabilities.includes("evaluationRun:write") === true;
 
   const when = (iso: string, withTime = false) =>
     new Intl.DateTimeFormat(locale, {
@@ -599,6 +599,9 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
   const lines = countLines(batch.counts);
   const chips = stateChips(batch.counts);
   const groups = groupByCase(results.items);
+  const repeatsByCase = new Map(
+    groups.map((group) => [group.caseId, repeatSummaries(group.results)]),
+  );
   const scorerName = (id: string) =>
     batch.scorers.find((scorer) => scorer.scorerId === id)?.slug ??
       id.slice(0, 8);
@@ -884,8 +887,33 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
                         title={group.caseName}
                       >
                         <UI.Stack gap="compact">
-                          {group.results.map((result) => (
+                          {group.results.map((result, index) => (
                             <UI.Stack gap="none" key={result.id}>
+                              {repeatsByCase.get(group.caseId)!.has(
+                                  result.scorerId,
+                                ) &&
+                                  group.results.findIndex((other) =>
+                                      other.scorerId === result.scorerId
+                                    ) === index
+                                ? (
+                                  <UI.Text variant="caption">
+                                    {translate(
+                                      "library.evaluation.repeats.summary",
+                                      {
+                                        scorer: scorerName(result.scorerId),
+                                        passed:
+                                          repeatsByCase.get(group.caseId)!.get(
+                                            result.scorerId,
+                                          )!
+                                            .passed,
+                                        n: repeatsByCase.get(group.caseId)!.get(
+                                          result.scorerId,
+                                        )!.total,
+                                      },
+                                    )}
+                                  </UI.Text>
+                                )
+                                : null}
                               <UI.Text variant="caption">
                                 {scorerLine(result)}
                               </UI.Text>

@@ -100,6 +100,10 @@
     "path": "/machines/new"
   },
   {
+    "id": "machine-new-by-hand",
+    "path": "/machines/new/by-hand"
+  },
+  {
     "id": "machine-detail",
     "path": "/machines/$machineId"
   },
@@ -206,6 +210,10 @@
   {
     "id": "installation-restore",
     "path": "/installation/restore"
+  },
+  {
+    "id": "installation-updates",
+    "path": "/installation/updates"
   },
   {
     "id": "installation-audit",
