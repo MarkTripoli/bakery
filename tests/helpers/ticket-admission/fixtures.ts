@@ -819,7 +819,10 @@ export async function openTicketFixture(
     const sourceIds: string[] = [];
 
     const policy = (overrides: PolicyOverrides = {}): TicketSourcePolicy => {
-      const base = defaultTicketSourcePolicy();
+      const base: TicketSourcePolicy = {
+        ...defaultTicketSourcePolicy(),
+        preset: "fixed-coding",
+      };
       const delegation = overrides.delegation === undefined ||
           overrides.delegation === false
         ? null

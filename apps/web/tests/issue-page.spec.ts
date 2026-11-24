@@ -396,25 +396,17 @@ for (
       ]);
     });
 
-    test("Start work names both built-in workflows, the repository's first, and sends no choice when it is kept", async ({ page }) => {
+    test("Start work offers both built-in workflows with the repository's chosen, and sends no choice when it is kept", async ({ page }) => {
       const seen = await open(page, READY);
       await card(page).first().getByRole("button", { name: "Start work" })
         .click();
       const dialog = page.getByRole("alertdialog");
-      await expect(dialog.getByRole("button", { name: "Cancel" }))
-        .toBeFocused();
-      const workflows = dialog.getByRole("radiogroup", { name: "Workflow" });
-      await expect(workflows.getByRole("radio")).toHaveCount(2);
-      // The repository's own is chosen, since nothing else was asked for.
-      await expect(workflows.getByRole("radio", { name: "Fixed coding" }))
-        .toBeChecked();
-      await expect(
-        workflows.getByRole("radio", {
-          name: "Coding with independent review",
-        }),
-      ).not.toBeChecked();
+      const workflow = dialog.getByLabel("Workflow");
+      await expect(workflow).toBeFocused();
+      await expect(workflow.getByRole("option")).toHaveCount(2);
+      await expect(workflow).toHaveValue("fixed-coding");
       await expect(dialog).toContainText(
-        "acme/web is set to Fixed coding. Choosing the other applies to this issue only.",
+        "acme/web is set to Fixed coding. Choosing another applies to this issue only.",
       );
       await page.mouse.move(700, 700);
       await still(page, "issue-start-dialog-workflow");
@@ -429,9 +421,7 @@ for (
       await card(page).first().getByRole("button", { name: "Start work" })
         .click();
       const dialog = page.getByRole("alertdialog");
-      await dialog.getByRole("radio", {
-        name: "Coding with independent review",
-      }).check();
+      await dialog.getByLabel("Workflow").selectOption("fixed-coding-reviewed");
       await dialog.getByRole("button", { name: "Start work" }).click();
       await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
       expect(seen.starts[0]!.preset).toBe("fixed-coding-reviewed");
@@ -444,20 +434,55 @@ for (
       await card(page).first().getByRole("button", { name: "Start work" })
         .click();
       const dialog = page.getByRole("alertdialog");
-      await expect(
-        dialog.getByRole("radio", { name: "Coding with independent review" }),
-      ).toBeChecked();
-      await expect(dialog).toContainText(
-        "acme/web is set to Coding with independent review. Choosing the other applies to this issue only.",
+      await expect(dialog.getByLabel("Workflow")).toHaveValue(
+        "fixed-coding-reviewed",
       );
-      await dialog.getByRole("radio", { name: "Fixed coding" }).check();
-      // The help keeps naming the repository's own workflow after the choice changes.
+      await expect(dialog).toContainText(
+        "acme/web is set to Coding with independent review. Choosing another applies to this issue only.",
+      );
+      await dialog.getByLabel("Workflow").selectOption("fixed-coding");
       await expect(dialog).toContainText(
         "acme/web is set to Coding with independent review.",
       );
       await dialog.getByRole("button", { name: "Start work" }).click();
       await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
       expect(seen.starts[0]!.preset).toBe("fixed-coding");
+    });
+
+    test("a repository with no workflow opens Start work with nothing chosen, sends nothing until one is chosen, then starts with it", async ({ page }) => {
+      const seen = await open(page, READY, { sourcePreset: null });
+      await card(page).first().getByRole("button", { name: "Start work" })
+        .click();
+      const dialog = page.getByRole("alertdialog");
+      const workflow = dialog.getByLabel("Workflow");
+      await expect(workflow).toHaveValue("");
+      await expect(dialog).toContainText(
+        "acme/web has no workflow set. Your choice applies to this issue only.",
+      );
+      const start = dialog.getByRole("button", { name: "Start work" });
+      await expect(start).toBeEnabled();
+      await page.mouse.move(700, 700);
+      await still(page, "issue-start-dialog-no-workflow");
+      await start.click();
+      await expect(dialog).toContainText("Choose a workflow first.");
+      await expect(workflow).toBeFocused();
+      await page.mouse.move(700, 700);
+      await still(page, "issue-start-dialog-no-workflow-error");
+      expect(seen.starts).toHaveLength(0);
+      await workflow.selectOption("fixed-coding");
+      await expect(dialog).not.toContainText("Choose a workflow first.");
+      await start.click();
+      await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
+      expect(seen.starts).toHaveLength(1);
+      expect(seen.starts[0]!.preset).toBe("fixed-coding");
+    });
+
+    test("the issue card says no workflow is set for a repository without one", async ({ page }) => {
+      await open(page, READY, { sourcePreset: null });
+      await expect(card(page).first()).toContainText(
+        "No workflow is set for acme/web. You choose one when you start work.",
+      );
+      await still(page, "issue-card-no-workflow");
     });
 
     test("Plan first is a visible button beside Start work and changes what the confirmation says", async ({ page }) => {
