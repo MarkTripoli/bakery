@@ -6,6 +6,7 @@ import type {
 } from "../../apps/web/src/api/client.ts";
 import {
   backupNotice,
+  drillResult,
   isBackingUp,
   isQuiet,
   keptInKey,
@@ -372,5 +373,44 @@ Deno.test("the schedule is told in a few words", () => {
         time: "03:00",
       },
     },
+  );
+});
+
+Deno.test("every failed restore check says what to do next, and an unknown code still does", () => {
+  const failed = (failureCode: string | null) => ({
+    id: "d1",
+    backupName: "set",
+    startedAt: "2026-11-24T01:00:00.000Z",
+    recordedAt: "2026-11-24T01:10:00.000Z",
+    outcome: "failed" as const,
+    failureCode: failureCode as never,
+    detail: null,
+    cutoffAt: null,
+    rpoSeconds: null,
+    rtoSeconds: 60,
+    checksPassed: [],
+    checksFailed: [],
+  });
+  for (
+    const code of [
+      "set_incomplete",
+      "key_mismatch",
+      "migration_unsupported",
+      "cutoff_mismatch",
+      "restore_failed",
+      "references_missing",
+      "drill_error",
+    ]
+  ) {
+    const result = drillResult(failed(code));
+    assertEquals(result.cause, `installation.backups.drillCause.${code}`);
+    assertEquals(result.fix, `installation.backups.drillFix.${code}`);
+  }
+  const unknown = drillResult(failed("something_new"));
+  assertEquals(unknown.cause, "installation.backups.drillCause.unknown");
+  assertEquals(unknown.fix, "installation.backups.drillFix.unknown");
+  assertEquals(
+    drillResult(failed(null)).fix,
+    "installation.backups.drillFix.unknown",
   );
 });

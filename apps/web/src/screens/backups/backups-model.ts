@@ -471,6 +471,7 @@ export function sizeOf(sizeBytes: string | null): SizeParts | null {
 export type DrillResult = {
   readonly passed: boolean;
   readonly cause: MessageKey | null;
+  readonly fix: MessageKey | null;
   readonly detail: string | null;
   readonly failedChecks: readonly string[];
 };
@@ -488,13 +489,34 @@ const DRILL_CAUSE_KEYS: Readonly<
   drill_error: "installation.backups.drillCause.drill_error",
 };
 
+const DRILL_FIX_KEYS: Readonly<
+  Record<NonNullable<BackupDrill["failureCode"]>, MessageKey>
+> = {
+  set_incomplete: "installation.backups.drillFix.set_incomplete",
+  key_mismatch: "installation.backups.drillFix.key_mismatch",
+  migration_unsupported: "installation.backups.drillFix.migration_unsupported",
+  cutoff_mismatch: "installation.backups.drillFix.cutoff_mismatch",
+  restore_failed: "installation.backups.drillFix.restore_failed",
+  references_missing: "installation.backups.drillFix.references_missing",
+  drill_error: "installation.backups.drillFix.drill_error",
+};
+
 export function drillResult(drill: BackupDrill): DrillResult {
   const passed = drill.outcome === "passed";
+  const code = drill.failureCode;
+  const known = code !== null && code in DRILL_CAUSE_KEYS;
   return {
     passed,
-    cause: passed || drill.failureCode === null
+    cause: passed || code === null
       ? null
-      : DRILL_CAUSE_KEYS[drill.failureCode],
+      : known
+      ? DRILL_CAUSE_KEYS[code]
+      : "installation.backups.drillCause.unknown",
+    fix: passed
+      ? null
+      : known
+      ? DRILL_FIX_KEYS[code]
+      : "installation.backups.drillFix.unknown",
     detail: passed || drill.detail === null || drill.detail === ""
       ? null
       : drill.detail,

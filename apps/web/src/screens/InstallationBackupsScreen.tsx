@@ -689,6 +689,9 @@ function DrillList(props: InstallationBackupsScreenProps) {
         {result.cause === null
           ? null
           : <UI.Text variant="caption">{translate(result.cause)}</UI.Text>}
+        {result.fix === null
+          ? null
+          : <UI.Text variant="caption">{translate(result.fix)}</UI.Text>}
         {result.detail === null ? null : (
           <UI.DataText fit variant="code">
             {result.detail}

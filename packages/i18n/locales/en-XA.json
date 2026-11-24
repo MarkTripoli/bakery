@@ -6992,5 +6992,14 @@
   "installation.backups.settings.service.replace.title": "⟦Ŕëþļàçë ŧĥë ƀàçķûþ šëŕṽïçë'š ķëÿ? ŧëšŧ çôþÿ⟧",
   "installation.backups.settings.service.replace.body": "⟦Ŧĥë ôļð ķëÿ šŧôþš ŵôŕķïñĝ àŧ ôñçë. Ɓàçķûþš šŧôþ ûñŧïļ ŧĥë ñëŵ ķëÿ ïš ôñ ŧĥë šëŕṽëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "installation.backups.settings.service.replace.cancel": "⟦Çàñçëļ…⟧",
-  "installation.backups.settings.service.replace.confirm": "⟦Ŕëþļàçë…⟧"
+  "installation.backups.settings.service.replace.confirm": "⟦Ŕëþļàçë…⟧",
+  "installation.backups.drillCause.unknown": "⟦Ŧĥë çĥëçķ ðïð ñôŧ þàšš. ŧëšŧ ç⟧",
+  "installation.backups.drillFix.set_incomplete": "⟦Ŧàķë à ñëŵ ƀàçķûþ. Ŧĥïš ôñë çàññôŧ ƀë ŕëšŧôŕëð. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "installation.backups.drillFix.key_mismatch": "⟦Ûšë ŧĥë ķëÿ ƒïļë ƒŕôɱ ŧĥë šëŕṽëŕ ŧĥàŧ ŧôôķ ŧĥïš ƀàçķûþ, ŧĥëñ çĥëçķ ïŧ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "installation.backups.drillFix.migration_unsupported": "⟦Ïñšŧàļļ à ŕëļëàšë àŧ ļëàšŧ àš ñëŵ àš ŧĥë ôñë ŧĥàŧ ŧôôķ ŧĥë ƀàçķûþ, ŧĥëñ çĥëçķ ïŧ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "installation.backups.drillFix.cutoff_mismatch": "⟦Ŧàķë à ñëŵ ƀàçķûþ àñð çĥëçķ ŧĥàŧ ôñë. Ðôñ'ŧ ŕëļÿ ôñ ŧĥïš ƀàçķûþ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "installation.backups.drillFix.restore_failed": "⟦Çĥëçķ ïŧ àĝàïñ. Ïƒ ïŧ ƒàïļš à šëçôñð ŧïɱë, ƒôļļôŵ ŧĥë ĝûïðë. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "installation.backups.drillFix.references_missing": "⟦Ŧàķë à ñëŵ ƀàçķûþ àñð çĥëçķ ŧĥàŧ ôñë. Ŧĥë ĝûïðë šàÿš ŵĥïçĥ ƒïļëš à ƀàçķûþ ɱûšŧ ïñçļûðë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "installation.backups.drillFix.drill_error": "⟦Çĥëçķ ïŧ àĝàïñ. Ïƒ ïŧ šŧôþš àĝàïñ, ŧĥë šëŕṽëŕ ļôĝ šàÿš ŵĥÿ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "installation.backups.drillFix.unknown": "⟦Çĥëçķ ïŧ àĝàïñ. ŧëš⟧"
 }

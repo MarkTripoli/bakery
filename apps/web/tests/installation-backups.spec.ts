@@ -634,6 +634,9 @@ for (
         "The backup key did not open the backup.",
       );
       await expect.poll(() => said(failed)).toContain(
+        "Use the key file from the server that took this backup, then check it again.",
+      );
+      await expect.poll(() => said(failed)).toContain(
         "Did not pass: database, files",
       );
       await expect.poll(() => said(failed)).toContain(
@@ -644,6 +647,35 @@ for (
       await expect.poll(() => said(page.locator("[data-drill]").nth(1)))
         .toContain("Backup was 2 hours old");
       await noOverflow(page);
+    });
+
+    test("restore checks: every failure code says what to do next", async ({ page }) => {
+      const fixes = {
+        set_incomplete: "Take a new backup. This one cannot be restored.",
+        key_mismatch:
+          "Use the key file from the server that took this backup, then check it again.",
+        migration_unsupported:
+          "Install a release at least as new as the one that took the backup, then check it again.",
+        cutoff_mismatch:
+          "Take a new backup and check that one. Don't rely on this backup.",
+        restore_failed:
+          "Check it again. If it fails a second time, follow the guide.",
+        references_missing:
+          "Take a new backup and check that one. The guide says which files a backup must include.",
+        drill_error:
+          "Check it again. If it stops again, the server log says why.",
+      };
+      const codes = Object.keys(fixes) as (keyof typeof fixes)[];
+      await fixture(page, {
+        drills: codes.map((failureCode, index) =>
+          drill(index + 1, { outcome: "failed", failureCode })
+        ),
+      });
+      await page.goto("/installation/backups");
+      for (const [index, code] of codes.entries()) {
+        await expect.poll(() => said(page.locator("[data-drill]").nth(index)))
+          .toContain(fixes[code]);
+      }
     });
 
     test("a held restore offers Finish the restore", async ({ page }) => {
