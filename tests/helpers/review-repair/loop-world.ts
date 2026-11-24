@@ -412,7 +412,10 @@ export async function openLoopWorld(
      * `repairs` times (#397), instead of the flat preset. The world's methods
      * keep their names: `check(1, …)` admits `repair@1.repair_check`.
      */
-    plan?: { readonly repairs: number };
+    plan?: {
+      readonly repairs: number;
+      readonly limits?: { readonly wallClock?: string };
+    };
   } = {},
 ): Promise<LoopWorld> {
   const suffix = crypto.randomUUID().slice(0, 8);
@@ -436,6 +439,7 @@ export async function openLoopWorld(
         name: `plan-loop-${suffix}`,
         agents: bindings,
         repairs: options.plan?.repairs ?? 2,
+        limits: options.plan?.limits,
       }),
     );
     return {
@@ -986,7 +990,10 @@ export async function withReviewedRun<T>(
     budgetLimitUsd?: string;
     maxUsd?: number;
     /** Run the reviewed workflow as a compiled plan (#397). */
-    plan?: { readonly repairs: number };
+    plan?: {
+      readonly repairs: number;
+      readonly limits?: { wallClock?: string };
+    };
     seed?: Readonly<Record<string, Outcome>>;
     /** Skip implement and the seed check, for a test that drives them itself. */
     bare?: boolean;

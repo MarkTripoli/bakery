@@ -69,4 +69,34 @@ loopTest(
   },
 );
 
+loopTest(
+  "a plan that names a shorter clock stops its live loop at that bound",
+  async () => {
+    await withReviewedRun(async (world) => {
+      const first = await world.review(0);
+      await accept(first, first.report([blocker()]));
+
+      await world.repair(1, HEADS[1]);
+      await world.check(1, HEADS[1], {});
+      await world.fixture.pgDatabase.query(
+        `update bakery.review_cycles
+            set created_at = created_at - interval '24 hours'
+          where organization_id = $1 and run_id = $2`,
+        [world.fixture.organizationId, world.runId],
+      );
+
+      const second = await world.review(1);
+      await accept(second, second.report([blocker(2)]));
+
+      const decisions = await world.decisions();
+      const stopped = decisions[decisions.length - 1];
+      assertEquals([stopped.decision, stopped.reason], [
+        "stop",
+        "repair_time_exhausted",
+      ]);
+      assertEquals(stopped.limits.maxLoopDurationMs, 23 * 60 * 60 * 1000);
+    }, { plan: { repairs: 2, limits: { wallClock: "23h" } } });
+  },
+);
+
 loopFixtureCloseStep("a loop that ran out of clock");
