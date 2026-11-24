@@ -58,6 +58,8 @@ export type NotificationListResponse = ClientOutputMap["Page<Notification>"];
 export type NotificationResponse = ClientOutputMap["Notification"];
 export type NotificationCountResponse = ClientOutputMap["NotificationCount"];
 export type NotificationTargetResponse = ClientOutputMap["NotificationTarget"];
+export type NotificationUndoMarkAllReadResponse =
+  ClientOutputMap["NotificationUndoMarkAllReadResult"];
 export type NotificationMarkAllReadResponse =
   ClientOutputMap["NotificationMarkAllReadResult"];
 export type NotificationCursorQuery = ClientInputMap["NotificationCursorQuery"];
@@ -1843,6 +1845,12 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<NotificationMarkAllReadResponse>>;
+  readonly undoMarkAllNotificationsRead: (options: {
+    readonly organizationId: string;
+    readonly batchId: string;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<NotificationUndoMarkAllReadResponse>>;
   readonly createTask: (options: {
     readonly organizationId: string;
     readonly input: TaskCreate;
@@ -2039,6 +2047,13 @@ export type BakeryApiClient = {
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<DeploymentResponse>>;
+  readonly allowMoreRepairTries: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly tries: number;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<null>>;
   /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
   readonly reconcileMergeAttempts: (options: {
     readonly organizationId: string;
@@ -2154,6 +2169,30 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
+  readonly updateSkill: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: DefinitionUpdate;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillResponse>>;
+  readonly copySkill: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly name: string;
+    readonly scope: "organization" | "personal";
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillResponse>>;
+  readonly deleteSkillUseGrant: (options: {
+    readonly organizationId: string;
+    readonly skillId: string;
+    readonly id: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<undefined>>;
   /** One agent definition of the organization. */
   readonly getAgent: (options: {
     readonly organizationId: string;
@@ -6227,6 +6266,26 @@ export function createBakeryApiClient({
       }
     },
 
+    async undoMarkAllNotificationsRead(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["notifications.undoMarkAllRead"](
+          { batchId: options.batchId },
+          {
+            signal: options.signal,
+            ...(options.idempotencyKey === undefined
+              ? {}
+              : { idempotencyKey: options.idempotencyKey }),
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
     async listRuns(options) {
       organizationId = options.organizationId;
       try {
@@ -6643,6 +6702,21 @@ export function createBakeryApiClient({
           { idempotencyKey: options.idempotencyKey, signal: options.signal },
         );
         return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async allowMoreRepairTries(options) {
+      organizationId = options.organizationId;
+      try {
+        await client.actions["runRepairAllowances.create"](
+          { id: options.runId, tries: options.tries },
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        return { ok: true, data: null };
       } catch (error) {
         return failed(error);
       } finally {
@@ -7093,6 +7167,65 @@ export function createBakeryApiClient({
           },
         );
         return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateSkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.update"](
+          { id: options.id, ...options.input },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async copySkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.copy"](
+          { id: options.id, name: options.name, scope: options.scope },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async deleteSkillUseGrant(options) {
+      organizationId = options.organizationId;
+      try {
+        await client.actions["skills.useGrants.delete"](
+          { id: options.skillId, grantId: options.id },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data: undefined };
       } catch (error) {
         return failed(error);
       } finally {

@@ -43,6 +43,7 @@ export async function stubNotification(
         taskId: options.taskId,
         actor: null,
         destination: { available: true, title: options.title ?? "Task" },
+        approvalOutcome: null,
         read: true,
         revision: NOTIFICATION_REVISION + 1,
         createdAt: stamp,

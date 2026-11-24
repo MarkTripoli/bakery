@@ -948,6 +948,27 @@
     {
       "group": "Work",
       "method": "GET",
+      "path": "/v1/runs/{id}/steps/{stepKey}/given",
+      "action": "runSteps.given",
+      "access": "Developer",
+      "permission": "runStep:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "IdPath",
+      "output": "StepGiven",
+      "event": "",
+      "mcp": "bakery_runSteps_given",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Work",
+      "method": "GET",
       "path": "/v1/output-streams",
       "action": "output.streams.list",
       "access": "Developer",
@@ -3386,6 +3407,30 @@
         "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Skills",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "mcp": null,
+      "organizationContext": "required_authenticated_context",
+      "method": "POST",
+      "path": "/v1/skills/{id}/use-grants",
+      "action": "skills.useGrants.create",
+      "input": "SkillUseGrantCreate",
+      "output": "SkillUseGrant",
+      "event": "skillUseGrant.created",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
         "MALFORMED_REQUEST"
       ]
     },
@@ -7876,7 +7921,7 @@
       "permission": "review:accept",
       "organizationContext": "required_authenticated_context",
       "input": "RepairAllowanceCreate",
-      "output": "DeliveryDecision",
+      "output": "TriesAllowance",
       "event": "",
       "mcp": "bakery_runRepairAllowances_create",
       "idempotency": "Idempotency-Key required; PATCH also If-Match",
@@ -8927,6 +8972,31 @@
       "output": "ConversationTurn",
       "event": "conversation.turn_changed",
       "mcp": "bakery_conversationTurns_cancel",
+      "idempotency": "Idempotency-Key and If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Conversation",
+      "method": "POST",
+      "path": "/v1/conversation-turns/{id}/retry",
+      "action": "conversationTurns.retry",
+      "access": "Developer",
+      "permission": "conversationTurn:write",
+      "organizationContext": "required_authenticated_context",
+      "input": "ConversationTurnRetry",
+      "output": "ConversationTurn",
+      "event": "conversation.turn_changed",
+      "mcp": "bakery_conversationTurns_retry",
       "idempotency": "Idempotency-Key and If-Match required",
       "errors": [
         "AUTH_REQUIRED",

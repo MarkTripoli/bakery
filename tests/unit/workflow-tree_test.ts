@@ -300,3 +300,47 @@ Deno.test("a forEach with no steps is an empty block, and one inside a repeat ne
   assertEquals(inner.label, "each");
   assertEquals(inner.max, 1);
 });
+
+Deno.test("a repeat carries its own numbers and where they live (#419)", () => {
+  const tree = treeOf({
+    steps: [
+      {
+        kind: "repeat",
+        id: "fix",
+        min: 2,
+        max: 4,
+        allow: 3,
+        seed: { form: "literal", value: null },
+        until: { kind: "literal", value: false },
+        steps: [{ kind: "action", id: "repair", uses: "harness.repair" }, {
+          kind: "action",
+          id: "review",
+          uses: "review.independent",
+        }],
+      },
+    ],
+  });
+  const group = tree.nodes[0];
+  if (group.kind !== "group") throw new Error("a repeat is a group");
+  assertEquals(group.label, "fix");
+  assertEquals(group.loop, {
+    min: 2,
+    max: 4,
+    allow: 3,
+    fix: true,
+    path: ["steps", 0],
+  });
+});
+
+Deno.test("a repeat the editor cannot read its max for offers no numbers", () => {
+  const tree = treeOf({
+    steps: [{
+      kind: "repeat",
+      seed: { form: "literal", value: null },
+      steps: [],
+    }],
+  });
+  const group = tree.nodes[0];
+  if (group.kind !== "group") throw new Error("a repeat is a group");
+  assertEquals(group.loop, undefined);
+});

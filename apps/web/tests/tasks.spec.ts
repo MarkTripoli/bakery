@@ -281,12 +281,12 @@ test("task filters reset cursors, preserve focus, and navigate real routes", asy
   await expect(page.getByText(task.description)).toBeVisible();
   await expect(
     page.getByText(
-      "This task has no run yet. Start a run to see its timeline.",
+      "This task has no run yet. Choose a workflow to start one.",
     ),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Start run", exact: true }))
     .toBeVisible();
-  await expect(page.getByText("No artifacts to show.")).toBeVisible();
+  await expect(page.getByText("No artifacts to show.")).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
@@ -1394,7 +1394,7 @@ test("intercepted wrong-run response suppresses child reads and controls", async
   await page.getByRole("link", { name: task.title }).click();
   await expect(
     page.getByRole("heading", {
-      name: "Tasks could not be loaded. Try again.",
+      name: "This run could not be loaded.",
     }),
   ).toBeVisible();
   await expect(page.getByText(step.stepKey, { exact: true })).toHaveCount(0);

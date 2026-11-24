@@ -353,6 +353,9 @@
   overflow: hidden;
   position: absolute;
 }
+.ui-data-table tbody th {
+  font: inherit;
+}
 .ui-data-table th,
 .ui-data-table td {
   border-block-end: var(--border-default) solid var(--color-border);
@@ -390,6 +393,10 @@
   padding: var(--space-4);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.ui-code-block--command[data-state="overflowing"] {
+  overflow-wrap: normal;
+  white-space: pre;
 }
 .ui-code-block__copied {
   color: var(--color-syntax-success);
@@ -2084,6 +2091,9 @@
   gap: var(--space-2);
   padding-block: var(--space-3);
 }
+.ui-notification-popover__message--action {
+  align-items: flex-start;
+}
 .ui-notification-popover__footer {
   border-block-start: var(--border-default) solid var(--color-border);
   margin-block-start: var(--space-2);
@@ -2463,6 +2473,9 @@
 /* On a phone the empty state's action sits inside the dashed box, as it does on
    a desktop: the box is the panel, not the copy alone. */
 @media (max-width: 743px) {
+  .ui-settings-content[data-page="installation-usage"] .ui-access-settings__actions > .ui-stack {
+    flex: 1 1 100%;
+  }
   .ui-settings-content[data-page="installation-usage"] .ui-access-settings__panel[data-tone="empty"] {
     border: var(--border-default) dashed var(--color-control-border);
     border-radius: var(--radius-overlay);

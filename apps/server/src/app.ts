@@ -6,6 +6,7 @@ import { createRemoteMcpToolTransport } from "./modules/mcp/tool-transport.ts";
 import { httpsMcpTransport } from "./modules/mcp/discovery-transport.ts";
 import { composeEngineStepRunners } from "./modules/workflow-adapter/engine-steps.ts";
 import { createSplitStepRunner } from "./modules/work/coordination-split-step.ts";
+import { createPeopleTagStepRunner } from "./modules/work/people-tag-step.ts";
 import { createLocalDeliveryTargets } from "./modules/delivery/local-delivery-targets.ts";
 import {
   createSkillObjectStore,
@@ -832,6 +833,7 @@ export function createApp(options: {
         // A split's plan is made and watched by the engine, as the person who
         // started the run (#422).
         createSplitStepRunner({ database: options.pgDatabase }),
+        createPeopleTagStepRunner({ database: options.pgDatabase }),
         createToolCallStepRunner({
           database: options.pgDatabase,
           registry: integrationRegistry,
@@ -1058,6 +1060,12 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
       merge: { github: githubAppClient, broker: installationTokenBroker },
+      environmentAddress: (environment) => {
+        const target = options.config.deliveryTarget;
+        return target !== undefined && target.environment === environment
+          ? target.address ?? null
+          : null;
+      },
     }),
   );
   app.route(

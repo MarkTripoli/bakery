@@ -365,6 +365,8 @@ export type WorkflowRepeatNode = {
   needs: string[];
   if?: WorkflowExpressionNode | undefined;
   max: number;
+  min?: number | undefined;
+  allow?: number | undefined;
   seed: WorkflowRepeatSeed;
   until: WorkflowExpressionNode;
   steps: WorkflowNode[];
@@ -381,11 +383,6 @@ export type WorkflowWaitNode = {
       kind: "event";
       event: string;
       timeoutMs: number;
-      /**
-       * For a human.approval wait, the approval this step waits on. Pinning it
-       * on the step is what stops an answer arriving for one approval from
-       * completing a different step's wait.
-       */
       approvalId?: string | undefined;
     };
 };
@@ -555,9 +552,15 @@ const repeatNodeSchema = z.object({
   max: z.number().int().min(1).max(8).describe(
     "Maximum iteration count, bounded by the repair-cycle policy.",
   ),
+  min: z.number().int().min(1).max(8).optional().describe(
+    "Minimum iteration count: the loop runs at least this many rounds even when the exit condition already holds; never more than max.",
+  ),
+  allow: z.number().int().min(1).max(8).optional().describe(
+    "Soft cap on iterations before the run pauses for a limit decision; between min and max, and never past max.",
+  ),
   seed: repeatSeedSchema,
   until: z.lazy(() => WorkflowExpressionNodeSchema).describe(
-    "Boolean exit condition checked before the first and after every iteration.",
+    "Boolean exit condition, asked from round min on (before the first round when min is absent) and after every iteration.",
   ),
   steps: stepsSchema(),
   currentCandidate: z.lazy(() => WorkflowValueNodeSchema).describe(
@@ -578,14 +581,11 @@ const waitNodeSchema = z.object({
       event: z.string().regex(/^[a-z][A-Za-z0-9_.]{0,63}$/).describe(
         "Named event the wait subscribes to.",
       ),
-      // An event wait's timeout may stand for a long time: a human.approval
-      // wait is bounded by its own seven-day ceiling, not the one-day duration
-      // ceiling that bounds actions and runs.
       timeoutMs: z.number().int().min(1000).max(604_800_000).describe(
-        "Longest the wait may last before it expires, at most seven days. A human.approval wait uses the full window; every other event wait keeps the compiler's duration ceiling.",
+        "Longest the wait may last before it expires, at most seven days. The compiler emits event waits only within its one-day duration ceiling; the seven-day bound covers the approval wait the run store writes for a human.approval step.",
       ),
       approvalId: z.string().min(1).max(200).optional().describe(
-        "For a human.approval wait, the approval this step waits on. Pinning it on the step is what stops an answer arriving for one approval from completing a different step's wait.",
+        "Approval a waiting step is bound to. The compiler never emits it; the run store sets it on the wait it writes for a human.approval step, so an answer to one approval cannot complete a different step's wait.",
       ),
     }).strict().describe("Wait for a named event with a finite timeout."),
   ]).describe("Duration wait or event wait."),

@@ -76,7 +76,7 @@ async function shot(page: Page, name: string) {
 }
 
 const message = (page: Page) =>
-  page.getByRole("textbox", { name: "Message this task" });
+  page.getByRole("combobox", { name: "Message this task" });
 const approve = (page: Page, n: number) =>
   page.getByRole("button", { name: `Approve plan, version ${n}`, exact: true });
 
@@ -149,6 +149,9 @@ async function started(page: Page, task: Task): Promise<string> {
   await expect(page.getByText(
     "This task waits for an approved plan. The run starts from the plan you approve.",
   )).toHaveCount(0);
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
   await page.getByRole("button", { name: "Start run" }).click();
   await expect.poll(
     async () => (await api<Task>(page, `/v1/tasks/${task.id}`)).currentRunId,
@@ -204,6 +207,9 @@ test("a requested change on the current revision keeps the gated run from starti
   await expect(page.getByText(
     "This task waits for an approved plan. The run starts from the plan you approve.",
   )).toBeVisible();
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
   await page.getByRole("button", { name: "Start run" }).click();
   await expect(page.getByText("The server did not admit the run."))
     .toBeVisible({ timeout: 30_000 });

@@ -299,6 +299,7 @@ export function InstallationIntegrationsPage(
             module.manifest.appRegistration?.kind === "client-credentials"
           ).map((module) => (
             <InstallationProviderCredentials
+              connectAvailable={module.connectAvailable !== false}
               guideUrl={module.registrationGuideUrl}
               key={module.manifest.slug}
               provider={module.manifest.slug}

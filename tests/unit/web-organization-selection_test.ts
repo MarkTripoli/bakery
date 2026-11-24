@@ -302,6 +302,7 @@ function fakeApi(
     resolveNotificationTarget: rejecting,
     setNotificationRead: rejecting,
     markAllNotificationsRead: rejecting,
+    undoMarkAllNotificationsRead: rejecting,
     createRun: rejecting,
     listRuns: rejecting,
     controlRun: rejecting,
@@ -320,6 +321,7 @@ function fakeApi(
     listMergeAttempts: rejecting,
     listDeployments: rejecting,
     rollbackDeployment: rejecting,
+    allowMoreRepairTries: rejecting,
     listMergeEntries: rejecting,
     createMergeEntry: rejecting,
     mergePullRequest: rejecting,
@@ -387,6 +389,9 @@ function fakeApi(
     createWorkflowVersion: rejecting,
     updateWorkflowVersion: rejecting,
     publishWorkflowVersion: rejecting,
+    updateSkill: rejecting,
+    copySkill: rejecting,
+    deleteSkillUseGrant: rejecting,
     validateWorkflow: rejecting,
   };
 }

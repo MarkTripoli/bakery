@@ -63,6 +63,7 @@ export const BINDABLE_ACTIONS: Readonly<
   "runs.list": "task",
   "runs.get": "run",
   "runSteps.list": "run",
+  "runSteps.given": "run",
 });
 
 export function isBindingRole(value: unknown): value is BindingRole {

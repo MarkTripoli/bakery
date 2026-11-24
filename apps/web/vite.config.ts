@@ -107,6 +107,15 @@ export default defineConfig(({ mode, command }) => {
             ),
           ),
         },
+        {
+          find: "@bakery/integration-slack/web",
+          replacement: fileURLToPath(
+            new URL(
+              "../../packages/integration-slack/src/web/mod.ts",
+              import.meta.url,
+            ),
+          ),
+        },
         // loro-crdt's default entry needs a wasm loader; its base64 entry does
         // not, and it is the one build every importer (the session, the
         // loro-codemirror binding) must share.

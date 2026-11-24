@@ -32,7 +32,7 @@ export const PHONE = { width: 390, height: 844 } as const;
 export const conversationRegion = (page: Page) =>
   page.getByRole("region", { name: "Conversation", exact: true });
 export const messageBox = (page: Page) =>
-  page.getByRole("textbox", { name: "Message this task" });
+  page.getByRole("combobox", { name: "Message this task" });
 export const sendButton = (page: Page) =>
   page.getByRole("button", { name: "Send", exact: true });
 export const planRegion = (page: Page) =>
@@ -41,6 +41,10 @@ export const approve = (page: Page, revision: number) =>
   page.getByRole("button", {
     name: `Approve plan, version ${revision}`,
     exact: true,
+  });
+export const chooseWorkflow = (page: Page) =>
+  page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
   });
 export const startRunButton = (page: Page) =>
   page.getByRole("button", { name: "Start run", exact: true });
@@ -143,8 +147,8 @@ export async function fillComposer(
   await form.getByRole("combobox", { name: /^Repository/ }).selectOption(
     repositoryId,
   );
-  await expect(page.getByRole("radio", { name: /Fixed coding/ })).toBeChecked({
-    timeout: 30_000,
+  await form.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
   });
   await form.getByRole("textbox", { name: /^Title/ }).fill(title);
   await form.getByRole("textbox", { name: /^Description/ }).fill(description);

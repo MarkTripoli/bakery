@@ -147,6 +147,16 @@ function handlerFor(
       });
     };
   }
+  if (action === WorkflowRuntimeImplementedAction.PeopleTag) {
+    const { input } = WORKFLOW_ACTION_METADATA[action];
+    return (value) => {
+      parser(schemas, input).parse(value);
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "workflow_tag_settled_by_engine" },
+      });
+    };
+  }
   if (action === WorkflowRuntimeImplementedAction.CoordinationSplit) {
     // The step creates a plan of child work items and waits for its projection,
     // so the engine settles it in its admission (workflow-adapter, engine steps)

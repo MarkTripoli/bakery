@@ -684,7 +684,7 @@ Deno.test("generated contract inventory is fresh and projects runtime capabiliti
     [...implementedActions].sort(),
   );
   assertEquals(generated.implementedActions, [...implementedActions]);
-  assertEquals(generated.compatibilityDigest, source.compatibilityDigest);
+  assertEquals(generated.compatibilityDigest, undefined);
   assertEquals(generated.actions, source.actions);
   assertEquals(generated.openapi, source.openapi);
   for (const [name, schema] of Object.entries(source.schemas)) {

@@ -1,6 +1,17 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertNotEquals,
+  assertRejects,
+} from "@std/assert";
 import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
+import { readPlanHost } from "../../apps/server/src/modules/delivery/plan-host.ts";
+import { allowMoreRepeatRounds } from "../../apps/server/src/modules/delivery/repeat-limit-decision.ts";
+import { createRepairAllowance } from "../../apps/server/src/modules/delivery/repair-allowance-action.ts";
+import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
 import { pinWorkflowRuntime } from "../../packages/contracts/src/workflow-interpreter/mod.ts";
+import { appendAudit } from "@bakery/persistence/event-audit";
+import { StandardError } from "../../packages/contracts/src/http.ts";
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { seedFundedModelJob } from "../helpers/funded-model-job.ts";
 import {
@@ -153,6 +164,212 @@ Deno.test("a failed repeat iteration is an outcome, not the end of the run", () 
     assertEquals((await rows(fixture, seeded)).length, 2);
   }));
 
+Deno.test("a repeat that uses its allow below its max stops the run with limit_reached, and goes no further (#419)", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedPlanRun(
+      fixture,
+      await compiled([{
+        id: "loop",
+        repeat: {
+          max: 3,
+          allow: 1,
+          seed: { currentCandidate: { n: 0 } },
+          until: "$repeat.currentCandidate.n >= 99",
+          steps: [noop("bump", { with: { n: "$repeat.currentCandidate.n" } })],
+          outputs: { currentCandidate: { n: "$step.loop.bump.next" } },
+        },
+      }, noop("report", { with: { outcome: "$step.loop.outcome" } })]),
+    );
+    await setRow(fixture, seeded, seeded.firstKey, "completed", { next: 1 });
+    assertEquals(
+      await seeded.repository.findNext(seeded.job.runId, seeded.owner),
+      undefined,
+    );
+    const end = await state(fixture, seeded);
+    assertEquals(end.run.status, "failed");
+    assertEquals(await audit(fixture, seeded), ["limit_reached"]);
+    assertEquals((await rows(fixture, seeded)).length, 1);
+  }));
+
+type WorkerFixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
+
+async function limitStopWorld(fixture: WorkerFixture) {
+  const seeded = await seedPlanRun(
+    fixture,
+    await compiled([{
+      id: "loop",
+      repeat: {
+        max: 3,
+        allow: 1,
+        seed: { currentCandidate: { n: 0 } },
+        until: "$repeat.currentCandidate.n >= 99",
+        steps: [noop("bump", { with: { n: "$repeat.currentCandidate.n" } })],
+        outputs: { currentCandidate: { n: "$step.loop.bump.next" } },
+      },
+    }, noop("report", { with: { outcome: "$step.loop.outcome" } })]),
+  );
+  const repository = createBakeryPostgresWorkflowRepository({
+    database: fixture.pgDatabase,
+    maxAttempts: 3,
+    planHost: readPlanHost,
+  });
+  const decide = (tries: number) =>
+    withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        allowMoreRepeatRounds(transaction, {
+          organizationId: fixture.organizationId,
+          principalId: fixture.principalId,
+          runId: seeded.job.runId,
+          tries,
+          requestId: crypto.randomUUID(),
+          traceId: crypto.randomUUID(),
+        }),
+    );
+  const viaAction = (tries: number) =>
+    withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        createRepairAllowance(
+          {
+            transaction,
+            authority: {
+              organizationId: fixture.organizationId,
+              subject: { principalId: fixture.principalId },
+            },
+            params: { id: seeded.job.runId },
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          } as unknown as ActionContext,
+          { tries },
+        ),
+    );
+  const resume = async () => {
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_runs set status = 'running' where id = $1`,
+      [seeded.job.runId],
+    );
+    const owner = await repository.acquireEngineOwner(
+      seeded.job.runId,
+      `resume-${crypto.randomUUID()}`,
+      60_000,
+    );
+    assert(owner !== undefined);
+    return owner;
+  };
+  const ledger = async () =>
+    (await fixture.pgDatabase.query<{ detail: Record<string, unknown> }>(
+      `select detail from bakery.decisions_ledger
+        where run_id = $1 and kind = 'limit_change' order by decided_at, id`,
+      [seeded.job.runId],
+    )).rows.map((row) => row.detail);
+  return { seeded, repository, decide, viaAction, resume, ledger };
+}
+
+Deno.test("a limit decision resumes a run stopped at a repeat's allow, round by round, never past max (#419)", () =>
+  withWorkerFixture(async (fixture) => {
+    const { seeded, repository, decide, viaAction, resume, ledger } =
+      await limitStopWorld(fixture);
+
+    await assertRejects(() => decide(1), Error);
+
+    await setRow(fixture, seeded, seeded.firstKey, "completed", { next: 1 });
+    assertEquals(
+      await seeded.repository.findNext(seeded.job.runId, seeded.owner),
+      undefined,
+    );
+    assertEquals((await state(fixture, seeded)).run.status, "failed");
+
+    const first = await decide(1);
+    assertEquals([first.repeatKey, first.addedTries], ["loop", 1]);
+    assertEquals(await ledger(), [{
+      repeatKey: "loop",
+      previous: 1,
+      next: 2,
+      addedTries: 1,
+      max: 3,
+    }]);
+    assertEquals((await state(fixture, seeded)).run.status, "queued");
+
+    assertEquals((await decide(1)).decisionId, first.decisionId);
+    const retried = await viaAction(1);
+    assertEquals(retried, {
+      runId: seeded.job.runId,
+      kind: "repeat_limit",
+      addedTries: 1,
+      decisionId: first.decisionId,
+      repeatKey: "loop",
+    });
+    assertEquals((await ledger()).length, 1);
+    assertEquals((await state(fixture, seeded)).run.status, "queued");
+
+    const afterFirst = await resume();
+    const second = await repository.findNext(seeded.job.runId, afterFirst);
+    assertEquals(second?.stepKey, "loop@2.bump");
+    await setRow(fixture, seeded, "loop@2.bump", "completed", { next: 2 });
+    assertEquals(
+      await repository.findNext(seeded.job.runId, afterFirst),
+      undefined,
+    );
+    assertEquals((await state(fixture, seeded)).run.status, "failed");
+    assertEquals(await audit(fixture, seeded), [
+      "limit_reached",
+      "limit_reached",
+    ]);
+
+    const last = await decide(5);
+    assertEquals(last.addedTries, 1);
+    assertNotEquals(last.decisionId, first.decisionId);
+    assertEquals((await viaAction(5)).decisionId, last.decisionId);
+    assertEquals((await ledger()).length, 2);
+    const afterLast = await resume();
+    const third = await repository.findNext(seeded.job.runId, afterLast);
+    assertEquals(third?.stepKey, "loop@3.bump");
+    await setRow(fixture, seeded, "loop@3.bump", "completed", { next: 3 });
+    const report = await repository.findNext(seeded.job.runId, afterLast);
+    assertEquals(report?.stepKey, "report");
+    assertEquals(
+      (await rows(fixture, seeded)).map((row) => row.stepKey),
+      [seeded.firstKey, "loop@2.bump", "loop@3.bump", "report"],
+    );
+    assertEquals((await ledger()).length, 2);
+  }));
+
+Deno.test("a failure for another reason after an answered stop is not an answered stop (#419)", () =>
+  withWorkerFixture(async (fixture) => {
+    const { seeded, decide, viaAction, ledger } = await limitStopWorld(fixture);
+    await setRow(fixture, seeded, seeded.firstKey, "completed", { next: 1 });
+    assertEquals(
+      await seeded.repository.findNext(seeded.job.runId, seeded.owner),
+      undefined,
+    );
+    const first = await decide(1);
+    assertEquals((await viaAction(1)).decisionId, first.decisionId);
+
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_runs set status = 'failed' where id = $1`,
+      [seeded.job.runId],
+    );
+    await withPgTransaction(
+      fixture.pgDatabase,
+      (transaction) =>
+        appendAudit(transaction, {
+          organizationId: fixture.organizationId,
+          principalId: fixture.principalId,
+          operation: "workflow.plan_failed",
+          resourceType: "workflow_run",
+          resourceId: seeded.job.runId,
+          requestId: crypto.randomUUID(),
+          traceId: crypto.randomUUID(),
+          outcome: "failed",
+          details: { code: "STEP_FAILED" },
+        }),
+    );
+    const refused = await assertRejects(() => viaAction(1), StandardError);
+    assertEquals(refused.code, "STATE_CONFLICT");
+    assertEquals((await ledger()).length, 1);
+  }));
+
 Deno.test("an event wait is not run yet: the run fails with a stable code in the audit log", () =>
   withWorkerFixture(async (fixture) => {
     const seeded = await seedPlanRun(
@@ -173,7 +390,6 @@ Deno.test("an event wait is not run yet: the run fails with a stable code in the
 
 Deno.test("a human.approval wait is admitted and waits instead of failing the run", () =>
   withWorkerFixture(async (fixture) => {
-    const approvalId = "00000000-0000-4000-8000-0000000000c1";
     const seeded = await seedPlanRun(
       fixture,
       await compiled([
@@ -181,11 +397,8 @@ Deno.test("a human.approval wait is admitted and waits instead of failing the ru
         {
           id: "signoff",
           needs: ["first"],
-          wait: {
-            event: "human.approval.decided",
-            timeout: "7d",
-            approvalId,
-          },
+          uses: "human.approval",
+          with: { prompt: "Ship it?" },
         },
       ]),
     );
@@ -211,12 +424,12 @@ Deno.test("a human.approval wait is admitted and waits instead of failing the ru
     );
     assertEquals(stored.rows.length, 1, "the approval wait is one row");
     assertEquals(stored.rows[0].status, "waiting");
-    assertEquals(stored.rows[0].dispatch?.wait?.approvalId, approvalId);
+    const approvalId = stored.rows[0].dispatch?.wait?.approvalId;
+    assert(approvalId, "the wait pins the approval the engine created");
   }));
 
 Deno.test("an approval wait that is never answered expires instead of running forever", () =>
   withWorkerFixture(async (fixture) => {
-    const approvalId = "00000000-0000-4000-8000-0000000000c2";
     const seeded = await seedPlanRun(
       fixture,
       await compiled([
@@ -224,11 +437,8 @@ Deno.test("an approval wait that is never answered expires instead of running fo
         {
           id: "signoff",
           needs: ["first"],
-          wait: {
-            event: "human.approval.decided",
-            timeout: "7d",
-            approvalId,
-          },
+          uses: "human.approval",
+          with: { prompt: "Ship it?" },
         },
       ]),
     );

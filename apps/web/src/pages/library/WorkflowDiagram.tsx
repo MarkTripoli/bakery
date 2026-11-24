@@ -14,10 +14,12 @@ import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 
 import {
-  ACTION_ICONS,
   ACTION_LINES,
   ACTION_TITLES,
   PICKER_STEPS,
+  stepGlyph,
+  stepLine,
+  stepName as authoredName,
 } from "./workflow-state.ts";
 import {
   type CanvasBlock,
@@ -30,6 +32,7 @@ import type {
   GroupLabel,
   Tree,
   TreeGroup,
+  TreeLoop,
   TreeNode,
   TreeStep,
 } from "./workflow-tree.ts";
@@ -224,7 +227,13 @@ export function WorkflowDiagram(
     </UI.Stack>
   );
 
-  const graph = useMemo<CanvasGraph>(() => canvasGraph(tree), [tree]);
+  const drawn = useMemo<Tree>(() => ({
+    ...tree,
+    nodes: tree.nodes.filter((node) =>
+      node.kind !== "step" || node.end !== true
+    ),
+  }), [tree]);
+  const graph = useMemo<CanvasGraph>(() => canvasGraph(drawn), [drawn]);
   const stepNumber = useMemo(
     () =>
       new Map(
@@ -312,7 +321,7 @@ export function WorkflowDiagram(
     if (node.problem === "unreadable") {
       return translate("library.editor.card.unreadable" as never);
     }
-    return title(node.uses);
+    return authoredName(node, translate);
   };
   const stepName = (node: TreeStep): string =>
     translate("library.editor.canvas.stepName" as never, {
@@ -325,8 +334,8 @@ export function WorkflowDiagram(
     const drawing = node.problem !== undefined ||
       problems.get(node.id) !== undefined;
     const codeOnly = node.codeOnly === true && !drawing;
-    const glyph = drawing ? "info" : ACTION_ICONS[node.uses];
-    const summary = drawing ? undefined : line(node.uses);
+    const glyph = drawing ? "info" : stepGlyph(node);
+    const summary = drawing ? undefined : stepLine(node, translate);
     const extra = drawing ? undefined : detail?.(node.uses, node.id);
     return { codeOnly, drawing, extra, glyph, summary };
   };
@@ -397,7 +406,35 @@ export function WorkflowDiagram(
       </UI.Tooltip>
     );
 
+  const loopLimit = (loop: TreeLoop): string => {
+    const ask = loop.allow === null
+      ? ""
+      : ` · ${
+        translate("library.editor.group.fixAsk" as never, {
+          from: loop.allow,
+        })
+      }`;
+    if (loop.min !== null && loop.min === loop.max) {
+      return translate("library.editor.group.fixExact" as never, {
+        max: loop.max,
+      }) + ask;
+    }
+    if (loop.min !== null) {
+      return translate("library.editor.group.fixRange" as never, {
+        min: loop.min,
+        max: loop.max,
+      }) + ask;
+    }
+    return translate("library.editor.group.fixLimit" as never, {
+      max: loop.max,
+    }) + ask;
+  };
   const limitOf = (group: TreeGroup): string | undefined => {
+    if (
+      group.loop !== undefined && group.loop.fix === (group.label === "fix")
+    ) {
+      return loopLimit(group.loop);
+    }
     if (group.max === undefined) return undefined;
     if (group.label === "each") {
       return translate("library.editor.group.eachLimit" as never, {
@@ -635,7 +672,7 @@ export function WorkflowDiagram(
         summary={translate("library.editor.howItStartsLine" as never)}
         title={translate("library.editor.howItStarts" as never)}
       />
-      {tree.unreadable ? null : outlineRows(tree.nodes, false)}
+      {tree.unreadable ? null : outlineRows(drawn.nodes, false)}
     </UI.OutlineList>
   );
 
