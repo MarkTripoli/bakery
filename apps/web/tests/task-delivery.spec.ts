@@ -850,7 +850,13 @@ test("a stopped run names the reason once, lists what remains, and its one butto
   await expect(page.locator("#task-message-field")).toBeFocused();
 });
 
-const allowanceAnswer = () => decisionRow(3, "repair", "repair_selected", NEW);
+const allowanceAnswer = () => ({
+  runId,
+  kind: "repair_loop",
+  addedTries: 3,
+  decisionId: uuid(503),
+  repeatKey: null,
+});
 
 async function mockMoreTries(
   page: Page,
