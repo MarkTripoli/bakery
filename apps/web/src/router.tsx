@@ -41,6 +41,7 @@ import { FilesPage } from "./pages/FilesPage.tsx";
 import { FileVersionPage } from "./pages/FileVersionPage.tsx";
 import { folderPathOf } from "./pages/files/files-state.ts";
 import { AgentPage } from "./pages/AgentPage.tsx";
+import { EvaluationComparePage } from "./pages/EvaluationComparePage.tsx";
 import { EvaluationRunPage } from "./pages/EvaluationRunPage.tsx";
 import { SkillPage } from "./pages/SkillPage.tsx";
 import { skillFilter, skillSearch } from "./pages/library/skills-state.ts";
@@ -371,6 +372,20 @@ export const routeCoverage = [
   {
     id: "library-evaluation",
     path: "/library/evaluations/$batchId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library-evaluation-compare",
+    path: "/library/evaluations/$batchId/compare/$otherId",
     classification: "production",
     states: [
       "loading",
@@ -1650,6 +1665,23 @@ const evaluationRunRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const evaluationCompareRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/evaluations/$batchId/compare/$otherId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => {
+    const params = evaluationCompareRoute.useParams();
+    return (
+      <EvaluationComparePage
+        batchId={params.batchId}
+        otherId={params.otherId}
+      />
+    );
+  },
+  errorComponent: ProtectedRouteError,
+});
+
 const machinesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/machines",
@@ -2846,6 +2878,7 @@ const routeTree = rootRoute.addChildren([
   agentRoute,
   skillRoute,
   evaluationRunRoute,
+  evaluationCompareRoute,
   machineNewRoute,
   machineDetailRoute,
   machineModelsRoute,

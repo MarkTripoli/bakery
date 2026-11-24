@@ -60,6 +60,10 @@
     "path": "/library/evaluations/$batchId"
   },
   {
+    "id": "library-evaluation-compare",
+    "path": "/library/evaluations/$batchId/compare/$otherId"
+  },
+  {
     "id": "issues",
     "path": "/issues"
   },

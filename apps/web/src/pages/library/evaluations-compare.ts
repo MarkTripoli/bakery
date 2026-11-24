@@ -191,6 +191,9 @@ export function groupOf(
 }
 
 export function stateWords(state: EvaluationResultState, live: boolean): Words {
+  if (state === "error" || state === "unscored") {
+    return { key: "library.evaluations.compare.state.notScored" };
+  }
   return resultWords({ state, reason: null }, live);
 }
 

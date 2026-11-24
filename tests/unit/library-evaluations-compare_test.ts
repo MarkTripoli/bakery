@@ -148,6 +148,34 @@ Deno.test("the groups come in the designed order, rows sorted by case then score
   assertEquals(groups[3]?.rows, []);
 });
 
+Deno.test("a result that could not be scored reads short, never as a zero", () => {
+  const groups = caseGroups(
+    {
+      cases: [
+        { caseId: CASE_1, scorerId: SCORER_A, left: "passed", right: "error" },
+        {
+          caseId: CASE_2,
+          scorerId: SCORER_A,
+          left: "unscored",
+          right: "passed",
+        },
+      ],
+    },
+    names,
+    { left: false, right: false },
+  );
+  assertEquals(groups[2]?.rows.map((row) => [row.left.key, row.right.key]), [
+    [
+      "library.evaluations.compare.state.notScored",
+      "library.evaluations.result.passed",
+    ],
+    [
+      "library.evaluations.result.passed",
+      "library.evaluations.compare.state.notScored",
+    ],
+  ]);
+});
+
 Deno.test("a state still going reads Not run yet, not Not run", () => {
   const groups = caseGroups(
     {

@@ -5271,6 +5271,13 @@
       "frames": []
     },
     {
+      "routeId": "library-evaluation-compare",
+      "path": "/library/evaluations/$batchId/compare/$otherId",
+      "status": "no-mock",
+      "rationale": "Two evaluation runs set side by side, or the plain reason they cannot be (pass rate per scorer, what changed by test case) is designed by design-ux on #75 (revision 5, part C, mocks at pr-evidence design-75/v5/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "notifications",
       "path": "/notifications",
       "status": "no-mock",

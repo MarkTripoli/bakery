@@ -28,6 +28,7 @@ import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
+import { EvaluationComparePicker } from "./library/EvaluationComparePicker.tsx";
 import { subtractDecimalStrings, usd } from "../screens/usage/usage-money.ts";
 import {
   attemptCostKind,
@@ -407,6 +408,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
   const live = batch !== undefined && evaluationBatchIsLive(batch.state);
   const [filter, setFilter] = useState<ResultFilter | null>(null);
   const [stopping, setStopping] = useState(false);
+  const [picking, setPicking] = useState(false);
   const [stopFailure, setStopFailure] = useState<"changed" | "failed" | null>(
     null,
   );
@@ -720,12 +722,25 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
     )
     : null;
 
+  const compareButton = (
+    <UI.Button
+      variant="secondary"
+      onClick={() => setPicking(true)}
+    >
+      {translate("library.evaluations.compare.picker.open")}
+    </UI.Button>
+  );
+  const actions = (
+    <UI.Inline gap="compact">
+      {compareButton}
+      {stopButton}
+    </UI.Inline>
+  );
+
   return (
     <>
       {breadcrumbs}
-      {!phone && stopButton !== null
-        ? <ShellSlot name="actions">{stopButton}</ShellSlot>
-        : null}
+      {!phone ? <ShellSlot name="actions">{actions}</ShellSlot> : null}
       <UI.SettingsContent data-testid="evaluation-page" variant="wide">
         <UI.PageHeader
           variant="list"
@@ -741,7 +756,7 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
               </UI.Inline>
             </UI.Stack>
           }
-          actions={phone ? stopButton : null}
+          actions={phone ? actions : null}
         />
         {stopFailure === "changed"
           ? (
@@ -994,6 +1009,14 @@ export function EvaluationRunPage({ batchId }: { readonly batchId: string }) {
         </UI.Stack>
       </UI.SettingsContent>
       {stopDialog}
+      {picking
+        ? (
+          <EvaluationComparePicker
+            current={batch}
+            onClose={() => setPicking(false)}
+          />
+        )
+        : null}
     </>
   );
 }
