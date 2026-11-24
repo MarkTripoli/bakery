@@ -181,6 +181,9 @@ test.describe("Rules this run used", () => {
       },
     });
     const start = page.getByRole("button", { name: "Start run", exact: true });
+    await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+      label: "Fixed coding",
+    });
     await start.click();
     const refusal = page.getByRole("status").filter({
       hasText: "The repository's rules changed before this run could start.",

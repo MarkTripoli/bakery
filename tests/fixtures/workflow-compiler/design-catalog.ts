@@ -308,6 +308,21 @@ export const designSchemas: Readonly<Record<string, Schema>> = Object.freeze({
     decidedAt: str({ format: "date-time" }),
     approvalId: uuid(),
   }),
+  PeopleTagInput: obj({
+    recipientId: uuid(),
+    recipientRoleKey: str({ maxLength: 80 }),
+    recipientGroupId: uuid(),
+    recipientRunRole: enumOf("starter", "task_owner"),
+    intent: enumOf("fyi", "review"),
+    artifactVersionId: uuid(),
+    note: str({ maxLength: 280 }),
+    wait: bool(),
+  }, ["intent"]),
+  PeopleTagOutput: obj({
+    outcome: enumOf("sent", "responded", "expired"),
+    asked: int(),
+    respondedBy: uuid(),
+  }, ["outcome", "asked"]),
 });
 
 /** Check names of the design set (doc 06 specimen `checks` lists). */

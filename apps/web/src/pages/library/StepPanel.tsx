@@ -66,6 +66,7 @@ export type StepAttach = {
   readonly offered: number;
   readonly onRetry: () => void;
   readonly onChoose: (value: string, replaces?: SlotReplaces) => void;
+  readonly canChoose: (value: string) => boolean;
 };
 
 /** What the Skills list of a step shows: not at all, while it reads, when it failed, or the rows. */
@@ -83,6 +84,7 @@ export type PanelTarget =
     readonly name: string;
     /** The problem's sentence, shown above the code-only sentence. */
     readonly problem: string | undefined;
+    readonly agentFromSetup?: boolean;
     /** The Skills section of an agent step written in code: a skill is not part of that code (#431). */
     readonly skills?: StepSkills;
     readonly attach?: StepAttach | null;
@@ -99,6 +101,7 @@ export type PanelTarget =
     /** What the definition states, when the step could not be drawn as an action. */
     readonly code: string | undefined;
     readonly problem: string | undefined;
+    readonly agentFromSetup?: boolean;
     /** The skills the step names (#431). */
     readonly skills: StepSkills;
     /** The picker that attaches a skill; null when the page cannot edit. */
@@ -171,6 +174,13 @@ export function StepPanel(
                 : "library.editor.panel.codeOnlyRest") as never,
             )}
           </UI.Text>
+          {target.agentFromSetup === true
+            ? (
+              <UI.Text variant="muted">
+                {translate("library.editor.panel.agentFromSetup" as never)}
+              </UI.Text>
+            )
+            : null}
         </UI.Stack>
       </UI.InspectorPanel>
     );
@@ -216,6 +226,13 @@ export function StepPanel(
     >
       <UI.Stack gap="compact">
         {line === undefined ? null : <UI.Text>{line}</UI.Text>}
+        {target.agentFromSetup === true
+          ? (
+            <UI.Text variant="muted">
+              {translate("library.editor.panel.agentFromSetup" as never)}
+            </UI.Text>
+          )
+          : null}
         {target.problem === undefined
           ? null
           : (
@@ -489,6 +506,8 @@ function SkillRow(
         <UI.Text variant="muted">
           {row.status === "missing" && row.name === null
             ? t("slot.missing.bodyUnnamed")
+            : row.status === "stopped" && row.mine
+            ? t("slot.stopped.bodyOwner")
             : t(`slot.${row.status}.body`, { name })}
         </UI.Text>
         {
@@ -499,6 +518,23 @@ function SkillRow(
           ? null
           : (
             <UI.Inline gap="compact">
+              {}
+              {row.status === "stopped" && row.mine && attach !== null &&
+                  attach.state === "ready" && row.stepPath !== undefined &&
+                  row.versionId != null && attach.canChoose(row.versionId)
+                ? (
+                  <UI.Button
+                    variant="secondary"
+                    onClick={() =>
+                      attach.onChoose(row.versionId!, {
+                        stepPath: row.stepPath!,
+                        versionId: row.versionId ?? null,
+                      })}
+                  >
+                    {t("slot.allowAgain")}
+                  </UI.Button>
+                )
+                : null}
               {attach === null || attach.state !== "ready" ||
                   attach.choices.length === 0 || row.stepPath === undefined
                 ? null

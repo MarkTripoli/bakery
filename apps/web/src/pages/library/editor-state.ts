@@ -65,8 +65,11 @@ export function definitionOf(
         ? node.agentVersionId
         : null;
       const skills = skillsOfNode(node);
+      const sameAction = node !== undefined &&
+        (node.uses === step.uses ||
+          (typeof node.uses !== "string" && step.uses === ""));
       if (
-        node !== undefined && node.uses === step.uses &&
+        node !== undefined && sameAction &&
         agent === step.agentVersionId && sameList(skills, step.skills)
       ) {
         return node;

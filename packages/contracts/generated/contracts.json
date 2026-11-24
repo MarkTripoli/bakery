@@ -3491,6 +3491,31 @@
     },
     {
       "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/use-grants",
+      "action": "skills.useGrants.create",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillUseGrantCreate",
+      "output": "SkillUseGrant",
+      "event": "skillUseGrant.created",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
       "method": "DELETE",
       "path": "/v1/skills/{id}/use-grants/{grantId}",
       "action": "skills.useGrants.delete",
@@ -4332,18 +4357,14 @@
       "method": "GET",
       "path": "/v1/desktop/update",
       "action": "desktopUpdates.get",
-      "access": "Authenticated",
-      "permission": "identity:read",
+      "access": "Public",
+      "permission": null,
       "input": "DesktopUpdateQuery",
       "output": "DesktopUpdate",
       "event": "",
       "mcp": "",
       "idempotency": "read",
       "errors": [
-        "AUTH_REQUIRED",
-        "AUTH_INVALID",
-        "AUTH_EXPIRED",
-        "AUTH_FORBIDDEN",
         "MALFORMED_REQUEST",
         "RESOURCE_NOT_FOUND"
       ],
@@ -11468,6 +11489,114 @@
     {
       "group": "Storage",
       "method": "POST",
+      "path": "/v1/storage/folders/{id}/grants",
+      "action": "storageFolderGrants.create",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "FolderGrantCreate",
+      "output": "FolderGrant",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "GET",
+      "path": "/v1/storage/folders/{id}/grants",
+      "action": "storageFolderGrants.list",
+      "access": "Developer",
+      "permission": "artifactVersion:read",
+      "input": "IdPath",
+      "output": "FolderGrantList",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/folder-grants/{id}/revoke",
+      "action": "storageFolderGrants.revoke",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "IdPath",
+      "output": "FolderGrant",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
+      "path": "/v1/storage/folders/{id}/restriction",
+      "action": "storageFolders.restrict",
+      "access": "Developer",
+      "permission": "artifact:create",
+      "input": "FolderRestrictionSet",
+      "output": "FolderRestriction",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "STORAGE_AREA_REFUSED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Storage",
+      "method": "POST",
       "path": "/v1/storage/entries/{id}/copy",
       "action": "storageEntries.copy",
       "access": "Developer",
@@ -15562,6 +15691,7 @@
     "skillVersions.create",
     "skills.useGrants.list",
     "skills.useGrants.delete",
+    "skills.useGrants.create",
     "skills.setActiveVersion",
     "skillImports.get",
     "skills.takeSourceUpdate",
@@ -15675,6 +15805,10 @@
     "storageConnectionSyncs.resume",
     "storageConnectionExports.create",
     "storageFolders.create",
+    "storageFolderGrants.create",
+    "storageFolderGrants.list",
+    "storageFolderGrants.revoke",
+    "storageFolders.restrict",
     "storageEntries.copy",
     "storageEntries.move",
     "storageEntries.trash",
@@ -22131,6 +22265,7 @@
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -25855,6 +25990,77 @@
               "description": "Internal server error."
             }
           }
+        },
+        "post": {
+          "operationId": "skills.useGrants.create",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SkillUseGrant"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillUseGrantCreate"
+                }
+              }
+            }
+          }
         }
       },
       "/v1/skills/{id}/use-grants/{grantId}": {
@@ -28460,10 +28666,10 @@
               "description": "Malformed request (MALFORMED_REQUEST)."
             },
             "401": {
-              "description": "Authentication required (AUTH_REQUIRED, AUTH_INVALID, AUTH_EXPIRED)."
+              "description": "Authentication required."
             },
             "403": {
-              "description": "Forbidden (AUTH_FORBIDDEN)."
+              "description": "Forbidden."
             },
             "404": {
               "description": "Resource not found (RESOURCE_NOT_FOUND)."
@@ -47206,6 +47412,286 @@
           }
         }
       },
+      "/v1/storage/folders/{id}/grants": {
+        "post": {
+          "operationId": "storageFolderGrants.create",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/FolderGrant"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT, STORAGE_AREA_REFUSED, IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderGrantCreate"
+                }
+              }
+            }
+          }
+        },
+        "get": {
+          "operationId": "storageFolderGrants.list",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/FolderGrantList"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT, STORAGE_AREA_REFUSED, IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/storage/folder-grants/{id}/revoke": {
+        "post": {
+          "operationId": "storageFolderGrants.revoke",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/FolderGrant"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT, STORAGE_AREA_REFUSED, IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdPath"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/storage/folders/{id}/restriction": {
+        "post": {
+          "operationId": "storageFolders.restrict",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/FolderRestriction"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT, STORAGE_AREA_REFUSED, IDEMPOTENCY_IN_FLIGHT)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderRestrictionSet"
+                }
+              }
+            }
+          }
+        }
+      },
       "/v1/storage/entries/{id}/copy": {
         "post": {
           "operationId": "storageEntries.copy",
@@ -65525,6 +66011,7 @@
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
+                "skills.useGrants.create",
                 "skills.useGrants.delete",
                 "skillVersions.list",
                 "skillVersions.get",
@@ -65844,6 +66331,10 @@
                 "storageFiles.pin",
                 "storageFiles.put",
                 "storageFolders.create",
+                "storageFolderGrants.create",
+                "storageFolderGrants.list",
+                "storageFolderGrants.revoke",
+                "storageFolders.restrict",
                 "storageEntries.copy",
                 "storageEntries.move",
                 "storageEntries.trash",
@@ -68371,7 +68862,19 @@
               "type": "string",
               "enum": [
                 "fixed-coding",
-                "fixed-coding-reviewed"
+                "fixed-coding-reviewed",
+                "deliver-oneshot",
+                "deliver-lean",
+                "deliver-full",
+                "deliver-prd"
+              ]
+            },
+            "gates": {
+              "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan.",
+              "type": "string",
+              "enum": [
+                "plan",
+                "none"
               ]
             },
             "workflowId": {
@@ -79602,6 +80105,66 @@
             }
           ]
         },
+        "PeopleTagInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "recipientId": {
+              "description": "The one person to tag: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one of recipientId, recipientRoleKey, recipientGroupId and recipientRunRole.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "recipientRoleKey": {
+              "description": "A role to tag instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs. PeopleTagInput.recipientRoleKey must contain at least 1 characters. PeopleTagInput.recipientRoleKey must contain at most 80 characters.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "recipientGroupId": {
+              "description": "A group to tag instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "recipientRunRole": {
+              "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item.",
+              "type": "string",
+              "enum": [
+                "starter",
+                "task_owner"
+              ]
+            },
+            "intent": {
+              "type": "string",
+              "enum": [
+                "fyi",
+                "review"
+              ],
+              "description": "What the tag asks for: fyi lets the people tagged know and lets them see the run; review also gives them the right to comment on the one artifactVersionId, until the request expires."
+            },
+            "artifactVersionId": {
+              "description": "The artifact version of this run to review. Required for review and refused for fyi.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "note": {
+              "description": "Optional one line shown to the people tagged. PeopleTagInput.note must contain at most 280 characters.",
+              "type": "string",
+              "maxLength": 280
+            },
+            "wait": {
+              "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "intent"
+          ],
+          "additionalProperties": false,
+          "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
+        },
         "IntegrationEffectQuery": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -82900,7 +83463,7 @@
               "description": "Question put to the approver, shown in the inbox and on the approval page. Plain text: the decision is typed, never inferred from this text. HumanApprovalInput.prompt must contain at least 1 characters. HumanApprovalInput.prompt must contain at most 2000 characters."
             },
             "audience": {
-              "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
+              "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver, or, for a workflow with no owner such as a built-in one, the person who started the run; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
               "anyOf": [
                 {
                   "type": "string",
@@ -83208,6 +83771,7 @@
                 "workflow.noop",
                 "workflow.stop",
                 "human.approval",
+                "people.tag",
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
@@ -88907,10 +89471,10 @@
                 "answer",
                 "take_over"
               ],
-              "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+              "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer name the questionId they concern, review names the artifactVersionId, and take_over names the stepKey; each gives the person asked the right to do that one thing, until the request expires."
             },
             "stepKey": {
-              "description": "The step the request concerns, or omitted for the run as a whole. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
+              "description": "The step the request concerns, or omitted for the run as a whole. Required for take_over, which gives the right to steer and take over that one step. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -88932,6 +89496,12 @@
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             },
+            "artifactVersionId": {
+              "description": "The artifact version of this run the request asks someone to review. Required for review and refused for the other intents. The person asked is given the right to comment on that one version, until the request expires.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
             "recipientRoleKey": {
               "description": "A role to ask instead of one person: admin, developer or a custom role's key. Every active member holding the role, other than the asker, is asked, each with their own request; the members are resolved when the request is made and frozen, so a later change to the role never changes who was asked. An agent may ask only a role its live ask grant names. RunRequestCreate.recipientRoleKey must contain at least 1 characters. RunRequestCreate.recipientRoleKey must contain at most 80 characters.",
               "type": "string",
@@ -88949,7 +89519,7 @@
             "intent"
           ],
           "additionalProperties": false,
-          "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."
+          "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve, answer, review and take_over, to do that one thing until the request ends."
         },
         "StorageFileContentQuery": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -91828,6 +92398,43 @@
           "additionalProperties": false,
           "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
         },
+        "SkillUseGrantCreate": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+            },
+            "workflowId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The workflow that may use the skill again."
+            },
+            "skillVersionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The exact version of the skill the step names; the grant covers this version only."
+            },
+            "stepPath": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+            }
+          },
+          "required": [
+            "id",
+            "workflowId",
+            "skillVersionId",
+            "stepPath"
+          ],
+          "additionalProperties": false,
+          "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
+        },
         "SkillActiveVersionSet": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -91905,6 +92512,48 @@
           ],
           "additionalProperties": false,
           "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+        },
+        "FolderGrantCreate": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "principalId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The member to grant on the folder. They must be an active member of the organization."
+            },
+            "level": {
+              "type": "string",
+              "enum": [
+                "view",
+                "edit",
+                "manage"
+              ],
+              "description": "What the grant allows: view reads, edit also writes, manage also grants and restricts. A grant inherits downward, and a second grant to the same member changes the level."
+            }
+          },
+          "required": [
+            "principalId",
+            "level"
+          ],
+          "additionalProperties": false,
+          "description": "Grants a member view, edit or manage on one folder (chapter 25 section 17.3). It takes effect only where the folder or an ancestor is restricted, and a folder with no restricted folder at or above it cannot be granted on: restrict it first."
+        },
+        "FolderRestrictionSet": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "restricted": {
+              "type": "boolean",
+              "description": "True to restrict the folder: what is granted above it stops reaching below it, and it is open only to members granted on it or below, and to Admins. False lifts the restriction."
+            }
+          },
+          "required": [
+            "restricted"
+          ],
+          "additionalProperties": false,
+          "description": "Restricts or reopens one folder. A restricted folder and everything under it do not exist, as far as a listing, a path or an id can tell, to a member who holds no grant inside it."
         },
         "StorageConnectionPathQuery": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -118381,6 +119030,7 @@
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
+                "skills.useGrants.create",
                 "skills.useGrants.delete",
                 "skillVersions.list",
                 "skillVersions.get",
@@ -118700,6 +119350,10 @@
                 "storageFiles.pin",
                 "storageFiles.put",
                 "storageFolders.create",
+                "storageFolderGrants.create",
+                "storageFolderGrants.list",
+                "storageFolderGrants.revoke",
+                "storageFolders.restrict",
                 "storageEntries.copy",
                 "storageEntries.move",
                 "storageEntries.trash",
@@ -119092,6 +119746,7 @@
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
+                "skills.useGrants.create",
                 "skills.useGrants.delete",
                 "skillVersions.list",
                 "skillVersions.get",
@@ -119411,6 +120066,10 @@
                 "storageFiles.pin",
                 "storageFiles.put",
                 "storageFolders.create",
+                "storageFolderGrants.create",
+                "storageFolderGrants.list",
+                "storageFolderGrants.revoke",
+                "storageFolders.restrict",
                 "storageEntries.copy",
                 "storageEntries.move",
                 "storageEntries.trash",
@@ -119803,6 +120462,7 @@
                 "skillDraftFiles.get",
                 "skillDraftFiles.delete",
                 "skills.useGrants.list",
+                "skills.useGrants.create",
                 "skills.useGrants.delete",
                 "skillVersions.list",
                 "skillVersions.get",
@@ -120122,6 +120782,10 @@
                 "storageFiles.pin",
                 "storageFiles.put",
                 "storageFolders.create",
+                "storageFolderGrants.create",
+                "storageFolderGrants.list",
+                "storageFolderGrants.revoke",
+                "storageFolders.restrict",
                 "storageEntries.copy",
                 "storageEntries.move",
                 "storageEntries.trash",
@@ -166175,6 +166839,7 @@
                       "skillDraftFiles.get",
                       "skillDraftFiles.delete",
                       "skills.useGrants.list",
+                      "skills.useGrants.create",
                       "skills.useGrants.delete",
                       "skillVersions.list",
                       "skillVersions.get",
@@ -166494,6 +167159,10 @@
                       "storageFiles.pin",
                       "storageFiles.put",
                       "storageFolders.create",
+                      "storageFolderGrants.create",
+                      "storageFolderGrants.list",
+                      "storageFolderGrants.revoke",
+                      "storageFolders.restrict",
                       "storageEntries.copy",
                       "storageEntries.move",
                       "storageEntries.trash",
@@ -188380,6 +189049,7 @@
                 "workflow.noop",
                 "workflow.stop",
                 "human.approval",
+                "people.tag",
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
@@ -188544,6 +189214,7 @@
                       "workflow.noop",
                       "workflow.stop",
                       "human.approval",
+                      "people.tag",
                       "artifact.publish",
                       "memory.promote",
                       "evaluation.sample",
@@ -188761,6 +189432,7 @@
                 "workflow.noop",
                 "workflow.stop",
                 "human.approval",
+                "people.tag",
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
@@ -189037,6 +189709,7 @@
                       "workflow.noop",
                       "workflow.stop",
                       "human.approval",
+                      "people.tag",
                       "artifact.publish",
                       "memory.promote",
                       "evaluation.sample",
@@ -257325,7 +257998,11 @@
               "type": "string",
               "enum": [
                 "fixed-coding",
-                "fixed-coding-reviewed"
+                "fixed-coding-reviewed",
+                "deliver-oneshot",
+                "deliver-lean",
+                "deliver-full",
+                "deliver-prd"
               ],
               "description": "Stable preset identifier accepted by runs.create presetId."
             },
@@ -257453,6 +258130,45 @@
                 }
               ],
               "description": "WorkflowPreset.availability may be null in this transport value."
+            },
+            "definition": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
             }
           },
           "required": [
@@ -257462,10 +258178,122 @@
             "nameKey",
             "steps",
             "defaultBudgetLimitUsd",
-            "availability"
+            "availability",
+            "definition"
           ],
           "additionalProperties": false,
           "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
+        },
+        "WorkflowPreset____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/WorkflowPreset____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
         },
         "Page<WorkflowPreset>": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -257481,7 +258309,11 @@
                     "type": "string",
                     "enum": [
                       "fixed-coding",
-                      "fixed-coding-reviewed"
+                      "fixed-coding-reviewed",
+                      "deliver-oneshot",
+                      "deliver-lean",
+                      "deliver-full",
+                      "deliver-prd"
                     ],
                     "description": "Stable preset identifier accepted by runs.create presetId."
                   },
@@ -257609,6 +258441,45 @@
                       }
                     ],
                     "description": "WorkflowPreset.availability may be null in this transport value."
+                  },
+                  "definition": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
                   }
                 },
                 "required": [
@@ -257618,7 +258489,8 @@
                   "nameKey",
                   "steps",
                   "defaultBudgetLimitUsd",
-                  "availability"
+                  "availability",
+                  "definition"
                 ],
                 "additionalProperties": false,
                 "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
@@ -257676,6 +258548,117 @@
           ],
           "additionalProperties": false,
           "description": "Cursor page of WorkflowPreset."
+        },
+        "Page<WorkflowPreset>____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/Page<WorkflowPreset>____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
         },
         "OutputTranscriptSegment": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -278753,6 +279736,11 @@
               "maximum": 9007199254740991,
               "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
             },
+            "revisionDigest": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+            },
             "workflowId": {
               "type": "string",
               "format": "uuid",
@@ -278793,6 +279781,7 @@
             "skillId",
             "skillVersionId",
             "revision",
+            "revisionDigest",
             "workflowId",
             "workflowName",
             "stepPath",
@@ -279766,6 +280755,11 @@
                     "maximum": 9007199254740991,
                     "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
                   },
+                  "revisionDigest": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+                  },
                   "workflowId": {
                     "type": "string",
                     "format": "uuid",
@@ -279806,6 +280800,7 @@
                   "skillId",
                   "skillVersionId",
                   "revision",
+                  "revisionDigest",
                   "workflowId",
                   "workflowName",
                   "stepPath",
@@ -280194,6 +281189,21 @@
                   "description": "Null indicates that the value is unavailable."
                 }
               ]
+            },
+            "artifactVersionId": {
+              "description": "RunRequest.artifactVersionId may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "The artifact version the request asks someone to review, or null when it asks for none."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
             }
           },
           "required": [
@@ -280470,6 +281480,21 @@
                         ],
                         "additionalProperties": false,
                         "description": "The role or group this request was asked of, or null when one person was asked."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
+                  },
+                  "artifactVersionId": {
+                    "description": "RunRequest.artifactVersionId may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "The artifact version the request asks someone to review, or null when it asks for none."
                       },
                       {
                         "type": "null",
@@ -294739,6 +295764,279 @@
           "additionalProperties": false,
           "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids."
         },
+        "FolderGrant": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable identifier of the grant."
+            },
+            "folderId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The folder the grant is on."
+            },
+            "principalId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The member who holds it."
+            },
+            "level": {
+              "type": "string",
+              "enum": [
+                "view",
+                "edit",
+                "manage"
+              ],
+              "description": "What the grant allows."
+            },
+            "grantedBy": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The member who granted it."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it was granted."
+            },
+            "revokedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When it was revoked, or null while it is live."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "FolderGrant.revokedAt may be null in this transport value."
+            },
+            "version": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Optimistic concurrency counter."
+            }
+          },
+          "required": [
+            "id",
+            "folderId",
+            "principalId",
+            "level",
+            "grantedBy",
+            "createdAt",
+            "revokedAt",
+            "version"
+          ],
+          "additionalProperties": false,
+          "description": "One grant of view, edit or manage on a folder to a member."
+        },
+        "FolderGrantList": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "items": {
+              "maxItems": 200,
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/FolderGrantList____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/FolderGrantList____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "One FolderGrant per live grant. Each array item follows this format."
+              },
+              "description": "One FolderGrant per live grant. FolderGrantList.items must contain at most 200 items."
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "additionalProperties": false,
+          "description": "The live grants on one folder, oldest first, at most 200."
+        },
+        "FolderGrantList____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/FolderGrantList____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/FolderGrantList____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/FolderGrantList____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/FolderGrantList____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "FolderRestriction": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "folderId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The folder."
+            },
+            "restricted": {
+              "type": "boolean",
+              "description": "Whether it is now restricted."
+            },
+            "version": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "The folder's version after the change."
+            }
+          },
+          "required": [
+            "folderId",
+            "restricted",
+            "version"
+          ],
+          "additionalProperties": false,
+          "description": "Whether a folder is restricted after the change."
+        },
         "StorageConnectionMount": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -297652,6 +298950,39 @@
           "additionalProperties": false,
           "description": "SplitOutput is the pinned worker action output contract."
         },
+        "PeopleTagOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "sent",
+                "responded",
+                "expired"
+              ],
+              "description": "How the step ended: sent when it carried on once the tag was sent, responded when someone tagged responded, expired when every request expired or was withdrawn with no response."
+            },
+            "asked": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "description": "How many people the tag asked, one request each. How many people the tag asked, one request each. PeopleTagOutput.asked must be at least 1. PeopleTagOutput.asked must be at most 50."
+            },
+            "respondedBy": {
+              "description": "PeopleTagOutput.respondedBy output may be omitted by adapters that do not expose it.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "required": [
+            "outcome",
+            "asked"
+          ],
+          "additionalProperties": false,
+          "description": "PeopleTagOutput is the pinned worker action output contract."
+        },
         "WorkflowStopOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -297875,7 +299206,6 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:dd0eaa2aa72d513cde4142cb76389f897d92f9411e93315d0cc7ca67b232f565",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -305340,6 +306670,7 @@
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -305659,6 +306990,10 @@
             "storageFiles.pin",
             "storageFiles.put",
             "storageFolders.create",
+            "storageFolderGrants.create",
+            "storageFolderGrants.list",
+            "storageFolderGrants.revoke",
+            "storageFolders.restrict",
             "storageEntries.copy",
             "storageEntries.move",
             "storageEntries.trash",
@@ -308190,7 +309525,19 @@
           "type": "string",
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
+          ]
+        },
+        "gates": {
+          "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan.",
+          "type": "string",
+          "enum": [
+            "plan",
+            "none"
           ]
         },
         "workflowId": {
@@ -319461,6 +320808,66 @@
         }
       }
     },
+    "PeopleTagInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "recipientId": {
+          "description": "The one person to tag: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one of recipientId, recipientRoleKey, recipientGroupId and recipientRunRole.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "recipientRoleKey": {
+          "description": "A role to tag instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs. PeopleTagInput.recipientRoleKey must contain at least 1 characters. PeopleTagInput.recipientRoleKey must contain at most 80 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "recipientGroupId": {
+          "description": "A group to tag instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "recipientRunRole": {
+          "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item.",
+          "type": "string",
+          "enum": [
+            "starter",
+            "task_owner"
+          ]
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "fyi",
+            "review"
+          ],
+          "description": "What the tag asks for: fyi lets the people tagged know and lets them see the run; review also gives them the right to comment on the one artifactVersionId, until the request expires."
+        },
+        "artifactVersionId": {
+          "description": "The artifact version of this run to review. Required for review and refused for fyi.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "note": {
+          "description": "Optional one line shown to the people tagged. PeopleTagInput.note must contain at most 280 characters.",
+          "type": "string",
+          "maxLength": 280
+        },
+        "wait": {
+          "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "intent"
+      ],
+      "additionalProperties": false,
+      "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
+    },
     "IntegrationEffectQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -322775,7 +324182,7 @@
           "description": "Question put to the approver, shown in the inbox and on the approval page. Plain text: the decision is typed, never inferred from this text. HumanApprovalInput.prompt must contain at least 1 characters. HumanApprovalInput.prompt must contain at most 2000 characters."
         },
         "audience": {
-          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
+          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver, or, for a workflow with no owner such as a built-in one, the person who started the run; an empty list is refused because a step nobody can answer could only expire. HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -323085,6 +324492,7 @@
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -328794,10 +330202,10 @@
             "answer",
             "take_over"
           ],
-          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer are accepted and need the questionId they concern; review and take_over answer 422 until their powers are built."
+          "description": "What is needed: fyi (just let them know), review, approve, answer or take_over. Approve and answer name the questionId they concern, review names the artifactVersionId, and take_over names the stepKey; each gives the person asked the right to do that one thing, until the request expires."
         },
         "stepKey": {
-          "description": "The step the request concerns, or omitted for the run as a whole. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
+          "description": "The step the request concerns, or omitted for the run as a whole. Required for take_over, which gives the right to steer and take over that one step. RunRequestCreate.stepKey must contain at least 1 characters. RunRequestCreate.stepKey must contain at most 200 characters.",
           "type": "string",
           "minLength": 1,
           "maxLength": 200
@@ -328819,6 +330227,12 @@
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
+        "artifactVersionId": {
+          "description": "The artifact version of this run the request asks someone to review. Required for review and refused for the other intents. The person asked is given the right to comment on that one version, until the request expires.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
         "recipientRoleKey": {
           "description": "A role to ask instead of one person: admin, developer or a custom role's key. Every active member holding the role, other than the asker, is asked, each with their own request; the members are resolved when the request is made and frozen, so a later change to the role never changes who was asked. An agent may ask only a role its live ask grant names. RunRequestCreate.recipientRoleKey must contain at least 1 characters. RunRequestCreate.recipientRoleKey must contain at most 80 characters.",
           "type": "string",
@@ -328836,7 +330250,7 @@
         "intent"
       ],
       "additionalProperties": false,
-      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve and answer, to act on that one row until the request ends."
+      "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve, answer, review and take_over, to do that one thing until the request ends."
     },
     "StorageFileContentQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -331731,6 +333145,43 @@
       "additionalProperties": false,
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
     },
+    "SkillUseGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+        },
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow that may use the skill again."
+        },
+        "skillVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The exact version of the skill the step names; the grant covers this version only."
+        },
+        "stepPath": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+        }
+      },
+      "required": [
+        "id",
+        "workflowId",
+        "skillVersionId",
+        "stepPath"
+      ],
+      "additionalProperties": false,
+      "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
+    },
     "SkillActiveVersionSet": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -331808,6 +333259,48 @@
       ],
       "additionalProperties": false,
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
+    },
+    "FolderGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The member to grant on the folder. They must be an active member of the organization."
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "view",
+            "edit",
+            "manage"
+          ],
+          "description": "What the grant allows: view reads, edit also writes, manage also grants and restricts. A grant inherits downward, and a second grant to the same member changes the level."
+        }
+      },
+      "required": [
+        "principalId",
+        "level"
+      ],
+      "additionalProperties": false,
+      "description": "Grants a member view, edit or manage on one folder (chapter 25 section 17.3). It takes effect only where the folder or an ancestor is restricted, and a folder with no restricted folder at or above it cannot be granted on: restrict it first."
+    },
+    "FolderRestrictionSet": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "restricted": {
+          "type": "boolean",
+          "description": "True to restrict the folder: what is granted above it stops reaching below it, and it is open only to members granted on it or below, and to Admins. False lifts the restriction."
+        }
+      },
+      "required": [
+        "restricted"
+      ],
+      "additionalProperties": false,
+      "description": "Restricts or reopens one folder. A restricted folder and everything under it do not exist, as far as a listing, a path or an id can tell, to a member who holds no grant inside it."
     },
     "StorageConnectionPathQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -358380,6 +359873,7 @@
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -358699,6 +360193,10 @@
             "storageFiles.pin",
             "storageFiles.put",
             "storageFolders.create",
+            "storageFolderGrants.create",
+            "storageFolderGrants.list",
+            "storageFolderGrants.revoke",
+            "storageFolders.restrict",
             "storageEntries.copy",
             "storageEntries.move",
             "storageEntries.trash",
@@ -359091,6 +360589,7 @@
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -359410,6 +360909,10 @@
             "storageFiles.pin",
             "storageFiles.put",
             "storageFolders.create",
+            "storageFolderGrants.create",
+            "storageFolderGrants.list",
+            "storageFolderGrants.revoke",
+            "storageFolders.restrict",
             "storageEntries.copy",
             "storageEntries.move",
             "storageEntries.trash",
@@ -359802,6 +361305,7 @@
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -360121,6 +361625,10 @@
             "storageFiles.pin",
             "storageFiles.put",
             "storageFolders.create",
+            "storageFolderGrants.create",
+            "storageFolderGrants.list",
+            "storageFolderGrants.revoke",
+            "storageFolders.restrict",
             "storageEntries.copy",
             "storageEntries.move",
             "storageEntries.trash",
@@ -406324,6 +407832,7 @@
                   "skillDraftFiles.get",
                   "skillDraftFiles.delete",
                   "skills.useGrants.list",
+                  "skills.useGrants.create",
                   "skills.useGrants.delete",
                   "skillVersions.list",
                   "skillVersions.get",
@@ -406643,6 +408152,10 @@
                   "storageFiles.pin",
                   "storageFiles.put",
                   "storageFolders.create",
+                  "storageFolderGrants.create",
+                  "storageFolderGrants.list",
+                  "storageFolderGrants.revoke",
+                  "storageFolders.restrict",
                   "storageEntries.copy",
                   "storageEntries.move",
                   "storageEntries.trash",
@@ -428569,6 +430082,7 @@
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -428733,6 +430247,7 @@
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -428950,6 +430465,7 @@
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -429226,6 +430742,7 @@
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -497586,7 +499103,11 @@
           "type": "string",
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
           ],
           "description": "Stable preset identifier accepted by runs.create presetId."
         },
@@ -497714,6 +499235,45 @@
             }
           ],
           "description": "WorkflowPreset.availability may be null in this transport value."
+        },
+        "definition": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
         }
       },
       "required": [
@@ -497723,10 +499283,124 @@
         "nameKey",
         "steps",
         "defaultBudgetLimitUsd",
-        "availability"
+        "availability",
+        "definition"
       ],
       "additionalProperties": false,
-      "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
+      "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "Page<WorkflowPreset>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -497742,7 +499416,11 @@
                 "type": "string",
                 "enum": [
                   "fixed-coding",
-                  "fixed-coding-reviewed"
+                  "fixed-coding-reviewed",
+                  "deliver-oneshot",
+                  "deliver-lean",
+                  "deliver-full",
+                  "deliver-prd"
                 ],
                 "description": "Stable preset identifier accepted by runs.create presetId."
               },
@@ -497870,6 +499548,45 @@
                   }
                 ],
                 "description": "WorkflowPreset.availability may be null in this transport value."
+              },
+              "definition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
               }
             },
             "required": [
@@ -497879,7 +499596,8 @@
               "nameKey",
               "steps",
               "defaultBudgetLimitUsd",
-              "availability"
+              "availability",
+              "definition"
             ],
             "additionalProperties": false,
             "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
@@ -497936,7 +499654,120 @@
         "nextCursor"
       ],
       "additionalProperties": false,
-      "description": "Cursor page of WorkflowPreset."
+      "description": "Cursor page of WorkflowPreset.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "OutputTranscriptSegment": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -519042,6 +520873,11 @@
           "maximum": 9007199254740991,
           "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
         },
+        "revisionDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+        },
         "workflowId": {
           "type": "string",
           "format": "uuid",
@@ -519082,6 +520918,7 @@
         "skillId",
         "skillVersionId",
         "revision",
+        "revisionDigest",
         "workflowId",
         "workflowName",
         "stepPath",
@@ -520061,6 +521898,11 @@
                 "maximum": 9007199254740991,
                 "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
               },
+              "revisionDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+              },
               "workflowId": {
                 "type": "string",
                 "format": "uuid",
@@ -520101,6 +521943,7 @@
               "skillId",
               "skillVersionId",
               "revision",
+              "revisionDigest",
               "workflowId",
               "workflowName",
               "stepPath",
@@ -520489,6 +522332,21 @@
               "description": "Null indicates that the value is unavailable."
             }
           ]
+        },
+        "artifactVersionId": {
+          "description": "RunRequest.artifactVersionId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The artifact version the request asks someone to review, or null when it asks for none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         }
       },
       "required": [
@@ -520765,6 +522623,21 @@
                     ],
                     "additionalProperties": false,
                     "description": "The role or group this request was asked of, or null when one person was asked."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "artifactVersionId": {
+                "description": "RunRequest.artifactVersionId may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The artifact version the request asks someone to review, or null when it asks for none."
                   },
                   {
                     "type": "null",
@@ -535060,6 +536933,281 @@
       "additionalProperties": false,
       "description": "Where one skill import stands: still running, completed with the skill and version it made, or failed with the stable code it stopped on. A skill the caller may not see (another person's private import) is reported without its ids."
     },
+    "FolderGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable identifier of the grant."
+        },
+        "folderId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The folder the grant is on."
+        },
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The member who holds it."
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "view",
+            "edit",
+            "manage"
+          ],
+          "description": "What the grant allows."
+        },
+        "grantedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The member who granted it."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When it was granted."
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When it was revoked, or null while it is live."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "FolderGrant.revokedAt may be null in this transport value."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic concurrency counter."
+        }
+      },
+      "required": [
+        "id",
+        "folderId",
+        "principalId",
+        "level",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One grant of view, edit or manage on a folder to a member."
+    },
+    "FolderGrantList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "JSON string value."
+              },
+              {
+                "type": "number",
+                "description": "JSON number value."
+              },
+              {
+                "type": "boolean",
+                "description": "JSON boolean value."
+              },
+              {
+                "type": "null",
+                "description": "JSON null value."
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON array value."
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "JSON object key."
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/__schema0"
+                },
+                "description": "JSON object value."
+              }
+            ],
+            "description": "One FolderGrant per live grant. Each array item follows this format."
+          },
+          "description": "One FolderGrant per live grant. FolderGrantList.items must contain at most 200 items."
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "The live grants on one folder, oldest first, at most 200.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "FolderRestriction": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "folderId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The folder."
+        },
+        "restricted": {
+          "type": "boolean",
+          "description": "Whether it is now restricted."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The folder's version after the change."
+        }
+      },
+      "required": [
+        "folderId",
+        "restricted",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Whether a folder is restricted after the change."
+    },
     "StorageConnectionMount": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -537980,6 +540128,39 @@
       ],
       "additionalProperties": false,
       "description": "SplitOutput is the pinned worker action output contract."
+    },
+    "PeopleTagOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "sent",
+            "responded",
+            "expired"
+          ],
+          "description": "How the step ended: sent when it carried on once the tag was sent, responded when someone tagged responded, expired when every request expired or was withdrawn with no response."
+        },
+        "asked": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "description": "How many people the tag asked, one request each. How many people the tag asked, one request each. PeopleTagOutput.asked must be at least 1. PeopleTagOutput.asked must be at most 50."
+        },
+        "respondedBy": {
+          "description": "PeopleTagOutput.respondedBy output may be omitted by adapters that do not expose it.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "outcome",
+        "asked"
+      ],
+      "additionalProperties": false,
+      "description": "PeopleTagOutput is the pinned worker action output contract."
     },
     "WorkflowStopOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

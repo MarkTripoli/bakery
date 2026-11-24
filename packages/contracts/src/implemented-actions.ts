@@ -866,6 +866,10 @@ export const StorageImplementedAction = Object.freeze(
     StorageConnectionSyncsResume: "storageConnectionSyncs.resume",
     StorageConnectionExportsCreate: "storageConnectionExports.create",
     StorageFoldersCreate: "storageFolders.create",
+    StorageFolderGrantsCreate: "storageFolderGrants.create",
+    StorageFolderGrantsList: "storageFolderGrants.list",
+    StorageFolderGrantsRevoke: "storageFolderGrants.revoke",
+    StorageFoldersRestrict: "storageFolders.restrict",
     StorageEntriesCopy: "storageEntries.copy",
     StorageEntriesMove: "storageEntries.move",
     StorageEntriesTrash: "storageEntries.trash",
@@ -916,6 +920,7 @@ export const CatalogImplementedAction = Object.freeze(
     SkillVersionsCreate: "skillVersions.create",
     SkillUseGrantsList: "skills.useGrants.list",
     SkillUseGrantsDelete: "skills.useGrants.delete",
+    SkillUseGrantsCreate: "skills.useGrants.create",
     SkillsSetActiveVersion: "skills.setActiveVersion",
     SkillImportsGet: "skillImports.get",
     SkillsTakeSourceUpdate: "skills.takeSourceUpdate",
@@ -1135,6 +1140,7 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     // The parent run's step that owns a plan of child work items and completes
     // from the plan's terminal projection (docs/technical-design/25-one-engine.md 5).
     CoordinationSplit: "coordination.split",
+    PeopleTag: "people.tag",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 
@@ -1154,6 +1160,7 @@ export const ENGINE_SETTLED_STEP_ACTIONS = Object.freeze(
     WorkflowRuntimeImplementedAction.DeliveryHealth,
     WorkflowRuntimeImplementedAction.ToolCall,
     WorkflowRuntimeImplementedAction.CoordinationSplit,
+    WorkflowRuntimeImplementedAction.PeopleTag,
   ] as const,
 );
 
