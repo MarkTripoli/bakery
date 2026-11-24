@@ -2197,7 +2197,6 @@
   "installation.backups.fix.drain_timeout": "⟪Back up again when less is running⟫",
   "installation.backups.cause.runner_error": "⟪the backup service stopped with an error⟫",
   "installation.backups.facts.lastGood.label": "⟪Last good backup⟫",
-  "installation.backups.facts.lastGood.value": "⟪None yet⟫",
   "installation.backups.facts.next.label": "⟪Next backup⟫",
   "installation.backups.facts.next.off": "⟪Not scheduled⟫",
   "installation.backups.facts.next.turnOn": "⟪Turn on⟫",
@@ -2264,7 +2263,6 @@
   "installation.backups.settings.schedule.off": "⟪Off⟫",
   "installation.backups.settings.schedule.on": "⟪{interval} at {time} UTC⟫",
   "installation.backups.settings.offsite": "⟪Off-site copy⟫",
-  "installation.backups.settings.offsite.on": "⟪Set up⟫",
   "installation.backups.settings.offsite.off": "⟪Not set up⟫",
   "installation.backups.settings.pitr": "⟪Restore to any minute⟫",
   "installation.backups.settings.pitr.off": "⟪Off⟫",
@@ -7054,5 +7052,7 @@
   "tasks.delivery.release.dialog.forbidden": "⟪You do not have permission to deploy this repository. Ask an administrator.⟫",
   "tasks.delivery.release.dialog.error": "⟪Bakery could not go back to the last release. Try again.⟫",
   "tasks.delivery.release.dialog.noAnswer": "⟪Bakery did not answer, so it may already be going back. You can press Go back again; it repeats the same request.⟫",
-  "tasks.delivery.release.dialog.reason.empty": "⟪Write why you are going back.⟫"
+  "tasks.delivery.release.dialog.reason.empty": "⟪Write why you are going back.⟫",
+  "installation.backups.facts.lastGood.value": "⟪Never⟫",
+  "installation.backups.settings.offsite.on": "⟪On⟫"
 }

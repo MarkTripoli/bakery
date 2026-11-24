@@ -2197,7 +2197,6 @@
   "installation.backups.fix.drain_timeout": "⟦Ɓàçķ ûþ àĝàïñ ŵĥëñ ļëšš ïš ŕûññïñĝ ŧëšŧ çôþÿ⟧",
   "installation.backups.cause.runner_error": "⟦ŧĥë ƀàçķûþ šëŕṽïçë šŧôþþëð ŵïŧĥ àñ ëŕŕôŕ ŧëšŧ çôþÿ ŧ⟧",
   "installation.backups.facts.lastGood.label": "⟦Ļàšŧ ĝôôð ƀàçķûþ ŧëš⟧",
-  "installation.backups.facts.lastGood.value": "⟦Ñôñë ÿëŧ…⟧",
   "installation.backups.facts.next.label": "⟦Ñëẋŧ ƀàçķûþ ŧ⟧",
   "installation.backups.facts.next.off": "⟦Ñôŧ šçĥëðûļëð ŧë⟧",
   "installation.backups.facts.next.turnOn": "⟦Ŧûŕñ ôñ…⟧",
@@ -2264,7 +2263,6 @@
   "installation.backups.settings.schedule.off": "⟦Ôƒƒ⟧",
   "installation.backups.settings.schedule.on": "⟦{interval} àŧ {time} ÛŦÇ ŧëšŧ ç⟧",
   "installation.backups.settings.offsite": "⟦Ôƒƒ-šïŧë çôþÿ ŧë⟧",
-  "installation.backups.settings.offsite.on": "⟦Šëŧ ûþ…⟧",
   "installation.backups.settings.offsite.off": "⟦Ñôŧ šëŧ ûþ ŧ⟧",
   "installation.backups.settings.pitr": "⟦Ŕëšŧôŕë ŧô àñÿ ɱïñûŧë ŧëšŧŧ⟧",
   "installation.backups.settings.pitr.off": "⟦Ôƒƒ⟧",
@@ -7054,5 +7052,7 @@
   "tasks.delivery.release.dialog.forbidden": "⟦Ÿôû ðô ñôŧ ĥàṽë þëŕɱïššïôñ ŧô ðëþļôÿ ŧĥïš ŕëþôšïŧôŕÿ. Àšķ àñ àðɱïñïšŧŕàŧôŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.delivery.release.dialog.error": "⟦Ɓàķëŕÿ çôûļð ñôŧ ĝô ƀàçķ ŧô ŧĥë ļàšŧ ŕëļëàšë. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.delivery.release.dialog.noAnswer": "⟦Ɓàķëŕÿ ðïð ñôŧ àñšŵëŕ, šô ïŧ ɱàÿ àļŕëàðÿ ƀë ĝôïñĝ ƀàçķ. Ÿôû çàñ þŕëšš Ĝô ƀàçķ àĝàïñ; ïŧ ŕëþëàŧš ŧĥë šàɱë ŕëǫûëšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "tasks.delivery.release.dialog.reason.empty": "⟦Ŵŕïŧë ŵĥÿ ÿôû àŕë ĝôïñĝ ƀàçķ. ŧëšŧ çôþ⟧"
+  "tasks.delivery.release.dialog.reason.empty": "⟦Ŵŕïŧë ŵĥÿ ÿôû àŕë ĝôïñĝ ƀàçķ. ŧëšŧ çôþ⟧",
+  "installation.backups.facts.lastGood.value": "⟦Ñëṽëŕ⟧",
+  "installation.backups.settings.offsite.on": "⟦Ôñ⟧"
 }
