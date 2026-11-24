@@ -707,6 +707,8 @@ for (
       await page.goto("/installation/backups");
       await expect.poll(() => said(page.locator("[data-drill]").first()))
         .toMatch(/The check did not pass\..*Check it again\./);
+      await page.mouse.move(5, 5);
+      await still(page, "backups-drill-no-code");
     });
 
     test("a held restore offers Finish the restore", async ({ page }) => {
