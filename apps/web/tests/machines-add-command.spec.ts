@@ -402,6 +402,19 @@ test.describe("add a machine with one command", () => {
     ).toBeVisible();
     await expect(retry).toBeFocused();
     expect(f.creates).toHaveLength(1);
+    await expect(page.locator("button[data-variant=primary]")).toHaveCount(1);
+    await expect(
+      page.locator("button[data-variant=primary]", { hasText: "Try again" }),
+    ).toHaveCount(1);
+    await expect(steps(page).first()).toHaveAttribute("data-state", "done");
+    await expect(steps(page).first()).toContainText(
+      "1 task at once · Claude Code",
+    );
+    await expect(steps(page).first().getByRole("button", { name: "Change" }))
+      .toBeVisible();
+    await expect(page.getByRole("button", { name: "Get the command" }))
+      .toHaveCount(0);
+    await expect(steps(page).nth(1)).toHaveAttribute("data-state", "running");
     await retry.click();
     await expect(page.locator("[data-ui-component=codeBlock]")).toContainText(
       COMMAND,
@@ -419,6 +432,9 @@ test.describe("add a machine with one command", () => {
     await expect(retry).toBeFocused();
     await expect(page.locator("[data-ui-component=codeBlock]")).toHaveCount(0);
     expect(f.creates).toHaveLength(1);
+    await expect(page.locator("button[data-variant=primary]")).toHaveCount(1);
+    await expect(steps(page).first()).toHaveAttribute("data-state", "done");
+    await expect(steps(page).nth(1)).toHaveAttribute("data-state", "running");
     const readsBefore = f.reads;
     f.readFailures = 0;
     await retry.click();

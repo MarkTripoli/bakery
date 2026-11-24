@@ -436,6 +436,7 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
   const hasCommand = issued !== null && progress !== null &&
     (progress.kind === "waiting");
   const showForm = enrollmentId === null && !finishId;
+  const makeFailed = failed && showForm;
   const connected = progress?.kind === "checking" ||
     progress?.kind === "ready" || progress?.kind === "attention";
 
@@ -635,28 +636,29 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
     <UI.Stack gap="standard">
       <UI.StepList label={translate("machines.add.stepsLabel" as never)}>
         <UI.StepItem
-          status={showForm ? "running" : "done"}
+          status={showForm && !makeFailed ? "running" : "done"}
           statusLabel={translate(
-            (showForm
+            (showForm && !makeFailed
               ? "machines.add.status.now"
               : "machines.add.status.done") as never,
           )}
           title={translate("machines.add.step1" as never)}
-          summary={showForm || settingsFacts === null
+          summary={(showForm && !makeFailed) || settingsFacts === null
             ? undefined
             : settingsLine(settingsFacts, translate)}
-          action={!showForm && hasCommand && !changing
+          action={makeFailed || (!showForm && hasCommand && !changing)
             ? (
               <UI.Button
                 variant="text"
-                onClick={() => setChanging(true)}
+                onClick={() =>
+                  makeFailed ? setFailed(false) : setChanging(true)}
               >
                 {translate("machines.add.change" as never)}
               </UI.Button>
             )
             : undefined}
         >
-          {showForm
+          {showForm && !makeFailed
             ? (
               <UI.Stack gap="standard">
                 <Fields
@@ -707,16 +709,20 @@ export function MachineAddPage({ finishId }: { finishId?: string }) {
             : null}
         </UI.StepItem>
         <UI.StepItem
-          status={connected ? "done" : showForm ? "upcoming" : "running"}
+          status={connected
+            ? "done"
+            : showForm && !makeFailed
+            ? "upcoming"
+            : "running"}
           statusLabel={translate(
             (connected
               ? "machines.add.status.done"
-              : showForm
+              : showForm && !makeFailed
               ? "machines.add.status.next"
               : "machines.add.status.now") as never,
           )}
           title={translate("machines.add.step2" as never)}
-          summary={(showForm && !failed) || changing || hasCommand
+          summary={(showForm && !makeFailed) || changing || hasCommand
             ? undefined
             : step2Body}
         >
