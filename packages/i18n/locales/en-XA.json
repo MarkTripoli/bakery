@@ -6926,7 +6926,6 @@
   "installation.backups.settings.schedule.save": "⟦Šàṽë šçĥëðûļë ŧë⟧",
   "installation.backups.settings.schedule.saving": "⟦Šàṽïñĝ……⟧",
   "installation.backups.settings.schedule.time.invalid": "⟦Ëñŧëŕ à ŧïɱë ƒŕôɱ 00:00 ŧô 23:59. ŧëšŧ çôþÿ⟧",
-  "installation.backups.settings.schedule.minute.invalid": "⟦Ëñŧëŕ ɱïñûŧëš ƒŕôɱ 0 ŧô 59. ŧëšŧ çô⟧",
   "installation.backups.settings.schedule.days.invalid": "⟦Ëñŧëŕ à ŵĥôļë ñûɱƀëŕ ôƒ ðàÿš ƒŕôɱ 1 ŧô 3650. ŧëšŧ çôþÿ ŧëš⟧",
   "installation.backups.settings.offsite.endpoint": "⟦Šëŕṽïçë àððŕëšš ŧëš⟧",
   "installation.backups.settings.offsite.endpoint.hint": "⟦Àñ ĥŧŧþš àððŕëšš, šûçĥ àš ĥŧŧþš://š3.ëẋàɱþļë.çôɱ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
@@ -6980,5 +6979,8 @@
   "installation.backups.settings.service.replace.title": "⟦Ŕëþļàçë ŧĥë ƀàçķûþ šëŕṽïçë'š ķëÿ? ŧëšŧ çôþÿ⟧",
   "installation.backups.settings.service.replace.body": "⟦Ŧĥë ôļð ķëÿ šŧôþš ŵôŕķïñĝ àŧ ôñçë. Ɓàçķûþš šŧôþ ûñŧïļ ŧĥë ñëŵ ķëÿ ïš ôñ ŧĥë šëŕṽëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "installation.backups.settings.service.replace.cancel": "⟦Çàñçëļ…⟧",
-  "installation.backups.settings.service.replace.confirm": "⟦Ŕëþļàçë…⟧"
+  "installation.backups.settings.service.replace.confirm": "⟦Ŕëþļàçë…⟧",
+  "installation.backups.settings.schedule.minute.invalid": "⟦Ëñŧëŕ à ŵĥôļë ñûɱƀëŕ ƒŕôɱ 0 ŧô 59. ŧëšŧ çôþÿ⟧",
+  "installation.backups.settings.schedule.minute.hint": "⟦Ëṽëŕÿ ĥôûŕ àŧ ŧĥïš ɱïñûŧë. ŧëšŧ çô⟧",
+  "installation.backups.settings.offsite.region.required": "⟦Ëñŧëŕ ŧĥë ŕëĝïôñ, šûçĥ àš ûš-ëàšŧ-1. ŧëšŧ çôþÿŧ⟧"
 }

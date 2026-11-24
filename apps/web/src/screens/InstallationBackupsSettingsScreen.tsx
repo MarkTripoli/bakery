@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useId } from "react";
+import { type FormEvent, type ReactNode, useId, useState } from "react";
 import * as UI from "@bakery/ui";
 import type { MessageKey } from "@bakery/i18n";
 import type {
@@ -20,6 +20,7 @@ import {
   type OffsiteDraft,
   offsiteProblems,
   offsiteReady,
+  offsiteRequiredProblems,
   pointInTimeView,
   type SaveFailure,
   type ScheduleDraft,
@@ -285,7 +286,16 @@ function ScheduleSection(
     : localTimeOfDay(draft.time, props.nowMs, locale, timeZone);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (scheduleReady(draft) && !saving && !props.offline) props.onSave();
+    if (saving || props.offline) return;
+    if (scheduleReady(draft)) {
+      props.onSave();
+      return;
+    }
+    const firstInvalid = problems.time !== undefined ||
+        problems.minute !== undefined
+      ? ids.time
+      : ids.days;
+    document.getElementById(firstInvalid)?.focus();
   };
   const timeError = hourly ? problems.minute : problems.time;
   return (
@@ -315,10 +325,13 @@ function ScheduleSection(
             disabled={saving || props.offline}
             id={ids.interval}
             label={translate("installation.backups.settings.schedule.interval")}
-            onChange={(event) =>
+            onChange={(event) => {
+              const interval = event.target.value as ScheduleDraft["interval"];
               props.onChange({
-                interval: event.target.value as ScheduleDraft["interval"],
-              })}
+                interval,
+                ...(hourly && interval !== "hourly" ? { time: "03:00" } : {}),
+              });
+            }}
             options={[
               {
                 value: "hourly",
@@ -338,10 +351,15 @@ function ScheduleSection(
           />
           <UI.Field
             error={timeError === undefined ? undefined : translate(timeError)}
-            hint={local === null ? undefined : translate(
-              "installation.backups.settings.schedule.local",
-              { time: local },
-            )}
+            hint={local === null
+              ? hourly
+                ? translate(
+                  "installation.backups.settings.schedule.minute.hint",
+                )
+                : undefined
+              : translate("installation.backups.settings.schedule.local", {
+                time: local,
+              })}
             htmlFor={ids.time}
             label={translate(
               hourly
@@ -388,7 +406,7 @@ function ScheduleSection(
           <UI.Inline gap="compact" variant="actions">
             <UI.Button
               data-action="save-schedule"
-              disabled={!scheduleReady(draft) || props.offline}
+              disabled={props.offline}
               loading={saving}
               type="submit"
               variant="primary"
@@ -476,11 +494,35 @@ function OffsiteSection(
   const { draft, saved, status, verify } = props;
   const saving = status === "saving";
   const testing = verify.state === "running";
-  const problems = offsiteProblems(draft, saved);
+  const [attempted, setAttempted] = useState(false);
+  const found = offsiteProblems(draft, saved);
+  const problems = attempted
+    ? { ...offsiteRequiredProblems(draft), ...found }
+    : found;
   const ready = offsiteReady(draft, saved);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (ready && !saving && !props.offline) props.onSave();
+    if (saving || props.offline) return;
+    if (ready) {
+      props.onSave();
+      return;
+    }
+    setAttempted(true);
+    const forced = { ...offsiteRequiredProblems(draft), ...found };
+    const order = [
+      ["endpoint", ids.endpoint],
+      ["region", ids.region],
+      ["bucket", ids.bucket],
+      ["prefix", ids.prefix],
+      [
+        "keys",
+        draft.accessKeyId !== "" && draft.secretAccessKey === ""
+          ? ids.secretAccessKey
+          : ids.accessKeyId,
+      ],
+    ] as const;
+    const first = order.find(([field]) => forced[field] !== undefined);
+    if (first !== undefined) document.getElementById(first[1])?.focus();
   };
   const keyHint = saved.configured
     ? keysRequired(draft, saved)
@@ -597,7 +639,7 @@ function OffsiteSection(
           <UI.Inline gap="compact" variant="actions">
             <UI.Button
               data-action="save-offsite"
-              disabled={!ready || props.offline || testing}
+              disabled={props.offline || testing}
               loading={saving}
               type="submit"
               variant="primary"

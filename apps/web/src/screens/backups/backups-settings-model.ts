@@ -237,6 +237,28 @@ export function offsiteProblems(
   };
 }
 
+export function offsiteRequiredProblems(draft: OffsiteDraft): OffsiteProblems {
+  return {
+    ...(draft.endpoint.trim() === ""
+      ? {
+        endpoint:
+          "installation.backups.settings.offsite.endpoint.scheme" as const,
+      }
+      : {}),
+    ...(draft.region.trim() === ""
+      ? {
+        region:
+          "installation.backups.settings.offsite.region.required" as const,
+      }
+      : {}),
+    ...(draft.bucket.trim() === ""
+      ? {
+        bucket: "installation.backups.settings.offsite.bucket.invalid" as const,
+      }
+      : {}),
+  };
+}
+
 export function offsiteReady(
   draft: OffsiteDraft,
   saved: OffsiteDestination,

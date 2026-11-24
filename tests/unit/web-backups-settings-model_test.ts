@@ -3,9 +3,11 @@ import {
   classifySaveFailure,
   keysRequired,
   localTimeOfDay,
+  offsiteDraftOf,
   offsiteInput,
   offsiteProblems,
   offsiteReady,
+  offsiteRequiredProblems,
   pointInTimeView,
   scheduleChanged,
   scheduleDraftOf,
@@ -436,4 +438,42 @@ Deno.test("the running record is off, waiting or a window", () => {
     latest: "2026-11-23T11:00:00.000Z",
     reportedAt: "2026-11-23T11:05:00.000Z",
   });
+});
+
+Deno.test("empty required off-site fields each name their own problem when pressed", () => {
+  const draft = offsiteDraftOf({
+    endpoint: null,
+    region: null,
+    bucket: null,
+    prefix: null,
+  });
+  assertEquals(offsiteRequiredProblems(draft), {
+    endpoint: "installation.backups.settings.offsite.endpoint.scheme",
+    region: "installation.backups.settings.offsite.region.required",
+    bucket: "installation.backups.settings.offsite.bucket.invalid",
+  });
+  assertEquals(
+    offsiteRequiredProblems({
+      ...draft,
+      endpoint: "https://s3.example.com",
+      region: "us-east-1",
+      bucket: "bakery-backups",
+    }),
+    {},
+  );
+});
+
+Deno.test("an hourly minute must be a whole number from 0 to 59", () => {
+  const hourly = {
+    ...scheduleDraftOf(SAVED_SCHEDULE),
+    interval: "hourly" as const,
+  };
+  assertEquals(scheduleProblems({ ...hourly, minute: "75" }), {
+    minute: "installation.backups.settings.schedule.minute.invalid",
+  });
+  assertEquals(scheduleProblems({ ...hourly, minute: "7.5" }), {
+    minute: "installation.backups.settings.schedule.minute.invalid",
+  });
+  assertEquals(scheduleProblems({ ...hourly, minute: "59" }), {});
+  assertEquals(scheduleProblems({ ...hourly, minute: "0" }), {});
 });

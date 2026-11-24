@@ -484,16 +484,44 @@ for (
       await schedule(page).getByLabel("At (UTC)").fill("25:00");
       await expect.poll(() => said(page, "[data-section='schedule']"))
         .toContain("Enter a time from 00:00 to 23:59.");
-      await expect(save).toBeDisabled();
+      await expect(save).toBeEnabled();
+      await save.click();
+      await expect(schedule(page).getByLabel("At (UTC)")).toBeFocused();
       await schedule(page).getByLabel("At (UTC)").fill("03:00");
       await schedule(page).getByLabel("Keep each backup for").fill("0");
       await expect.poll(() => said(page, "[data-section='schedule']"))
         .toContain("Enter a whole number of days from 1 to 3650.");
       await schedule(page).getByLabel("Keep each backup for").fill("3651");
-      await expect(save).toBeDisabled();
+      await expect(save).toBeEnabled();
+      await save.click();
+      await expect(schedule(page).getByLabel("Keep each backup for"))
+        .toBeFocused();
       await page.mouse.move(5, 5);
       await still(page, "settings-validation");
       expect(sent.schedule).toHaveLength(0);
+    });
+
+    test("schedule: hourly takes a whole minute from 0 to 59", async ({ page }) => {
+      const { sent } = await fixture(page);
+      await open(page);
+      const save = schedule(page).getByRole("button", {
+        name: "Save schedule",
+      });
+      await schedule(page).getByLabel("How often").selectOption("hourly");
+      await expect.poll(() => said(page, "[data-section='schedule']"))
+        .toContain("Every hour at this minute.");
+      await expect.poll(() => said(page, "[data-section='schedule']"))
+        .not.toContain("your time");
+      await schedule(page).getByLabel("Minutes past the hour").fill("75");
+      await expect.poll(() => said(page, "[data-section='schedule']"))
+        .toContain("Enter a whole number from 0 to 59.");
+      await expect(save).toBeEnabled();
+      await save.click();
+      await expect(schedule(page).getByLabel("Minutes past the hour"))
+        .toBeFocused();
+      expect(sent.schedule).toHaveLength(0);
+      await schedule(page).getByLabel("How often").selectOption("daily");
+      await expect(schedule(page).getByLabel("At (UTC)")).toHaveValue("03:00");
     });
 
     test("schedule: someone else saved first, their values are shown", async ({ page }) => {
@@ -537,7 +565,9 @@ for (
       );
       await expect.poll(() => said(page, "[data-section='offsite']"))
         .toContain("Start the address with https://.");
-      await expect(save).toBeDisabled();
+      await expect(save).toBeEnabled();
+      await save.click();
+      await expect(offsite(page).getByLabel("Service address")).toBeFocused();
       await offsite(page).getByLabel("Service address").fill(
         "https://s3.example.com/bucket",
       );
@@ -548,11 +578,16 @@ for (
       );
       await expect.poll(() => said(page, "[data-section='offsite']"))
         .toContain("Enter both keys.");
-      await expect(save).toBeDisabled();
+      await expect(save).toBeEnabled();
+      await save.click();
+      await expect(offsite(page).getByLabel("Access key ID")).toBeFocused();
       await offsite(page).getByLabel("Access key ID").fill(SECRET_ID);
       await expect.poll(() => said(page, "[data-section='offsite']"))
         .toContain("Enter both keys.");
-      await expect(save).toBeDisabled();
+      await expect(save).toBeEnabled();
+      await save.click();
+      await expect(offsite(page).getByLabel("Secret access key"))
+        .toBeFocused();
       await offsite(page).getByLabel("Bucket").fill("Bad_Bucket");
       await expect.poll(() => said(page, "[data-section='offsite']"))
         .toContain("Use 3 to 63 lowercase letters");
@@ -620,9 +655,12 @@ for (
       await offsite(page).getByLabel("Bucket").fill("another-bucket");
       await expect.poll(() => said(page, "[data-section='offsite']"))
         .toContain("A new address, region or bucket needs its keys again.");
-      await expect(
-        offsite(page).getByRole("button", { name: "Save off-site copy" }),
-      ).toBeDisabled();
+      const save = offsite(page).getByRole("button", {
+        name: "Save off-site copy",
+      });
+      await expect(save).toBeEnabled();
+      await save.click();
+      await expect(offsite(page).getByLabel("Access key ID")).toBeFocused();
       expect(sent.offsite).toHaveLength(0);
     });
 

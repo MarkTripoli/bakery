@@ -6926,7 +6926,6 @@
   "installation.backups.settings.schedule.save": "⟪Save schedule⟫",
   "installation.backups.settings.schedule.saving": "⟪Saving…⟫",
   "installation.backups.settings.schedule.time.invalid": "⟪Enter a time from 00:00 to 23:59.⟫",
-  "installation.backups.settings.schedule.minute.invalid": "⟪Enter minutes from 0 to 59.⟫",
   "installation.backups.settings.schedule.days.invalid": "⟪Enter a whole number of days from 1 to 3650.⟫",
   "installation.backups.settings.offsite.endpoint": "⟪Service address⟫",
   "installation.backups.settings.offsite.endpoint.hint": "⟪An https address, such as https://s3.example.com.⟫",
@@ -6980,5 +6979,8 @@
   "installation.backups.settings.service.replace.title": "⟪Replace the backup service's key?⟫",
   "installation.backups.settings.service.replace.body": "⟪The old key stops working at once. Backups stop until the new key is on the server.⟫",
   "installation.backups.settings.service.replace.cancel": "⟪Cancel⟫",
-  "installation.backups.settings.service.replace.confirm": "⟪Replace⟫"
+  "installation.backups.settings.service.replace.confirm": "⟪Replace⟫",
+  "installation.backups.settings.schedule.minute.invalid": "⟪Enter a whole number from 0 to 59.⟫",
+  "installation.backups.settings.schedule.minute.hint": "⟪Every hour at this minute.⟫",
+  "installation.backups.settings.offsite.region.required": "⟪Enter the region, such as us-east-1.⟫"
 }
