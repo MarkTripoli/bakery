@@ -124,7 +124,23 @@ async function startAtTheSignOff(
       select status from bakery.run_steps
        where organization_id = ${fx.organizationId} and run_id = ${run.id}
          and step_key = ${signoff.stepKey}`)[0].status as string;
-  return { engine, owner, run, signoff, decide, runRow, stepStatus };
+  const stepOutput = async () =>
+    (await fx.owner`
+      select output ->> 'decision' as decision, output ->> 'note' as note,
+             output ->> 'decidedBy' as decided_by
+        from bakery.run_steps
+       where organization_id = ${fx.organizationId} and run_id = ${run.id}
+         and step_key = ${signoff.stepKey}`)[0];
+  return {
+    engine,
+    owner,
+    run,
+    signoff,
+    decide,
+    runRow,
+    stepStatus,
+    stepOutput,
+  };
 }
 
 Deno.test("approving a workflow's sign-off lets a run started by runs.create go on", async () => {
@@ -169,6 +185,11 @@ for (
       const ended = await at.runRow();
       assertEquals([ended.status, ended.outcome], ["canceled", outcome]);
       assertEquals(await at.stepStatus(), "completed");
+      const output = await at.stepOutput();
+      assertEquals(
+        [output.decision, output.note, output.decided_by],
+        [decision, comment ?? null, fx.developer.principalId],
+      );
     } finally {
       await fx.close();
     }

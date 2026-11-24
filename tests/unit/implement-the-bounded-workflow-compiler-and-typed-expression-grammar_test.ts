@@ -1836,6 +1836,13 @@ Deno.test("wait and parallel shapes", async () => {
       [{ path: "/steps/0/wait", code: "wait_timeout_required" }],
     ],
     [
+      "explicit human.approval wait",
+      workflow([
+        waitNode({ event: "human.approval.decided", timeout: "1h" }),
+      ]),
+      [{ path: "/steps/0/wait/event", code: "approval_wait_use_step" }],
+    ],
+    [
       "event name invalid",
       workflow([waitNode({ event: "Bad Event!", timeout: "1h" })]),
       [{ path: "/steps/0/wait/event", code: "wait_shape_invalid" }],

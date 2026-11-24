@@ -1586,14 +1586,14 @@ function shapeWait(
     if (durationMs !== undefined) wait = { kind: "duration", durationMs };
   } else if (hasEvent && !hasDuration) {
     const keys = Object.keys(body);
-    if (keys.some((key) => key !== "event" && key !== "timeout")) {
+    if (body["event"] === HUMAN_APPROVAL_COMPILER_EVENT) {
+      report(context, [...bodyPath, "event"], "approval_wait_use_step");
+    } else if (keys.some((key) => key !== "event" && key !== "timeout")) {
       report(context, bodyPath, "wait_shape_invalid");
     } else if (
       typeof body["event"] !== "string" || !EVENT_NAME.test(body["event"])
     ) {
       report(context, [...bodyPath, "event"], "wait_shape_invalid");
-    } else if (body["event"] === HUMAN_APPROVAL_COMPILER_EVENT) {
-      report(context, [...bodyPath, "event"], "approval_wait_use_step");
     } else if (!Object.hasOwn(body, "timeout")) {
       report(context, bodyPath, "wait_timeout_required");
     } else {

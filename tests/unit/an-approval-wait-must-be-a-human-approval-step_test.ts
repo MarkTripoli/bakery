@@ -26,20 +26,8 @@ Deno.test("an explicit human.approval wait is refused and points to the step", a
     ]
   ) {
     const codes = await compile({ id: "signoff", wait });
-    assertEquals(
-      codes.includes("approval_wait_use_step") ||
-        codes.includes("wait_shape_invalid"),
-      true,
-      JSON.stringify(codes),
-    );
+    assertEquals(codes, ["approval_wait_use_step"]);
   }
-  assertEquals(
-    await compile({
-      id: "signoff",
-      wait: { event: "human.approval.decided", timeout: "7d" },
-    }),
-    ["approval_wait_use_step"],
-  );
 });
 
 Deno.test("a human.approval step compiles", async () => {
