@@ -428,7 +428,6 @@ test("a setup-required preset names every missing requirement and a press sends 
   await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
   expect(seen.tasks).toHaveLength(0);
   expect(seen.runs).toHaveLength(0);
-  await still(page, "composer-not-ready-pressed");
   // The rule it names is a link to the page where it is changed.
   await expect(form(page).getByRole("link", { name: "Repository rules" }))
     .toHaveAttribute("href", "/settings/organization/repository-rules");
@@ -442,6 +441,27 @@ test("a setup-required preset names every missing requirement and a press sends 
     await expect(link).toHaveAttribute("href", "/projects");
   }
   await still(page, "composer-setup", form(page));
+});
+
+test("still: the composer pressed with one requirement missing", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await mockComposer(page, {
+    availability: {
+      status: "setup_required",
+      reasons: ["coding_agent_unbound"],
+    },
+  });
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await field.preset(page).selectOption("fixed-coding");
+  await field.title(page).fill("Needs a coding agent");
+  await expect(form(page).getByRole("listitem")).toHaveCount(1);
+  await expect(
+    form(page).getByText(REASON_COPY.coding_agent_unbound, { exact: true }),
+  ).toBeVisible();
+  await field.start(page).click();
+  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
+  await still(page, "composer-not-ready-pressed");
 });
 
 test("a budget below the reservation names the smallest one that works and sends nothing", async ({ page }) => {
@@ -467,16 +487,26 @@ test("a budget below the reservation names the smallest one that works and sends
       { exact: true },
     ),
   ).toBeVisible();
-  await field.budget(page).fill("2");
-  await expect(field.start(page)).toBeEnabled();
-  await field.budget(page).fill("1.5");
-  await expect(field.start(page)).toBeEnabled();
+  await field.start(page).click();
+  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
   expect(seen.tasks).toHaveLength(0);
   expect(seen.runs).toHaveLength(0);
+  await field.budget(page).fill("2");
+  await expect(form(page)).not.toHaveAttribute(
+    "data-reasons",
+    /budget_below_reservation/,
+  );
+  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCount(0);
+  await field.budget(page).fill("1.5");
+  await expect(form(page)).not.toHaveAttribute(
+    "data-reasons",
+    /budget_below_reservation/,
+  );
+  await expect(field.start(page)).toBeEnabled();
 });
 
 test("the default-budget server reason clears when the user raises the budget", async ({ page }) => {
-  await mockComposer(page, {
+  const seen = await mockComposer(page, {
     availability: {
       status: "setup_required",
       reasons: ["budget_below_reservation"],
@@ -485,8 +515,21 @@ test("the default-budget server reason clears when the user raises the budget", 
   });
   await page.goto("/tasks/new");
   await fill(page);
+  await expect(form(page)).toHaveAttribute(
+    "data-reasons",
+    /budget_below_reservation/,
+  );
   await expect(field.start(page)).toBeEnabled();
+  await field.start(page).click();
+  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
+  expect(seen.tasks).toHaveLength(0);
+  expect(seen.runs).toHaveLength(0);
   await field.budget(page).fill("6");
+  await expect(form(page)).not.toHaveAttribute(
+    "data-reasons",
+    /budget_below_reservation/,
+  );
+  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCount(0);
   await expect(field.start(page)).toBeEnabled();
 });
 

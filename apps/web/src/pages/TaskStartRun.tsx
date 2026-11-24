@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import type { RunCreate, TaskResponse } from "../api/client.ts";
@@ -59,6 +59,7 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
   const session = useSession();
   const cache = useQueryClient();
   const { translate: t } = useI18n();
+  const setupId = useId();
   const organizationId = scope.organizationId;
   const principalId = session.identity?.principalId ?? null;
   const key = organizationId !== null && principalId !== null
@@ -90,6 +91,9 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
   const [budgetTyped, setBudgetTyped] = useState(false);
   const preset = presets.data?.items.find((item) => item.id === presetId);
   const [chooseAsked, setChooseAsked] = useState(false);
+  const [budgetAsked, setBudgetAsked] = useState(false);
+  const setupRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
   const choose = (id: string) => {
     setPresetId(id);
     const picked = presets.data?.items.find((item) => item.id === id);
@@ -121,7 +125,6 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
   const profileId = task.repositoryProfileId;
   const blocked = reasons.length > 0 || profileId === null || !preset ||
     !validBudget(budget);
-  const unusable = preset !== undefined && blocked;
 
   const send = async (current: IntentRecord<RunSubmission> & RunSubmission) => {
     if (organizationId === null) return;
@@ -171,10 +174,23 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
       return;
     }
     if (
-      key === null || !preset || profileId === null || blocked ||
-      (phase !== "idle" && phase !== "conflict" && phase !== "error" &&
-        phase !== "forbidden")
+      phase !== "idle" && phase !== "conflict" && phase !== "error" &&
+      phase !== "forbidden"
     ) return;
+    if (reasons.length > 0) {
+      setupRef.current?.focus();
+      return;
+    }
+    if (!validBudget(budget)) {
+      setBudgetAsked(true);
+      document.getElementById("start-run-budget")?.focus();
+      return;
+    }
+    if (profileId === null) {
+      profileRef.current?.focus();
+      return;
+    }
+    if (key === null || blocked) return;
     const run: RunCreate = {
       presetId: preset.id,
       repositoryProfileId: profileId,
@@ -248,6 +264,9 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
       />
       {preset && (
         <UI.Field
+          error={budgetAsked && !validBudget(budget)
+            ? t("tasks.startRun.budgetInvalid")
+            : undefined}
           hint={labels.budgetHint}
           htmlFor="start-run-budget"
           label={labels.budget}
@@ -269,9 +288,11 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
       )}
       <div aria-atomic="true" aria-live="polite" role="status">
         {notice && (
-          <UI.InlineNotice role="none" tone={notice.tone}>
-            {notice.text}
-          </UI.InlineNotice>
+          <div ref={profileRef} tabIndex={-1}>
+            <UI.InlineNotice role="none" tone={notice.tone}>
+              {notice.text}
+            </UI.InlineNotice>
+          </div>
         )}
         {refusal && explained && (
           <UI.InlineNotice role="none" tone="warning">
@@ -318,16 +339,18 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
         </UI.Text>
       )}
       {reasons.length > 0 && (
-        <UI.InlineNotice role="none" tone="warning">
-          <UI.Stack gap="compact">
-            <UI.Text>{labels.setupHeading}</UI.Text>
-            {reasons.map((reason) => (
-              <UI.Text key={reason}>
-                {labels.setupRequired[reason] ?? labels.setupUnknown}
-              </UI.Text>
-            ))}
-          </UI.Stack>
-        </UI.InlineNotice>
+        <div id={setupId} ref={setupRef} tabIndex={-1}>
+          <UI.InlineNotice role="none" tone="warning">
+            <UI.Stack gap="compact">
+              <UI.Text>{labels.setupHeading}</UI.Text>
+              {reasons.map((reason) => (
+                <UI.Text key={reason}>
+                  {labels.setupRequired[reason] ?? labels.setupUnknown}
+                </UI.Text>
+              ))}
+            </UI.Stack>
+          </UI.InlineNotice>
+        </div>
       )}
       {phase === "unknown"
         ? (
@@ -337,10 +360,11 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
         )
         : (
           <UI.Button
-            disabled={unusable || phase === "submitting"}
+            aria-describedby={reasons.length > 0 ? setupId : undefined}
+            disabled={phase === "submitting"}
             loading={phase === "submitting"}
             onClick={start}
-            variant={unusable || phase === "submitting" ? "outline" : "primary"}
+            variant="primary"
           >
             {phase === "submitting"
               ? t("tasks.startRun.starting")

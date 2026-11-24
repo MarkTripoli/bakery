@@ -1616,6 +1616,7 @@
   "tasks.startRun.empty": "This task has no run yet. Choose a workflow to start one.",
   "tasks.startRun.choose": "Choose a workflow",
   "tasks.startRun.chooseFirst": "Choose a workflow first.",
+  "tasks.startRun.budgetInvalid": "Enter an amount from 0 to 200.",
   "tasks.startRun.starting": "Starting run…",
   "tasks.startRun.noProfile": "This task has no repository profile, so a run cannot start.",
   "tasks.startRun.unknown": "The server did not confirm the run. Retry to replay the same request; no second run is created.",

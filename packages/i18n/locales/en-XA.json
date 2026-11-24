@@ -6608,5 +6608,6 @@
   "library.workflow.action.workflowStop": "⟦Ëñð ŧĥë ŕûñ ŧ⟧",
   "library.workflow.actionLine.humanApproval": "⟦Ŵàïŧš ƒôŕ à þëŕšôñ ŧô àþþŕôṽë ôñ ŧĥë ŧàšķ þàĝë. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "library.workflow.actionLine.workflowStop": "⟦Ŧĥë ŕûñ ëñðš ĥëŕë. ŧëšŧ⟧",
-  "library.editor.panel.agentFromSetup": "⟦Ûšëš ŧĥë àĝëñŧ çĥôšëñ ïñ ŧĥë ŕëþôšïŧôŕÿ'š šëŧûþ. ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "library.editor.panel.agentFromSetup": "⟦Ûšëš ŧĥë àĝëñŧ çĥôšëñ ïñ ŧĥë ŕëþôšïŧôŕÿ'š šëŧûþ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "tasks.startRun.budgetInvalid": "⟦Ëñŧëŕ àñ àɱôûñŧ ƒŕôɱ 0 ŧô 200. ŧëšŧ çôþ⟧"
 }

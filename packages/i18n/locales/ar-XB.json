@@ -6608,5 +6608,6 @@
   "library.workflow.action.workflowStop": "⟪End the run⟫",
   "library.workflow.actionLine.humanApproval": "⟪Waits for a person to approve on the task page.⟫",
   "library.workflow.actionLine.workflowStop": "⟪The run ends here.⟫",
-  "library.editor.panel.agentFromSetup": "⟪Uses the agent chosen in the repository's setup.⟫"
+  "library.editor.panel.agentFromSetup": "⟪Uses the agent chosen in the repository's setup.⟫",
+  "tasks.startRun.budgetInvalid": "⟪Enter an amount from 0 to 200.⟫"
 }

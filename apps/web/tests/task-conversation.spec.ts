@@ -2754,8 +2754,9 @@ test("still: the people with an unnamed teammate, and a disabled Send answer", a
 async function openStartRun(
   page: Page,
   availability: { status: string; reasons: string[] },
+  overrides: Partial<World> = {},
 ): Promise<Locator> {
-  const state = world();
+  const state = world(overrides);
   await mockWorld(page, state);
   await page.route("**/v1/workflow-presets*", (route) =>
     route.fulfill({
@@ -2790,7 +2791,7 @@ for (
   const [name, availability] of [
     ["enabled", { status: "ready", reasons: [] }],
     [
-      "disabled",
+      "not-ready",
       { status: "setup_required", reasons: ["coding_agent_unbound"] },
     ],
   ] as const
@@ -2804,11 +2805,8 @@ for (
     await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
       label: "Fixed coding",
     });
-    await expect(start)[name === "enabled" ? "toBeEnabled" : "toBeDisabled"]();
-    await expect(start).toHaveAttribute(
-      "data-variant",
-      name === "enabled" ? "primary" : "outline",
-    );
+    await expect(start).toBeEnabled();
+    await expect(start).toHaveAttribute("data-variant", "primary");
     await still(page, `task-page-start-run-${name}`);
   });
 }
@@ -2839,6 +2837,109 @@ test("still: Start run pressed with no workflow chosen", async ({ page }) => {
   await start.click();
   await expect(page.getByText("Choose a workflow first.")).toBeVisible();
   await still(page, "task-page-start-run-pressed");
+});
+
+const startRunNotice = (page: Page) =>
+  page.locator('[data-ui-region="start-run"]').locator("[tabindex='-1']", {
+    hasText: "This workflow cannot start here yet",
+  });
+
+test("a press with a requirement missing sends nothing and focuses the reasons", async ({ page }) => {
+  const start = await openStartRun(page, {
+    status: "setup_required",
+    reasons: ["coding_agent_unbound"],
+  });
+  const runs: unknown[] = [];
+  await page.route(`**/v1/tasks/${taskId}/runs`, (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    runs.push(route.request().postDataJSON());
+    return route.fulfill({ status: 409, json: problem(409, "STATE_CONFLICT") });
+  });
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
+  await expect(start).toBeEnabled();
+  await expect(start).toHaveAttribute("data-variant", "primary");
+  await expect(start).toHaveAccessibleDescription(
+    /This workflow cannot start here yet/,
+  );
+  await start.click();
+  await expect(startRunNotice(page)).toBeFocused();
+  expect(runs).toHaveLength(0);
+});
+
+test("a press with a budget that is not an amount shows the error on the field and sends nothing", async ({ page }) => {
+  const start = await openStartRun(page, { status: "ready", reasons: [] });
+  const runs: unknown[] = [];
+  await page.route(`**/v1/tasks/${taskId}/runs`, (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    runs.push(route.request().postDataJSON());
+    return route.fulfill({ status: 409, json: problem(409, "STATE_CONFLICT") });
+  });
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
+  const budget = page.getByRole("textbox", { name: /^Budget limit/ });
+  await budget.fill("abc");
+  await expect(page.getByText("Enter an amount from 0 to 200.")).toBeHidden();
+  await start.click();
+  await expect(page.getByText("Enter an amount from 0 to 200.")).toBeVisible();
+  await expect(budget).toBeFocused();
+  expect(runs).toHaveLength(0);
+  await budget.fill("4");
+  await expect(page.getByText("Enter an amount from 0 to 200.")).toBeHidden();
+});
+
+test("a press on a task with no repository profile focuses the notice and sends nothing", async ({ page }) => {
+  const state = world();
+  const start = await openStartRun(
+    page,
+    { status: "ready", reasons: [] },
+    { task: { ...state.task, repositoryProfileId: null } },
+  );
+  const runs: unknown[] = [];
+  await page.route(`**/v1/tasks/${taskId}/runs`, (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    runs.push(route.request().postDataJSON());
+    return route.fulfill({ status: 409, json: problem(409, "STATE_CONFLICT") });
+  });
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
+  await expect(start).toBeEnabled();
+  await start.click();
+  await expect(
+    page.locator('[data-ui-region="start-run"]').locator("[tabindex='-1']", {
+      hasText: "This task has no repository profile, so a run cannot start.",
+    }),
+  ).toBeFocused();
+  expect(runs).toHaveLength(0);
+});
+
+test("still: Start run pressed with a requirement missing", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  const start = await openStartRun(page, {
+    status: "setup_required",
+    reasons: ["coding_agent_unbound"],
+  });
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
+  await start.click();
+  await expect(startRunNotice(page)).toBeFocused();
+  await still(page, "task-page-start-run-not-ready-pressed");
+});
+
+test("still: Start run pressed with an invalid budget", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  const start = await openStartRun(page, { status: "ready", reasons: [] });
+  await page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
+  await page.getByRole("textbox", { name: /^Budget limit/ }).fill("abc");
+  await start.click();
+  await expect(page.getByText("Enter an amount from 0 to 200.")).toBeVisible();
+  await still(page, "task-page-start-run-budget-invalid");
 });
 
 // ---- what a blocked run says (design-ux, #57 item 13): the reason and the
