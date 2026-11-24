@@ -97,6 +97,8 @@ export type DeliveryDecisionListResponse =
   ClientOutputMap["Page<DeliveryDecision>"];
 export type PullRequestListResponse = ClientOutputMap["Page<PullRequest>"];
 export type MergeAttemptListResponse = ClientOutputMap["Page<MergeAttempt>"];
+export type DeploymentListResponse = ClientOutputMap["Page<Deployment>"];
+export type DeploymentResponse = ClientOutputMap["Deployment"];
 export type MergeAttemptResponse = ClientOutputMap["MergeAttempt"];
 export type MergeEntryListResponse = ClientOutputMap["Page<MergeEntry>"];
 export type MergeEntryResponse = ClientOutputMap["MergeEntry"];
@@ -116,6 +118,18 @@ export type InstallationCapabilities =
 export type InstallationSettings = ClientOutputMap["InstallationSettings"];
 /** The restore that holds the installation, and how far its ordered re-enable has got (#64 E3). */
 export type InstallationRestore = ClientOutputMap["InstallationRestore"];
+/** Which release runs, the one kept to go back to, and the last update that did not go through (#59). */
+export type InstallationUpdateStatus =
+  ClientOutputMap["InstallationUpdateStatus"];
+/** One event of the installation's update history (#59). */
+export type InstallationUpdateEvent =
+  ClientOutputMap["InstallationUpdateEvent"];
+/** One keyset page of the update history, newest first. */
+export type InstallationUpdateEventPage =
+  ClientOutputMap["Page<InstallationUpdateEvent>"];
+/** The outside actions whose outcome Bakery cannot tell, by kind. */
+export type InstallationUncertainActions =
+  ClientOutputMap["InstallationUncertainActions"];
 /** One step of the ordered re-enable, in the order they are taken. */
 export type InstallationRestoreStep =
   ClientInputMap["InstallationRestoreStep"]["step"];
@@ -250,6 +264,9 @@ export type TicketPreviewResultResponse =
   ClientOutputMap["TicketPreviewResult"];
 export type TicketRequestResponse = ClientOutputMap["TicketRequest"];
 export type TicketRequestIntent = "start" | "plan";
+
+/** The built-in workflows a start request can run (#61): the same two the source policy names. */
+export type TicketPresetId = "fixed-coding" | "fixed-coding-reviewed";
 export type TicketTaskLinkResponse = ClientOutputMap["TicketTaskLink"];
 export type TicketTaskLinkListResponse =
   ClientOutputMap["Page<TicketTaskLink>"];
@@ -280,6 +297,11 @@ export type WorkerProviderBindingResponse =
   ClientOutputMap["WorkerProviderBinding"];
 export type WorkerProviderBindingCreate =
   ClientInputMap["WorkerProviderBindingCreate"];
+export type ProviderRouteListResponse = ClientOutputMap["Page<ProviderRoute>"];
+export type ProviderRouteResponse = ClientOutputMap["ProviderRoute"];
+export type RouteHealthResponse = ClientOutputMap["RouteHealth"];
+export type ProviderRouteCreate = ClientInputMap["ProviderRouteCreate"];
+export type ProviderRouteUpdate = ClientInputMap["ProviderRouteUpdate"];
 export type WorkerEnrollmentCreate = ClientInputMap["WorkerEnrollmentCreate"];
 export type WorkerUpdate = ClientInputMap["WorkerUpdate"];
 
@@ -1172,9 +1194,23 @@ export type BakeryApiClient = {
       readonly intent: TicketRequestIntent;
       readonly expectedSourcePolicyRevision: number;
       readonly requirementsDigest: string;
+      /** The built-in workflow for this issue only; omitted, the repository's own runs. */
+      readonly preset?: TicketPresetId;
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<TicketRequestResponse>>;
+    /**
+     * `POST /v1/ticket-requests/{id}/cancellations`: stops a start request that
+     * has no run yet. A request with a run is stopped with `controlRun`.
+     */
+    readonly cancelRequest: (options: {
+      readonly organizationId: string;
+      readonly requestId: string;
+      /** The request's version, sent as the precondition. */
+      readonly version: number;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketRequestViewResponse>>;
     /** `GET /v1/ticket-sources`: the repositories Bakery takes issues from. */
     readonly sources: (options: {
       readonly organizationId: string;
@@ -1315,6 +1351,37 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerResponse>>;
+  };
+  /** The models work may be sent to (`/v1/provider-routes`). The server lists them for the whole organization. */
+  readonly providerRoutes: {
+    readonly list: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<ProviderRouteListResponse>>;
+    /** Why a model is in trouble, and since when. */
+    readonly health: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<RouteHealthResponse>>;
+    /** Administrators only. A new model starts turned on and not yet tried. */
+    readonly create: (options: {
+      readonly organizationId: string;
+      readonly input: ProviderRouteCreate;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<ProviderRouteResponse>>;
+    /** Administrators only: turn a model on or off. `version` is the one last read (`If-Match`). */
+    readonly update: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly input: ProviderRouteUpdate;
+      readonly version?: number;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<ProviderRouteResponse>>;
   };
   readonly machines: {
     readonly dispatchBlockers: (options: {
@@ -1536,6 +1603,30 @@ export type BakeryApiClient = {
       readonly idempotencyKey: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<InstallationRestore>>;
+  };
+  readonly installationUpdates: {
+    /** `GET /v1/installation/updates/status`: the running release, the kept one and the last failure; administrators only. */
+    readonly status: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<InstallationUpdateStatus>>;
+    /** `GET /v1/installation/updates`: the update history, newest first, keyset paged. */
+    readonly list: (options: {
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<InstallationUpdateEventPage>>;
+    /** `POST /v1/installation/updates/{id}/dismiss`: hides the notice for every administrator; the event stays in the history. */
+    readonly dismiss: (options: {
+      readonly id: string;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<InstallationUpdateEvent>>;
+  };
+  readonly installationUncertainActions: {
+    /** `GET /v1/installation/uncertain-actions`: the held outside actions, by kind. */
+    readonly get: (
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<InstallationUncertainActions>>;
   };
   readonly installationSettings: {
     readonly get: (
@@ -1918,6 +2009,20 @@ export type BakeryApiClient = {
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<MergeEntryResponse>>;
+  readonly listDeployments: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DeploymentListResponse>>;
+  readonly rollbackDeployment: (options: {
+    readonly organizationId: string;
+    readonly deploymentId: string;
+    readonly reason: string;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DeploymentResponse>>;
   /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
   readonly reconcileMergeAttempts: (options: {
     readonly organizationId: string;
@@ -3276,7 +3381,21 @@ export function createBakeryApiClient({
               expectedSourcePolicyRevision:
                 options.expectedSourcePolicyRevision,
               requirementsDigest: options.requirementsDigest,
+              ...(options.preset === undefined
+                ? {}
+                : { preset: options.preset }),
             }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      cancelRequest(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketRequests.cancel"]({ id: options.requestId }, {
+              ifMatch: versionEtag(options.version),
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
@@ -3504,6 +3623,53 @@ export function createBakeryApiClient({
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
+        );
+      },
+    },
+    providerRoutes: {
+      list(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["providerRoutes.list"]({
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      health(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["providerRoutes.health"]({ id: options.id }, {
+              signal: options.signal,
+            }),
+        );
+      },
+      create(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["providerRoutes.create"](options.input, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      update(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["providerRoutes.update"](
+              { id: options.id, ...options.input },
+              {
+                ifMatch: options.version === undefined
+                  ? undefined
+                  : versionEtag(options.version),
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
         );
       },
     },
@@ -4670,6 +4836,68 @@ export function createBakeryApiClient({
                 idempotencyKey: options.idempotencyKey,
                 signal: options.signal,
               },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    installationUpdates: {
+      async status(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["installationUpdates.status"]({}, {
+              signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async list(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["installationUpdates.list"]({
+              ...(options.cursor === undefined
+                ? {}
+                : { cursor: options.cursor }),
+              ...(options.limit === undefined ? {} : { limit: options.limit }),
+            }, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async dismiss(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["installationUpdates.dismiss"](
+              { id: options.id },
+              {
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    installationUncertainActions: {
+      async get(signal) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["installationUncertainActions.get"](
+              {},
+              { signal },
             ),
           };
         } catch (error) {
@@ -6324,6 +6552,40 @@ export function createBakeryApiClient({
             mergeMethod: options.mergeMethod,
           },
           { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listDeployments(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["deployments.list"](
+          {
+            runId: options.runId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async rollbackDeployment(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["deployments.rollback"](
+          { id: options.deploymentId, reason: options.reason },
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
         );
         return { ok: true, data };
       } catch (error) {

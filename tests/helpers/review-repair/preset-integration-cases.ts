@@ -147,7 +147,7 @@ async function reviewedAvailability(
 }
 
 /** Three funded agents: implement, repair and review. */
-async function fundedAgents(
+export async function fundedAgents(
   fixture: Fixture,
   label: string,
   max?: number,
@@ -240,7 +240,7 @@ export async function onboardObserved(
   }
 }
 
-async function startRun(
+export async function startRun(
   fixture: Fixture,
   repository: PresetRepository,
   presetId: string,

@@ -7,18 +7,6 @@ import { jsonResponse } from "./http.ts";
 import { authorizePluginAttempt } from "./plugin-attempt.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
 
-/**
- * `GET /v1/worker/attempts/{id}/plugin-job-files` (#29, B14.02).
- *
- * Hands a contained job its code: the files of the pinned version's bundle,
- * for the install the job names. The worker proves the lease and fence as for
- * the broker relay. The bundle is read from the store by its recorded digest
- * and parsed by the server's own archive reader, so the worker writes plain
- * files and never unpacks an archive. A disabled install, or one without the
- * `jobs.schedule` grant, is refused: a job never starts on authority that is
- * already gone.
- */
-
 /** Most files and bytes one job's code may be. */
 export const PLUGIN_JOB_MAX_FILES = 256;
 export const PLUGIN_JOB_MAX_BYTES = 8 * 1024 * 1024;
@@ -26,8 +14,9 @@ const JOBS_GRANT = "jobs.schedule";
 
 type InstallRow = {
   status: string;
-  bundle_object_ref: string;
-  bundle_digest: string;
+  /** Null when the named version is not a published version of the install's package. */
+  bundle_object_ref: string | null;
+  bundle_digest: string | null;
   granted: boolean;
 };
 
@@ -64,11 +53,13 @@ export async function pluginJobFilesRoute(
                  and g.capability = $3
             ) as granted
        from bakery.plugin_installs i
-       join bakery.plugin_versions v
+       left join bakery.plugin_versions v
          on v.organization_id = i.organization_id
-        and v.id = i.plugin_version_id
+        and v.id = $4::uuid
+        and v.plugin_package_id = i.plugin_package_id
+        and v.published_at is not null
       where i.organization_id = $1 and i.id = $2`,
-    [attempt.organizationId, attempt.installId, JOBS_GRANT],
+    [attempt.organizationId, attempt.installId, JOBS_GRANT, attempt.versionId],
   );
   const row = found.rows[0];
   if (row === undefined || row.status === "uninstalled") {
@@ -77,20 +68,24 @@ export async function pluginJobFilesRoute(
   if (row.status !== "enabled") throw refusal("plugin_install_off");
   if (!row.granted) throw refusal("plugin_job_not_granted");
   if (attempt.entry === null) throw refusal("plugin_job_entry_missing");
+  if (row.bundle_object_ref === null || row.bundle_digest === null) {
+    throw refusal("plugin_job_version_not_in_package");
+  }
+  const bundleDigest = row.bundle_digest;
   // The stored ref is recomputed rather than trusted, as at publication.
   if (
     row.bundle_object_ref !==
-      blobObjectKey(attempt.organizationId, row.bundle_digest)
+      blobObjectKey(attempt.organizationId, bundleDigest)
   ) throw refusal("plugin_bundle_missing");
 
   let files: Map<string, Uint8Array>;
   try {
-    const stat = await bundles.stat(attempt.organizationId, row.bundle_digest);
+    const stat = await bundles.stat(attempt.organizationId, bundleDigest);
     if (stat === null) throw refusal("plugin_bundle_missing");
     files = await bundleFiles(
       await bundles.read(
         attempt.organizationId,
-        row.bundle_digest,
+        bundleDigest,
         stat.sizeBytes,
       ),
     );
@@ -112,7 +107,7 @@ export async function pluginJobFilesRoute(
     throw refusal("plugin_bundle_too_large");
   }
   return jsonResponse({
-    bundleDigest: row.bundle_digest,
+    bundleDigest,
     entry: attempt.entry,
     files: [...files].map(([path, content]) => ({
       path,

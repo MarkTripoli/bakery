@@ -8,6 +8,8 @@ const STAMP = "2026-11-20T00:00:00.000Z";
 export type UsageOptions = {
   /** No records at all: the empty state. */
   empty?: boolean;
+  /** Someone who may not see Usage: the server answers 403. */
+  forbidden?: boolean;
 };
 
 const ROWS = [
@@ -66,6 +68,22 @@ export async function usageFixture(page: Page, options: UsageOptions = {}) {
     (route) => {
       const query = new URL(route.request().url()).searchParams;
       seen.push(query);
+      if (options.forbidden) {
+        return route.fulfill({
+          status: 403,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "https://bakery.example/problems/test",
+            title: "Refused",
+            detail: "Refused.",
+            status: 403,
+            code: "AUTH_FORBIDDEN",
+            retryable: false,
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+        });
+      }
       const provider = query.get("provider");
       const rows = options.empty
         ? []

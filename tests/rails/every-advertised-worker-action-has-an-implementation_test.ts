@@ -35,13 +35,13 @@ const root = new URL("../../", import.meta.url);
  */
 const ADVERTISED_WITHOUT_WORKER: Readonly<Record<string, string>> = {
   "mcp.discover": "#441",
-  "plugin.job": "#29",
   "session.call": "#436",
   "session.tools": "#436",
 };
 
 /** Named by string because the worker declares them inline rather than exporting them. */
 const INLINE_ACTIONS = [
+  "plugin.job",
   "quality.check",
   "repository.inspect",
   "secret.identity.read",
@@ -129,9 +129,12 @@ Deno.test("rpi.design and rpi.plan are advertised by all three coding harnesses"
   }
 });
 
-Deno.test("every coding harness is given the design tool from the worker's enrolled capabilities", async () => {
+Deno.test("every coding harness is given its design tool", async () => {
   // rpi.design is advertised by all three harnesses; without this wiring it is
-  // advertised and always refused. Each constructor in main.ts must pass it.
+  // advertised and always refused. Pi and Codex take it from the worker's
+  // enrolled `paper` capability; the Claude harness reaches it as a capability
+  // binding through its tool gateway (#436), which is why a Claude worker
+  // advertises `tool-gateway` and may claim the step without `paper`.
   const main = await Deno.readTextFile(
     new URL("apps/worker/src/main.ts", root),
   );
@@ -142,5 +145,10 @@ Deno.test("every coding harness is given the design tool from the worker's enrol
     /create(Claude|Codex|Pi)HarnessExecutor\(\{/g,
   ) ?? [];
   assertEquals(constructors.length, 3);
-  assertEquals(wired.length, constructors.length);
+  assertEquals(wired.length, 2);
+  assert(
+    /createClaudeHarnessExecutor\(\{[^]*?toolGateway: createToolGatewayFactory\(/
+      .test(main),
+    "the Claude harness is not given the tool gateway",
+  );
 });

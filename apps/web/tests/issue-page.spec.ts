@@ -9,6 +9,7 @@ import {
 } from "./helpers/issues-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -145,7 +146,7 @@ for (
       await expect(side.getByText("3 other checks passed")).toBeVisible();
       await expect(side.getByText(/^Checked \d+ minutes ago$/)).toBeVisible();
       await expect(side.getByText(
-        "Uses the standard coding workflow in acme/web.",
+        "Uses Fixed coding in acme/web.",
       )).toBeVisible();
       await expect(side.getByRole("button", { name: "Start work" }))
         .toBeVisible();
@@ -190,8 +191,8 @@ for (
       await open(page, WAITING);
       const side = card(page).first();
       await expect(side.getByText("Waiting", { exact: true })).toBeVisible();
-      await expect(side.getByText("Depends on #201, which is still open."))
-        .toBeVisible();
+      // The dependency is said once, by the caption below; not again as "Depends on".
+      await expect(side.getByText(/Depends on #201/)).toHaveCount(0);
       await expect(side.getByRole("button", { name: "Start when ready" }))
         .toBeVisible();
       // Nothing is promised before the press.
@@ -217,6 +218,73 @@ for (
         .toHaveAttribute("href", "https://github.com/acme/web/issues/202");
       await page.mouse.move(700, 700);
       await shot(page, "issue-waiting");
+    });
+
+    test("a waiting issue whose dependency is not known yet never prints a hole in the caption", async ({ page }) => {
+      // The check says it waits on a dependency but names none, and no link is read.
+      const unknown: Seed = {
+        ...WAITING,
+        checks: [
+          ...ready,
+          {
+            id: "dependencies_satisfied",
+            status: "wait",
+            reason: "predecessor_open",
+          },
+        ],
+        links: {
+          parent: null,
+          subIssuesTotal: 0,
+          blockedBy: [],
+          blockingTotal: 0,
+        },
+      };
+      await open(page, unknown, { open: [unknown] });
+      const side = card(page).first();
+      await expect(side.getByRole("button", { name: "Start when ready" }))
+        .toBeVisible();
+      await expect(side.getByText(/by itself when/)).toHaveCount(0);
+      // The Start when ready note already says it: no "Depends on" sentence,
+      // and no empty "#" anywhere on the card (revision 10).
+      await expect(side.getByText(/Depends on/)).toHaveCount(0);
+      await expect(side.getByText(/#,|#\./)).toHaveCount(0);
+      await expect(side.getByText(/Uses .* in acme\/web\./)).toBeVisible();
+    });
+
+    test("a waiting issue with no dependency number and no Start when ready note says an issue, never an empty number", async ({ page }) => {
+      // Two things are in the way, so there is no note; the dependency check names no issue.
+      const unnamed: Seed = {
+        ...WAITING,
+        checks: [
+          ...ready,
+          {
+            id: "dependencies_satisfied",
+            status: "wait",
+            reason: "predecessor_open",
+          },
+          {
+            id: "acceptance_present",
+            status: "wait",
+            reason: "acceptance_missing",
+          },
+        ],
+        links: {
+          parent: null,
+          subIssuesTotal: 0,
+          blockedBy: [],
+          blockingTotal: 0,
+        },
+      };
+      await open(page, unnamed, { open: [unnamed] });
+      const side = card(page).first();
+      await expect(
+        side.getByText("Only what this issue depends on is in the way."),
+      ).toHaveCount(0);
+      await expect(side.getByText("Depends on an issue that is still open."))
+        .toBeVisible();
+      await expect(side.getByText(/#,|#\./)).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await shot(page, "issue-card-no-number");
     });
 
     test("an issue that cannot start gives every reason with where to fix it and no button", async ({ page }) => {
@@ -315,7 +383,7 @@ for (
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toContainText("Start work on #201?");
       await expect(dialog).toContainText(
-        "Bakery creates a task and runs the standard coding workflow in acme/web. You can follow it in Work.",
+        "Bakery creates a task in acme/web. You can follow it in Work.",
       );
       await page.mouse.move(700, 700);
       await shot(page, "issue-start-dialog", [], { windowOnly: true });
@@ -326,6 +394,70 @@ for (
       expect(seen.starts).toEqual([
         { intent: "start", revision: 1, digest: "0".repeat(64) },
       ]);
+    });
+
+    test("Start work names both built-in workflows, the repository's first, and sends no choice when it is kept", async ({ page }) => {
+      const seen = await open(page, READY);
+      await card(page).first().getByRole("button", { name: "Start work" })
+        .click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog.getByRole("button", { name: "Cancel" }))
+        .toBeFocused();
+      const workflows = dialog.getByRole("radiogroup", { name: "Workflow" });
+      await expect(workflows.getByRole("radio")).toHaveCount(2);
+      // The repository's own is chosen, since nothing else was asked for.
+      await expect(workflows.getByRole("radio", { name: "Fixed coding" }))
+        .toBeChecked();
+      await expect(
+        workflows.getByRole("radio", {
+          name: "Coding with independent review",
+        }),
+      ).not.toBeChecked();
+      await expect(dialog).toContainText(
+        "acme/web is set to Fixed coding. Choosing the other applies to this issue only.",
+      );
+      await page.mouse.move(700, 700);
+      await still(page, "issue-start-dialog-workflow");
+      await dialog.getByRole("button", { name: "Start work" }).click();
+      await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
+      expect(seen.starts).toHaveLength(1);
+      expect(seen.starts[0]!.preset).toBeUndefined();
+    });
+
+    test("choosing the other workflow starts this issue with it", async ({ page }) => {
+      const seen = await open(page, READY);
+      await card(page).first().getByRole("button", { name: "Start work" })
+        .click();
+      const dialog = page.getByRole("alertdialog");
+      await dialog.getByRole("radio", {
+        name: "Coding with independent review",
+      }).check();
+      await dialog.getByRole("button", { name: "Start work" }).click();
+      await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
+      expect(seen.starts[0]!.preset).toBe("fixed-coding-reviewed");
+    });
+
+    test("a repository set to the reviewed workflow starts with it, and the standard one can be chosen for one issue", async ({ page }) => {
+      const seen = await open(page, READY, {
+        sourcePreset: "fixed-coding-reviewed",
+      });
+      await card(page).first().getByRole("button", { name: "Start work" })
+        .click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(
+        dialog.getByRole("radio", { name: "Coding with independent review" }),
+      ).toBeChecked();
+      await expect(dialog).toContainText(
+        "acme/web is set to Coding with independent review. Choosing the other applies to this issue only.",
+      );
+      await dialog.getByRole("radio", { name: "Fixed coding" }).check();
+      // The help keeps naming the repository's own workflow after the choice changes.
+      await expect(dialog).toContainText(
+        "acme/web is set to Coding with independent review.",
+      );
+      await dialog.getByRole("button", { name: "Start work" }).click();
+      await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
+      expect(seen.starts[0]!.preset).toBe("fixed-coding");
     });
 
     test("Plan first is a visible button beside Start work and changes what the confirmation says", async ({ page }) => {

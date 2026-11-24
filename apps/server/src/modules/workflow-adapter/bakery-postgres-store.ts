@@ -1,4 +1,7 @@
-import { RepositoryExecutionContextSchema } from "@bakery/contracts/repository-inspection";
+import {
+  RepositoryExecutionContextSchema,
+  RunPlacementSchema,
+} from "@bakery/contracts/repository-inspection";
 import {
   actionAndInputFromSnapshot,
   admitRepositoryExecutionJob,
@@ -8,6 +11,7 @@ import {
   loadExecutableRepositoryProfile,
   planDispatchFromRow,
   repositoryExecutionRequirements,
+  withRunPlacement,
 } from "@bakery/persistence/repository-admission";
 import {
   HUMAN_APPROVAL_EVENT,
@@ -156,6 +160,7 @@ type LogicalRow = {
   runObservationId: string | null;
   runObservationDigest: string | null;
   runBaseSha: string | null;
+  runPlacement: unknown;
   taskId: string;
   applicationId: string;
   repositoryId: string | null;
@@ -206,6 +211,7 @@ type AdmissionStepRow = Pick<
   | "runObservationId"
   | "runObservationDigest"
   | "runBaseSha"
+  | "runPlacement"
   | "taskId"
   | "taskType"
   | "applicationId"
@@ -517,6 +523,7 @@ async function loadLogical(
             run.observation_id as "runObservationId",
             run.observation_digest as "runObservationDigest",
             run.base_sha as "runBaseSha",
+            run.placement as "runPlacement",
             task.id as "taskId", task.application_id as "applicationId",
             task.repository_id as "repositoryId",
             task.task_type as "taskType",
@@ -2397,11 +2404,34 @@ export function createBakeryPostgresWorkflowRepository(options: {
           );
           return { key, terminal: true };
         }
-        const requirements = repositoryExecutionRequirements(
+        const ownRequirements = repositoryExecutionRequirements(
           profile,
           action,
           requiredCapabilities,
         );
+        let requirements;
+        try {
+          requirements = withRunPlacement(
+            ownRequirements,
+            RunPlacementSchema.parse(row.runPlacement ?? {}),
+          );
+        } catch (error) {
+          // A placement no host can satisfy fails this step with its reason,
+          // for the person to see: leaving it thrown would roll admission back
+          // and retry the same refusal on every tick.
+          if (
+            error instanceof StandardError && error.code === "STATE_CONFLICT"
+          ) {
+            await projectFailure(
+              transaction,
+              row,
+              `placement_conflict:${String(error.params?.reason ?? "")}`,
+              owner,
+            );
+            return { key, terminal: true };
+          }
+          throw error;
+        }
         const contentDigest = await budgetContentDigest({
           action,
           actionVersion: key.actionVersion,

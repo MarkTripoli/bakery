@@ -98,7 +98,7 @@ async function agentSession(
       workerRequest(
         fixture,
         worker.credential,
-        "/v1/worker/attempts/" + assignment.attemptId + "/session-call",
+        "/v1/session/call",
         { tool, arguments: args },
         { headers: { "x-session-credential": token } },
       ),

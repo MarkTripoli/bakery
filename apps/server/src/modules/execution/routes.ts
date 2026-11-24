@@ -52,6 +52,22 @@ import {
 import { events } from "./events.ts";
 import { workerPreviewRoute } from "./previews.ts";
 import { workerHandoffManifestRoute } from "./handoff-manifests.ts";
+import {
+  createLocalToolCallRoute,
+  createToolInvocationRoute,
+  EFFECTIVE_TOOLS_PATH,
+  effectiveToolsRoute,
+  LOCAL_TOOL_CALL_OUTCOME_PATH,
+  LOCAL_TOOL_CALLS_PATH,
+  localToolCallOutcomeRoute,
+  TOOL_INVOCATIONS_PATH,
+} from "./tool-invocations.ts";
+import {
+  LOCAL_MCP_CONNECTIONS_PATH,
+  LOCAL_MCP_SNAPSHOTS_PATH,
+  localMcpConnectionsRoute,
+  localMcpSnapshotRoute,
+} from "./local-mcp-discovery.ts";
 import { inputReadRoute } from "./input-read.ts";
 import { heartbeat } from "./heartbeat.ts";
 import { enrollWorker, registerWorker } from "./registration.ts";
@@ -468,6 +484,49 @@ export function createExecutionRoutes(
       (context) => workerHandoffManifestRoute(context, options),
     ),
   );
+  // The tool gateway's MCP door (#436): mounted only when the server has an
+  // MCP broker to send through, so it never advertises calls it cannot make.
+  const toolGateway = options.toolGateway;
+  if (toolGateway) {
+    const invokeTool = createToolInvocationRoute(toolGateway);
+    app.post(
+      EFFECTIVE_TOOLS_PATH,
+      workerRouteHandler(
+        options,
+        (context) => effectiveToolsRoute(context, options),
+      ),
+    );
+    app.post(
+      TOOL_INVOCATIONS_PATH,
+      workerRouteHandler(options, (context) => invokeTool(context, options)),
+    );
+    app.post(
+      LOCAL_MCP_CONNECTIONS_PATH,
+      workerRouteHandler(
+        options,
+        (context) => localMcpConnectionsRoute(context, options),
+      ),
+    );
+    app.post(
+      LOCAL_MCP_SNAPSHOTS_PATH,
+      workerRouteHandler(
+        options,
+        (context) => localMcpSnapshotRoute(context, options),
+      ),
+    );
+    const localToolCall = createLocalToolCallRoute(toolGateway);
+    app.post(
+      LOCAL_TOOL_CALLS_PATH,
+      workerRouteHandler(options, (context) => localToolCall(context, options)),
+    );
+    app.post(
+      LOCAL_TOOL_CALL_OUTCOME_PATH,
+      workerRouteHandler(
+        options,
+        (context) => localToolCallOutcomeRoute(context, options),
+      ),
+    );
+  }
   app.post(
     "/v1/worker/attempts/:id/lease-renewals",
     workerRouteHandler(options, (context) => renewLease(context, options)),

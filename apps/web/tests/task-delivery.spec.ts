@@ -6,9 +6,13 @@ import {
   test,
 } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import {
+  MOCK_ORGANIZATION_ID,
+  mockAuthenticatedSession,
+} from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
+import { expectReferenceCardUsable } from "./helpers/reference-card.ts";
 
 registerPageHealth(test);
 
@@ -35,6 +39,8 @@ const run = {
   workspaceBaseSha: null,
   requestedBy: uuid(1),
   inngestRunId: null,
+  // Required since #921: the run's pinned environment.
+  environment: "live",
   status: "running",
   budgetLimitUsd: "10.00",
   startedAt: "2026-01-01T00:00:01.000Z",
@@ -340,7 +346,30 @@ type Scenario = {
   mergeAttempts?: ReturnType<typeof mergeAttemptRow>[];
   /** The chosen pull request's queued merges, newest first. */
   mergeEntries?: ReturnType<typeof mergeEntryRow>[];
+  deployments?: ReturnType<typeof deploymentRow>[];
+  role?: "admin" | "developer" | "viewer";
 };
+const deploymentRow = (
+  status: string,
+  over: Record<string, unknown> = {},
+) => ({
+  id: uuid(950),
+  repositoryId: uuid(13),
+  runId,
+  environment: "staging",
+  commitSha: NEW,
+  artifactDigest: `sha256:${"d".repeat(64)}`,
+  previousDeploymentId: uuid(949),
+  previousCommitSha: sha("4").slice(0, 40),
+  status,
+  externalEffectId: null,
+  healthEvidenceId: null,
+  rollbackFailed: false,
+  createdAt: at(7),
+  updatedAt: at(7),
+  version: 3,
+  ...over,
+});
 const page_ = <T>(items: T[]) => ({ items, nextCursor: null });
 
 const problemBody = (status: number, code: string, reason?: string) => ({
@@ -531,6 +560,21 @@ async function mockDelivery(page: Page, scenario: Scenario) {
     "**/v1/merge-attempts?*",
     (route) => route.fulfill({ json: page_(scenario.mergeAttempts ?? []) }),
   );
+  await page.route(
+    "**/v1/deployments?*",
+    (route) => route.fulfill({ json: page_(scenario.deployments ?? []) }),
+  );
+  await page.route(
+    "**/v1/organizations/*/effective-access",
+    (route) =>
+      route.fulfill({
+        json: {
+          organizationId: MOCK_ORGANIZATION_ID,
+          role: scenario.role ?? "admin",
+          capabilities: [],
+        },
+      }),
+  );
   // The queued merges: none unless the scenario serves some. Read per request,
   // like the attempts, so a test that queues one changes the next read.
   await page.route(
@@ -622,6 +666,9 @@ const openLink = async (section: Locator, testId: string) => {
 test("a clean run says nothing is waiting, offers no buttons and lists nothing that needs attention", async ({ page }) => {
   await mockRun(page);
   await mockDelivery(page, CLEAN);
+  // The side panel loads (nothing to show) rather than reporting an error, so
+  // the stills show no banner that has nothing to do with the card.
+  await stubSidePanel(page);
   await page.goto(`/tasks/${id}`);
   const section = page.getByTestId("delivery-section");
   await expect(section.getByRole("heading", { name: "Delivery", level: 2 }))
@@ -650,6 +697,61 @@ test("a clean run says nothing is waiting, offers no buttons and lists nothing t
   await expect(details).not.toHaveAttribute("open");
   await openLink(section, "delivery-details");
   await expect(details).toContainText("Commit 91d0aa3 on top of a7254e7");
+  // The commit in the sentence is a reference: keyboard focus opens its card
+  // with the whole id.
+  const head = details.locator(
+    '[data-ui-component="reference"][data-kind="commit"]',
+    { hasText: "91d0aa3" },
+  ).first();
+  await page.keyboard.press("Shift");
+  await head.locator(".ui-reference__plain").focus();
+  await expect(head.getByRole("group", { name: "Commit" })).toContainText(NEW);
+  const refCard = head.getByRole("group", { name: "Commit" });
+  await expectReferenceCardUsable(refCard);
+  const onPhone = (page.viewportSize()?.width ?? 1440) <= 743;
+  // Close is drawn only where the card is the phone sheet.
+  await expect(refCard.getByRole("button", { name: "Close" })).toHaveCount(
+    onPhone ? 1 : 0,
+  );
+  if (onPhone) {
+    // On a phone the card is the sheet: it rests on the bottom of the window.
+    const box = await refCard.boundingBox();
+    const height = page.viewportSize()?.height ?? 0;
+    expect(box).not.toBeNull();
+    expect(height - ((box?.y ?? 0) + (box?.height ?? 0))).toBeLessThanOrEqual(
+      24,
+    );
+  }
+  if (STILLS !== undefined) {
+    const phone = (page.viewportSize()?.width ?? 1440) <= 743;
+    // The whole window, not a crop: on a phone the card is a sheet fixed to the
+    // window's bottom, which a crop of the Details block would not contain.
+    await page.screenshot({
+      path: `${STILLS}/delivery-reference-card-${
+        phone ? "phone" : "desktop"
+      }-light.png`,
+    });
+  }
+  if (onPhone) {
+    // Close puts the sheet away, and the message box takes a tap again.
+    await refCard.getByRole("button", { name: "Close" }).click();
+    await expect(refCard).toHaveCount(0);
+    const composer = page.getByPlaceholder("Message this task…");
+    await composer.click();
+    await expect(composer).toBeFocused();
+    // A tap outside the reference also closes the sheet. Focus stays on the id
+    // (on iOS a tap on plain text does not blur it), so only the outside-tap
+    // handler can close the sheet here.
+    await head.locator(".ui-reference__plain").click();
+    await expect(refCard).toBeVisible();
+    await expect(head.locator(".ui-reference__plain")).toBeFocused();
+    await page.evaluate(() =>
+      document.body.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true }),
+      )
+    );
+    await expect(refCard).toHaveCount(0);
+  }
   await expect(details.getByTestId("delivery-checks-rows")).toContainText(
     "tests",
   );
@@ -825,6 +927,10 @@ test("the section has no accessibility violations and fits a 390px screen", asyn
 const nowCard = (page: Page) =>
   page.getByTestId("delivery-section").getByTestId("delivery-now");
 const notice = (page: Page) => page.getByTestId("delivery-approval-notice");
+const actions = (card: Locator) =>
+  card.getByRole("button").and(
+    card.locator("button:not(.ui-reference__plain)"),
+  );
 const button = (card: Locator, name: string) =>
   card.getByRole("button", { name, exact: true });
 
@@ -1497,9 +1603,9 @@ test("before approval no pull request line and no merge sentence are drawn", asy
 
 test("an approved run with a pull request open links to it from the settled line", async ({ page }) => {
   await openApproved(page, { pullRequests: [pullRequestRow(482)] });
-  const link = pullRequestLine(page).getByRole("link", {
-    name: /Pull request #482/,
-  });
+  // The line reads "Pull request #482" and the number is the reference link.
+  await expect(pullRequestLine(page)).toContainText("Pull request #482");
+  const link = pullRequestLine(page).getByRole("link", { name: /#482/ });
   await expect(link).toHaveAttribute("href", "https://github.com/o/r/pull/482");
   await expect(link).toHaveAttribute("target", "_blank");
   await expect(mergeStep(page)).toContainText("Not merged yet.");
@@ -1760,6 +1866,27 @@ async function openMerge(
   return seen;
 }
 
+test("a confirmation opens on Cancel past a read-only field and a field that cannot take focus", async ({ page }) => {
+  await openMerge(page, { ...CLEAN, pullRequests: [pullRequestRow(482)] });
+  const now = nowCard(page);
+  await button(now, "Merge").click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Merge pull request #482?",
+  });
+  await button(dialog, "Cancel").click();
+  await expect(dialog).toBeHidden();
+  await page.locator("dialog", { hasText: "Merge pull request #482?" })
+    .evaluate((element) => {
+      const hidden = document.createElement("input");
+      hidden.hidden = true;
+      const readOnly = document.createElement("input");
+      readOnly.readOnly = true;
+      element.prepend(readOnly, hidden);
+    });
+  await button(now, "Merge").click();
+  await expect(button(dialog, "Cancel")).toBeFocused();
+});
+
 test("an approved candidate at the reviewed head offers Merge, asks first, and queues the candidate it saw once", async ({ page }) => {
   const scenario: Scenario = { ...CLEAN, pullRequests: [pullRequestRow(482)] };
   const seen = await openMerge(page, scenario, {
@@ -1782,6 +1909,7 @@ test("an approved candidate at the reviewed head offers Merge, asks first, and q
     "Bakery merges commit 91d0aa3 exactly, as a squash merge.",
   );
   await expect(dialog).toContainText("A merge cannot be undone from Bakery.");
+  await expect(button(dialog, "Cancel")).toBeFocused();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
   expect(seen.merges).toHaveLength(0);
@@ -1848,7 +1976,7 @@ test("a merging entry whose newest attempt is unknown is the unknown card with C
   const now = nowCard(page);
   await expect(now).toContainText("Bakery does not know whether this merged");
   await expect(button(now, "Check again")).toBeVisible();
-  await expect(now.getByRole("button")).toHaveCount(1);
+  await expect(actions(now)).toHaveCount(1);
 });
 
 for (
@@ -1928,8 +2056,7 @@ for (
     await expect(now).toContainText(title);
     await expect(now).toContainText(text);
     await expect(mergeStep(page)).toContainText("Bakery did not merge.");
-    // One primary action, or none: pressing it must be able to help.
-    const buttons = now.getByRole("button");
+    const buttons = actions(now);
     const links = now.getByRole("link", { name: /Open on GitHub/ });
     await expect(buttons).toHaveCount(action === "Merge again" ? 1 : 0);
     await expect(links).toHaveCount(action === "Open on GitHub" ? 1 : 0);
@@ -1986,7 +2113,7 @@ test("a stopped merge stops showing when the pull request's head changes", async
   const now = nowCard(page);
   await expect(now).toContainText("Not merged: the pull request changed");
   await expect(now).toContainText("now ends at 4be19c2");
-  await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(actions(now)).toHaveCount(0);
 });
 
 test("someone who may not merge is told so and is offered no button", async ({ page }) => {
@@ -2101,7 +2228,7 @@ test("a pull request that moved after the approval is not offered to merge, and 
   );
   await expect(now).toContainText("Commit 91d0aa3 was approved");
   await expect(now).toContainText("now ends at 4be19c2");
-  await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(actions(now)).toHaveCount(0);
   // The results, review and approval are marked as being for the older commit,
   // not shown as green for the commit the pull request no longer ends at.
   const section = page.getByTestId("delivery-section");
@@ -2326,7 +2453,7 @@ test("an approved commit with no check results says so, offers no Merge, and nev
     "Bakery merges only what was checked, and it has no check results for commit 91d0aa3. Open the pull request to see its checks.",
   );
   await expect(now).not.toContainText("Ready to merge");
-  await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(actions(now)).toHaveCount(0);
   await expect(now.getByRole("link", { name: /Open on GitHub/ }))
     .toHaveAttribute("href", "https://github.com/o/r/pull/482");
   expect(seen.merges).toHaveLength(0);
@@ -2409,7 +2536,7 @@ const MERGE_STILLS = [
  * The stills show one consistent state: a finished run on an approved change,
  * and a side panel that loads (nothing to show) instead of reporting an error.
  */
-async function stubStillsPage(page: Page) {
+async function stubSidePanel(page: Page) {
   const empty = (route: Route) => route.fulfill({ json: page_([]) });
   for (
     const pattern of [
@@ -2421,6 +2548,10 @@ async function stubStillsPage(page: Page) {
       "**/v1/coordination-plans*",
     ]
   ) await page.route(pattern, empty);
+}
+
+async function stubStillsPage(page: Page) {
+  await stubSidePanel(page);
   await page.route(
     `**/v1/runs/${runId}`,
     (route) =>
@@ -2465,8 +2596,8 @@ for (const [name, scenario] of MERGE_STILLS) {
         await stillOfSection(page, `merge-${name}-${size}-${scheme}.png`);
         await page.setViewportSize({ width, height });
         if (name === "ready") {
-          // The confirmation, with the focus ring on Cancel where it lands.
-          await button(nowCard(page), "Merge").click();
+          await button(nowCard(page), "Merge").focus();
+          await page.keyboard.press("Enter");
           const dialog = page.getByRole("alertdialog");
           await dialog.waitFor();
           await expect(button(dialog, "Cancel")).toBeFocused();
@@ -2970,3 +3101,396 @@ for (
     }
   }
 }
+
+const merged = () => [
+  pullRequestRow(482, { status: "merged", mergedSha: sha("9") }),
+];
+const releaseSection = (page: Page) =>
+  page.getByTestId("delivery-release-details");
+const goBackButton = (page: Page) =>
+  page.getByRole("button", { name: "Go back to the last release" });
+
+async function openRelease(
+  page: Page,
+  scenario: Pick<Scenario, "deployments" | "role">,
+) {
+  await openApproved(page, { ...CLEAN, pullRequests: merged(), ...scenario });
+}
+
+async function mockGoBack(
+  page: Page,
+  reply: { status: number; reason?: string; code?: string },
+) {
+  const posted: { body: unknown; key: string | undefined; url: string }[] = [];
+  await page.route("**/v1/deployments/*/rollbacks", (route) => {
+    const request = route.request();
+    posted.push({
+      body: request.postDataJSON(),
+      key: request.headers()["idempotency-key"],
+      url: request.url(),
+    });
+    if (reply.status < 300) {
+      return route.fulfill({
+        json: deploymentRow("rolling_back", { version: 4 }),
+      });
+    }
+    return route.fulfill({
+      status: reply.status,
+      contentType: "application/problem+json",
+      json: problemBody(
+        reply.status,
+        reply.code ?? "STATE_CONFLICT",
+        reply.reason,
+      ),
+    });
+  });
+  return posted;
+}
+
+test("a healthy release says so, and Details names it and the one kept before it", async ({ page }) => {
+  await openRelease(page, { deployments: [deploymentRow("healthy")] });
+  await expect(nowCard(page)).toContainText("Released to staging");
+  await expect(nowCard(page)).toContainText("The release is healthy.");
+  await expect(button(nowCard(page), "Go back to the last release"))
+    .toHaveCount(0);
+  await openLink(page.getByTestId("delivery-section"), "delivery-details");
+  await expect(releaseSection(page)).toContainText("This release");
+  await expect(releaseSection(page)).toContainText(
+    `${NEW.slice(0, 7)} to staging`,
+  );
+  await expect(releaseSection(page)).toContainText("Release before it");
+  await expect(releaseSection(page)).toContainText(
+    "kept, so staging can go back to it",
+  );
+  await expect(goBackButton(page)).toBeVisible();
+});
+
+test("the first release has no release before it and no Go back", async ({ page }) => {
+  await openRelease(page, {
+    deployments: [deploymentRow("healthy", {
+      previousDeploymentId: null,
+      previousCommitSha: null,
+    })],
+  });
+  await openLink(page.getByTestId("delivery-section"), "delivery-details");
+  await expect(releaseSection(page)).not.toContainText("Release before it");
+  await expect(goBackButton(page)).toHaveCount(0);
+});
+
+test("a release to the preview environment is never called Preview", async ({ page }) => {
+  await openRelease(page, {
+    deployments: [deploymentRow("healthy", { environment: "preview" })],
+  });
+  await expect(nowCard(page)).toContainText(
+    "Released to the preview environment",
+  );
+});
+
+test("a degraded release offers Go back in the headline; a reason is required and the request keeps it", async ({ page }) => {
+  await openRelease(page, { deployments: [deploymentRow("degraded")] });
+  await expect(nowCard(page)).toContainText(
+    "Released to staging, but not fully healthy",
+  );
+  await expect(nowCard(page)).toContainText(
+    "You can go back to the release before it.",
+  );
+  const posted = await mockGoBack(page, { status: 200 });
+  await button(nowCard(page), "Go back to the last release").click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toContainText("Go back to the last release?");
+  await expect(dialog).toContainText("This change stays merged");
+  const confirm = dialog.getByRole("button", { name: "Go back", exact: true });
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+  await expect(dialog).toContainText("Write why you are going back.");
+  await expect(dialog.getByLabel(/Why are you going back/)).toBeFocused();
+  expect(posted).toHaveLength(0);
+  await dialog.getByLabel(/Why are you going back/).fill("   ");
+  await confirm.click();
+  await expect(dialog).toContainText("Write why you are going back.");
+  expect(posted).toHaveLength(0);
+  await dialog.getByLabel(/Why are you going back/).fill("p95 latency doubled");
+  await expect(dialog).not.toContainText("Write why you are going back.");
+  await confirm.click();
+  await expect.poll(() => posted.length).toBe(1);
+  expect(posted[0].body).toEqual({ reason: "p95 latency doubled" });
+  expect(posted[0].key).toBeTruthy();
+  expect(posted[0].url).toContain(`/v1/deployments/${uuid(950)}/rollbacks`);
+});
+
+test("going back shows as going back once the read says so", async ({ page }) => {
+  await openRelease(page, { deployments: [deploymentRow("degraded")] });
+  await mockGoBack(page, { status: 200 });
+  await page.route(
+    "**/v1/deployments?*",
+    (route) =>
+      route.fulfill({
+        json: page_([deploymentRow("rolling_back", { version: 4 })]),
+      }),
+  );
+  await button(nowCard(page), "Go back to the last release").click();
+  await page.getByLabel(/Why are you going back/).fill("It is slow.");
+  await page.getByRole("button", { name: "Go back", exact: true }).click();
+  await expect(nowCard(page)).toContainText("Going back to the last release");
+  await expect(nowCard(page)).toContainText(
+    "Staging is returning to the release before this one.",
+  );
+});
+
+for (
+  const refusal of [
+    {
+      name: "a newer release replaced it",
+      reply: { status: 409, reason: "not_current_release" },
+      words: "A newer release has replaced this one. Reload to see it.",
+    },
+    {
+      name: "the outcome is unknown",
+      reply: { status: 409, reason: "outcome_unknown" },
+      words:
+        "Bakery cannot tell whether the release finished, so it cannot go back yet.",
+    },
+    {
+      name: "the person may not deploy",
+      reply: { status: 403, code: "AUTH_FORBIDDEN" },
+      words:
+        "You do not have permission to deploy this repository. Ask an administrator.",
+    },
+  ] as const
+) {
+  test(`a refusal because ${refusal.name} is one notice in the dialog and keeps the reason`, async ({ page }) => {
+    await openRelease(page, { deployments: [deploymentRow("degraded")] });
+    await mockGoBack(page, refusal.reply);
+    await button(nowCard(page), "Go back to the last release").click();
+    const dialog = page.getByRole("alertdialog");
+    await dialog.getByLabel(/Why are you going back/).fill("It is slow.");
+    await dialog.getByRole("button", { name: "Go back", exact: true }).click();
+    await expect(dialog.getByTestId("delivery-go-back-notice")).toHaveText(
+      refusal.words,
+    );
+    await expect(dialog.getByLabel(/Why are you going back/)).toHaveValue(
+      "It is slow.",
+    );
+  });
+}
+
+test("a viewer gets no Go back button and is told who can", async ({ page }) => {
+  await openRelease(page, {
+    deployments: [deploymentRow("degraded")],
+    role: "viewer",
+  });
+  await expect(nowCard(page)).toContainText(
+    "Someone who may deploy can go back to the release before it.",
+  );
+  await expect(goBackButton(page)).toHaveCount(0);
+});
+
+test("a failed release says the release did not finish, and a failed going-back adds one sentence", async ({ page }) => {
+  await openRelease(page, { deployments: [deploymentRow("failed")] });
+  await expect(nowCard(page)).toContainText("The release to staging failed");
+  await expect(nowCard(page)).toContainText(
+    "The release did not finish. Send a message to say what to do next.",
+  );
+  await expect(nowCard(page)).not.toContainText("could not put");
+  await page.unroute("**/v1/deployments?*");
+  await page.route(
+    "**/v1/deployments?*",
+    (route) =>
+      route.fulfill({
+        json: page_([deploymentRow("failed", { rollbackFailed: true })]),
+      }),
+  );
+  await page.reload();
+  await expect(nowCard(page)).toContainText(
+    "The release did not finish. Bakery could not put staging back on the release before it, so check staging now. Send a message to say what to do next.",
+  );
+});
+
+test("before the merge, or with no release, the headline is the one it was", async ({ page }) => {
+  await openApproved(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482)],
+    deployments: [deploymentRow("healthy")],
+  });
+  await expect(nowCard(page)).not.toContainText("Released to");
+  await expect(releaseSection(page)).toHaveCount(0);
+});
+
+const RELEASE_STILLS: [
+  string,
+  Parameters<typeof deploymentRow>,
+  Pick<Scenario, "role">,
+][] = [
+  ["releasing", ["queued"], {}],
+  ["checking", ["verifying"], {}],
+  ["healthy", ["healthy"], {}],
+  ["degraded", ["degraded"], {}],
+  ["degraded-viewer", ["degraded"], { role: "viewer" }],
+  ["failed", ["failed"], {}],
+  ["failed-rollback", ["failed", { rollbackFailed: true }], {}],
+  ["unknown", ["unknown"], {}],
+  ["going-back", ["rolling_back"], {}],
+  ["went-back", ["rolled_back"], {}],
+  ["preview-environment", ["healthy", { environment: "preview" }], {}],
+];
+
+async function openReleaseStill(
+  page: Page,
+  deployment: ReturnType<typeof deploymentRow>,
+  role?: Scenario["role"],
+) {
+  await mockRun(page);
+  await mockDelivery(page, {
+    ...CLEAN,
+    pullRequests: merged(),
+    deployments: [deployment],
+    ...(role === undefined ? {} : { role }),
+  });
+  await mockApprovals(page, [approvedRow()]);
+  await stubStillsPage(page);
+  await page.route(
+    `**/v1/tasks/${id}`,
+    (route) => route.fulfill({ json: { ...task, status: "completed" } }),
+  );
+  await page.goto(`/tasks/${id}`);
+  await expect(nowCard(page)).toBeVisible();
+}
+
+async function releaseStill(page: Page, file: string) {
+  await page.getByTestId("delivery-section").evaluate((element) =>
+    element.scrollIntoView({ block: "start" })
+  );
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${STILLS}/${file}`, animations: "disabled" });
+}
+
+for (const [name, args, scenario] of RELEASE_STILLS) {
+  for (const scheme of ["light", "dark"] as const) {
+    for (const [size, width, height] of STILL_SIZES) {
+      test(`still: release, ${name}, ${size} ${scheme}`, async ({ page }) => {
+        test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+        test.setTimeout(laneBudgetMs(90_000));
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height });
+        await openReleaseStill(page, deploymentRow(...args), scenario.role);
+        await releaseStill(page, `release-${name}-${size}-${scheme}.png`);
+        if (name === "healthy") {
+          await openLink(
+            page.getByTestId("delivery-section"),
+            "delivery-details",
+          );
+          await expect(goBackButton(page)).toBeVisible();
+          await releaseStill(
+            page,
+            `release-healthy-details-${size}-${scheme}.png`,
+          );
+        }
+      });
+    }
+  }
+}
+
+const DIALOG_STILLS = [
+  ["not-current", { status: 409, reason: "not_current_release" }],
+  ["outcome-unknown", { status: 409, reason: "outcome_unknown" }],
+  ["forbidden", { status: 403, code: "AUTH_FORBIDDEN" }],
+  ["error", { status: 422, code: "UNPROCESSABLE" }],
+  ["no-answer", { status: 500, code: "INTERNAL_ERROR" }],
+] as const;
+
+for (const [size, width, height] of STILL_SIZES) {
+  test(`still: release, dialog, ${size} light`, async ({ page }) => {
+    test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+    test.setTimeout(laneBudgetMs(120_000));
+    await page.setViewportSize({ width, height });
+    await openReleaseStill(page, deploymentRow("degraded"));
+    await button(nowCard(page), "Go back to the last release").click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toBeVisible();
+    await page.waitForTimeout(300);
+    await page.screenshot({
+      path: `${STILLS}/release-dialog-before-${size}-light.png`,
+      animations: "disabled",
+    });
+    await dialog.getByRole("button", { name: "Go back", exact: true }).click();
+    await expect(dialog).toContainText("Write why you are going back.");
+    await page.waitForTimeout(300);
+    await page.screenshot({
+      path: `${STILLS}/release-dialog-empty-reason-${size}-light.png`,
+      animations: "disabled",
+    });
+    await dialog.getByLabel(/Why are you going back/).fill(
+      "p95 latency doubled",
+    );
+    for (const [notice, reply] of DIALOG_STILLS) {
+      await mockGoBack(page, reply);
+      await dialog.getByRole("button", { name: "Go back", exact: true })
+        .click();
+      await expect(dialog.getByTestId("delivery-go-back-notice")).toBeVisible();
+      await page.waitForTimeout(300);
+      await page.screenshot({
+        path: `${STILLS}/release-dialog-${notice}-${size}-light.png`,
+        animations: "disabled",
+      });
+    }
+  });
+}
+
+test("a developer is offered Go back in the headline of a degraded release", async ({ page }) => {
+  await openRelease(page, {
+    deployments: [deploymentRow("degraded")],
+    role: "developer",
+  });
+  await expect(nowCard(page)).toContainText(
+    "You can go back to the release before it.",
+  );
+  await expect(button(nowCard(page), "Go back to the last release"))
+    .toBeVisible();
+});
+
+test("a developer is offered Go back in Details of a healthy release", async ({ page }) => {
+  await openRelease(page, {
+    deployments: [deploymentRow("healthy")],
+    role: "developer",
+  });
+  await expect(button(nowCard(page), "Go back to the last release"))
+    .toHaveCount(0);
+  await openLink(page.getByTestId("delivery-section"), "delivery-details");
+  await expect(goBackButton(page)).toBeVisible();
+});
+
+test("a developer without the deploy grant gets one permission notice and keeps the reason", async ({ page }) => {
+  await openRelease(page, {
+    deployments: [deploymentRow("degraded")],
+    role: "developer",
+  });
+  const posted = await mockGoBack(page, {
+    status: 403,
+    code: "AUTH_FORBIDDEN",
+  });
+  await button(nowCard(page), "Go back to the last release").click();
+  const dialog = page.getByRole("alertdialog");
+  await dialog.getByLabel(/Why are you going back/).fill("It is slow.");
+  await dialog.getByRole("button", { name: "Go back", exact: true }).click();
+  await expect(dialog.getByTestId("delivery-go-back-notice")).toHaveText(
+    "You do not have permission to deploy this repository. Ask an administrator.",
+  );
+  await expect(dialog.getByLabel(/Why are you going back/)).toHaveValue(
+    "It is slow.",
+  );
+  expect(posted).toHaveLength(1);
+});
+
+test("a developer is offered no Go back when there is no release before it", async ({ page }) => {
+  await openRelease(page, {
+    deployments: [deploymentRow("degraded", {
+      previousDeploymentId: null,
+      previousCommitSha: null,
+    })],
+    role: "developer",
+  });
+  await expect(goBackButton(page)).toHaveCount(0);
+  await expect(nowCard(page)).not.toContainText("You can go back");
+});

@@ -6,6 +6,7 @@ import {
 } from "./helpers/mock-session.ts";
 import { still } from "./helpers/stills.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
+import { expectReferenceCardUsable } from "./helpers/reference-card.ts";
 
 // #19: the Preview card in a task's run pane. Everything the browser asks for
 // is stubbed; the preview routes are the real shapes of previews.list,
@@ -56,6 +57,8 @@ const run = {
   workspaceBaseSha: null,
   requestedBy: MOCK_PRINCIPAL_ID,
   inngestRunId: null,
+  // Required since #921: the run's pinned environment.
+  environment: "live",
   status: "running",
   budgetLimitUsd: "10.00",
   startedAt: stamp,
@@ -307,7 +310,7 @@ test("a running preview says one thing and offers one button; its facts wait in 
   await expect(actions(page)).toHaveCount(1);
   await expect(card(page).getByRole("button", { name: "Prepare preview" }))
     .toBeEnabled();
-  await expect(card(page).getByText("not released")).toBeHidden();
+  await expect(card(page).getByText("a preview, not a release")).toBeHidden();
   await expect(card(page).getByRole("button", { name: "Stop preview" }))
     .toBeHidden();
   // One status region announces the state; the countdown is not live.
@@ -319,7 +322,8 @@ test("a running preview says one thing and offers one button; its facts wait in 
   await cardStill(page, "run-preview-running");
   await still(page, "run-preview-in-pane");
   await openDetails(page);
-  await expect(details(page).getByText("0123456, not released")).toBeVisible();
+  await expect(details(page).getByText("0123456, a preview, not a release"))
+    .toBeVisible();
   await expect(
     details(page).getByText(/\(in \d+ minutes\) or when the run ends/),
   )
@@ -519,7 +523,7 @@ for (const reason of REASONS) {
       }
       // The commit, and what stopping did to open tabs, are in Details.
       await openDetails(page);
-      await expect(details(page).getByText("0123456, not released"))
+      await expect(details(page).getByText("0123456, a preview, not a release"))
         .toBeVisible();
       await expect(
         card(page).getByText("Open tabs of this preview no longer load."),
@@ -739,8 +743,22 @@ test("a preview behind the change says so once, and still opens when the person 
   await still(page, "run-preview-behind-in-pane");
   // The two commits are in Details.
   await openDetails(page);
-  await expect(details(page).getByText("0123456, not released")).toBeVisible();
+  await expect(details(page).getByText("0123456, a preview, not a release"))
+    .toBeVisible();
   await expect(details(page).getByText("fedcba9")).toBeVisible();
+  // The commit is a reference: keyboard focus opens its card with the whole id.
+  const newer = details(page).locator(
+    '[data-ui-component="reference"][data-kind="commit"]',
+    { hasText: "fedcba9" },
+  );
+  await page.keyboard.press("Shift");
+  await newer.locator(".ui-reference__plain").focus();
+  await expect(newer.getByRole("group", { name: "Commit" })).toContainText(
+    NEWER,
+  );
+  await expectReferenceCardUsable(newer.getByRole("group", { name: "Commit" }));
+  // The card opens past the preview card, so the shot is the whole page.
+  await still(page, "run-preview-reference-card");
   await expect(card(page).getByRole("button", { name: "Stop preview" }))
     .toBeVisible();
   await cardStill(page, "run-preview-behind-details");

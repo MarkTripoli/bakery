@@ -31,8 +31,9 @@ export type PluginAttempt = Readonly<{
   fence: string;
   organizationId: string;
   installId: string;
-  /** The `entry` the job was admitted with: a path inside the install's bundle. */
+  /** The `entry` the job was admitted with: a path inside the bundle it runs. */
   entry: string | null;
+  versionId: string;
   jobId: string;
   leaseExpiresAt: number;
 }>;
@@ -82,17 +83,25 @@ export async function authorizePluginAttempt(
         throw new StandardError({ code: "STATE_CONFLICT" });
       }
       const input = found.input as
-        | { installId?: unknown; entry?: unknown }
+        | { installId?: unknown; entry?: unknown; versionId?: unknown }
         | null;
       const installId = input?.installId;
       if (typeof installId !== "string" || !UUID.test(installId)) {
         throw new StandardError({ code: "STATE_CONFLICT" });
+      }
+      const versionId = input?.versionId;
+      if (typeof versionId !== "string" || !UUID.test(versionId)) {
+        throw new StandardError({
+          code: "STATE_CONFLICT",
+          params: { reason: "plugin_job_version_unpinned" },
+        });
       }
       return {
         attemptId,
         fence,
         organizationId: row.organization_id,
         installId,
+        versionId,
         entry: typeof input?.entry === "string" ? input.entry : null,
         jobId: row.job_id,
         leaseExpiresAt: Date.parse(String(row.lease_expires_at)),

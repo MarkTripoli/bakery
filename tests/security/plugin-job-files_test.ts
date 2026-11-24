@@ -54,6 +54,7 @@ async function setup(
       input: {
         installId: options.installId ?? installId,
         entry: options.entry ?? "jobs/nightly.js",
+        versionId: published.versionId,
       },
     },
   );
@@ -62,7 +63,32 @@ async function setup(
     supportedActions: ["plugin.job"],
   });
   assertEquals(assignment.action, "plugin.job");
-  return { installId, worker, assignment };
+  return { installId, worker, assignment, published };
+}
+
+/** Names the plugin version a leased job was admitted with, as admission would. */
+async function nameVersion(
+  fixture: Fixture,
+  jobId: string,
+  versionId: string,
+) {
+  await fixture.pgDatabase.query(
+    `update bakery.jobs
+        set input = input || jsonb_build_object('versionId', $2::text)
+      where id = $1`,
+    [jobId, versionId],
+  );
+}
+
+async function filesOf(response: Response): Promise<Map<string, string>> {
+  assertEquals(response.status, 200, await response.clone().text());
+  const body = await response.json();
+  return new Map<string, string>(
+    body.files.map((f: { path: string; contentBase64: string }) => [
+      f.path,
+      atob(f.contentBase64),
+    ]),
+  );
 }
 
 async function files(
@@ -176,6 +202,110 @@ Deno.test("an entry the bundle does not contain gets no code", () =>
       await files(fixture, worker, assignment),
       "plugin_job_entry_missing",
     );
+  }));
+
+Deno.test("a job that names a version of its install's package is handed that version's code, not the install's", () =>
+  withPluginFixture(async (fixture, store) => {
+    const { installId, worker, assignment, published } = await setup(
+      fixture,
+      store,
+    );
+    const newer = "export default () => ({ ok: 'v2' });\n";
+    const second = await publishWithPages(
+      fixture,
+      store,
+      { name: "nightly-helper", requestedCapabilities: ["jobs.schedule"] },
+      { "jobs/nightly.js": newer },
+      published.packageId,
+    );
+    assertEquals(second.response.status, 201, await second.response.text());
+    await nameVersion(fixture, assignment.jobId, second.versionId);
+
+    const named = await filesOf(await files(fixture, worker, assignment));
+    assertEquals(named.get("jobs/nightly.js"), newer);
+    // The install still points at its own version: only this job moved.
+    const row = await fixture.pgDatabase.query<{ plugin_version_id: string }>(
+      `select plugin_version_id from bakery.plugin_installs where id = $1`,
+      [installId],
+    );
+    assertEquals(row.rows[0].plugin_version_id, published.versionId);
+  }));
+
+Deno.test("a job that names a version of another package, or none, is handed no code", () =>
+  withPluginFixture(async (fixture, store) => {
+    const { worker, assignment } = await setup(fixture, store);
+    const elsewhere = await publishWithPages(
+      fixture,
+      store,
+      { name: "other-helper", requestedCapabilities: ["jobs.schedule"] },
+      { "jobs/nightly.js": "export default () => ({ stolen: true });\n" },
+    );
+    assertEquals(elsewhere.response.status, 201);
+    for (const versionId of [elsewhere.versionId, crypto.randomUUID()]) {
+      await nameVersion(fixture, assignment.jobId, versionId);
+      await refused(
+        await files(fixture, worker, assignment),
+        "plugin_job_version_not_in_package",
+      );
+    }
+  }));
+
+Deno.test("a job that names an unpublished version of its own package is handed no code", () =>
+  withPluginFixture(async (fixture, store) => {
+    const { worker, assignment, published } = await setup(fixture, store);
+    const draft = await publishWithPages(
+      fixture,
+      store,
+      { name: "nightly-helper", requestedCapabilities: ["jobs.schedule"] },
+      { "jobs/nightly.js": "export default () => ({ draft: true });\n" },
+      published.packageId,
+    );
+    assertEquals(draft.response.status, 201, await draft.response.text());
+    // A version nobody published is not code a job may run, even in its own package.
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_versions set published_at = null where id = $1`,
+      [draft.versionId],
+    );
+    await nameVersion(fixture, assignment.jobId, draft.versionId);
+    await refused(
+      await files(fixture, worker, assignment),
+      "plugin_job_version_not_in_package",
+    );
+  }));
+
+Deno.test("a job that names no version is refused, not served the install's current one", () =>
+  withPluginFixture(async (fixture, store) => {
+    const { worker, assignment, published } = await setup(fixture, store);
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set input = input - 'versionId' where id = $1`,
+      [assignment.jobId],
+    );
+    await refused(
+      await files(fixture, worker, assignment),
+      "plugin_job_version_unpinned",
+    );
+    await nameVersion(fixture, assignment.jobId, published.versionId);
+    const served = await filesOf(await files(fixture, worker, assignment));
+    assertEquals(served.get("jobs/nightly.js"), JOB_JS);
+  }));
+
+Deno.test("AC3: a leased job keeps the version it was admitted against after the install moves", () =>
+  withPluginFixture(async (fixture, store) => {
+    const { worker, assignment, published } = await setup(fixture, store);
+    const next = await publishWithPages(
+      fixture,
+      store,
+      { name: "nightly-helper", requestedCapabilities: ["jobs.schedule"] },
+      { "jobs/nightly.js": "export default () => ({ upgraded: true });\n" },
+      published.packageId,
+    );
+    assertEquals(next.response.status, 201, await next.response.text());
+    await fixture.pgDatabase.query(
+      `update bakery.plugin_installs set plugin_version_id = $2 where id = $1`,
+      [assignment.installId, next.versionId],
+    );
+    const served = await filesOf(await files(fixture, worker, assignment));
+    assertEquals(served.get("jobs/nightly.js"), JOB_JS);
   }));
 
 /** Copies one row to another organization under a new id, changing only what is named. */
@@ -322,7 +452,11 @@ async function jobFor(
     {
       action: "plugin.job",
       capabilities: ["plugin.job.contained"],
-      input: { installId, entry: "jobs/nightly.js" },
+      input: {
+        installId,
+        entry: "jobs/nightly.js",
+        versionId: published.versionId,
+      },
     },
   );
   const assignment = await claimAssignment(fixture, worker, {

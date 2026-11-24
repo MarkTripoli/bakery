@@ -93,6 +93,22 @@ export function stoppableRunId(
 }
 
 /**
+ * True when a person started work, it has not ended and it has no run yet: the
+ * server stops it directly (`ticketRequests.cancel`), with no run to ask about.
+ * A request that began from a label is left to GitHub (`stopsBeforeStart`).
+ */
+export function stoppableWithoutRun(
+  request: Pick<
+    TicketRequestViewResponse,
+    "progress" | "workflowRunId" | "origin"
+  >,
+): boolean {
+  return request.workflowRunId === null &&
+    (request.origin === "manual" || request.origin === "adoption") &&
+    !workFinished(request.progress);
+}
+
+/**
  * True when work began from a label and has no run yet: nothing here can stop it
  * until it starts, so the page says how to stop it on GitHub (design: Stop work).
  */
@@ -109,9 +125,6 @@ export function stopsBeforeStart(
 
 /** How often the page re-reads a request it asked to stop. */
 export const STOP_POLL_MS = 5_000;
-
-/** How long a paused request may stay unstopped before the page says it can take a while. */
-export const STOP_SLOW_MS = 15_000;
 
 /** Who or what began the work, as the line under the state reads it. */
 export type WorkStartedBy =

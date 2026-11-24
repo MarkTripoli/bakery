@@ -88,6 +88,8 @@ const run = {
   workspaceBaseSha: null,
   requestedBy: "00000000-0000-4000-8000-000000000001",
   inngestRunId: null,
+  // Required since #921: the run's pinned environment.
+  environment: "live",
   status: "completed",
   budgetLimitUsd: "10.00",
   startedAt: "2026-01-01T00:00:01.000Z",
@@ -1227,11 +1229,11 @@ test("intercepted run view renders server current run and survives reload", asyn
   await page.goto("/tasks");
   await page.getByRole("link", { name: task.title }).click();
   // The run id is not on the page until Details is opened, and then it is short.
-  await page.getByText("Details", { exact: true }).first().click();
+  await page.getByText("Run details", { exact: true }).first().click();
   await expect(page.getByTestId("run-id-row")).toContainText(runId.slice(0, 8));
   await expect(page.getByText("publish", { exact: true })).toBeVisible();
   await page.reload();
-  await page.getByText("Details", { exact: true }).first().click();
+  await page.getByText("Run details", { exact: true }).first().click();
   await expect(page.getByTestId("run-id-row")).toContainText(runId.slice(0, 8));
   await expect(page.getByText("publish", { exact: true })).toBeVisible();
 });

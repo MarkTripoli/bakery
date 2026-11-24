@@ -93,6 +93,8 @@ export type McpPinnedStatePort = {
     workflowVersionId?: string | null;
     agentVersionId?: string | null;
     stepKey?: string | null;
+    /** The seat (step role) of the workflow version the call is made for. */
+    seatKey?: string | null;
     repositoryId?: string | null;
     skillVersionOwnerId?: string | null;
     automationVersionId?: string | null;
@@ -145,6 +147,11 @@ export type McpInvokeInput =
     workflowVersionId?: string | null;
     agentVersionId?: string | null;
     stepKey?: string | null;
+    /**
+     * The seat (the role the step runs as) the call is made for. A binding
+     * owned by another seat of the same version does not match.
+     */
+    seatKey?: string | null;
     repositoryId?: string | null;
     skillVersionOwnerId?: string | null;
     automationVersionId?: string | null;
@@ -374,6 +381,7 @@ export async function invokeMcpTool(
     workflowVersionId: rawInput.workflowVersionId ?? null,
     agentVersionId: rawInput.agentVersionId ?? null,
     stepKey: rawInput.stepKey ?? null,
+    seatKey: rawInput.seatKey ?? null,
     // Every owner slot is passed, not just the three the first version carried:
     // a binding owned by a repository, skill version or automation version names
     // an owner, and omitting its slot would let it serve an unowned caller.

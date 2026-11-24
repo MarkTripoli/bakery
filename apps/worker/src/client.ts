@@ -4,6 +4,8 @@ import {
   RepositoryInspectionSourceChunkSchema,
 } from "../../../packages/contracts/src/repository-inspection.ts";
 import { z } from "zod";
+import { GatewayToolSchema } from "./tool-gateway.ts";
+import { McpStdioLaunchSpecSchema } from "@bakery/contracts/mcp-capabilities";
 import {
   WORKER_SKILL_READ_HEADERS,
   WORKER_SKILL_RESPONSE_HEADERS,
@@ -82,10 +84,126 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
   ).join("");
 }
 
+/** What proves a worker holds an attempt: its lease token, fence and session. */
+export type AttemptProof = {
+  leaseToken: string;
+  fence: string;
+  workerSessionId: string;
+  workerSessionGeneration: string;
+};
+
+function attemptProofHeaders(proof: AttemptProof): Record<string, string> {
+  return {
+    "X-Worker-Lease-Token": proof.leaseToken,
+    "X-Worker-Fence": proof.fence,
+    "X-Worker-Session-Id": proof.workerSessionId,
+    "X-Worker-Session-Generation": proof.workerSessionGeneration,
+  };
+}
+
+const PluginJobFilesSchema = z.object({
+  bundleDigest: z.string().regex(/^[0-9a-f]{64}$/).describe(
+    "Lowercase SHA-256 digest of the bundle archive of the plugin version the job was admitted against.",
+  ),
+  entry: z.string().min(1).max(500).describe(
+    "The path inside the bundle that the job was admitted to run.",
+  ),
+  files: z.array(
+    z.object({
+      path: z.string().min(1).max(500).describe(
+        "A file's path inside the bundle.",
+      ),
+      contentBase64: z.string().describe("The file's bytes, base64 encoded."),
+    }).strict().describe("One file of the install's bundle."),
+  ).min(1).max(256).describe("Every file of the bundle the job may read."),
+}).strict().describe(
+  "The code the server hands one leased plugin job attempt.",
+);
+export type PluginJobFiles = z.output<typeof PluginJobFilesSchema>;
+
+const PluginBrokerWireSchema = z.object({
+  ok: z.boolean().describe("True when the broker ran the operation."),
+  result: z.unknown().describe("The operation's result; null when refused."),
+  replayed: z.boolean().nullable().describe(
+    "True when the request id had already run; null when refused.",
+  ),
+  denial: z.string().min(1).max(64).nullable().describe(
+    "Why the broker refused; null when it ran the operation.",
+  ),
+}).strict().refine(
+  (wire) =>
+    wire.ok
+      ? wire.denial === null && wire.replayed !== null
+      : wire.denial !== null,
+  "exactly one of result and denial is set",
+).describe("The broker's answer to one relayed plugin job request.");
+export type PluginBrokerOutcome =
+  | { ok: true; result: unknown; replayed: boolean }
+  | { ok: false; denial: string };
+
 export type Fetcher = (
   input: RequestInfo | URL,
   init?: RequestInit,
 ) => Promise<Response>;
+
+/** What the effective-tools route answers (#436). */
+const EffectiveToolsResponseSchema = z.object({
+  tools: z.array(GatewayToolSchema).max(500).describe(
+    "Tools the session's gateway lists, each callable through worker.invokeTool.",
+  ),
+  unavailable: z.array(
+    z.object({
+      toolName: z.string().describe("Tool a binding names."),
+      connectionId: z.uuid().describe("Its connection."),
+      reason: z.string().describe("Why the session cannot call it now."),
+    }).describe("A bound tool the session cannot call now."),
+  ).max(500).describe("Bound tools the session cannot call, with why."),
+}).describe("The effective tools of one agent session.");
+
+/** What worker.invokeTool answers: the tool's own outcome. */
+const BrokerToolResultSchema = z.object({
+  toolName: z.string().describe("Tool the broker called."),
+  content: z.array(z.unknown().describe("One MCP content block.")).describe(
+    "The tool's content blocks.",
+  ),
+  isError: z.boolean().describe("Whether the tool reported a failure."),
+  fault: z.unknown().describe("A redacted broker connection failure, or null."),
+}).describe("Result of one brokered tool call.");
+
+const LocalMcpConnectionsResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      connectionId: z.uuid().describe(
+        "A local MCP connection placed on this host.",
+      ),
+      launchSpec: McpStdioLaunchSpecSchema.describe(
+        "The pinned launch of its server.",
+      ),
+      currentDigest: z.string().nullable().describe(
+        "Digest of the snapshot it is pinned to now, or null before discovery.",
+      ),
+    }).describe("One local MCP connection this host runs."),
+  ).max(50).describe("One page of local MCP connections placed on this host."),
+  nextCursor: z.uuid().nullable().describe(
+    "The cursor for the next page, or null on the last.",
+  ),
+}).describe("Local MCP connections placed on this worker host.");
+
+const LocalMcpSnapshotResponseSchema = z.object({
+  connectionId: z.uuid().describe("The connection the report was for."),
+  snapshotId: z.uuid().describe("The snapshot the server pinned."),
+  digest: z.string().describe("That snapshot's digest."),
+}).describe("The snapshot a local discovery report pinned.");
+
+const LocalToolCallOpenResponseSchema = z.object({
+  callId: z.uuid().describe("The recorded call."),
+  status: z.enum(["open", "completed", "failed"]).describe(
+    "open: send it now; completed or failed: a replay, already settled.",
+  ),
+  result: BrokerToolResultSchema.nullable().describe(
+    "A replay's recorded result; null while open.",
+  ),
+}).describe("The server's answer to opening one local tool call.");
 
 type RequestOptions = {
   body?: unknown;
@@ -1321,6 +1439,265 @@ export class WorkerApiClient {
       ),
       replayed: response.replayed,
     };
+  }
+
+  /**
+   * The effective tools of the attempt's agent session (#436): what its tool
+   * gateway lists. The lease proof travels in the body, as for every attempt
+   * mutation, and the server reads the session's bindings from its own rows.
+   */
+  async effectiveTools(
+    attemptId: string,
+    proof: SecretIdentityInvocationProof,
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<z.infer<typeof EffectiveToolsResponseSchema>>> {
+    const response = await this.request<unknown>(
+      "POST",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/effective-tools`,
+      {
+        body: {
+          leaseToken: proof.leaseToken,
+          fence: proof.fence,
+          workerSessionId: proof.workerSessionId,
+          workerSessionGeneration: proof.workerSessionGeneration,
+        },
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponseEnvelope(
+      EffectiveToolsResponseSchema,
+      response,
+      "WORKER_RESPONSE_EFFECTIVE_TOOLS_INVALID",
+    );
+  }
+
+  /**
+   * The files of the install a `plugin.job` attempt runs (#29). The server
+   * decides which install and entry from the job it wrote; the lease token,
+   * fence and session only prove this worker holds the attempt.
+   */
+  async getPluginJobFiles(
+    attemptId: string,
+    proof: AttemptProof,
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<PluginJobFiles>> {
+    const response = await this.request<unknown>(
+      "GET",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/plugin-job-files`,
+      {
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+        headers: attemptProofHeaders(proof),
+      },
+    );
+    return parseResponseEnvelope(
+      PluginJobFilesSchema,
+      response,
+      "WORKER_RESPONSE_PLUGIN_JOB_FILES_INVALID",
+    );
+  }
+
+  /**
+   * `worker.invokeTool`: one call a session made through its gateway. The key
+   * is the call's: a replay answers what happened instead of sending again.
+   */
+  async invokeTool(
+    attemptId: string,
+    input: Readonly<{
+      mcpConnectionId: string;
+      toolName: string;
+      arguments: Record<string, unknown>;
+      idempotencyKey: string;
+    }>,
+    proof: SecretIdentityInvocationProof,
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<z.infer<typeof BrokerToolResultSchema>>> {
+    const response = await this.request<unknown>(
+      "POST",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/tool-invocations`,
+      {
+        body: {
+          mcpConnectionId: input.mcpConnectionId,
+          leaseToken: proof.leaseToken,
+          fence: proof.fence,
+          workerSessionId: proof.workerSessionId,
+          workerSessionGeneration: proof.workerSessionGeneration,
+          toolName: input.toolName,
+          arguments: input.arguments,
+        },
+        idempotencyKey: input.idempotencyKey,
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponseEnvelope(
+      BrokerToolResultSchema,
+      response,
+      "WORKER_RESPONSE_TOOL_RESULT_INVALID",
+    );
+  }
+
+  /**
+   * Relays one request from a contained plugin job to the server's broker. The
+   * job has no network and no token; the server builds the claims from the
+   * attempt and answers with a result or a typed denial.
+   */
+  async callPluginBroker(
+    attemptId: string,
+    proof: AttemptProof,
+    call: {
+      requestId: string;
+      sequence: number;
+      operation: string;
+      args: Readonly<Record<string, unknown>>;
+    },
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<PluginBrokerOutcome>> {
+    const response = await this.request<unknown>(
+      "POST",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/plugin-broker`,
+      {
+        body: call,
+        idempotencyKey: call.requestId,
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+        headers: attemptProofHeaders(proof),
+      },
+    );
+    const wire = parseResponseEnvelope(
+      PluginBrokerWireSchema,
+      response,
+      "WORKER_RESPONSE_PLUGIN_BROKER_INVALID",
+    );
+    return {
+      replayed: wire.replayed,
+      value: wire.value.ok
+        ? {
+          ok: true as const,
+          result: wire.value.result,
+          replayed: wire.value.replayed === true,
+        }
+        : { ok: false as const, denial: wire.value.denial ?? "unknown" },
+    };
+  }
+
+  async localMcpConnections(
+    after: string | null,
+    signal?: AbortSignal,
+  ): Promise<
+    WorkerResponse<z.infer<typeof LocalMcpConnectionsResponseSchema>>
+  > {
+    const response = await this.request<unknown>(
+      "POST",
+      "/v1/worker/local-mcp-connections",
+      {
+        body: after === null ? {} : { after },
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponseEnvelope(
+      LocalMcpConnectionsResponseSchema,
+      response,
+      "WORKER_RESPONSE_LOCAL_MCP_CONNECTIONS_INVALID",
+    );
+  }
+
+  async reportLocalMcpSnapshot(
+    connectionId: string,
+    report: Readonly<{ protocolVersion: string; tools: readonly unknown[] }>,
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<z.infer<typeof LocalMcpSnapshotResponseSchema>>> {
+    const response = await this.request<unknown>(
+      "POST",
+      `/v1/worker/local-mcp-connections/${
+        encodeURIComponent(connectionId)
+      }/snapshots`,
+      {
+        body: { protocolVersion: report.protocolVersion, tools: report.tools },
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponseEnvelope(
+      LocalMcpSnapshotResponseSchema,
+      response,
+      "WORKER_RESPONSE_LOCAL_MCP_SNAPSHOT_INVALID",
+    );
+  }
+
+  async openLocalToolCall(
+    attemptId: string,
+    input: Readonly<{
+      mcpConnectionId: string;
+      toolName: string;
+      arguments: Record<string, unknown>;
+      idempotencyKey: string;
+    }>,
+    proof: SecretIdentityInvocationProof,
+    signal?: AbortSignal,
+  ): Promise<WorkerResponse<z.infer<typeof LocalToolCallOpenResponseSchema>>> {
+    const response = await this.request<unknown>(
+      "POST",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/local-tool-calls`,
+      {
+        body: {
+          leaseToken: proof.leaseToken,
+          fence: proof.fence,
+          workerSessionId: proof.workerSessionId,
+          workerSessionGeneration: proof.workerSessionGeneration,
+          mcpConnectionId: input.mcpConnectionId,
+          toolName: input.toolName,
+          arguments: input.arguments,
+        },
+        idempotencyKey: input.idempotencyKey,
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
+    return parseResponseEnvelope(
+      LocalToolCallOpenResponseSchema,
+      response,
+      "WORKER_RESPONSE_LOCAL_TOOL_CALL_INVALID",
+    );
+  }
+
+  async settleLocalToolCall(
+    attemptId: string,
+    callId: string,
+    outcome: Readonly<
+      | { status: "completed"; content: unknown[]; isError: boolean }
+      | { status: "failed"; failureCode: string }
+    >,
+    proof: SecretIdentityInvocationProof,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.request<unknown>(
+      "POST",
+      `/v1/worker/attempts/${encodeURIComponent(attemptId)}/local-tool-calls/${
+        encodeURIComponent(callId)
+      }/outcome`,
+      {
+        body: {
+          leaseToken: proof.leaseToken,
+          fence: proof.fence,
+          workerSessionId: proof.workerSessionId,
+          workerSessionGeneration: proof.workerSessionGeneration,
+          ...outcome,
+        },
+        authenticated: true,
+        signal,
+        successStatuses: [200],
+      },
+    );
   }
 
   async invokePreparedSecretTool(

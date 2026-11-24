@@ -4174,12 +4174,21 @@ Deno.test("step skills, roles and slots each report their own code", async () =>
       { ...noop("aa"), sealed: true, files: { read: ["inputs", "shared"] } },
       "action_sealed_conflicts_files",
     ],
+    // #436: a step's tools must reference the workflow tools section.
+    [{ ...noop("aa"), tools: ["docs"] }, "action_tools_invalid"],
   ];
   for (const [step, code] of cases) {
     const result = await compileWorkflowDocument(workflow([step]));
     assert(!result.ok, code);
     assertEquals(result.diagnostics[0]?.code, code);
   }
+  // #436: the tools section itself is a map of named connections.
+  const badSection = await compileWorkflowDocument({
+    ...workflow([noop("aa")]),
+    tools: { docs: { connectionId: "not-a-uuid", allow: ["search"] } },
+  });
+  assert(!badSection.ok);
+  assertEquals(badSection.diagnostics[0]?.code, "workflow_tools_invalid");
 });
 
 Deno.test("a block that repairs must review its own result, and nothing merges before a review", async () => {
@@ -4571,6 +4580,27 @@ Deno.test("every closed diagnostic code is exercised by this suite", () => {
   collector.add("/a", "field_invalid");
   collector.add("/b", "field_unknown");
   for (const diagnostic of collector.list()) {
+    exercisedCodes.add(diagnostic.code);
+  }
+  // The call codes need published child versions to trigger, which this
+  // suite's helpers do not offer; compile-a-workflow-call_test.ts exercises
+  // each of them through the compiler.
+  const callCodes = createDiagnosticCollector(16);
+  for (
+    const code of [
+      "call_shape_invalid",
+      "call_version_unavailable",
+      "call_child_invalid",
+      "call_input_unknown",
+      "call_input_missing",
+      "call_input_unusable",
+      "call_depth_exceeded",
+      "call_action_unsupported",
+      "call_output_unknown",
+      "workflow_outputs_invalid",
+    ] as const
+  ) callCodes.add("/call", code);
+  for (const diagnostic of callCodes.list()) {
     exercisedCodes.add(diagnostic.code);
   }
   assertEquals(

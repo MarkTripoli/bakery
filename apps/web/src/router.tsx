@@ -48,6 +48,7 @@ import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
+import { MachineModelNewPage } from "./pages/MachineModelNewPage.tsx";
 import { MachineWizardPage } from "./pages/MachineWizardPage.tsx";
 import { TaskCoordinationPage } from "./pages/task-coordination/TaskCoordinationPage.tsx";
 import { WorkflowEditorPage } from "./pages/library/WorkflowEditorPage.tsx";
@@ -97,6 +98,7 @@ import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
 import { InstallationMonitoringPage } from "./pages/InstallationMonitoringPage.tsx";
 import { MonitoringDestinationPage } from "./pages/MonitoringDestinationPage.tsx";
 import { InstallationRestorePage } from "./pages/InstallationRestorePage.tsx";
+import { InstallationUpdatesPage } from "./pages/InstallationUpdatesPage.tsx";
 import { InstallationUsagePage } from "./pages/InstallationUsagePage.tsx";
 import { DeliveryPage } from "./pages/DeliveryPage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
@@ -514,6 +516,33 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "machine-models",
+    path: "/machines/$machineId/models",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "reconnecting",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "machine-model-new",
+    path: "/machines/$machineId/models/new",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "error",
+      "forbidden",
+      "offline",
+    ],
+  },
+  {
     id: "notifications",
     path: "/notifications",
     classification: "production",
@@ -748,6 +777,14 @@ export const routeCoverage = [
       "error",
       "forbidden",
     ],
+  },
+  {
+    id: "installation-updates",
+    path: "/installation/updates",
+    classification: "production",
+    // `empty` is an installation with no update history yet; `forbidden` is
+    // the app's no-access page for anyone who is not an administrator.
+    states: ["loading", "default", "empty", "error", "forbidden"],
   },
   {
     id: "installation-audit",
@@ -1653,6 +1690,36 @@ const machineDetailRoute = createRoute({
   ),
   errorComponent: ProtectedRouteError,
 });
+
+const machineModelsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/$machineId/models",
+  validateSearch: (search: Record<string, unknown>): { added?: true } =>
+    search.added === true || search.added === "true" ? { added: true } : {},
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <MachineDetailPage
+      machineId={machineModelsRoute.useParams().machineId}
+      tab="models"
+      justAdded={machineModelsRoute.useSearch().added === true}
+    />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const machineModelNewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/$machineId/models/new",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <MachineModelNewPage
+      machineId={machineModelNewRoute.useParams().machineId}
+    />
+  ),
+  errorComponent: ProtectedRouteError,
+});
 const statusRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
@@ -1916,6 +1983,19 @@ const installationRestoreRoute = createRoute({
   component: () => (
     <InstallationBreadcrumbs section="installation.restore.title">
       <InstallationRestorePage />
+    </InstallationBreadcrumbs>
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const installationUpdatesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/installation/updates",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <InstallationBreadcrumbs section="installation.updates.title">
+      <InstallationUpdatesPage />
     </InstallationBreadcrumbs>
   ),
   errorComponent: ProtectedRouteError,
@@ -2762,6 +2842,8 @@ const routeTree = rootRoute.addChildren([
   evaluationRunRoute,
   machineNewRoute,
   machineDetailRoute,
+  machineModelsRoute,
+  machineModelNewRoute,
   statusRoute,
   settingsIndexRoute,
   profileRoute,
@@ -2784,6 +2866,7 @@ const routeTree = rootRoute.addChildren([
   installationMonitoringDestinationRoute,
   installationUsageRoute,
   installationRestoreRoute,
+  installationUpdatesRoute,
   deliveryRoute,
   installationAuditRoute,
   installationIntegrationsRoute,

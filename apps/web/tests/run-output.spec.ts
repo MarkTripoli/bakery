@@ -21,6 +21,8 @@ const run = {
   workspaceBaseSha: null,
   requestedBy: "00000000-0000-4000-8000-000000000001",
   inngestRunId: null,
+  // Required since #921: the run's pinned environment.
+  environment: "live",
   status: "completed",
   budgetLimitUsd: "10.00",
   startedAt: "2026-01-01T00:00:01.000Z",
@@ -1465,7 +1467,7 @@ test("a run without an admission pin shows the workspace base it started from", 
   await gotoRun(page);
   // No change is recorded, so there is no Changes card; the commit the run
   // started from is a line of the run's Details, in its short form.
-  await page.getByText("Details", { exact: true }).first().click();
+  await page.getByText("Run details", { exact: true }).first().click();
   const started = page.getByText(/^Started from commit /);
   await expect(started).toHaveText("Started from commit ddddddd");
   // Short form only: the full 40-character commit is not the label.
