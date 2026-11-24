@@ -869,9 +869,11 @@ for (
       await expect(access.getByText("Weekly digest")).toHaveCount(0);
       await expect(
         access.getByText(
-          "No shared workflow is allowed to use it. Attach it to a workflow step to allow that workflow.",
+          "Only you can open and use this skill. To let a shared workflow use it, attach it to a step in that workflow.",
         ),
       ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "skill-private-no-grants");
       const deleted = writes(seen);
       expect(deleted).toHaveLength(1);
       expect(deleted[0].method).toBe("DELETE");

@@ -189,9 +189,13 @@ export function SkillGrantRow(
             <UI.Stack gap="compact">
               <UI.Text>
                 {translate("library.skill.access.stopBody", {
-                  workflow: grant.workflowName,
+                  workflow: "%%workflow%%",
                   step: stepLabel,
-                })}
+                }).split("%%workflow%%").flatMap((part, index) =>
+                  index === 0
+                    ? [part]
+                    : [<strong key={index}>{grant.workflowName}</strong>, part]
+                )}
               </UI.Text>
               <UI.Text>{translate("library.skill.access.stopRunning")}</UI.Text>
               <UI.Text>{translate("library.skill.access.stopFiles")}</UI.Text>

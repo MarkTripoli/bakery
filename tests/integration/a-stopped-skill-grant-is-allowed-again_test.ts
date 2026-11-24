@@ -381,6 +381,29 @@ Deno.test("a stopped skill grant is allowed again and runs start", async () => {
     assertEquals(wrongStep.code, "UNPROCESSABLE");
     assertEquals(await runs(a), before);
 
+    const byAgent = await refusal(
+      act(
+        a,
+        a.principalId,
+        { id: a.skillId },
+        undefined,
+        (context) =>
+          createSkillUseGrant(
+            {
+              ...context,
+              agentSession: { attemptId: crypto.randomUUID() },
+            } as typeof context,
+            {
+              workflowId: a.workflowId,
+              skillVersionId: a.versionId,
+              stepPath: STEP,
+            },
+          ),
+      ),
+    );
+    assertEquals(byAgent.code, "AUTH_FORBIDDEN");
+    assertEquals(byAgent.params?.reason, "personal_skill_use_requires_person");
+
     const again = await allow(a, a.workflowId);
     assert(again.id !== first.id, "allow again reused the stopped grant");
     await startRun(a, "allow-again");

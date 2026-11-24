@@ -4735,7 +4735,7 @@
   "library.skill.access.shared": "Only you can open this skill. These shared workflows are allowed to use it.",
   "library.skill.access.line": "Step “{step}” · version {number} of this skill · since {date}",
   "library.skill.access.lineNoVersion": "Step “{step}” · since {date}",
-  "library.skill.access.empty": "No shared workflow is allowed to use it. Attach it to a workflow step to allow that workflow.",
+  "library.skill.access.empty": "Only you can open and use this skill. To let a shared workflow use it, attach it to a step in that workflow.",
   "library.skill.access.error": "Who can use this skill did not load.",
   "library.skill.access.stop": "Stop allowing",
   "library.skill.access.stopNamed": "Stop allowing {workflow} to use this skill",

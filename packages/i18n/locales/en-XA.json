@@ -6184,7 +6184,6 @@
   "library.skill.usedBy.linePins": "⟦{name}, ṽëŕšïôñ {revision} · {count, plural, one {uses version {list}} other {uses versions {list}}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "library.skill.access.shared": "⟦Ôñļÿ ÿôû çàñ ôþëñ ŧĥïš šķïļļ. Ŧĥëšë šĥàŕëð ŵôŕķƒļôŵš àŕë àļļôŵëð ŧô ûšë ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "library.skill.access.line": "⟦Šŧëþ “{step}” · ṽëŕšïôñ {number} ôƒ ŧĥïš šķïļļ · šïñçë {date} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "library.skill.access.empty": "⟦Ñô šĥàŕëð ŵôŕķƒļôŵ ïš àļļôŵëð ŧô ûšë ïŧ. Àŧŧàçĥ ïŧ ŧô à ŵôŕķƒļôŵ šŧëþ ŧô àļļôŵ ŧĥàŧ ŵôŕķƒļôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "tasks.controls.menu.label": "⟦Ŕûñ àçŧïôñš ŧ⟧",
   "tasks.controls.menu.pause": "⟦Þàûšë ŕûñ ŧ⟧",
   "tasks.controls.menu.resume": "⟦Ŕëšûɱë ŕûñ ŧ⟧",
@@ -6696,5 +6695,6 @@
   "library.workflow.editor.skills.slot.allowAgain": "⟦Àļļôŵ àĝàïñ ŧ⟧",
   "library.skill.copy.mySuffix": "⟦(ɱÿ çôþÿ) ŧ⟧",
   "library.skill.access.stopBody": "⟦Ñëŵ ŕûñš ôƒ {workflow} çàññôŧ šŧàŕŧ ûñŧïļ šôɱëôñë çĥàñĝëš ŧĥë šŧëþ “{step}”. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "library.workflow.editor.skills.confirm.stop": "⟦Ŧô šŧôþ ļàŧëŕ, ôþëñ ŧĥë šķïļļ àñð çĥôôšë Šŧôþ àļļôŵïñĝ. Ñëŵ ŕûñš ôƒ ŧĥïš ŵôŕķƒļôŵ ŧĥëñ çàññôŧ šŧàŕŧ ûñŧïļ ŧĥïš šŧëþ ïš çĥàñĝëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧"
+  "library.workflow.editor.skills.confirm.stop": "⟦Ŧô šŧôþ ļàŧëŕ, ôþëñ ŧĥë šķïļļ àñð çĥôôšë Šŧôþ àļļôŵïñĝ. Ñëŵ ŕûñš ôƒ ŧĥïš ŵôŕķƒļôŵ ŧĥëñ çàññôŧ šŧàŕŧ ûñŧïļ ŧĥïš šŧëþ ïš çĥàñĝëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "library.skill.access.empty": "⟦Ôñļÿ ÿôû çàñ ôþëñ àñð ûšë ŧĥïš šķïļļ. Ŧô ļëŧ à šĥàŕëð ŵôŕķƒļôŵ ûšë ïŧ, àŧŧàçĥ ïŧ ŧô à šŧëþ ïñ ŧĥàŧ ŵôŕķƒļôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

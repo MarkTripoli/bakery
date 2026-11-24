@@ -6183,7 +6183,6 @@
   "library.skill.usedBy.linePins": "⟪{name}, version {revision} · {count, plural, one {uses version {list}} other {uses versions {list}}}⟫",
   "library.skill.access.shared": "⟪Only you can open this skill. These shared workflows are allowed to use it.⟫",
   "library.skill.access.line": "⟪Step “{step}” · version {number} of this skill · since {date}⟫",
-  "library.skill.access.empty": "⟪No shared workflow is allowed to use it. Attach it to a workflow step to allow that workflow.⟫",
   "auth.desktopSignIn.confirm.askedAgo": "⟪{minutes, plural, =0 {just now} one {# minute ago} other {# minutes ago}}⟫",
   "tasks.controls.menu.label": "⟪Run actions⟫",
   "tasks.controls.menu.pause": "⟪Pause run⟫",
@@ -6696,5 +6695,6 @@
   "library.workflow.editor.skills.slot.allowAgain": "⟪Allow again⟫",
   "library.skill.copy.mySuffix": "⟪(my copy)⟫",
   "library.skill.access.stopBody": "⟪New runs of {workflow} cannot start until someone changes the step “{step}”.⟫",
-  "library.workflow.editor.skills.confirm.stop": "⟪To stop later, open the skill and choose Stop allowing. New runs of this workflow then cannot start until this step is changed.⟫"
+  "library.workflow.editor.skills.confirm.stop": "⟪To stop later, open the skill and choose Stop allowing. New runs of this workflow then cannot start until this step is changed.⟫",
+  "library.skill.access.empty": "⟪Only you can open and use this skill. To let a shared workflow use it, attach it to a step in that workflow.⟫"
 }

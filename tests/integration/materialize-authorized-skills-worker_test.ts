@@ -1,4 +1,5 @@
 import {
+  assert,
   assertEquals,
   assertExists,
   assertRejects,
@@ -238,13 +239,24 @@ Deno.test("persisted exact pins authorize staged manifest and file reads through
     assertEquals(manifestResponse.value.organizationId, fixture.organizationId);
     assertEquals(manifestResponse.value.version.id, version.id);
     assertEquals(manifestResponse.value.version.digest, versionDigest);
+    const listed = await adminRequest(
+      fixture,
+      `/v1/skills/${skill.id}/versions`,
+      undefined,
+      { method: "GET" },
+    );
+    assertEquals(listed.status, 200, await listed.clone().text());
+    const pageDigest = (await listed.json() as {
+      items: { id: string; digest: string }[];
+    }).items.find((entry) => entry.id === version.id)?.digest;
+    assert(pageDigest !== undefined, "the skill page lists the version");
     assertEquals(
+      fingerprint(pageDigest),
       fingerprint(manifestResponse.value.version.digest),
-      fingerprint(versionDigest),
     );
     console.log(
       `AC3 skill version ${version.id}: the worker verified digest ${manifestResponse.value.version.digest}; the skill page shows Fingerprint ${
-        fingerprint(manifestResponse.value.version.digest)
+        fingerprint(pageDigest)
       }`,
     );
     assertEquals(manifestResponse.value.files, manifest.files);
