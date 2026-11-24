@@ -415,6 +415,9 @@ function fakeApi(
     createWorkflowVersion: rejecting,
     updateWorkflowVersion: rejecting,
     publishWorkflowVersion: rejecting,
+    updateSkill: rejecting,
+    copySkill: rejecting,
+    deleteSkillUseGrant: rejecting,
     validateWorkflow: rejecting,
   };
 }
