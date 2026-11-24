@@ -298634,7 +298634,6 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:821cc857657c3c5dd28372936a1ce857b82d3a477c7047d9214bfcf2a55a071c",
   "schemas": {
     "SecretIdentityToolRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
