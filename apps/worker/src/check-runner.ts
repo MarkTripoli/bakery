@@ -25,7 +25,12 @@ import {
   removeAttempt,
   sweepAttempts,
 } from "./attempt-worktree.ts";
-import type { ArtifactRef, WorkerContextInput } from "./client.ts";
+import {
+  type ArtifactRef,
+  type AttemptProof,
+  attemptProofOf,
+  type WorkerContextInput,
+} from "./client.ts";
 import {
   type ContextSeeding,
   describeSeedingFault,
@@ -191,6 +196,7 @@ export type CheckExecutorOptions = {
    */
   readonly readAttemptContext?: (
     attemptId: string,
+    proof: AttemptProof,
   ) => Promise<readonly WorkerContextInput[]>;
   /**
    * Test seam: the signal-a-group call itself. The real default is Deno.kill,
@@ -736,10 +742,20 @@ async function executeCheck(
         500,
       );
     }
+    const proof = attemptProofOf(assignment);
+    if (proof === null) {
+      return checkFault(
+        "CHECK_CONTEXT_READER_MISSING",
+        "The assignment pins context inputs but carries no lease proof to read them with; no process started.",
+        500,
+      );
+    }
     let seeding: ContextSeeding;
     try {
       const read = options.readAttemptContext;
-      const fetch = await fetcherForAttempt(() => read(assignment.attemptId));
+      const fetch = await fetcherForAttempt(() =>
+        read(assignment.attemptId, proof)
+      );
       seeding = await seedContext(
         {
           // The assignment names a job and an attempt, never a run: a worker

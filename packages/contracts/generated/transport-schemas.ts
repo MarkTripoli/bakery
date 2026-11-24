@@ -15357,6 +15357,40 @@ const transportSchemas = {
       ],
       "description": "Renames or moves one file of a skill's draft in one step, keeping its content."
     },
+    "FolderGrantCreate": {
+      "fields": [
+        {
+          "name": "principalId",
+          "type": "uuid",
+          "required": true,
+          "description": "The member to grant on the folder. They must be an active member of the organization."
+        },
+        {
+          "name": "level",
+          "type": "enum(view|edit|manage)",
+          "required": true,
+          "description": "What the grant allows: view reads, edit also writes, manage also grants and restricts. A grant inherits downward, and a second grant to the same member changes the level."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. Only a working-area folder takes a grant: record areas, the artifacts area, personal folders, /library, /trash, /system and /connections are refused with STORAGE_AREA_REFUSED. The caller needs manage on the folder. A folder with no restricted folder at or above it is refused with STORAGE_AREA_REFUSED (409, reason folder_not_restricted); restrict it first."
+      ],
+      "description": "Grants a member view, edit or manage on one folder (chapter 25 section 17.3). It takes effect only where the folder or an ancestor is restricted, and a folder with no restricted folder at or above it cannot be granted on: restrict it first."
+    },
+    "FolderRestrictionSet": {
+      "fields": [
+        {
+          "name": "restricted",
+          "type": "boolean",
+          "required": true,
+          "description": "True to restrict the folder: what is granted above it stops reaching below it, and it is open only to members granted on it or below, and to Admins. False lifts the restriction."
+        }
+      ],
+      "rules": [
+        "Idempotency-Key is required. Only a working-area folder can be restricted or reopened; the same areas are refused with STORAGE_AREA_REFUSED as for grants. On a folder with no restricted folder at or above it, a member who may write in its area can restrict it and receives manage on it. Once a restricted folder is at or above it, the caller needs manage on the folder. Reopening a folder revokes the live grants on it and below it that no longer have a restricted folder at or above them. Moving, trashing or restoring a folder revokes, in the same way, the live grants in it that relied on a restricted folder above it; each of these audit rows lists the revoked grants."
+      ],
+      "description": "Restricts or reopens one folder. A restricted folder and everything under it do not exist, as far as a listing, a path or an id can tell, to a member who holds no grant inside it."
+    },
     "StorageConnectionPathQuery": {
       "fields": [
         {
@@ -38779,6 +38813,75 @@ const transportSchemas = {
         "skillId": "Stable UUID of the skill the import made or added a version to; null until it completes, or when the caller may not see that skill.",
         "versionId": "Stable UUID of the skill version the import published; null until it completes, or when the caller may not see that skill.",
         "failureCode": "Stable code the import failed with, such as SOURCE_UNAVAILABLE, that a page can turn into words; null unless the import failed."
+      }
+    },
+    "FolderGrant": {
+      "fields": [
+        "id",
+        "folderId",
+        "principalId",
+        "level",
+        "grantedBy",
+        "createdAt",
+        "revokedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "folderId": "uuid",
+        "principalId": "uuid",
+        "level": "enum(view|edit|manage)",
+        "grantedBy": "uuid",
+        "createdAt": "timestamp",
+        "revokedAt": "timestamp|null",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "revokedAt"
+      ],
+      "description": "One grant of view, edit or manage on a folder to a member.",
+      "fieldDescriptions": {
+        "id": "Stable identifier of the grant.",
+        "folderId": "The folder the grant is on.",
+        "principalId": "The member who holds it.",
+        "level": "What the grant allows.",
+        "grantedBy": "The member who granted it.",
+        "createdAt": "When it was granted.",
+        "revokedAt": "When it was revoked, or null while it is live.",
+        "version": "Optimistic concurrency counter."
+      }
+    },
+    "FolderGrantList": {
+      "fields": [
+        "items"
+      ],
+      "fieldTypes": {
+        "items": "json[]"
+      },
+      "bounds": {
+        "itemsMaxItems": 200
+      },
+      "description": "The live grants on one folder, oldest first, at most 200.",
+      "fieldDescriptions": {
+        "items": "One FolderGrant per live grant."
+      }
+    },
+    "FolderRestriction": {
+      "fields": [
+        "folderId",
+        "restricted",
+        "version"
+      ],
+      "fieldTypes": {
+        "folderId": "uuid",
+        "restricted": "boolean",
+        "version": "integer"
+      },
+      "description": "Whether a folder is restricted after the change.",
+      "fieldDescriptions": {
+        "folderId": "The folder.",
+        "restricted": "Whether it is now restricted.",
+        "version": "The folder's version after the change."
       }
     },
     "StorageConnectionMount": {

@@ -11,6 +11,7 @@
  * is for organization Admins only.
  */
 
+import { mayViewAt } from "./folder-access-store.ts";
 import { Buffer } from "node:buffer";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { StandardError } from "@bakery/contracts/http";
@@ -149,11 +150,12 @@ type EntryRow = {
   current_version_id: string | null;
   purged_at: Date | null;
   updated_at: Date;
+  trash_parent_id: string | null;
 };
 
 const ENTRY_COLUMNS =
   "e.id, e.parent_id, e.name, e.name_key, e.kind, e.policy, e.artifact_id," +
-  " e.system_key, e.owner_id, e.current_version_id, e.purged_at, e.updated_at";
+  " e.system_key, e.owner_id, e.current_version_id, e.purged_at, e.updated_at, e.trash_parent_id";
 
 const UP_FROM = "with recursive up as (" +
   " select id, parent_id, name, system_key, 0 as depth" +
@@ -192,6 +194,19 @@ export async function readableEntry(
     )
   ) notFound();
   if (row.purged_at !== null && row.artifact_id === null) notFound();
+  if (
+    !(await mayViewAt(tx, organizationId, principalId, row.id, reader.isAdmin))
+  ) notFound();
+  if (
+    row.trash_parent_id !== null &&
+    !(await mayViewAt(
+      tx,
+      organizationId,
+      principalId,
+      row.trash_parent_id,
+      reader.isAdmin,
+    ))
+  ) notFound();
   const above = await tx.query<{ path: string; in_system: boolean }>(
     UP_FROM +
       " select '/' || string_agg(name, '/' order by depth desc) as path," +
@@ -359,7 +374,6 @@ export async function readableVersionFile(
   };
 }
 
-/** The top-level folders the caller sees (one page, never continued). */
 export async function listStorageRoots(
   context: ActionContext,
   reader: StorageReader,
@@ -400,6 +414,14 @@ export async function listStorageRoots(
   for (const key of keys) {
     const row = byKey.get(key);
     if (!row) continue;
+    const visible = await mayViewAt(
+      tx,
+      organizationId,
+      principalId,
+      row.id,
+      reader.isAdmin,
+    );
+    if (!visible) continue;
     const path = key === "user:" + principalId
       ? "/users/" + row.name
       : "/" + row.name;
@@ -461,6 +483,11 @@ export function createFolderLister(secret: string) {
         " and (e.purged_at is null or e.artifact_id is not null)" +
         " and (e.policy not in ('personal', 'scratch')" +
         " or e.owner_id is null or e.owner_id = $3)" +
+        " and (not e.restricted or $8::boolean or exists (" +
+        " select 1 from bakery.storage_folder_grants g" +
+        " where g.organization_id = e.organization_id" +
+        " and g.folder_id = e.id and g.principal_id = $3" +
+        " and g.revoked_at is null))" +
         " and ($4::int is null or" +
         " (case when e.kind = 'folder' then 0 else 1 end, e.name_key, e.id)" +
         " > ($4::int, $5::text, $6::uuid))" +
@@ -474,6 +501,7 @@ export function createFolderLister(secret: string) {
         after?.nameKey ?? null,
         after?.id ?? null,
         limit + 1,
+        reader.isAdmin,
       ],
     );
     const page = found.rows.slice(0, limit);

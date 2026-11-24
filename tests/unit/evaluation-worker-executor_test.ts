@@ -43,6 +43,10 @@ function assignment(action: string, input: unknown): JobAssignment {
     action,
     input,
     attemptId: "00000000-0000-4000-8000-0000000000d1",
+    leaseToken: "x".repeat(43),
+    fence: "1",
+    workerSessionId: "00000000-0000-4000-8000-0000000000d2",
+    workerSessionGeneration: "1",
     skillRefs: [],
   } as unknown as JobAssignment;
 }
