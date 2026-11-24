@@ -24,6 +24,26 @@ Deno.test("no delivery variable means no target, and a full set reads as one (#4
   });
 });
 
+Deno.test("the environment's public address is optional, and a malformed one is refused", () => {
+  assertEquals(
+    readDeliveryTargetConfig({
+      ...FULL,
+      BAKERY_DELIVERY_ADDRESS: "https://bakery.example.test",
+    })?.address,
+    "https://bakery.example.test",
+  );
+  assertEquals(readDeliveryTargetConfig(FULL)?.address, undefined);
+  assertThrows(
+    () =>
+      readDeliveryTargetConfig({
+        ...FULL,
+        BAKERY_DELIVERY_ADDRESS: "bakery.example.test",
+      }),
+    Error,
+    "DELIVERY_TARGET_INVALID",
+  );
+});
+
 Deno.test("a partial, relative, odd-environment or non-URL set is refused, never guessed (#43)", () => {
   for (
     const broken of [
