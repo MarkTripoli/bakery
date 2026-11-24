@@ -16,7 +16,9 @@ import { useConnectivity } from "../app/connectivity.ts";
 import type { NotificationResponse } from "../api/client.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { MarkAllReadToast } from "./MarkAllReadToast.tsx";
 import { NotificationsList } from "./NotificationsList.tsx";
+import { useMarkAllRead } from "./useMarkAllRead.ts";
 import { isNotificationView, type NotificationView } from "./presentation.ts";
 
 export type NotificationsPageProps = {
@@ -29,7 +31,6 @@ export type NotificationsPageProps = {
 
 const SCROLL_MEMORY_KEY = "bakery.notifications.scroll";
 const PAGE_SIZE = 30;
-const UNDO_WINDOW_MS = 10_000;
 
 /**
  * `/notifications`: the whole inbox, with the three views in the URL so Back and
@@ -47,11 +48,15 @@ export function NotificationsPage(
   const entryKey = useRouterState({
     select: (state) => state.location.state.__TSR_key,
   });
-  const [marking, setMarking] = useState(false);
+  const {
+    failed: markAllFailed,
+    markAllRead,
+    marking,
+    toast: markAllToast,
+  } = useMarkAllRead("page");
   const [pendingReadIds, setPendingReadIds] = useState<ReadonlySet<string>>(
     new Set(),
   );
-  const [undo, setUndo] = useState<string | null>(null);
   const [toast, setToast] = useState<
     { tone: "success" | "error"; message: string } | null
   >(null);
@@ -75,15 +80,6 @@ export function NotificationsPage(
     () => invalidateNotificationQueries(queryClient),
     [queryClient],
   );
-
-  useEffect(() => {
-    if (undo === null) return;
-    const timer = globalThis.setTimeout(() => {
-      setUndo(null);
-      setToast(null);
-    }, UNDO_WINDOW_MS);
-    return () => globalThis.clearTimeout(timer);
-  }, [undo]);
 
   const openRow = useCallback((row: NotificationResponse) => {
     globalThis.sessionStorage.setItem(
@@ -125,67 +121,6 @@ export function NotificationsPage(
     const timer = globalThis.setTimeout(() => setOutlined(null), 2500);
     return () => globalThis.clearTimeout(timer);
   }, [item, rows]);
-
-  const markAllRead = useCallback(async () => {
-    // Bounded by the moment it was pressed: anything arriving during it stays
-    // unread and shows up at the top with its dot.
-    const cutoff = new Date().toISOString();
-    setMarking(true);
-    try {
-      const result = await client.markAllNotificationsRead({
-        organizationId: scope.organizationId!,
-        readBefore: cutoff,
-        idempotencyKey: `mark-all-${cutoff}`,
-      });
-      if (!result.ok) {
-        setToast({
-          tone: "error",
-          message: translate("notifications.markAllRead.failed"),
-        });
-        return;
-      }
-      const marked = result.data.marked;
-      const arrived = result.data.remainingUnread ?? 0;
-      setUndo(marked > 0 ? result.data.batchId ?? null : null);
-      setToast({
-        tone: "success",
-        message: arrived > 0
-          ? translate("notifications.markAllRead.doneWithArrivals", {
-            count: marked,
-            arrived,
-          })
-          : translate("notifications.markAllRead.done", { count: marked }),
-      });
-      await refresh();
-    } finally {
-      setMarking(false);
-    }
-  }, [client, refresh, scope.organizationId, translate]);
-
-  const undoMarkAll = useCallback(async () => {
-    if (undo === null) return;
-    const batchId = undo;
-    setUndo(null);
-    const result = await client.undoMarkAllNotificationsRead({
-      organizationId: scope.organizationId!,
-      batchId,
-      idempotencyKey: `undo-${batchId}`,
-    });
-    if (!result.ok) {
-      setToast({
-        tone: "error",
-        message: translate("notifications.undo.failed"),
-      });
-      return;
-    }
-    setToast({
-      tone: "success",
-      message: translate("notifications.undo.done", {
-        count: result.data.restored,
-      }),
-    });
-    await refresh();
-  }, [client, refresh, scope.organizationId, translate, undo]);
 
   const toggleRead = useCallback(
     async (row: NotificationResponse) => {
@@ -257,18 +192,19 @@ export function NotificationsPage(
     <UI.Stack gap="spacious">
       <UI.NotificationPageHeader>
         <UI.Heading level="page">{translate("notifications.title")}</UI.Heading>
-        <UI.Button
-          disabled={!hasUnread || marking}
-          title={hasUnread
-            ? undefined
-            : translate("notifications.markAllRead.disabled")}
-          onClick={() => void markAllRead()}
-          variant="secondary"
-        >
-          {marking
-            ? translate("notifications.markAllRead.running")
-            : translate("notifications.markAllRead")}
-        </UI.Button>
+        {hasUnread
+          ? (
+            <UI.Button
+              disabled={marking}
+              onClick={() => void markAllRead()}
+              variant="secondary"
+            >
+              {marking
+                ? translate("notifications.markAllRead.running")
+                : translate("notifications.markAllRead")}
+            </UI.Button>
+          )
+          : null}
       </UI.NotificationPageHeader>
       <UI.Tabs
         aria-label={translate("notifications.title")}
@@ -278,20 +214,11 @@ export function NotificationsPage(
         selectedId={view}
         tabs={tabs}
       />
-      {toast === null ? null : (
+      <MarkAllReadToast surface="page" />
+      {markAllToast !== null || toast === null ? null : (
         <UI.Toast
-          action={undo === null || toast.tone !== "success"
-            ? undefined
-            : (
-              <UI.Button onClick={() => void undoMarkAll()} variant="quiet">
-                {translate("notifications.undo")}
-              </UI.Button>
-            )}
+          onDismiss={() => setToast(null)}
           tone={toast.tone}
-          onDismiss={() => {
-            setToast(null);
-            setUndo(null);
-          }}
         >
           {toast.message}
         </UI.Toast>
@@ -300,6 +227,20 @@ export function NotificationsPage(
         ? (
           <UI.InlineNotice tone="information">
             {translate("notifications.offline")}
+          </UI.InlineNotice>
+        )
+        : null}
+      {markAllFailed
+        ? (
+          <UI.InlineNotice
+            tone="error"
+            action={
+              <UI.Button onClick={() => void markAllRead()} variant="quiet">
+                {translate("notifications.tryAgain")}
+              </UI.Button>
+            }
+          >
+            {translate("notifications.markAll.failed")}
           </UI.InlineNotice>
         )
         : null}

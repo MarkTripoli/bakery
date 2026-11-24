@@ -40,32 +40,50 @@ test.describe("desktop: bell and popover", () => {
     await expect(bell(page, "Notifications, none unread")).toBeVisible();
   });
 
-  test("Mark all read in the popover acts in place", async ({ page }) => {
+  test("Mark all read in the popover acts in place, and its toast outlives the popover", async ({ page }) => {
     const { calls } = await inboxFixture(page);
     await page.goto("/notifications?view=mentions");
     await bell(page, "Notifications, 3 unread").click();
     await page.mouse.move(40, 800);
     await still(page, "bell-popover");
-    await popoverOf(page).getByRole("button", { name: "Mark all read" })
-      .click();
+    const popover = popoverOf(page);
+    await popover.getByRole("button", { name: "Mark all read" }).click();
     await expect(bell(page, "Notifications, none unread")).toBeVisible();
+    await expect(page.getByText("Marked 3 read.")).toBeVisible();
+    await expect(popover.getByText("You're all caught up.")).toBeVisible();
+    await expect(popover.getByRole("button", { name: "Mark all read" }))
+      .toHaveCount(0);
+    await page.mouse.move(40, 800);
+    await still(page, "bell-popover-success-toast");
+    await page.keyboard.press("Escape");
+    await expect(popover).toHaveCount(0);
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page.getByText("Restored 3 notifications to unread."))
+      .toBeVisible();
+    await expect(bell(page, "Notifications, 3 unread")).toBeVisible();
     expect(calls.markAll).toHaveLength(1);
+    expect(calls.undo).toHaveLength(1);
     expect(new URL(page.url()).searchParams.get("view")).toBe("mentions");
   });
 
-  test("a failed Mark all read says so in the popover and Try again sends it again", async ({ page }) => {
+  test("a failed Mark all read says so above the rows it could not mark, and Try again sends it again", async ({ page }) => {
     const { calls } = await inboxFixture(page, { failMarkAll: true });
     await page.goto("/notifications");
     await bell(page, "Notifications, 3 unread").click();
-    await popoverOf(page).getByRole("button", { name: "Mark all read" })
-      .click();
-    await expect(
-      popoverOf(page).getByText("Could not mark them read. Try again."),
-    ).toBeVisible();
+    const popover = popoverOf(page);
+    await expect(popover.getByText("Task 0", { exact: true })).toBeVisible();
+    await expect(popover.getByText("Task 5", { exact: true })).toHaveCount(0);
+    await popover.getByRole("button", { name: "Mark all read" }).click();
+    await expect(popover.getByText("Could not mark all as read."))
+      .toBeVisible();
+    await expect(popover.getByText("Notifications could not load."))
+      .toHaveCount(0);
+    await expect(popover.getByText("Task 0", { exact: true })).toBeVisible();
     await page.mouse.move(40, 800);
     await still(page, "bell-popover-failed");
-    await popoverOf(page).getByRole("button", { name: "Try again" }).click();
+    await popover.getByRole("button", { name: "Try again" }).click();
     await expect.poll(() => calls.markAll.length).toBe(2);
+    await expect(popover.getByText("Task 0", { exact: true })).toBeVisible();
   });
 
   test("a popover list that could not load says so and Try again reloads it", async ({ page }) => {

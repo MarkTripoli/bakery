@@ -112,6 +112,31 @@ for (
       expect(calls.undo).toHaveLength(1);
     });
 
+    test("Mark all read that fails says so above the list and Try again sends it again", async ({ page }) => {
+      const { calls } = await inboxFixture(page, { failMarkAll: true });
+      await page.goto("/notifications");
+      await expect(rowsOf(page).first()).toBeVisible();
+      await page.getByRole("button", { name: "Mark all read" }).click();
+      await expect(page.getByText("Could not mark all as read.")).toBeVisible();
+      await expect(
+        page.getByText("That could not be saved. Try again."),
+      ).toHaveCount(0);
+      await expect(page.getByRole("tab", { name: "Unread (3)" })).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "notifications-mark-all-failed");
+      await page.getByRole("button", { name: "Try again" }).click();
+      await expect.poll(() => calls.markAll.length).toBe(2);
+      await expect(rowsOf(page).first()).toBeVisible();
+    });
+
+    test("with nothing unread there is no Mark all read to press", async ({ page }) => {
+      await inboxFixture(page, { unread: 0 });
+      await page.goto("/notifications");
+      await expect(rowsOf(page).first()).toBeVisible();
+      await expect(page.getByRole("button", { name: "Mark all read" }))
+        .toHaveCount(0);
+    });
+
     test("offline, the list says it may be out of date", async ({ page, context }) => {
       await inboxFixture(page);
       await page.goto("/notifications");

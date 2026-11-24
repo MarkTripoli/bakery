@@ -7,10 +7,8 @@ import "../data.css";
 
 export type NotificationPopoverProps = {
   readonly title: string;
-  readonly markAllReadLabel: string;
-  readonly markAllReadDisabled: boolean;
-  /** The reason, shown as a tooltip and as the button's description. */
-  readonly markAllReadDisabledReason: string;
+  readonly markAllReadLabel?: string;
+  readonly markAllReadDisabled?: boolean;
   readonly onMarkAllRead: () => void;
   readonly viewAllHref: string;
   readonly viewAllLabel: string;
@@ -19,34 +17,36 @@ export type NotificationPopoverProps = {
   /**
    * What the panel shows. "scrolling" is a ready list long enough to scroll
    * under the block cap; the caller names it because the panel cannot tell
-   * from its children alone. A ready panel whose action is disabled reports
-   * itself as "nothing-unread".
+   * from its children alone.
    */
   readonly state?: "ready" | "loading" | "empty" | "failed" | "scrolling";
   readonly onRetry?: () => void;
   readonly retryLabel?: string;
   readonly failedLabel?: string;
   readonly loadingLabel?: string;
+  readonly actionFailedLabel?: string;
+  readonly onActionRetry?: () => void;
   /** The rows; omitted for the loading, empty and failed states. */
   readonly children?: ReactNode;
 };
 
 /**
- * The 360px panel under the bell: a header with one quiet action, the six
- * newest rows, and a way to the page. It scrolls inside itself and is capped to
- * the viewport, so the last row is always reachable without the panel growing
- * past the window.
+ * The 360px panel under the bell: a header with one quiet action, the newest
+ * rows, and a way to the page. It scrolls inside itself and is capped to the
+ * viewport, so the last row is always reachable without the panel growing past
+ * the window.
  */
 export function NotificationPopover(
   {
+    actionFailedLabel,
     children,
     failedLabel = "Notifications could not load.",
     footerNote,
     loadingLabel = "Loading notifications",
-    markAllReadDisabled,
-    markAllReadDisabledReason,
+    markAllReadDisabled = false,
     markAllReadLabel,
     onMarkAllRead,
+    onActionRetry,
     onRetry,
     retryLabel = "Try again",
     state = "ready",
@@ -55,36 +55,28 @@ export function NotificationPopover(
     viewAllLabel,
   }: NotificationPopoverProps,
 ) {
-  const reasonId = markAllReadDisabled
-    ? "notification-mark-all-reason"
-    : undefined;
   return (
     <div
       className="ui-notification-popover"
-      data-state={state === "ready" && markAllReadDisabled
-        ? "nothing-unread"
-        : state}
+      data-state={state}
       data-ui-component="notificationPopover"
       data-variant="default"
     >
       <div className="ui-notification-popover__header">
         <h2 className="ui-notification-popover__title">{title}</h2>
-        <span className="ui-notification-popover__action">
-          <Button
-            aria-describedby={reasonId}
-            disabled={markAllReadDisabled}
-            onClick={onMarkAllRead}
-            title={markAllReadDisabled ? markAllReadDisabledReason : undefined}
-            variant="quiet"
-          >
-            {markAllReadLabel}
-          </Button>
-          {reasonId === undefined ? null : (
-            <VisuallyHidden id={reasonId}>
-              {markAllReadDisabledReason}
-            </VisuallyHidden>
+        {markAllReadLabel === undefined
+          ? null
+          : (
+            <span className="ui-notification-popover__action">
+              <Button
+                disabled={markAllReadDisabled}
+                onClick={onMarkAllRead}
+                variant="quiet"
+              >
+                {markAllReadLabel}
+              </Button>
+            </span>
           )}
-        </span>
       </div>
       <div
         className="ui-notification-popover__body"
@@ -114,7 +106,26 @@ export function NotificationPopover(
           )
           : state === "empty"
           ? <p className="ui-notification-popover__message">{footerNote}</p>
-          : children}
+          : (
+            <>
+              {actionFailedLabel === undefined ? null : (
+                <div
+                  className="ui-notification-popover__message"
+                  role="alert"
+                >
+                  <span>{actionFailedLabel}</span>
+                  {onActionRetry === undefined
+                    ? null
+                    : (
+                      <Button onClick={onActionRetry} variant="quiet">
+                        {retryLabel}
+                      </Button>
+                    )}
+                </div>
+              )}
+              {children}
+            </>
+          )}
       </div>
       <div className="ui-notification-popover__footer">
         <Link href={viewAllHref} variant="quiet">{viewAllLabel}</Link>

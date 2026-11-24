@@ -14,10 +14,11 @@ import { useSession } from "../app/session-context.tsx";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { NotificationsList } from "./NotificationsList.tsx";
+import { useMarkAllRead } from "./useMarkAllRead.ts";
 import { bellAccessibleName, bellStatusOf } from "./presentation.ts";
 
 const NOTIFICATIONS_PATH = "/notifications";
-const POPOVER_ROWS = 6;
+const POPOVER_ROWS = 5;
 
 /**
  * The bell in the shell's top bar, with the recent-notifications popover on a
@@ -137,25 +138,9 @@ function NotificationBellPopover(
   const { translate } = useI18n();
   const client = useBakeryApi();
   const scope = useProtectedScope();
-  const queryClient = useQueryClient();
-  const [markState, setMarkState] = useState<"idle" | "saving" | "failed">(
-    "idle",
+  const { failed: markAllFailed, markAllRead, marking } = useMarkAllRead(
+    "bell",
   );
-  const markAllRead = async () => {
-    const cutoff = new Date().toISOString();
-    setMarkState("saving");
-    const result = await client.markAllNotificationsRead({
-      organizationId: scope.organizationId!,
-      readBefore: cutoff,
-      idempotencyKey: `mark-all-${cutoff}`,
-    });
-    if (!result.ok) {
-      setMarkState("failed");
-      return;
-    }
-    setMarkState("idle");
-    await invalidateNotificationQueries(queryClient);
-  };
   const list = useQuery(
     notificationsListQueryOptions(client, scope, {
       filter: "all",
@@ -168,27 +153,28 @@ function NotificationBellPopover(
   return (
     <UI.NotificationPopover
       title={translate("notifications.title")}
-      markAllReadLabel={translate("notifications.markAllRead")}
-      markAllReadDisabled={nothingUnread || markState === "saving"}
-      markAllReadDisabledReason={translate(
-        "notifications.markAllRead.disabled",
-      )}
+      markAllReadLabel={nothingUnread
+        ? undefined
+        : marking
+        ? translate("notifications.markAllRead.running")
+        : translate("notifications.markAllRead")}
+      markAllReadDisabled={marking}
       onMarkAllRead={() => void markAllRead()}
-      failedLabel={markState === "failed"
-        ? translate("notifications.markAllRead.failed")
-        : translate("notifications.failed")}
+      failedLabel={translate("notifications.failed")}
       retryLabel={translate("notifications.tryAgain")}
-      onRetry={markState === "failed"
-        ? () => void markAllRead()
-        : () => void list.refetch()}
+      onRetry={() => void list.refetch()}
+      actionFailedLabel={markAllFailed
+        ? translate("notifications.markAll.failed")
+        : undefined}
+      onActionRetry={() => void markAllRead()}
       viewAllHref={NOTIFICATIONS_PATH}
       viewAllLabel={translate("notifications.popover.viewAll")}
       footerNote={translate("notifications.popover.empty")}
       state={list.isPending
         ? "loading"
-        : list.isError || markState === "failed"
+        : list.isError
         ? "failed"
-        : rows.length === 0
+        : nothingUnread || rows.length === 0
         ? "empty"
         : "ready"}
     >

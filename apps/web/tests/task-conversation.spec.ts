@@ -2485,7 +2485,7 @@ for (
   test(`the message notice follows the run: ${status}`, async ({ page }) => {
     await openRun(page, status);
     const composer = page.locator('[data-ui-region="composer"]');
-    await expect(composer.getByRole("textbox")).toBeVisible();
+    await expect(composer.getByRole("combobox")).toBeVisible();
     if (notice === null) {
       await expect(composer.getByText("A run is in progress.")).toHaveCount(0);
       await expect(composer.getByText(/^This run is blocked\./)).toHaveCount(0);
