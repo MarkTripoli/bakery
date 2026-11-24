@@ -398,7 +398,6 @@ async function mockWorld(page: Page, state: World) {
     }));
 }
 
-/** Each connection's scopes, unioned across its frames; no scope named twice. */
 const scopesByConnection = (stream: Stream) => {
   const byConnection = new Map<number, string[]>();
   for (const subscribe of stream.subscribes) {
@@ -413,7 +412,6 @@ const scopesByConnection = (stream: Stream) => {
   return [...byConnection.values()].map((scopes) => scopes.sort());
 };
 
-/** The page's two scopes and the shell's inbox arrive on one connection. */
 const shellAndCoordinationScopes = () =>
   [
     `application:${applicationId}`,

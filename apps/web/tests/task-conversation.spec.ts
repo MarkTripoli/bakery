@@ -2055,7 +2055,6 @@ type Stream = {
   drop: () => void;
 };
 
-/** Each connection's scopes, unioned across its frames; no scope named twice. */
 const scopesByConnection = (stream: Stream) => {
   const byConnection = new Map<number, string[]>();
   for (const subscribe of stream.subscribes) {
@@ -2097,7 +2096,6 @@ async function mockStream(page: Page): Promise<Stream> {
   };
   await page.routeWebSocket(/\/v1\/events/, (socket) => {
     connections.push(socket);
-    // streams are tracked per connection, see scopesByConnection
     socket.send(JSON.stringify({
       type: "hello",
       protocolVersion: 1,

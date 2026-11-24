@@ -12,7 +12,6 @@ export type NotificationPopoverProps = {
   readonly onMarkAllRead: () => void;
   readonly viewAllHref: string;
   readonly viewAllLabel: string;
-  /** Said in the body when there is nothing to list. */
   readonly footerNote?: string;
   /**
    * What the panel shows. "scrolling" is a ready list long enough to scroll
@@ -30,12 +29,6 @@ export type NotificationPopoverProps = {
   readonly children?: ReactNode;
 };
 
-/**
- * The 360px panel under the bell: a header with one quiet action, the newest
- * rows, and a way to the page. It scrolls inside itself and is capped to the
- * viewport, so the last row is always reachable without the panel growing past
- * the window.
- */
 export function NotificationPopover(
   {
     actionFailedLabel,
