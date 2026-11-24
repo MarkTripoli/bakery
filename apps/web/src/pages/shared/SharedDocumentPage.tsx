@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
@@ -31,6 +31,7 @@ export function SharedDocumentPage(
   const { translate: t, locale } = useI18n();
   const navigate = useNavigate();
   const landing = useRef(current).current;
+  const [rootCount, setRootCount] = useState(0);
   const scoped = scope.organizationId !== null;
   const target = useQuery({
     ...notificationTargetQueryOptions(api, scope, landing.n ?? ""),
@@ -151,12 +152,16 @@ export function SharedDocumentPage(
               version={selected}
               commentId={comment}
               landed={comment !== undefined && landing.gone !== true}
+              agentRequest={false}
+              onRootCount={setRootCount}
             />
           )
           : null}
         comments={{
           title: t("artifact.comments.title"),
-          openLabel: t("artifact.comments.title"),
+          openLabel: t("shared.document.showComments", {
+            count: String(rootCount),
+          }),
           linkedCommentId: comment ?? null,
         }}
       />

@@ -5,6 +5,7 @@ import { useBakeryApi } from "../../api/context.tsx";
 import {
   conversationMessagesQueryOptions,
   conversationParticipantsQueryOptions,
+  notificationGetQueryOptions,
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useSession } from "../../app/session-context.tsx";
@@ -48,6 +49,13 @@ export function SharedConversationPage(
     ...conversationParticipantsQueryOptions(api, scope, conversationId),
     enabled: scoped,
   });
+  const notification = useQuery({
+    ...notificationGetQueryOptions(api, scope, landing.n ?? ""),
+    enabled: landing.n !== undefined && scoped,
+  });
+  const heading = notification.data?.destination.available === true
+    ? notification.data.destination.title
+    : null;
   const anchored = parseLanding(landing.at);
   const targetId = landing.gone === true
     ? null
@@ -133,7 +141,7 @@ export function SharedConversationPage(
   return (
     <SharedFrame
       testId="shared-conversation-page"
-      title={t("shared.conversation.title" as never)}
+      title={heading}
       notice={t("shared.conversation.notice" as never)}
     >
       <UI.VisuallyHidden aria-live="polite" as="div" role="status">

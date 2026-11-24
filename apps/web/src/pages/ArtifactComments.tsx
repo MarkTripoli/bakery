@@ -36,12 +36,21 @@ import {
 } from "./ArtifactCommentAnchor.tsx";
 
 export function ArtifactComments(
-  { artifact, version, commentId, landed = false }: {
+  {
+    artifact,
+    version,
+    commentId,
+    landed = false,
+    agentRequest = true,
+    onRootCount,
+  }: {
     readonly artifact: ArtifactResponse;
     readonly version: ArtifactVersionResponse;
     readonly commentId?: string;
     /** The comment is where a notification landed: centre it, outline it once. */
     readonly landed?: boolean;
+    readonly agentRequest?: boolean;
+    readonly onRootCount?: (count: number) => void;
   },
 ) {
   const api = useBakeryApi();
@@ -96,11 +105,14 @@ export function ArtifactComments(
   });
   const task = useQuery({
     ...taskQueryOptions(api, scope, artifact.taskId),
-    enabled: scope.organizationId !== null,
+    enabled: agentRequest && scope.organizationId !== null,
   });
   const roots = comments.isError
     ? []
     : comments.data?.pages.flatMap((page) => page.items) ?? [];
+  useEffect(() => {
+    onRootCount?.(roots.length);
+  }, [onRootCount, roots.length]);
   const focusedComment = useRef<string | null>(null);
   const foundComment = roots.some((root) => root.id === commentId);
   const missingComment = commentId && comments.isSuccess && !foundComment &&
@@ -295,16 +307,18 @@ export function ArtifactComments(
           />
         ),
       },
-    agentAction: (
-      <ArtifactAgentRequest
-        conversationId={task.data?.conversationId ?? null}
-        selected={selected}
-        onReload={() => {
-          setSelected([]);
-          void comments.refetch();
-        }}
-      />
-    ),
+    agentAction: agentRequest
+      ? (
+        <ArtifactAgentRequest
+          conversationId={task.data?.conversationId ?? null}
+          selected={selected}
+          onReload={() => {
+            setSelected([]);
+            void comments.refetch();
+          }}
+        />
+      )
+      : null,
   };
   const lastReplyId = useRef<string | null>(null);
   useEffect(() => {

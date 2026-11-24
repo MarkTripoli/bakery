@@ -6825,15 +6825,16 @@
   "shared.document.sharedBy": "⟦{name} šĥàŕëð ŧĥïš ðôçûɱëñŧ ŵïŧĥ ÿôû ôñ {date}. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "shared.document.gone.title": "⟦Ŧĥïš ðôçûɱëñŧ ŵàš ðëļëŧëð ŧëšŧ ç⟧",
   "shared.document.noLongerShared.title": "⟦Ŧĥïš ðôçûɱëñŧ ïš ñô ļôñĝëŕ šĥàŕëð ŵïŧĥ ÿôû ŧëšŧ çôþÿ ŧë⟧",
-  "shared.conversation.title": "⟦À çôñṽëŕšàŧïôñ ŧë⟧",
-  "shared.conversation.notice": "⟦Ÿôû ŵëŕë ɱëñŧïôñëð ĥëŕë. Ÿôû çàñ ŕëàð àñð ŕëþļÿ ïñ ŧĥïš çôñṽëŕšàŧïôñ. Ŧĥë ŕëšŧ ôƒ ŧĥïš ŧàšķ ïš ñôŧ šĥàŕëð ŵïŧĥ ÿôû. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "shared.conversation.gone.title": "⟦Ŧĥïš çôñṽëŕšàŧïôñ ŵàš ðëļëŧëð ŧëšŧ çôþ⟧",
   "shared.conversation.noLongerShared.title": "⟦Ŧĥïš çôñṽëŕšàŧïôñ ïš ñô ļôñĝëŕ šĥàŕëð ŵïŧĥ ÿôû ŧëšŧ çôþÿ ŧëšŧ⟧",
   "shared.conversation.reply.label": "⟦Ŕëþļÿ ŧô ŧĥïš çôñṽëŕšàŧïôñ ŧëšŧ çô⟧",
   "shared.conversation.reply.placeholder": "⟦Ŕëþļÿ……⟧",
-  "shared.unavailable.gone.body": "⟦Šôɱëôñë ŕëɱôṽëð ïŧ. Ñôŧĥïñĝ ĥëŕë çàñ ƀë ôþëñëð. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "shared.unavailable.noLongerShared.body": "⟦Àšķ {granter} ïƒ ÿôû šŧïļļ ñëëð ïŧ. ŧëšŧ çôþÿŧ⟧",
   "shared.unavailable.noLongerShared.bodyAnon": "⟦Àšķ ŧĥë þëŕšôñ ŵĥô šĥàŕëð ïŧ ïƒ ÿôû šŧïļļ ñëëð ïŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "shared.unavailable.unknown.title": "⟦Ŧĥïš ïš ñô ļôñĝëŕ àṽàïļàƀļë ŧëšŧ çô⟧",
-  "shared.unavailable.unknown.body": "⟦Ïŧ ŵàš ðëļëŧëð, ôŕ ïŧ ïš ñô ļôñĝëŕ šĥàŕëð ŵïŧĥ ÿôû. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "shared.unavailable.unknown.body": "⟦Ïŧ ŵàš ðëļëŧëð, ôŕ ïŧ ïš ñô ļôñĝëŕ šĥàŕëð ŵïŧĥ ÿôû. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "shared.unavailable.gone.bodyAnon": "⟦Šôɱëôñë ŕëɱôṽëð ïŧ. Ñôŧĥïñĝ ĥëŕë çàñ ƀë ôþëñëð. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "shared.conversation.notice": "⟦Ÿôû çàñ ŕëàð àñð ŕëþļÿ ïñ ŧĥïš çôñṽëŕšàŧïôñ. Ŧĥë ŕëšŧ ôƒ ŧĥïš ŧàšķ ïš ñôŧ šĥàŕëð ŵïŧĥ ÿôû. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "shared.unavailable.gone.body": "⟦{name} ôŕ šôɱëôñë ôñ ŧĥë ŧàšķ ŕëɱôṽëð ïŧ. Ñôŧĥïñĝ ĥëŕë çàñ ƀë ôþëñëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "shared.document.showComments": "⟦Šĥôŵ çôɱɱëñŧš ({count}) ŧëšŧ ç⟧"
 }
