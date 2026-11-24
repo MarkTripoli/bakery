@@ -188,6 +188,10 @@ function fakeApi(
       pointInTime: rejecting,
       offsite: rejecting,
       issueRunnerCredential: rejecting,
+      putSchedule: rejecting,
+      putOffsite: rejecting,
+      putPointInTime: rejecting,
+      verifyOffsite: rejecting,
     },
     installationUpdates: {
       status: rejecting,

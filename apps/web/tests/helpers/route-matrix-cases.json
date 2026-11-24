@@ -208,6 +208,10 @@
     "path": "/installation/backups"
   },
   {
+    "id": "installation-backups-settings",
+    "path": "/installation/backups/settings"
+  },
+  {
     "id": "installation-updates",
     "path": "/installation/updates"
   },

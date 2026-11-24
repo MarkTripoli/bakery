@@ -130,6 +130,11 @@ export type BackupDrillPage = ClientOutputMap["Page<BackupDrill>"];
 export type BackupSchedule = ClientOutputMap["BackupSchedule"];
 export type BackupPointInTime = ClientOutputMap["BackupPointInTime"];
 export type BackupOffsite = ClientOutputMap["BackupOffsite"];
+export type BackupSchedulePut = ClientInputMap["BackupSchedulePut"];
+export type BackupOffsitePut = ClientInputMap["BackupOffsitePut"];
+export type BackupPointInTimePut = ClientInputMap["BackupPointInTimePut"];
+export type BackupOffsiteVerification =
+  ClientOutputMap["BackupOffsiteVerification"];
 export type BackupRunnerCredentialIssued =
   ClientOutputMap["BackupRunnerCredentialIssued"];
 /** Which release runs, the one kept to go back to, and the last update that did not go through (#59). */
@@ -1648,6 +1653,28 @@ export type BakeryApiClient = {
     readonly issueRunnerCredential: (
       signal?: AbortSignal,
     ) => Promise<ApiResult<BackupRunnerCredentialIssued>>;
+    readonly putSchedule: (options: {
+      readonly input: BackupSchedulePut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupSchedule>>;
+    readonly putOffsite: (options: {
+      readonly input: BackupOffsitePut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupOffsite>>;
+    readonly putPointInTime: (options: {
+      readonly input: BackupPointInTimePut;
+      readonly version?: number;
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupPointInTime>>;
+    readonly verifyOffsite: (options: {
+      readonly idempotencyKey: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<BackupOffsiteVerification>>;
   };
   readonly installationUpdates: {
     /** `GET /v1/installation/updates/status`: the running release, the kept one and the last failure; administrators only. */
@@ -4991,6 +5018,67 @@ export function createBakeryApiClient({
             ok: true,
             data: await client.actions["backupRunnerCredential.issue"]({}, {
               signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async putSchedule(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupSchedule.put"](options.input, {
+              ...(options.version === undefined
+                ? {}
+                : { ifMatch: versionEtag(options.version) }),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async putOffsite(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupOffsite.put"](options.input, {
+              ...(options.version === undefined
+                ? {}
+                : { ifMatch: versionEtag(options.version) }),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async putPointInTime(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupPointInTime.put"](options.input, {
+              ...(options.version === undefined
+                ? {}
+                : { ifMatch: versionEtag(options.version) }),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async verifyOffsite(options) {
+        try {
+          return {
+            ok: true,
+            data: await client.actions["backupOffsite.verify"]({}, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
             }),
           };
         } catch (error) {
