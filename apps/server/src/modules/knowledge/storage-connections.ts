@@ -114,7 +114,10 @@ export function mountSystemKey(connectionId: string): string {
 export function splitConnectionPath(
   path: string,
 ): { mountName: string; remotePath: string } | undefined {
-  if (!path.startsWith(CONNECTIONS_PREFIX)) return undefined;
+  if (
+    path.slice(0, CONNECTIONS_PREFIX.length).toLowerCase() !==
+      CONNECTIONS_PREFIX
+  ) return undefined;
   const rest = path.slice(CONNECTIONS_PREFIX.length);
   const slash = rest.indexOf("/");
   const mountName = slash === -1 ? rest : rest.slice(0, slash);
@@ -1318,12 +1321,12 @@ export async function runStorageExport(
     const binding = await exportBinding(tx, deps, organizationId, ready);
     if (binding === null) {
       return {
-        settled: await failExport(tx, ready, "export_connection_unavailable"),
+        settled: await failExport(tx, ready, "provider_not_sent"),
       };
     }
     if (ready.dispatchGeneration >= MAX_EXPORT_ATTEMPTS) {
       return {
-        settled: await failExport(tx, ready, "export_attempts_exhausted"),
+        settled: await failExport(tx, ready, "retry_exhausted"),
       };
     }
     const claim = await casClaim(
@@ -1411,7 +1414,7 @@ async function dispatchExport(
     bytes = await exportBytes(database, deps, organizationId, args);
   } catch (error) {
     return error instanceof StandardError
-      ? { kind: "failed", failureCode: "export_source_unavailable" }
+      ? { kind: "failed", failureCode: "provider_not_sent" }
       : { kind: "retry", delaySeconds: EXPORT_RETRY_SECONDS };
   }
   try {

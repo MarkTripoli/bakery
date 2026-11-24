@@ -925,11 +925,10 @@ leaves ingested versions alone. A run walks at most 500 files and the next run
 resumes where it stopped; the feed position moves only when a walk finishes. A
 sync can be paused and resumed, and a failed run records why (`lastFailure`)
 without holding up the other syncs. Writing out is a keyed external effect,
-written with `If-Match` on the remote revision. An export whose source bytes
-are gone fails, and one the provider keeps refusing is tried at most five times.
-Access is the connection's permission
-(read, invoke, manage), the tree's read rule on the mount folder, and a live
-connection.
+written with `If-Match` on the remote revision. An export whose source bytes are
+gone fails, and one the provider keeps refusing is tried at most five times.
+Access is the connection's permission (read, invoke, manage), the tree's read
+rule on the mount folder, and a live connection.
 
 The first provider is **local disk**. The operator sets one root
 (`BAKERY_STORAGE_LOCAL_ROOT`, read through `RuntimeConfig`, server only), and a

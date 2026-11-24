@@ -36,7 +36,6 @@ import {
   pinStoragePath,
   storageQueryOf,
 } from "../../apps/server/src/modules/knowledge/storage-tree.ts";
-import { putStorageFile } from "../../apps/server/src/modules/knowledge/storage-working-areas.ts";
 import type { OrganizationBlobStore } from "../../apps/server/src/modules/catalog/storage-port.ts";
 import {
   recordInputPaths,
@@ -784,43 +783,41 @@ Deno.test("an export refuses a version the caller may not read", () =>
        values ($1, 'Someone else', 'service')`,
       [other],
     );
-    let entryId: string | null = null;
+    const source = await as(
+      r,
+      (context, tx) =>
+        ingestConnectionInput(context, tx, reader, r.deps, {
+          organizationId: r.organizationId,
+          principalId: r.principalId,
+          taskId: r.taskId,
+          path: r.mount.path + "/docs/a.txt",
+        }),
+    );
+    const before = await fixture.pgDatabase.query<
+      { policy: string; owner_id: string | null }
+    >(
+      `select policy, owner_id from bakery.storage_entries
+        where organization_id = $1 and id = $2`,
+      [r.organizationId, source.entryId],
+    );
+    const exportIt = (key: string) =>
+      as(r, (context) =>
+        prepareStorageExport(context, reader, r.deps, {
+          path: r.mount.path + "/out/" + key + ".txt",
+          artifactVersionId: source.versionId,
+          idempotencyKey: key,
+        }));
     try {
-      await withPgTransaction(
-        r.db,
-        (tx) =>
-          putStorageFile(personContext(tx, r.organizationId, r.principalId), {
-            path: "/users/" + r.principalId + "/secret.txt",
-            mediaType: "text/plain",
-            content: "only mine",
-          }),
-      );
-      const secret = await r.db.query<{ entry_id: string; version_id: string }>(
-        `select entry.id as entry_id, artifact.current_version_id as version_id
-           from bakery.storage_entries entry
-           join bakery.artifacts artifact
-             on artifact.organization_id = entry.organization_id
-            and artifact.id = entry.artifact_id
-          where entry.organization_id = $1 and entry.name = 'secret.txt'`,
-        [r.organizationId],
-      );
-      assertEquals(secret.rows.length, 1);
-      entryId = secret.rows[0].entry_id;
-      const exportIt = (key: string) =>
-        as(r, (context) =>
-          prepareStorageExport(context, reader, r.deps, {
-            path: r.mount.path + "/out/" + key + ".txt",
-            artifactVersionId: secret.rows[0].version_id,
-            idempotencyKey: key,
-          }));
       assertEquals((await exportIt("mine")).status, "prepared");
       await fixture.pgDatabase.query(
-        `update bakery.storage_entries set owner_id = $3
+        `update bakery.storage_entries set policy = 'personal', owner_id = $3
           where organization_id = $1 and id = $2`,
-        [r.organizationId, entryId, other],
+        [r.organizationId, source.entryId, other],
       );
       assertEquals(await code(exportIt("leak")), "RESOURCE_NOT_FOUND");
-      const effects = await r.db.query<{ idempotency_key: string }>(
+      const effects = await fixture.pgDatabase.query<
+        { idempotency_key: string }
+      >(
         `select idempotency_key from bakery.external_effects
           where organization_id = $1`,
         [r.organizationId],
@@ -828,13 +825,16 @@ Deno.test("an export refuses a version the caller may not read", () =>
       assertEquals(effects.rows.map((row) => row.idempotency_key), ["mine"]);
       assertEquals(r.storage.calls.write, 0);
     } finally {
-      if (entryId !== null) {
-        await fixture.pgDatabase.query(
-          `update bakery.storage_entries set owner_id = $3
-            where organization_id = $1 and id = $2`,
-          [r.organizationId, entryId, r.principalId],
-        );
-      }
+      await fixture.pgDatabase.query(
+        `update bakery.storage_entries set policy = $3, owner_id = $4
+          where organization_id = $1 and id = $2`,
+        [
+          r.organizationId,
+          source.entryId,
+          before.rows[0].policy,
+          before.rows[0].owner_id,
+        ],
+      );
       await clearEffects(fixture, r);
       await fixture.pgDatabase.query(
         "delete from bakery.principals where id = $1",
@@ -868,7 +868,7 @@ Deno.test("a blob-backed export settles, and one whose bytes are gone fails once
         effectId: orphan.effectId,
       });
       assertEquals(lost.outcome, "failed");
-      assertEquals(lost.effect.failureCode, "export_source_unavailable");
+      assertEquals(lost.effect.failureCode, "provider_not_sent");
       const again = await runStorageExport(r.db, r.deps, {
         organizationId: r.organizationId,
         effectId: orphan.effectId,
@@ -935,7 +935,7 @@ Deno.test("an export whose lease expired is claimed again, and its attempts are 
         organizationId: r.organizationId,
         effectId: stuck.effectId,
       });
-      assertEquals(last.effect.failureCode, "export_attempts_exhausted");
+      assertEquals(last.effect.failureCode, "retry_exhausted");
     } finally {
       await clearEffects(fixture, r);
     }
