@@ -14,6 +14,7 @@ import { asyncKindForError, failureStatus } from "../../app/async-state.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { RouterLink } from "../../app/router-link.tsx";
+import { useShellViewport } from "../../app/responsive.ts";
 import { ShellSlot } from "../../shell/shell-slots.tsx";
 import { WORK_HOME } from "../../shell/breadcrumb-paths.ts";
 import {
@@ -27,6 +28,7 @@ import {
 } from "./StepPanel.tsx";
 import type { SkillResponse, WorkflowVersionSkills } from "../../api/client.ts";
 import { WorkflowDiagram } from "./WorkflowDiagram.tsx";
+import { DiagramViewSwitch, useDiagramView } from "./diagram-view.tsx";
 import { versionSource } from "./copy-workflow.ts";
 import {
   definitionOf,
@@ -105,6 +107,7 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   together: "library.editor.group.together",
   repeat: "library.editor.group.repeat",
   fix: "library.editor.group.fixUntilPasses",
+  each: "library.editor.group.each",
   wait: "library.editor.group.wait",
 };
 
@@ -130,6 +133,8 @@ export function WorkflowEditorPage(
   const canManage = access.data?.role === "admin";
   const queryClient = useQueryClient();
   const { translate } = useI18n();
+  const [diagramView, setDiagramView] = useDiagramView();
+  const phone = useShellViewport() === "phone";
 
   const workflow = useQuery(workflowQueryOptions(api, scope, workflowId));
   const versions = useQuery(
@@ -229,6 +234,7 @@ export function WorkflowEditorPage(
   const [saveState, setSaveState] = useState<SaveState>({ kind: "saved" });
   const [codeOpen, setCodeOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [publishAfterSave, setPublishAfterSave] = useState(false);
   const [problemsOpen, setProblemsOpen] = useState(false);
   // The step just deleted, by name, while its Undo is offered.
   const [deleted, setDeleted] = useState<string | null>(null);
@@ -237,7 +243,9 @@ export function WorkflowEditorPage(
   const lastSaved = useRef<string | null>(null);
   // The version the last save returned: a second edit made while the draft is
   // still being read again must send this one, not the one it last read.
-  const savedVersion = useRef<{ id: string; version: number } | null>(null);
+  const savedVersion = useRef<
+    { id: string; version: number; digest: string } | null
+  >(null);
   // The slots the last write sent, so only those are cleared when it lands.
   const sentSlots = useRef<string[]>([]);
   // Slots the person settled (by choosing a skill or removing the placeholder) and the
@@ -299,7 +307,11 @@ export function WorkflowEditorPage(
         idempotencyKey: crypto.randomUUID(),
       });
       if (!result.ok) throw result.error;
-      savedVersion.current = { id: draft.id, version: result.data.version };
+      savedVersion.current = {
+        id: draft.id,
+        version: result.data.version,
+        digest: result.data.digest,
+      };
       return result.data;
     },
     onMutate: () => setSaveState({ kind: "saving" }),
@@ -324,11 +336,16 @@ export function WorkflowEditorPage(
     mutationKey: ["workflowVersions.publish"],
     mutationFn: async (alsoUse: boolean) => {
       if (draft === null) throw new Error("no draft version");
+      const latest = savedVersion.current?.id === draft.id &&
+          savedVersion.current.version > draft.version
+        ? savedVersion.current
+        : { version: draft.version, digest: draft.digest };
       const published = await api.publishWorkflowVersion({
         organizationId: scope.organizationId as string,
         workflowId,
         versionId: draft.id,
-        expectedDigest: draft.digest,
+        version: latest.version,
+        expectedDigest: latest.digest,
         idempotencyKey: crypto.randomUUID(),
       });
       if (!published.ok) throw published.error;
@@ -494,9 +511,13 @@ export function WorkflowEditorPage(
     if (!canManage || draft === null || saveState.kind === "failed") return;
     // One write at a time: the next waits for this one, then saves what changed since.
     if (!changed || save.isPending) return;
-    const timer = setTimeout(() => save.mutate(steps), SAVE_AFTER_MS);
+    const timer = setTimeout(
+      () => save.mutate(steps),
+      publishAfterSave ? 0 : SAVE_AFTER_MS,
+    );
     return () => clearTimeout(timer);
   }, [
+    publishAfterSave,
     changed,
     steps,
     canManage,
@@ -505,6 +526,20 @@ export function WorkflowEditorPage(
     save.isPending,
     resolving,
   ]);
+
+  useEffect(() => {
+    if (!publishAfterSave) return;
+    if (saveState.kind === "failed") {
+      setPublishAfterSave(false);
+      globalThis.document.querySelector<HTMLElement>("[data-retry-save]")
+        ?.focus();
+      return;
+    }
+    if (saveState.kind === "saved" && !changed && !save.isPending) {
+      setPublishAfterSave(false);
+      setPublishOpen(true);
+    }
+  }, [publishAfterSave, saveState.kind, changed, save.isPending]);
 
   // Leaving while the latest change is not saved asks first.
   useEffect(() => {
@@ -704,9 +739,11 @@ export function WorkflowEditorPage(
         kind: "codeOnly",
         name: translate(GROUP_LABEL[group.label] as never),
         problem: undefined,
-        ...(group.max === undefined ? {} : {
-          help: translate("library.editor.group.fixHelp" as never),
-        }),
+        ...(group.label === "each"
+          ? { help: translate("library.editor.group.eachHelp" as never) }
+          : group.max === undefined
+          ? {}
+          : { help: translate("library.editor.group.fixHelp" as never) }),
       };
     }
     // The Skills section a step's panel draws: its rows and the picker that attaches one.
@@ -933,6 +970,8 @@ export function WorkflowEditorPage(
     </UI.Stack>
   );
 
+  const showsSteps = !forbidden && !missing && !offline && !loading &&
+    draft !== null;
   const body = forbidden
     ? (
       <UI.ErrorState
@@ -999,6 +1038,7 @@ export function WorkflowEditorPage(
               setSelectedId(id);
             }}
             onPickClose={() => setPickerAfter(undefined)}
+            view={diagramView}
           />
         </UI.Stack>
         {panelTarget === null ? null : (
@@ -1010,52 +1050,78 @@ export function WorkflowEditorPage(
       </UI.Inline>
     );
 
+  const editing = canManage && draft !== null;
+  const tryAgain = (variant: "secondary" | "quiet") => (
+    shownSave.kind === "failed"
+      ? (
+        <UI.Button
+          data-retry-save="true"
+          variant={variant}
+          onClick={() => save.mutate(steps)}
+        >
+          {translate("library.editor.save.tryAgain" as never)}
+        </UI.Button>
+      )
+      : null
+  );
+  const notSaved = shownSave.kind === "failed";
+  const problems = problemCount === 0
+    ? notSaved ? null : (
+      <span data-testid="editor-problems">
+        <UI.Badge tone="neutral">{problemWord}</UI.Badge>
+      </span>
+    )
+    : (
+      <UI.Button
+        variant="quiet"
+        data-testid="editor-problems"
+        onClick={() => setProblemsOpen(true)}
+      >
+        <UI.Badge tone="danger">{problemWord}</UI.Badge>
+      </UI.Button>
+    );
+  const viewAsCodeButton = (
+    <UI.Button
+      variant="secondary"
+      onClick={() => setCodeOpen(true)}
+    >
+      {translate("library.editor.viewAsCode" as never)}
+    </UI.Button>
+  );
+  const pressPublish = () => {
+    if (notSaved) {
+      setSaveState({ kind: "saving" });
+      setPublishAfterSave(true);
+      save.mutate(steps);
+      return;
+    }
+    if (changed || save.isPending || shownSave.kind === "saving") {
+      setPublishAfterSave(true);
+    } else setPublishOpen(true);
+  };
+  const publishButton = (
+    <UI.Button
+      loading={publishAfterSave}
+      onClick={pressPublish}
+      variant="primary"
+    >
+      {translate("library.editor.publish" as never)}
+    </UI.Button>
+  );
+
   return (
     <>
-      {canManage && draft !== null
+      {editing && !phone
         ? (
           <ShellSlot name="actions">
             <UI.Inline gap="compact">
-              {shownSave.kind === "failed"
-                ? (
-                  <UI.Button
-                    variant="secondary"
-                    onClick={() => save.mutate(steps)}
-                  >
-                    {translate("library.editor.save.tryAgain" as never)}
-                  </UI.Button>
-                )
-                : null}
+              {tryAgain("secondary")}
               <UI.Text variant="muted" role="status">
                 {stateWord}
               </UI.Text>
-              {problemCount === 0
-                ? (
-                  <span data-testid="editor-problems">
-                    <UI.Badge tone="neutral">{problemWord}</UI.Badge>
-                  </span>
-                )
-                : (
-                  <UI.Button
-                    variant="quiet"
-                    data-testid="editor-problems"
-                    onClick={() => setProblemsOpen(true)}
-                  >
-                    <UI.Badge tone="danger">{problemWord}</UI.Badge>
-                  </UI.Button>
-                )}
-              <UI.Button
-                variant="secondary"
-                onClick={() => setCodeOpen(true)}
-              >
-                {translate("library.editor.viewAsCode" as never)}
-              </UI.Button>
-              <UI.Button
-                variant="primary"
-                onClick={() => setPublishOpen(true)}
-              >
-                {translate("library.editor.publish" as never)}
-              </UI.Button>
+              {problems}
+              {viewAsCodeButton}
+              {publishButton}
             </UI.Inline>
           </ShellSlot>
         )
@@ -1065,6 +1131,13 @@ export function WorkflowEditorPage(
           `split` nests it in a paragraph, which a stack cannot live inside. */
       }
       <UI.PageHeader
+        aside={showsSteps && !phone
+          ? (
+            <div data-ui-region="workflow-view-switch">
+              <DiagramViewSwitch onChange={setDiagramView} view={diagramView} />
+            </div>
+          )
+          : undefined}
         flush
         variant="list"
         title={workflow.data?.name ??
@@ -1088,8 +1161,28 @@ export function WorkflowEditorPage(
                 {translate("library.editor.memberOnly" as never)}
               </UI.Text>
             )}
+            {editing && phone
+              ? (
+                <UI.Inline gap="compact">
+                  <UI.Text variant="muted" role="status">
+                    {stateWord}
+                  </UI.Text>
+                  {tryAgain("quiet")}
+                  {problems}
+                </UI.Inline>
+              )
+              : null}
           </UI.Stack>
         }
+        actions={editing && phone
+          ? (
+            <>
+              {viewAsCodeButton}
+              {publishButton}
+            </>
+          )
+          : null}
+        actionsLayout="row"
       />
       {breadcrumbs}
       {body}

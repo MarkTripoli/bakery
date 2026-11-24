@@ -20,6 +20,7 @@ import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
 import { presetSource } from "./library/copy-workflow.ts";
 import { treeOf } from "./library/workflow-tree.ts";
 import { WorkflowDiagram } from "./library/WorkflowDiagram.tsx";
+import { DiagramViewSwitch, useDiagramView } from "./library/diagram-view.tsx";
 import { presetCopy } from "./task-composer-labels.ts";
 
 // A read-only diagram reports nothing: the problems in it belong to a draft.
@@ -36,6 +37,7 @@ export function BuiltInWorkflowPage(
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const navigate = useNavigate();
+  const [diagramView, setDiagramView] = useDiagramView();
   const { translate } = useI18n();
   useRestoreOrganizationScope();
   const phone = useShellViewport() === "phone";
@@ -207,6 +209,9 @@ export function BuiltInWorkflowPage(
           </UI.InlineNotice>
           <UI.ListSection
             flush
+            actions={
+              <DiagramViewSwitch onChange={setDiagramView} view={diagramView} />
+            }
             data-testid="workflow-steps"
             title={translate("library.workflow.steps.title" as never, {
               version: preset.revision,
@@ -225,6 +230,7 @@ export function BuiltInWorkflowPage(
               onViewAsCode={() => {}}
               onPick={() => {}}
               onPickClose={() => {}}
+              view={diagramView}
             />
           </UI.ListSection>
         </UI.Stack>

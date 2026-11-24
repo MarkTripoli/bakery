@@ -35,12 +35,7 @@ export type TreeGroup = {
   readonly kind: "group";
   /** A stable id for the group, so selecting it opens its panel. */
   readonly id: string;
-  /**
-   * What the group is called: "Yes", "Otherwise", "At the same time", "Repeat",
-   * "Fix until it passes" (a repeat that repairs and reviews) or "Wait".
-   */
   readonly label: GroupLabel;
-  /** The most tries a "fix" group makes; set only when `label` is `fix`. */
   readonly max?: number;
   /** The nodes inside it, drawn under the label. */
   readonly children: readonly TreeNode[];
@@ -54,6 +49,7 @@ export type GroupLabel =
   | "together"
   | "repeat"
   | "fix"
+  | "each"
   | "wait";
 
 export type TreeNode = TreeStep | TreeGroup;
@@ -189,6 +185,10 @@ function fixLimitOf(node: Record<string, unknown>): number | undefined {
   const uses = body.map((step) => text(record(step).uses));
   if (!uses.includes(FIX_ACTION)) return undefined;
   if (uses[uses.length - 1] !== REVIEW_ACTION) return undefined;
+  return maxOf(node);
+}
+
+function maxOf(node: Record<string, unknown>): number | undefined {
   const max = node.max;
   return typeof max === "number" && Number.isInteger(max) && max >= 1
     ? max
@@ -346,6 +346,17 @@ function drawNode(
       label: max === undefined ? "repeat" : "fix",
       ...(max === undefined ? {} : { max }),
       children: [...seedNodes, ...body],
+      editedInCode: true,
+    }];
+  }
+  if (kind === "forEach") {
+    const max = maxOf(node);
+    return [{
+      kind: "group",
+      id: anonymousId(counter, "group"),
+      label: "each",
+      ...(max === undefined ? {} : { max }),
+      children: drawNodes(Array.isArray(node.steps) ? node.steps : [], counter),
       editedInCode: true,
     }];
   }

@@ -155,7 +155,7 @@ export const ACTION_TITLES: Readonly<Record<string, string>> = {
 /** The spec's sentence under a step's name; the actions it has none for show only their name. */
 /** The glyph each step type carries in the editor's diagram (design-ux, #67). */
 export const ACTION_ICONS: Readonly<Record<string, string>> = {
-  "task.brief": "lightning",
+  "task.brief": "document",
   "rpi.research": "search",
   "rpi.design": "document",
   "rpi.plan": "plan",
