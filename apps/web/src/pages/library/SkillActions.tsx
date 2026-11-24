@@ -12,6 +12,7 @@ import { asyncKindForError, failureStatus } from "../../app/async-state.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
 import { focusAfterPaint } from "../../app/focus.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
+import { useShellViewport } from "../../app/responsive.ts";
 import { useSession } from "../../app/session-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { clip, copyName, NAME_LIMIT } from "./copy-workflow.ts";
@@ -84,6 +85,7 @@ export function useSkillActions(
   const navigate = useNavigate();
   const { translate } = useI18n();
   const offline = useConnectivity() === "offline";
+  const phone = useShellViewport() === "phone";
   const identity = useSession().identity;
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const organizations = useQuery(organizationsListQueryOptions(api, scope));
@@ -103,6 +105,16 @@ export function useSkillActions(
   const [copyScope, setCopyScope] = useState<"organization" | "personal">(
     admin ? "organization" : "personal",
   );
+  const [nameTyped, setNameTyped] = useState(false);
+  const suggestedName = (scope: "organization" | "personal") =>
+    copyName(
+      skill.name,
+      scope === "personal"
+        ? translate("library.skill.copy.mySuffix" as never)
+        : organizationName === null
+        ? translate("library.copy.suffix" as never)
+        : `(${organizationName})`,
+    );
   const [tried, setTried] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const opener = useRef<HTMLElement | null>(null);
@@ -152,15 +164,10 @@ export function useSkillActions(
     setFailure(null);
     setTried(false);
     if (next === "copy") {
-      setName(
-        copyName(
-          skill.name,
-          organizationName === null
-            ? translate("library.copy.suffix" as never)
-            : `(${organizationName})`,
-        ),
-      );
-      setCopyScope(admin ? "organization" : "personal");
+      const scope = admin ? "organization" : "personal";
+      setName(suggestedName(scope));
+      setNameTyped(false);
+      setCopyScope(scope);
     }
     if (next === "rename") setName(skill.name);
     setDialog(next);
@@ -266,7 +273,7 @@ export function useSkillActions(
       open={menuOpen}
       onOpenChange={setMenuOpen}
       triggerAppearance="toolbar"
-      align="end"
+      align={phone ? "start" : "end"}
       trigger={translate("library.skill.actions.more")}
     >
       <UI.Menu
@@ -337,7 +344,10 @@ export function useSkillActions(
                       checked={copyScope === "organization"}
                       disabled={!admin || pending}
                       name="skill-copy-scope"
-                      onChange={() => setCopyScope("organization")}
+                      onChange={() => {
+                        setCopyScope("organization");
+                        if (!nameTyped) setName(suggestedName("organization"));
+                      }}
                       value="organization"
                     >
                       {translate("library.skill.scope.organization")}
@@ -357,7 +367,10 @@ export function useSkillActions(
                       checked={copyScope === "personal"}
                       disabled={pending}
                       name="skill-copy-scope"
-                      onChange={() => setCopyScope("personal")}
+                      onChange={() => {
+                        setCopyScope("personal");
+                        if (!nameTyped) setName(suggestedName("personal"));
+                      }}
                       value="personal"
                     >
                       {translate("library.skill.scope.personal")}
@@ -382,6 +395,7 @@ export function useSkillActions(
                     invalid={nameError !== undefined || undefined}
                     onChange={(value) => {
                       setName(clip(value, NAME_LIMIT));
+                      setNameTyped(true);
                       if (
                         failure === "nameTaken" || failure === "nameRejected"
                       ) {
@@ -472,6 +486,7 @@ export function useSkillActions(
         ? (
           <UI.AlertDialog
             open
+            data-actions-layout="stack"
             onOpenChange={(next) => !next && !pending && close()}
             state={update.isPending ? "confirming" : "open"}
             title={translate("library.skill.turnOff.title", {

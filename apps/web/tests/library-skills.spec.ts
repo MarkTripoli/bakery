@@ -624,7 +624,9 @@ for (
       ).toBeVisible();
       await expect(dialog.getByRole("radio", { name: "Private" }))
         .toBeChecked();
-      await expect(dialog.getByLabel("Name")).toHaveValue(/^Writing guide \(/);
+      await expect(dialog.getByLabel("Name")).toHaveValue(
+        "Writing guide (my copy)",
+      );
       await page.mouse.move(700, 700);
       await still(page, "skill-copy-dialog");
       await dialog.getByLabel("Name").fill("Writing guide for me");
@@ -657,9 +659,20 @@ for (
       const dialog = page.getByRole("dialog");
       await expect(dialog.getByRole("radio", { name: "Organization" }))
         .toBeChecked();
+      const name = dialog.getByLabel("Name");
+      await expect(name).toHaveValue("Writing guide (Fixture Org)");
+      await dialog.getByRole("radio", { name: "Private" }).check();
+      await expect(name).toHaveValue("Writing guide (my copy)");
+      await dialog.getByRole("radio", { name: "Organization" }).check();
+      await expect(name).toHaveValue("Writing guide (Fixture Org)");
+      await name.fill("Our own guide");
+      await dialog.getByRole("radio", { name: "Private" }).check();
+      await expect(name).toHaveValue("Our own guide");
+      await dialog.getByRole("radio", { name: "Organization" }).check();
       await dialog.getByRole("button", { name: "Make a copy" }).click();
       await expect(page.getByTestId("skill-toast")).toBeVisible();
       expect(writes(seen)[0].body?.scope).toBe("organization");
+      expect(writes(seen)[0].body?.name).toBe("Our own guide");
     });
 
     test("a copy with a name that is taken says so and keeps the dialog", async ({ page }) => {
@@ -700,6 +713,14 @@ for (
       await expect(page.getByRole("button", { name: "Make a copy" }))
         .toHaveCount(0);
       await more(page).click();
+      await expect(menuItem(page, "Rename")).toBeVisible();
+      const viewport = page.viewportSize()!;
+      for (const name of ["Rename", "Make a copy", "Turn off"]) {
+        const box = (await menuItem(page, name).boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+      }
+      await still(page, "skill-more-menu");
       await menuItem(page, "Rename").click();
       const dialog = page.getByRole("dialog");
       await expect(dialog.getByLabel("Name")).toHaveValue("House style");
@@ -811,7 +832,7 @@ for (
         .toBeVisible();
       await expect(
         dialog.getByText(
-          "New runs of Weekly digest will be refused at the step “Write the task brief” until someone changes that step.",
+          "New runs of Weekly digest cannot start until someone changes the step “Write the task brief”.",
         ),
       ).toBeVisible();
       await expect(

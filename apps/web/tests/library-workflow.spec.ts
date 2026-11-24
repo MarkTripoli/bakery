@@ -1953,7 +1953,7 @@ for (
         "Let this workflow use your private skill?",
       );
       await expect(dialog).toContainText(
-        "To stop later, open the skill and choose Stop allowing. New runs of this workflow are then refused at this step.",
+        "To stop later, open the skill and choose Stop allowing. New runs of this workflow then cannot start until this step is changed.",
       );
       await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-skills-allow-again");

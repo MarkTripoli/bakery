@@ -21,4 +21,3 @@ comment on column bakery.skill_use_grants.revision is
   'Ordinal revision of the granted version, copied from the immutable version row when the owner granted it.';
 comment on column bakery.skill_use_grants.revision_digest is
   'SHA-256 of the granted revision as publication wrote it, so a binding names the bytes a person approved.';
-

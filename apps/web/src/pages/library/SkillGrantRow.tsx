@@ -159,6 +159,7 @@ export function SkillGrantRow(
         ? (
           <UI.AlertDialog
             open
+            data-actions-layout="stack"
             onOpenChange={(next) => !next && !stop.isPending && close()}
             state={stop.isPending ? "confirming" : failed ? "error" : "open"}
             title={translate("library.skill.access.stopTitle", {
