@@ -8344,6 +8344,12 @@ const transportSchemas = {
             "fixed-coding-reviewed"
           ],
           "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own."
+        },
+        {
+          "name": "requirePlanApproval",
+          "type": "boolean",
+          "required": false,
+          "description": "When true, this request's task takes a human plan approval, so no run builds until the requester's plan is approved, even when the source policy approves plans automatically. False or omitted keeps the source policy's plan approval; it never removes an approval the policy requires. Only a new admission reads it."
         }
       ],
       "rules": [

@@ -951,6 +951,52 @@ Deno.test("issue 82 admission: a human plan approval leaves a start request wait
     assertEquals((await fx.counts(sourceId)).runs, 0);
   }));
 
+Deno.test("issue 60 admission: a start that asks for plan approval waits with no run under an automatic policy, and one that does not starts its run", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: fx.policy() });
+    fx.reader.setIssue({ number: 72, labels: [EXECUTE_LABEL] });
+    const waiting = await fx.admit(sourceId, {
+      number: 72,
+      intent: "start",
+      requirePlanApproval: true,
+    });
+    assertEquals(waiting.kind, "admitted");
+    assertEquals(waiting.request?.disposition, "waiting");
+    assertEquals(waiting.request?.workflowRunId, null);
+    const waitingTask = await taskOf(fx, waiting.request!.taskId);
+    assertEquals(waitingTask.approval_policy, { plan: "human_approval" });
+    assertEquals((await fx.counts(sourceId)).runs, 0);
+
+    fx.reader.setIssue({ number: 73, labels: [EXECUTE_LABEL] });
+    const started = await fx.admit(sourceId, {
+      number: 73,
+      intent: "start",
+      requirePlanApproval: false,
+    });
+    assertEquals(started.kind, "admitted");
+    assertEquals(started.request?.disposition, "admitted");
+    assert(started.request?.workflowRunId);
+    const startedTask = await taskOf(fx, started.request!.taskId);
+    assertEquals(startedTask.approval_policy, { plan: "automatic" });
+    assertEquals((await fx.counts(sourceId)).runs, 1);
+  }));
+
+Deno.test("issue 60 admission: declining plan approval never removes one the source policy requires", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource({
+      policy: fx.policy({ approval: "human_approval" }),
+    });
+    fx.reader.setIssue({ number: 74, labels: [EXECUTE_LABEL] });
+    const result = await fx.admit(sourceId, {
+      number: 74,
+      intent: "start",
+      requirePlanApproval: false,
+    });
+    assertEquals(result.request?.disposition, "waiting");
+    assertEquals(result.request?.workflowRunId, null);
+    assertEquals((await fx.counts(sourceId)).runs, 0);
+  }));
+
 Deno.test("issue 82 admission CAS: an older provider read acts on nothing and never overwrites a newer snapshot", () =>
   withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource({ policy: fx.policy() });
