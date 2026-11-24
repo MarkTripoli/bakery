@@ -434,6 +434,9 @@ for (
       await expect.poll(() => said(notice)).not.toContain("a copy is off-site");
       await expect.poll(() => said(notice))
         .not.toContain("kept on this server only");
+      await noOverflow(page);
+      await page.mouse.move(5, 5);
+      await still(page, "backups-offsite-unknown");
     });
 
     test("failed: the cause, the fix and the service's own answer", async ({ page }) => {
