@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="playwright-browsers-outside-seat-home" project="bakery">
+  <title>Point Playwright at the host browser cache when a seat's HOME is sandboxed</title>
+  <trigger>A web Playwright run fails in one or two milliseconds per test with <code>browserType.launch: Executable doesn't exist at /home/marktripoli/.openrig/state/omp/&lt;seat&gt;/.cache/ms-playwright/chromium_headless_shell-&lt;rev&gt;/chrome-headless-shell-linux64/chrome-headless-shell</code>.</trigger>
+  <rule>The omp seat sandbox rewrites HOME, so Playwright resolves browsers under the seat's state directory while the installed browsers live in <code>/home/marktripoli/.cache/ms-playwright</code>. Export <code>PLAYWRIGHT_BROWSERS_PATH=/home/marktripoli/.cache/ms-playwright</code> for every <code>pnpm exec playwright test</code>. Fixture-backed specs also need something answering <code>/v1/installation/status</code> through Vite's proxy, because <code>tests/helpers/stack-preflight.ts</code> fetches it before any spec runs; when the specs mock <code>/v1</code> in the browser, a stub returning 200 on <code>BAKERY_SERVER_PORT</code> satisfies it without a stack. Run with <code>BAKERY_WEB_PREVIEW=1</code> and an owned <code>BAKERY_WEB_PORT</code>, and drive a clean copy of the PR head: a dev worktree can carry unstaged edits that differ from the SHA under review.</rule>
+  <verification>
+    <requirement>Runnable evidence: the same command finds the browser, stack-preflight passes, and the named spec reports its pass/skip counts with exit 0. A build whose HEAD differs from the reviewed SHA is not usable evidence.</requirement>
+  </verification>
+</learning>
