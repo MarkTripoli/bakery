@@ -4,11 +4,28 @@
  * workflow version when a run starts with `presetId`.
  */
 
+import {
+  DELIVER_TEMPLATE_IDS,
+  deliverTemplateDefinition,
+  type DeliverTemplateId,
+} from "./deliver-templates.ts";
+
 export const WORKFLOW_PRESET_IDS = Object.freeze(
-  ["fixed-coding", "fixed-coding-reviewed"] as const,
+  [
+    "fixed-coding",
+    "fixed-coding-reviewed",
+    "deliver-oneshot",
+    "deliver-lean",
+    "deliver-full",
+    "deliver-prd",
+  ] as const,
 );
 
 export type WorkflowPresetId = typeof WORKFLOW_PRESET_IDS[number];
+
+export const TICKET_PRESET_IDS = Object.freeze(
+  ["fixed-coding", "fixed-coding-reviewed"] as const,
+);
 
 /** A preset written as the flat fixed workflow the retired executor ran. */
 export type FixedWorkflowPresetSpec = Readonly<{
@@ -32,7 +49,10 @@ export type WorkflowPresetDocument = Readonly<{
   name: string;
   description: string;
   inputs: Readonly<
-    Record<string, Readonly<{ type: string; required: boolean }>>
+    Record<
+      string,
+      Readonly<{ type: string; required: boolean; enum?: readonly string[] }>
+    >
   >;
   steps: readonly Readonly<Record<string, unknown>>[];
 }>;
@@ -501,9 +521,48 @@ export const FIXED_CODING_REVIEWED_PRESET: WorkflowPresetDefinition = Object
     stages: FIXED_CODING_STAGES,
   });
 
+const DELIVER_PRESET_DIGESTS: Readonly<Record<DeliverTemplateId, string>> =
+  Object.freeze({
+    "deliver-oneshot":
+      "cd9e3020fa81d100d12757bb00733630dd7e8ed6c0344a82de798ec06a5e822d",
+    "deliver-lean":
+      "e190b6999704866c6e75dd20a8c5b74dcb1a9345307e5c4c6c1460740ffaa03a",
+    "deliver-full":
+      "b3ddbbb130c2178400f14efd5078b004d7be372c1af734334d7626f361172c79",
+    "deliver-prd":
+      "25a7b66562f014ed5b9fb58709ea286afafc88a438368ad1338e06956187660a",
+  });
+
+const DELIVER_NAME_KEYS: Readonly<Record<DeliverTemplateId, string>> = Object
+  .freeze({
+    "deliver-oneshot": "workflowPresets.deliverOneshot.name",
+    "deliver-lean": "workflowPresets.deliverLean.name",
+    "deliver-full": "workflowPresets.deliverFull.name",
+    "deliver-prd": "workflowPresets.deliverPrd.name",
+  });
+
+function deliverPreset(id: DeliverTemplateId): WorkflowPresetDefinition {
+  const spec = deliverTemplateDefinition(id);
+  return Object.freeze({
+    id,
+    revision: 1,
+    slug: `preset:${id}`,
+    nameKey: DELIVER_NAME_KEYS[id],
+    defaultBudgetLimitUsd: "60.00",
+    digest: DELIVER_PRESET_DIGESTS[id],
+    sourceYaml: JSON.stringify(spec, null, 2),
+    spec,
+    stages: Object.freeze([]),
+  });
+}
+
 /** Every preset in display order: `fixed-coding` stays first. */
 export const WORKFLOW_PRESETS: readonly WorkflowPresetDefinition[] = Object
-  .freeze([FIXED_CODING_PRESET, FIXED_CODING_REVIEWED_PRESET]);
+  .freeze([
+    FIXED_CODING_PRESET,
+    FIXED_CODING_REVIEWED_PRESET,
+    ...DELIVER_TEMPLATE_IDS.map(deliverPreset),
+  ]);
 
 export function workflowPresetById(
   id: string,

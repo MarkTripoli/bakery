@@ -42,6 +42,10 @@ export const approve = (page: Page, revision: number) =>
     name: `Approve plan, version ${revision}`,
     exact: true,
   });
+export const chooseWorkflow = (page: Page) =>
+  page.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
+  });
 export const startRunButton = (page: Page) =>
   page.getByRole("button", { name: "Start run", exact: true });
 export const questionCard = (page: Page) =>
@@ -143,8 +147,8 @@ export async function fillComposer(
   await form.getByRole("combobox", { name: /^Repository/ }).selectOption(
     repositoryId,
   );
-  await expect(page.getByRole("radio", { name: /Fixed coding/ })).toBeChecked({
-    timeout: 30_000,
+  await form.getByRole("combobox", { name: /^Workflow/ }).selectOption({
+    label: "Fixed coding",
   });
   await form.getByRole("textbox", { name: /^Title/ }).fill(title);
   await form.getByRole("textbox", { name: /^Description/ }).fill(description);

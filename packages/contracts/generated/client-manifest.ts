@@ -3444,6 +3444,31 @@ export const clientManifest = {
     },
     {
       "group": "Skills",
+      "method": "POST",
+      "path": "/v1/skills/{id}/use-grants",
+      "action": "skills.useGrants.create",
+      "access": "Owner for personal; Admin for organization",
+      "permission": "skill:author",
+      "input": "SkillUseGrantCreate",
+      "output": "SkillUseGrant",
+      "event": "skillUseGrant.created",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "IDEMPOTENCY_IN_FLIGHT",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Skills",
       "method": "DELETE",
       "path": "/v1/skills/{id}/use-grants/{grantId}",
       "action": "skills.useGrants.delete",
@@ -20528,6 +20553,7 @@ export const clientManifest = {
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -22170,7 +22196,19 @@ export const clientManifest = {
           "type": "string",
           "enum": [
             "fixed-coding",
-            "fixed-coding-reviewed"
+            "fixed-coding-reviewed",
+            "deliver-oneshot",
+            "deliver-lean",
+            "deliver-full",
+            "deliver-prd"
+          ]
+        },
+        "gates": {
+          "description": "Whether a preset run pauses for a person to approve the plan the run writes: plan pauses at the plan sign-off, none does not. Accepted only with a presetId whose definition declares a gates input (the Deliver templates), otherwise 422 gates_not_accepted; omitted means plan.",
+          "type": "string",
+          "enum": [
+            "plan",
+            "none"
           ]
         },
         "workflowId": {
@@ -29115,6 +29153,7 @@ export const clientManifest = {
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -35676,6 +35715,43 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Asks Bakery to author a private backend plugin from a plain-language request: a generator writes the package from the pinned kit, deterministic checks decide it, and only a package that passes every check and a private preview is published and installed for the caller."
+    },
+    "SkillUseGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifies the personal skill whose owner allows its use again; supplied via the request's {id} path segment."
+        },
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The workflow that may use the skill again."
+        },
+        "skillVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The exact version of the skill the step names; the grant covers this version only."
+        },
+        "stepPath": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill, as a stopped grant listed it."
+        }
+      },
+      "required": [
+        "id",
+        "workflowId",
+        "skillVersionId",
+        "stepPath"
+      ],
+      "additionalProperties": false,
+      "description": "Allow again: the owner of a personal skill lets one workflow use one exact version of it at one step after stopping it. The next run of that workflow is admitted; asking for a grant that is already live returns it unchanged. Needs an Idempotency-Key."
     },
     "SkillActiveVersionSet": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -50791,6 +50867,7 @@ export const clientManifest = {
                   "skillDraftFiles.get",
                   "skillDraftFiles.delete",
                   "skills.useGrants.list",
+                  "skills.useGrants.create",
                   "skills.useGrants.delete",
                   "skillVersions.list",
                   "skillVersions.get",
@@ -73955,6 +74032,7 @@ export const clientManifest = {
             "skillDraftFiles.get",
             "skillDraftFiles.delete",
             "skills.useGrants.list",
+            "skills.useGrants.create",
             "skills.useGrants.delete",
             "skillVersions.list",
             "skillVersions.get",
@@ -78478,6 +78556,7 @@ export const clientManifest = {
             "workflow.noop",
             "workflow.stop",
             "human.approval",
+            "people.tag",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -78642,6 +78721,7 @@ export const clientManifest = {
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -79002,6 +79082,7 @@ export const clientManifest = {
                   "workflow.noop",
                   "workflow.stop",
                   "human.approval",
+                  "people.tag",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -95688,7 +95769,11 @@ export const clientManifest = {
                 "type": "string",
                 "enum": [
                   "fixed-coding",
-                  "fixed-coding-reviewed"
+                  "fixed-coding-reviewed",
+                  "deliver-oneshot",
+                  "deliver-lean",
+                  "deliver-full",
+                  "deliver-prd"
                 ],
                 "description": "Stable preset identifier accepted by runs.create presetId."
               },
@@ -95816,6 +95901,45 @@ export const clientManifest = {
                   }
                 ],
                 "description": "WorkflowPreset.availability may be null in this transport value."
+              },
+              "definition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "The preset's complete workflow definition in the published grammar, the document the digest covers: what the read-only page draws and what Make a copy keeps, approvals, repeats and limits included."
               }
             },
             "required": [
@@ -95825,7 +95949,8 @@ export const clientManifest = {
               "nameKey",
               "steps",
               "defaultBudgetLimitUsd",
-              "availability"
+              "availability",
+              "definition"
             ],
             "additionalProperties": false,
             "description": "One code-owned workflow preset: its pinned revision and digest, ordered steps, default run budget, and, when a repository was supplied, its availability for that repository."
@@ -95882,7 +96007,120 @@ export const clientManifest = {
         "nextCursor"
       ],
       "additionalProperties": false,
-      "description": "Cursor page of WorkflowPreset."
+      "description": "Cursor page of WorkflowPreset.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
     },
     "ArtifactPinResult": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -113391,6 +113629,90 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "What an Admin purge did. A purge is permanent and audited. A working, personal or scratch entry is removed at once; a record-area file is queued, because only the owner-privileged purge job may clear an artifact's bytes. A record-area folder is refused."
     },
+    "SkillUseGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the grant."
+        },
+        "skillId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the personal skill the grant is for."
+        },
+        "skillVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Immutable skill version the workflow may use; a newer version needs a new grant."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
+        },
+        "revisionDigest": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+        },
+        "workflowId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID of the workflow the skill was attached to."
+        },
+        "workflowName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Display name of that workflow, so the owner can recognise it."
+        },
+        "stepPath": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "JSON Pointer of the step in the workflow definition that uses the skill."
+        },
+        "grantedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Person who confirmed the grant, always the skill owner."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the grant was made."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version a stop must name in If-Match."
+        }
+      },
+      "required": [
+        "id",
+        "skillId",
+        "skillVersionId",
+        "revision",
+        "revisionDigest",
+        "workflowId",
+        "workflowName",
+        "stepPath",
+        "grantedBy",
+        "createdAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One use grant: the owner of a personal skill let one workflow use one exact version of it at one step. It lives until the owner stops it; stopping deletes it and the audit log keeps both."
+    },
     "SkillSourceUpdateCheck": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -114296,6 +114618,11 @@ export const clientManifest = {
                 "maximum": 9007199254740991,
                 "description": "Ordinal revision of the granted version in its skill's history, so a reader names the exact version a workflow uses without a second read."
               },
+              "revisionDigest": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "SHA-256 the granted revision was published with, recorded on the grant so an installed binding names the same bytes a page showed, without a second read."
+              },
               "workflowId": {
                 "type": "string",
                 "format": "uuid",
@@ -114336,6 +114663,7 @@ export const clientManifest = {
               "skillId",
               "skillVersionId",
               "revision",
+              "revisionDigest",
               "workflowId",
               "workflowName",
               "stepPath",

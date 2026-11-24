@@ -882,11 +882,23 @@ Deno.test("CheckOutput field descriptions say what each field means before they 
 
 Deno.test("compatibility migration approves only its exact generated delta", () => {
   const approvedBases = [
-    "fc819c510e55999f77dd9ec034e279926afa03f0",
+    "8a95d02a85fc946cc0dd1154406ad4aba19ce763",
   ];
   const approvedDigest =
-    "sha256:d1c89fac9f7cfc3f9f9eb7fe5e1cb3ddb2ac1aa8d61a8a77337ccc4c718f1044";
+    "sha256:c1996b1fc81811d3ce7edbef9c5698b84f446d7720c11b44f292e22f89f5d97d";
   const rejectedPriorDigests = [
+    "sha256:6435d430785cdd02cd46f7c20cfd50f948fc8d150c9f25569f7a1607f6bd3510",
+    "sha256:c17f15607b4be762ee4e841de9a78bde86205e75e21e3e1250b6ec8b365fc42b",
+    "sha256:c78aad39084ab9d042421352cd09289f813824a2401ca31fb6393d1c5d8227b5",
+    "sha256:1e2f7fe27048902faf0a389fc9bca077e87eaa352d2f2060895553b6a4dcbbec",
+    "sha256:336e32b49c2aa516f8232377beb40ab3d7a7bebdbda30a1bd1019b33b130387d",
+    "sha256:3bef92341f21d5c6ee95f1e6542af4ef8dba8d737c2faaa6beadc2c35baf1b36",
+    "sha256:d87839285c112fac2b5925245abe6f0d4bd0848eb923e14ecfe7646106d3c496",
+    "sha256:59637abebf5043c336419e3a42b11de81aa8479d868a127899fc78f8b3cdd9cf",
+    "sha256:393b36f5c49fb96bbc82859df4b39c3297596c0cff3da77fe693c7b8df2f8ec5",
+    "sha256:eedbdc84e4bd67a251ed2a5811497c30aba5d2ee834616c3f0aa8fcab5d880c3",
+    "sha256:b0aa3c0fb7f9e6a37dee6a78a090cd72f212aba7b6ac914e7739c2936e3a9431",
+    "sha256:d1c89fac9f7cfc3f9f9eb7fe5e1cb3ddb2ac1aa8d61a8a77337ccc4c718f1044",
     "sha256:dcceb92c88a39796bd5376ae687048e7998b8c01860a67b985b5138a69cc0af8",
     "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",
     "sha256:2fa2993bb0ca7d53a909e8d45f0258515c123bc060d8b3d984f2704f3192ddc9",

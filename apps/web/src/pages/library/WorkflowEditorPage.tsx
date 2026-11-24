@@ -44,6 +44,8 @@ import {
   SKILL_PROBLEM_CODES,
   SKILL_PROBLEM_SENTENCE,
   stepProblemLine,
+  unboundActionsOf,
+  withoutUnboundAgent,
 } from "./editor-validation.ts";
 import { stepName } from "./workflow-state.ts";
 import {
@@ -429,32 +431,31 @@ export function WorkflowEditorPage(
     /** Problems that name a step the page does not draw, so no card can hold them. */
     readonly unmapped: readonly string[];
     readonly workflow: readonly string[];
+    readonly unboundActions: ReadonlySet<string>;
   }>({
     byStep: new Map(),
     skillOnly: new Set(),
     unmapped: [],
     workflow: [],
+    unboundActions: new Set(),
   });
   const check = useMutation({
     mutationKey: ["workflows.validate"],
     mutationFn: async (held: readonly EditorStep[]) => {
+      const definition = definitionOf(
+        draft === null ? null : record(draft.normalizedSpec),
+        held,
+      );
       const result = await api.validateWorkflow({
         organizationId: scope.organizationId as string,
-        input: {
-          definition: definitionOf(
-            draft === null ? null : record(draft.normalizedSpec),
-            held,
-          ) as never,
-        },
+        input: { definition: definition as never },
       });
       if (!result.ok) throw result.error;
-      return result.data;
+      return { report: result.data, definition };
     },
-    onSuccess: (report, held) => {
-      const sorted = problemsOf([
-        ...(report.errors ?? []),
-        ...(report.warnings ?? []),
-      ]);
+    onSuccess: ({ report, definition }, held) => {
+      const found = [...(report.errors ?? []), ...(report.warnings ?? [])];
+      const sorted = problemsOf(withoutUnboundAgent(found));
       const byStep = new Map<string, string>();
       const skillOnly = new Set<string>();
       const unmapped: string[] = [];
@@ -481,6 +482,7 @@ export function WorkflowEditorPage(
         workflow: sorted.workflow.map((problem) =>
           problemSentence(problem.code)
         ),
+        unboundActions: unboundActionsOf(found, definition),
       });
     },
   });
@@ -492,6 +494,7 @@ export function WorkflowEditorPage(
         skillOnly: new Set(),
         unmapped: [],
         workflow: [],
+        unboundActions: new Set(),
       });
       return;
     }
@@ -811,6 +814,10 @@ export function WorkflowEditorPage(
             }))
             .sort((a, b) => a.name.localeCompare(b.name)),
           onRetry: () => void catalog.refetch(),
+          canChoose: (value: string) =>
+            (catalog.data ?? []).some((skill) =>
+              skill.activeVersionId === value
+            ),
           onChoose: (value: string, replaces?: SlotReplaces) => {
             const picked = (catalog.data ?? []).find((skill) =>
               skill.activeVersionId === value
@@ -841,6 +848,7 @@ export function WorkflowEditorPage(
         problem: skillOnlySteps.has(step.id)
           ? undefined
           : problemsByStep.get(step.id),
+        agentFromSetup: checker.unboundActions.has(step.uses),
         // A skill is not part of the code a person cannot edit here: an agent step
         // written in code still shows its Skills section (design-ux, #431).
         ...skillsFor(steps.find((held) => held.id === selectedId), step),
@@ -853,6 +861,7 @@ export function WorkflowEditorPage(
       name: stepName(step, translate),
       deletable: editable,
       uses: step.uses,
+      agentFromSetup: checker.unboundActions.has(step.uses),
       code: step.code,
       problem: step.problem === undefined
         ? undefined
@@ -895,6 +904,7 @@ export function WorkflowEditorPage(
     resolving,
     problemsByStep,
     skillOnlySteps,
+    checker.unboundActions,
   ]);
 
   const breadcrumbs = (

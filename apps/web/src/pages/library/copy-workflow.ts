@@ -57,18 +57,15 @@ export type CopySource = {
   readonly sourceYaml?: string;
 };
 
-/** A built-in workflow's steps as a definition a copy can start from. */
 export function presetSource(
-  preset: Pick<WorkflowPresetResponse, "steps" | "revision">,
+  preset: Pick<WorkflowPresetResponse, "definition" | "revision">,
   copy: { readonly title: string; readonly description: string | null },
 ): CopySource {
   return {
     name: copy.title,
     description: copy.description ?? "",
     revision: preset.revision,
-    definition: {
-      steps: preset.steps.map((step) => ({ id: step.id, uses: step.uses })),
-    },
+    definition: preset.definition as WorkflowVersionCreate["definition"],
   };
 }
 
