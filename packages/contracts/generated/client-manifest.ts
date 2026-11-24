@@ -8505,6 +8505,32 @@ export const clientManifest = {
     },
     {
       "group": "Conversation",
+      "method": "POST",
+      "path": "/v1/conversation-turns/{id}/retry",
+      "action": "conversationTurns.retry",
+      "access": "Developer",
+      "permission": "conversationTurn:write",
+      "input": "ConversationTurnRetry",
+      "output": "ConversationTurn",
+      "event": "conversation.turn_changed",
+      "mcp": "bakery_conversationTurns_retry",
+      "idempotency": "Idempotency-Key and If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
       "method": "GET",
       "path": "/v1/notifications",
       "action": "notifications.list",
@@ -20765,6 +20791,7 @@ export const clientManifest = {
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",
@@ -25758,6 +25785,13 @@ export const clientManifest = {
       "properties": {},
       "additionalProperties": false,
       "description": "Cancels the conversation's active or queued coordinator turn; requires the turn's current If-Match. A queued turn is canceled immediately, while an active turn is marked cancel-requested and interrupts its session, remaining in the active slot until stopped or reconciled."
+    },
+    "ConversationTurnRetry": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "description": "Retries a failed coordinator turn without posting its message again; requires the failed turn's current If-Match. Returns the new queued turn, which runs the coordinator again as its own job."
     },
     "OrganizationCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -51028,6 +51062,7 @@ export const clientManifest = {
                   "conversationAccess.revoke",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
+                  "conversationTurns.retry",
                   "notifications.list",
                   "notifications.count",
                   "notifications.get",
@@ -74192,6 +74227,7 @@ export const clientManifest = {
             "conversationAccess.revoke",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "conversationTurns.retry",
             "notifications.list",
             "notifications.count",
             "notifications.get",

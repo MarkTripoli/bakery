@@ -188,6 +188,7 @@ export const ConversationImplementedAction = Object.freeze(
     ConversationsUpdate: "conversations.update",
     ConversationTurnsGet: "conversationTurns.get",
     ConversationTurnsCancel: "conversationTurns.cancel",
+    ConversationTurnsRetry: "conversationTurns.retry",
     QuestionsList: "questions.list",
     QuestionsGet: "questions.get",
     QuestionsAnswer: "questions.answer",

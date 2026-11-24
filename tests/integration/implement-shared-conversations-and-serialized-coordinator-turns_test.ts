@@ -489,6 +489,153 @@ Deno.test("cancel: queued becomes canceled; active becomes cancel_requested then
     assertEquals(runs.rows.length, 0);
   }));
 
+async function failedTurn(fixture: Fixture, seed: Seed): Promise<Turn> {
+  await sendMessage(fixture, seed, "agent_request", "please work");
+  await processNextConversationTurn(
+    runtime(fixture, createUnavailableCoordinatorExecutor()),
+    {
+      organizationId: seed.organizationId,
+      conversationId: seed.conversationId,
+    },
+  );
+  const [turn] = await turnsOf(fixture, seed);
+  assertEquals(turn.status, "failed");
+  return turn;
+}
+
+async function messageCount(fixture: Fixture, seed: Seed): Promise<number> {
+  const result = await fixture.pgDatabase.query<{ count: number }>(
+    `select count(*)::int as count from bakery.messages where conversation_id = $1`,
+    [seed.conversationId],
+  );
+  return result.rows[0].count;
+}
+
+function retry(
+  fixture: Fixture,
+  seed: Seed,
+  turn: Turn,
+  key?: string,
+): Promise<Response> {
+  return call(fixture, seed, `/v1/conversation-turns/${turn.id}/retry`, {
+    method: "POST",
+    ifMatch: turn.version,
+    key,
+  });
+}
+
+Deno.test("retry: a failed turn queues a new turn for the same message and runs the coordinator again", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "retry");
+    const failed = await failedTurn(fixture, seed);
+    const before = await messageCount(fixture, seed);
+    const key = crypto.randomUUID();
+    const response = await retry(fixture, seed, failed, key);
+    assertEquals(response.status, 200);
+    const created = (await response.json()) as Turn & {
+      triggerMessageId: string;
+    };
+    assertEquals(created.status, "queued");
+    assert(created.id !== failed.id);
+    const stored = await fixture.pgDatabase.query<{
+      trigger_message_id: string;
+      retry_of_turn_id: string | null;
+    }>(
+      `select trigger_message_id, retry_of_turn_id from bakery.conversation_turns where id = any($1::uuid[]) order by created_at`,
+      [[failed.id, created.id]],
+    );
+    assertEquals(stored.rows.length, 2);
+    assertEquals(
+      stored.rows[0].trigger_message_id,
+      stored.rows[1].trigger_message_id,
+    );
+    assertEquals(created.triggerMessageId, stored.rows[0].trigger_message_id);
+    assertEquals(stored.rows[0].retry_of_turn_id, null);
+    assertEquals(stored.rows[1].retry_of_turn_id, failed.id);
+    assertEquals(await messageCount(fixture, seed), before);
+
+    const replay = await retry(fixture, seed, failed, key);
+    assertEquals(replay.status, 200);
+    assertEquals(((await replay.json()) as Turn).id, created.id);
+    assertEquals((await turnsOf(fixture, seed)).length, 2);
+
+    const probe = recordingExecutor();
+    const processed = await processNextConversationTurn(
+      runtime(fixture, probe.executor),
+      {
+        organizationId: seed.organizationId,
+        conversationId: seed.conversationId,
+      },
+    );
+    assertEquals(processed.kind, "processed");
+    assertEquals(probe.inputs.length, 1);
+    assertEquals(probe.inputs[0].turnId, created.id);
+    assertEquals(probe.inputs[0].triggerMessageId, created.triggerMessageId);
+    const turns = await turnsOf(fixture, seed);
+    assertEquals(
+      turns.find((t) => t.id === created.id)?.status,
+      "completed",
+    );
+    assertEquals(turns.find((t) => t.id === failed.id)?.status, "failed");
+    assertEquals(await messageCount(fixture, seed), before + 1);
+  }));
+
+Deno.test("retry refuses a turn that is not failed, a turn with a newer message, and a second retry", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "retry-refuse");
+    await sendMessage(fixture, seed, "agent_request", "still queued");
+    const [queued] = await turnsOf(fixture, seed);
+    const notFailed = await retry(fixture, seed, queued);
+    assertEquals(notFailed.status, 409);
+    assertEquals(
+      ((await notFailed.json()) as { reason?: string }).reason,
+      "turn_not_failed",
+    );
+
+    const other = await seedOrganization(fixture, "retry-newer");
+    const failed = await failedTurn(fixture, other);
+    await sendMessage(fixture, other, "discussion", "a newer note");
+    const newer = await retry(fixture, other, failed);
+    assertEquals(newer.status, 409);
+    assertEquals(
+      ((await newer.json()) as { reason?: string }).reason,
+      "newer_message",
+    );
+    assertEquals((await turnsOf(fixture, other)).length, 1);
+
+    const third = await seedOrganization(fixture, "retry-twice");
+    const once = await failedTurn(fixture, third);
+    assertEquals((await retry(fixture, third, once)).status, 200);
+    const twice = await retry(fixture, third, once);
+    assertEquals(twice.status, 409);
+    assertEquals(
+      ((await twice.json()) as { reason?: string }).reason,
+      "turn_already_retried",
+    );
+    assertEquals((await turnsOf(fixture, third)).length, 2);
+  }));
+
+Deno.test("retry is refused for a member without write access and for another tenant", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "retry-access");
+    const failed = await failedTurn(fixture, seed);
+    const stranger = await seedOrganization(fixture, "retry-stranger");
+    const foreign = await call(
+      fixture,
+      { cookie: stranger.cookie, organizationId: stranger.organizationId },
+      `/v1/conversation-turns/${failed.id}/retry`,
+      { method: "POST", ifMatch: failed.version },
+    );
+    assertEquals(foreign.status, 404);
+    await fixture.pgDatabase.query(
+      `update bakery.organization_memberships set role = 'viewer' where organization_id = $1 and principal_id = $2`,
+      [seed.organizationId, seed.principalId],
+    );
+    const refused = await retry(fixture, seed, failed);
+    assertEquals(refused.status, 403);
+    assertEquals((await turnsOf(fixture, seed)).length, 1);
+  }));
+
 Deno.test("an expired lease is taken over after a restart and completes once", () =>
   withFixture(async (fixture) => {
     const seed = await seedOrganization(fixture, "lease");
