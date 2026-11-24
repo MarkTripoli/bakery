@@ -12,6 +12,11 @@ import {
   type TimePartId,
 } from "./delivery/delivery-display.ts";
 import {
+  type OverTimeHandlers,
+  OverTimeSection,
+  type OverTimeView,
+} from "./delivery/OverTimeSection.tsx";
+import {
   DELIVERY_PERIODS,
   type DeliveryPeriod,
   isDeliveryPeriod,
@@ -79,6 +84,10 @@ export type DeliveryScreenProps = {
   readonly onRetry: () => void;
   readonly onRefresh: () => void;
   readonly onShowLast30Days: () => void;
+  readonly overTime: OverTimeView;
+  readonly onOverTimeShow: OverTimeHandlers["onShow"];
+  readonly onOverTimeTable: OverTimeHandlers["onAsTable"];
+  readonly onOverTimeRetry: OverTimeHandlers["onRetry"];
   readonly onNavigate: (href: string) => void;
 };
 
@@ -385,6 +394,12 @@ function Ready(props: DeliveryScreenProps) {
           </UI.Text>
         )
         : null}
+      <OverTimeSection
+        onAsTable={props.onOverTimeTable}
+        onRetry={props.onOverTimeRetry}
+        onShow={props.onOverTimeShow}
+        view={props.overTime}
+      />
       {props.leadTime === null ? null : <TimeWent lead={props.leadTime} />}
       <RecordsSection {...props} figureText={figureText} />
     </UI.Stack>

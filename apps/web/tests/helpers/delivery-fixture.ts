@@ -23,10 +23,12 @@ export type DeliveryOptions = {
   runs?: number;
   /** Every task's recorded intervals cover all of its time: nothing is unaccounted for. */
   allAccountedFor?: boolean;
+  values?: Readonly<Record<string, (number | null)[]>>;
+  failMetric?: string;
 };
 
 const point = (day: number, value: number | null) => ({
-  at: `2026-11-${String(day).padStart(2, "0")}T00:00:00.000Z`,
+  at: new Date(Date.UTC(2026, 10, 1) + (day - 1) * 86_400_000).toISOString(),
   value,
   unknownReason: value === null ? "no_records" : null,
 });
@@ -210,6 +212,7 @@ export async function deliveryFixture(
   ];
   // The organization each metrics read was made for, as the API sees it.
   const organizationHeaders: (string | undefined)[] = [];
+  const control = { failMetric: options.failMetric ?? null };
   await page.route(
     (url) => url.pathname === "/v1/metrics",
     (route) => {
@@ -217,6 +220,24 @@ export async function deliveryFixture(
         route.request().headers()["bakery-organization-id"],
       );
       const metric = new URL(route.request().url()).searchParams.get("metric")!;
+      if (metric === control.failMetric) {
+        return json(route, { title: "Failed", status: 500 }, 500);
+      }
+      const custom = options.values?.[metric];
+      if (custom !== undefined) {
+        return json(
+          route,
+          series(
+            metric,
+            metric === "prs.changedLines"
+              ? "lines"
+              : metric === "tasks.leadTimeHours"
+              ? "hours"
+              : "count",
+            custom,
+          ),
+        );
+      }
       if (metric === "tasks.leadTimeHours") {
         return json(
           route,
@@ -262,5 +283,5 @@ export async function deliveryFixture(
       });
     },
   );
-  return { records, pullRequests, organizationHeaders };
+  return { records, pullRequests, organizationHeaders, control };
 }

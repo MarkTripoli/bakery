@@ -31,6 +31,16 @@ import {
   formatDay,
   isDeliveryPeriod,
 } from "../screens/delivery/delivery-window.ts";
+import {
+  chartPoints,
+  chartStep,
+  gapsOf,
+  isOverTimeShow,
+  OVER_TIME_METRIC,
+  type OverTimeShow,
+  windowDays,
+} from "../screens/delivery/delivery-series.ts";
+import type { OverTimeView } from "../screens/delivery/OverTimeSection.tsx";
 import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
 import { INSTALLATION_INTEGRATIONS_PATH } from "../shell/InstallationSettingsNavigation.tsx";
 
@@ -40,6 +50,8 @@ const REPOSITORY = "repository";
 const FROM = "from";
 const TO = "to";
 const SHOW = "show";
+const OVER = "over";
+const TABLE = "table";
 const MISSING = "missing";
 
 const RECORDS_PAGE = 50;
@@ -69,6 +81,10 @@ export function DeliveryPage() {
     ? search[SHOW]
     : null;
   const missingOnly = search[MISSING] === "1" || search[MISSING] === true;
+  const overShow: OverTimeShow = isOverTimeShow(search[OVER])
+    ? search[OVER]
+    : "merged";
+  const asTable = search[TABLE] === "1" || search[TABLE] === true;
 
   // The clock is read once per mount: a `new Date()` in render would mint a new
   // window every pass, change every query key and refetch forever.
@@ -91,6 +107,7 @@ export function DeliveryPage() {
   const open = useSeries("prs.openAtCutoff", base, enabled);
   const tasks = useSeries("tasks.leadTimeHours", base, enabled);
   const lines = useSeries("prs.changedLines", base, enabled);
+  const overSeries = useSeries(OVER_TIME_METRIC[overShow], base, enabled);
   const repositories = useQuery(
     repositoriesListQueryOptions(api, scope, { limit: 100 }),
   );
@@ -143,6 +160,23 @@ export function DeliveryPage() {
     });
   };
 
+  const step = chartStep(windowDays(window.from, window.to));
+  const overPoints = overSeries.data === undefined
+    ? []
+    : chartPoints(overSeries.data, overShow, step);
+  const overTime: OverTimeView = {
+    status: overSeries.isError
+      ? "error"
+      : overSeries.isPending
+      ? "loading"
+      : "ready",
+    show: overShow,
+    step,
+    points: overPoints,
+    gaps: gapsOf(overPoints),
+    asTable,
+  };
+
   const pages = sources.data?.pages ?? [];
   const rows = pages.flatMap((page) => page.items.map(recordRow));
   const rowsStatus = sources.isError
@@ -193,6 +227,11 @@ export function DeliveryPage() {
         onLoadMore={() => void sources.fetchNextPage()}
         onMissingOnly={(on) => write({ [MISSING]: on ? "1" : undefined })}
         onNavigate={(href) => void navigate({ to: href })}
+        onOverTimeRetry={() => void overSeries.refetch()}
+        onOverTimeShow={(next) =>
+          write({ [OVER]: next === "merged" ? undefined : next })}
+        onOverTimeTable={(on) => write({ [TABLE]: on ? "1" : undefined })}
+        overTime={overTime}
         onPeriodChange={(choice) =>
           write({
             [PERIOD]: choice,

@@ -190,6 +190,121 @@ for (
       await still(page, "delivery-pull-requests");
     });
 
+    const overTime = (page: import("@playwright/test").Page) =>
+      page.getByTestId("delivery-over-time");
+
+    test("Over time draws a line, a grey band for the days nobody can know, and says a gap is not zero", async ({ page }) => {
+      await deliveryFixture(page, {
+        values: { "prs.merged": [2, 4, null, null, null, 6, 3, 5] },
+      });
+      await page.goto("/delivery");
+      const section = overTime(page);
+      await expect(section.getByRole("heading", { name: "Over time" }))
+        .toBeVisible();
+      await expect(section.locator('[data-ui-component="timeSeriesChart"]'))
+        .toBeVisible();
+      await expect(section.locator(".ui-time-series-chart__gap")).toHaveCount(
+        1,
+      );
+      await expect(
+        section.getByText("No data for 3 days. A gap is not zero."),
+      ).toBeVisible();
+      await expect(section.getByText("Nov 1, 2026")).toBeVisible();
+      await page.mouse.move(viewport.width / 2, viewport.height - 20);
+      await still(page, "delivery-over-time");
+    });
+
+    test("Show offers six things and no merge rate, and choosing one reads that metric", async ({ page }) => {
+      await deliveryFixture(page);
+      await page.goto("/delivery");
+      const section = overTime(page);
+      await section.getByRole("button", { name: /^Show:/ }).click();
+      const menu = page.getByRole("dialog", { name: "Show" });
+      for (
+        const name of [
+          "Pull requests merged",
+          "Pull requests opened",
+          "Still open",
+          "Closed without merging",
+          "Lines changed",
+          "Time a task took (typical)",
+        ]
+      ) {
+        await expect(menu.getByText(name, { exact: true })).toBeVisible();
+      }
+      await expect(menu.getByText(/merge rate/i)).toHaveCount(0);
+      await page.mouse.move(viewport.width / 2, viewport.height - 20);
+      await still(page, "delivery-over-time-show");
+      await menu.getByText("Lines changed", { exact: true }).click();
+      await expect(page).toHaveURL(/over=lines/);
+      await expect(
+        section.getByRole("button", { name: "Show: Lines changed" }),
+      ).toBeVisible();
+    });
+
+    test("Show as table lists each day with No data for a gap, and Show as chart goes back", async ({ page }) => {
+      await deliveryFixture(page, {
+        values: { "prs.merged": [2, null, 5, 1] },
+      });
+      await page.goto("/delivery");
+      const section = overTime(page);
+      await section.getByRole("button", { name: "Show as table" }).click();
+      const table = section.getByRole("table");
+      await expect(table.getByRole("row")).toHaveCount(5);
+      await expect(table.getByText("No data")).toHaveCount(1);
+      await expect(table.getByText("5", { exact: true })).toBeVisible();
+      await page.mouse.move(viewport.width / 2, viewport.height - 20);
+      await still(page, "delivery-over-time-table");
+      await section.getByRole("button", { name: "Show as chart" }).click();
+      await expect(section.locator('[data-ui-component="timeSeriesChart"]'))
+        .toBeVisible();
+    });
+
+    test("a period with nothing known draws no line and says so", async ({ page }) => {
+      await deliveryFixture(page, {
+        values: { "prs.opened": [null, null, null, null] },
+      });
+      await page.goto("/delivery?over=opened");
+      const section = overTime(page);
+      await expect(
+        section.getByText("No data for this period. A gap is not zero."),
+      ).toBeVisible();
+      await expect(section.locator('[data-ui-component="timeSeriesChart"]'))
+        .toHaveCount(0);
+      await page.mouse.move(viewport.width / 2, viewport.height - 20);
+      await still(page, "delivery-over-time-empty");
+    });
+
+    test("a chart that could not load says so inside its section and the page stays", async ({ page }) => {
+      const seen = await deliveryFixture(page, { failMetric: "prs.opened" });
+      await page.goto("/delivery?over=opened");
+      const section = overTime(page);
+      await expect(section.getByText("The chart could not be loaded."))
+        .toBeVisible({ timeout: 20000 });
+      await expect(page.getByRole("heading", { name: "Delivery", level: 1 }))
+        .toBeVisible();
+      await expect(page.getByTestId("delivery-time")).toBeVisible();
+      await page.mouse.move(viewport.width / 2, viewport.height - 20);
+      await still(page, "delivery-over-time-error");
+      seen.control.failMetric = null;
+      await section.getByRole("button", { name: "Try again" }).click();
+      await expect(section.getByText("The chart could not be loaded."))
+        .toHaveCount(0);
+    });
+
+    test("over 90 days there is one point a week, and the page says so", async ({ page }) => {
+      const values = Array.from(
+        { length: 172 },
+        (_, index) => index % 40 < 8 ? null : 1 + (index % 5),
+      );
+      await deliveryFixture(page, { values: { "prs.merged": values } });
+      await page.goto("/delivery?period=custom&from=2026-06-01&to=2026-11-20");
+      const section = overTime(page);
+      await expect(section.getByText("Each point is one week.")).toBeVisible();
+      await section.getByRole("button", { name: "Show as table" }).click();
+      await expect(section.getByRole("table").getByRole("row")).toHaveCount(26);
+    });
+
     test("every metrics read is made for the page's organization", async ({ page }) => {
       const seen = await deliveryFixture(page);
       await page.goto("/delivery");
