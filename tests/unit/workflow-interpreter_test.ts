@@ -11,6 +11,9 @@ import {
   type JsonValue,
   type NextStep,
   nextStep,
+  nextStepWithGroups,
+  nextStepWithLoopBounds,
+  nextStepWithLoops,
   readFields,
   type StepRecord,
   WorkflowInterpreterError,
@@ -20,6 +23,7 @@ import {
   completed,
   type Dispatch,
   drive,
+  driveMany,
   noop,
   REPO_ID,
   stateOf,
@@ -607,6 +611,271 @@ Deno.test("the host may allow a repeat more iterations than its document holds, 
   const satisfied = await compiled([counter({ max: 2 })]);
   assertEquals(
     drive(satisfied, bump, { repeatExtra: { loop: 3 } }).trace,
+    ["loop@1.bump", "loop@2.bump"],
+  );
+});
+
+Deno.test("repeat.min runs that many rounds even when until already holds, and asks until only from then on (#419)", async () => {
+  const report = noop("report", {
+    with: { i: "$step.loop.iterations", o: "$step.loop.outcome" },
+  });
+  const none = await compiled([
+    counter({ seed: { currentCandidate: { n: 5 } } }),
+    report,
+  ]);
+  assertEquals(drive(none, bump, {}, nextStepWithLoopBounds).trace, ["report"]);
+  const two = await compiled([
+    counter({ seed: { currentCandidate: { n: 5 } }, min: 2 }),
+    report,
+  ]);
+  const ran = drive(two, bump, {}, nextStepWithLoopBounds);
+  assertEquals(ran.trace, ["loop@1.bump", "loop@2.bump", "report"]);
+  assertEquals((ran.dispatched[2] as ActionDispatch).input, {
+    i: 2,
+    o: "completed",
+  });
+  const later = await compiled([counter({ min: 1 })]);
+  assertEquals(drive(later, bump, {}, nextStepWithLoopBounds).trace, [
+    "loop@1.bump",
+    "loop@2.bump",
+  ]);
+  const fixed = await compiled([
+    counter({ seed: { currentCandidate: { n: 5 } }, min: 3 }),
+  ]);
+  assertEquals(drive(fixed, bump, {}, nextStepWithLoopBounds).trace, [
+    "loop@1.bump",
+    "loop@2.bump",
+    "loop@3.bump",
+  ]);
+});
+
+Deno.test("repeat.allow pauses the run below max for a limit decision, and no allowance goes past max (#419)", async () => {
+  const never = (extra: Step = {}) =>
+    counter({ until: "$repeat.currentCandidate.n >= 99", max: 5, ...extra });
+  const document = await compiled([
+    never({ allow: 2 }),
+    noop("after", { needs: ["loop"] }),
+  ]);
+  const held = drive(document, bump, {}, nextStepWithLoopBounds);
+  assertEquals(held.trace, ["loop@1.bump", "loop@2.bump"]);
+  assertEquals(held.next, {
+    kind: "paused",
+    key: "loop",
+    iterations: 2,
+    allowed: 2,
+    max: 5,
+  });
+  assert(!held.trace.includes("after"));
+  const more = drive(
+    document,
+    bump,
+    { repeatExtra: { loop: 2 } },
+    nextStepWithLoopBounds,
+  );
+  assertEquals(more.trace.length, 4);
+  assertEquals(more.next, {
+    kind: "paused",
+    key: "loop",
+    iterations: 4,
+    allowed: 4,
+    max: 5,
+  });
+  const capped = drive(
+    document,
+    bump,
+    { repeatExtra: { loop: 10 } },
+    nextStepWithLoopBounds,
+  );
+  assertEquals(capped.trace, [
+    "loop@1.bump",
+    "loop@2.bump",
+    "loop@3.bump",
+    "loop@4.bump",
+    "loop@5.bump",
+    "after",
+  ]);
+  assertEquals(capped.next, { kind: "finished" });
+  const atMax = await compiled([never({ allow: 5 })]);
+  assertEquals(drive(atMax, bump).next, { kind: "finished" });
+  const satisfied = await compiled([counter({ max: 5, allow: 3 })]);
+  assertEquals(drive(satisfied, bump, {}, nextStepWithLoopBounds).next, {
+    kind: "finished",
+  });
+  const legacy = await compiled([never({ max: 2 })]);
+  assertEquals(
+    drive(legacy, bump, { repeatExtra: { loop: 1 } }, nextStepWithLoopBounds)
+      .trace.length,
+    3,
+  );
+});
+
+Deno.test("a repeat that pauses inside another repeat's body pauses the run, not the outer round (#419)", async () => {
+  const document = await compiled([{
+    id: "outer",
+    repeat: {
+      max: 2,
+      seed: { currentCandidate: { total: 0 } },
+      until: "$repeat.currentCandidate.total >= 99",
+      steps: [{
+        id: "inner",
+        repeat: {
+          max: 4,
+          allow: 1,
+          seed: {
+            currentCandidate: { total: "$repeat.currentCandidate.total" },
+          },
+          until: "$repeat.currentCandidate.total >= 99",
+          steps: [
+            noop("step", { with: { t: "$repeat.currentCandidate.total" } }),
+          ],
+          outputs: {
+            currentCandidate: { total: "$step.outer.inner.step.next" },
+          },
+        },
+      }],
+      outputs: {
+        currentCandidate: { total: "$step.outer.inner.currentCandidate.total" },
+      },
+    },
+  }]);
+  const run = drive(
+    document,
+    (step) =>
+      completed({
+        next: ((step as ActionDispatch).input as { t: number }).t + 1,
+      }),
+    {},
+    nextStepWithLoopBounds,
+  );
+  assertEquals(run.trace, ["outer@1.inner@1.step"]);
+  assertEquals(run.next, {
+    kind: "paused",
+    key: "outer@1.inner",
+    iterations: 1,
+    allowed: 1,
+    max: 4,
+  });
+});
+
+Deno.test("a repeat that pauses inside a forEach pauses the run, not the item (#419)", async () => {
+  const document = await compiled([
+    {
+      id: "cases",
+      forEach: {
+        items: ["a", "b"],
+        max: 2,
+        as: "case",
+        steps: [{
+          id: "fix",
+          repeat: {
+            max: 3,
+            allow: 1,
+            seed: { currentCandidate: { n: 0 } },
+            until: "$repeat.currentCandidate.n >= 99",
+            steps: [
+              noop("attempt", { with: { n: "$repeat.currentCandidate.n" } }),
+            ],
+            outputs: {
+              currentCandidate: { n: "$step.cases.fix.attempt.next" },
+            },
+          },
+        }],
+      },
+    },
+    noop("after", { needs: ["cases"] }),
+  ]);
+  const run = drive(document, bump, {}, nextStepWithLoopBounds);
+  assertEquals(run.trace, ["cases@1.fix@1.attempt"]);
+  assert(!run.trace.includes("after"));
+  assertEquals(run.next, {
+    kind: "paused",
+    key: "cases@1.fix",
+    iterations: 1,
+    allowed: 1,
+    max: 3,
+  });
+  const allowed = drive(
+    document,
+    bump,
+    { repeatExtra: { "cases@1.fix": 2 } },
+    nextStepWithLoopBounds,
+  );
+  assertEquals(allowed.trace.slice(0, 3), [
+    "cases@1.fix@1.attempt",
+    "cases@1.fix@2.attempt",
+    "cases@1.fix@3.attempt",
+  ]);
+  assertEquals(allowed.trace[3], "cases@2.fix@1.attempt");
+  assertEquals(allowed.next, {
+    kind: "paused",
+    key: "cases@2.fix",
+    iterations: 1,
+    allowed: 1,
+    max: 3,
+  });
+});
+
+Deno.test("a repeat that pauses inside a parallel lane pauses the run, not the lane (#419)", async () => {
+  const document = await compiled([{
+    id: "fan",
+    parallel: {
+      maxConcurrency: 2,
+      join: "all-required",
+      failurePolicy: "stop-dependent",
+      branches: [
+        {
+          id: "la",
+          repository: "repo_la",
+          steps: [{
+            id: "fix",
+            repeat: {
+              max: 3,
+              allow: 1,
+              seed: { currentCandidate: { n: 0 } },
+              until: "$repeat.currentCandidate.n >= 99",
+              steps: [
+                noop("attempt", { with: { n: "$repeat.currentCandidate.n" } }),
+              ],
+              outputs: {
+                currentCandidate: { n: "$step.fan.la.fix.attempt.next" },
+              },
+            },
+          }],
+        },
+        { id: "lb", repository: "repo_lb", steps: [noop("other")] },
+      ],
+    },
+  }, noop("after", { needs: ["fan"] })]);
+  const run = driveMany(
+    document,
+    () => completed({ next: 1, n: 1 }),
+    {},
+    { interpreter: nextStepWithLoopBounds },
+  );
+  assert(!run.trace.includes("after"));
+  assertEquals(run.next.kind, "paused");
+});
+
+Deno.test("revisions 1 to 3 ignore a repeat's min and allow, so no pinned run changes (#419)", async () => {
+  const document = await compiled([
+    counter({
+      seed: { currentCandidate: { n: 5 } },
+      min: 2,
+      max: 5,
+      allow: 2,
+    }),
+  ]);
+  for (const earlier of [nextStep, nextStepWithGroups, nextStepWithLoops]) {
+    assertEquals(drive(document, bump, {}, earlier).trace, []);
+  }
+  const never = await compiled([
+    counter({ until: "$repeat.currentCandidate.n >= 99", max: 5, allow: 2 }),
+  ]);
+  for (const earlier of [nextStep, nextStepWithGroups, nextStepWithLoops]) {
+    assertEquals(drive(never, bump, {}, earlier).trace.length, 5);
+  }
+  assertEquals(
+    drive(document, bump, {}, nextStepWithLoopBounds).trace,
     ["loop@1.bump", "loop@2.bump"],
   );
 });
