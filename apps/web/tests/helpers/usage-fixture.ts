@@ -11,6 +11,8 @@ export type UsageOptions = {
   /** Someone who may not see Usage: the server answers 403. */
   forbidden?: boolean;
   twoRoutes?: boolean;
+  failing?: boolean;
+  delayMs?: number;
 };
 
 const ROWS = [
@@ -66,9 +68,28 @@ export async function usageFixture(page: Page, options: UsageOptions = {}) {
   const seen: URLSearchParams[] = [];
   await page.route(
     (url) => url.pathname === "/v1/usage",
-    (route) => {
+    async (route) => {
       const query = new URL(route.request().url()).searchParams;
       seen.push(query);
+      if (options.delayMs !== undefined) {
+        await new Promise((done) => setTimeout(done, options.delayMs));
+      }
+      if (options.failing) {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "https://bakery.example/problems/test",
+            title: "Failed",
+            detail: "Failed.",
+            status: 500,
+            code: "INTERNAL_ERROR",
+            retryable: false,
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+        });
+      }
       if (options.forbidden) {
         return route.fulfill({
           status: 403,

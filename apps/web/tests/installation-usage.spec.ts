@@ -69,6 +69,49 @@ for (
       await page.getByRole("button", { name: /^Provider:/ }).click();
       await expect(menu.getByText("OpenAI", { exact: true })).toBeVisible();
       await expect(menu.getByText("Google", { exact: true })).toBeVisible();
+      await still(page, "usage-provider-menu");
+    });
+
+    test("a failed read is an error state with Try again, not a blank page", async ({ page }) => {
+      await usageFixture(page, { failing: true });
+      await page.goto("/installation/usage");
+      await expect(page.getByText("Usage could not be loaded.")).toBeVisible({
+        timeout: 20000,
+      });
+      await expect(page.getByRole("button", { name: "Try again" }))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "usage-error");
+      await expect(page.getByRole("heading", { name: "By provider" }))
+        .toHaveCount(0);
+    });
+
+    test("while the first read is in flight the page shows skeleton tiles and rows, not an empty table", async ({ page }) => {
+      await usageFixture(page, { delayMs: 1500 });
+      await page.goto("/installation/usage");
+      const loading = page.getByRole("status", { name: "Loading usage…" });
+      await expect(loading).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "usage-loading");
+      await expect(loading.locator("[data-ui-component=skeleton]")).toHaveCount(
+        7,
+      );
+      await expect(page.getByRole("heading", { name: "By provider" }))
+        .toBeVisible({ timeout: 20000 });
+    });
+
+    test("offline, the page says when its figures were last updated", async ({ page, context }) => {
+      await usageFixture(page);
+      await page.goto("/installation/usage");
+      await expect(page.getByRole("heading", { name: "By provider" }))
+        .toBeVisible();
+      await expect(page.getByText(/^Last updated/)).toHaveCount(0);
+      await context.setOffline(true);
+      await expect(page.getByText(/^Last updated \d/)).toBeVisible({
+        timeout: 20000,
+      });
+      await page.mouse.move(700, 700);
+      await still(page, "usage-offline");
     });
 
     test("each figure is a named group and Total is a row header", async ({ page }) => {
@@ -94,6 +137,8 @@ for (
           "3 records are not confirmed by a provider and 1 record has no cost at all.",
         ),
       ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "usage-partial");
     });
 
     test("Custom asks for From and To, sends exactly those days, and says why a range is refused while keeping the last good one", async ({ page }) => {
@@ -127,6 +172,8 @@ for (
       await to.fill("2024-12-01");
       await expect(page.getByText("Choose an end date after the start date."))
         .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "usage-custom-error");
       expect(seen.length).toBe(reads);
       await expect(page.getByRole("heading", { name: "By provider" }))
         .toBeVisible();

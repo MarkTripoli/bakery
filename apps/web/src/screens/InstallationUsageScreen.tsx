@@ -46,6 +46,8 @@ export type InstallationUsageScreenProps = {
   readonly onProviderChange: (provider: string | null) => void;
   readonly onRetry: () => void;
   readonly onShowLast30Days: () => void;
+  readonly offline: boolean;
+  readonly lastUpdated: string | null;
 };
 
 export function InstallationUsageScreen(
@@ -63,6 +65,8 @@ export function InstallationUsageScreen(
     onProviderChange,
     onRetry,
     onShowLast30Days,
+    offline,
+    lastUpdated,
   }: InstallationUsageScreenProps,
 ) {
   const { translate, locale, timeZone } = useI18n();
@@ -233,13 +237,7 @@ export function InstallationUsageScreen(
   // Loading is its own state, not an empty table: a table of zeros while the
   // first answer is in flight says the period had nothing in it, which is a
   // claim the page has not earned yet.
-  const pageState = state === "ready"
-    ? "default"
-    : state === "error"
-    ? "error"
-    : state === "empty"
-    ? "empty"
-    : "loading";
+  const pageState = state === "empty" ? "empty" : "default";
 
   return (
     <UI.SettingsContent data-page="installation-usage">
@@ -314,6 +312,15 @@ export function InstallationUsageScreen(
         {state === "ready"
           ? (
             <>
+              {offline && lastUpdated !== null
+                ? (
+                  <UI.Text variant="muted">
+                    {translate("installation.usage.lastUpdated", {
+                      time: lastUpdated,
+                    })}
+                  </UI.Text>
+                )
+                : null}
               <UI.Inline gap="standard" variant="thirds">
                 <UI.StatTile
                   detail={confirmed.noReceipts
@@ -375,6 +382,35 @@ export function InstallationUsageScreen(
                 )
                 : null}
             </>
+          )
+          : state === "loading"
+          ? (
+            <UI.Stack
+              aria-label={translate("installation.usage.loading")}
+              role="status"
+            >
+              <UI.Inline gap="standard" variant="thirds">
+                <UI.Skeleton shape="surface" />
+                <UI.Skeleton shape="surface" />
+                <UI.Skeleton shape="surface" />
+              </UI.Inline>
+              <UI.Skeleton shape="row" />
+              <UI.Skeleton shape="row" />
+              <UI.Skeleton shape="row" />
+              <UI.Skeleton shape="row" />
+            </UI.Stack>
+          )
+          : state === "error"
+          ? (
+            <UI.ErrorState
+              action={
+                <UI.Button onClick={onRetry}>
+                  {translate("installation.usage.retry")}
+                </UI.Button>
+              }
+              title={translate("installation.usage.error")}
+              variant="region"
+            />
           )
           : null}
       </UI.AccessSettings>

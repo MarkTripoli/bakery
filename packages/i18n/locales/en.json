@@ -2257,6 +2257,7 @@
   "installation.usage.budgets.reservedHelp": "Held while work runs. It is released or used when the work ends.",
   "installation.usage.error": "Usage could not be loaded.",
   "installation.usage.retry": "Try again",
+  "installation.usage.lastUpdated": "Last updated {time}",
   "installation.usage.loading": "Loading usage…",
   "installation.updates.title": "Updates",
   "installation.updates.description": "Which version of Bakery this server runs, and what happens when an update goes wrong.",

@@ -1,7 +1,10 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { formatDate } from "@bakery/i18n";
 import { useBakeryApi } from "../api/context.tsx";
+import { useConnectivity } from "../app/connectivity.ts";
+import { useI18n } from "../i18n/I18nProvider.tsx";
 import { usageSummaryQueryOptions } from "../api/query.ts";
 import { isForbiddenFailure } from "../app/async-state.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
@@ -24,6 +27,8 @@ const TO_QUERY = "to";
 export function InstallationUsagePage() {
   const api = useBakeryApi();
   const scope = useProtectedScope();
+  const { locale, timeZone } = useI18n();
+  const connectivity = useConnectivity();
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as Record<string, unknown>;
   const period = isUsagePeriod(search[PERIOD_QUERY])
@@ -138,6 +143,13 @@ export function InstallationUsagePage() {
         )}
       onProviderChange={(choice) =>
         write({ [PROVIDER_QUERY]: choice ?? "all" })}
+      lastUpdated={summary.dataUpdatedAt > 0
+        ? formatDate(new Date(summary.dataUpdatedAt), locale, {
+          timeStyle: "short",
+          timeZone,
+        })
+        : null}
+      offline={connectivity === "offline" || connectivity === "reconnecting"}
       onRetry={() => void summary.refetch()}
       onShowLast30Days={() => write({ [PERIOD_QUERY]: "last30" })}
       period={period}

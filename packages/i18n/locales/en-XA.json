@@ -6687,5 +6687,6 @@
   "installation.usage.period.reversed": "⟦Çĥôôšë àñ ëñð ðàŧë àƒŧëŕ ŧĥë šŧàŕŧ ðàŧë. ŧëšŧ çôþÿ ŧ⟧",
   "installation.usage.period.from": "⟦Ƒŕôɱ⟧",
   "installation.usage.period.to": "⟦Ŧô⟧",
-  "installation.usage.partial.body": "⟦{unverified, plural, one {# record is} other {# records are}} ñôŧ çôñƒïŕɱëð ƀÿ à þŕôṽïðëŕ àñð {unknown, plural, one {# record has} other {# records have}} ñô çôšŧ àŧ àļļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "installation.usage.partial.body": "⟦{unverified, plural, one {# record is} other {# records are}} ñôŧ çôñƒïŕɱëð ƀÿ à þŕôṽïðëŕ àñð {unknown, plural, one {# record has} other {# records have}} ñô çôšŧ àŧ àļļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "installation.usage.lastUpdated": "⟦Ļàšŧ ûþðàŧëð {time} ŧëšŧ⟧"
 }

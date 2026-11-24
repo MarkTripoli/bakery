@@ -6687,5 +6687,6 @@
   "installation.usage.period.reversed": "⟪Choose an end date after the start date.⟫",
   "installation.usage.period.from": "⟪From⟫",
   "installation.usage.period.to": "⟪To⟫",
-  "installation.usage.partial.body": "⟪{unverified, plural, one {# record is} other {# records are}} not confirmed by a provider and {unknown, plural, one {# record has} other {# records have}} no cost at all.⟫"
+  "installation.usage.partial.body": "⟪{unverified, plural, one {# record is} other {# records are}} not confirmed by a provider and {unknown, plural, one {# record has} other {# records have}} no cost at all.⟫",
+  "installation.usage.lastUpdated": "⟪Last updated {time}⟫"
 }
