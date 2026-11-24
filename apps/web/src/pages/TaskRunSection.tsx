@@ -37,6 +37,8 @@ import {
 } from "./RunRules.tsx";
 import { stepTimelineEvents, stepTitle } from "./task-timeline.ts";
 import { TaskRunSectionView } from "./task-run-section-view.tsx";
+import { runOutcome, stepName } from "./task-step-approval/model.ts";
+import { useStepApproval } from "./task-step-approval/use-step-approval.ts";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
 import { focusMessageField } from "./task-delivery/focus-message.ts";
@@ -164,17 +166,23 @@ function BlockedNotice(
 
 /** Read the task's authoritative current run, never infer one from list order. */
 export function TaskRunSection(
-  { taskId, runId, enabled, connectivity = "online", artifacts, landingStepId }:
-    {
-      taskId: string;
-      runId: string;
-      enabled: boolean;
-      /** The step a notification opened: selected once, paging forward to find it. */
-      landingStepId?: string | null;
-      /** Sync connectivity; anything but `online` shows as a banner, never a row. */
-      connectivity?: DurableSyncConnectivity;
-      artifacts?: ReactNode;
-    },
+  {
+    taskId,
+    runId,
+    enabled,
+    connectivity = "online",
+    artifacts,
+    landingStepId,
+    onReviewStep,
+  }: {
+    onReviewStep?: () => void;
+    taskId: string;
+    runId: string;
+    enabled: boolean;
+    landingStepId?: string | null;
+    connectivity?: DurableSyncConnectivity;
+    artifacts?: ReactNode;
+  },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -220,6 +228,16 @@ export function TaskRunSection(
   const waitingOffers = waiting.offers;
   // A failed read of the choices still leaves the run waiting on a model.
   const waitingOnModel = waitingOffers.length > 0 || waiting.failed;
+  const stepApproval = useStepApproval(taskId, runId);
+  const waitingOnYou = enabled && stepApproval.approval?.mayDecide === true;
+  const waitingOnOthers = enabled && stepApproval.approval !== null &&
+    !waitingOnYou;
+  const approvalStepName = stepName(stepApproval.step?.stepKey ?? null);
+  const outcome = runOutcome(stepApproval.latest, run.data?.status);
+  const outcomePerson = outcome === null
+    ? null
+    : stepApproval.nameOf(outcome.decidedBy) ??
+      t("tasks.stepApproval.outcome.someone");
   const stepLanded = useRef(false);
   useEffect(() => {
     if (!landingStepId || stepLanded.current || !steps.data) return;
@@ -264,7 +282,10 @@ export function TaskRunSection(
       );
       const latest = changed.at(-1);
       if (latest) {
-        setStepUpdate({ name: latest.stepKey, status: latest.status });
+        setStepUpdate({
+          name: stepName(latest.stepKey),
+          status: latest.status,
+        });
       }
     } else {
       setStepUpdate(null);
@@ -313,12 +334,14 @@ export function TaskRunSection(
         ? (
           <SessionRunNow
             source={runningSource}
-            stepName={otherRunning ? runningStepKey : undefined}
+            stepName={otherRunning && runningStepKey !== undefined
+              ? stepTitle(t, runningStepKey)
+              : undefined}
             onSelect={selectRunning}
           />
         )
         : null,
-    [runningSource, otherRunning, runningStepKey, selectRunning],
+    [runningSource, otherRunning, runningStepKey, selectRunning, t],
   );
   const nowLinePublished = usePublishNowLine(nowLine);
   const usageAuthority = `${authority}:${selectedStepId}`;
@@ -345,7 +368,9 @@ export function TaskRunSection(
     enabled: validRun && run.data !== undefined,
   });
   const stepNames = new Map(
-    (steps.data?.items ?? []).map((step) => [step.id, step.stepKey] as const),
+    (steps.data?.items ?? []).map((step) =>
+      [step.id, stepName(step.stepKey)] as const
+    ),
   );
   const showRulesDetails = () => {
     const details = document.getElementById("run-details");
@@ -363,6 +388,42 @@ export function TaskRunSection(
   const runLine = (() => {
     if (!validRun || !run.data) return null;
     const current = run.data;
+    if (outcome !== null && outcomePerson !== null) {
+      return (
+        <UI.Text data-placement="line">
+          {outcome.decision === "reject"
+            ? t("tasks.stepApproval.outcome.rejected", {
+              name: outcomePerson,
+              step: approvalStepName,
+            })
+            : outcome.note === ""
+            ? t("tasks.stepApproval.outcome.changes", { name: outcomePerson })
+            : t("tasks.stepApproval.outcome.changesNote", {
+              name: outcomePerson,
+              note: outcome.note,
+            })}
+        </UI.Text>
+      );
+    }
+    if (waitingOnYou && online) {
+      return (
+        <>
+          <UI.Text data-placement="line">
+            {t("tasks.stepApproval.line", { step: approvalStepName })}
+          </UI.Text>
+          <UI.Button onClick={onReviewStep}>
+            {t("tasks.stepApproval.review", { step: approvalStepName })}
+          </UI.Button>
+        </>
+      );
+    }
+    if (waitingOnOthers && online) {
+      return (
+        <UI.Text data-placement="line">
+          {t("tasks.stepApproval.refusal.outside")}
+        </UI.Text>
+      );
+    }
     if (!online) {
       return (
         <UI.Text data-placement="line">{t("tasks.controls.offline")}</UI.Text>
@@ -497,16 +558,25 @@ export function TaskRunSection(
             {validRun && run.data
               ? (
                 <UI.Badge
-                  tone={waitingOnModel ? "warning" : RUN_TONES[run.data.status]}
+                  tone={outcome !== null
+                    ? outcome.decision === "reject" ? "danger" : "warning"
+                    : waitingOnModel || waitingOnYou
+                    ? "warning"
+                    : RUN_TONES[run.data.status]}
                 >
-                  {waitingOnModel
+                  {outcome !== null
+                    ? t(`tasks.stepApproval.outcome.badge.${outcome.decision}`)
+                    : waitingOnYou
+                    ? t("tasks.stepApproval.badge")
+                    : waitingOnModel
                     ? t("tasks.waiting.badge")
                     : t(`tasks.run.status.${run.data.status}`)}
                 </UI.Badge>
               )
               : null}
             {runLine}
-            {validRun && run.data && run.data.status !== "blocked"
+            {validRun && run.data && run.data.status !== "blocked" &&
+                outcome === null
               ? (
                 <TaskRunControls
                   key={`${scope.sessionGeneration}:${scope.organizationId}:${taskId}:${runId}`}
@@ -573,7 +643,9 @@ export function TaskRunSection(
             {validRun && run.data
               ? (
                 <>
-                  {t("tasks.run.heading")}: {waitingOnModel
+                  {t("tasks.run.heading")}: {outcome !== null
+                    ? t(`tasks.stepApproval.outcome.badge.${outcome.decision}`)
+                    : waitingOnModel
                     ? t("tasks.waiting.badge")
                     : t(`tasks.run.status.${run.data.status}`)}
                   {stepUpdate && !steps.isError && !invalidSteps
@@ -777,7 +849,7 @@ export function TaskRunSection(
                           value={selectedStepId}
                           options={steps.data.items.map((step) => ({
                             value: step.id,
-                            label: step.stepKey,
+                            label: stepTitle(t, step.stepKey),
                           }))}
                           onChange={(event) =>
                             setOutputStepId(event.target.value)}

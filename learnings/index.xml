@@ -22,6 +22,7 @@
   <entry file="local-bootstrap-environment.xml" scope="project" />
   <entry file="client-interface-member-breaks-hand-built-doubles.xml" scope="project" />
   <entry file="compose-partial-service-environment.xml" scope="project" />
+  <entry file="approval-step-real-api-stack.xml" scope="project" />
   <entry file="persistent-preview-engine-ownership.xml" scope="project" />
   <entry file="local-temporary-storage-quota.xml" scope="project" />
   <entry file="native-artifact-formatting.xml" scope="project" />
