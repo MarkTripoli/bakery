@@ -80,6 +80,8 @@ for (
       });
       await expect(page.getByRole("button", { name: "Try again" }))
         .toBeVisible();
+      await expect(page.locator('[data-ui-component="errorState"]'))
+        .toBeVisible();
       await page.mouse.move(700, 700);
       await still(page, "usage-error");
       await expect(page.getByRole("heading", { name: "By provider" }))
