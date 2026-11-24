@@ -27,34 +27,37 @@ export async function stubNotification(
 ) {
   const reads: unknown[] = [];
   await page.route(
-    `**/v1/notifications/${NOTIFICATION_ID}/target`,
+    (url) => url.pathname === `/v1/notifications/${NOTIFICATION_ID}/target`,
     (route) => route.fulfill({ json: target }),
   );
-  await page.route(`**/v1/notifications/${NOTIFICATION_ID}`, (route) => {
-    const row = {
-      id: NOTIFICATION_ID,
-      organizationId: "00000000-0000-4000-8000-000000000003",
-      recipientId: "00000000-0000-4000-8000-000000000001",
-      kind: "step_failed",
-      targetKind: target.targetKind,
-      targetId: options.targetId ?? options.taskId,
-      targetAnchor: target.anchor,
-      conversationId: null,
-      runId: null,
-      taskId: options.taskId,
-      actor: null,
-      destination: { available: true, title: options.title ?? "Task" },
-      approvalOutcome: null,
-      read: true,
-      revision: NOTIFICATION_REVISION + 1,
-      createdAt: stamp,
-    };
-    if (route.request().method() === "GET") {
+  await page.route(
+    (url) => url.pathname === `/v1/notifications/${NOTIFICATION_ID}`,
+    (route) => {
+      const row = {
+        id: NOTIFICATION_ID,
+        organizationId: "00000000-0000-4000-8000-000000000003",
+        recipientId: "00000000-0000-4000-8000-000000000001",
+        kind: "step_failed",
+        targetKind: target.targetKind,
+        targetId: options.targetId ?? options.taskId,
+        targetAnchor: target.anchor,
+        conversationId: null,
+        runId: null,
+        taskId: options.taskId,
+        actor: null,
+        destination: { available: true, title: options.title ?? "Task" },
+        approvalOutcome: null,
+        read: true,
+        revision: NOTIFICATION_REVISION + 1,
+        createdAt: stamp,
+      };
+      if (route.request().method() === "GET") {
+        return route.fulfill({ json: row });
+      }
+      reads.push(route.request().postDataJSON());
       return route.fulfill({ json: row });
-    }
-    reads.push(route.request().postDataJSON());
-    return route.fulfill({ json: row });
-  });
+    },
+  );
   await page.route(
     "**/v1/notifications?*",
     (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
