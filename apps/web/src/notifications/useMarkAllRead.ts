@@ -16,13 +16,17 @@ export type MarkAllReadToast = {
 
 type MarkAllReadState = {
   readonly marking: boolean;
-  readonly failed: boolean;
+  readonly failedSurface: MarkAllReadSurface | null;
   readonly toast: MarkAllReadToast | null;
 };
 
 const UNDO_WINDOW_MS = 10_000;
 
-const idle: MarkAllReadState = { failed: false, marking: false, toast: null };
+const idle: MarkAllReadState = {
+  failedSurface: null,
+  marking: false,
+  toast: null,
+};
 
 let state: MarkAllReadState = idle;
 let dismissTimer: ReturnType<typeof setTimeout> | null = null;
@@ -73,7 +77,7 @@ export function useMarkAllRead(surface: MarkAllReadSurface) {
   const markAllRead = useCallback(async () => {
     if (state.marking) return;
     clearDismissTimer();
-    write({ failed: false, marking: true, toast: null });
+    write({ failedSurface: null, marking: true, toast: null });
     const cutoff = new Date().toISOString();
     const result = await client.markAllNotificationsRead({
       organizationId: scope.organizationId!,
@@ -81,12 +85,12 @@ export function useMarkAllRead(surface: MarkAllReadSurface) {
       idempotencyKey: `mark-all-${cutoff}`,
     }).catch(() => null);
     if (result === null || !result.ok) {
-      write({ failed: true, marking: false, toast: null });
+      write({ failedSurface: surface, marking: false, toast: null });
       return;
     }
     const marked = result.data.marked;
     const arrived = result.data.remainingUnread ?? 0;
-    write({ failed: false, marking: false, toast: null });
+    write({ failedSurface: null, marking: false, toast: null });
     showToast({
       message: arrived > 0
         ? translate("notifications.markAllRead.doneWithArrivals", {
@@ -135,7 +139,7 @@ export function useMarkAllRead(surface: MarkAllReadSurface) {
 
   return {
     dismissToast,
-    failed: current.failed,
+    failed: current.failedSurface === surface,
     markAllRead,
     marking: current.marking,
     toast: current.toast?.surface === surface ? current.toast : null,

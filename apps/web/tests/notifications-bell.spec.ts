@@ -53,10 +53,10 @@ test.describe("desktop: bell and popover", () => {
     await expect(popover.getByText("You're all caught up.")).toBeVisible();
     await expect(popover.getByRole("button", { name: "Mark all read" }))
       .toHaveCount(0);
-    await page.mouse.move(40, 800);
-    await still(page, "bell-popover-success-toast");
     await page.keyboard.press("Escape");
     await expect(popover).toHaveCount(0);
+    await page.mouse.move(40, 800);
+    await still(page, "bell-popover-success-toast");
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(page.getByText("Restored 3 notifications to unread."))
       .toBeVisible();
@@ -76,6 +76,7 @@ test.describe("desktop: bell and popover", () => {
     await popover.getByRole("button", { name: "Mark all read" }).click();
     await expect(popover.getByText("Could not mark all as read."))
       .toBeVisible();
+    await expect(page.getByText("Could not mark all as read.")).toHaveCount(1);
     await expect(popover.getByText("Notifications could not load."))
       .toHaveCount(0);
     await expect(popover.getByText("Task 0", { exact: true })).toBeVisible();
