@@ -319,6 +319,22 @@ test("a run waiting at an approval step says so and offers the review", async ({
   await still(page, "step-approval-waiting");
 });
 
+test("someone outside the audience is told, and offered no decision", async ({ page }) => {
+  const state = await open(page);
+  state.approvals = [approval({ mayDecide: false })];
+  await page.reload();
+  await expect(
+    page.getByText(
+      "This decision is for the people on this task. Ask one of them.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Review the/ })).toHaveCount(
+    0,
+  );
+  await page.mouse.move(5, 5);
+  await still(page, "step-approval-outside-audience");
+});
+
 test("a run with no open step approval shows no review", async ({ page }) => {
   const state = await open(page);
   state.approvals = [];
