@@ -88,16 +88,16 @@ export function storedTicketSourcePolicy(
   });
 }
 
-export function requiredWorkflowId<T extends string>(
+export function workflowRequired() {
+  return unprocessable(["preset"], "ticket_workflow_required");
+}
+
+export function chosenWorkflowId<T extends string>(
   pinned: T | undefined,
   chosen: T | null | undefined,
   sourceDefault: T | undefined,
-): T {
-  const id = pinned ?? chosen ?? sourceDefault;
-  if (id === undefined) {
-    throw unprocessable(["preset"], "ticket_workflow_required");
-  }
-  return id;
+): T | null {
+  return pinned ?? chosen ?? sourceDefault ?? null;
 }
 
 /** The `filters` of a preview; absent or empty narrows nothing, anything else unknown is 422. */

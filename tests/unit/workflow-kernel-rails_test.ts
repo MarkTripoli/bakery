@@ -229,7 +229,7 @@ Deno.test("the engine never names a preset slug or imports the presets module", 
 const TICKET_ALLOWED: readonly Allowed[] = Object.freeze([
   // #399 points ticket admission at the republished fixed-coding definition.
   ...[
-    'import { presetAvailability } from "./workflow-presets.ts";',
+    'import { presetAvailability, repositoryFacts } from "./workflow-presets.ts";',
     "FIXED_CODING_PRESET,",
   ].map((line) => ({
     file: "apps/server/src/modules/work/ticket-admission.ts",

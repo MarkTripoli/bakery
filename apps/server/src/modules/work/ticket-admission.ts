@@ -50,10 +50,11 @@ import {
   updateTaskCommand,
 } from "./postgres.ts";
 import {
+  chosenWorkflowId,
   intentFromLabels,
   requestedIntentFromLabels,
-  requiredWorkflowId,
   type TicketLabelBasis,
+  workflowRequired,
 } from "./ticket-policy.ts";
 import {
   isAutomaticOrigin,
@@ -120,7 +121,7 @@ import {
   resolveTicketRoutes,
   type TicketRouteResolution,
 } from "./ticket-routing.ts";
-import { presetAvailability } from "./workflow-presets.ts";
+import { presetAvailability, repositoryFacts } from "./workflow-presets.ts";
 
 /**
  * Admission: the one function that turns a GitHub issue into at most one
@@ -249,14 +250,13 @@ function presetDefinition(id: string): WorkflowPresetDefinition {
 function framePreset(
   frame: Frame,
   request: TicketRequest | null,
-): WorkflowPresetDefinition {
-  return presetDefinition(
-    requiredWorkflowId(
-      request?.pinnedPreset.id,
-      frame.call.preset,
-      frame.source.policy.preset,
-    ),
+): WorkflowPresetDefinition | null {
+  const id = chosenWorkflowId(
+    request?.pinnedPreset.id,
+    frame.call.preset,
+    frame.source.policy.preset,
   );
+  return id === null ? null : presetDefinition(id);
 }
 
 /** The identity a report and a new request pin for a workflow. */
@@ -410,7 +410,7 @@ async function sourceAuthority(
  */
 async function sourceFacts(
   frame: Frame,
-  preset: WorkflowPresetDefinition,
+  preset: WorkflowPresetDefinition | null,
 ): Promise<ReadinessSourceFacts> {
   const { source } = frame;
   const base = {
@@ -425,6 +425,19 @@ async function sourceFacts(
       ...base,
       repositoryArchived: false,
       repositoryHasActiveProfile: false,
+      presetReady: false,
+    };
+  }
+  if (preset === null) {
+    const facts = await repositoryFacts(
+      frame.transaction,
+      source.organizationId,
+      source.repositoryId,
+    );
+    return {
+      ...base,
+      repositoryArchived: facts.archived,
+      repositoryHasActiveProfile: facts.hasActiveProfile,
       presetReady: false,
     };
   }
@@ -481,12 +494,22 @@ async function resolveFrameRoute(
   // Each routed target runs the preset in its own repository, so each needs
   // a ready profile and preset, not only the source's repository.
   const unready = { profile: [] as string[], preset: [] as string[] };
+  const preset = framePreset(frame, null);
   for (const target of route.targets) {
     if (target.ruleId === null) continue;
+    if (preset === null) {
+      const facts = await repositoryFacts(
+        transaction,
+        source.organizationId,
+        target.repositoryId,
+      );
+      if (!facts.hasActiveProfile) unready.profile.push(`role:${target.role}`);
+      continue;
+    }
     const availability = await repositoryAvailability(
       frame,
       target.repositoryId,
-      framePreset(frame, null),
+      preset,
     );
     if (availability.reasons.includes("no_active_profile")) {
       unready.profile.push(`role:${target.role}`);
@@ -516,7 +539,7 @@ async function evaluate(
     source: await sourceFacts(frame, preset),
     policy: source.policy,
     policyRevision: source.policyRevision,
-    preset: presetPin(preset),
+    preset: preset === null ? null : presetPin(preset),
     issue: prefetch.issue,
     links: prefetch.links,
     statuses: prefetch.statuses,
@@ -1157,6 +1180,7 @@ async function admitFresh(
   ) {
     return unadmitted;
   }
+  if (report.preset === null) throw workflowRequired();
   const actor = context.actor;
 
   // (8) The task, its primary link and the request, in one transaction.

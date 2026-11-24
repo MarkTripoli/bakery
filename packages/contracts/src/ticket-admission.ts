@@ -896,7 +896,9 @@ export const TicketReadinessReportSchema = z.object({
   sourcePolicyRevision: z.number().int().min(1).describe(
     "Revision of the ticket source policy the report was evaluated against, at least 1.",
   ),
-  preset: TicketPresetPinSchema,
+  preset: TicketPresetPinSchema.nullable().describe(
+    "Built-in workflow the report was judged with, or null when none was chosen: no request pin, no Start work choice and no source workflow.",
+  ),
 }).strict().superRefine((report, context) => {
   const seen = new Set<string>();
   report.checks.forEach((check, index) => {

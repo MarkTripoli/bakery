@@ -62,10 +62,8 @@ export function StartWorkDialog(
   const fieldId = useId();
   useEffect(() => {
     if (attempts === 0) return;
-    document.querySelector<HTMLElement>(
-      '[data-testid="start-work-workflow"] select',
-    )?.focus();
-  }, [attempts]);
+    document.getElementById(fieldId)?.focus();
+  }, [attempts, fieldId]);
   const start = useMutation({
     mutationKey: ["ticketRequests.create"],
     mutationFn: async () => {

@@ -3,13 +3,14 @@ import { StandardError } from "../../../packages/contracts/src/http.ts";
 import { defaultTicketSourcePolicy } from "../../../packages/contracts/src/ticket-admission.ts";
 import {
   automaticAdmissionAllowed,
+  chosenWorkflowId,
   intentFromLabels,
   labelsCoverIntent,
   parseOffsetInstant,
   parseTicketSourcePolicy,
   requestedIntentFromLabels,
-  requiredWorkflowId,
   storedTicketSourcePolicy,
+  workflowRequired,
 } from "../../../apps/server/src/modules/work/ticket-policy.ts";
 
 /**
@@ -443,28 +444,27 @@ Deno.test("issue 407 unit policy: a new source has no workflow and automatic adm
   });
 });
 
-Deno.test("issue 407 unit policy: a start with no workflow is refused, and a chosen, pinned or source workflow is used in that order", () => {
-  const error = assertThrows(() =>
-    requiredWorkflowId(undefined, null, undefined)
-  );
+Deno.test("issue 407 unit policy: no workflow is none, a refused start is a 422, and a pinned, chosen or source workflow is used in that order", () => {
+  assertEquals(chosenWorkflowId(undefined, null, undefined), null);
+  const error = workflowRequired();
   if (!(error instanceof StandardError)) {
     throw new Error("a refused start raises a StandardError");
   }
   assertEquals(error.code, "UNPROCESSABLE");
   assertEquals(
-    requiredWorkflowId(undefined, "fixed-coding-reviewed", undefined),
+    chosenWorkflowId(undefined, "fixed-coding-reviewed", undefined),
     "fixed-coding-reviewed",
   );
   assertEquals(
-    requiredWorkflowId(undefined, null, "fixed-coding"),
+    chosenWorkflowId(undefined, null, "fixed-coding"),
     "fixed-coding",
   );
   assertEquals(
-    requiredWorkflowId(undefined, "fixed-coding-reviewed", "fixed-coding"),
+    chosenWorkflowId(undefined, "fixed-coding-reviewed", "fixed-coding"),
     "fixed-coding-reviewed",
   );
   assertEquals(
-    requiredWorkflowId("fixed-coding", "fixed-coding-reviewed", undefined),
+    chosenWorkflowId("fixed-coding", "fixed-coding-reviewed", undefined),
     "fixed-coding",
   );
 });

@@ -109,8 +109,7 @@ export type ReadinessInput = {
   policy: TicketSourcePolicy;
   /** `ticket_sources.policy_revision` the policy was read at. */
   policyRevision: number;
-  /** Fixed preset identity the report is bound to. */
-  preset: TicketPresetPin;
+  preset: TicketPresetPin | null;
   /** Answer of the issue read. */
   issue: TicketIssueRead;
   /** Answer of the links read; null when it was not made (treated as unavailable). */
@@ -626,7 +625,10 @@ function repositoryReady({ source, route }: ReadinessInput): Outcome {
   );
 }
 
-function presetReady({ source, preset, route }: ReadinessInput): Outcome {
+function presetReady(
+  { source, preset, route }: ReadinessInput,
+): Outcome | null {
+  if (preset === null) return null;
   // The policy and the pin both name the one fixed preset by literal type, so
   // there is no identity to compare; only the repository's setup can fail.
   if (!source.presetReady) {
