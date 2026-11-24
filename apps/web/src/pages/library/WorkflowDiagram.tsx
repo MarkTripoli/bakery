@@ -565,7 +565,10 @@ export function WorkflowDiagram(
         {node.children.length === 0
           ? (
             <UI.OutlineList>
-              <UI.OutlineRow caption title={noSteps} />
+              <UI.OutlineRow
+                caption
+                title={<UI.Text variant="muted">{noSteps}</UI.Text>}
+              />
             </UI.OutlineList>
           )
           : innerList(node.children)}

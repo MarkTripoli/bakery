@@ -3073,7 +3073,9 @@ for (
       await expect(each.nth(1)).toContainText("No steps");
       if (viewport.name === "phone") {
         await expect(
-          each.nth(1).locator("ul.ui-outline li", { hasText: "No steps" }),
+          each.nth(1).locator("ul.ui-outline li [data-variant=muted]", {
+            hasText: "No steps",
+          }),
         ).toHaveCount(1);
       }
       const repeat = page.locator("[data-group=repeat]");
