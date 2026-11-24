@@ -4,9 +4,15 @@ import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { createServer } from "node:http";
 import { chromium } from "@playwright/test";
+
+const ambientEvent = process.env.GITHUB_EVENT_NAME;
+delete process.env.GITHUB_EVENT_NAME;
+after(() => {
+  if (ambientEvent !== undefined) process.env.GITHUB_EVENT_NAME = ambientEvent;
+});
 const {
   buildDesignCase,
   closeServer,

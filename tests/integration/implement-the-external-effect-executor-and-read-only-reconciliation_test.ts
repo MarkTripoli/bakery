@@ -515,6 +515,7 @@ Deno.test("claim commits submitted, generation 1 and a lease before any provider
     assertEquals(claim.effect.status, "submitted");
     assertEquals(claim.effect.dispatchGeneration, 1);
     assert(claim.effect.leaseExpiresAt !== null);
+    assert(claim.bound !== null);
     assertEquals(claim.bound.effectId, prepared.effectId);
 
     // What a provider port sees on its first request: the committed row, read
@@ -1180,6 +1181,7 @@ Deno.test("dispatch of an offline-bound invocation never reaches the provider", 
     const claim = await s.claim(prepared.effectId);
     assertEquals(claim.outcome, "claimed");
     if (claim.outcome !== "claimed") return;
+    assert(claim.bound !== null);
     assertEquals(claim.bound.runEnvironment, "live");
     const github = fakeGithub();
     const { broker } = testBroker(s.rig, github);

@@ -33,7 +33,7 @@ export const Contract: StoryObj = {
       />
       <StepGroup
         codeMark={<IconGlyph name="code" size="small" />}
-        icon={<IconGlyph name="refresh" size="small" />}
+        icon={<IconGlyph name="lanes" size="small" />}
         label="At the same time"
         onSelect={() => undefined}
         selectLabel="At the same time, edited in code"
