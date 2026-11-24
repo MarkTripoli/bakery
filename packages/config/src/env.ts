@@ -362,7 +362,6 @@ export const DELIVERY_TARGET_VARIABLES = [
   "BAKERY_DELIVERY_ENVIRONMENT",
 ] as const;
 
-/** The delivery target's optional public address, separate from the four that come together. */
 export const DELIVERY_TARGET_ADDRESS_VARIABLE = "BAKERY_DELIVERY_ADDRESS";
 
 /**

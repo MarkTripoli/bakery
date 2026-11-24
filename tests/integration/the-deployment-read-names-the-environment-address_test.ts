@@ -1,21 +1,33 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { withPgTransaction } from "@bakery/persistence/postgres";
 import type { ActionContext } from "../../packages/contracts/src/action-registry.ts";
 import { createDeliveryHandlers } from "../../apps/server/src/modules/delivery/handlers.ts";
+import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
 import { createDeployment } from "../../apps/server/src/modules/delivery/deployments.ts";
 import { seedFundedModelJob } from "../helpers/funded-model-job.ts";
 import { mergeDispatchStub } from "../helpers/merge-dispatch-stub.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 
-// W3 S6b: the Deployment projection carries the environment's address, so the
-// release card can offer "Open it" without a second read. The address is the
-// install's configuration for the environment a release went to, and null when
-// no address is configured.
-
 const SECRET = "deployment-address-cursor-secret";
 const SHA = (n: number) => n.toString(16).padStart(40, "0");
 const DIGEST = (n: number) => `sha256:${n.toString(16).padStart(64, "0")}`;
 const STAGING = "https://staging.example.test";
+
+type DeploymentPage = Readonly<{
+  items: readonly Readonly<{ id: string; address: string | null }>[];
+}>;
+
+function isDeploymentPage(value: unknown): value is DeploymentPage {
+  if (value === null || typeof value !== "object" || !("items" in value)) {
+    return false;
+  }
+  const { items } = value;
+  return Array.isArray(items) &&
+    items.every((item) =>
+      item !== null && typeof item === "object" && "id" in item &&
+      typeof item.id === "string"
+    );
+}
 
 function contextFor(
   organizationId: string,
@@ -67,46 +79,57 @@ Deno.test("the deployment read names the environment's address, or null when non
         job.runId,
       ],
     );
-    const created = await withPgTransaction(
-      database,
-      (transaction) =>
-        createDeployment(transaction, organizationId, principal, {
-          requestId: `request-${crypto.randomUUID()}`,
-          traceId: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-          create: {
-            repositoryId,
-            runId: job.runId,
-            environment: "staging",
-            commitSha: SHA(1000),
-            artifactDigest: DIGEST(1000),
-          },
-        }),
-    );
-
-    const page = async (
-      environmentAddress: (environment: string) => string | null,
-    ) => {
-      const handlers = createDeliveryHandlers(
-        SECRET,
-        mergeDispatchStub("deployment address test"),
-        environmentAddress,
-      );
-      return await withPgTransaction(
+    try {
+      const created = await withPgTransaction(
         database,
         (transaction) =>
-          handlers.deploymentsList(
-            contextFor(organizationId, principal, transaction),
-            { runId: job.runId },
-          ),
+          createDeployment(transaction, organizationId, principal, {
+            requestId: `request-${crypto.randomUUID()}`,
+            traceId: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            create: {
+              repositoryId,
+              runId: job.runId,
+              environment: "staging",
+              commitSha: SHA(1000),
+              artifactDigest: DIGEST(1000),
+            },
+          }),
       );
-    };
 
-    const configured = await page((environment) =>
-      environment === "staging" ? STAGING : null
-    );
-    assertEquals(configured.items.map((item) => item.id), [created.id]);
-    assertEquals(configured.items[0]?.address, STAGING);
+      const page = async (
+        environmentAddress: (environment: string) => string | null,
+      ) => {
+        const handlers = createDeliveryHandlers(
+          SECRET,
+          mergeDispatchStub("deployment address test"),
+          environmentAddress,
+        );
+        const parsed = contractSchemas["Page<Deployment>"].parse(
+          await withPgTransaction(
+            database,
+            (transaction) =>
+              handlers.deploymentsList(
+                contextFor(organizationId, principal, transaction),
+                { runId: job.runId },
+              ),
+          ),
+        );
+        assert(isDeploymentPage(parsed));
+        return parsed;
+      };
 
-    const unconfigured = await page(() => null);
-    assertEquals(unconfigured.items[0]?.address, null);
+      const configured = await page((environment) =>
+        environment === "staging" ? STAGING : null
+      );
+      assertEquals(configured.items.map((item) => item.id), [created.id]);
+      assertEquals(configured.items[0]?.address, STAGING);
+
+      const unconfigured = await page(() => null);
+      assertEquals(unconfigured.items[0]?.address, null);
+    } finally {
+      await database.query(
+        "delete from bakery.pull_requests where organization_id = $1 and run_id = $2",
+        [organizationId, job.runId],
+      );
+    }
   }));

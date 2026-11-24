@@ -17,7 +17,6 @@ export function createDeliveryRoutes(options: {
   publicBaseUrl: string;
   cursorSecret: string;
   merge: MergeDispatchDependencies;
-  /** The configured address of an environment's running release, or null. */
   environmentAddress?: (environment: string) => string | null;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
