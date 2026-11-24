@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
 
@@ -481,7 +482,7 @@ for (
     });
 
     test("the other states: waiting, running, not copied and stale", async ({ page }) => {
-      test.setTimeout(180_000);
+      test.setTimeout(laneBudgetMs(180_000));
       const cases: {
         status: Record<string, unknown>;
         runs?: Run[];
@@ -559,7 +560,7 @@ for (
     });
 
     test("each failure cause says its sentence and its fix", async ({ page }) => {
-      test.setTimeout(180_000);
+      test.setTimeout(laneBudgetMs(180_000));
       const causes: [string, string][] = [
         [
           "destination_refused",
@@ -740,7 +741,7 @@ for (
     });
 
     test("load failed: Try again reads it again", async ({ page }) => {
-      test.setTimeout(120_000);
+      test.setTimeout(laneBudgetMs(120_000));
       const served = await fixture(page, { statusRefusedUntilRetried: true });
       await page.goto("/installation/backups");
       const failed = page.locator("[data-result='load-failed']");

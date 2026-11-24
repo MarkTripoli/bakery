@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import { laneBudgetMs } from "./helpers/lane-budget.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
 
@@ -786,7 +787,7 @@ for (
     });
 
     test("off-site: each refused test says what to do", async ({ page }) => {
-      test.setTimeout(120_000);
+      test.setTimeout(laneBudgetMs(120_000));
       const { next } = await fixture(page);
       await open(page);
       const outcomes: [string, string | null, string][] = [
