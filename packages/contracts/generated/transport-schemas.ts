@@ -29970,7 +29970,7 @@ const transportSchemas = {
         "linkedTaskIds": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it.",
         "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it.",
         "openQuestionCount": "Open questions (kind question, not approvals) waiting for an answer on the task of this ticket's nonterminal request (activeRequest), counting neither answered nor expired ones; 0 when there is no such request. The Issues list shows Needs an answer from it without reading each task's questions. Omitted by servers that predate it.",
-        "delivery": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
+        "delivery": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request, why it stopped, the branch it merged into, who paused it), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
       },
       "optionalFields": [
         "latestReadiness",

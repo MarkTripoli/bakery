@@ -88164,7 +88164,7 @@ export const clientManifest = {
                 "pausedReason"
               ],
               "additionalProperties": false,
-              "description": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
+              "description": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request, why it stopped, the branch it merged into, who paused it), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
             },
             {
               "type": "null",
@@ -89056,7 +89056,7 @@ export const clientManifest = {
                       "pausedReason"
                     ],
                     "additionalProperties": false,
-                    "description": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
+                    "description": "Where Bakery's work on this issue stands, as one line (state, step, environment, pull request, why it stopped, the branch it merged into, who paused it), from the task of its newest request that was not rejected; null when no work was ever started for it. Computed for the whole page in one statement, so the Issues list and the issue page need no per-task reads. Omitted by servers that predate it."
                   },
                   {
                     "type": "null",

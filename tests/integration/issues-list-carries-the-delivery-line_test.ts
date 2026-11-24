@@ -150,6 +150,17 @@ async function suspend(fx: TicketFixture, started: Started): Promise<void> {
   );
 }
 
+async function reject(fx: TicketFixture, ticketId: string): Promise<void> {
+  await fx.owner.query(
+    `update bakery.ticket_requests
+        set disposition = 'rejected', disposition_reason = 'ticket_closed',
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and external_ticket_id = $2
+        and disposition <> 'rejected'`,
+    [fx.organizationId, ticketId],
+  );
+}
+
 async function pauseBatch(
   fx: TicketFixture,
   started: Started,
@@ -325,4 +336,26 @@ Deno.test("issue 60: an issue with no started work has no delivery line", () =>
     );
     assertEquals(list.items.length > 0, true);
     for (const item of list.items) assertEquals(item.delivery, null);
+  }));
+
+Deno.test("issue 60: rejected requests never supply the delivery line", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    const rejectedThenStarted = await start(fx, sourceId, 616);
+    await reject(fx, rejectedThenStarted.ticketId);
+    const current = await start(fx, sourceId, 616);
+    const rejectedOnly = await start(fx, sourceId, 617);
+    await reject(fx, rejectedOnly.ticketId);
+
+    const list = await read<{ items: Ticket[] }>(
+      await ticketCall(fx, "GET", "/v1/external-tickets"),
+      200,
+    );
+    const byId = new Map(list.items.map((item) => [item.id, item.delivery]));
+    assertEquals(
+      byId.get(rejectedThenStarted.ticketId)?.taskId,
+      current.taskId,
+    );
+    assertEquals(byId.get(rejectedThenStarted.ticketId)?.runId, current.runId);
+    assertEquals(byId.get(rejectedOnly.ticketId), null);
   }));
