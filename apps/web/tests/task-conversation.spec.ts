@@ -2169,7 +2169,9 @@ test.describe("participants and live updates", () => {
     await open(page, state);
     await showPlan(page);
     await expect.poll(() => stream.connections.length).toBe(1);
-    expect(scopesByConnection(stream)).toEqual([shellAndConversationScopes()]);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+    ]);
     await expect(approve(page, 3)).toBeVisible();
     state.messages.push(
       message(4, "user", "I looked at it too.", otherPrincipalId),
@@ -2202,7 +2204,9 @@ test.describe("participants and live updates", () => {
     await open(page, state);
     await showPlan(page);
     await expect.poll(() => stream.connections.length).toBe(1);
-    expect(scopesByConnection(stream)).toEqual([shellAndConversationScopes()]);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+    ]);
     const toggle = page.getByRole("switch", { name: "Planning only" });
     await expect(toggle).not.toBeChecked();
     // The teammate turns planning-only on: delivered by the live event.
@@ -2216,7 +2220,7 @@ test.describe("participants and live updates", () => {
     state.task = { ...state.task, planningOnly: false, version: 5 };
     await expect.poll(() => stream.connections.length, { timeout: 15_000 })
       .toBe(2);
-    expect(scopesByConnection(stream)).toEqual([
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
       shellAndConversationScopes(),
       shellAndConversationScopes(),
     ]);
@@ -2231,7 +2235,9 @@ test.describe("participants and live updates", () => {
     const stream = await mockStream(page);
     await open(page, state);
     await expect.poll(() => stream.connections.length).toBe(1);
-    expect(scopesByConnection(stream)).toEqual([shellAndConversationScopes()]);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+    ]);
     stream.drop();
     await expect(page.locator('[data-ui-region="live-lost"]')).toBeVisible();
     state.messages.push(
@@ -2239,7 +2245,7 @@ test.describe("participants and live updates", () => {
     );
     await expect.poll(() => stream.connections.length, { timeout: 15_000 })
       .toBe(2);
-    expect(scopesByConnection(stream)).toEqual([
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
       shellAndConversationScopes(),
       shellAndConversationScopes(),
     ]);
@@ -2281,7 +2287,9 @@ test.describe("participants and live updates", () => {
     const stream = await mockStream(page);
     await open(page, state);
     await expect.poll(() => stream.connections.length).toBe(1);
-    expect(scopesByConnection(stream)).toEqual([shellAndConversationScopes()]);
+    await expect.poll(() => scopesByConnection(stream)).toEqual([
+      shellAndConversationScopes(),
+    ]);
     const box = page.getByRole("textbox", { name: "Message this task" });
     await box.fill("Not yet");
     state.messages.push(message(6, "user", "From Dana.", otherPrincipalId));

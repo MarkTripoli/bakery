@@ -747,7 +747,9 @@ test("a stale refresh keeps the last plan and offers a refresh", async ({ page }
   await open(page, state);
   await expect(laneRow(page, "api")).toBeVisible();
   await expect.poll(() => stream.connections.length).toBe(1);
-  expect(scopesByConnection(stream)).toEqual([shellAndCoordinationScopes()]);
+  await expect.poll(() => scopesByConnection(stream)).toEqual([
+    shellAndCoordinationScopes(),
+  ]);
   state.plansStatus = 500;
   stream.push();
   await expect(page.getByText("The split could not be refreshed"))
@@ -766,7 +768,9 @@ test("an event refreshes lanes without a reload and a dropped stream reconnects"
   await open(page, state);
   await expect(laneRow(page, "docs")).toContainText("Running");
   await expect.poll(() => stream.connections.length).toBe(1);
-  expect(scopesByConnection(stream)).toEqual([shellAndCoordinationScopes()]);
+  await expect.poll(() => scopesByConnection(stream)).toEqual([
+    shellAndCoordinationScopes(),
+  ]);
   state.plans = [partial()];
   stream.push();
   await expect(laneRow(page, "docs")).toContainText("Failed");
@@ -782,7 +786,7 @@ test("an event refreshes lanes without a reload and a dropped stream reconnects"
   await expect(page.locator('[data-ui-region="live-lost"]')).toBeVisible();
   await expect.poll(() => stream.connections.length, { timeout: 15_000 })
     .toBe(2);
-  expect(scopesByConnection(stream)).toEqual([
+  await expect.poll(() => scopesByConnection(stream)).toEqual([
     shellAndCoordinationScopes(),
     shellAndCoordinationScopes(),
   ]);
@@ -1299,8 +1303,11 @@ test("a stale lane arriving by event shows the notice without a reload", async (
   const state = world();
   const stream = await mockStream(page);
   await open(page, state);
+  await expect(laneRow(page, "api")).toBeVisible();
   await expect.poll(() => stream.connections.length).toBe(1);
-  expect(scopesByConnection(stream)).toEqual([shellAndCoordinationScopes()]);
+  await expect.poll(() => scopesByConnection(stream)).toEqual([
+    shellAndCoordinationScopes(),
+  ]);
   state.plans = [stale()];
   stream.push();
   await expect(laneRow(page, "web")).toContainText("Stale");
