@@ -622,7 +622,6 @@ function SkillBody({ skill }: { readonly skill: SkillResponse }) {
   );
 }
 
-/** The skill's name, who it belongs to, and what a person may do with it. */
 function SkillHeader({ skill }: { readonly skill: SkillResponse }) {
   const { translate } = useI18n();
   const words = (entry: Words) => translate(entry.key, entry.values);

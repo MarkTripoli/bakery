@@ -17,11 +17,6 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { sayAboutSkill } from "./SkillActions.tsx";
 import { ACTION_TITLES, stepsOf } from "./workflow-state.ts";
 
-/**
- * The step a grant names, as the person knows it: the step's own name, read from
- * the workflow's newest version; "Step 3" when it cannot be found. The grant
- * stores a pointer such as `/steps/2`, which is never shown.
- */
 export function stepLabelOf(
   stepPath: string,
   steps: readonly { readonly uses: string }[] | null,
@@ -41,19 +36,11 @@ export function stepLabelOf(
   );
 }
 
-/**
- * One shared workflow a private skill is allowed to use (design-ux #74,
- * revision 5): the workflow, the step and version, since when, and one button,
- * Stop allowing. Stopping asks first; the request carries the grant's version
- * as If-Match.
- */
 export function SkillGrantRow(
   { grant, skill, revision, since }: {
     readonly grant: SkillUseGrant;
     readonly skill: SkillResponse;
-    /** The revision of the granted skill version, when the page knows it. */
     readonly revision: number | null;
-    /** The date the workflow was allowed, already formatted. */
     readonly since: string;
   },
 ) {
@@ -90,8 +77,6 @@ export function SkillGrantRow(
   const [open, setOpen] = useState(false);
   const [failed, setFailed] = useState(false);
   const opener = useRef<HTMLElement | null>(null);
-  // One stop keeps its idempotency key until it is answered, so a retry after
-  // a lost answer cannot stop it twice.
   const intent = useRef<string | null>(null);
 
   const stop = useMutation({
@@ -126,8 +111,6 @@ export function SkillGrantRow(
       finish();
     } catch (error) {
       const status = failureStatus(error);
-      // Stopped elsewhere already (gone, or changed since this page read it):
-      // what the person wanted has happened.
       if (status === 404 || status === 412) return finish();
       if (status !== null && status < 500) intent.current = null;
       setFailed(true);

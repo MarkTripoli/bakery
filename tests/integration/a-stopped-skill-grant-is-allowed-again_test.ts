@@ -68,8 +68,6 @@ type Seeded = {
 
 const STEP = "/steps/0/steps/0";
 
-/** One organization: an owner, an Admin who is not the owner, a personal skill
- * and two workflows that both name it at the same step. */
 async function seed(
   sql: ReturnType<typeof openDatabase>,
   label: string,
@@ -219,15 +217,6 @@ async function refusal(promise: Promise<unknown>): Promise<StandardError> {
   return error;
 }
 
-/**
- * Stop allowing and Allow again, through the actions the skill page calls.
- *
- * Stopping deletes the grant and the next run of that workflow is refused with
- * step_skill_stopped. A live grant for the same skill, version and step on
- * another workflow, or in another organization, does not admit it: a grant is
- * one workflow's. Allow again records a fresh grant and the next run starts.
- * A run admitted before the stop keeps going.
- */
 Deno.test("a stopped skill grant is allowed again and runs start", async () => {
   const owner = openPgDatabase(databaseUrl);
   const authDb = openPgDatabase(databaseUrl);
@@ -329,7 +318,6 @@ Deno.test("a stopped skill grant is allowed again and runs start", async () => {
          where organization_id = ${org.organizationId} and id = ${org.taskId}`;
     };
 
-    // The owner allows the workflow, and a run starts.
     const first = await allow(a, a.workflowId);
     assertEquals(first.stepPath, STEP);
     assertEquals(first.skillVersionId, a.versionId);
@@ -338,16 +326,11 @@ Deno.test("a stopped skill grant is allowed again and runs start", async () => {
     assertEquals((await runs(a)).length, 1);
     await draftTask(a);
 
-    // Asking again while the grant is live answers with the same grant.
     assertEquals((await allow(a, a.workflowId)).id, first.id);
 
-    // Live grants that are not this workflow's: the same step of the other
-    // workflow in this organization, and organization B's own grant.
     await allow(a, a.otherWorkflowId);
     await allow(b, b.workflowId);
 
-    // Stop allowing: the next run is refused and leaves no row; the run
-    // admitted before the stop is untouched.
     const before = await runs(a);
     await stop(a, first.id, first.version);
     const stopped = await refusal(startRun(a, "allow-stopped"));
@@ -357,12 +340,9 @@ Deno.test("a stopped skill grant is allowed again and runs start", async () => {
     assertEquals(await runs(a), before, "a refused run changed the runs");
     assertEquals(before[0].id, admitted.id);
 
-    // Organization B's run is unaffected by A's stop.
     await startRun(b, "allow-b");
     assertEquals((await runs(b)).length, 1);
 
-    // Only the owner may allow again: an Admin of the organization is told
-    // the skill is not found, and another organization cannot name it.
     assertEquals(
       (await refusal(allow(a, a.workflowId, a.otherPrincipalId))).code,
       "RESOURCE_NOT_FOUND",
@@ -384,7 +364,6 @@ Deno.test("a stopped skill grant is allowed again and runs start", async () => {
       )).code,
       "RESOURCE_NOT_FOUND",
     );
-    // A step that does not name the version cannot be granted.
     const wrongStep = await refusal(
       act(
         a,
@@ -402,7 +381,6 @@ Deno.test("a stopped skill grant is allowed again and runs start", async () => {
     assertEquals(wrongStep.code, "UNPROCESSABLE");
     assertEquals(await runs(a), before);
 
-    // Allow again: a fresh grant, and the next run starts.
     const again = await allow(a, a.workflowId);
     assert(again.id !== first.id, "allow again reused the stopped grant");
     await startRun(a, "allow-again");

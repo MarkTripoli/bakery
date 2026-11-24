@@ -50,20 +50,6 @@ async function digest(value: unknown): Promise<string> {
   return await sha256Hex(canonicalJson(value));
 }
 
-/**
- * A run whose version names a personal skill its owner has stopped allowing is
- * refused at admission.
- *
- * The grant is what the owner's confirmation records, and Stop allowing deletes
- * it. Before this check nothing that admits a run read the grants table, so the
- * next run went ahead with the skill and the confirmation's own sentence was
- * false. The refusal is the step's, not a silent drop: a step compiled to use a
- * named version and given nothing would answer a different question than its
- * author asked.
- *
- * The run is started through `createRunCommand`, the one command every intake
- * uses, so this is the admission path and not a copy of it.
- */
 Deno.test("a run is refused when a step's skill grant is gone", async () => {
   const owner = openPgDatabase(databaseUrl);
   const authDb = openPgDatabase(databaseUrl);
@@ -167,8 +153,6 @@ Deno.test("a run is refused when a step's skill grant is gone", async () => {
         )`;
     }
 
-    // A compiled plan: one container, one worker-free step that names both
-    // skills. The personal one is the one that needs a grant.
     const definition = {
       apiVersion: "bakery.dev/v1",
       kind: "workflow",
@@ -223,8 +207,6 @@ Deno.test("a run is refused when a step's skill grant is gone", async () => {
         ${principalId}, ${now}, ${now}, 1
       )`;
 
-    // A task starts a run while it is a draft with none; a finished run puts it
-    // back to draft, which is how the same task starts a second one.
     const setTaskStatus = async (status: string) => {
       await sql`
         update bakery.tasks
@@ -268,8 +250,6 @@ Deno.test("a run is refused when a step's skill grant is gone", async () => {
       return result.rows[0].n;
     };
 
-    // The owner has not confirmed the personal skill: the run is refused, and
-    // the refusal names the step and the version rather than the whole workflow.
     const unconfirmed = await startRun("grant-unconfirmed").then(
       () => null,
       (error: unknown) => error,
@@ -284,7 +264,6 @@ Deno.test("a run is refused when a step's skill grant is gone", async () => {
     assertEquals(unconfirmed.params?.skillVersionId, personalVersionId);
     assertEquals(await runCount(), 0, "a refused run left a row behind");
 
-    // The owner confirms: the grant exists and the same run is admitted.
     await sql`
       insert into bakery.skill_use_grants (
         id, organization_id, workflow_id, step_path, skill_id,
@@ -299,9 +278,6 @@ Deno.test("a run is refused when a step's skill grant is gone", async () => {
     assertEquals(await runCount(), 1);
     await setTaskStatus("draft");
 
-    // Stop allowing deletes the grant, and the next run is refused again: the
-    // owner's act takes effect at the next run, which is what the confirmation
-    // says. The run already admitted is untouched.
     await sql`
       delete from bakery.skill_use_grants
        where organization_id = ${organizationId} and workflow_id = ${workflowId}`;

@@ -118,7 +118,6 @@ type TaskAdmissionRow = {
 
 type WorkflowVersionRow = {
   id: string;
-  /** The workflow this version belongs to; a use grant is filed against it. */
   workflow_id: string;
   revision: number;
   normalized_spec: unknown;
@@ -999,9 +998,6 @@ export async function createRunCommand(
     workflowVersionId,
   );
   await assertWorkflowVersionValid(workflow);
-  // A version whose step names a personal skill its owner has stopped allowing
-  // is refused here, before a run row exists: the owner's Stop allowing must
-  // take effect at the next run, which is what the confirmation says.
   await assertStepSkillsAllowed(transaction, {
     organizationId,
     workflowId: workflow.workflow_id,

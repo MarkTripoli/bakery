@@ -2138,7 +2138,6 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
-  /** Renames, describes, turns on or off a skill; `version` is the skill's, sent as If-Match. */
   readonly updateSkill: (options: {
     readonly organizationId: string;
     readonly id: string;
@@ -2147,7 +2146,6 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<SkillResponse>>;
-  /** Copies a skill into a new organization or personal skill with its own identity. */
   readonly copySkill: (options: {
     readonly organizationId: string;
     readonly id: string;
@@ -2156,7 +2154,6 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<SkillResponse>>;
-  /** Stops a shared workflow step using a private skill; `version` is the grant's, sent as If-Match. */
   readonly deleteSkillUseGrant: (options: {
     readonly organizationId: string;
     readonly skillId: string;

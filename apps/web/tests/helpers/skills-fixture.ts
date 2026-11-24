@@ -178,13 +178,9 @@ export type SkillsOptions = {
   readonly ownLicenses?: Readonly<Record<string, string>>;
   /** The licence the source of Writing guide declares; MIT unless this says otherwise. */
   readonly sourceLicense?: string | null;
-  /** What the reader may do in the organization; developer unless this says admin. */
   readonly role?: "admin" | "developer";
-  /** Renaming or turning a skill on or off answers with this status instead of succeeding. */
   readonly updateStatus?: number;
-  /** Making a copy answers with this status instead of succeeding. */
   readonly copyStatus?: number;
-  /** Stopping a workflow using the skill answers with this status instead of succeeding. */
   readonly stopStatus?: number;
 };
 
@@ -192,9 +188,7 @@ export type Seen = {
   readonly method: string;
   readonly path: string;
   readonly search: string;
-  /** The If-Match header of a write. */
   readonly ifMatch?: string | null;
-  /** The JSON body of a write. */
   readonly body?: Record<string, unknown> | null;
 };
 
@@ -315,7 +309,6 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
     skills.find((entry) => entry.id === id) ??
       all.find((entry) => entry.id === id);
 
-  // The workflow a grant names: one version whose first step is "Write the task brief".
   await page.route(
     (url) => /^\/v1\/workflows\/[^/]+\/versions$/.test(url.pathname),
     (route) => {
@@ -545,7 +538,6 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
                 revision: 2,
                 workflowId: uuid(702),
                 workflowName: "Weekly digest",
-                // Required since the server records it on the grant (#74 run admission).
                 revisionDigest: "sha256:2222abcdef0123456789",
                 stepPath: "/steps/0",
                 grantedBy: MOCK_PRINCIPAL_ID,

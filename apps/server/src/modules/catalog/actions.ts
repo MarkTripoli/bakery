@@ -145,7 +145,6 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.IdPath>,
   ) => Promise<null>;
-  /** Allow again: a fresh grant for a step its owner stopped. */
   createSkillUseGrant: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.SkillUseGrantCreate>,

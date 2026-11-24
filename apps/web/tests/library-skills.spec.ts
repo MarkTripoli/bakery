@@ -266,7 +266,6 @@ for (
           "Step “Write the task brief” · version 2 of this skill · since Nov 18, 2026",
         ),
       ).toBeVisible();
-      // The workflow is a link; the owner's one control is Stop allowing.
       await expect(access.getByRole("link", { name: "Weekly digest" }))
         .toHaveAttribute(
           "href",
@@ -287,7 +286,6 @@ for (
         }),
       )
         .toHaveCount(0);
-      // Stop allowing is the one control a row of the access card carries.
       await expect(
         page.getByRole("button", { name: /^Stop allowing/ }),
       ).toHaveCount(1);
@@ -578,7 +576,6 @@ for (
   });
 }
 
-/** What a person may do with a skill (#74 slice 2, UX revisions 2 and 3): copy, rename, turn off and on. */
 for (
   const viewport of [
     { name: "desktop", width: 1440, height: 900 },
@@ -790,7 +787,6 @@ for (
   });
 }
 
-/** Stop allowing a workflow to use a private skill (#74, UX revision 5). */
 for (
   const viewport of [
     { name: "desktop", width: 1440, height: 900 },

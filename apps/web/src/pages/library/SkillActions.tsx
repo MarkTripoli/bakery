@@ -16,10 +16,6 @@ import { useSession } from "../../app/session-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { clip, copyName, NAME_LIMIT } from "./copy-workflow.ts";
 
-/**
- * A message that outlives the page change after a copy: the copy's page shows
- * it, not the page the person pressed Make a copy on.
- */
 const toastStore = (() => {
   let message: string | null = null;
   const listeners = new Set<() => void>();
@@ -36,12 +32,10 @@ const toastStore = (() => {
   };
 })();
 
-/** Says something on the skill page after an action, until it is dismissed. */
 export function sayAboutSkill(message: string): void {
   toastStore.set(message);
 }
 
-/** What the last skill action said, with its dismiss. */
 export function SkillToast() {
   const message = useSyncExternalStore(toastStore.subscribe, toastStore.get);
   if (message === null) return null;
@@ -81,12 +75,6 @@ function failureOf(error: unknown): Failure {
   }
 }
 
-/**
- * What a person may do with a skill (design-ux #74, revisions 2 to 4): a skill
- * shared by Bakery can only be copied; the owner of a private skill and an
- * administrator for an organization skill may also rename it and turn it off.
- * Copying is open to anyone who can read it, into their own private skill.
- */
 export function useSkillActions(
   skill: SkillResponse,
 ): { readonly actions: ReactNode; readonly below: ReactNode } {
@@ -118,8 +106,6 @@ export function useSkillActions(
   const [tried, setTried] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const opener = useRef<HTMLElement | null>(null);
-  // One write keeps its idempotency key until it is answered, so a retry after
-  // a lost answer cannot make a second copy.
   const intent = useRef<string | null>(null);
   const key = () => (intent.current ??= crypto.randomUUID());
 
@@ -191,7 +177,6 @@ export function useSkillActions(
       done();
     } catch (error) {
       const next = failureOf(error);
-      // A definite refusal did not happen: the next try is a new intent.
       const status = failureStatus(error);
       if (status !== null && status < 500) intent.current = null;
       setFailure(next);

@@ -66,7 +66,6 @@ export type StepAttach = {
   readonly offered: number;
   readonly onRetry: () => void;
   readonly onChoose: (value: string, replaces?: SlotReplaces) => void;
-  /** Whether the skill version is the one the catalog offers now, so choosing it can be confirmed. */
   readonly canChoose: (value: string) => boolean;
 };
 
@@ -503,9 +502,7 @@ function SkillRow(
           ? null
           : (
             <UI.Inline gap="compact">
-              {
-                /* The owner who stopped it can allow it again: the same confirmation as attaching. */
-              }
+              {}
               {row.status === "stopped" && row.mine && attach !== null &&
                   attach.state === "ready" && row.stepPath !== undefined &&
                   row.versionId != null && attach.canChoose(row.versionId)

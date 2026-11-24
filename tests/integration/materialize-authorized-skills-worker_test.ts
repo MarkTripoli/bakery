@@ -238,8 +238,6 @@ Deno.test("persisted exact pins authorize staged manifest and file reads through
     assertEquals(manifestResponse.value.organizationId, fixture.organizationId);
     assertEquals(manifestResponse.value.version.id, version.id);
     assertEquals(manifestResponse.value.version.digest, versionDigest);
-    // #74 AC3: the skill page names a version by the fingerprint of its digest,
-    // so the version the real worker just verified is the one the page shows.
     assertEquals(
       fingerprint(manifestResponse.value.version.digest),
       fingerprint(versionDigest),

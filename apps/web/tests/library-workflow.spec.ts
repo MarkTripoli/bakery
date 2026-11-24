@@ -1937,7 +1937,6 @@ for (
       });
       await expect(mine.getByText("You stopped this workflow using it."))
         .toBeVisible();
-      // Someone else's stopped skill keeps the built words and offers nothing.
       const theirs = skills.getByRole("listitem").filter({
         hasText: "Paused notes",
       });

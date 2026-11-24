@@ -132,25 +132,6 @@ function issue(
   return { path: ["definition", ...segments, "skills"], code, message };
 }
 
-/**
- * Refuses a run whose version names a personal skill its owner has stopped
- * allowing at that step.
- *
- * A grant is deleted when its owner presses Stop allowing, and until this check
- * existed nothing that admits a run read the grants table at all: only publishing
- * and the draft check did. So a stopped grant removed a row and the next run went
- * ahead with the skill, which made the confirmation's own sentence false. The
- * owner's act now takes effect at the next run, which is what the sentence says.
- *
- * It refuses rather than dropping the skill: a step compiled to use a named
- * version and silently given nothing would answer a different question than the
- * one its author asked. The code is the one publishing already answers, because
- * the sentence to a person is the same one: its owner does not allow this
- * workflow to use that skill.
- *
- * Published versions are untouched: a run already going finishes with the version
- * it started with, and this only looks at admission.
- */
 export async function assertStepSkillsAllowed(
   transaction: PgTransactionClient,
   facts: Readonly<{
@@ -162,9 +143,6 @@ export async function assertStepSkillsAllowed(
   const refs = collectStepSkills(facts.definition);
   if (refs.length === 0) return;
   const versionIds = [...new Set(refs.map((ref) => ref.versionId))];
-  // Only a personal version needs a grant; a shared one is visible to everyone
-  // in the organization and withholding it here would refuse runs that published
-  // perfectly well before this check existed.
   const personal = await transaction.query<{ version_id: string }>(
     `select version.id as version_id
        from bakery.skill_versions as version
@@ -199,7 +177,6 @@ export async function assertStepSkillsAllowed(
     code: "STATE_CONFLICT",
     params: {
       reason: "step_skill_stopped",
-      // The step, so an editor can point at the one that stopped the run.
       step: stepPointer(stopped.segments),
       skillVersionId: stopped.versionId,
     },
@@ -294,9 +271,6 @@ export async function reconcilePersonalSkillUse(
   for (const { ref, row } of toGrant) {
     const id = crypto.randomUUID();
     const pointer = stepPointer(ref.segments);
-    // The revision and its digest are copied from the immutable version row at
-    // this moment, so the grant records what the owner was shown rather than
-    // what a later read of the version happens to say.
     await transaction.query(
       `insert into bakery.skill_use_grants (
          id, organization_id, skill_id, skill_version_id, workflow_id,
@@ -469,16 +443,6 @@ export async function listSkillUseGrants(
   };
 }
 
-/**
- * Allows a workflow to use a personal skill again at one step, after its owner
- * stopped it: records a fresh grant for the exact version the step names.
- *
- * This is the owner's own act, the same as the confirmation that made the first
- * grant, so an agent is refused and only the skill's owner may ask. The step
- * must name this version in a version of the workflow, so a grant can never
- * cover a step that does not use the skill. Asking for a grant that is already
- * live answers with that grant and records nothing new.
- */
 export async function createSkillUseGrant(
   context: ActionContext,
   request: { workflowId: string; skillVersionId: string; stepPath: string },
@@ -486,7 +450,6 @@ export async function createSkillUseGrant(
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
-  // The database stores ids in lower case and a step names them that way too.
   const input = {
     ...request,
     workflowId: request.workflowId.toLowerCase(),
@@ -500,8 +463,6 @@ export async function createSkillUseGrant(
       params: { reason: "personal_skill_use_requires_person" },
     });
   }
-  // Only the owner of a personal skill may let a workflow use it. Anyone else,
-  // including an Admin, gets not found so the answer does not reveal the skill.
   const version = await transaction.query<{
     skill_id: string;
     revision: number;
