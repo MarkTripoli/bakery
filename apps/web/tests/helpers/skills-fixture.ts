@@ -178,12 +178,18 @@ export type SkillsOptions = {
   readonly ownLicenses?: Readonly<Record<string, string>>;
   /** The licence the source of Writing guide declares; MIT unless this says otherwise. */
   readonly sourceLicense?: string | null;
+  readonly role?: "admin" | "developer";
+  readonly updateStatus?: number;
+  readonly copyStatus?: number;
+  readonly stopStatus?: number;
 };
 
 export type Seen = {
   readonly method: string;
   readonly path: string;
   readonly search: string;
+  readonly ifMatch?: string | null;
+  readonly body?: Record<string, unknown> | null;
 };
 
 export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
@@ -198,7 +204,7 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
         contentType: "application/json",
         body: JSON.stringify({
           organizationId: MOCK_ORGANIZATION_ID,
-          role: "developer",
+          role: options.role ?? "developer",
           capabilities: [],
         }),
       }),
@@ -247,13 +253,19 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
   const versionCount = (entry: Skill) =>
     entry.activeRevision === null ? 1 : entry.activeRevision + 1;
   const seen: Seen[] = [];
+  const stopped = new Set<string>();
   const record = (route: Route) => {
     const request = route.request();
     const url = new URL(request.url());
+    const method = request.method();
     seen.push({
-      method: request.method(),
+      method,
       path: url.pathname,
       search: url.search,
+      ...(method === "GET" ? {} : {
+        ifMatch: request.headers()["if-match"] ?? null,
+        body: request.postDataJSON() as Record<string, unknown> | null,
+      }),
     });
     return url;
   };
@@ -298,13 +310,120 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
       all.find((entry) => entry.id === id);
 
   await page.route(
+    (url) => /^\/v1\/workflows\/[^/]+\/versions$/.test(url.pathname),
+    (route) => {
+      const workflowId = new URL(route.request().url()).pathname.split("/")[3];
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          items: [{
+            id: uuid(1002),
+            workflowId,
+            revision: 2,
+            sourceYaml: "kind: fixed\n",
+            normalizedSpec: {
+              kind: "fixed",
+              workflow: { kind: "fixed" },
+              steps: [{ id: "brief", uses: "task.brief" }],
+            },
+            digest: "02".repeat(32),
+            status: "published",
+            createdBy: uuid(1),
+            createdAt: "2026-11-01T10:00:00.000Z",
+            updatedAt: "2026-11-01T10:00:00.000Z",
+            version: 1,
+            starts: [],
+          }],
+          nextCursor: null,
+        }),
+      });
+    },
+  );
+  await page.route(
     (url) => url.pathname.startsWith("/v1/skill"),
     (route) => {
       const url = record(route);
-      if (route.request().method() !== "GET") {
+      const method = route.request().method();
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (
+        method === "DELETE" && parts[1] === "skills" &&
+        parts[3] === "use-grants"
+      ) {
+        if (options.stopStatus !== undefined) {
+          return problem(
+            route,
+            options.stopStatus,
+            statusOf(options.stopStatus),
+          );
+        }
+        if (stopped.has(parts[4] ?? "")) {
+          return problem(route, 404, "RESOURCE_NOT_FOUND");
+        }
+        stopped.add(parts[4] ?? "");
+        return route.fulfill({ status: 204 });
+      }
+      if (method !== "GET") {
+        const target = parts[1] === "skills" ? find(parts[2]) : undefined;
+        const body = route.request().postDataJSON() as
+          | { name?: string; enabled?: boolean; scope?: Skill["scope"] }
+          | null;
+        if (method === "PATCH" && parts.length === 3 && target) {
+          if (options.updateStatus !== undefined) {
+            return problem(
+              route,
+              options.updateStatus,
+              statusOf(options.updateStatus),
+            );
+          }
+          if (
+            body?.name !== undefined &&
+            all.some((other) =>
+              other.id !== target.id && other.name === body.name
+            )
+          ) {
+            return problem(route, 409, "STATE_CONFLICT");
+          }
+          Object.assign(target, {
+            ...(body?.name === undefined ? {} : { name: body.name }),
+            ...(body?.enabled === undefined ? {} : { enabled: body.enabled }),
+            version: target.version + 1,
+            updatedAt: NOW,
+          });
+          return json(route, target);
+        }
+        if (method === "POST" && parts[3] === "copy" && target) {
+          if (options.copyStatus !== undefined) {
+            return problem(
+              route,
+              options.copyStatus,
+              statusOf(options.copyStatus),
+            );
+          }
+          if (all.some((other) => other.name === body?.name)) {
+            return problem(route, 409, "STATE_CONFLICT");
+          }
+          const made = skill(
+            uuid(900 + all.length),
+            body?.name ?? "Copy",
+            body?.scope ?? "personal",
+            target.activeRevision,
+            0,
+            {
+              copiedFromSkillId: target.id,
+              copiedFromVersionId: target.activeVersionId,
+            },
+          );
+          all.push(made);
+          skills.push(made);
+          return route.fulfill({
+            status: 201,
+            contentType: "application/json",
+            body: JSON.stringify(made),
+          });
+        }
         return problem(route, 405, "MALFORMED_REQUEST");
       }
-      const parts = url.pathname.split("/").filter(Boolean);
       if (parts[1] === "skill-sources" && parts.length === 3) {
         return parts[2] === IDS.source
           ? json(route, {
@@ -409,7 +528,7 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
           if (entry.scope !== "personal") {
             return problem(route, 403, "AUTH_FORBIDDEN");
           }
-          const items = entry.id === IDS.houseStyle
+          const items = entry.id === IDS.houseStyle && !stopped.has(uuid(701))
             ? [
               {
                 id: uuid(701),
@@ -419,7 +538,8 @@ export async function skillsFixture(page: Page, options: SkillsOptions = {}) {
                 revision: 2,
                 workflowId: uuid(702),
                 workflowName: "Weekly digest",
-                stepPath: "Draft the digest",
+                revisionDigest: "sha256:2222abcdef0123456789",
+                stepPath: "/steps/0",
                 grantedBy: MOCK_PRINCIPAL_ID,
                 createdAt: "2026-11-18T09:00:00.000Z",
                 version: 1,
