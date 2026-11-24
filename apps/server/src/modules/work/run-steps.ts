@@ -33,6 +33,12 @@ export type FixedWorkflowStep = {
    * loop. It still keeps its spec position, agent binding and budget check.
    */
   onDemand?: boolean;
+  /**
+   * The bounded repeat this step sits in, when a preset's compiled plan puts it
+   * in one: the repeat node's id and its most iterations. Only a preset's plan
+   * reports it, so a library page can draw the repair loop as one block.
+   */
+  repeat?: { id: string; max: number };
 };
 
 type RecordValue = Record<string, unknown>;
@@ -57,7 +63,7 @@ export class WorkflowNotFixedError extends Error {
 
 /**
  * A compiler-grammar version whose plan has container nodes (sequence, branch,
- * repeat, parallel, wait). It is valid and publishable, but the fixed executor
+ * repeat, parallel, forEach, wait). It is valid and publishable, but the fixed executor
  * runs a flat list of actions and cannot run it until plans execute.
  */
 export class WorkflowNotExecutableError extends Error {
@@ -72,6 +78,7 @@ const CONTAINER_NODE_KEYS: readonly string[] = [
   "branch",
   "repeat",
   "parallel",
+  "forEach",
   "wait",
 ];
 
@@ -85,7 +92,8 @@ const STEP_ID_SEGMENT = "[a-z][a-z0-9_]{1,63}";
 const REPOSITORY_ID_REFERENCE = new RegExp(
   `^\\$(?:(?:input|task)\\.repositoryId|step\\.${STEP_ID_SEGMENT}` +
     `(?:\\.${STEP_ID_SEGMENT})*\\.repositoryId|` +
-    `repeat\\.currentCandidate\\.repositoryId)(?:$|\\.)`,
+    `repeat\\.currentCandidate\\.repositoryId|` +
+    `each\\.[a-z][A-Za-z0-9]{0,63}\\.repositoryId)(?:$|\\.)`,
 );
 
 function inputReferencesRepository(
@@ -173,7 +181,8 @@ function parallelNeedsRepository(parallel: RecordValue): boolean {
 /**
  * The software-delivery pack's answer for one step: true when its action
  * declares the `git` capability, it requires `git`, names a repository, or
- * reads a repository id from its inputs, a repeat seed or a parallel lane. It
+ * reads a repository id from its inputs, a repeat seed, a forEach's items or a
+ * parallel lane. It
  * also refuses container shapes the producer would never emit. The kernel's
  * `deriveWorkspaceRequirement` walks the nesting and calls this once per step,
  * so admission has one derivation of what a run needs.
@@ -209,6 +218,14 @@ function stepNeedsRepository(value: RecordValue): boolean {
     }
     if (repeatSeedNeedsRepository(repeat)) repositoryRequired = true;
     assertStepSequence(repeat.steps);
+  }
+  if (Object.hasOwn(value, "forEach")) {
+    const loop = value.forEach;
+    if (!isRecord(loop)) {
+      throw invalidWorkflowVersion();
+    }
+    if (inputReferencesRepository(loop.items)) repositoryRequired = true;
+    assertStepSequence(loop.steps);
   }
   if (Object.hasOwn(value, "parallel")) {
     const parallel = value.parallel;

@@ -7,6 +7,7 @@ import {
 import type {
   WorkflowActionNode,
   WorkflowBranchNode,
+  WorkflowForEachNode,
   WorkflowParallelNode,
   WorkflowRepeatNode,
   WorkflowSemanticDocument,
@@ -16,12 +17,14 @@ import { isSecretName } from "../secrets.ts";
 import { isAssignable, literalMatches, type ValueType } from "../types.ts";
 import {
   buildFlowIndex,
+  eachContext,
   type FlowIndex,
   type FlowNode,
   readerAt,
   readerEndOf,
   type Scope,
 } from "./flow-index.ts";
+import { guardsOfScope } from "./flow-index.ts";
 import { inputTypesOf } from "./references.ts";
 import type { NodeLocations } from "./shape.ts";
 import {
@@ -196,6 +199,40 @@ function checkRepeat(
   }
 }
 
+/**
+ * A forEach reads its `items` where the loop stands, so its own `$each` is
+ * not in scope there. The value must be a list (or a nullable list, which runs
+ * no iteration when null); its item type is what `$each.<as>` reads. An
+ * untyped value leaves the item untyped. An item name that an enclosing
+ * forEach already uses would hide that loop's item, so it is refused.
+ */
+function checkForEach(
+  env: AnalysisEnv,
+  flow: FlowNode,
+  node: WorkflowForEachNode,
+): void {
+  const base: PointerSegment[] = [...flow.path, "forEach"];
+  const items = analyzeValue(env, readerAt(flow), node.items, [
+    ...base,
+    "items",
+  ]).type;
+  if (items !== undefined) {
+    const list = items.kind === "nullable" ? items.inner : items;
+    if (list.kind === "list") {
+      flow.eachItem = list.item;
+    } else if (list.kind !== "json") {
+      env.collector.add(
+        pointerOf([...base, "items"]),
+        "for_each_items_invalid",
+      );
+    }
+  }
+  if (eachContext(flow.scope, node.as) !== undefined) {
+    env.collector.add(pointerOf([...base, "as"]), "for_each_as_invalid");
+  }
+  visitScope(env, flow.bodyScope!);
+}
+
 /** Lane identifiers ordered so every lane follows its prerequisites. */
 function laneOrder(node: WorkflowParallelNode): string[] {
   const ids = new Map(node.lanes.map((lane) => [lane.id, lane]));
@@ -284,6 +321,9 @@ function visitNode(env: AnalysisEnv, flow: FlowNode): void {
     case "parallel":
       checkParallel(env, flow, node);
       return;
+    case "forEach":
+      checkForEach(env, flow, node);
+      return;
   }
 }
 
@@ -294,11 +334,12 @@ function visitNode(env: AnalysisEnv, flow: FlowNode): void {
  * the reference codes (`reference_future`, `reference_self`,
  * `reference_skipped_step`, `reference_unselected_branch`,
  * `reference_parallel_sibling`, `reference_parallel_scope`,
- * `reference_repeat_scope`, `reference_input_unknown`,
+ * `reference_repeat_scope`, `reference_each_scope`, `reference_input_unknown`,
  * `reference_step_unknown`, `reference_field_unknown`,
  * `reference_secret_forbidden`) and the type codes (`type_mismatch`,
  * `condition_not_boolean`, `expression_operand_invalid`,
- * `branch_outputs_invalid`, `effect_key_invalid`).
+ * `branch_outputs_invalid`, `effect_key_invalid`, `for_each_items_invalid`,
+ * `for_each_as_invalid`).
  */
 export function checkWorkflowFlow(
   document: WorkflowSemanticDocument,
@@ -327,4 +368,20 @@ export function checkWorkflowFlow(
     }
   }
   visitScope(env, index.root);
+  // A workflow's declared outputs are read where the workflow ends, so each
+  // must name a step output that exists there.
+  for (const name of Object.keys(document.outputs ?? {})) {
+    analyzeValue(
+      env,
+      {
+        scope: index.root,
+        index: index.root.members.length,
+        self: undefined,
+        repeat: undefined,
+        guards: guardsOfScope(index.root),
+      },
+      document.outputs![name]!,
+      ["outputs", name],
+    );
+  }
 }

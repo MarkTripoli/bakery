@@ -49,6 +49,7 @@ import {
   RepositoryProfileObservationPayloadSchema,
   type RepositoryVersionedProfileConfig,
   RepositoryVersionedProfileConfigSchema,
+  type RunPlacement,
 } from "@bakery/contracts/repository-inspection";
 import {
   SecretIdentityReadInputSchema,
@@ -852,6 +853,8 @@ export type PlanDispatch = Readonly<{
   input: unknown;
   requires: readonly string[];
   agentVersionId?: string;
+  /** Input slots the step declared, each with the value the engine resolved. */
+  inputs?: readonly Readonly<{ slot: string; value: unknown }>[];
   retry: Readonly<{ maxAttempts: number }>;
 }>;
 
@@ -877,6 +880,14 @@ export function planDispatchFromRow(value: unknown): PlanDispatch {
     record.requires.some((entry) => typeof entry !== "string") ||
     (record.agentVersionId !== undefined &&
       typeof record.agentVersionId !== "string") ||
+    (record.inputs !== undefined &&
+      (!Array.isArray(record.inputs) ||
+        record.inputs.some((entry) =>
+          entry === null || typeof entry !== "object" ||
+          Array.isArray(entry) ||
+          typeof (entry as JsonRecord).slot !== "string" ||
+          !Object.hasOwn(entry as JsonRecord, "value")
+        ))) ||
     retry === null || typeof retry !== "object" || Array.isArray(retry) ||
     !Number.isSafeInteger((retry as JsonRecord).maxAttempts) ||
     Number((retry as JsonRecord).maxAttempts) < 1
@@ -888,6 +899,12 @@ export function planDispatchFromRow(value: unknown): PlanDispatch {
     ...(record.agentVersionId === undefined
       ? {}
       : { agentVersionId: record.agentVersionId as string }),
+    ...(record.inputs === undefined ? {} : {
+      inputs: (record.inputs as JsonRecord[]).map((entry) => ({
+        slot: entry.slot as string,
+        value: entry.value,
+      })),
+    }),
     retry: { maxAttempts: Number((retry as JsonRecord).maxAttempts) },
   };
 }
@@ -1482,6 +1499,36 @@ export function repositoryExecutionRequirements(
       ]),
     ],
     ...(observed ? { platform: observed.platform } : {}),
+  });
+}
+
+/**
+ * Adds a run's recorded placement to one job's requirements. Placement only
+ * adds gates: the job's capabilities stay, the run's join them, and a platform
+ * the two disagree on is a conflict no host can satisfy, so it refuses.
+ */
+export function withRunPlacement(
+  requirements: RepositoryExecutionRequirements,
+  placement: RunPlacement | null,
+): RepositoryExecutionRequirements {
+  const added = placement?.requirements;
+  if (!added) return requirements;
+  if (
+    added.platform !== undefined && requirements.platform !== undefined &&
+    added.platform !== requirements.platform
+  ) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "placement_platform_conflict" },
+    });
+  }
+  const platform = requirements.platform ?? added.platform;
+  return RepositoryExecutionRequirementsSchema.parse({
+    ...requirements,
+    capabilities: [
+      ...new Set([...requirements.capabilities, ...added.capabilities]),
+    ],
+    ...(platform === undefined ? {} : { platform }),
   });
 }
 

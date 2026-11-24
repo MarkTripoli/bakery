@@ -2,18 +2,19 @@ import { useEffect, useId, useState } from "react";
 import { focusAfterPaint } from "../../app/focus.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import * as UI from "@bakery/ui";
+import { knownCommits, ReferenceText } from "../../app/ReferenceText.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import type { MessageKey } from "@bakery/i18n";
+import { DeliveryBody } from "./DeliveryBody.tsx";
 import type {
   ApprovalChoice,
-  ApprovalState,
-  CheckRow,
   DeliveryModel,
-  FindingRow,
   MergeView,
   NowCard,
 } from "./model.ts";
 import type { DecisionPhase } from "./use-approval-decision.ts";
+import type { GoBackPhase } from "./use-go-back.ts";
+import { environmentWord, releaseCopy, releaseTone } from "./release-copy.ts";
 import {
   MERGE_NOTICE_KEYS,
   MERGE_REFUSAL_ABOVE,
@@ -21,7 +22,6 @@ import {
   type MergeCardAction,
   mergeNoChecksCopy,
   mergeReadyCopy,
-  mergeStepCopy,
   type MergeTarget,
   mergeWorkingCopy,
 } from "./merge-copy.ts";
@@ -58,14 +58,14 @@ export type DeliverySectionViewProps = Readonly<{
   onCheckAgain: (pullRequestId: string) => Promise<MergePhase>;
   /** Forgets the last merge notice before a new attempt. */
   onClearMerge: () => void;
+  goBackPhase: GoBackPhase;
+  onGoBack: (deploymentId: string, reason: string) => Promise<GoBackPhase>;
+  onClearGoBack: () => void;
 }>;
 
 /** The Now card's title takes focus after a decision, so it is announced. */
 const NOW_TITLE_ID = "delivery-now-title";
 const NOTICE_ID = "delivery-approval-notice";
-
-/** At most this many findings or checks show before "Show all". */
-const SHOWN = 5;
 
 type Translate = ReturnType<typeof useI18n>["translate"];
 
@@ -78,27 +78,67 @@ type NowCopy = Readonly<{
     | "decide"
     | "retryApprovals"
     | Exclude<MergeCardAction, null>
+    | "goBack"
     | null;
 }>;
 
-function nowCopy(t: Translate, now: NowCard): NowCopy {
+function nowCopy(
+  t: Translate,
+  now: NowCard,
+  context: Readonly<{ model: DeliveryModel }>,
+): NowCopy {
   const next = t("tasks.delivery.now.nextStep");
   switch (now.kind) {
     case "checking":
-      return {
-        title: t("tasks.delivery.now.checking.title"),
-        body: t("tasks.delivery.now.checking.body"),
-        action: null,
-      };
-    case "fixing":
+      // Results for an older commit: one sentence here says so, and no second
+      // banner repeats it (#57 redesign).
+      return context.model.outOfDate
+        ? {
+          title: t("tasks.delivery.now.checking.stale.title"),
+          body: t("tasks.delivery.now.checking.stale.body"),
+          action: null,
+        }
+        : {
+          title: t("tasks.delivery.now.checking.title"),
+          body: t("tasks.delivery.now.checking.body"),
+          action: null,
+        };
+    case "fixing": {
+      // What the running try was asked to fix, when the record says: it is the
+      // one place the headline names it, the list of tries gives each try's own.
+      const running = context.model.fixing?.tries.find((entry) =>
+        entry.running
+      );
+      const checks = running?.checkNames.length ?? 0;
+      const blocking = running?.blocking ?? 0;
+      const what = checks > 0 && blocking > 0
+        ? t("tasks.delivery.now.fixing.whatBoth", { checks, blocking })
+        : checks > 0
+        ? t("tasks.delivery.now.fixing.whatChecks", { checks })
+        : blocking > 0
+        ? t("tasks.delivery.now.fixing.whatFindings", { blocking })
+        : null;
+      const last = now.attempt >= now.max;
       return {
         title: t("tasks.delivery.now.fixing.title", {
           attempt: now.attempt,
           max: now.max,
         }),
-        body: t("tasks.delivery.now.fixing.body"),
+        body: what === null
+          ? t(
+            last
+              ? "tasks.delivery.now.fixing.bodyLast"
+              : "tasks.delivery.now.fixing.body",
+          )
+          : t(
+            last
+              ? "tasks.delivery.now.fixing.bodyWhatLast"
+              : "tasks.delivery.now.fixing.bodyWhat",
+            { what },
+          ),
         action: null,
       };
+    }
     case "paused":
       return {
         title: t("tasks.delivery.now.paused.title"),
@@ -108,7 +148,8 @@ function nowCopy(t: Translate, now: NowCard): NowCopy {
     case "clean":
       return {
         title: t("tasks.delivery.now.clean.title"),
-        body: t("tasks.delivery.now.clean.body"),
+        // The title says it; the two settled lines under it say why (#57).
+        body: "",
         action: null,
       };
     case "approval":
@@ -168,6 +209,8 @@ function nowCopy(t: Translate, now: NowCard): NowCopy {
         }),
         action: null,
       };
+    case "release":
+      return releaseCopy(t, now);
     case "changesRequested":
       return {
         title: t("tasks.delivery.now.changesRequested.title"),
@@ -182,10 +225,10 @@ function nowCopy(t: Translate, now: NowCard): NowCopy {
       };
     case "checksFailed":
       return {
-        title: t("tasks.delivery.now.checksFailed.title"),
-        body: `${
-          t("tasks.delivery.now.checksFailed.body", { count: now.failed })
-        } ${next}`,
+        title: t("tasks.delivery.now.checksFailed.title", {
+          count: now.failed,
+        }),
+        body: `${t("tasks.delivery.now.checksFailed.body")} ${next}`,
         action: "tell",
       };
     case "stopped":
@@ -198,9 +241,13 @@ function stoppedCopy(
   now: Extract<NowCard, { kind: "stopped" }>,
   next: string,
 ): NowCopy {
+  // "Nothing was merged." goes after the reason and before what to do next,
+  // unless a merge attempt did merge (#62, folded into the #57 redesign).
   const tell = (title: string, body: string): NowCopy => ({
     title,
-    body: `${body} ${next}`,
+    body: now.merged
+      ? `${body} ${next}`
+      : `${body} ${t("tasks.delivery.now.stopped.notMerged")} ${next}`,
     action: "tell",
   });
   switch (now.reason) {
@@ -263,8 +310,12 @@ function stoppedCopy(
  * The Now card's tone says whose turn it is: success when nothing is waiting,
  * information while Bakery is working, warning when it is the person's turn.
  */
-function nowTone(now: NowCard): "success" | "information" | "warning" {
+function nowTone(
+  now: NowCard,
+): "success" | "information" | "warning" | "error" {
   switch (now.kind) {
+    case "release":
+      return releaseTone(now.status);
     case "clean":
     case "approved":
       return "success";
@@ -290,93 +341,6 @@ function nowTone(now: NowCard): "success" | "information" | "warning" {
   }
 }
 
-/** The Approval step's mark and word for each state of the approval. */
-const APPROVAL_STEP: Readonly<
-  Record<
-    ApprovalState,
-    Readonly<{
-      status: "waiting" | "done" | "failed" | "unknown";
-      label: MessageKey | null;
-    }>
-  >
-> = {
-  waiting: { status: "waiting", label: null },
-  approved: {
-    status: "done",
-    label: "tasks.delivery.approval.status.approved",
-  },
-  changesRequested: {
-    status: "failed",
-    label: "tasks.delivery.approval.status.changesRequested",
-  },
-  rejected: {
-    status: "failed",
-    label: "tasks.delivery.approval.status.rejected",
-  },
-  closed: {
-    status: "unknown",
-    label: "tasks.delivery.approval.status.closed",
-  },
-};
-
-const CHECK_TONE = {
-  passed: "success",
-  failed: "danger",
-  pending: "neutral",
-  unavailable: "warning",
-  canceled: "neutral",
-} as const;
-
-const CHECK_LABEL: Readonly<Record<CheckRow["result"], MessageKey>> = {
-  passed: "tasks.delivery.check.passed",
-  failed: "tasks.delivery.check.failed",
-  pending: "tasks.delivery.check.running",
-  unavailable: "tasks.delivery.check.unavailable",
-  canceled: "tasks.delivery.check.canceled",
-};
-
-const OLDER_RESULT_LABEL: Readonly<Record<CheckRow["result"], MessageKey>> = {
-  passed: "tasks.delivery.olderResult.passed",
-  failed: "tasks.delivery.olderResult.failed",
-  pending: "tasks.delivery.olderResult.running",
-  unavailable: "tasks.delivery.olderResult.unavailable",
-  canceled: "tasks.delivery.olderResult.canceled",
-};
-
-const SEVERITY_LABEL: Readonly<Record<FindingRow["severity"], MessageKey>> = {
-  blocker: "tasks.delivery.severity.blocker",
-  major: "tasks.delivery.severity.major",
-  minor: "tasks.delivery.severity.minor",
-  note: "tasks.delivery.severity.note",
-};
-
-const SEVERITY_TONE = {
-  blocker: "danger",
-  major: "warning",
-  minor: "neutral",
-  note: "neutral",
-} as const;
-
-/** The badge beside "Delivery" once the work is approved, and the tone it takes. */
-const AFTER_APPROVAL_TONE = {
-  readyToMerge: "warning",
-  mergeUnknown: "neutral",
-  waitingForMerge: "information",
-  merging: "information",
-  mergeBlocked: "danger",
-  changedAfterApproval: "warning",
-  merged: "success",
-  notMerged: "warning",
-  approved: "neutral",
-} as const;
-
-/** A pull request's status in the list of the task's other pull requests. */
-const PULL_REQUEST_TONE = {
-  open: "information",
-  merged: "success",
-  closed: "neutral",
-} as const;
-
 export function DeliverySectionView(
   {
     decisionPhase,
@@ -386,8 +350,11 @@ export function DeliverySectionView(
     model,
     offline,
     onCheckAgain,
+    goBackPhase,
+    onClearGoBack,
     onClearMerge,
     onDecide,
+    onGoBack,
     onMerge,
     onOpenRules,
     onRetry,
@@ -398,32 +365,14 @@ export function DeliverySectionView(
 ) {
   const { translate: t } = useI18n();
   const heading = t("tasks.delivery.heading");
-  // The badge is the verdict on the whole trace, so it appears with the group
-  // that ends it: never before the work is approved.
-  const approved = model?.approval?.state === "approved";
   return (
     <UI.PaneSection
       aria-label={heading}
       data-testid="delivery-section"
       heading="strong"
       title={heading}
-      trailing={!approved || model === null ? undefined : (
-        <UI.Badge
-          data-testid="delivery-outcome-badge"
-          tone={AFTER_APPROVAL_TONE[model.afterApproval.badge]}
-        >
-          {t(
-            `tasks.delivery.afterApproval.badge.${
-              model.afterApproval.badge === "mergeBlocked"
-                ? "notMerged"
-                : model.afterApproval.badge
-            }` as MessageKey,
-          )}
-        </UI.Badge>
-      )}
     >
       <UI.Stack>
-        <UI.Text>{t("tasks.delivery.purpose")}</UI.Text>
         {state === "loading" && (
           <UI.Stack aria-label={t("tasks.delivery.loading")} role="status">
             <UI.Skeleton shape="surface" />
@@ -459,8 +408,11 @@ export function DeliverySectionView(
             model={model}
             offline={offline}
             onCheckAgain={onCheckAgain}
+            goBackPhase={goBackPhase}
+            onClearGoBack={onClearGoBack}
             onClearMerge={onClearMerge}
             onDecide={onDecide}
+            onGoBack={onGoBack}
             onMerge={onMerge}
             onOpenRules={onOpenRules}
             onRetryApprovals={onRetryApprovals}
@@ -495,14 +447,17 @@ const fieldInOpenDialog = (id: string) => () =>
 function ReadyView(
   {
     decisionPhase,
+    goBackPhase,
     lastUpdated,
     mergePhase,
     mergeTarget,
     model,
     offline,
     onCheckAgain,
+    onClearGoBack,
     onClearMerge,
     onDecide,
+    onGoBack,
     onMerge,
     onOpenRules,
     onRetryApprovals,
@@ -514,6 +469,9 @@ function ReadyView(
     decisionPhase: DecisionPhase;
     mergePhase: MergePhase;
     mergeTarget: MergeTarget | null;
+    goBackPhase: GoBackPhase;
+    onGoBack: (deploymentId: string, reason: string) => Promise<GoBackPhase>;
+    onClearGoBack: () => void;
     onMerge: (view: MergeView) => Promise<MergePhase>;
     onCheckAgain: (pullRequestId: string) => Promise<MergePhase>;
     onClearMerge: () => void;
@@ -533,9 +491,18 @@ function ReadyView(
   const [dialog, setDialog] = useState<ApprovalDialog | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [comment, setComment] = useState("");
+  const [goBackOpen, setGoBackOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [reasonMissing, setReasonMissing] = useState(false);
+  const reasonId = `${fieldId}-reason`;
+  const release = model.release;
+  const goingBack = goBackPhase === "working";
   const deciding = decisionPhase === "deciding";
-  const copy = nowCopy(t, model.now);
-  const head = model.headSha === null ? "" : model.headSha.slice(0, 7);
+  const copy = nowCopy(t, model.now, { model });
+  const head = model.headSha === null
+    ? ""
+    : UI.shortReference("commit", model.headSha);
+  const known = knownCommits(model.commits);
   const note = comment.trim();
   const tooLong = note.length > MAX_NOTE;
   const waiting = model.approval?.state === "waiting";
@@ -609,6 +576,59 @@ function ReadyView(
     // A note is typed straight away, so its field, not the close button, takes focus.
     if (next === "changes") focusAfterPaint(fieldInOpenDialog(changesFieldId));
   };
+
+  const openGoBack = () => {
+    onClearGoBack();
+    setReason("");
+    setReasonMissing(false);
+    setGoBackOpen(true);
+    focusAfterPaint(fieldInOpenDialog(reasonId));
+  };
+  const closeGoBack = () => {
+    if (goingBack) return;
+    setGoBackOpen(false);
+    onClearGoBack();
+    focusAfterPaint(() => document.getElementById(NOW_TITLE_ID));
+  };
+  const confirmGoBack = async () => {
+    if (release === null) return;
+    if (reason.trim() === "") {
+      setReasonMissing(true);
+      focusAfterPaint(fieldInOpenDialog(reasonId));
+      return;
+    }
+    const outcome = await onGoBack(release.id, reason.trim());
+    if (outcome !== "idle") return;
+    setGoBackOpen(false);
+    setReason("");
+    focusAfterPaint(() =>
+      document.querySelector("dialog[open]") !== null
+        ? null
+        : document.getElementById(NOW_TITLE_ID)
+    );
+  };
+  const goBackNotice: MessageKey | null = goBackPhase === "notCurrent"
+    ? "tasks.delivery.release.dialog.notCurrent"
+    : goBackPhase === "outcomeUnknown"
+    ? "tasks.delivery.release.dialog.unknown"
+    : goBackPhase === "forbidden"
+    ? "tasks.delivery.release.dialog.forbidden"
+    : goBackPhase === "noAnswer"
+    ? "tasks.delivery.release.dialog.noAnswer"
+    : goBackPhase === "error"
+    ? "tasks.delivery.release.dialog.error"
+    : null;
+  const goBackDisabled = offline || goingBack;
+  const goBackButton = (variant: "primary" | "outline") => (
+    <UI.Button
+      disabled={goBackDisabled}
+      key="goBack"
+      onClick={openGoBack}
+      variant={variant}
+    >
+      {t("tasks.delivery.release.goBack.button")}
+    </UI.Button>
+  );
 
   const mergeDisabled = offline || mergeWorking;
   const mergeButton = (variant: "primary" | "secondary", again = false) => (
@@ -702,10 +722,39 @@ function ReadyView(
       </UI.Button>
     )
     : null;
+  const phoneActions = !phone
+    ? null
+    : copy.action === "goBack"
+    ? [goBackButton("primary")]
+    : copy.action === "merge"
+    ? [mergeButton("primary")]
+    : copy.action === "mergeAgain"
+    ? [mergeButton("primary", true)]
+    : copy.action === "openOnGitHub"
+    ? [openOnGitHub]
+    : copy.action === "checkAgain"
+    ? [checkAgainButton]
+    : copy.action === "refused"
+    ? [
+      openOnGitHub,
+      merge?.startable === true ? mergeButton("secondary") : null,
+    ]
+    : canDecide
+    ? [rejectButton, changesButton, approveButton]
+    : copy.action === "retryApprovals"
+    ? [retryButton]
+    : null;
   // Beside the text where they fit and under it where they do not; on a phone
   // the answers are full width and stacked, with the primary last.
   const action = phone
-    ? otherButton
+    ? (phoneActions === null ? otherButton : (
+      // In the banner's action slot, so the buttons span the banner, however many.
+      <UI.Inline data-testid="delivery-now-actions" gap="compact">
+        {phoneActions}
+      </UI.Inline>
+    ))
+    : copy.action === "goBack"
+    ? goBackButton("primary")
     : copy.action === "merge"
     ? mergeButton("primary")
     : copy.action === "mergeAgain"
@@ -728,26 +777,6 @@ function ReadyView(
     : copy.action === "retryApprovals"
     ? retryButton
     : otherButton;
-  const phoneActions = !phone
-    ? null
-    : copy.action === "merge"
-    ? [mergeButton("primary")]
-    : copy.action === "mergeAgain"
-    ? [mergeButton("primary", true)]
-    : copy.action === "openOnGitHub"
-    ? [openOnGitHub]
-    : copy.action === "checkAgain"
-    ? [checkAgainButton]
-    : copy.action === "refused"
-    ? [
-      openOnGitHub,
-      merge?.startable === true ? mergeButton("secondary") : null,
-    ]
-    : canDecide
-    ? [rejectButton, changesButton, approveButton]
-    : copy.action === "retryApprovals"
-    ? [retryButton]
-    : null;
 
   const refusal = decisionPhase in NOTICE_COPY
     ? NOTICE_COPY[decisionPhase as keyof typeof NOTICE_COPY]
@@ -799,7 +828,8 @@ function ReadyView(
   // request, else from the pull request as it now is.
   const noticeArgs = {
     branch: mergeTarget?.branch ?? merge?.targetBranch ?? "",
-    head: mergeTarget?.head ?? merge?.headSha.slice(0, 7) ?? "",
+    head: mergeTarget?.head ??
+      (merge === null ? "" : UI.shortReference("commit", merge.headSha)),
   };
   // A lost answer that left no record at all: the card is back to Ready, so the
   // notice goes above it, where it is read first, and says there is no attempt
@@ -817,10 +847,13 @@ function ReadyView(
         tabIndex={-1}
         {...mergeNoticeProps}
       >
-        {t(
-          noRecord ? "tasks.delivery.merge.notice.noRecord" : mergeNotice,
-          noticeArgs,
-        )}
+        <ReferenceText
+          known={known}
+          text={t(
+            noRecord ? "tasks.delivery.merge.notice.noRecord" : mergeNotice,
+            noticeArgs,
+          )}
+        />
       </UI.InlineNotice>
     )
     : null;
@@ -829,7 +862,11 @@ function ReadyView(
       <UI.Heading id={NOW_TITLE_ID} level="subsection" tabIndex={-1}>
         {copy.title}
       </UI.Heading>
-      <UI.Text>{copy.body}</UI.Text>
+      {copy.body === "" ? null : (
+        <UI.Text>
+          <ReferenceText known={known} text={copy.body} />
+        </UI.Text>
+      )}
       {offline && (
         <UI.Text>
           {t("tasks.delivery.offline")}
@@ -844,21 +881,11 @@ function ReadyView(
       {noticeAbove && mergeNoticeElement}
       <UI.AlertBanner
         action={action}
+        actionLayout="stretch"
         data-testid="delivery-now"
         tone={nowTone(model.now)}
       >
-        {phoneActions === null ? nowContent : (
-          // On a phone the answers stack under the text. The heading and text
-          // keep their own gap-free group; one compact stack puts the gap
-          // above the answers that they have between them. No shared banner
-          // style changes.
-          <UI.Stack gap="compact">
-            <UI.Stack gap="none">{nowContent}</UI.Stack>
-            <UI.Stack data-testid="delivery-now-actions" gap="compact">
-              {phoneActions}
-            </UI.Stack>
-          </UI.Stack>
-        )}
+        {nowContent}
       </UI.AlertBanner>
       {refusal !== null && dialog === null && (
         // Nothing failed when a decision lost or the answer is unknown, and a
@@ -875,19 +902,14 @@ function ReadyView(
         </UI.InlineNotice>
       )}
       {!noticeAbove && mergeNoticeElement}
-      {model.outOfDate && !model.pullRequestMoved && (
-        <UI.InlineNotice
-          data-testid="delivery-out-of-date"
-          icon="refresh"
-          tone="neutral"
-        >
-          <UI.Heading level="subsection">
-            {t("tasks.delivery.outOfDate.title")}
-          </UI.Heading>
-          <UI.Text>{t("tasks.delivery.outOfDate.body")}</UI.Text>
-        </UI.InlineNotice>
-      )}
-      <Steps model={model} />
+      <DeliveryBody
+        goBackButton={release?.status === "healthy" &&
+            release.goBack === "offer"
+          ? goBackButton("outline")
+          : null}
+        model={model}
+        onOpenRules={onOpenRules}
+      />
       <UI.AlertDialog
         cancelAction={
           <UI.Button
@@ -919,7 +941,10 @@ function ReadyView(
         variant="security"
       >
         <UI.Text>
-          {t("tasks.delivery.approval.approveDialog.body", { head })}
+          <ReferenceText
+            known={known}
+            text={t("tasks.delivery.approval.approveDialog.body", { head })}
+          />
         </UI.Text>
         {dialog === "approve" && dialogNotice}
       </UI.AlertDialog>
@@ -953,14 +978,19 @@ function ReadyView(
       >
         <UI.Stack gap="compact">
           <UI.Text>
-            {t("tasks.delivery.merge.confirm.body", {
-              head: merge === null ? "" : merge.headSha.slice(0, 7),
-              method: t(
-                `tasks.delivery.merge.method.${
-                  merge?.method ?? "squash"
-                }` as MessageKey,
-              ),
-            })}
+            <ReferenceText
+              known={known}
+              text={t("tasks.delivery.merge.confirm.body", {
+                head: merge === null
+                  ? ""
+                  : UI.shortReference("commit", merge.headSha),
+                method: t(
+                  `tasks.delivery.merge.method.${
+                    merge?.method ?? "squash"
+                  }` as MessageKey,
+                ),
+              })}
+            />
           </UI.Text>
           <UI.Text>{t("tasks.delivery.merge.confirm.changed")}</UI.Text>
           <UI.Text>{t("tasks.delivery.merge.confirm.final")}</UI.Text>
@@ -1060,412 +1090,93 @@ function ReadyView(
         <UI.Text>{t("tasks.delivery.approval.rejectDialog.body")}</UI.Text>
         {dialog === "reject" && dialogNotice}
       </UI.AlertDialog>
-    </>
-  );
-}
-
-function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
-  const { translate: t } = useI18n();
-  const [showAllChecks, setShowAllChecks] = useState(false);
-  const [showAllFindings, setShowAllFindings] = useState(false);
-  const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
-  useEffect(() => {
-    if (copied !== "copied") return;
-    const timer = globalThis.setTimeout(() => setCopied("idle"), 2500);
-    return () => globalThis.clearTimeout(timer);
-  }, [copied]);
-  const phone = useShellViewport() === "phone";
-  const { checks, review, fixing } = model;
-  // The group ends the trace, so it appears once the work is approved and
-  // never before (design rule 5).
-  const after = model.approval?.state === "approved"
-    ? model.afterApproval
-    : null;
-  const pullRequest = after?.pullRequest ?? null;
-  const mergeCommit = pullRequest?.mergedSha ?? null;
-  // The Merge step's mark and sentence follow what Bakery recorded.
-  const mergeStep = mergeStepCopy(t, {
-    merge: model.merge,
-    pullRequest,
-    mergeCommit,
-  });
-  // The approval was for the commit the pull request no longer ends at.
-  const approvalOlder =
-    model.pullRequestMoved && model.merge?.approvedSha != null
-      ? model.merge.approvedSha.slice(0, 7)
-      : null;
-  const copyMergeCommit = async () => {
-    if (mergeCommit === null) return;
-    try {
-      await navigator.clipboard.writeText(mergeCommit);
-      setCopied("copied");
-    } catch {
-      setCopied("failed");
-    }
-  };
-
-  const changesSummary = model.headSha === null
-    ? t("tasks.delivery.changes.preparing")
-    : model.baseSha === null
-    ? t("tasks.delivery.changes.summaryNoBase", {
-      head: model.headSha.slice(0, 7),
-    })
-    : t("tasks.delivery.changes.summary", {
-      head: model.headSha.slice(0, 7),
-      base: model.baseSha.slice(0, 7),
-    });
-
-  const failedAny = checks.failed > 0;
-  const olderRows = checks.rows.filter((row) => row.olderSha !== null);
-  const headShort = model.headSha === null ? null : model.headSha.slice(0, 7);
-  const checksStatus = failedAny
-    ? "failed"
-    : checks.running > 0 || (checks.rows.length > 0 && olderRows.length > 0)
-    ? "running"
-    : checks.unavailable > 0
-    ? "unknown"
-    : checks.total > 0 && checks.passed === checks.total
-    ? "done"
-    : "upcoming";
-  const sortedChecks = [...checks.rows].sort((a, b) =>
-    Number(b.result === "failed") - Number(a.result === "failed")
-  );
-  const shownChecks = showAllChecks
-    ? sortedChecks
-    : sortedChecks.slice(0, SHOWN);
-
-  const reviewStatus = review === null
-    ? "upcoming"
-    : review.status === "approved"
-    ? review.olderSha === null ? "done" : "running"
-    : review.status === "running"
-    ? "running"
-    : "failed";
-  const findings = review?.findings ?? [];
-  const shownFindings = showAllFindings ? findings : findings.slice(0, SHOWN);
-
-  const label = (status: string) =>
-    t(`tasks.delivery.status.${status}` as MessageKey);
-  const helpTip = (
-    key: "checks" | "review" | "fixing" | "approval",
-    args?: Record<string, number>,
-  ) => (
-    <UI.HelpTip label={t(`tasks.delivery.help.${key}.label` as MessageKey)}>
-      {t(`tasks.delivery.help.${key}.text` as MessageKey, args)}
-    </UI.HelpTip>
-  );
-
-  const pullRequestLink = pullRequest === null ? undefined : (
-    <UI.Link
-      href={pullRequest.url}
-      rel="noreferrer"
-      target="_blank"
-      variant="button"
-    >
-      {t("tasks.delivery.afterApproval.openOnGitHub")}
-      <span aria-hidden="true">↗</span>
-    </UI.Link>
-  );
-  // One control that leads somewhere: the task's other pull requests, newest
-  // first, opened in place (design-ux, 2026-11-16).
-  const earlierList = after === null || after.others.length === 0
-    ? null
-    : (
-      <UI.Disclosure
-        data-testid="delivery-earlier-pull-requests"
-        summary={t("tasks.delivery.afterApproval.earlier", {
-          count: after.others.length,
-        })}
-      >
-        <UI.Stack gap="compact" role="list">
-          {after.others.map((other) => (
-            <UI.Inline
-              gap="compact"
-              key={other.providerNumber}
-              role="listitem"
+      {goBackOpen && release !== null && (
+        <UI.AlertDialog
+          cancelAction={
+            <UI.Button
+              disabled={goingBack}
+              onClick={closeGoBack}
+              variant="secondary"
             >
-              <UI.Text>
-                {t("tasks.delivery.afterApproval.earlierRow", {
-                  number: other.providerNumber,
-                })}
-              </UI.Text>
-              <UI.Badge tone={PULL_REQUEST_TONE[other.status]}>
-                {t(
-                  `tasks.delivery.afterApproval.status.${other.status}` as MessageKey,
-                )}
-              </UI.Badge>
-              <UI.Link
-                href={other.url}
-                rel="noreferrer"
-                target="_blank"
-                variant="quiet"
-              >
-                {t("tasks.delivery.afterApproval.openOnGitHub")}
-                <span aria-hidden="true">↗</span>
-              </UI.Link>
-            </UI.Inline>
-          ))}
-        </UI.Stack>
-      </UI.Disclosure>
-    );
-  return (
-    <>
-      <UI.StepList label={t("tasks.delivery.steps")}>
-        <UI.StepItem
-          status={model.headSha === null ? "running" : "done"}
-          statusLabel={label(model.headSha === null ? "running" : "done")}
-          summary={changesSummary}
-          title={t("tasks.delivery.changes.title")}
-        />
-        <UI.StepItem
-          status={checksStatus}
-          statusLabel={label(checksStatus)}
-          summary={checks.rows.length === 0
-            ? t("tasks.delivery.checks.none")
-            : olderRows.length > 0 && headShort !== null
-            ? t(
-              model.pullRequestMoved
-                ? "tasks.delivery.checks.noneForCommit"
-                : "tasks.delivery.checks.runningAgain",
-              { sha: headShort },
-            )
-            : failedAny
-            ? t("tasks.delivery.checks.failedOf", {
-              failed: checks.failed,
-              total: checks.total,
-            })
-            : t("tasks.delivery.checks.passedOf", {
-              passed: checks.passed,
-              total: checks.total,
-            })}
-          title={<>{t("tasks.delivery.checks.title")}{helpTip("checks")}</>}
+              {t("tasks.delivery.release.dialog.keep")}
+            </UI.Button>
+          }
+          confirmAction={
+            <UI.Button
+              disabled={goBackDisabled}
+              loading={goingBack}
+              onClick={() => void confirmGoBack()}
+              variant="destructive"
+            >
+              {t("tasks.delivery.release.dialog.confirm")}
+            </UI.Button>
+          }
+          onOpenChange={(open) => !open && closeGoBack()}
+          open
+          state={goingBack
+            ? "confirming"
+            : goBackNotice !== null
+            ? "error"
+            : "open"}
+          title={t("tasks.delivery.release.dialog.title")}
+          variant="destructive"
         >
-          {checksStatus === "done" || checks.rows.length === 0
-            ? null
-            : (
-              <UI.Stack gap="compact">
-                {shownChecks.map((row) => (
-                  <UI.Text key={row.id}>
-                    {row.name} {row.olderSha === null
-                      ? (
-                        <UI.Badge tone={CHECK_TONE[row.result]}>
-                          {t(CHECK_LABEL[row.result])}
-                        </UI.Badge>
-                      )
-                      : (
-                        <UI.Badge>
-                          {t(OLDER_RESULT_LABEL[row.result], {
-                            sha: row.olderSha,
-                          })}
-                        </UI.Badge>
-                      )}
-                  </UI.Text>
-                ))}
-                {!showAllChecks && sortedChecks.length > SHOWN && (
-                  <UI.Button
-                    onClick={() => setShowAllChecks(true)}
-                    variant="text"
-                  >
-                    {t("tasks.delivery.showAll")}
-                  </UI.Button>
+          <UI.Stack gap="compact">
+            <UI.Text>
+              <ReferenceText
+                known={known}
+                text={release === null ? "" : t(
+                  "tasks.delivery.release.dialog.body",
+                  {
+                    environment: environmentWord(
+                      t,
+                      release.environment,
+                      true,
+                    ),
+                    commit: release.previousCommitSha === null
+                      ? ""
+                      : UI.shortReference("commit", release.previousCommitSha),
+                  },
                 )}
-              </UI.Stack>
-            )}
-        </UI.StepItem>
-        <UI.StepItem
-          status={reviewStatus}
-          statusLabel={label(reviewStatus)}
-          summary={review === null ? t("tasks.delivery.review.none") : (
-            <>
-              {review.status === "approved"
-                ? t("tasks.delivery.review.approved", { count: review.others })
-                : review.status === "running"
-                ? t("tasks.delivery.review.running")
-                : review.status === "failed"
-                ? t("tasks.delivery.review.failed")
-                : review.others === 0
-                ? t("tasks.delivery.review.changesBlockingOnly", {
-                  blocking: review.blocking,
-                })
-                : t("tasks.delivery.review.changes", {
-                  blocking: review.blocking,
-                  others: review.others,
-                })}
-              {review.olderSha !== null && (
-                <>
-                  {" "}
-                  <UI.Badge>
-                    {t("tasks.delivery.olderCommit", { sha: review.olderSha })}
-                  </UI.Badge>
-                </>
-              )}
-            </>
-          )}
-          title={<>{t("tasks.delivery.review.title")}{helpTip("review")}</>}
-        >
-          {findings.length === 0 ? null : (
-            <UI.Stack gap="compact">
-              {shownFindings.map((finding) => (
-                <UI.Text key={finding.id}>
-                  <UI.Badge tone={SEVERITY_TONE[finding.severity]}>
-                    {t(SEVERITY_LABEL[finding.severity])}
-                  </UI.Badge>{" "}
-                  {finding.body}{" "}
-                  <UI.DataText variant="code">
-                    {finding.line === null
-                      ? finding.path
-                      : `${finding.path}:${finding.line}`}
-                  </UI.DataText>
-                </UI.Text>
-              ))}
-              {!showAllFindings && findings.length > SHOWN && (
-                <UI.Button
-                  onClick={() => setShowAllFindings(true)}
-                  variant="text"
-                >
-                  {t("tasks.delivery.showAll")}
-                </UI.Button>
-              )}
-            </UI.Stack>
-          )}
-        </UI.StepItem>
-        {fixing !== null && (
-          <UI.StepItem
-            status={fixing.stopped
-              ? "failed"
-              : fixing.running
-              ? "running"
-              : "done"}
-            statusLabel={label(
-              fixing.stopped ? "failed" : fixing.running ? "running" : "done",
-            )}
-            summary={fixing.stopped
-              ? t("tasks.delivery.fixing.stopped", {
-                attempt: fixing.attempt,
-                count: fixing.blocking,
-              })
-              : fixing.running
-              ? t("tasks.delivery.fixing.running", {
-                attempt: fixing.attempt,
-                max: fixing.max,
-              })
-              : t("tasks.delivery.fixing.done", {
-                attempt: fixing.attempt,
-                max: fixing.max,
-              })}
-            title={
-              <>
-                {t("tasks.delivery.fixing.title")}
-                {helpTip("fixing", { max: fixing.max })}
-              </>
-            }
-          />
-        )}
-        {model.approval !== null && (
-          <UI.StepItem
-            data-testid="delivery-approval-step"
-            status={approvalOlder === null
-              ? APPROVAL_STEP[model.approval.state].status
-              : "running"}
-            statusLabel={approvalOlder !== null
-              ? label("running")
-              : APPROVAL_STEP[model.approval.state].label === null
-              ? label(APPROVAL_STEP[model.approval.state].status)
-              : t(APPROVAL_STEP[model.approval.state].label as MessageKey)}
-            summary={approvalOlder === null
-              ? t(
-                `tasks.delivery.approval.step.${model.approval.state}` as MessageKey,
-              )
-              : t("tasks.delivery.approval.step.approvedOlder", {
-                sha: approvalOlder,
-                current: (model.headSha ?? "").slice(0, 7),
-              })}
-            title={
-              <>
-                {t("tasks.delivery.approval.title")}
-                {helpTip("approval")}
-              </>
-            }
-          />
-        )}
-        {after !== null && (
-          <UI.StepItem
-            action={phone && earlierList !== null
-              // On a phone the action column comes after the step's detail, so
-              // the button and the list are handed over together to keep the
-              // design's order: sentence, button, then the list.
-              ? (
-                // The button keeps its label's width in both states: a column
-                // would stretch it to the opened list's width (design-ux, #482).
-                <UI.Stack gap="compact">
-                  <UI.Inline>{pullRequestLink}</UI.Inline>
-                  {earlierList}
-                </UI.Stack>
-              )
-              : pullRequestLink}
-            data-testid="delivery-pull-request-step"
-            group={t("tasks.delivery.afterApproval.group")}
-            status={pullRequest === null
-              ? "unknown"
-              : pullRequest.status === "closed"
-              ? "failed"
-              : "done"}
-            statusLabel={label(
-              pullRequest === null
-                ? "unknown"
-                : pullRequest.status === "closed"
-                ? "failed"
-                : "done",
-            )}
-            summary={pullRequest === null
-              ? t("tasks.delivery.afterApproval.pullRequest.none")
-              : pullRequest.status === "open"
-              ? t("tasks.delivery.afterApproval.pullRequest.open", {
-                number: pullRequest.providerNumber,
-              })
-              : pullRequest.status === "merged"
-              ? t("tasks.delivery.afterApproval.pullRequest.merged", {
-                number: pullRequest.providerNumber,
-              })
-              : t("tasks.delivery.afterApproval.pullRequest.closed", {
-                number: pullRequest.providerNumber,
-              })}
-            title={t("tasks.delivery.afterApproval.pullRequest.title")}
-          >
-            {phone || after.others.length === 0 ? null : earlierList}
-          </UI.StepItem>
-        )}
-        {after !== null && (
-          <UI.StepItem
-            action={mergeCommit === null ? undefined : (
-              <UI.Button
-                onClick={() => void copyMergeCommit()}
-                type="button"
-                variant="secondary"
+              />
+            </UI.Text>
+            <UI.Field
+              error={reasonMissing
+                ? t("tasks.delivery.release.dialog.reason.empty")
+                : undefined}
+              hint={t("tasks.delivery.release.dialog.reason.help")}
+              htmlFor={reasonId}
+              label={t("tasks.delivery.release.dialog.reason.label")}
+              required
+              state={reasonMissing ? "invalid" : "default"}
+              variant="textarea"
+            >
+              <textarea
+                aria-invalid={reasonMissing || undefined}
+                aria-required="true"
+                id={reasonId}
+                name="reason"
+                onChange={(event) => {
+                  setReason(event.currentTarget.value);
+                  setReasonMissing(false);
+                }}
+                readOnly={goingBack}
+                required
+                rows={3}
+                value={reason}
+              />
+            </UI.Field>
+            {goBackNotice === null ? null : (
+              <UI.InlineNotice
+                data-testid="delivery-go-back-notice"
+                role="alert"
+                tone="error"
               >
-                {t(
-                  copied === "copied"
-                    ? "tasks.delivery.afterApproval.merge.copied"
-                    : copied === "failed"
-                    ? "tasks.delivery.afterApproval.merge.copyFailed"
-                    : "tasks.delivery.afterApproval.merge.copy",
-                )}
-              </UI.Button>
+                {t(goBackNotice)}
+              </UI.InlineNotice>
             )}
-            data-testid="delivery-merge-step"
-            status={mergeStep.status}
-            statusLabel={mergeStep.status === "running"
-              ? t("tasks.delivery.status.inProgress")
-              : label(mergeStep.status)}
-            summary={mergeStep.summary}
-            title={t("tasks.delivery.afterApproval.merge.title")}
-          />
-        )}
-      </UI.StepList>
-      {after === null ? null : (
-        <UI.Text variant="muted">
-          {t("tasks.delivery.afterApproval.note")}
-        </UI.Text>
+          </UI.Stack>
+        </UI.AlertDialog>
       )}
     </>
   );

@@ -507,10 +507,13 @@
   color: var(--color-fg);
   font: var(--type-heading-subsection);
 }
-/* A name with a help tip keeps the tip beside its text, however far the text wraps. */
+/* A name with a help tip keeps the tip beside its text, however far the text wraps.
+   When the name and its tip cannot share the line (a long name in a narrow row),
+   the tip drops under the name, never over the value beside it. */
 .ui-description-item__title:has(.ui-help-tip) {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
 }
 /* Opt-in (`labels="quiet"`): each row's title in the body weight, not the heavy subsection weight. */
 .ui-description-list[data-labels="quiet"] .ui-description-item__title {
@@ -1384,6 +1387,13 @@
 .ui-data-table--ruled td {
   padding: var(--space-3-5) var(--space-2);
 }
+/* A row with a choice in it (a radio) is as tall as the radio's touch target,
+   which is more than a line of text: centre its cells on one line and let the
+   target, not extra padding, set the height. */
+.ui-data-table--ruled tbody tr:has(.ui-radio) td {
+  padding-block: var(--space-1);
+  vertical-align: middle;
+}
 .ui-data-table--ruled th:first-child,
 .ui-data-table--ruled td:first-child {
   padding-inline-start: var(--space-3);
@@ -1522,6 +1532,11 @@
   /* A 44px touch target around the 20px line, without moving layout. */
   margin-block: calc((var(--space-5) - var(--target-coarse)) / 2);
   min-block-size: var(--target-coarse);
+}
+/* A title that may wrap: no touch frame with negative margins, which would pull the next line up under it. */
+.ui-stacked-row[data-title-lines="wrap"] .ui-link {
+  margin-block: var(--space-0);
+  min-block-size: var(--space-0);
 }
 .ui-stacked-row .ui-link,
 .ui-data-table--ruled .ui-link {
@@ -1792,6 +1807,12 @@
   min-block-size: var(--target-min);
   padding: var(--space-0);
   text-align: start;
+}
+/* A ruled table whose first cell is the row's button: that button is a tall tap
+   target with its text centred, so the other cells centre too and a row's four
+   cells share one text line. */
+.ui-data-table--ruled:has(.ui-data-table__select) td {
+  vertical-align: middle;
 }
 .ui-data-table__select > * {
   display: block;

@@ -6,7 +6,10 @@ import type {
   CommandRunner,
 } from "@bakery/contracts/action-registry";
 import type { ActionRegistry } from "@bakery/contracts/action-registry";
+import type { Context } from "hono";
+import { contractSchemas } from "@bakery/contracts/contracts";
 import { createApiRouter, StandardError } from "@bakery/contracts/http";
+import { CatalogImplementedAction } from "@bakery/contracts/implemented-actions";
 import type { PgDatabase } from "../../platform/database.ts";
 import type { AuthVariables } from "../auth/middleware.ts";
 import { createActionContext } from "../auth/middleware.ts";
@@ -23,8 +26,13 @@ import {
   createSkillDraftPublishActionRegistry,
   createSkillSourceUpdateActionRegistry,
   createSkillVersionActionRegistry,
+  type SkillFileContent,
 } from "./actions.ts";
-import { createCatalogHandlers } from "./persistence.ts";
+import {
+  admitReviewedSkillUpdate,
+  createCatalogHandlers,
+} from "./persistence.ts";
+import { createArchiveRevisionAuthority } from "./archive-revision.ts";
 import {
   finalizeLocalSkillVersionPublication,
   type LocalSkillVersionPublicationPreparation,
@@ -45,6 +53,7 @@ import {
 } from "./skill-copy.ts";
 import {
   commitSkillSourceUpdate,
+  confirmSkillSourceUpdateTake,
   prepareSkillSourceUpdate,
   readSkillSourceUpdate,
   type SkillSourceUpdatePreparation,
@@ -55,7 +64,10 @@ import {
   prepareSkillDraftPublish,
   type SkillDraftPublishPreparation,
 } from "./skill-drafts.ts";
-import { CatalogImplementedAction } from "@bakery/contracts/implemented-actions";
+import {
+  createGlobalSkillAuthority,
+  withGlobalSkillInstall,
+} from "./global-skills.ts";
 
 const publicationExecutionStage = Symbol("publicationExecutionStage");
 
@@ -125,6 +137,20 @@ class PublicationPreflightRollbackError extends Error {
   }
 }
 
+/** The action context the explicit person routes hand the authority runner. */
+function actionContext(
+  context: Context<{ Variables: AuthVariables }>,
+): ActionContext {
+  return {
+    request: context.req.raw,
+    params: context.req.param(),
+    requestId: context.req.header("x-request-id") ?? crypto.randomUUID(),
+    traceId: context.req.header("x-trace-id") ?? crypto.randomUUID(),
+    signal: context.req.raw.signal,
+    ...createActionContext(context),
+  };
+}
+
 export function createCatalogRoutes(options: {
   database: PgDatabase;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
@@ -145,11 +171,17 @@ export function createCatalogRoutes(options: {
     (options.skillFileRoot
       ? new SkillFileStore(options.skillFileRoot)
       : undefined);
-  const handlers = createCatalogHandlers(options.cursorSecret, {
-    normalizeSourceLocator: options.normalizeSourceLocator,
-    skillFileStore: store,
-  });
+  const handlers = withGlobalSkillInstall(
+    createCatalogHandlers(options.cursorSecret, {
+      normalizeSourceLocator: options.normalizeSourceLocator,
+      skillFileStore: store,
+    }),
+  );
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
+  const catalogAuthority = createArchiveRevisionAuthority(
+    createGlobalSkillAuthority(postgresAuthority, store),
+    options.sourceAdapter,
+  );
   const postgresCommandRunner = createPostgresCommandRunner();
   const publicationCommandRunner: CommandRunner = {
     async run(request) {
@@ -289,17 +321,81 @@ export function createCatalogRoutes(options: {
   app.use("/v1/skill-sources", options.browserSession);
   app.use("/v1/skill-sources/*", options.browserSession);
   app.use("/v1/skill-imports", options.browserSession);
+  app.use("/v1/skill-imports/*", options.browserSession);
   app.use("/v1/skills", options.browserSession);
   app.use("/v1/skills/*", options.browserSession);
+  // library.search is registered by the catalog too; without the session its
+  // caller has no principal and every person was refused (#42).
+  app.use("/v1/library/search", options.browserSession);
+  const registry = options.registry ??
+    createCatalogActionRegistry(handlers, {
+      authorityRunner: catalogAuthority,
+      commandRunner: postgresCommandRunner,
+      includeSkillVersionPublication: false,
+    });
+  // These are mounted before the routers below because the path of a file is
+  // not one segment: `scripts/ready.sh` is a file in the manifest, and a router
+  // that only knows single segments would answer not-found first. The worker
+  // reads the same paths under a pinned version and a lease, and lets a request
+  // without those headers fall through to here: a person reads
+  // one version, and one file's bytes, under the registry's query policy. The
+  // file route builds the raw response the schema describes -- Content-Type and
+  // Content-Length from the stored row, ETag the sha256 the store verified --
+  // because a base64 envelope is not what a browser can show.
+  for (
+    const path of [
+      "/v1/skill-versions/:id",
+      "/v1/skill-versions/:id/files/:path{.+}",
+    ]
+  ) app.use(path, options.browserSession);
+  app.get("/v1/skill-versions/:id", async (context): Promise<Response> => {
+    const input = contractSchemas.SkillVersionPath.parse({
+      id: context.req.param("id")?.toLowerCase(),
+    });
+    const version = await postgresAuthority.run(
+      registry.get(CatalogImplementedAction.SkillVersionsGet),
+      actionContext(context),
+      input,
+      (authorized) => handlers.getSkillVersion(authorized, input),
+    );
+    return Response.json(version);
+  });
+  app.get(
+    "/v1/skill-versions/:id/files/:path{.+}",
+    async (context): Promise<Response> => {
+      const input = contractSchemas.SkillFilePath.parse({
+        id: context.req.param("id")?.toLowerCase(),
+        path: context.req.param("path"),
+      });
+      // The authority runner answers `unknown`, so one cast is unavoidable here.
+      // It names the handler's own type rather than repeating its fields: a field
+      // added to `readSkillFile` arrives typed instead of drifting out of a
+      // hand-written copy that still compiles.
+      const file = await postgresAuthority.run(
+        registry.get(CatalogImplementedAction.SkillFilesGet),
+        actionContext(context),
+        input,
+        (authorized) => handlers.readSkillFile(authorized, input),
+      ) as SkillFileContent;
+      return new Response(new Uint8Array(file.content).buffer as ArrayBuffer, {
+        status: 200,
+        headers: {
+          "Content-Type": file.contentType,
+          "Content-Length": String(file.contentLength),
+          "ETag": `"${file.contentDigest}"`,
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+          "Content-Disposition": `attachment; filename*=UTF-8''${
+            encodeURIComponent(file.path.split("/").at(-1) ?? "file")
+          }`,
+        },
+      });
+    },
+  );
   app.route(
     "/",
     createApiRouter({
-      registry: options.registry ??
-        createCatalogActionRegistry(handlers, {
-          authorityRunner: postgresAuthority,
-          commandRunner: postgresCommandRunner,
-          includeSkillVersionPublication: false,
-        }),
+      registry,
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,
     }),
@@ -332,6 +428,7 @@ export function createCatalogRoutes(options: {
             proof: stage.proof,
           });
         },
+        listSkillVersions: handlers.listSkillVersions,
       }, {
         authorityRunner: publicationAuthority,
         commandRunner: publicationCommandRunner,
@@ -398,6 +495,24 @@ export function createCatalogRoutes(options: {
             stage.preparation,
             stage.reading,
           );
+        },
+        takeSkillSourceUpdate: async (context, input) => {
+          const stage = (context as SourceUpdateContext)[sourceUpdateStage];
+          if (!stage?.preparation || !stage.reading) {
+            throw new Error("SKILL_SOURCE_UPDATE_PROOF_MISSING");
+          }
+          const confirmed = await confirmSkillSourceUpdateTake(
+            context,
+            stage.preparation,
+            stage.reading,
+            input.revision,
+          );
+          const { transaction } = requireWorkTransaction(context);
+          return await admitReviewedSkillUpdate(transaction, context, {
+            ...confirmed,
+            skillId: stage.preparation.skillId,
+            revision: input.revision,
+          });
         },
       }, {
         authorityRunner: sourceUpdateAuthority,

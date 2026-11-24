@@ -20,6 +20,7 @@ const RESERVED_TOKENS: readonly string[] = [
   "$step",
   "$repeat",
   "$delivery",
+  "$each",
   "$secret",
 ];
 const FIELD_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;

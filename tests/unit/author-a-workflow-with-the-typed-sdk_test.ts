@@ -3,6 +3,7 @@ import {
   defineAction,
   defineWorkflow,
   integerInput,
+  type StepsBuilder,
   stringInput,
   uuidInput,
 } from "../../packages/workflow-sdk/mod.ts";
@@ -207,4 +208,259 @@ Deno.test("types: a reference of the wrong type is a compile-time error", () => 
     repositoryId: count,
   });
   assertEquals(impl.id, "impl");
+});
+
+// #417: a forEach is data too. The body callback runs once, at build time, and
+// what it declares is the loop's steps; `item` reads `$each.<as>`.
+const prepareBatch = defineAction<
+  { repositoryId: string },
+  { cases: { id: string; prompt: string }[] }
+>("harness.implement");
+const runCase = defineAction<
+  { repositoryId: string; planArtifact: string; instructions: string },
+  { candidate: { headSha: string } }
+>("harness.implement");
+
+function evaluationBatch() {
+  const w = defineWorkflow({
+    name: "sdk-evaluation-batch",
+    description: "Prepare a batch, then run each case.",
+    inputs: { repositoryId: uuidInput() },
+  });
+  const prepare = w.action("prepare", prepareBatch, {
+    repositoryId: w.input("repositoryId"),
+  });
+  const cases = w.forEach(
+    "cases",
+    prepare.output("cases"),
+    { max: 12, as: "case" },
+    (steps, item) => {
+      const run = steps.action("run_case", runCase, {
+        repositoryId: w.input("repositoryId"),
+        planArtifact: item.field("id"),
+        instructions: item.field("prompt"),
+      });
+      steps.action("grade", "workflow.noop", {
+        head: run.output("candidate.headSha"),
+        prepared: prepare.output("cases"),
+      });
+    },
+  );
+  w.action("report", "workflow.noop", {
+    ran: cases.iterations(),
+    outcome: cases.outcome(),
+  });
+  return w;
+}
+
+Deno.test("a forEach builds the document the compiler reads, with needs from the data", () => {
+  assertEquals(evaluationBatch().toJSON().steps as unknown, [
+    {
+      id: "prepare",
+      uses: "harness.implement",
+      with: { repositoryId: "$input.repositoryId" },
+    },
+    {
+      id: "cases",
+      needs: ["prepare"],
+      forEach: {
+        items: "$step.prepare.cases",
+        max: 12,
+        as: "case",
+        steps: [
+          {
+            id: "run_case",
+            uses: "harness.implement",
+            with: {
+              repositoryId: "$input.repositoryId",
+              planArtifact: "$each.case.id",
+              instructions: "$each.case.prompt",
+            },
+          },
+          {
+            id: "grade",
+            needs: ["run_case"],
+            uses: "workflow.noop",
+            with: {
+              head: "$step.cases.run_case.candidate.headSha",
+              prepared: "$step.prepare.cases",
+            },
+          },
+        ],
+      },
+    },
+    {
+      id: "report",
+      needs: ["cases"],
+      uses: "workflow.noop",
+      with: {
+        ran: "$step.cases.iterations",
+        outcome: "$step.cases.outcome",
+      },
+    },
+  ]);
+});
+
+Deno.test("a forEach built by the SDK compiles and survives YAML", async () => {
+  const built = evaluationBatch().toJSON();
+  const result = await compileWorkflowDocument(built as unknown);
+  assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
+  assertEquals(result.document.steps[1]?.kind, "forEach");
+  const exported = encodeWorkflowYaml(built as unknown as WorkflowJsonValue);
+  assert(exported.ok);
+  const imported = decodeWorkflowYaml(exported.text);
+  assert(imported.ok);
+  assertEquals(imported.value as unknown, built as unknown);
+});
+
+Deno.test("a forEach is refused at build time when its body is empty, misplaced or misnamed", () => {
+  const w = defineWorkflow({ name: "loops", inputs: {} });
+  w.action("prepare", "task.brief", {});
+  assertThrows(
+    () => w.forEach("empty", ["a"], { max: 2, as: "item" }, () => {}),
+    Error,
+    "has no steps",
+  );
+  assertThrows(
+    () =>
+      w.forEach("bad", ["a"], { max: 2, as: "Item" }, (steps) => {
+        steps.action("x", "task.brief", {});
+      }),
+    Error,
+    "not an item name",
+  );
+  assertThrows(
+    () =>
+      w.forEach("outer", ["a"], { max: 2, as: "item" }, (steps) => {
+        steps.forEach("inner", ["b"], { max: 2, as: "item" }, (inner) => {
+          inner.action("x", "task.brief", {});
+        });
+      }),
+    Error,
+    "reuses the item name",
+  );
+  // A step of the workflow cannot be added from inside a body, nor a body step
+  // after the body returned.
+  let escaped: StepsBuilder | null = null;
+  assertThrows(
+    () =>
+      w.forEach("mixed", ["a"], { max: 2, as: "item" }, (steps) => {
+        escaped = steps;
+        w.action("outside", "task.brief", {});
+      }),
+    Error,
+    "only inside its body",
+  );
+  assertThrows(
+    () => escaped!.action("late", "task.brief", {}),
+    Error,
+    "only inside its body",
+  );
+  // A body step reads only steps declared before it, in the body or outside.
+  const loop = w.forEach("ok", ["a", "b"], {
+    max: 2,
+    as: "item",
+  }, (steps) => {
+    steps.action("inside", "task.brief", {});
+  });
+  assertThrows(
+    () =>
+      w.forEach("reads", ["a"], { max: 2, as: "item" }, (steps) => {
+        steps.action("first", "task.brief", { v: "$step.reads.second.x" });
+        steps.action("second", "task.brief", {});
+      }),
+    Error,
+    "not declared before it",
+  );
+  assertEquals(loop.id, "ok");
+});
+
+Deno.test("types: a forEach item is typed by the list it walks", () => {
+  const w = defineWorkflow({
+    name: "loop-types",
+    inputs: { repositoryId: uuidInput() },
+  });
+  const prepare = w.action("prepare", prepareBatch, {
+    repositoryId: w.input("repositoryId"),
+  });
+  w.forEach("cases", prepare.output("cases"), { max: 4, as: "case" }, (
+    steps,
+    item,
+  ) => {
+    steps.action("ok", runCase, {
+      repositoryId: w.input("repositoryId"),
+      planArtifact: item.field("id"),
+      instructions: item.field("prompt"),
+    });
+    // @ts-expect-error the item has no field at this path
+    item.field("nope");
+  });
+  const count = defineWorkflow({
+    name: "count",
+    inputs: { n: integerInput() },
+  }).input("n");
+  assertThrows(() =>
+    // @ts-expect-error a reference to a number is not a list
+    w.forEach("numbers", count, { max: 2, as: "n" }, () => {})
+  );
+});
+
+// #418: a call is data too. It names a published version by id, binds the
+// child's inputs, and the caller reads only what the child declares.
+const CALLED = "11111111-1111-4111-8111-111111111111";
+
+Deno.test("a call builds the document the compiler inlines, and its outputs are declared", async () => {
+  const child = defineWorkflow({
+    name: "sdk-child",
+    inputs: { topic: stringInput() },
+  });
+  const write = child.action("write", "workflow.noop", {
+    text: child.input("topic"),
+  });
+  child.outputs({ summary: write.output("summary") });
+
+  const w = defineWorkflow({
+    name: "sdk-caller",
+    inputs: { subject: stringInput() },
+  });
+  const research = w.call("research", CALLED, { topic: w.input("subject") });
+  w.action("after", "workflow.noop", { text: research.output("summary") });
+
+  assertEquals(w.toJSON().steps as unknown, [
+    {
+      id: "research",
+      call: { workflow: CALLED, with: { topic: "$input.subject" } },
+    },
+    {
+      id: "after",
+      needs: ["research"],
+      uses: "workflow.noop",
+      with: { text: "$step.research.summary" },
+    },
+  ]);
+  assertEquals(child.toJSON().outputs as unknown, {
+    summary: "$step.write.summary",
+  });
+
+  const result = await compileWorkflowDocument(w.toJSON() as unknown, {
+    workflows: new Map([[CALLED, child.toJSON() as unknown]]),
+  });
+  assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
+  assertEquals(result.document.steps[0]?.kind, "sequence");
+});
+
+Deno.test("a call is refused at build time when its version is not an id or its outputs are not references", () => {
+  const w = defineWorkflow({ name: "calls", inputs: {} });
+  assertThrows(
+    () => w.call("research", "not-a-version", {}),
+    Error,
+    "not a workflow version id",
+  );
+  assertThrows(
+    () => w.outputs({ summary: "text" as never }),
+    Error,
+    "must be a reference",
+  );
+  w.outputs({});
+  assertThrows(() => w.outputs({}), Error, "declared once");
 });

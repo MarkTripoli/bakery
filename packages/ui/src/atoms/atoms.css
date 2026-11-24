@@ -92,6 +92,10 @@
   overflow-wrap: anywhere;
 }
 /* Opt-in (the fingerprint beside Copy): the value's own width, not the line's. */
+/* A value and the punctuation after it in a sentence stay on one line. */
+.ui-data-text-keep {
+  white-space: nowrap;
+}
 .ui-data-text--fit {
   flex: 0 1 auto;
   inline-size: auto;
@@ -120,6 +124,38 @@
   flex-wrap: wrap;
   min-inline-size: 0;
 }
+/* A status line is an icon and one sentence: a long sentence wraps beside the
+   icon, lined up with its own text, never under the icon. */
+.ui-inline[data-line="status"] {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+}
+.ui-inline[data-line="status"] > .ui-icon {
+  flex: none;
+}
+.ui-inline[data-line="status"] > .ui-text {
+  flex: 1 1 0%;
+  min-inline-size: 0;
+}
+/* On a wide screen an item marked for the end of the line sits there (the run
+   actions at the end of the run line); on a phone the row wraps as before. */
+@media (min-width: 744px) {
+  .ui-inline > [data-placement="end"] {
+    margin-inline-start: auto;
+  }
+}
+/* On a phone a lone button at the end sits at the end of the first row, and the
+   line of text goes under it on a row of its own. */
+@media (max-width: 743px) {
+  .ui-inline > [data-placement="end"][data-buttons="one"] {
+    margin-inline-start: auto;
+    order: 1;
+  }
+  .ui-inline:has(> [data-buttons="one"]) > [data-placement="line"] {
+    flex-basis: 100%;
+    order: 2;
+  }
+}
 .ui-stack--none {
   gap: var(--space-0);
 }
@@ -129,6 +165,13 @@
 .ui-stack--compact,
 .ui-inline--compact {
   gap: var(--space-2);
+}
+/* 12px: the blocks of one open step, between compact (8px) and standard (16px). */
+.ui-stack--comfortable {
+  gap: var(--space-3);
+}
+.ui-stack--indent {
+  padding-inline-start: var(--space-4);
 }
 .ui-stack--standard,
 .ui-inline--standard {
@@ -333,6 +376,32 @@
   block-size: calc(var(--space-6) + var(--space-0-5));
   inline-size: calc(var(--space-6) + var(--space-0-5));
 }
+/* A vendor file that carries its own clear space (OpenAI): the whole file is
+   drawn at twice the art size and overflows the slot, centred, so the glyph
+   reads at the normal size. The slot keeps its size; the overflow is
+   transparent clear space and takes no pointer events. */
+.ui-provider-mark[data-clear-space="true"] {
+  overflow: visible;
+  pointer-events: none;
+  position: relative;
+}
+/* Out of flow, so the overflow never widens the line it sits in; the insets
+   centre the file on the slot on both axes (logical, so right to left too). */
+.ui-provider-mark[data-clear-space="true"] .ui-provider-mark__art {
+  block-size: calc(var(--space-5) * 2);
+  inline-size: calc(var(--space-5) * 2);
+  inset-block-start: calc((100% - var(--space-5) * 2) / 2);
+  inset-inline-start: calc((100% - var(--space-5) * 2) / 2);
+  position: absolute;
+}
+.ui-provider-mark--header[data-clear-space="true"] .ui-provider-mark__art {
+  block-size: calc((var(--space-6) + var(--space-0-5)) * 2);
+  inline-size: calc((var(--space-6) + var(--space-0-5)) * 2);
+  inset-block-start: calc((100% - (var(--space-6) + var(--space-0-5)) * 2) / 2);
+  inset-inline-start: calc(
+    (100% - (var(--space-6) + var(--space-0-5)) * 2) / 2
+  );
+}
 .ui-provider-mark__tile {
   align-items: center;
   background: var(--color-surface-subtle);
@@ -355,4 +424,21 @@
 .ui-heading .ui-provider-mark {
   margin-inline-end: var(--space-3);
   vertical-align: middle;
+}
+
+/* A plugin's own page: a frame that fills its parent and scrolls inside. The
+   frame has no border of its own; Bakery's strip above it draws the edge. */
+.ui-sealed-frame {
+  background: var(--color-canvas);
+  block-size: 100%;
+  /* It fills the rest of the window, on a phone as on a desktop. */
+  min-block-size: 70dvh;
+  border: var(--border-none);
+  display: block;
+  inline-size: 100%;
+}
+
+/* A row whose buttons keep full touch targets wherever it is placed. */
+.ui-inline[data-touch-targets="coarse"] {
+  --target-min: var(--target-coarse);
 }

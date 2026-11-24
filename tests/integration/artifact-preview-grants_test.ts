@@ -565,3 +565,24 @@ Deno.test("grants reference their task and artifact with organization-scoped for
     await fixture.closeRetention();
   }
 });
+
+Deno.test("a staged version is not found for a preview grant; the current one is", async () => {
+  const fixture = await previewFixture();
+  try {
+    const png = new TextEncoder().encode("pretend png");
+    const staged = await fixture.addVersion("image/png", png);
+    const current = await fixture.addVersion("image/png", png);
+    await fixture.pgDatabase.query(
+      "update bakery.artifact_versions set publication_status = 'staged' where id = $1",
+      [staged],
+    );
+    const refused = await fixture.create(staged);
+    assertEquals(refused.status, 404, await refused.clone().text());
+    assertEquals((await refused.json()).code, "RESOURCE_NOT_FOUND");
+    const granted = await fixture.create(current);
+    assertEquals(granted.status, 201, await granted.clone().text());
+    await granted.body?.cancel();
+  } finally {
+    await fixture.closeRetention();
+  }
+});

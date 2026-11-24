@@ -32,6 +32,7 @@ Deno.test("generated RunCreate and Run schemas enforce the public projection bou
     requestedBy: ID,
     inngestRunId: null,
     status: "queued",
+    environment: "live",
     budgetLimitUsd: "12.500000",
     startedAt: null,
     finishedAt: null,
@@ -104,12 +105,59 @@ Deno.test("generated RunCreate and Run schemas enforce the public projection bou
     createdAt: "2026-09-19T00:00:00.000Z",
     updatedAt: "2026-09-19T00:00:00.000Z",
     version: 1,
+    handoffManifest: null,
   };
   const rejectedStep = contractSchemas.RunStep.safeParse({
     ...step,
     secret: "not-public",
   });
   assert(!rejectedStep.success);
+});
+
+Deno.test("RunStep always states its newest saved handoff manifest or null", () => {
+  const step = {
+    id: ID,
+    runId: ID,
+    stepKey: "review",
+    iteration: 0,
+    status: "running",
+    input: {},
+    output: null,
+    error: null,
+    startedAt: "2026-09-19T00:00:00.000Z",
+    finishedAt: null,
+    createdAt: "2026-09-19T00:00:00.000Z",
+    updatedAt: "2026-09-19T00:00:00.000Z",
+    version: 1,
+  };
+  const saved = {
+    id: ID,
+    status: "pending",
+    savedAt: "2026-09-19T00:00:01.000Z",
+  };
+  assert(
+    contractSchemas.RunStep.safeParse({ ...step, handoffManifest: null })
+      .success,
+  );
+  assertEquals(
+    contractSchemas.RunStep.parse({ ...step, handoffManifest: saved })
+      .handoffManifest,
+    saved,
+  );
+  // The field is required: a reader can never mistake "not sent" for "none".
+  assert(!contractSchemas.RunStep.safeParse(step).success);
+  assert(
+    !contractSchemas.RunStep.safeParse({
+      ...step,
+      handoffManifest: { ...saved, status: "retired" },
+    }).success,
+  );
+  assert(
+    !contractSchemas.RunStep.safeParse({
+      ...step,
+      handoffManifest: { ...saved, digest: "a".repeat(64) },
+    }).success,
+  );
 });
 
 Deno.test("RunCreate and runtime share serialized JSON byte bounds", () => {

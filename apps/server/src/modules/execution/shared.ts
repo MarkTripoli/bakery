@@ -1,4 +1,6 @@
 import type { ExecutionTelemetry } from "./telemetry.ts";
+import type { PluginBroker } from "../catalog/plugin-broker.ts";
+import type { ScopedOrganizationBlobStore } from "../catalog/blob-store.ts";
 import { type Context, type MiddlewareHandler } from "hono";
 import type {
   AgentSpawnConfig,
@@ -23,6 +25,7 @@ import { loadWorkerIdentity, withPgTransaction } from "@bakery/persistence";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { reconcileFailedLifecycleTasks } from "../work/coordination-projection.ts";
 import type { SessionToolRegistry } from "./session-registry.ts";
+import type { McpInvokeDeps } from "../mcp/invoke.ts";
 
 const ENROLLMENT_TTL_MS = 10 * 60 * 1000;
 
@@ -145,6 +148,23 @@ type ExecutionRouteOptions = {
    * refuse every call.
    */
   sessionTools?: SessionToolRegistry;
+  /**
+   * The install-scoped broker plugin jobs reach through their worker (#29).
+   * Absent leaves the relay route answering "not found".
+   */
+  pluginBroker?: PluginBroker;
+  /**
+   * Where plugin version bundles live, for the route that hands a contained job
+   * its code. Absent when no object store is configured; the route then fails
+   * closed.
+   */
+  pluginBundles?: Pick<ScopedOrganizationBlobStore, "stat" | "read">;
+  /**
+   * The pinned-tool door the worker tool gateway sends MCP calls through
+   * (#436). Absent leaves `worker.invokeTool` and the effective-tools listing
+   * unmounted.
+   */
+  toolGateway?: McpInvokeDeps;
 };
 
 type HostRow = {

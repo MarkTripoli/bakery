@@ -1,4 +1,5 @@
 import type { BudgetRuntimeConfig, InngestRuntimeConfig } from "@bakery/config";
+import type { EngineStepRunner } from "../workflow-adapter/engine-steps.ts";
 import type { PgDatabase } from "@bakery/persistence";
 import { Inngest } from "inngest";
 import { serve } from "inngest/hono";
@@ -10,6 +11,7 @@ import { readPlanHost } from "../delivery/plan-host.ts";
 import { createBakeryBudgetRecovery } from "../work/budget-recovery.ts";
 import { createMergeQueueWorkflow } from "../delivery/merge-queue.ts";
 import { createDependencyReleaseWorkflow } from "../work/dependency-release-workflow.ts";
+import { createLaneDispatchWorkflow } from "../work/coordination-dispatch-workflow.ts";
 import {
   createSkillImportRecovery,
   createSkillImportWorkflow,
@@ -43,6 +45,8 @@ import {
 import { createBatchSupervisorWorkflow } from "../work/batch-tick.ts";
 import { createBatchCancelPort } from "../work/batch-cancel-port.ts";
 import { createBatchStartPort } from "../work/batch-start-port.ts";
+import type { TicketLabelWriter } from "../work/ticket-labels.ts";
+import type { TicketNoteWriter } from "../work/ticket-notes.ts";
 import { selectTicketSourceReader } from "../work/ticket-reader-selection.ts";
 import { GITHUB_PROVIDER } from "../integrations/registry.ts";
 import { createAuditRetentionFunction } from "../auth/audit/mod.ts";
@@ -88,6 +92,10 @@ function createTicketAutomation(options: {
   database: PgDatabase;
   budget?: BudgetRuntimeConfig;
   integrations: IntegrationsBackgroundDependencies;
+  /** Writes the ticket status note; without it the poll keeps none. */
+  noteWriter?: TicketNoteWriter;
+  /** Changes Bakery's progress labels; without it the poll leaves labels alone. */
+  labelWriter?: TicketLabelWriter;
 }) {
   const deps = {
     client: options.client,
@@ -107,6 +115,8 @@ function createTicketAutomation(options: {
     ),
     factIndex: createTicketFactIndex(),
     budget: options.budget,
+    noteWriter: options.noteWriter,
+    labelWriter: options.labelWriter,
   };
   return [createTicketIntakeWorkflow(deps), createTicketPollWorkflow(deps)];
 }
@@ -119,8 +129,14 @@ export function createDefaultInngestFunctions(options: {
   skillImport?: SkillImportDependencies;
   /** GitHub integration lifecycle and intake; their functions register only when present. */
   integrations?: IntegrationsBackgroundDependencies;
+  /** Writes the ticket status note on each poll; absent, the poll keeps none. */
+  ticketNoteWriter?: TicketNoteWriter;
+  /** Changes Bakery's progress labels on each poll; absent, the poll leaves labels alone. */
+  ticketLabelWriter?: TicketLabelWriter;
   /** Coordinator executor override; default is the worker executor outside the test environment (see `readCoordinatorExecutor`). */
   coordinatorExecutor?: CoordinatorTurnExecutor;
+  /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
+  engineSteps?: EngineStepRunner;
 }): readonly unknown[] {
   const coordinatorExecutor = options.coordinatorExecutor ??
     readCoordinatorExecutor(readCoordinatorEnv(), {
@@ -137,12 +153,14 @@ export function createDefaultInngestFunctions(options: {
       engineRetries: options.config.engineRetries,
       budgetPolicy: options.budget,
       planHost: readPlanHost,
+      engineSteps: options.engineSteps,
     }),
     createBakeryWorkflowRecovery({
       client: options.client,
       database: options.database,
       budgetPolicy: options.budget,
       planHost: readPlanHost,
+      engineSteps: options.engineSteps,
     }),
     createBakeryBudgetRecovery({
       client: options.client,
@@ -229,6 +247,8 @@ export function createDefaultInngestFunctions(options: {
           database: options.database,
           budget: options.budget,
           integrations: options.integrations,
+          noteWriter: options.ticketNoteWriter,
+          labelWriter: options.ticketLabelWriter,
         }),
       ]
       : []),
@@ -253,6 +273,10 @@ export function createDefaultInngestFunctions(options: {
       database: options.database,
     }),
     createDependencyReleaseWorkflow({
+      client: options.client,
+      database: options.database,
+    }),
+    createLaneDispatchWorkflow({
       client: options.client,
       database: options.database,
     }),
@@ -329,6 +353,9 @@ export function createInngestHttpHandler(options: {
   budget?: BudgetRuntimeConfig;
   skillImport?: SkillImportDependencies;
   integrations?: IntegrationsBackgroundDependencies;
+  ticketNoteWriter?: TicketNoteWriter;
+  ticketLabelWriter?: TicketLabelWriter;
+  engineSteps?: EngineStepRunner;
 }): (context: unknown) => Promise<Response> {
   const client = (options.client ?? new Inngest({
     id: "bakery-server",
@@ -346,6 +373,9 @@ export function createInngestHttpHandler(options: {
         budget: options.budget,
         skillImport: options.skillImport,
         integrations: options.integrations,
+        ticketNoteWriter: options.ticketNoteWriter,
+        ticketLabelWriter: options.ticketLabelWriter,
+        engineSteps: options.engineSteps,
       })
       : [])) as ServeOptions["functions"];
   const officialHandler = serve({

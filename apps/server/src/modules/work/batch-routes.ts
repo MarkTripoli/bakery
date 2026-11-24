@@ -22,10 +22,12 @@ import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts"
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import type { PgDatabase } from "../../platform/database.ts";
+import type { BudgetRuntimeConfig } from "@bakery/config";
 import { authorizeTicketAdmission } from "./ticket-request-command.ts";
+import { createBatchStartableHandler } from "./batch-startable.ts";
 import {
-  createBatch,
   createBatchesListHandler,
+  createBatchHandler,
   finishBatch,
   getBatch,
   pauseBatch,
@@ -37,7 +39,10 @@ import {
 /** The batch registry (#58): start, read and control a bounded run of issues. */
 export function createBatchActionRegistry(
   database: PgDatabase,
-  dependencies: { cursorSecret: string },
+  dependencies: {
+    cursorSecret: string;
+    budget: BudgetRuntimeConfig | undefined;
+  },
 ): ActionRegistry {
   const registry = new ActionRegistry(
     new PostgresAuthorityRunner(database),
@@ -86,6 +91,16 @@ export function createBatchActionRegistry(
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: createBatchesListHandler(dependencies.cursorSecret),
   }).register({
+    // Before `/v1/batches/:id`, so "startable" is never read as a batch id.
+    name: Action.BatchesStartable,
+    method: HttpMethod.Get,
+    path: "/v1/batches/startable",
+    input: contractSchemas.BatchStartableQuery,
+    output: contractSchemas.BatchStartable,
+    policy: query,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: createBatchStartableHandler(dependencies),
+  }).register({
     name: Action.BatchesGet,
     method: HttpMethod.Get,
     path: "/v1/batches/:id",
@@ -100,7 +115,7 @@ export function createBatchActionRegistry(
     input: contractSchemas.BatchCreate,
     output: contractSchemas.Batch,
     policy: command,
-    handler: createBatch,
+    handler: createBatchHandler(dependencies),
   });
   control(
     Action.BatchesPause,
@@ -143,6 +158,7 @@ export function createBatchRoutes(options: {
   session: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   cursorSecret: string;
+  budget: BudgetRuntimeConfig | undefined;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/batches", options.session);

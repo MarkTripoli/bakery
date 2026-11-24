@@ -10,6 +10,7 @@ import {
   DRAIN_SETTLE_SECONDS,
   drainDecision,
   effectiveMaintenanceState,
+  isQuiesced,
   MAINTENANCE_RETRY_AFTER_SECONDS,
   maintenanceIsActive,
   maintenanceRetryAfter,
@@ -144,8 +145,8 @@ Deno.test("the guard lets work through while the switch is off, absent or lapsed
     ]
   ) {
     const { transaction, queries } = transactionWith(row);
-    await assertNotQuiesced(transaction);
-    // It reads the one switch row and nothing else.
+    await assertNotQuiesced(transaction, "intake");
+    // One read: the switch row, and whether a restore holds the installation.
     assertEquals(queries.length, 1);
     assert(queries[0].includes("bakery.installation_maintenance"));
   }
@@ -159,7 +160,7 @@ Deno.test("the guard refuses while draining or quiesced with a retryable 503", a
       now,
     });
     const error = await assertRejects(
-      () => assertNotQuiesced(transaction),
+      () => assertNotQuiesced(transaction, "intake"),
       StandardError,
     );
     assertEquals(error.code, "INSTALLATION_QUIESCED");
@@ -208,4 +209,88 @@ Deno.test("the problem response carries Retry-After for the quiesced code and fo
   assertEquals(other.status, 503);
   assertEquals(other.headers.get("retry-after"), null);
   await other.body?.cancel();
+});
+
+// #64 slice E: a restore holds the installation until an administrator releases
+// it. The same single read answers both questions.
+const restoring = (row: Row | null, held: boolean) => {
+  const { transaction, queries } = transactionWith(row);
+  const original = (transaction as unknown as {
+    query: (sql: string) => Promise<{ rows: unknown[]; rowCount: number }>;
+  }).query;
+  (transaction as unknown as { query: typeof original }).query = async (
+    sql: string,
+  ) => {
+    const result = await original(sql);
+    return {
+      ...result,
+      rows: [{
+        ...(row ?? { state: null, leaseExpiresAt: null, now }),
+        restoreHeld: held,
+      }],
+    };
+  };
+  return { transaction, queries };
+};
+
+Deno.test("a restore hold refuses with a non-retryable 503, in one read, and reads only", async () => {
+  for (const row of [null, { state: "off", leaseExpiresAt: at(60_000), now }]) {
+    const { transaction, queries } = restoring(row, true);
+    const error = await assertRejects(() =>
+      assertNotQuiesced(transaction, "intake")
+    );
+    assert(error instanceof StandardError);
+    assertEquals(error.code, "INSTALLATION_RESTORING");
+    assertEquals(error.params?.retryAfterSeconds, undefined);
+    assertEquals(queries.length, 1);
+    assert(queries[0].includes("bakery.installation_restores"));
+    assert(!/\b(insert|update|delete)\b/i.test(queries[0]));
+  }
+});
+
+Deno.test("a restore hold wins over a backup hold, and a released restore changes nothing", async () => {
+  const both = restoring(
+    { state: "quiesced", leaseExpiresAt: at(20_000), now },
+    true,
+  );
+  const error = await assertRejects(() =>
+    assertNotQuiesced(both.transaction, "intake")
+  );
+  assert(error instanceof StandardError);
+  assertEquals(error.code, "INSTALLATION_RESTORING");
+
+  // Released: only the backup switch decides, as before.
+  const released = restoring(
+    { state: "off", leaseExpiresAt: at(60_000), now },
+    false,
+  );
+  await assertNotQuiesced(released.transaction, "intake");
+  const backupOnly = restoring(
+    { state: "quiesced", leaseExpiresAt: at(20_000), now },
+    false,
+  );
+  const quiesced = await assertRejects(() =>
+    assertNotQuiesced(backupOnly.transaction, "intake")
+  );
+  assert(quiesced instanceof StandardError);
+  assertEquals(quiesced.code, "INSTALLATION_QUIESCED");
+});
+
+Deno.test("the non-throwing check treats a restore hold as held", async () => {
+  assertEquals(
+    await isQuiesced(
+      restoring({ state: "off", leaseExpiresAt: at(60_000), now }, true)
+        .transaction,
+      "intake",
+    ),
+    true,
+  );
+  assertEquals(
+    await isQuiesced(
+      restoring({ state: "off", leaseExpiresAt: at(60_000), now }, false)
+        .transaction,
+      "intake",
+    ),
+    false,
+  );
 });

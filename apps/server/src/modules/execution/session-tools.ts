@@ -95,6 +95,15 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     "storageRoots.list": "files.read",
     "storageFolderEntries.list": "files.read",
     "storageFiles.content": "files.read",
+    // A file's saved versions, the runs that used one, and what a version
+    // belongs to (#404). These are the same tree read three more ways, and the
+    // `bakery` CLI inside a session has commands for each: `history`, `uses` and
+    // `open`. Without them those commands would exist, be listed by nobody, and
+    // refuse for a reason an agent cannot act on. Reads only - a pin is an
+    // administrator's write and stays off this map.
+    "storageFileVersions.list": "files.read",
+    "storageFileUses.list": "files.read",
+    "storageFiles.byVersion": "files.read",
     // Comments and work-item edits (#448 S9a, chapter 25 section 18.2: "the
     // same operations as people"). Draft comments are not offered: they run
     // through the draft routes' own staged execution, which a session call does
@@ -105,6 +114,10 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     "artifactComments.create": "comments.write",
     "artifactComments.update": "comments.write",
     "tasks.update": "work.write",
+    // Asking people (#414 slice 4): a step asks the role or group a person
+    // named in its workflow's ask grant, through the same run requests a person
+    // makes. Off by default; the action checks the grant and its audience live.
+    "runRequests.create": "runs.ask",
     // Connection drafts (#448 S9b): an agent prepares a connection and a person
     // completes it. The operations refuse a secret, an organization-wide
     // connection and switching one on whenever an agent is the caller.
@@ -129,7 +142,25 @@ export const POWER_SESSION_SCOPES: Readonly<
   comment: Object.freeze(["comments.write"]),
   edit_work: Object.freeze(["work.write"]),
   draft_connection: Object.freeze(["connections.draft"]),
+  ask: Object.freeze(["runs.ask"]),
 });
+
+/**
+ * Powers whose operations check the grant themselves, live, on every call, and
+ * refuse with their own named reason (spawn_requires_grant, steer_requires_grant,
+ * agent_power_requires_grant, agent_power_grant_expired, ...). The gateway does
+ * not check these again: a second, earlier check would answer a bare denial
+ * and hide the reason the operation gives. The other powers (comments, work
+ * edits, connection drafts) run operations that judge the call as the person,
+ * so the gateway's check is the only grant check they get.
+ */
+export const ACTION_GUARDED_POWERS: ReadonlySet<AgentPower> = new Set([
+  "decide",
+  "run_control",
+  "run_start",
+  "steer",
+  "ask",
+]);
 
 /**
  * The power whose grant a session scope stands for, or null for a scope that
@@ -211,6 +242,29 @@ export function listSessionTools(
 }
 
 /**
+ * The operations O51 keeps with people (AC5): secrets, consent and grants,
+ * and the destructive storage operations. A session asking for one is told
+ * it is a person's operation; no scope may ever name one.
+ */
+export const PEOPLE_ONLY_OPERATIONS: ReadonlySet<string> = new Set([
+  "secrets.list",
+  "secrets.get",
+  "secrets.create",
+  "secrets.rotate",
+  "secrets.updatePolicy",
+  "secrets.revoke",
+  "integrationGrants.create",
+  "permissionGrants.create",
+  "agentPowerGrants.create",
+  "definitionPublishGrants.create",
+  "mcpUseGrants.create",
+  "agentFileGrants.create",
+  "agentFileGrants.revoke",
+  "storageEntries.restore",
+  "storageEntries.purge",
+]);
+
+/**
  * Refuses a session that may not call the operation it named.
  *
  * Separate from the list because asking for a tool you were not offered and
@@ -224,6 +278,11 @@ export function assertSessionToolAllowed(
 ): OperationScope {
   const scope = OPERATION_SCOPES[name];
   if (!scope) {
+    // The operations O51 keeps with people are refused by name; any other
+    // name no scope covers stays unknown to a session.
+    if (PEOPLE_ONLY_OPERATIONS.has(name)) {
+      throw new SessionToolError("SESSION_TOOL_PEOPLE_ONLY", name);
+    }
     throw new SessionToolError("SESSION_TOOL_UNKNOWN", name);
   }
   if (!scopes.includes(scope)) {
@@ -234,13 +293,18 @@ export function assertSessionToolAllowed(
 
 export class SessionToolError extends Error {
   constructor(
-    readonly code: "SESSION_TOOL_UNKNOWN" | "SESSION_TOOL_DENIED",
+    readonly code:
+      | "SESSION_TOOL_UNKNOWN"
+      | "SESSION_TOOL_DENIED"
+      | "SESSION_TOOL_PEOPLE_ONLY",
     readonly tool: string,
     readonly scope?: OperationScope,
   ) {
     super(
       code === "SESSION_TOOL_UNKNOWN"
         ? `no session tool named ${tool}`
+        : code === "SESSION_TOOL_PEOPLE_ONLY"
+        ? `${tool} is a person's operation, never a session's`
         : `session does not hold ${scope} for ${tool}`,
     );
     this.name = "SessionToolError";

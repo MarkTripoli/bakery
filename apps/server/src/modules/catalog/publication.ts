@@ -5,6 +5,7 @@ import { z } from "zod";
 import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { canonicalJson } from "../../platform/canonical-json.ts";
+import { BAKERY_PRINCIPAL_ID } from "./bakery-principal.ts";
 import { deriveSkillPublicationIdentity } from "./identity.ts";
 import { assertMayAuthorSkill, type SkillScope } from "./skill-scope-guard.ts";
 import type { SkillFileStoreOperations } from "./storage.ts";
@@ -30,10 +31,13 @@ export type SkillVersionRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  published_at: Date | string | null;
+  label: string | null;
 };
 
 export const VERSION_COLUMNS = `id, skill_id, revision, source_revision, digest,
-  entry_path, manifest, status, created_by, created_at, updated_at, version`;
+  entry_path, manifest, status, created_by, created_at, updated_at, version,
+  published_at, label`;
 
 /** Domain limits enforced before version metadata reaches PostgreSQL. */
 function validPersistencePath(value: string): boolean {
@@ -128,6 +132,8 @@ export function toSkillVersion(row: SkillVersionRow) {
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: row.version,
+    publishedAt: row.published_at === null ? null : iso(row.published_at),
+    label: row.label,
   };
 }
 
@@ -163,6 +169,12 @@ type SkillSnapshot = Readonly<{
 export type SkillVersionPublicationPreparation = Readonly<{
   organizationId: string;
   principalId: string;
+  /**
+   * True when Bakery installs a global skill as itself. Only the host sets it
+   * (no request field reaches it), and it is what lets a global skill be
+   * written at all: every other writer is refused a global skill.
+   */
+  hostInstall: boolean;
   sourceRevision: string;
   validated: ValidatedSkillVersion;
   identity: SkillPublicationIdentity;
@@ -189,6 +201,7 @@ async function querySkill(
   sourceType: SkillSnapshot["sourceType"],
   principalId: string,
   lockRows = false,
+  hostInstall = false,
 ): Promise<SkillSnapshot> {
   const result = await transaction.query<
     SkillSnapshot & {
@@ -220,7 +233,12 @@ async function querySkill(
   // Publishing a local skill's version is authoring it: the owner for a
   // personal skill, an Admin for an organization one. A remote import runs under
   // the authority the Admin who asked for it held at admission.
-  if (sourceType === "local_bundle" || scope === "global") {
+  if (hostInstall) {
+    // Bakery writes a global skill as itself and nothing else.
+    if (scope !== "global" || principalId !== BAKERY_PRINCIPAL_ID) {
+      throw new StandardError({ code: "AUTH_FORBIDDEN" });
+    }
+  } else if (sourceType === "local_bundle" || scope === "global") {
     await assertMayAuthorSkill(transaction, organizationId, principalId, {
       scope,
       ownerPrincipalId,
@@ -284,6 +302,7 @@ export async function prepareSkillVersionPublication(options: {
   sourceRevision: string;
   sourceType: SkillSnapshot["sourceType"];
   requireEnabled?: boolean;
+  hostInstall?: boolean;
 }): Promise<SkillVersionPublicationPreparation> {
   const {
     transaction,
@@ -293,6 +312,7 @@ export async function prepareSkillVersionPublication(options: {
     sourceRevision,
     sourceType,
   } = options;
+  const hostInstall = options.hostInstall === true;
   const identity = await deriveSkillPublicationIdentity({
     organizationId,
     skillId: validated.skillId,
@@ -333,6 +353,8 @@ export async function prepareSkillVersionPublication(options: {
     validated.skillId,
     sourceType,
     principalId,
+    false,
+    hostInstall,
   );
   const existing = await transaction.query<SkillVersionRow>(
     `select ${VERSION_COLUMNS} from bakery.skill_versions
@@ -342,6 +364,7 @@ export async function prepareSkillVersionPublication(options: {
   const preparation = Object.freeze({
     organizationId,
     principalId,
+    hostInstall,
     sourceRevision,
     validated,
     identity: Object.freeze(identity),
@@ -374,6 +397,7 @@ export async function prepareLocalSkillVersionPublication(options: {
   input: LocalSkillVersionInput;
   organizationId: string;
   principalId: string;
+  hostInstall?: boolean;
 }): Promise<LocalSkillVersionPublicationPreparation> {
   let validated: ValidatedSkillVersion;
   try {
@@ -395,6 +419,7 @@ export async function prepareLocalSkillVersionPublication(options: {
     validated,
     sourceRevision: validated.digest,
     sourceType: "local_bundle",
+    hostInstall: options.hostInstall,
   });
 }
 
@@ -644,6 +669,7 @@ export async function finalizeSkillVersionPublication(options: {
     preparation.skill.sourceType,
     principalId,
     true,
+    preparation.hostInstall,
   );
   const remote = preparation.skill.sourceType !== "local_bundle";
   if (
@@ -676,7 +702,8 @@ export async function finalizeSkillVersionPublication(options: {
     await assertReservedFiles(transaction, preparation);
     const published = await transaction.query<SkillVersionRow>(
       `update bakery.skill_versions
-          set status = 'published', updated_at = now(), version = version + 1
+          set status = 'published', published_at = now(), updated_at = now(),
+              version = version + 1
         where organization_id = $1 and id = $2 and status = 'draft'
         returning ${VERSION_COLUMNS}`,
       [organizationId, identity.versionId],
@@ -711,8 +738,8 @@ export async function finalizeSkillVersionPublication(options: {
     const inserted = await transaction.query<SkillVersionRow>(
       `insert into bakery.skill_versions (
          id, organization_id, skill_id, revision, source_revision, digest,
-         entry_path, manifest, status, created_by
-       ) values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 'published', $9)
+         entry_path, manifest, status, created_by, published_at
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 'published', $9, now())
        returning ${VERSION_COLUMNS}`,
       [
         identity.versionId,

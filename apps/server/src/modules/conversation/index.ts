@@ -19,6 +19,7 @@ import {
 import { createConversationQueryHandlers } from "./queries.ts";
 import {
   createConversationAccessListHandler,
+  createConversationAccessSharersHandler,
   createConversationMentionCandidatesHandler,
   revokeConversationAccess,
 } from "./access.ts";
@@ -27,6 +28,7 @@ import {
   createQuestionsListHandler,
   getQuestion,
 } from "./questions.ts";
+import { createConversationProposalsListHandler } from "../workflows/definition-proposals.ts";
 
 function createConversationCommandRunner(): CommandRunner {
   const commands = createPostgresCommandRunner();
@@ -83,6 +85,10 @@ export function createConversationRegistry(options: {
       ),
       accessList: createConversationAccessListHandler(options.cursorSecret),
       accessRevoke: revokeConversationAccess,
+      accessSharers: createConversationAccessSharersHandler(),
+      proposalsList: createConversationProposalsListHandler(
+        options.cursorSecret,
+      ),
     },
     {
       authorityRunner: new PostgresAuthorityRunner(options.database),

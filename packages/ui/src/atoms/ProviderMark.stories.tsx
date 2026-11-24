@@ -12,6 +12,9 @@ const PROVIDERS = [
   ["sentry", "Sentry"],
   ["github", "GitHub"],
   ["linear", "Linear"],
+  // The whole file, uncropped, drawn at twice the size: it overflows its slot.
+  ["openai", "OpenAI"],
+  ["openrouter", "OpenRouter"],
   // No agreed mark yet: each gets the letter tile.
   ["grafana", "Grafana"],
   ["datadog", "Datadog"],
@@ -28,7 +31,12 @@ export const Contract: StoryObj = {
       {PROVIDERS.map(([provider, name]) => (
         <div
           key={provider}
-          style={{ alignItems: "center", display: "flex", gap: 12 }}
+          style={{
+            alignItems: "center",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
         >
           <ProviderMark name={name} provider={provider} />
           <ProviderMark name={name} provider={provider} size="header" />

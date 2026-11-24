@@ -28,6 +28,12 @@ import {
   recordAuthAudit,
 } from "../../../application/audit.ts";
 import { normalizeLocaleTag } from "../../../application/preferences.ts";
+import { restoreHeld } from "../../../../backups/restore-release.ts";
+import { updatePaused } from "../../../../../platform/maintenance.ts";
+import {
+  createDesktopHandoff,
+  endHandedOffSessions,
+} from "../../../adapters/desktop-handoff-postgres.ts";
 import type { PostgresOrganizationStore } from "../../../adapters/organization-postgres.ts";
 import {
   listConnectedClientGrants,
@@ -551,11 +557,18 @@ export async function organizationInvitationsCancel(
   return cancelled;
 }
 
-/** Whether any enabled human principal exists, i.e. first-admin bootstrap is done. */
+/**
+ * Whether any enabled human principal exists, i.e. first-admin bootstrap is
+ * done, whether a restore holds the installation (#64 E4: every page shows
+ * the banner before a refused action), and whether the launcher has paused
+ * work for an update (#59 ask 9), and which release this server runs (#59
+ * need 15), so a page that sees it change knows the server was updated.
+ */
 export async function installationStatus(
   _context: ActionContext,
   _input: z.output<typeof contractSchemas.Empty>,
   database: PgDatabase,
+  release: string,
 ): Promise<z.output<typeof contractSchemas.InstallationStatus>> {
   const result = await database.query<{ bootstrapped: boolean }>(
     `select exists (
@@ -564,7 +577,12 @@ export async function installationStatus(
       where id = true and bootstrap_principal_id is not null
     ) as bootstrapped`,
   );
-  return { bootstrapped: result.rows[0]?.bootstrapped === true };
+  return {
+    bootstrapped: result.rows[0]?.bootstrapped === true,
+    restoreHeld: await restoreHeld(database),
+    updatePaused: await updatePaused(database),
+    release,
+  };
 }
 
 /** Better Auth's provider user id for the authorized principal, read live. */
@@ -637,6 +655,8 @@ export async function browserSessionsRevoke(context: ActionContext) {
   if (result.rowCount !== 1) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   }
+  // Revoking the Bakery app also ends the window sessions it handed off.
+  await endHandedOffSessions(authorized.transaction, [id]);
   await audit(authorized, {
     organizationId: null,
     operation: Action.BrowserSessionsRevoke,
@@ -645,6 +665,55 @@ export async function browserSessionsRevoke(context: ActionContext) {
     details: { current: id === context.sessionId },
   });
   return { revoked: true, current: id === context.sessionId };
+}
+
+/**
+ * Ends the caller's own sign-in. The desktop app uses it to sign out and to
+ * drop a sign-in its computer's keyring refused to keep; it is accepted with
+ * that sign-in alone, like every action behind the browser-session check.
+ */
+export async function browserSessionsRevokeCurrent(context: ActionContext) {
+  const authorized = requireAuthorizedContext(context);
+  if (!context.sessionId) {
+    throw new ActionAuthorizationError(
+      "browser session action requires a resolved session",
+    );
+  }
+  const providerUserId = await resolveProviderUserId(authorized);
+  // Zero rows means the sign-in ended between the check and here: that is what was asked for.
+  await authorized.transaction.query(
+    `delete from public.session where id = $1 and "userId" = $2`,
+    [context.sessionId, providerUserId],
+  );
+  // A desktop sign-out also ends the window sessions it handed off.
+  await endHandedOffSessions(authorized.transaction, [context.sessionId]);
+  await audit(authorized, {
+    organizationId: null,
+    operation: Action.BrowserSessionsRevokeCurrent,
+    resourceType: "browser_session",
+    resourceId: context.sessionId,
+    details: { current: true },
+  });
+  return { revoked: true, current: true };
+}
+
+/**
+ * `desktopHandoffs.create`: a one-use code that opens a browser session for
+ * the desktop window. Only the desktop app's own sign-in may ask.
+ */
+export async function desktopHandoffsCreate(
+  context: ActionContext,
+  input: z.output<typeof contractSchemas.DesktopHandoffCreate>,
+) {
+  const authorized = requireAuthorizedContext(context);
+  return await createDesktopHandoff(
+    authorized.transaction,
+    { sessionId: context.sessionId, returnTo: input.returnTo },
+    {
+      principalId: authorized.principal.principalId,
+      correlation: authorized,
+    },
+  );
 }
 
 export async function browserSessionsRevokeOthers(context: ActionContext) {

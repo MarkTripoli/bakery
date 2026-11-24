@@ -42,6 +42,8 @@ type Fixture = {
   repairState: "pending" | "consumed" | "expired";
   /** The next update is refused with this status. */
   refuseWith: number | null;
+  /** The machine's system and processor. */
+  system: { os: string; architecture: string };
 };
 
 function fixture(
@@ -67,6 +69,8 @@ function fixture(
     repairs: [],
     repairState: "pending",
     refuseWith: null,
+    // The server stores x86_64 as x64: that is what a real machine carries.
+    system: { os: "linux", architecture: "x64" },
     ...more,
   };
 }
@@ -120,6 +124,9 @@ async function open(
         enrollmentId: REPAIR_ID,
         enrollmentToken: REPAIR_CODE,
         expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        linkCode: "REPA-IR01",
+        command:
+          "npx -y http://127.0.0.1/v1/worker/link.tgz link --server http://127.0.0.1 --code REPA-IR01",
       }, 201));
     },
   );
@@ -198,8 +205,8 @@ function worker(f: Fixture) {
     id: MACHINE_ID,
     principalId: "00000000-0000-4000-8000-0000000000a2",
     name: "fixture-host",
-    os: "linux",
-    architecture: "x86_64",
+    os: f.system.os,
+    architecture: f.system.architecture,
     capabilities: ["git", "shell", "web", "model", "claude"],
     toolchainVersions: {},
     slots: 2,
@@ -211,6 +218,8 @@ function worker(f: Fixture) {
     failedCheckIds: f.facts.failedCheckIds,
     lastHeartbeatAt: "2026-01-01T00:00:00.000Z",
     credentialGeneration: 1,
+    archivedAt: null,
+    cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     version: f.facts.version,
@@ -277,8 +286,10 @@ test.describe("machine page: the one banner", () => {
       await expect(detail).toBeVisible();
       await expect(banner(page)).toContainText(item.title);
       if (item.body) await expect(banner(page)).toContainText(item.body);
+      // The time it was last seen is in the header line, not in the banner.
+      await expect(banner(page)).not.toContainText("Last seen");
       await expect(banner(page)).toHaveAttribute("data-variant", item.tone);
-      // The status is the badge and the banner: not a third time in the line under the name.
+      // The status is the banner (the badge only when there is no banner): not again in the line under the name.
       await expect(detail.getByText(/· (Online|Offline|Not responding) ·/))
         .toHaveCount(0);
       if (item.fix) {
@@ -309,8 +320,12 @@ test.describe("machine page: the one banner", () => {
     await expect(about).toContainText("Processor");
     await expect(about).toContainText("x86_64");
     await expect(about).toContainText("Tasks at once");
-    await expect(about).toContainText("Software");
-    await expect(about).toContainText("No software has been reported.");
+    // Nothing reported, nothing drawn: no Software row and no "none" line.
+    await expect(about).not.toContainText("Software");
+    await expect(about).not.toContainText("No software has been reported.");
+    // With no problem banner the state is the header badge.
+    await expect(detail.locator('[data-ui-component="badge"]').first())
+      .toBeVisible();
     await expect(detail.getByRole("heading", { name: "Capacity" })).toHaveCount(
       0,
     );
@@ -321,8 +336,15 @@ test.describe("machine page: the one banner", () => {
     // Claude Code and nothing has signed it in yet.
     await expect(detail.getByRole("heading", { name: "Coding agents" }))
       .toBeVisible();
-    await expect(detail.getByTestId("coding-agent-claude")).toContainText(
+    // The agent banner says why it cannot be signed in yet; the row keeps its badge.
+    await expect(detail.getByTestId("agent-banner")).toContainText(
       "Bakery has not heard from Claude Code on this machine yet.",
+    );
+    await expect(detail.getByTestId("coding-agent-claude")).toContainText(
+      "Not signed in",
+    );
+    await expect(detail.getByTestId("coding-agent-claude")).not.toContainText(
+      "has not heard",
     );
     await expect(detail.getByText(/Provider bindings|provider bindings/))
       .toHaveCount(0);
@@ -510,6 +532,9 @@ test.describe("machine page: mode and Retire", () => {
     )
       .toBeVisible();
     await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
+    // Linux on x86_64 is a supported system, so its steps carry no warning.
+    await expect(setup.getByText("is not a supported system yet"))
+      .toHaveCount(0);
     await expect(
       setup.getByText(
         "The Bakery worker is the program that runs agents on this machine.",
@@ -540,6 +565,119 @@ test.describe("machine page: mode and Retire", () => {
         timeout: 2_000,
       });
     }).toPass();
+  });
+
+  test("a machine with a banner has no header badge: the banner is its status", async ({ page }) => {
+    await open(page, fixture({ status: "offline", connectivity: "offline" }));
+    await expect(banner(page)).toBeVisible();
+    const badge = page.getByTestId("machine-detail-page").locator(
+      '[data-ui-component="badge"]',
+    );
+    await expect(badge.filter({ hasText: /^Offline$/ })).toHaveCount(0);
+  });
+
+  test("a retired machine shows its header, one banner and About, with no empty Checks or Coding agents", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      system: { os: "macos", architecture: "arm64" },
+    });
+    await open(page, f);
+    const detail = page.getByTestId("machine-detail-page");
+    await expect(banner(page)).toContainText(
+      "Retired. It no longer takes work.",
+    );
+    await expect(
+      detail.locator('[data-ui-component="badge"]').filter({
+        hasText: /^Retired$/,
+      }),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("machine-about")).toBeVisible();
+    await expect(page.getByTestId("machine-checks")).toHaveCount(0);
+    await expect(page.getByTestId("machine-agents")).toHaveCount(0);
+    await expect(detail.getByText("No failed checks reported.")).toHaveCount(0);
+    await expect(detail.getByText("No software has been reported."))
+      .toHaveCount(0);
+  });
+
+  test("a retired Linux machine on an unlisted processor has one banner, with the warning as a plain line under the heading", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      system: { os: "linux", architecture: "riscv64" },
+    });
+    await page.clock.install();
+    await open(page, f);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    const setup = page.getByTestId("machine-repair");
+    const warning = setup.getByText(
+      "Linux riscv64 is not a supported system yet. These are the same steps this machine was set up with.",
+    );
+    await expect(warning).toBeVisible();
+    // A line of text, not a second banner.
+    await expect(
+      setup.locator('[data-ui-component="alertBanner"]').filter({
+        hasText: "is not a supported system yet",
+      }),
+    ).toHaveCount(0);
+  });
+
+  test("a retired machine on a supported system sets up again with no warning", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      system: { os: "linux", architecture: "arm64" },
+    });
+    await page.clock.install();
+    await open(page, f);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    const setup = page.getByTestId("machine-repair");
+    await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
+    await expect(setup).toContainText("BAKERY_WORKER_NAME=fixture-host");
+    await expect(setup.getByText("is not a supported system yet"))
+      .toHaveCount(0);
+  });
+
+  test("a retired Linux machine on any processor keeps its steps, with a warning", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      system: { os: "linux", architecture: "riscv64" },
+    });
+    await page.clock.install();
+    await open(page, f);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    const setup = page.getByTestId("machine-repair");
+    await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
+    await expect(setup).toContainText("BAKERY_WORKER_NAME=fixture-host");
+    await expect(
+      setup.getByText(
+        "Linux riscv64 is not a supported system yet. These are the same steps this machine was set up with.",
+      ),
+    ).toBeVisible();
+  });
+
+  test("a retired Mac is told it cannot be set up again, with no button and no setup made", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" }, {
+      system: { os: "macos", architecture: "arm64" },
+    });
+    await open(page, f);
+    await expect(banner(page)).toContainText(
+      "Bakery has no installer for this system yet, so this machine cannot be set up again.",
+    );
+    await expect(banner(page).getByRole("button")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Set up again" }))
+      .toHaveCount(0);
+    await expect(page.getByTestId("machine-repair")).toHaveCount(0);
+    expect(f.repairs).toHaveLength(0);
+    await shot(page, "machine-page-retired-mac");
+  });
+
+  test("Retire on a Mac says it cannot be set up again", async ({ page }) => {
+    const f = fixture({}, { system: { os: "macos", architecture: "arm64" } });
+    await open(page, f);
+    await page.getByRole("button", { name: "Retire this machine" }).first()
+      .click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toContainText(
+      "Bakery has no installer for this system yet, so it cannot be set up again.",
+    );
+    await expect(dialog.getByText("The machine can be set up again later."))
+      .toHaveCount(0);
+    // The viewport, not the page: the dialog is an overlay on the window.
+    await shot(page, "machine-page-retire-mac", [], { windowOnly: true });
   });
 
   test("anyone but an administrator sees the page without the controls", async ({ page }) => {

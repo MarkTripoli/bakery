@@ -13,6 +13,54 @@ import { readBlobProbe } from "./blob-probes.ts";
 import { storedMediaSafety } from "./media.ts";
 import { assertStoredBytes } from "./stored-bytes.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
+import {
+  hiddenArtifactIds,
+  hiddenFromReviewer,
+  hiddenVersionIds,
+  reviewerIsolationOf,
+} from "./reviewer-isolation.ts";
+
+/** Not found for a reviewer session when the artifact is another step's transcript (O47). */
+async function refuseHiddenArtifact(
+  context: ActionContext,
+  organizationId: string,
+  artifactId: string,
+): Promise<void> {
+  const { transaction } = requireWorkTransaction(context);
+  const isolation = await reviewerIsolationOf(
+    transaction,
+    context,
+    organizationId,
+  );
+  const hidden = await hiddenArtifactIds(
+    transaction,
+    isolation,
+    organizationId,
+    [artifactId],
+  );
+  if (hidden.size) hiddenFromReviewer();
+}
+
+/** Not found for a reviewer session when the version is hidden from it (O47). */
+async function refuseHiddenVersion(
+  context: ActionContext,
+  organizationId: string,
+  versionId: string,
+): Promise<void> {
+  const { transaction } = requireWorkTransaction(context);
+  const isolation = await reviewerIsolationOf(
+    transaction,
+    context,
+    organizationId,
+  );
+  const hidden = await hiddenVersionIds(
+    transaction,
+    isolation,
+    organizationId,
+    [versionId],
+  );
+  if (hidden.size) hiddenFromReviewer();
+}
 
 const ARTIFACT_ORDERING = "createdAt:desc,id:desc";
 const VERSION_ORDERING = "createdAt:desc,id:desc";
@@ -58,6 +106,10 @@ type VersionRow = {
   sha256: string;
   created_at: Date | string;
   version: number;
+  publication_status: "current" | "staged" | "refused";
+  refused_kind_version_id: string | null;
+  refused_rule_type: string | null;
+  refused_reason: string | null;
 };
 type VersionCursorRow = VersionRow & {
   cursor_created_at: string;
@@ -150,6 +202,10 @@ function version(row: VersionRow) {
     createdAt: iso(row.created_at),
     updatedAt: iso(row.created_at),
     version: Number(row.version ?? 1),
+    publicationStatus: row.publication_status,
+    refusedKindVersionId: row.refused_kind_version_id,
+    refusedRuleType: row.refused_rule_type,
+    refusedReason: row.refused_reason,
   };
 }
 
@@ -248,6 +304,9 @@ async function loadContentMetadata(
              on t.organization_id=v.organization_id and t.id=v.task_id
           where v.organization_id=$1
             and v.id=$2
+            -- Only a published version serves bytes: a staged one waits for its
+            -- probe and a refused one failed it (O29), so both read as missing.
+            and v.publication_status='current'
             and (
               v.run_step_id is null or exists (
                 select 1
@@ -441,8 +500,17 @@ export function createArtifactReadHandlers(
           limit + 1,
         ],
       );
-      const items = result.rows.slice(0, limit);
-      const last = items.at(-1);
+      const page = result.rows.slice(0, limit);
+      // A reviewer's list leaves out other steps' transcripts (O47); the
+      // cursor follows the unfiltered page.
+      const hidden = await hiddenArtifactIds(
+        transaction,
+        await reviewerIsolationOf(transaction, context, organizationId),
+        organizationId,
+        page.map((row) => row.id),
+      );
+      const items = page.filter((row) => !hidden.has(row.id));
+      const last = page.at(-1);
       return {
         items: items.map(artifact),
         nextCursor: result.rows.length > limit && last
@@ -468,6 +536,7 @@ export function createArtifactReadHandlers(
       if (!result.rows[0]) {
         throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       }
+      await refuseHiddenArtifact(context, organizationId, result.rows[0].id);
       return artifact(result.rows[0]);
     },
 
@@ -488,6 +557,7 @@ export function createArtifactReadHandlers(
       );
       const taskId = parent.rows[0]?.task_id;
       if (!taskId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+      await refuseHiddenArtifact(context, organizationId, String(artifactId));
       const limit = pageSize(input.limit);
       const binding = versionBinding(organizationId, principalId, artifactId);
       const position = await decodeCursor(secret, input.cursor, binding);
@@ -495,6 +565,7 @@ export function createArtifactReadHandlers(
         `select v.id,v.artifact_id,v.task_id,v.run_step_id,v.author_id,v.revision,
                 v.subject_head_sha,v.subject_base_sha,v.metadata,v.media_type,
                 v.size_bytes,v.sha256,v.created_at,v.retention_class,v.expires_at,v.purged_at,1 as version,
+                v.publication_status,v.refused_kind_version_id,v.refused_rule_type,v.refused_reason,
                 to_char(
                   v.created_at at time zone 'UTC',
                   'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
@@ -509,6 +580,10 @@ export function createArtifactReadHandlers(
           where v.organization_id=$1
             and v.artifact_id=$2
             and v.task_id=$3
+            -- Staged and refused versions are listed too (O29), with their
+            -- publicationStatus and refusal fields, so a publisher can see why a
+            -- version never became current. Their bytes stay unserved: content,
+            -- preview, extract, comments, handoff and pins read current only.
             and (
               v.run_step_id is null or exists (
                 select 1
@@ -556,6 +631,7 @@ export function createArtifactReadHandlers(
         organizationId,
         context.params.id,
       );
+      await refuseHiddenVersion(context, organizationId, row.id);
       return {
         versionId: row.id,
         sha256: row.sha256,
@@ -632,6 +708,7 @@ export function createArtifactReadHandlers(
         organizationId,
         context.params.id,
       );
+      await refuseHiddenVersion(context, organizationId, row.id);
       const headers = new Headers({
         "Content-Type": row.media_type,
         "Content-Length": String(size),
@@ -676,6 +753,9 @@ export function createArtifactReadHandlers(
                on t.organization_id=v.organization_id and t.id=v.task_id
             where v.organization_id=$1
               and v.id=$2
+              -- Only a published version serves bytes: a staged one waits for its
+              -- probe and a refused one failed it (O29), so both read as missing.
+              and v.publication_status='current'
               and (
                 v.run_step_id is null or exists (
                   select 1
@@ -734,6 +814,9 @@ export function createArtifactReadHandlers(
              on t.organization_id=v.organization_id and t.id=v.task_id
           where v.organization_id=$1
             and v.id=$2
+            -- Only a published version serves bytes: a staged one waits for its
+            -- probe and a refused one failed it (O29), so both read as missing.
+            and v.publication_status='current'
             and (
               v.run_step_id is null or exists (
                 select 1

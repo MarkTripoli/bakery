@@ -182,6 +182,22 @@ export function bearerGet(
   });
 }
 
+/** A POST the desktop app sends with its credential alone: no cookie, no origin. */
+export function bearerPost(
+  path: string,
+  credential: string,
+  body: unknown = {},
+): Request {
+  return new Request(`${authTestOrigin}${path}`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${credential}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 /** A refusal's status and STATE_CONFLICT reason. */
 export async function refusalOf(
   response: Response,

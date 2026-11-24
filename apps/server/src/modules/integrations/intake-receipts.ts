@@ -20,6 +20,8 @@ import {
 } from "../secrets/crypto.ts";
 import { automationListens } from "../workflows/automations/event-gate.ts";
 import { automationEventsOf } from "./automation-events.ts";
+import { neutralKindsOfEvent } from "./neutral-events.ts";
+import { startListens } from "../workflows/start-match.ts";
 import { InstallationStatus, liveConnections } from "./installation-fan-out.ts";
 import {
   AUTOMATION_ROUTE_PURPOSE,
@@ -398,7 +400,11 @@ async function planRoutes(
   return routes.length === 0 ? ignore(reason) : { routes, reason: null };
 }
 
-/** Whether an automation of the resource's organization listens for the event on its repository. */
+/**
+ * Whether anything of the resource's organization listens for the event on its
+ * repository: an enabled automation bound to it, or a start of the version in
+ * use of an enabled workflow.
+ */
 async function listensForAutomation(
   transaction: PgTransactionClient,
   eventName: string,
@@ -415,11 +421,16 @@ async function listensForAutomation(
     displayName: resource.displayName,
   });
   return repositoryId !== null &&
-    await automationListens(transaction, {
+    (await automationListens(transaction, {
       organizationId: resource.organizationId,
       repositoryId,
       eventKind: eventName,
-    });
+    }) ||
+      await startListens(
+        transaction,
+        resource.organizationId,
+        neutralKindsOfEvent(eventName),
+      ));
 }
 
 const RECEIVED_AT =

@@ -24,6 +24,11 @@ import {
   waitShares,
 } from "./task-times.ts";
 import {
+  COUNTER_VERSION,
+  type LineCount,
+  LineCoverage,
+} from "../integrations/line-counter.ts";
+import {
   type CursorBinding,
   decodeCursor,
   encodeCursor,
@@ -48,16 +53,40 @@ export const MetricKey = Object.freeze(
     MergeRate: "prs.mergeRate",
     TurnaroundHours: "prs.turnaroundHours",
     ChangedLines: "prs.changedLines",
+    CountedLines: "loc.changedLines",
     TaskLeadTime: "tasks.leadTimeHours",
+    DeploymentFrequency: "delivery.deploymentFrequency",
+    ChangeLeadTime: "delivery.changeLeadTimeHours",
+    ChangeFailRate: "delivery.changeFailRate",
+    FailedDeploymentRecovery: "delivery.failedDeploymentRecoveryHours",
+    DeploymentReworkRate: "delivery.deploymentReworkRate",
   } as const,
 );
 export type MetricKey = typeof MetricKey[keyof typeof MetricKey];
+
+/**
+ * The production delivery metrics (chapter 18, DORA). They count deployments
+ * and incidents, and Bakery records neither yet, so every answer is unknown
+ * with the reason `no_deploy_evidence`, never zero, until a deployment fact
+ * exists. Real deployment evidence waits on hosted deploys (owner directive
+ * 2026-11-11).
+ */
+export const PRODUCTION_DELIVERY_METRICS: ReadonlySet<MetricKey> = new Set([
+  MetricKey.DeploymentFrequency,
+  MetricKey.ChangeLeadTime,
+  MetricKey.ChangeFailRate,
+  MetricKey.FailedDeploymentRecovery,
+  MetricKey.DeploymentReworkRate,
+]);
 
 export type MissingReason =
   | "no_opened_time"
   | "no_merged_time"
   | "no_closed_time"
   | "no_diff_totals"
+  | "no_line_count"
+  | "line_count_binary"
+  | "line_count_truncated"
   | "still_open";
 
 type Unit = "count" | "ratio" | "hours" | "lines";
@@ -66,7 +95,13 @@ type Definition = Readonly<{
   unit: Unit;
   cohort: string;
   /** The provider time a pull request is placed at for this metric. */
-  placedBy: "opened" | "merged" | "closed" | "cutoff" | "delivered";
+  placedBy:
+    | "opened"
+    | "merged"
+    | "closed"
+    | "cutoff"
+    | "delivered"
+    | "deployed";
 }>;
 
 /**
@@ -114,11 +149,47 @@ export const METRIC_DEFINITIONS: Readonly<Record<MetricKey, Definition>> =
         "Added plus deleted lines, once per distinct pull request merged in each period",
       placedBy: "merged",
     },
+    [MetricKey.CountedLines]: {
+      unit: "lines",
+      cohort:
+        "Added plus deleted lines of source, test, docs and config files, lock, vendored and generated files excluded, from a complete count of the merged head, once per distinct pull request merged in each period",
+      placedBy: "merged",
+    },
     [MetricKey.TaskLeadTime]: {
       unit: "hours",
       cohort:
         "Tasks delivered in each period: from the first admitted run to the first merged pull request, else the last completed run",
       placedBy: "delivered",
+    },
+    [MetricKey.DeploymentFrequency]: {
+      unit: "count",
+      cohort:
+        "Successful production deployments of each application in each period",
+      placedBy: "deployed",
+    },
+    [MetricKey.ChangeLeadTime]: {
+      unit: "hours",
+      cohort:
+        "Mean commit to production deployment time of changes deployed in each period",
+      placedBy: "deployed",
+    },
+    [MetricKey.ChangeFailRate]: {
+      unit: "ratio",
+      cohort:
+        "Production deployments in each period that caused a failure needing remediation, over all deployments",
+      placedBy: "deployed",
+    },
+    [MetricKey.FailedDeploymentRecovery]: {
+      unit: "hours",
+      cohort:
+        "Mean time from a failed production deployment to its recovery, for failures recovered in each period",
+      placedBy: "deployed",
+    },
+    [MetricKey.DeploymentReworkRate]: {
+      unit: "ratio",
+      cohort:
+        "Unplanned production deployments made to fix an incident, over all deployments in each period",
+      placedBy: "deployed",
     },
   });
 
@@ -194,6 +265,8 @@ export type PullRequestFact = Readonly<{
   closedAt: Date | null;
   additions: number | null;
   deletions: number | null;
+  /** The line count of the head under the current counter version; null when none. */
+  lineCount?: LineCount | null;
   /** Lifecycle transitions, oldest first, deduplicated by identity. */
   transitions: readonly { kind: string; at: Date }[];
 }>;
@@ -403,6 +476,24 @@ export function placements(
             },
         );
         break;
+      case MetricKey.CountedLines: {
+        if (!inWindow(fact.mergedAt, window)) break;
+        const count = fact.lineCount ?? null;
+        const missingReason: MissingReason | null = count === null
+          ? "no_line_count"
+          : count.coverage === LineCoverage.Truncated
+          ? "line_count_truncated"
+          : count.coverage === LineCoverage.Binary
+          ? "line_count_binary"
+          : null;
+        out.push({
+          fact,
+          countedAt: fact.mergedAt,
+          value: missingReason === null ? count!.added + count!.deleted : null,
+          missingReason,
+        });
+        break;
+      }
     }
   }
   return out;
@@ -412,13 +503,37 @@ export type SeriesBody = {
   points: {
     at: string;
     value: number | null;
-    unknownReason: "no_records" | "no_known_values" | null;
+    unknownReason:
+      | "no_records"
+      | "no_known_values"
+      | "no_deploy_evidence"
+      | null;
   }[];
   sampleCount: number;
   missingCount: number;
   missingReasons: { reason: MissingReason; count: number }[];
   completeness: "complete" | "partial" | "unknown";
 };
+
+/**
+ * A production delivery metric's answer while no deployment is recorded:
+ * every point unknown for the same named reason, nothing sampled, nothing
+ * missing, completeness unknown.
+ */
+export function noDeployEvidence(window: MetricWindow): SeriesBody {
+  return {
+    points: Array.from({ length: window.buckets }, (_, index) => ({
+      at: new Date(window.from.getTime() + index * window.bucketMs)
+        .toISOString(),
+      value: null,
+      unknownReason: "no_deploy_evidence" as const,
+    })),
+    sampleCount: 0,
+    missingCount: 0,
+    missingReasons: [],
+    completeness: "unknown",
+  };
+}
 
 /** Buckets placements into points; mean for hours and ratio, sum otherwise. */
 export function aggregate(
@@ -527,7 +642,21 @@ type FactRow = {
   closed_at: Date | null;
   additions: number | null;
   deletions: number | null;
+  head_sha: string;
   last_observed_at: Date | null;
+};
+
+type LineCountRow = {
+  pull_request_id: string;
+  head_sha: string;
+  counter_version: string;
+  coverage: LineCount["coverage"];
+  added: number;
+  deleted: number;
+  counted_files: number;
+  excluded_files: number;
+  binary_files: number;
+  categories: LineCount["categories"];
 };
 
 /**
@@ -545,7 +674,7 @@ async function readFacts(
   const found = await tx.query<FactRow>(
     `select id, repository_id, task_id, provider_number, url, status,
             opened_at, merged_at, closed_at, additions, deletions,
-            last_observed_at
+            head_sha, last_observed_at
        from bakery.pull_requests
       where organization_id = $1
         and ($2::uuid is null or repository_id = $2)
@@ -593,6 +722,32 @@ async function readFacts(
     list.push({ kind: row.kind, at: row.effective_at });
     byPr.set(row.pull_request_id, list);
   }
+  const counts = ids.length === 0
+    ? { rows: [] as LineCountRow[] }
+    : await tx.query<LineCountRow>(
+      `select pull_request_id, head_sha, counter_version, coverage, added,
+              deleted, counted_files, excluded_files, binary_files, categories
+         from bakery.pull_request_line_counts
+        where organization_id = $1 and pull_request_id = any($2::uuid[])
+          and counter_version = $3`,
+      [organizationId, ids, COUNTER_VERSION],
+    );
+  const headOf = new Map(found.rows.map((row) => [row.id, row.head_sha]));
+  const countOf = new Map<string, LineCount>();
+  for (const row of counts.rows) {
+    // Only the count of the head the pull request merged with is current.
+    if (headOf.get(row.pull_request_id) !== row.head_sha) continue;
+    countOf.set(row.pull_request_id, {
+      counterVersion: row.counter_version,
+      coverage: row.coverage,
+      added: Number(row.added),
+      deleted: Number(row.deleted),
+      countedFiles: Number(row.counted_files),
+      excludedFiles: Number(row.excluded_files),
+      binaryFiles: Number(row.binary_files),
+      categories: row.categories,
+    });
+  }
   const lastObserved = new Map<string, Date>();
   for (const row of found.rows) {
     if (row.last_observed_at === null) continue;
@@ -615,6 +770,7 @@ async function readFacts(
       closedAt: row.closed_at,
       additions: row.additions === null ? null : Number(row.additions),
       deletions: row.deletions === null ? null : Number(row.deletions),
+      lineCount: countOf.get(row.id) ?? null,
       transitions: byPr.get(row.id) ?? [],
     })),
   };
@@ -726,7 +882,9 @@ export async function getMetricSeries(
   );
   const anyRead = repositories.some((r) => r.lastSyncAt !== null) ||
     anyRecords;
-  const body = aggregate(input.metric, placed, window, anyRead);
+  const body = PRODUCTION_DELIVERY_METRICS.has(input.metric)
+    ? noDeployEvidence(window)
+    : aggregate(input.metric, placed, window, anyRead);
   const synced = repositories.map((r) => r.lastSyncAt).filter((v) => v !== null)
     .sort();
   const definition = METRIC_DEFINITIONS[input.metric];
@@ -755,6 +913,10 @@ async function placementsFor(
 ): Promise<
   { placed: Placement[]; anyRecords: boolean; tasks: TaskTimeline[] | null }
 > {
+  if (PRODUCTION_DELIVERY_METRICS.has(input.metric)) {
+    // No deployment records exist to place; nothing is read.
+    return { placed: [], anyRecords: false, tasks: null };
+  }
   if (input.metric === MetricKey.TaskLeadTime) {
     let tasks: TaskTimeline[];
     try {
@@ -884,6 +1046,7 @@ function sourceRow(p: Placement) {
       deliveredAt: task.deliveredAt?.toISOString() ?? null,
       deliveryPoint: task.deliveryPoint,
       waits: waitShares(task),
+      lineCount: null,
       ...counted,
     };
   }
@@ -903,6 +1066,7 @@ function sourceRow(p: Placement) {
     deliveredAt: null,
     deliveryPoint: null,
     waits: null,
+    lineCount: p.fact.lineCount ?? null,
     ...counted,
   };
 }

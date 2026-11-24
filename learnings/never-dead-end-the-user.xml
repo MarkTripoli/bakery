@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="never-dead-end-the-user" project="bakery">
+  <title>Offer the fix in place when a user is blocked by something they may fix</title>
+  <trigger>A form, composer or action is refused because a prerequisite is missing, and the user could supply it (access, a setting, a connection).</trigger>
+  <mistake>Refused with a message and sent the user elsewhere to fix it, losing their draft and intent.</mistake>
+  <rule>Offer the fix inline to people allowed to do it, say what it will do and the least-privilege default, keep the draft and place, confirm and offer undo, audit it; others see who can; one pattern wherever the block occurs.</rule>
+  <verification>
+    <requirement>A spec that refuses without permission, grants with it, and keeps the draft.</requirement>
+  </verification>
+</learning>

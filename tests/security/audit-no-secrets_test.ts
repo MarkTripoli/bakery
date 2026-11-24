@@ -37,6 +37,14 @@ Deno.test("no audit row produced by an auth mutation carries a secret", async ()
     assertEquals(issued.status, 201, await issued.clone().text());
     const runnerCredential =
       (await issued.json() as { credential: string }).credential;
+    // Another file's fixture may have left runner reads in the shared
+    // database; this test owns only the release it causes below.
+    const releasesBefore = new Set(
+      (await f.pgDatabase.query<{ id: string }>(
+        `select id from bakery.audit_events
+          where operation = 'backupRunner.settings'`,
+      )).rows.map((row) => row.id),
+    );
     const released = await f.app.fetch(
       new Request(`${authTestOrigin}/v1/backup-runner/settings`, {
         headers: {
@@ -50,7 +58,7 @@ Deno.test("no audit row produced by an auth mutation carries a secret", async ()
       offsiteSecretAccessKey: string | null;
     };
     assertEquals(releasedBody.offsiteSecretAccessKey, "audit-matrix-secret");
-    const runnerRows = (await f.pgDatabase.query<
+    const runnerRowsAfter = (await f.pgDatabase.query<
       {
         id: string;
         organizationId: string | null;
@@ -69,6 +77,9 @@ Deno.test("no audit row produced by an auth mutation carries a secret", async ()
               outcome, request_id as "requestId", trace_id as "traceId", details
          from bakery.audit_events where operation = 'backupRunner.settings'`,
     )).rows;
+    const runnerRows = runnerRowsAfter.filter((row) =>
+      !releasesBefore.has(row.id)
+    );
     assertEquals(runnerRows.length, 1, "one release is one audit row");
     rows.push(...runnerRows);
     assert(rows.length > 0);

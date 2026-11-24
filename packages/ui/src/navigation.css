@@ -59,6 +59,26 @@
   text-decoration: none;
 }
 
+/* A run of items that belong to someone else (a plugin's pages): a small muted
+   heading with room above it, or a divider on the compact rail. */
+.bakery-application-rail__group {
+  display: grid;
+  gap: var(--space-1);
+  padding-block: var(--space-3);
+}
+
+.bakery-application-rail__heading {
+  color: var(--color-fg-muted);
+  font: var(--type-meta);
+  padding-inline: var(--space-2-5);
+}
+
+.bakery-application-rail__divider {
+  border-block-start: var(--border-default) solid var(--color-border);
+  display: block;
+  margin-inline: var(--space-2-5);
+}
+
 .bakery-application-rail__link .ui-icon {
   flex: none;
 }
@@ -955,6 +975,17 @@ a.bakery-application-rail__link:hover {
   padding: var(--gutter);
 }
 
+/* The page stays mounted, but hidden, while Bakery is being updated (#59). The
+   rest of the time its wrapper has no box, so the page lays out exactly as if
+   nothing wrapped it (a child sized by a percentage of main still is). */
+.bakery-app-shell__main > [data-update-cover]:not([hidden]) {
+  display: contents;
+}
+/* A toast is a direct child of main, which has no gap below it. */
+.bakery-app-shell__main > .ui-toast {
+  margin-block-end: var(--space-4);
+}
+
 .bakery-app-shell[data-main-inset="flush"] .bakery-app-shell__main,
 .bakery-app-shell[data-main-inset="page"] .bakery-app-shell__main,
 .bakery-app-shell[data-main-inset="pageWide"] .bakery-app-shell__main {
@@ -1558,6 +1589,10 @@ a.bakery-application-rail__link:hover {
 .ui-settings-content[data-variant="wide"] {
   max-inline-size: none;
 }
+/* A page that is one form (Add a model): a narrow measure, so the fields do not run the whole page. */
+.ui-settings-content[data-variant="form"] {
+  max-inline-size: var(--layout-form);
+}
 /* Paper keeps 44px controls on these pages regardless of pointer type
    (auth.css:8 .btn/.text-link min-height:44px). Buttons take their width
    from the flex column they sit in (`.btn.full` in a column, `.two-actions>*`
@@ -1637,6 +1672,76 @@ a.bakery-application-rail__link:hover {
   gap: 28px; /* auth.css:9 .form-content */
   inline-size: 100%;
   max-inline-size: 520px; /* auth.css:10 .settings-content>.form-content */
+}
+/* The batch start page (#58): the form (to 620px), a 300px summary beside it, the buttons under the form. */
+.ui-form-with-summary {
+  display: grid;
+  gap: var(--space-6);
+  grid-template-columns: minmax(0, 1fr);
+  inline-size: 100%;
+  /* One column: no wider than the form is beside its summary, so the buttons end at the form's edge. */
+  max-inline-size: var(--layout-message);
+}
+.ui-form-with-summary__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-inline-size: 0;
+}
+.ui-form-with-summary__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+.ui-form-with-summary__actions {
+  border-block-start: var(--border-default) solid var(--color-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
+  padding-block-start: var(--space-6);
+}
+@media (min-width: 1280px) {
+  .ui-form-with-summary {
+    align-items: start;
+    column-gap: var(--space-8);
+    grid-template-areas:
+      "form aside"
+      "actions aside";
+    grid-template-columns: minmax(0, var(--layout-message))
+      var(--layout-form-summary);
+    /* The aside spans both rows: spare height goes under the buttons, not between them and the form. */
+    grid-template-rows: auto 1fr;
+    max-inline-size: none;
+  }
+  .ui-form-with-summary__form {
+    grid-area: form;
+  }
+  .ui-form-with-summary__aside {
+    grid-area: aside;
+  }
+  .ui-form-with-summary__actions {
+    grid-area: actions;
+  }
+  /* No buttons: the form is the whole left column, with no empty row under it. */
+  .ui-form-with-summary[data-actions="absent"] {
+    grid-template-areas: "form aside";
+    grid-template-rows: auto;
+  }
+}
+@media (max-width: 1279px) {
+  /* One column: the summary ends where the buttons' own rule begins, so its last row draws none. */
+  .ui-form-with-summary:not([data-actions="absent"]) .ui-form-with-summary__aside .ui-description-item:last-child {
+    border-block-end: var(--border-none);
+  }
+}
+@media (max-width: 743px) {
+  /* Stacked, the main step comes first: the buttons are written the way out first. */
+  .ui-form-with-summary__actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
 }
 @media (max-width: 743px) {
   .ui-settings-content {

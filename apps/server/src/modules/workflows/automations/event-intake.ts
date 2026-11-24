@@ -54,6 +54,9 @@ import { insertFiring } from "./firing.ts";
 import { occupancyOf } from "./overlap.ts";
 import { applyOverlap, type OverlapPolicy } from "./tick-plan.ts";
 import { type EventTrigger, parseTrigger } from "./trigger.ts";
+import { neutralEventOf } from "../../integrations/neutral-events.ts";
+import { GITHUB_PROVIDER } from "../../integrations/registry.ts";
+import { fireStartsFor, type StartFiringOutcome } from "../start-firing.ts";
 
 export const AUTOMATION_INTAKE_FUNCTION_ID = "bakery-automation-intake";
 
@@ -102,6 +105,8 @@ export type AutomationRouteOutcome =
     status: "completed" | "ignored" | "failed" | "deferred";
     code: string;
     firings: readonly FiringOutcome[];
+    /** What the workflow starts that answered the event did (#406). */
+    starts: readonly StartFiringOutcome[];
   }>;
 
 type ClaimedRoute = Readonly<{
@@ -131,7 +136,7 @@ async function claim(
     // A backup holds the installation: leave the route as it is, unclaimed and
     // with no attempt counted, so a long hold cannot use up its attempts and a
     // firing is not refused part way. The recovery sweep resends it after.
-    if (await isQuiesced(transaction)) {
+    if (await isQuiesced(transaction, "intake")) {
       return { kind: "skipped", reason: "quiesced" } as const;
     }
     const found = await transaction.query<{
@@ -224,11 +229,13 @@ const settled = (
   status: "completed" | "ignored" | "failed" | "deferred",
   code: string,
   firings: readonly FiringOutcome[],
+  starts: readonly StartFiringOutcome[] = [],
 ): Extract<AutomationRouteOutcome, { kind: "settled" }> => ({
   kind: "settled",
   status,
   code,
   firings,
+  starts,
 });
 
 async function settle(
@@ -423,11 +430,21 @@ async function work(
     if (!eventMatches(trigger, facts)) continue;
     firings.push(await admitFiring(transaction, route, candidate));
   }
-  const code = firings.length === 0
+  // The workflow starts the same delivery answers: the event in neutral terms,
+  // matched against the version in use of every enabled workflow. They run in
+  // this transaction, so a start's firing and the route settle together.
+  const neutral = neutralEventOf(GITHUB_PROVIDER, facts);
+  const starts = neutral === null ? [] : await fireStartsFor(
+    transaction,
+    route,
+    { id: repositoryId },
+    neutral,
+  );
+  const code = firings.length + starts.length === 0
     ? AutomationRouteCode.NoMatch
     : AutomationRouteCode.Fired;
   await settle(transaction, route, RouteStatus.Completed, code);
-  return settled(RouteStatus.Completed, code, firings);
+  return settled(RouteStatus.Completed, code, firings, starts);
 }
 
 /**

@@ -90,6 +90,8 @@ const run = {
   workspaceBaseSha: null,
   requestedBy: principalId,
   inngestRunId: null,
+  // Required since #921: the run's pinned environment.
+  environment: "live",
   status: "queued",
   budgetLimitUsd: "5.00",
   startedAt: null,

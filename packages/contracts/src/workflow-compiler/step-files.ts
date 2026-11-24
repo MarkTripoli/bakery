@@ -12,6 +12,7 @@
  */
 
 import { z } from "zod";
+import { WORKFLOW_ACTION_METADATA } from "../workflow-action-registry.ts";
 
 /**
  * Areas a step may read. `inputs`, `outputs` and `workspace` are the
@@ -93,6 +94,15 @@ export const DEFAULT_STEP_FILES: Readonly<{
   write: WORKFLOW_FILE_WRITE_AREAS,
 });
 
+/**
+ * What a files section that names `read` but not `write` may write: only
+ * the step's own outputs and workspace. An omitted write is least privilege,
+ * not the O45 defaults, so a read-only section never reaches the tree's write
+ * areas (#448).
+ */
+export const OMITTED_STEP_FILES_WRITE: readonly WorkflowFileWriteArea[] = Object
+  .freeze(["outputs", "workspace"] as const);
+
 /** The files a step runs with: its own section, or the defaults when it has none. */
 export function resolveStepFiles(
   files: WorkflowStepFiles | undefined,
@@ -120,8 +130,20 @@ export const SEALED_STEP_FILES: Readonly<{
  * the files section and the normalized node and plan never carry it.
  */
 export const WorkflowStepSealedSchema = z.boolean().describe(
-  "Seals the step (O53): true expands into the files section {read: [inputs], write: [outputs]}, so the agent sees only its pinned inputs and writes only its declared outputs, with no storage tools. It is authoring sugar: the compiled document and plan carry only the files section, so a sealed step and its explicit files section compile to the same plan. false or absent leaves the defaults. Sealed will be the default for evaluation runs once those land.",
+  "Seals the step (O53): true expands into the files section {read: [inputs], write: [outputs]}, so the agent sees only its pinned inputs and writes only its declared outputs, with no storage tools. It is authoring sugar: the compiled document and plan carry only the files section, so a sealed step and its explicit files section compile to the same plan. false leaves the defaults. Absent, a step that runs an evaluation action (evaluation.sample, evaluation.check, evaluation.score) with no files section of its own is sealed by default; any other step keeps the defaults. An explicit files section always wins over that default.",
 );
+
+/**
+ * Whether a step running this action is sealed when it authors neither
+ * `sealed` nor a files section (O53): the evaluation actions, which an
+ * evaluation run's steps run, so a sample or a score sees only its pinned
+ * inputs and writes only its declared outputs.
+ */
+export function sealedByDefault(action: string): boolean {
+  return Object.hasOwn(WORKFLOW_ACTION_METADATA, action) &&
+    WORKFLOW_ACTION_METADATA[action as keyof typeof WORKFLOW_ACTION_METADATA]
+        .effectPolicy === "evaluation_write";
+}
 
 /** Whether a step reads only its pinned inputs (O53). */
 export function readsOnlyInputs(files: WorkflowStepFiles | undefined): boolean {

@@ -7,12 +7,16 @@ import {
 import { releaseWorkflowAction } from "../../apps/server/src/modules/work/budget.ts";
 import { reconcileBudgetLedger } from "../../apps/server/src/modules/work/budget-recovery.ts";
 import { claimEffect } from "../../apps/server/src/modules/effects/claim.ts";
+import { applyRestoreFence } from "../../apps/server/src/modules/backups/restore-fence.ts";
 import {
   type PrepareDeps,
   prepareEffect,
   ReconciliationEvidenceSchema,
 } from "../../apps/server/src/modules/effects/index.ts";
-import { recordOutcome } from "../../apps/server/src/modules/effects/dispatch.ts";
+import {
+  dispatchEffect,
+  recordOutcome,
+} from "../../apps/server/src/modules/effects/dispatch.ts";
 import { MAX_RECONCILIATION_EVIDENCE_BYTES } from "../../apps/server/src/modules/effects/schema.ts";
 import {
   findEffectById,
@@ -35,6 +39,7 @@ import {
   persistReleaseEvidence,
   seededEffectRig,
   seedPlanApproval,
+  testBroker,
 } from "../helpers/external-effects.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
 
@@ -1140,6 +1145,55 @@ Deno.test("executor: prepare, claim, POST and confirm a comment", () =>
     assertEquals(d.github.posts(), 1);
   }));
 
+Deno.test("executor: an offline run's effect ends failed with environment_offline and never reaches the provider", () =>
+  withWorkerFixture(async (fixture) => {
+    const offline = await dispatchStage(fixture, "exec-offline");
+    // The environment is pinned at run creation; the fixture seeds a live run,
+    // so the test pins this one offline before the effect is claimed.
+    await offline.s.db.query(
+      `update bakery.workflow_runs set environment = 'offline'
+        where organization_id = $1 and id = $2`,
+      [offline.s.organizationId, offline.s.run.runId],
+    );
+    const blocked = await offline.run();
+    assertEquals(blocked.outcome, "failed");
+    assertEquals(blocked.dispatched, false);
+    assertEquals(blocked.effect.status, "failed");
+    assertEquals(blocked.effect.failureCode, "environment_offline");
+    assertEquals(offline.github.posts(), 0);
+    assertEquals(offline.github.comments.length, 0);
+    // A live run in the same organization is unchanged: it sends and confirms.
+    const live = await dispatchStage(fixture, "exec-live");
+    const sent = await live.run();
+    assertEquals(sent.outcome, "confirmed");
+    assertEquals(sent.dispatched, true);
+    assertEquals(live.github.posts(), 1);
+  }));
+
+Deno.test("dispatch of an offline-bound invocation never reaches the provider", () =>
+  withWorkerFixture(async (fixture) => {
+    // The claim refuses an offline run, so the dispatch port is the last guard:
+    // the claim pins the run's environment on the bound invocation, and an
+    // offline value there denies every provider request.
+    const s = await stage(fixture, "dispatch-offline");
+    const prepared = await s.prepare();
+    const claim = await s.claim(prepared.effectId);
+    assertEquals(claim.outcome, "claimed");
+    if (claim.outcome !== "claimed") return;
+    assertEquals(claim.bound.runEnvironment, "live");
+    const github = fakeGithub();
+    const { broker } = testBroker(s.rig, github);
+    const result = await dispatchEffect({
+      database: fixture.pgDatabase,
+      registry: effectRegistry,
+      snapshotsFor: () => s.rig.port,
+      providerRequests: broker,
+    }, { ...claim, bound: { ...claim.bound, runEnvironment: "offline" } });
+    assert(result.outcome.kind !== "confirmed", JSON.stringify(result.outcome));
+    assertEquals(github.posts(), 0);
+    assertEquals(github.comments.length, 0);
+  }));
+
 Deno.test("executor: a 429 returns the effect to prepared, then a due retry is generation 2", () =>
   withWorkerFixture(async (fixture) => {
     const d = await dispatchStage(fixture, "exec-429");
@@ -1492,4 +1546,100 @@ Deno.test("a prepared effect on an expired reservation does not pin it", () =>
       "released",
       "released",
     ]);
+  }));
+
+// #64 slice E1: a restore replaces the ledger with an older copy of it. An effect
+// that was only prepared (or submitted) at the backup may have been sent since,
+// so after the restore fence it is uncertain: reconciled by reading the provider,
+// never sent.
+const restoreFence = (fixture: WorkerFixture) =>
+  withPgTransaction(
+    fixture.pgDatabase,
+    (transaction) =>
+      applyRestoreFence(transaction, {
+        backupName: "20261121T030000Z-restore-test",
+        cutoffAt: null,
+      }),
+  );
+
+Deno.test("restore: a prepared effect the provider already received is confirmed by its marker and never sent again", () =>
+  withWorkerFixture(async (fixture) => {
+    const d = await dispatchStage(fixture, "restore-prepared-sent");
+    // At the backup the ledger said only `prepared`; since then it was sent.
+    d.github.comments.push({
+      id: 9100,
+      body: `hello\n\n<!-- bakery-effect:${d.effectId} -->`,
+      user: { id: 4242, type: "Bot" },
+    });
+    const fenced = await restoreFence(fixture);
+    assertEquals(fenced.effectsHeld >= 1, true);
+    const held = await fixture.pgDatabase.query<{
+      status: string;
+      generation: number;
+      evidence: { source: string; reason: string; previousStatus: string };
+    }>(
+      `select status, dispatch_generation as generation,
+              reconciliation_evidence as evidence
+         from bakery.external_effects where id = $1`,
+      [d.effectId],
+    );
+    assertEquals(held.rows[0].status, "uncertain");
+    assertEquals(held.rows[0].generation, 1);
+    assertEquals(held.rows[0].evidence.source, "restore");
+    assertEquals(held.rows[0].evidence.previousStatus, "prepared");
+
+    const result = await d.run();
+    assertEquals(result.outcome, "confirmed");
+    assertEquals(result.dispatched, false);
+    assertEquals(result.effect.remoteId, "9100");
+    assertEquals(d.github.posts(), 0, "nothing was sent after the restore");
+    assertEquals(d.github.lists(), 1, "it only read the provider");
+  }));
+
+Deno.test("restore: a prepared effect the provider never received stays blocked, not sent", () =>
+  withWorkerFixture(async (fixture) => {
+    const d = await dispatchStage(fixture, "restore-prepared-unsent");
+    await restoreFence(fixture);
+    for (let round = 0; round < 3; round++) {
+      const result = await d.run();
+      assertEquals(result.outcome, "uncertain");
+      assertEquals(result.dispatched, false);
+    }
+    // Reconciliation found nothing, and nothing authorizes a send: it waits for
+    // an administrator, however often it is run.
+    assertEquals(d.github.posts(), 0);
+    assertEquals(
+      (await fixture.pgDatabase.query<{ status: string }>(
+        `select status from bakery.external_effects where id = $1`,
+        [d.effectId],
+      )).rows[0].status,
+      "uncertain",
+    );
+  }));
+
+Deno.test("restore: a submitted effect is held the same way and its lease no longer lets it run", () =>
+  withWorkerFixture(async (fixture) => {
+    const d = await dispatchStage(fixture, "restore-submitted");
+    const claim = await d.s.claim(d.effectId);
+    assertEquals(claim.outcome, "claimed");
+    const before = await fixture.pgDatabase.query<{ generation: number }>(
+      `select dispatch_generation as generation from bakery.external_effects
+        where id = $1`,
+      [d.effectId],
+    );
+    await restoreFence(fixture);
+    const after = await fixture.pgDatabase.query<
+      { status: string; generation: number; lease: Date | null }
+    >(
+      `select status, dispatch_generation as generation,
+              lease_expires_at as lease
+         from bakery.external_effects where id = $1`,
+      [d.effectId],
+    );
+    assertEquals(after.rows[0].status, "uncertain");
+    assertEquals(after.rows[0].generation, before.rows[0].generation + 1);
+    assertEquals(after.rows[0].lease, null);
+    const result = await d.run();
+    assertEquals(result.dispatched, false);
+    assertEquals(d.github.posts(), 0);
   }));

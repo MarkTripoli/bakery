@@ -157,3 +157,39 @@ Deno.test("a rewrite keeps the comment id, and a first note posts", async () => 
   });
   assertEquals(first.sent, ["create"]);
 });
+
+Deno.test("a lost rewrite is settled by reading the comment: same text confirms, other text and a truncated list do not, a full read without it confirms it gone", async () => {
+  const reconcile = (comments: { id: number; body: string | null }[][]) => {
+    const calls: string[] = [];
+    return (update as unknown as {
+      reconcile(ctx: unknown): Promise<unknown>;
+    }).reconcile({
+      input,
+      provider: {
+        request(ref: { id: string }, query: { page?: number }) {
+          calls.push(ref.id);
+          const page = comments[(query.page ?? 1) - 1] ?? [];
+          return Promise.resolve(page.map((c) => ({ ...c, user: null })));
+        },
+      },
+    });
+  };
+  assertEquals(await reconcile([[{ id: 1001, body: "Task: x" }]]), {
+    status: "confirmed",
+    result: { remoteId: "1001" },
+  });
+  assertEquals(await reconcile([[{ id: 1001, body: "Task: old" }]]), {
+    status: "uncertain",
+  });
+  assertEquals(await reconcile([[{ id: 999, body: "other" }]]), {
+    status: "confirmed",
+    result: { missing: true },
+  });
+  const full = Array.from({ length: 100 }, (_, i) => ({
+    id: i + 1_000_000,
+    body: null,
+  }));
+  assertEquals(await reconcile(Array.from({ length: 20 }, () => full)), {
+    status: "uncertain",
+  });
+});

@@ -295,6 +295,142 @@ Deno.test("admission lists every required result; duplicates add nothing; the ga
     assertEquals(read.measuredCount, 4);
   }));
 
+Deno.test("a batch and its results carry the names a list shows, and a cancel names who stopped it", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const agentId = crypto.randomUUID();
+    const workflowId = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      "insert into bakery.agent_definitions (id, organization_id, slug, name) values ($1, $2, 'eval-agent', 'Review agent')",
+      [agentId, fixture.organizationId],
+    );
+    await fixture.pgDatabase.query(
+      "insert into bakery.workflow_definitions (id, organization_id, slug, name) values ($1, $2, 'eval-flow', 'Release flow')",
+      [workflowId, fixture.organizationId],
+    );
+    const unresolved = crypto.randomUUID();
+    const batch = await ok(
+      await call(fixture, "POST", "/v1/evaluation-batches", {
+        body: {
+          datasetId: w.dataset.id,
+          candidate: { kind: "agentVersion", id: agentId, version: 2 },
+          baseline: { kind: "workflowVersion", id: workflowId, version: 1 },
+          scorerIds: [w.schema.id],
+        },
+      }),
+      201,
+    );
+    assertEquals(batch.datasetName, "smoke");
+    assertEquals(batch.candidateDefinition, {
+      definitionId: agentId,
+      name: "Review agent",
+    });
+    assertEquals(batch.baselineDefinition, {
+      definitionId: workflowId,
+      name: "Release flow",
+    });
+    assertEquals(batch.canceledBy, null, "not canceled yet");
+    // The opaque pin is untouched.
+    assertEquals(batch.candidate, {
+      kind: "agentVersion",
+      id: agentId,
+      version: 2,
+    });
+
+    // A pin that names nothing this organization has shows no name, not an error.
+    const orphan = await ok(
+      await call(fixture, "POST", "/v1/evaluation-batches", {
+        body: {
+          datasetId: w.dataset.id,
+          candidate: { kind: "agentVersion", id: unresolved, version: 1 },
+          scorerIds: [w.schema.id],
+        },
+      }),
+      201,
+    );
+    assertEquals(orphan.candidateDefinition, {
+      definitionId: unresolved,
+      name: null,
+    });
+    assertEquals(orphan.baselineDefinition, null, "no baseline pinned");
+
+    // The list answers the same names, so a page needs no second read.
+    const page = await ok(await call(fixture, "GET", "/v1/evaluation-batches"));
+    const listed = (page.items as Json[]).find((item) => item.id === batch.id)!;
+    assertEquals(listed.datasetName, "smoke");
+    assertEquals(
+      (listed.candidateDefinition as Json).name,
+      "Review agent",
+    );
+
+    // Results name their case, in case order.
+    const rows = await results(fixture, batch.id);
+    const nameOf = new Map(w.cases.map((c) => [c.id, c.name]));
+    assert(rows.length > 0);
+    for (const row of rows) {
+      assertEquals(
+        row.caseName,
+        nameOf.get(row.caseId),
+        "the case it measured",
+      );
+    }
+    assertEquals(
+      new Set(rows.map((row) => row.caseName)),
+      new Set(["first", "second"]),
+    );
+
+    // A cancel records the person who stopped it.
+    const canceled = await ok(
+      await call(
+        fixture,
+        "POST",
+        "/v1/evaluation-batches/" + batch.id + "/cancel",
+        { body: {}, ifMatch: Number(batch.version) },
+      ),
+    );
+    assertEquals(canceled.canceledBy, fixture.principalId);
+    assert(canceled.canceledAt !== null);
+  }));
+
+Deno.test("a pin naming another organization's definition shows no name", () =>
+  withWorkerFixture(async (fixture) => {
+    const w = await world(fixture);
+    const foreign = await createWorkerScope(
+      fixture,
+      "eval-75-foreign",
+      fixture,
+    );
+    const foreignAgent = crypto.randomUUID();
+    try {
+      await fixture.pgDatabase.query(
+        "insert into bakery.agent_definitions (id, organization_id, slug, name) values ($1, $2, 'foreign-agent', 'Foreign secret agent')",
+        [foreignAgent, foreign.organizationId],
+      );
+      const batch = await ok(
+        await call(fixture, "POST", "/v1/evaluation-batches", {
+          body: {
+            datasetId: w.dataset.id,
+            candidate: { kind: "agentVersion", id: foreignAgent, version: 1 },
+            scorerIds: [w.schema.id],
+          },
+        }),
+        201,
+      );
+      // The name lookup is scoped to the caller's organization, so another
+      // organization's definition resolves to no name and leaks nothing.
+      assertEquals(batch.candidateDefinition, {
+        definitionId: foreignAgent,
+        name: null,
+      });
+    } finally {
+      await fixture.pgDatabase.query(
+        "delete from bakery.agent_definitions where id = $1",
+        [foreignAgent],
+      );
+      await closeWorkerOrganization(fixture.pgDatabase, foreign.organizationId);
+    }
+  }));
+
 Deno.test("cancel takes If-Match and keeps completed results; compare refuses incompatible pairs; another organization cannot read", () =>
   withWorkerFixture(async (fixture) => {
     const w = await world(fixture);
@@ -464,9 +600,45 @@ Deno.test("an evaluation.score result settles its judge receipt against the rese
   withWorkerFixture(async (fixture) => {
     const db = fixture.pgDatabase;
     const w = await world(fixture);
-    const batch = await admit(fixture, w, [w.rubric]);
+    // A $0.10 budget for the model scorer: the batch reads its spend from the ledger.
+    const batch = await ok(
+      await call(fixture, "POST", "/v1/evaluation-batches", {
+        body: {
+          datasetId: w.dataset.id,
+          candidate: {
+            kind: "agentVersion",
+            id: crypto.randomUUID(),
+            version: 2,
+          },
+          scorerIds: [w.rubric.id],
+          budgetLimitUsd: "0.10",
+        },
+      }),
+      201,
+    );
     const rows = await results(fixture, batch.id);
     assertEquals(rows.length, 2);
+    assertEquals(batch.budget, {
+      limitUsd: "0.100000",
+      settledUsd: "0.000000",
+      estimatedUsd: "0.000000",
+      unknownCount: 0,
+      status: "within",
+      blocksNewAttempts: false,
+      oldestUnknownAt: null,
+    });
+    const batchBudget = async () =>
+      (await ok(
+        await call(fixture, "GET", "/v1/evaluation-batches/" + batch.id),
+      )).budget;
+    const attemptUsage = async (resultId: unknown) =>
+      ((await ok(
+        await call(
+          fixture,
+          "GET",
+          "/v1/evaluation-results/" + resultId + "/attempts",
+        ),
+      )).items as Json[]).map((a) => a.usage);
     await seedProviderPricingSnapshot(db);
     const capabilities = [
       ...new Set([
@@ -600,6 +772,19 @@ Deno.test("an evaluation.score result settles its judge receipt against the rese
     ]);
     const measured = await stored(rows[0].id);
     assertEquals([measured?.state, measured?.score], ["failed", 0.25]);
+    // The attempt is linked to the ledger row, and the batch's budget reads it.
+    assertEquals(await attemptUsage(rows[0].id), [
+      { measurement: "reported", costUsd: "0.030000" },
+    ]);
+    assertEquals(await batchBudget(), {
+      limitUsd: "0.100000",
+      settledUsd: "0.030000",
+      estimatedUsd: "0.000000",
+      unknownCount: 0,
+      status: "within",
+      blocksNewAttempts: false,
+      oldestUnknownAt: null,
+    });
 
     // (b) A timed-out call: unknown usage under the attempt-named call id,
     // no cost. The hold stays reserved (money may be owed, never free) and
@@ -637,4 +822,23 @@ Deno.test("an evaluation.score result settles its judge receipt against the rese
     const unmeasured = await stored(rows[1].id);
     assertEquals([unmeasured?.state, unmeasured?.score], ["unscored", null]);
     assert(String(unmeasured?.reason).includes("did not answer"));
+    // The timeout's cost is unknown, not zero: settled is unchanged and the
+    // batch can no longer say it stayed within its limit.
+    assertEquals(await attemptUsage(rows[1].id), [
+      { measurement: "unknown", costUsd: null },
+    ]);
+    const unsettled = await batchBudget() as Json;
+    assert(
+      typeof unsettled.oldestUnknownAt === "string",
+      "it says since when the cost has been unknown",
+    );
+    assertEquals({ ...unsettled, oldestUnknownAt: null }, {
+      limitUsd: "0.100000",
+      settledUsd: "0.030000",
+      estimatedUsd: "0.000000",
+      unknownCount: 1,
+      status: "unsettled",
+      blocksNewAttempts: true,
+      oldestUnknownAt: null,
+    });
   }));

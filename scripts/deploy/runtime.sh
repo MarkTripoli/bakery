@@ -158,6 +158,40 @@ JS
     cd "$root/releases/$sha/apps/server"
     runuser --preserve-environment -u bakery-migrate -- deno run --no-prompt --allow-env --allow-net --allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations,src/modules/knowledge/migrations,src/modules/catalog/migrations src/tasks.ts migrate
     ;;
+  inngest-stop)
+    # restore.sh (issue #64 slice E2): Inngest must not touch Postgres or Redis
+    # while they are replaced. It stays stopped after the restore.
+    "${compose[@]}" stop inngest
+    ;;
+  restore-fence)
+    # restore.sh (issue #64 slice E2): the privileged fence task, run as the
+    # database owner on the restored stores before any service starts. Like
+    # migrate: no network beyond the database, no write access.
+    sha=${1:?sha required}
+    valid_sha "$sha" || exit 64
+    shift
+    set -a
+    source /etc/bakery/owner.env
+    set +a
+    export HOME=/home/bakery-migrate DENO_DIR=/home/bakery-migrate/.cache/deno
+    cd "$root/releases/$sha/apps/server"
+    runuser --preserve-environment -u bakery-migrate -- deno run --no-prompt --allow-env --allow-net --allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations,src/modules/knowledge/migrations,src/modules/catalog/migrations src/tasks.ts restore-fence "$@"
+    ;;
+  update)
+    # The launcher (release.mjs, issue #59): hold the installation around an
+    # update, resume it, or count what is waiting. Run with the release's own
+    # code as the database owner, like migrate. A refused pause exits 74 (running
+    # work did not finish), 75 (a restore holds Bakery) or 76 (a backup holds it).
+    sha=${1:?sha required}
+    valid_sha "$sha" || exit 64
+    shift
+    set -a
+    source /etc/bakery/owner.env
+    set +a
+    export HOME=/home/bakery-migrate DENO_DIR=/home/bakery-migrate/.cache/deno
+    cd "$root/releases/$sha/apps/server"
+    runuser --preserve-environment -u bakery-migrate -- deno run --no-prompt --allow-env --allow-net --allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/artifact-kinds/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations,src/modules/mcp/migrations,src/modules/knowledge/migrations,src/modules/catalog/migrations src/tasks.ts update "$@"
+    ;;
   background)
     sha=${1:?sha required}
     stop_worker
@@ -238,7 +272,7 @@ JS
     export HOME=/root DENO_DIR=/var/lib/bakery/backup-runner/deno
     install -d -m 0700 /var/lib/bakery/backup-runner
     cd "$root/background/apps/server"
-    exec deno run --no-prompt --allow-env --allow-net --allow-read=/var/lib/bakery/backups --allow-write=/var/lib/bakery/backups --allow-sys=osRelease "--allow-run=$root/deploy/backup.sh" ../../scripts/deploy/backup-runner.ts
+    exec deno run --no-prompt --allow-env --allow-net --allow-read=/var/lib/bakery/backups,/var/lib/bakery/wal-spool,/etc/bakery/backup.env --allow-write=/var/lib/bakery/backups,/var/lib/bakery/wal-spool --allow-sys=osRelease "--allow-run=$root/deploy/backup.sh,age" ../../scripts/deploy/backup-runner.ts
     ;;
   *) echo UNKNOWN_DEPLOY_ACTION >&2; exit 64 ;;
 esac

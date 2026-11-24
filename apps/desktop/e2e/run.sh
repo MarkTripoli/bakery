@@ -21,7 +21,9 @@ docker run --rm -e CARGO_TARGET_DIR=/cache/target-desktop -e HOST_UID="$(id -u)"
     set -uo pipefail
     cargo build -p bakery-desktop --offline 2>&1 | tail -1
     case "'"$MODE"'" in
-      stills) bash e2e/capture.sh /out && python3 e2e/check_stills.py /out ;;
+      stills) bash e2e/capture.sh /out \
+        && APPEND=1 STATES=choose-server-signed-in-no-answer SIZES=400x380 bash e2e/capture.sh /out \
+        && python3 e2e/check_stills.py /out ;;
       policy) bash e2e/policy.sh /out ;;
     esac
     status=$?

@@ -4,8 +4,11 @@
 //! out. It opens no browser, talks to no server and touches no secret store, so every transition is
 //! tested here without a window system. The states and their wording are design-ux's (#77 slice 3).
 
+use crate::address::{is_default_server, parse_server_address, AddressProblem, THIS_COMPUTER};
+use crate::compat::Kind;
+use crate::csp::store_key;
 use crate::wire::ExchangeFailure;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Why a sign-in did not finish, each with its own window.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -23,9 +26,82 @@ pub enum Refusal {
     CouldNotFinish,
     /// The computer has no unlocked keyring to keep the sign-in in.
     NoKeyring,
-    /// The server could not be reached to start a sign-in. Not in the design's table: it is the
-    /// "could not reach the server" window, kept until slice 4 owns server problems.
-    CannotStart,
+    /// The same, and the unused sign-in the server issued could not be ended either: the person is
+    /// told it may still be listed.
+    NoKeyringStillListed,
+}
+
+/// Which of the chooser's two options is selected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ServerChoice {
+    ThisComputer,
+    Another,
+}
+
+/// Why the chooser stays open, shown under the address box.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChooserProblem {
+    Empty,
+    NotWebAddress,
+    HasCredentials,
+    PlainHttp,
+    /// The address did not answer.
+    NoAnswer,
+    /// It answered, but is not a Bakery server.
+    NotBakery,
+}
+
+impl From<AddressProblem> for ChooserProblem {
+    fn from(problem: AddressProblem) -> Self {
+        match problem {
+            AddressProblem::Empty => ChooserProblem::Empty,
+            AddressProblem::NotWebAddress => ChooserProblem::NotWebAddress,
+            AddressProblem::HasCredentials => ChooserProblem::HasCredentials,
+            AddressProblem::PlainHttp => ChooserProblem::PlainHttp,
+        }
+    }
+}
+
+/// Whether the server on this computer answered when the chooser opened.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Availability {
+    Unknown,
+    Answering,
+    NotAnswering,
+}
+
+/// What the chooser shows. The typed text is the page's own until Continue, so this holds only what
+/// the app decided: where it starts, what it knows about this computer, and why it stays open.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Chooser {
+    pub selected: ServerChoice,
+    /// The other address, filled in from the last one used or from what was typed.
+    pub typed: String,
+    pub problem: Option<ChooserProblem>,
+    pub this_computer: Availability,
+    /// Whether the person is signed in to the current server (the sentence under the heading).
+    pub signed_in: bool,
+}
+
+/// Why a server and this app may not understand each other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Mismatch {
+    ServerOlder,
+    AppOlder,
+}
+
+/// A line carried over the sign-in panel or the signed-in window until the person's next action.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Notice {
+    /// "Bakery now uses {address}."
+    Switched { address: String },
+    /// "Sign in to open the page from your link."
+    SignInForLink,
 }
 
 /// What the person sees.
@@ -34,8 +110,28 @@ pub enum Refusal {
 pub enum Window {
     /// First open.
     SignIn,
-    /// The same panel, under the notice that the person signed out.
-    SignedOut,
+    /// The same panel, under the notice that the person signed out, and whether the server ended
+    /// the sign-in too.
+    SignedOut {
+        ended_on_server: bool,
+    },
+    /// Choosing which server the app shows.
+    Choose {
+        chooser: Chooser,
+    },
+    /// Asking an address whether it is a Bakery server.
+    Checking {
+        address: String,
+    },
+    /// The server did not answer; the app asks again by itself.
+    NotAnswering,
+    /// The server answered, and its level and the app's do not match.
+    Incompatible {
+        mismatch: Mismatch,
+        address: String,
+    },
+    /// Ending the sign-in on the server and on this computer.
+    SigningOut,
     Waiting,
     /// The browser could not be opened: the address is shown to copy.
     BrowserDidNotOpen,
@@ -76,7 +172,37 @@ enum Phase {
     },
     /// The credential is issued and is being saved on this computer.
     Storing,
+    /// The keyring refused it, and the app is ending the unused sign-in on the server.
+    Revoking,
     SignedIn,
+    /// The chooser is open; `back` is the state to return to, unchanged.
+    Choosing {
+        back: Box<Session>,
+        chooser: Chooser,
+    },
+    /// An address is being asked whether it is a Bakery server.
+    Checking {
+        back: Box<Session>,
+        chooser: Chooser,
+        address: String,
+        choice: ServerChoice,
+    },
+    /// A server whose level does not match the app's.
+    Incompatible {
+        back: Box<Session>,
+        chooser: Chooser,
+        address: String,
+        mismatch: Mismatch,
+    },
+    /// The server at `target` did not answer; `back` is the window to return to when it does.
+    NotAnswering {
+        back: Box<Session>,
+        target: String,
+        /// Set when the chooser's "this computer" was picked and did not answer.
+        chooser: Option<Chooser>,
+    },
+    /// The sign-in is being ended on the server and on this computer.
+    SigningOut,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,6 +212,12 @@ pub struct Session {
     /// True once a sign-in that was working has ended, so every window shows inside the dialog and
     /// backing out returns to it.
     resuming: bool,
+    /// The server the app shows now, as it keeps it.
+    server: String,
+    /// A line over the sign-in panel or the signed-in window until the person's next action.
+    notice: Option<Notice>,
+    /// The last address that was not this computer, which the chooser offers again.
+    last_other: String,
 }
 
 impl Session {
@@ -129,13 +261,55 @@ impl Session {
                 phase: Phase::SignedIn,
                 window: Window::App,
                 resuming: false,
+                server: String::new(),
+                notice: None,
+                last_other: String::new(),
             }
         } else {
             Session {
                 phase: Phase::SignedOut,
                 window: Window::SignIn,
                 resuming: false,
+                server: String::new(),
+                notice: None,
+                last_other: String::new(),
             }
+        }
+    }
+
+    /// The same session for a named server, which the chooser compares a new choice with.
+    pub fn on_server(mut self, server: &str) -> Session {
+        self.server = server.to_string();
+        self
+    }
+
+    /// The last other address the person used, offered again in the chooser.
+    pub fn with_last_other(mut self, address: &str) -> Session {
+        self.last_other = address.to_string();
+        self
+    }
+
+    /// Carries a line over the opening window, such as the notice that the app now uses a server.
+    pub fn with_notice(mut self, notice: Notice) -> Session {
+        self.notice = Some(notice);
+        self
+    }
+
+    /// What the app does as it opens: asks the server whether it answers.
+    pub fn opened(&self) -> Vec<Effect> {
+        vec![Effect::CheckCurrent]
+    }
+
+    pub fn notice(&self) -> Option<&Notice> {
+        self.notice.as_ref()
+    }
+
+    /// The address the window is about: the server the app shows, or the one that did not answer.
+    pub fn shown_server(&self) -> &str {
+        match &self.phase {
+            Phase::NotAnswering { target, .. } => target,
+            Phase::Checking { address, .. } | Phase::Incompatible { address, .. } => address,
+            _ => &self.server,
         }
     }
 
@@ -144,6 +318,9 @@ impl Session {
             phase: Phase::SignedOut,
             window,
             resuming: self.resuming,
+            server: self.server.clone(),
+            notice: None,
+            last_other: self.last_other.clone(),
         }
     }
 
@@ -152,6 +329,9 @@ impl Session {
             phase,
             window,
             resuming: self.resuming,
+            server: self.server.clone(),
+            notice: None,
+            last_other: self.last_other.clone(),
         }
     }
 
@@ -167,6 +347,9 @@ impl Session {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
+    /// A `bakery://open` link arrived that names a page. Signed out, the sign-in panel says why it is
+    /// waiting; in every other state nothing changes on screen and the link is kept by the app.
+    OpenLinkArrived,
     /// "Sign in with your browser".
     SignInPressed,
     RequestStarted {
@@ -202,8 +385,51 @@ pub enum Event {
     CredentialRejected,
     /// The request's time limit passed while waiting.
     TimedOut,
-    /// The person chose to sign out.
-    SignOut,
+    /// "Sign out" in the signed-in window.
+    SignOutPressed,
+    /// The server and this computer have both been asked to end the sign-in.
+    SignedOutRemote {
+        ended_on_server: bool,
+    },
+    /// The keyring refused the sign-in and the server was asked to end it.
+    UnstoredRevoked {
+        ended_on_server: bool,
+    },
+    /// "Use a different server".
+    UseDifferentServer,
+    /// The server on this computer answered, or did not, when the chooser opened.
+    ThisComputerChecked {
+        answering: bool,
+    },
+    /// "Continue" in the chooser, with the option chosen and what was typed.
+    ChooserContinue {
+        choice: ServerChoice,
+        typed: String,
+    },
+    /// What an address said when asked.
+    ServerChecked {
+        address: String,
+        answer: ServerAnswer,
+    },
+    /// "Choose a different server" on the mismatch panel: back to the chooser, what was typed kept.
+    ChooseDifferent,
+    /// "Use it anyway" on the mismatch panel.
+    UseItAnyway,
+    /// The server the app shows answered, or did not, when asked.
+    CurrentChecked {
+        answered: bool,
+    },
+    /// "Try again" where the server is not answering.
+    RetryNow,
+    /// Fifteen quiet seconds passed where the server is not answering.
+    RetryTick,
+}
+
+/// What an address answered when asked whether it is a Bakery server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerAnswer {
+    NoAnswer,
+    Answered(Kind),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -219,10 +445,57 @@ pub enum Effect {
     },
     StoreCredential,
     ClearCredential,
+    /// Ask the server whether it is answering, and remember when.
+    CheckCurrent,
+    /// Ask this computer's own server whether it answers, for the chooser's first option.
+    CheckThisComputer,
+    /// Ask an address whether it is a Bakery server.
+    CheckServer {
+        address: String,
+    },
+    /// Keep the address, then restart the app on it, in the same place and under the notice.
+    SwitchServer {
+        address: String,
+    },
+    /// End the sign-in on the server, then remove it from this computer.
+    SignOutRemote,
+    /// End a sign-in the keyring refused to keep, then drop it.
+    RevokeUnstored,
+    /// Ask again after fifteen quiet seconds.
+    ScheduleRetry,
 }
 
 fn refusal(refusal: Refusal) -> Window {
     Window::Refusal { refusal }
+}
+
+/// Back to a state the person came from, unchanged. Where that state is the "not answering"
+/// window, the quiet retry starts again, because the timer that ran before was left behind.
+fn restore(back: Session) -> (Session, Vec<Effect>) {
+    let effects = if matches!(back.phase, Phase::NotAnswering { .. }) {
+        vec![Effect::ScheduleRetry]
+    } else {
+        vec![]
+    };
+    (back, effects)
+}
+
+fn incompatible(
+    session: &Session,
+    back: Box<Session>,
+    chooser: Chooser,
+    address: String,
+    mismatch: Mismatch,
+) -> Session {
+    session.with(
+        Phase::Incompatible {
+            back,
+            chooser,
+            address: address.clone(),
+            mismatch,
+        },
+        Window::Incompatible { mismatch, address },
+    )
 }
 
 /// One event. An event that makes no sense in the current state changes nothing and does nothing.
@@ -230,6 +503,9 @@ pub fn step(session: Session, event: Event) -> (Session, Vec<Effect>) {
     use Event as E;
     use Phase as P;
     match (session.phase.clone(), event) {
+        (P::SignedOut, E::OpenLinkArrived) if session.window == Window::SignIn => {
+            (session.with_notice(Notice::SignInForLink), vec![])
+        }
         (P::SignedOut, E::SignInPressed) => (
             session.with(P::Starting, session.window.clone()),
             vec![Effect::StartRequest],
@@ -255,7 +531,22 @@ pub fn step(session: Session, event: Event) -> (Session, Vec<Effect>) {
                 vec![Effect::OpenBrowser { url }],
             )
         }
-        (P::Starting, E::RequestFailed) => (session.out(refusal(Refusal::CannotStart)), vec![]),
+        (P::Starting, E::RequestFailed) => {
+            // The window the person pressed Sign in on is where they return to when it answers.
+            let back = Box::new(session.out(session.window.clone()));
+            let target = session.server.clone();
+            (
+                session.with(
+                    P::NotAnswering {
+                        back,
+                        target,
+                        chooser: None,
+                    },
+                    Window::NotAnswering,
+                ),
+                vec![Effect::ScheduleRetry],
+            )
+        }
         (P::Waiting(a), E::BrowserOpened) => (session.with(P::Waiting(a), Window::Waiting), vec![]),
         (P::Waiting(a), E::BrowserOpenFailed) => (
             session.with(P::Waiting(a), Window::BrowserDidNotOpen),
@@ -334,28 +625,308 @@ pub fn step(session: Session, event: Event) -> (Session, Vec<Effect>) {
                 phase: P::SignedIn,
                 window: Window::App,
                 resuming: false,
+                server: session.server.clone(),
+                notice: None,
+                last_other: session.last_other.clone(),
             },
             vec![],
         ),
         // Bakery never keeps the sign-in in a plain file: with nowhere to save it, it is dropped and
         // the person signs in again once the keyring works.
-        (P::Storing, E::StoreFailed) => (session.out(refusal(Refusal::NoKeyring)), vec![]),
+        (P::Storing, E::StoreFailed) => (
+            session.with(P::Revoking, Window::Finishing),
+            vec![Effect::RevokeUnstored],
+        ),
+        (P::Revoking, E::UnstoredRevoked { ended_on_server }) => (
+            session.out(refusal(if ended_on_server {
+                Refusal::NoKeyring
+            } else {
+                Refusal::NoKeyringStillListed
+            })),
+            vec![],
+        ),
         (P::SignedIn, E::CredentialRejected) => (
             Session {
                 phase: P::SignedOut,
                 window: Window::SignInAgain,
                 resuming: true,
+                server: session.server.clone(),
+                notice: None,
+                last_other: session.last_other.clone(),
             },
             vec![Effect::ClearCredential],
         ),
-        (_, E::SignOut) => (
+        // One action, no question: the sign-in ends on the server and is removed from this computer.
+        (P::SignedIn, E::SignOutPressed) => (
+            session.with(P::SigningOut, Window::SigningOut),
+            vec![Effect::SignOutRemote],
+        ),
+        (P::SigningOut, E::SignedOutRemote { ended_on_server }) => (
             Session {
                 phase: P::SignedOut,
-                window: Window::SignedOut,
+                window: Window::SignedOut { ended_on_server },
                 resuming: false,
+                server: session.server.clone(),
+                notice: None,
+                last_other: session.last_other.clone(),
             },
-            vec![Effect::ClearCredential],
+            vec![],
         ),
+
+        // ---- choosing a server ------------------------------------------------------------
+        (P::SignedOut | P::SignedIn | P::NotAnswering { .. }, E::UseDifferentServer) => {
+            let chooser = Chooser {
+                selected: if is_default_server(&session.server) {
+                    ServerChoice::ThisComputer
+                } else {
+                    ServerChoice::Another
+                },
+                // On another server the box starts with it; on this computer, with the last other one.
+                typed: if is_default_server(&session.server) {
+                    session.last_other.clone()
+                } else {
+                    session.server.clone()
+                },
+                problem: None,
+                this_computer: Availability::Unknown,
+                signed_in: matches!(session.phase, P::SignedIn),
+            };
+            (
+                session.with(
+                    P::Choosing {
+                        back: Box::new(session.clone()),
+                        chooser: chooser.clone(),
+                    },
+                    Window::Choose { chooser },
+                ),
+                vec![Effect::CheckThisComputer],
+            )
+        }
+        (P::Choosing { back, mut chooser }, E::ThisComputerChecked { answering }) => {
+            chooser.this_computer = if answering {
+                Availability::Answering
+            } else {
+                Availability::NotAnswering
+            };
+            (
+                session.with(
+                    P::Choosing {
+                        back,
+                        chooser: chooser.clone(),
+                    },
+                    Window::Choose { chooser },
+                ),
+                vec![],
+            )
+        }
+        (P::Choosing { back, mut chooser }, E::ChooserContinue { choice, typed }) => {
+            let address = match choice {
+                ServerChoice::ThisComputer => Ok(THIS_COMPUTER.to_string()),
+                ServerChoice::Another => parse_server_address(&typed),
+            };
+            chooser.selected = choice;
+            chooser.typed = typed;
+            match address {
+                Err(problem) => {
+                    chooser.problem = Some(problem.into());
+                    (
+                        session.with(
+                            P::Choosing {
+                                back,
+                                chooser: chooser.clone(),
+                            },
+                            Window::Choose { chooser },
+                        ),
+                        vec![],
+                    )
+                }
+                // The same server as now: back, with no check.
+                Ok(address) if store_key(&address) == store_key(&session.server) => restore(*back),
+                Ok(address) => {
+                    chooser.problem = None;
+                    (
+                        session.with(
+                            P::Checking {
+                                back,
+                                chooser,
+                                address: address.clone(),
+                                choice,
+                            },
+                            Window::Checking {
+                                address: address.clone(),
+                            },
+                        ),
+                        vec![Effect::CheckServer { address }],
+                    )
+                }
+            }
+        }
+        (P::Choosing { back, .. }, E::CancelPressed) => restore(*back),
+        (
+            P::Checking {
+                back, mut chooser, ..
+            },
+            E::CancelPressed,
+        ) => {
+            chooser.problem = None;
+            (
+                session.with(
+                    P::Choosing {
+                        back,
+                        chooser: chooser.clone(),
+                    },
+                    Window::Choose { chooser },
+                ),
+                vec![],
+            )
+        }
+        (
+            P::Checking {
+                back,
+                mut chooser,
+                address,
+                choice,
+            },
+            E::ServerChecked {
+                address: asked,
+                answer,
+            },
+        ) if asked == address => match answer {
+            ServerAnswer::Answered(Kind::Compatible) => {
+                (session, vec![Effect::SwitchServer { address }])
+            }
+            ServerAnswer::Answered(Kind::ServerOlder) => (
+                incompatible(&session, back, chooser, address, Mismatch::ServerOlder),
+                vec![],
+            ),
+            ServerAnswer::Answered(Kind::AppOlder) => (
+                incompatible(&session, back, chooser, address, Mismatch::AppOlder),
+                vec![],
+            ),
+            // This computer's own server not answering is the "not running here" window.
+            ServerAnswer::NoAnswer if choice == ServerChoice::ThisComputer => (
+                session.with(
+                    P::NotAnswering {
+                        back,
+                        target: address,
+                        chooser: Some(chooser),
+                    },
+                    Window::NotAnswering,
+                ),
+                vec![Effect::ScheduleRetry],
+            ),
+            ServerAnswer::NoAnswer | ServerAnswer::Answered(Kind::NotBakery) => {
+                chooser.problem = Some(if answer == ServerAnswer::NoAnswer {
+                    ChooserProblem::NoAnswer
+                } else {
+                    ChooserProblem::NotBakery
+                });
+                (
+                    session.with(
+                        P::Choosing {
+                            back,
+                            chooser: chooser.clone(),
+                        },
+                        Window::Choose { chooser },
+                    ),
+                    vec![],
+                )
+            }
+        },
+        (P::Incompatible { back, chooser, .. }, E::ChooseDifferent) => (
+            session.with(
+                P::Choosing {
+                    back,
+                    chooser: chooser.clone(),
+                },
+                Window::Choose { chooser },
+            ),
+            vec![],
+        ),
+        (P::Incompatible { address, .. }, E::UseItAnyway) => {
+            (session, vec![Effect::SwitchServer { address }])
+        }
+
+        // ---- the server is not answering --------------------------------------------------
+        // Asked as the app opens: a server that does not answer is the same window as at sign-in.
+        (P::SignedOut | P::SignedIn, E::CurrentChecked { answered: false }) => {
+            let target = session.server.clone();
+            (
+                Session {
+                    phase: P::NotAnswering {
+                        back: Box::new(session.clone()),
+                        target,
+                        chooser: None,
+                    },
+                    window: Window::NotAnswering,
+                    resuming: session.resuming,
+                    server: session.server.clone(),
+                    notice: None,
+                    last_other: session.last_other.clone(),
+                },
+                vec![Effect::ScheduleRetry],
+            )
+        }
+        (
+            P::NotAnswering {
+                back,
+                chooser: None,
+                ..
+            },
+            E::CurrentChecked { answered: true },
+        ) => restore(*back),
+        (P::NotAnswering { .. }, E::CurrentChecked { answered: false }) => {
+            (session, vec![Effect::ScheduleRetry])
+        }
+        (P::NotAnswering { chooser: None, .. }, E::RetryNow | E::RetryTick) => {
+            (session, vec![Effect::CheckCurrent])
+        }
+        (
+            P::NotAnswering {
+                target,
+                chooser: Some(_),
+                ..
+            },
+            E::RetryNow | E::RetryTick,
+        ) => (session, vec![Effect::CheckServer { address: target }]),
+        (
+            P::NotAnswering {
+                back,
+                target,
+                chooser: Some(chooser),
+            },
+            E::ServerChecked {
+                address: asked,
+                answer,
+            },
+        ) if asked == target => match answer {
+            ServerAnswer::NoAnswer => (session, vec![Effect::ScheduleRetry]),
+            ServerAnswer::Answered(Kind::Compatible) => {
+                (session, vec![Effect::SwitchServer { address: target }])
+            }
+            ServerAnswer::Answered(Kind::ServerOlder) => (
+                incompatible(&session, back, chooser, target, Mismatch::ServerOlder),
+                vec![],
+            ),
+            ServerAnswer::Answered(Kind::AppOlder) => (
+                incompatible(&session, back, chooser, target, Mismatch::AppOlder),
+                vec![],
+            ),
+            ServerAnswer::Answered(Kind::NotBakery) => {
+                let mut chooser = chooser;
+                chooser.problem = Some(ChooserProblem::NotBakery);
+                (
+                    session.with(
+                        P::Choosing {
+                            back,
+                            chooser: chooser.clone(),
+                        },
+                        Window::Choose { chooser },
+                    ),
+                    vec![],
+                )
+            }
+        },
         // Anything else makes no sense here, including a callback while signed in: ignored, no window.
         (_, _) => (session, vec![]),
     }
@@ -540,13 +1111,17 @@ mod tests {
     }
 
     #[test]
-    fn a_server_that_cannot_be_reached_to_start_says_so_and_the_button_tries_again() {
-        let (s, _) = run(
-            Session::start(false),
-            vec![E::SignInPressed, E::RequestFailed],
-        );
-        assert_eq!(s.window(), &refused(Refusal::CannotStart));
-        assert_eq!(step(s, E::SignInPressed).1, vec![Effect::StartRequest]);
+    fn a_server_that_cannot_be_reached_to_start_says_so_and_asks_again_by_itself() {
+        let (asking, _) = run(Session::start(false), vec![E::SignInPressed]);
+        let (s, effects) = step(asking, E::RequestFailed);
+        assert_eq!(s.window(), &Window::NotAnswering);
+        assert_eq!(effects, vec![Effect::ScheduleRetry]);
+        // Try again, or the quiet timer, asks the server; its answer brings the sign-in window back.
+        assert_eq!(step(s.clone(), E::RetryNow).1, vec![Effect::CheckCurrent]);
+        assert_eq!(step(s.clone(), E::RetryTick).1, vec![Effect::CheckCurrent]);
+        let (back, _) = step(s, E::CurrentChecked { answered: true });
+        assert_eq!(back.window(), &Window::SignIn);
+        assert_eq!(step(back, E::SignInPressed).1, vec![Effect::StartRequest]);
     }
 
     #[test]
@@ -631,7 +1206,15 @@ mod tests {
 
     #[test]
     fn when_the_computer_has_no_keyring_the_sign_in_is_dropped_not_kept_in_a_file() {
-        let (s, effects) = step(storing(), E::StoreFailed);
+        // The only thing it does is end the unused sign-in on the server: nothing is stored anywhere.
+        let (revoking, effects) = step(storing(), E::StoreFailed);
+        assert_eq!(effects, vec![Effect::RevokeUnstored]);
+        let (s, effects) = step(
+            revoking,
+            E::UnstoredRevoked {
+                ended_on_server: true,
+            },
+        );
         assert!(effects.is_empty(), "nothing is stored anywhere else");
         assert_eq!(s.window(), &refused(Refusal::NoKeyring));
         assert!(
@@ -709,21 +1292,41 @@ mod tests {
     }
 
     #[test]
-    fn signing_out_clears_what_was_saved_and_shows_the_signed_out_window() {
+    fn only_a_signed_in_app_signs_out_and_it_ends_the_sign_in_on_the_server_too() {
+        let (going, effects) = step(signed_in(), E::SignOutPressed);
+        assert_eq!(going.window(), &Window::SigningOut);
+        assert_eq!(effects, vec![Effect::SignOutRemote]);
+        for ended in [true, false] {
+            let (after, effects) = step(
+                going.clone(),
+                E::SignedOutRemote {
+                    ended_on_server: ended,
+                },
+            );
+            assert_eq!(
+                after.window(),
+                &Window::SignedOut {
+                    ended_on_server: ended
+                }
+            );
+            assert!(
+                effects.is_empty(),
+                "the shell already removed it from this computer"
+            );
+            assert!(!after.is_signed_in());
+            assert!(!after.in_dialog());
+        }
+        // Anywhere else the button does not exist, so the event changes nothing.
         for s in [
             Session::start(false),
-            Session::start(true),
             waiting(),
             exchanging(),
             stalled(),
             storing(),
-            signed_in(),
         ] {
-            let (after, effects) = step(s, E::SignOut);
-            assert_eq!(after.window(), &Window::SignedOut);
-            assert_eq!(effects, vec![Effect::ClearCredential]);
-            assert!(!after.is_signed_in());
-            assert!(!after.in_dialog());
+            let (after, effects) = step(s.clone(), E::SignOutPressed);
+            assert_eq!(after, s);
+            assert!(effects.is_empty());
         }
     }
 
@@ -775,7 +1378,33 @@ mod tests {
             E::KeyringUnavailable,
             E::CredentialRejected,
             E::TimedOut,
-            E::SignOut,
+            E::SignOutPressed,
+            E::SignedOutRemote {
+                ended_on_server: true,
+            },
+            E::UnstoredRevoked {
+                ended_on_server: false,
+            },
+            E::UseDifferentServer,
+            E::ThisComputerChecked { answering: true },
+            E::ChooserContinue {
+                choice: ServerChoice::Another,
+                typed: "bakery.example.com".into(),
+            },
+            E::ChooserContinue {
+                choice: ServerChoice::ThisComputer,
+                typed: String::new(),
+            },
+            E::ServerChecked {
+                address: "https://bakery.example.com".into(),
+                answer: ServerAnswer::NoAnswer,
+            },
+            E::ChooseDifferent,
+            E::UseItAnyway,
+            E::CurrentChecked { answered: false },
+            E::CurrentChecked { answered: true },
+            E::RetryNow,
+            E::RetryTick,
         ];
         for s in &sessions {
             for e in &events {
@@ -784,7 +1413,7 @@ mod tests {
                 for effect in effects {
                     match (&effect, e) {
                         (Effect::StoreCredential, E::ExchangeSucceeded) => {}
-                        (Effect::ClearCredential, E::SignOut | E::CredentialRejected) => {}
+                        (Effect::ClearCredential, E::CredentialRejected) => {}
                         (Effect::StoreCredential | Effect::ClearCredential, _) => {
                             panic!("{effect:?} on {e:?} in {s:?}")
                         }
@@ -792,6 +1421,484 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod server_tests {
+    //! Choosing a server, asking whether it answers, and ending a sign-in (#77 slice 4). Every row
+    //! of design-ux's tables is a test: what shows, what the app does, and what stays untouched.
+    use super::*;
+    use Event as E;
+
+    const HERE: &str = "http://127.0.0.1:8000";
+    const SERVER: &str = "https://bakery.acme.example";
+    const OTHER: &str = "https://bakery.example.com";
+
+    fn signed_out() -> Session {
+        Session::start(false).on_server(SERVER)
+    }
+
+    fn signed_in() -> Session {
+        Session::start(true).on_server(SERVER)
+    }
+
+    fn run(mut session: Session, events: Vec<Event>) -> (Session, Vec<Effect>) {
+        let mut all = vec![];
+        for event in events {
+            let (next, effects) = step(session, event);
+            session = next;
+            all.extend(effects);
+        }
+        (session, all)
+    }
+
+    fn chooser_of(session: &Session) -> Chooser {
+        match session.window() {
+            Window::Choose { chooser } => chooser.clone(),
+            other => panic!("not the chooser: {other:?}"),
+        }
+    }
+
+    fn open_chooser(from: Session) -> Session {
+        run(
+            from,
+            vec![
+                E::UseDifferentServer,
+                E::ThisComputerChecked { answering: true },
+            ],
+        )
+        .0
+    }
+
+    fn continue_with(choice: ServerChoice, typed: &str) -> Event {
+        E::ChooserContinue {
+            choice,
+            typed: typed.into(),
+        }
+    }
+
+    #[test]
+    fn the_chooser_opens_from_every_window_that_offers_it_and_asks_this_computer_once() {
+        for from in [signed_out(), signed_in()] {
+            let (s, effects) = step(from, E::UseDifferentServer);
+            assert_eq!(effects, vec![Effect::CheckThisComputer]);
+            assert!(matches!(s.window(), Window::Choose { .. }));
+        }
+        let down = run(signed_out(), vec![E::SignInPressed, E::RequestFailed]).0;
+        let (s, effects) = step(down, E::UseDifferentServer);
+        assert_eq!(effects, vec![Effect::CheckThisComputer]);
+        assert!(matches!(s.window(), Window::Choose { .. }));
+        // Where the app cannot ask (the person is mid sign-in), the button does not exist.
+        let waiting = run(signed_out(), vec![E::SignInPressed]).0;
+        assert_eq!(step(waiting.clone(), E::UseDifferentServer).0, waiting);
+    }
+
+    #[test]
+    fn the_option_for_the_current_server_is_selected_and_the_other_box_remembers_its_address() {
+        let here = open_chooser(Session::start(false).on_server(HERE));
+        assert_eq!(chooser_of(&here).selected, ServerChoice::ThisComputer);
+        assert_eq!(chooser_of(&here).typed, "");
+        // On this computer the box offers the last other address again.
+        // A server on this computer at another port starts under "Another address", showing itself.
+        let nearby = open_chooser(Session::start(false).on_server("http://127.0.0.1:46289"));
+        assert_eq!(chooser_of(&nearby).selected, ServerChoice::Another);
+        assert_eq!(chooser_of(&nearby).typed, "http://127.0.0.1:46289");
+        let remembered = open_chooser(Session::start(false).on_server(HERE).with_last_other(OTHER));
+        assert_eq!(chooser_of(&remembered).typed, OTHER);
+        assert_eq!(chooser_of(&remembered).selected, ServerChoice::ThisComputer);
+        let elsewhere = open_chooser(signed_out());
+        assert_eq!(chooser_of(&elsewhere).selected, ServerChoice::Another);
+        assert_eq!(chooser_of(&elsewhere).typed, SERVER);
+        assert!(!chooser_of(&elsewhere).signed_in);
+        assert!(chooser_of(&open_chooser(signed_in())).signed_in);
+    }
+
+    #[test]
+    fn what_this_computer_answered_is_shown_and_either_answer_leaves_the_option_choosable() {
+        for (answering, want) in [
+            (true, Availability::Answering),
+            (false, Availability::NotAnswering),
+        ] {
+            let s = run(
+                signed_out(),
+                vec![E::UseDifferentServer, E::ThisComputerChecked { answering }],
+            )
+            .0;
+            assert_eq!(chooser_of(&s).this_computer, want);
+        }
+        // A late answer after the chooser closed changes nothing.
+        let closed = signed_out();
+        assert_eq!(
+            step(closed.clone(), E::ThisComputerChecked { answering: true }).0,
+            closed
+        );
+    }
+
+    #[test]
+    fn cancel_goes_back_to_where_the_person_came_from_and_changes_nothing() {
+        for from in [signed_out(), signed_in()] {
+            let (back, effects) = step(open_chooser(from.clone()), E::CancelPressed);
+            assert_eq!(back, from);
+            assert!(effects.is_empty());
+        }
+    }
+
+    #[test]
+    fn each_address_problem_keeps_the_chooser_open_with_what_was_typed() {
+        for (typed, want) in [
+            ("   ", ChooserProblem::Empty),
+            ("ftp://bakery.example.com", ChooserProblem::NotWebAddress),
+            (
+                "https://ana:secret@bakery.example.com",
+                ChooserProblem::HasCredentials,
+            ),
+            ("http://bakery.example.com", ChooserProblem::PlainHttp),
+        ] {
+            let (s, effects) = step(
+                open_chooser(signed_out()),
+                continue_with(ServerChoice::Another, typed),
+            );
+            assert!(effects.is_empty(), "{typed}: nothing is asked");
+            let c = chooser_of(&s);
+            assert_eq!(c.problem, Some(want), "{typed}");
+            assert_eq!(c.typed, typed);
+            assert_eq!(c.selected, ServerChoice::Another);
+        }
+    }
+
+    #[test]
+    fn the_same_server_as_now_goes_back_with_no_check_however_it_is_written() {
+        for typed in [
+            SERVER,
+            "bakery.acme.example",
+            "https://BAKERY.acme.example/issues",
+            "https://bakery.acme.example/",
+        ] {
+            let from = signed_out();
+            let (back, effects) = step(
+                open_chooser(from.clone()),
+                continue_with(ServerChoice::Another, typed),
+            );
+            assert_eq!(back, from, "{typed}");
+            assert!(effects.is_empty(), "{typed}");
+        }
+        let here = Session::start(false).on_server(HERE);
+        let (back, effects) = step(
+            open_chooser(here.clone()),
+            continue_with(ServerChoice::ThisComputer, ""),
+        );
+        assert_eq!(back, here);
+        assert!(effects.is_empty());
+    }
+
+    #[test]
+    fn a_new_address_is_checked_and_what_was_typed_is_cleaned_before_it_is_asked() {
+        let (s, effects) = step(
+            open_chooser(signed_out()),
+            continue_with(ServerChoice::Another, "bakery.example.com/tasks/42"),
+        );
+        assert_eq!(
+            s.window(),
+            &Window::Checking {
+                address: OTHER.into()
+            }
+        );
+        assert_eq!(
+            effects,
+            vec![Effect::CheckServer {
+                address: OTHER.into()
+            }]
+        );
+        assert_eq!(s.shown_server(), OTHER);
+    }
+
+    #[test]
+    fn cancel_while_checking_returns_to_the_chooser_with_what_was_typed() {
+        let checking = step(
+            open_chooser(signed_out()),
+            continue_with(ServerChoice::Another, OTHER),
+        )
+        .0;
+        let (s, effects) = step(checking, E::CancelPressed);
+        assert!(effects.is_empty());
+        let c = chooser_of(&s);
+        assert_eq!(c.typed, OTHER);
+        assert_eq!(c.problem, None);
+    }
+
+    fn checking_other() -> Session {
+        step(
+            open_chooser(signed_out()),
+            continue_with(ServerChoice::Another, OTHER),
+        )
+        .0
+    }
+
+    #[test]
+    fn a_bakery_server_at_the_apps_level_is_switched_to() {
+        let (s, effects) = step(
+            checking_other(),
+            E::ServerChecked {
+                address: OTHER.into(),
+                answer: ServerAnswer::Answered(Kind::Compatible),
+            },
+        );
+        assert_eq!(
+            effects,
+            vec![Effect::SwitchServer {
+                address: OTHER.into()
+            }]
+        );
+        // Until the app restarts, the window stays the one that says it is checking.
+        assert!(matches!(s.window(), Window::Checking { .. }));
+    }
+
+    #[test]
+    fn an_address_that_does_not_answer_or_is_not_bakery_leaves_the_chooser_open_with_its_sentence()
+    {
+        for (answer, want) in [
+            (ServerAnswer::NoAnswer, ChooserProblem::NoAnswer),
+            (
+                ServerAnswer::Answered(Kind::NotBakery),
+                ChooserProblem::NotBakery,
+            ),
+        ] {
+            let (s, effects) = step(
+                checking_other(),
+                E::ServerChecked {
+                    address: OTHER.into(),
+                    answer,
+                },
+            );
+            assert!(effects.is_empty());
+            let c = chooser_of(&s);
+            assert_eq!(c.problem, Some(want));
+            assert_eq!(c.typed, OTHER);
+        }
+    }
+
+    #[test]
+    fn an_answer_for_an_address_that_is_no_longer_asked_is_ignored() {
+        let checking = checking_other();
+        let (same, effects) = step(
+            checking.clone(),
+            E::ServerChecked {
+                address: "https://stale.example.com".into(),
+                answer: ServerAnswer::NoAnswer,
+            },
+        );
+        assert_eq!(same, checking);
+        assert!(effects.is_empty());
+    }
+
+    #[test]
+    fn a_server_older_or_newer_than_the_app_has_its_own_panel_with_two_ways_on() {
+        for (kind, mismatch) in [
+            (Kind::ServerOlder, Mismatch::ServerOlder),
+            (Kind::AppOlder, Mismatch::AppOlder),
+        ] {
+            let (s, effects) = step(
+                checking_other(),
+                E::ServerChecked {
+                    address: OTHER.into(),
+                    answer: ServerAnswer::Answered(kind),
+                },
+            );
+            assert!(effects.is_empty());
+            assert_eq!(
+                s.window(),
+                &Window::Incompatible {
+                    mismatch,
+                    address: OTHER.into()
+                }
+            );
+            // Use it anyway switches; Choose a different server returns to the chooser, text kept.
+            assert_eq!(
+                step(s.clone(), E::UseItAnyway).1,
+                vec![Effect::SwitchServer {
+                    address: OTHER.into()
+                }]
+            );
+            let (back, _) = step(s, E::ChooseDifferent);
+            assert_eq!(chooser_of(&back).typed, OTHER);
+        }
+    }
+
+    #[test]
+    fn this_computer_not_answering_is_the_not_running_window_and_it_asks_again_by_itself() {
+        let (s, _) = step(
+            open_chooser(signed_out()),
+            continue_with(ServerChoice::ThisComputer, ""),
+        );
+        let (down, effects) = step(
+            s,
+            E::ServerChecked {
+                address: HERE.into(),
+                answer: ServerAnswer::NoAnswer,
+            },
+        );
+        assert_eq!(down.window(), &Window::NotAnswering);
+        assert_eq!(down.shown_server(), HERE);
+        assert_eq!(effects, vec![Effect::ScheduleRetry]);
+        // The quiet retry asks the server it was about, not the one the app shows now.
+        assert_eq!(
+            step(down.clone(), E::RetryTick).1,
+            vec![Effect::CheckServer {
+                address: HERE.into()
+            }]
+        );
+        assert_eq!(
+            step(down.clone(), E::RetryNow).1,
+            vec![Effect::CheckServer {
+                address: HERE.into()
+            }]
+        );
+        // Still silent: the timer is set again.
+        let (_, effects) = step(
+            down.clone(),
+            E::ServerChecked {
+                address: HERE.into(),
+                answer: ServerAnswer::NoAnswer,
+            },
+        );
+        assert_eq!(effects, vec![Effect::ScheduleRetry]);
+        // When it answers, the app moves on by itself.
+        let (_, effects) = step(
+            down,
+            E::ServerChecked {
+                address: HERE.into(),
+                answer: ServerAnswer::Answered(Kind::Compatible),
+            },
+        );
+        assert_eq!(
+            effects,
+            vec![Effect::SwitchServer {
+                address: HERE.into()
+            }]
+        );
+    }
+
+    #[test]
+    fn a_server_that_is_not_answering_as_the_app_opens_is_the_same_window_for_both_openings() {
+        for from in [signed_out(), signed_in()] {
+            let (down, effects) = step(from.clone(), E::CurrentChecked { answered: false });
+            assert_eq!(down.window(), &Window::NotAnswering);
+            assert_eq!(effects, vec![Effect::ScheduleRetry]);
+            // Silence again keeps asking; an answer returns to the window the app opened on.
+            assert_eq!(
+                step(down.clone(), E::CurrentChecked { answered: false }).1,
+                vec![Effect::ScheduleRetry]
+            );
+            assert_eq!(step(down, E::CurrentChecked { answered: true }).0, from);
+        }
+        // An answer while nothing is wrong changes nothing.
+        let fine = signed_out();
+        assert_eq!(
+            step(fine.clone(), E::CurrentChecked { answered: true }).0,
+            fine
+        );
+    }
+
+    #[test]
+    fn the_app_asks_the_server_as_it_opens() {
+        assert_eq!(signed_out().opened(), vec![Effect::CheckCurrent]);
+        assert_eq!(signed_in().opened(), vec![Effect::CheckCurrent]);
+    }
+
+    #[test]
+    fn the_chooser_opened_from_the_not_answering_window_returns_to_it_and_starts_the_retry_again() {
+        let down = step(signed_out(), E::CurrentChecked { answered: false }).0;
+        let (chooser, _) = step(down.clone(), E::UseDifferentServer);
+        // The timer that ran before is not counted on while the chooser is open: ticks do nothing.
+        assert!(step(chooser.clone(), E::RetryTick).1.is_empty());
+        let (back, effects) = step(chooser, E::CancelPressed);
+        assert_eq!(back, down);
+        assert_eq!(effects, vec![Effect::ScheduleRetry]);
+    }
+
+    #[test]
+    fn a_notice_goes_with_the_next_action_and_stays_through_events_that_change_nothing() {
+        let carried = signed_out().with_notice(Notice::Switched {
+            address: OTHER.into(),
+        });
+        assert!(carried.notice().is_some());
+        assert!(step(carried.clone(), E::CurrentChecked { answered: true })
+            .0
+            .notice()
+            .is_some());
+        assert!(step(carried.clone(), E::SignInPressed).0.notice().is_none());
+        assert!(step(carried, E::UseDifferentServer).0.notice().is_none());
+    }
+
+    #[test]
+    fn a_link_while_signed_out_asks_for_a_sign_in_and_changes_nothing_else() {
+        let (after, effects) = step(signed_out(), E::OpenLinkArrived);
+        assert_eq!(after.notice(), Some(&Notice::SignInForLink));
+        assert_eq!(after.window(), signed_out().window());
+        assert!(effects.is_empty());
+        // The next action takes the notice with it, like every notice.
+        assert!(step(after, E::SignInPressed).0.notice().is_none());
+    }
+
+    #[test]
+    fn a_link_in_any_other_state_changes_nothing_on_screen() {
+        let waiting = run(
+            signed_out(),
+            vec![
+                E::SignInPressed,
+                E::RequestStarted {
+                    id: "r".into(),
+                    confirm_url: "u".into(),
+                    expires_at: None,
+                },
+            ],
+        )
+        .0;
+        for before in [waiting, Session::start(true).on_server(SERVER)] {
+            let (after, effects) = step(before.clone(), E::OpenLinkArrived);
+            assert_eq!(after, before);
+            assert!(effects.is_empty());
+        }
+    }
+
+    #[test]
+    fn a_sign_in_the_keyring_refused_is_ended_on_the_server_before_the_window_says_so() {
+        let storing = run(
+            signed_out(),
+            vec![
+                E::SignInPressed,
+                E::RequestStarted {
+                    id: "r".into(),
+                    confirm_url: "u".into(),
+                    expires_at: None,
+                },
+                E::CallbackReceived { code: "c".into() },
+                E::ExchangeSucceeded,
+            ],
+        )
+        .0;
+        let (revoking, effects) = step(storing, E::StoreFailed);
+        assert_eq!(effects, vec![Effect::RevokeUnstored]);
+        assert_eq!(
+            revoking.window(),
+            &Window::Finishing,
+            "nothing to press while it is ended"
+        );
+        for (ended, want) in [
+            (true, Refusal::NoKeyring),
+            (false, Refusal::NoKeyringStillListed),
+        ] {
+            let (after, effects) = step(
+                revoking.clone(),
+                E::UnstoredRevoked {
+                    ended_on_server: ended,
+                },
+            );
+            assert_eq!(after.window(), &Window::Refusal { refusal: want });
+            assert!(effects.is_empty());
+            assert!(!after.is_signed_in());
         }
     }
 }

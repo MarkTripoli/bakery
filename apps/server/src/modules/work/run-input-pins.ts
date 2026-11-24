@@ -1,5 +1,5 @@
 import type { PgTransactionClient } from "@bakery/persistence";
-import { unprocessable } from "@bakery/contracts/http";
+import { StandardError, unprocessable } from "@bakery/contracts/http";
 import {
   pinStoragePath,
   StorageNameError,
@@ -15,6 +15,32 @@ import {
  * a caller has to remember to update.
  */
 export const DECLARED_ARTIFACT_VERSION_KEY = "artifactVersionId";
+
+/**
+ * Refuses a version that is not published as current (O29, #437).
+ *
+ * A version under a kind with a probe-backed rule is staged until the probe
+ * answers and refused if the answer fails the kind; a run must never pin bytes
+ * that are unvetted or were refused. The issue names the version and its status
+ * so a caller can tell "wait for the probe" from "pick another version".
+ */
+export function assertPinnableVersion(
+  path: readonly (string | number)[],
+  version: { readonly id: string; readonly publication_status: string },
+): void {
+  if (version.publication_status === "current") return;
+  throw new StandardError({
+    code: "UNPROCESSABLE",
+    params: {
+      issues: [{
+        path,
+        code: "input_artifact_version_not_current",
+        message:
+          `artifact version ${version.id} is ${version.publication_status}, not current, so it cannot be a run input`,
+      }],
+    },
+  });
+}
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -54,7 +80,7 @@ export function declaredArtifactVersionIds(inputs: unknown): string[] {
 }
 
 /** Pins one version for a run: the row a worker's read is checked against. */
-async function insertRunInputPin(
+export async function insertRunInputPin(
   transaction: PgTransactionClient,
   pin: {
     organizationId: string;
@@ -112,9 +138,10 @@ export async function pinDeclaredRunInputs(
         artifact_id: string;
         sha256: string;
         size_bytes: number;
+        publication_status: string;
       }
     >(
-      `select id, artifact_id, sha256, size_bytes
+      `select id, artifact_id, sha256, size_bytes, publication_status
          from bakery.artifact_versions
         where organization_id = $1 and id = $2::uuid`,
       [options.organizationId, versionId],
@@ -123,6 +150,7 @@ export async function pinDeclaredRunInputs(
     if (!row) {
       throw unprocessable(["inputs"], "input_artifact_unavailable");
     }
+    assertPinnableVersion(["inputs"], row);
     await insertRunInputPin(transaction, {
       organizationId: options.organizationId,
       runId: options.runId,
@@ -251,8 +279,10 @@ export async function recordInputPaths(
   },
 ): Promise<void> {
   for (const item of options.resolved) {
-    const version = await transaction.query<{ size_bytes: number }>(
-      `select size_bytes from bakery.artifact_versions
+    const version = await transaction.query<
+      { id: string; size_bytes: number; publication_status: string }
+    >(
+      `select id, size_bytes, publication_status from bakery.artifact_versions
         where organization_id = $1 and id = $2`,
       [options.organizationId, item.versionId],
     );
@@ -262,6 +292,7 @@ export async function recordInputPaths(
         "input_storage_path_unavailable",
       );
     }
+    assertPinnableVersion(["inputPaths", item.inputName], version.rows[0]);
     await insertRunInputPin(transaction, {
       organizationId: options.organizationId,
       runId: options.runId,

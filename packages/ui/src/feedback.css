@@ -72,9 +72,80 @@
   }
 }
 
+/* A banner whose buttons are its next step: on a phone they sit under the text, full width. */
+@media (max-width: 743px) {
+  .ui-alert-banner[data-action-layout="stretch"] {
+    flex-wrap: wrap;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action {
+    flex: 1 1 100%;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action .ui-inline {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action .ui-inline > * {
+    flex: none;
+  }
+  .ui-alert-banner[data-action-layout="stretch"] .ui-alert-banner__action .ui-button {
+    inline-size: 100%;
+  }
+}
+
+/* A notice that opts in to its action below: on a phone it wraps, and the
+   action takes its own full-width row under the text. */
+@media (max-width: 743px) {
+  .ui-inline-notice[data-action-layout="below"] {
+    flex-wrap: wrap;
+  }
+  .ui-inline-notice[data-action-layout="below"] > .ui-inline-notice__action {
+    flex: 1 1 100%;
+  }
+}
+
 .ui-inline-notice__icon,
 .ui-alert-banner__icon {
   flex: none;
+}
+
+/* From a tablet up, a notice with an action is one line of text beside its
+   button: icon, text and action share a centre line, so a one-line notice is not
+   a tall box with the text at the top. A phone keeps the top alignment, where
+   the text can wrap under the icon. The bar layout has its own alignment. */
+@media (min-width: 744px) {
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-inline-notice__action) {
+    align-items: center;
+  }
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-inline-notice__action) > .ui-inline-notice__icon {
+    margin-block-start: 0;
+  }
+}
+
+/* A notice with an action: at a very narrow width (a 320px screen at 200%
+   zoom) the action drops to its own row instead of pushing past the edge. */
+.ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-inline-notice__action) {
+  flex-wrap: wrap;
+}
+
+/* A dismissible notice at a very narrow width (a 320px screen, or a phone at
+   200% zoom): the icon and the dismiss button share the first row and the text
+   takes the full width under them, so a word is never broken to fit beside
+   the two. An action, when there is one, follows the text. */
+@media (max-width: 20rem) {
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-feedback-dismiss) {
+    flex-wrap: wrap;
+  }
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-feedback-dismiss) > .ui-feedback-dismiss {
+    margin-inline-start: auto;
+    order: 1;
+  }
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-feedback-dismiss) > .ui-inline-notice__content {
+    flex-basis: 100%;
+    order: 2;
+  }
+  .ui-inline-notice:not(.ui-inline-notice--bar):has(> .ui-feedback-dismiss) > .ui-inline-notice__action {
+    order: 3;
+  }
 }
 
 .ui-inline-notice__icon {
@@ -129,6 +200,8 @@
 }
 
 .ui-toast {
+  /* One line of text sits on the middle of the dismiss button's row, not above empty space. */
+  align-items: center;
   background: var(--color-surface-raised);
   box-shadow: var(--shadow-subtle);
 }
@@ -176,6 +249,10 @@
   justify-items: start;
   max-inline-size: var(--layout-content);
   padding: var(--space-6);
+}
+
+.ui-empty-state[data-span="column"] {
+  max-inline-size: none;
 }
 
 .ui-empty-state--page,
@@ -286,6 +363,11 @@
 .ui-help-tip .ui-icon-button:hover,
 .ui-help-tip .ui-icon-button:focus-visible {
   color: var(--color-fg);
+}
+/* On a line of text the 44px target hangs out of the line box, so a name with a
+   tip keeps the same height as one without: rows keep one rhythm. */
+[data-hung-tip] > .ui-help-tip {
+  margin-block: calc(var(--space-2-5) * -1);
 }
 .ui-help-tip__panel {
   background: var(--color-surface-raised);
@@ -552,6 +634,10 @@
   padding: var(--space-0);
   text-align: center;
 }
+.ui-empty-state--centered[data-align="start"] {
+  justify-items: start;
+  text-align: start;
+}
 .ui-empty-state--centered .ui-empty-state__icon {
   color: var(--color-fg-muted);
   display: flex;
@@ -565,6 +651,10 @@
   color: var(--color-fg-muted);
   font: var(--type-notice);
   max-inline-size: calc(var(--layout-inspector) + var(--space-10));
+}
+.ui-empty-state--centered[data-title-style="heading"] .ui-feedback-title {
+  color: var(--color-fg);
+  font: var(--type-heading-section);
 }
 .ui-inline-notice--bar {
   align-items: flex-start;

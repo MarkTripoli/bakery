@@ -20,6 +20,8 @@ import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ISSUES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
+import { presetOfPolicy } from "./issue-sources.ts";
+import { presetCopy } from "./task-composer-labels.ts";
 import { reasonSentence } from "./IssuesList.tsx";
 import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
 import { IssueWork } from "./IssueWork.tsx";
@@ -355,6 +357,16 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
     ? []
     : checks.filter((entry) => entry.status !== "pass");
   const passing = guarded ? 0 : checks.length - failing.length;
+  // The reason line the card shows when no check names one itself.
+  const cardReasonLine = failing.length === 0 && status !== "canStart" &&
+      status !== "closed" && status !== "waitingToStart" && reason !== null
+    ? reason
+    : null;
+  // Every reason the card already says, so Bakery's work does not say it again.
+  const cardReasons = [
+    ...failing.map((entry) => entry.reason),
+    ...(cardReasonLine === null ? [] : [cardReasonLine]),
+  ];
   const closed = snapshot.state === "closed";
   const checkedAt = issueCheckedAt(row);
   // While GitHub cannot be read the answer is "not checked", so no check age.
@@ -372,6 +384,13 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
       .map((dependency) => `${dependency.repository}#${dependency.number}`)
       .join(", ");
   })();
+  // The dependency is said once: by the line above when it is known by name
+  // ("Bakery will start this when … is done", #61 revision 9), and by the Start
+  // when ready note whether or not it is (revision 10). It is not said again
+  // as "Depends on".
+  const dependsOnSaid = (code: string) =>
+    code === "predecessor_open" &&
+    (waitingOn !== "" || offer === "startWhenReady");
   const hasRelations = links.dependencies.length > 0 || links.parent !== null ||
     links.subIssues > 0;
 
@@ -414,7 +433,11 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
           : null}
         {failing.map((entry) => (
           <UI.Stack gap="compact" key={entry.id}>
-            <UI.Text>{reasonSentence(row, entry.reason, translate)}</UI.Text>
+            {dependsOnSaid(entry.reason) ? null : (
+              <UI.Text>
+                {reasonSentence(row, entry.reason, translate)}
+              </UI.Text>
+            )}
             <ReasonNext
               code={entry.reason}
               row={row}
@@ -426,10 +449,8 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
             />
           </UI.Stack>
         ))}
-        {failing.length === 0 && status !== "canStart" &&
-            status !== "closed" && status !== "waitingToStart" &&
-            reason !== null
-          ? <UI.Text>{reasonSentence(row, reason, translate)}</UI.Text>
+        {cardReasonLine !== null && !dependsOnSaid(cardReasonLine)
+          ? <UI.Text>{reasonSentence(row, cardReasonLine, translate)}</UI.Text>
           : null}
       </UI.Stack>
       {offer !== "none"
@@ -467,12 +488,16 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
                 : null}
             </UI.Inline>
             <UI.Text variant="caption">
-              {offer === "startWhenReady"
+              {offer === "startWhenReady" && waitingOn !== ""
                 ? translate("issues.card.startWhenReadyCaption" as never, {
                   dependency: waitingOn,
                 })
                 : translate("issues.card.workflow" as never, {
                   repository: snapshot.repository,
+                  workflow: presetCopy(
+                    translate,
+                    presetOfPolicy(source?.policy),
+                  ).title,
                 })}
             </UI.Text>
           </UI.Stack>
@@ -645,11 +670,14 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
         {phone ? card : null}
         <IssueWork
           issueId={issueId}
+          issueNumber={number}
           issueUrl={row.safeUrl}
           canWrite={access.data?.role === "admin" ||
             access.data?.role === "developer"}
+          // The card above already says why the issue waits; the row says it
+          // only when its own reason differs (#61 revision 8).
+          cardReasons={cardReasons}
           reasonSentence={(code) => reasonSentence(row, code, translate)}
-          onStart={() => openDialog("start")}
         />
         {description.body !== ""
           ? (
@@ -769,6 +797,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
             intent={dialog}
             row={row}
             policyRevision={policyRevision}
+            sourcePreset={presetOfPolicy(source?.policy)}
             onClose={() => {
               setDialog(null);
               // Cancel or Escape: back to the button that opened it.

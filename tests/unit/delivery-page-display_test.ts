@@ -169,6 +169,7 @@ Deno.test("a pull request row opens the task it delivers; a task row opens itsel
     deliveredAt: null,
     deliveryPoint: null,
     waits: null,
+    lineCount: null,
   };
   const pr = recordRow(base);
   assertEquals(pr.taskId, "task-9");

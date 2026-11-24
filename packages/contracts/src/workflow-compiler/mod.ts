@@ -25,6 +25,7 @@ export type {
   WorkflowJsonValue,
 } from "./json-value.ts";
 export { parseDuration, WORKFLOW_COMPILER_LIMITS } from "./limits.ts";
+export type { ChildWorkflows, WorkflowCallNode } from "./call.ts";
 export { inputTypesOf } from "./passes/references.ts";
 export { decodeWorkflowYaml, encodeWorkflowYaml } from "./yaml.ts";
 export type { WorkflowYamlEncodeResult } from "./yaml.ts";
@@ -117,9 +118,11 @@ export {
 export type { PlanStep, WorkflowPlan } from "./plan.ts";
 export {
   DEFAULT_STEP_FILES,
+  OMITTED_STEP_FILES_WRITE,
   readsOnlyInputs,
   resolveStepFiles,
   SEALED_STEP_FILES,
+  sealedByDefault,
   WORKFLOW_FILE_READ_AREAS,
   WORKFLOW_FILE_TREE_READ_AREAS,
   WORKFLOW_FILE_TREE_WRITE_AREAS,

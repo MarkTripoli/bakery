@@ -20,6 +20,12 @@ import {
 import { DEFAULT_RATE_LIMIT_SECONDS, GitHubReadFailure } from "./github-app.ts";
 import { InstallationStatus } from "./installation-fan-out.ts";
 import {
+  COUNTER_VERSION,
+  countLines,
+  type DiffFile,
+  MAX_LINE_COUNT_PAGES,
+} from "./line-counter.ts";
+import {
   observePullRequest,
   PullRequestStatus,
   resolveRepositoryId,
@@ -103,7 +109,7 @@ export type StepTally = {
   rows: number;
   /** Rows whose read found the object gone; nothing is concluded from that. */
   gone: number;
-  /** Heads whose check run list was cut off at the page cap. */
+  /** Heads whose check run list, or pull requests whose file list, was cut off. */
   truncated: number;
 };
 
@@ -265,6 +271,11 @@ class Ineligible extends Error {
   }
 }
 
+/** The provider reads a step makes, through its one client. */
+function readsOf(step: Step) {
+  return step.dependencies.github;
+}
+
 /** GitHub answered 301 or 308 for a repository path: the repository moved. */
 class RepositoryMoved extends Error {
   constructor() {
@@ -345,6 +356,7 @@ const STREAM_EVENT = {
   [SyncStream.Issues]: "issues",
   [SyncStream.PullRequests]: "pull_request",
   [SyncStream.Checks]: "check_run",
+  [SyncStream.LineCounts]: "pull_request",
 } as const satisfies Record<SyncStream, string>;
 
 /**
@@ -422,34 +434,57 @@ async function stop(
   return settled(progress, status, code, waitMs, reason);
 }
 
-type Tracked = { id: string; providerNumber: number; headSha: string };
+type Tracked = {
+  id: string;
+  providerNumber: number;
+  headSha: string;
+  /** The provider's changed-file total from the last read; null when unknown. */
+  changedFiles: number | null;
+};
 
 /**
- * The next batch of open pull requests a task registered in the repository,
- * by id after the keyset cursor. A rotation reads only rows Bakery tracks, so
- * it never adopts a pull request GitHub merely mentions.
+ * The next batch of pull requests a task registered in the repository, by id
+ * after the keyset cursor. The pull request and check rotations read the open
+ * ones; the line-count rotation reads the merged ones that have no count yet
+ * for their head under the current counter version. A rotation reads only
+ * rows Bakery tracks, so it never adopts a pull request GitHub merely
+ * mentions.
  */
 async function trackedRows(
   database: PgDatabase,
-  scope: { organizationId: string; repositoryId: string },
+  scope: { organizationId: string; repositoryId: string; stream: SyncStream },
   after: string | null,
 ): Promise<Tracked[]> {
+  const lineCounts = scope.stream === SyncStream.LineCounts;
   const found = await database.query<Tracked>(
-    `select id, provider_number as "providerNumber", head_sha as "headSha"
-       from bakery.pull_requests
-      where organization_id = $1 and repository_id = $2 and status = $3
-        and ($4::uuid is null or id > $4::uuid)
-      order by id
+    `select pr.id, pr.provider_number as "providerNumber",
+            pr.head_sha as "headSha", pr.changed_files as "changedFiles"
+       from bakery.pull_requests as pr
+      where pr.organization_id = $1 and pr.repository_id = $2
+        and pr.status = $3
+        and ($4::uuid is null or pr.id > $4::uuid)
+        and (not $6::boolean or not exists (
+          select 1 from bakery.pull_request_line_counts as count
+           where count.organization_id = pr.organization_id
+             and count.pull_request_id = pr.id
+             and count.head_sha = pr.head_sha
+             and count.counter_version = $7))
+      order by pr.id
       limit $5`,
     [
       scope.organizationId,
       scope.repositoryId,
-      PullRequestStatus.Open,
+      lineCounts ? PullRequestStatus.Merged : PullRequestStatus.Open,
       after,
       KEYSET_BATCH,
+      lineCounts,
+      COUNTER_VERSION,
     ],
   );
-  return found.rows;
+  return found.rows.map((row) => ({
+    ...row,
+    changedFiles: row.changedFiles === null ? null : Number(row.changedFiles),
+  }));
 }
 
 /** The scan read everything its stream had: complete it and rest. */
@@ -499,7 +534,7 @@ async function issuesStep(step: Step, token: string): Promise<StepOutcome> {
     const next = issueRequest(cursor);
     // Taken before the request, so an item the page shows is never older than this.
     const observedStartedAt = new Date();
-    const page = await dependencies.github.listRepositoryIssues({
+    const page = await readsOf(step).listRepositoryIssues({
       token,
       fullName: authority.eligibility.displayName,
       state: next.state,
@@ -616,7 +651,8 @@ function rowWrite(
     return {
       cursor: { after: null },
       status: CheckpointStatus.Idle,
-      outcomeCode: step.tally.truncated > 0
+      outcomeCode: step.tally.truncated > 0 &&
+          step.checkpoint.stream === SyncStream.Checks
         ? SyncOutcomeCode.ChecksTruncated
         : SyncOutcomeCode.Completed,
       waitMs: SYNC_REST_MS,
@@ -664,7 +700,7 @@ async function pullRequestsStep(
     const observedStartedAt = new Date();
     let read;
     try {
-      read = await dependencies.github.readPullRequest({
+      read = await readsOf(step).readPullRequest({
         token,
         fullName: authority.eligibility.displayName,
         number: row.providerNumber,
@@ -759,7 +795,7 @@ async function checksStep(
         const observedStartedAt = new Date();
         let result;
         try {
-          result = await dependencies.github.listCheckRuns({
+          result = await readsOf(step).listCheckRuns({
             token,
             fullName: authority.eligibility.displayName,
             headSha: row.headSha,
@@ -804,6 +840,115 @@ async function checksStep(
   return rowOutcome(step, last!);
 }
 
+/**
+ * The line-count rotation: for up to 25 merged tracked pull requests with no
+ * count at their head under the current counter version, the provider's file
+ * list of the diff (up to 30 pages of 100), counted by `countLines` and stored
+ * once as that head's artifact. A list cut off at the page cap is stored as a
+ * truncated count and counted as truncated; a pull request GitHub answers 404
+ * or 410 for is counted as gone and gets no count, nothing is concluded from
+ * that, and the rotation goes on to the next row.
+ */
+async function lineCountsStep(
+  step: Step,
+  rows: readonly Tracked[],
+  token: string,
+): Promise<StepOutcome> {
+  const { dependencies, checkpoint, authority } = step;
+  let last: CheckpointWrite | null = null;
+  for (let index = 0; index < rows.length; index++) {
+    const row = rows[index];
+    step.tally.rows += 1;
+    const files: DiffFile[] = [];
+    let listCut = false;
+    let gone = false;
+    for (let page = 1; page <= MAX_LINE_COUNT_PAGES; page++) {
+      await assertEligible(step);
+      let result;
+      try {
+        result = await readsOf(step).listPullRequestFiles({
+          token,
+          fullName: authority.eligibility.displayName,
+          number: row.providerNumber,
+          page,
+        }, step.signal);
+      } catch (error) {
+        skipFailedRow(step, row, error);
+        throw error;
+      }
+      step.tally.requests += 1;
+      if ("kind" in result) {
+        if (result.kind === "moved") throw new RepositoryMoved();
+        gone = true;
+        break;
+      }
+      files.push(...result.items);
+      if (!result.hasNext) break;
+      if (page === MAX_LINE_COUNT_PAGES) listCut = true;
+    }
+    if (gone) {
+      const write = rowWrite(step, rows, index);
+      try {
+        await withPgTransaction(dependencies.database, async (transaction) => {
+          await guardWrite(step, transaction);
+          step.tally.gone += 1;
+          await commit(step, transaction, write);
+        });
+      } catch (error) {
+        skipFailedRow(step, row, error);
+        throw error;
+      }
+      last = write;
+      continue;
+    }
+    const count = countLines(files, {
+      expectedFiles: row.changedFiles,
+      listCut,
+    });
+    if (count.coverage === "truncated") step.tally.truncated += 1;
+    const write = rowWrite(step, rows, index);
+    try {
+      await withPgTransaction(dependencies.database, async (transaction) => {
+        await guardWrite(step, transaction);
+        const stored = await transaction.query(
+          `insert into bakery.pull_request_line_counts
+             (organization_id, pull_request_id, head_sha, counter_version,
+              coverage, added, deleted, counted_files, excluded_files,
+              binary_files, categories)
+           select pr.organization_id, pr.id, $3, $4, $5, $6, $7, $8, $9, $10,
+                  $11::jsonb
+             from bakery.pull_requests as pr
+            where pr.organization_id = $1 and pr.id = $2 and pr.head_sha = $3
+           on conflict (pull_request_id, head_sha, counter_version) do nothing`,
+          [
+            checkpoint.organizationId,
+            row.id,
+            row.headSha,
+            count.counterVersion,
+            count.coverage,
+            count.added,
+            count.deleted,
+            count.countedFiles,
+            count.excludedFiles,
+            count.binaryFiles,
+            JSON.stringify(count.categories),
+          ],
+        );
+        // A head that moved since the batch was read, or a count another
+        // step stored first, keeps what is there.
+        if ((stored.rowCount ?? 0) > 0) step.tally.written += 1;
+        else step.tally.unchanged += 1;
+        await commit(step, transaction, write);
+      });
+    } catch (error) {
+      skipFailedRow(step, row, error);
+      throw error;
+    }
+    last = write;
+  }
+  return rowOutcome(step, last!);
+}
+
 // ---------------------------------------------------------------- the step
 
 /** The permission scope each stream reads with. */
@@ -811,6 +956,7 @@ const SUBJECTS: Record<SyncStream, Subject> = {
   [SyncStream.Issues]: "issue",
   [SyncStream.PullRequests]: "pull_request",
   [SyncStream.Checks]: "check",
+  [SyncStream.LineCounts]: "pull_request",
 };
 
 /**
@@ -907,6 +1053,7 @@ async function run(step: Step): Promise<StepOutcome> {
       rows = await trackedRows(dependencies.database, {
         organizationId: checkpoint.organizationId,
         repositoryId: authority.repositoryId,
+        stream,
       }, keyset.after);
     }
     // An unmapped repository, or a rotation with nothing left to read, ends
@@ -947,6 +1094,8 @@ async function run(step: Step): Promise<StepOutcome> {
       return await pullRequestsStep(step, rows, minted.token);
     case SyncStream.Checks:
       return await checksStep(step, rows, minted.token);
+    case SyncStream.LineCounts:
+      return await lineCountsStep(step, rows, minted.token);
   }
 }
 

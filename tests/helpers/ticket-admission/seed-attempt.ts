@@ -125,5 +125,5 @@ export async function seedAttempt(
       ids.principal,
     ]);
   };
-  return { commands, cleanup };
+  return { commands, cleanup, hostId: ids.host, attemptId: ids.attempt };
 }

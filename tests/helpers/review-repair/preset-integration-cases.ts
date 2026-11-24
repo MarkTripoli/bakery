@@ -147,7 +147,7 @@ async function reviewedAvailability(
 }
 
 /** Three funded agents: implement, repair and review. */
-async function fundedAgents(
+export async function fundedAgents(
   fixture: Fixture,
   label: string,
   max?: number,
@@ -191,8 +191,13 @@ async function observedRepository(
  * active observed profile it published, the way a worker-backed onboarding
  * does. Runs against this profile pass the real observation admission.
  */
-async function onboardObserved(
-  fixture: Fixture,
+export async function onboardObserved(
+  fixture: Readonly<{
+    pgDatabase: PgDatabase;
+    runtimePgDatabase: PgDatabase;
+    organizationId: string;
+    principalId: string;
+  }>,
   bindings: Bindings,
   allowedEffects: readonly string[] = ALL_EFFECTS,
 ) {
@@ -235,7 +240,7 @@ async function onboardObserved(
   }
 }
 
-async function startRun(
+export async function startRun(
   fixture: Fixture,
   repository: PresetRepository,
   presetId: string,

@@ -37,8 +37,9 @@ function registry() {
   });
 }
 
-Deno.test("issue 82 ops contract: all nineteen operations are implemented, registered and described", async () => {
-  assertEquals(ticketImplementedActions.length, 19);
+Deno.test("issue 82 ops contract: all twenty-one operations are implemented, registered and described", async () => {
+  // Twenty from #82 on, and ticketRequests.cancel (#61).
+  assertEquals(ticketImplementedActions.length, 21);
   assertEquals(
     [...ticketImplementedActions].sort(),
     Object.values(TicketImplementedAction).sort(),
@@ -77,11 +78,11 @@ Deno.test("issue 82 ops contract: all nineteen operations are implemented, regis
       );
     }
   }
-  // Remote ticket creation is not part of this series.
+  // Remote ticket creation (#32) is implemented with the rest.
   assertEquals(
     checkedIn.actions.find((entry) => entry.action === "externalTickets.create")
       ?.implemented,
-    false,
+    true,
   );
 });
 
@@ -126,12 +127,31 @@ Deno.test("issue 82 ops contract: reading operations declare the errors a client
   }
 });
 
-Deno.test("issue 82 ops contract: ticketRequests.create alone carries the admission guard", () => {
+Deno.test("issue 82 ops contract: only ticketRequests.create, ticketRequests.cancel and externalTickets.create carry a guard", () => {
   const guarded = registry().list().filter((action) =>
     action.policy.authorize !== undefined
   );
-  assertEquals(guarded.map(({ name }) => name), ["ticketRequests.create"]);
-  assertEquals(guarded[0].policy.access, "Developer+admission authority");
+  assertEquals(guarded.map(({ name }) => name).sort(), [
+    "externalTickets.create",
+    "ticketRequests.cancel",
+    "ticketRequests.create",
+  ]);
+  const access = Object.fromEntries(
+    guarded.map((action) => [action.name, action.policy.access]),
+  );
+  assertEquals(
+    access["ticketRequests.create"],
+    "Developer+admission authority",
+  );
+  // Stopping work is held to the same authority as starting it (#61).
+  assertEquals(
+    access["ticketRequests.cancel"],
+    "Developer+admission authority",
+  );
+  assertEquals(
+    access["externalTickets.create"],
+    "Developer+exact external action grant",
+  );
 });
 
 Deno.test("issue 82 ops contract: a receipt names an operation by a UUID and a lifecycle status", () => {

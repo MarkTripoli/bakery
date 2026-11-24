@@ -63,6 +63,8 @@ import {
   passwordResetsRedeem,
 } from "./installation-handlers.ts";
 import type { PasswordHasher } from "../../../adapters/password-reset-links-postgres.ts";
+import type { DesktopUpdateFeed } from "@bakery/config/desktop-update-feed";
+import { desktopUpdatesGetAction } from "./desktop-update-handler.ts";
 import {
   desktopSignInsExchange,
   desktopSignInsStart,
@@ -87,9 +89,11 @@ import {
 import {
   browserSessionsList,
   browserSessionsRevoke,
+  browserSessionsRevokeCurrent,
   browserSessionsRevokeOthers,
   connectedClientsList,
   connectedClientsRevoke,
+  desktopHandoffsCreate,
   identityGet,
   installationStatus,
   organizationEffectiveAccess,
@@ -127,6 +131,10 @@ export type AuthActionRegistryOptions = {
   publicBaseUrl?: string;
   /** The auth provider's password hashing and length rule; password reset redemption refuses without it. */
   passwordHasher?: () => Promise<PasswordHasher>;
+  /** The release this server runs, shown on the public installation status. */
+  release?: string;
+  /** Signed desktop builds this server offers; absent means no app updates (404). */
+  desktopUpdateFeed?: DesktopUpdateFeed;
 };
 
 /**
@@ -227,7 +235,7 @@ export function createAuthActionRegistry(
         database: options.database,
         secret: options.secret,
       }),
-  }).register({
+  }).register(desktopUpdatesGetAction(options.desktopUpdateFeed)).register({
     name: AuthImplementedAction.ProfileGet,
     method: HttpMethod.Get,
     path: "/v1/me/profile",
@@ -847,7 +855,12 @@ export function createAuthActionRegistry(
       access: ActionAccess.Public,
     },
     handler: (context, input) =>
-      installationStatus(context, input, options.database),
+      installationStatus(
+        context,
+        input,
+        options.database,
+        options.release ?? "unknown",
+      ),
   }).register({
     name: AuthImplementedAction.OrganizationInvitationPreview,
     method: HttpMethod.Get,
@@ -900,6 +913,37 @@ export function createAuthActionRegistry(
         OrganizationContextPolicy.AuthenticatedPrincipalScope,
     },
     handler: browserSessionsRevokeOthers,
+  }).register({
+    name: AuthImplementedAction.DesktopHandoffsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/desktop-handoffs",
+    input: contractSchemas.DesktopHandoffCreate,
+    output: contractSchemas.DesktopHandoff,
+    policy: {
+      // Only the desktop app's own sign-in may mint a code; the handler
+      // refuses a browser cookie session, and an access token never reaches
+      // it.
+      sessionOnly: true,
+      type: ActionKind.Command,
+      access: ActionAccess.Authenticated,
+      organizationContext:
+        OrganizationContextPolicy.AuthenticatedPrincipalScope,
+    },
+    handler: (context, input) => desktopHandoffsCreate(context, input),
+  }).register({
+    name: AuthImplementedAction.BrowserSessionsRevokeCurrent,
+    method: HttpMethod.Post,
+    path: "/v1/me/sessions/revoke-current",
+    input: contractSchemas.Empty,
+    output: contractSchemas.BrowserSessionRevocation,
+    successStatus: 200,
+    policy: {
+      type: ActionKind.Command,
+      access: ActionAccess.Authenticated,
+      organizationContext:
+        OrganizationContextPolicy.AuthenticatedPrincipalScope,
+    },
+    handler: browserSessionsRevokeCurrent,
   }).register({
     name: AuthImplementedAction.ConnectedClientsList,
     method: HttpMethod.Get,
@@ -1136,7 +1180,9 @@ export function createAuthV1Routes(
     acceptAccessTokens: true,
   });
   app.use("/v1/me", browserSession);
+  app.use("/v1/desktop/update", browserSession);
   app.use("/v1/me/sessions", browserSession);
+  app.use("/v1/desktop-handoffs", browserSession);
   app.use("/v1/me/sessions/*", browserSession);
   app.use("/v1/me/connected-clients", browserSession);
   app.use("/v1/me/connected-clients/*", browserSession);

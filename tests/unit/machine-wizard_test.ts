@@ -4,14 +4,12 @@ import {
   enrollmentInput,
   environmentValue,
   harnessRepositorySetting,
-  hasInstaller,
   initialAnswers,
   installState,
   minutesLeft,
   parsedSlots,
   saveSetupCodeCommand,
   startWorkerCommand,
-  suggestedProcessor,
   systemProblems,
   workerEnvironment,
 } from "../../apps/web/src/pages/machine-wizard.ts";
@@ -19,17 +17,21 @@ import {
 // #70 slice 1: the add-a-machine wizard asks three questions and makes one
 // enrollment from the answers.
 
-Deno.test("each system suggests the processor it most often has, and the answers start valid except for the name and the agent", () => {
-  assertEquals(suggestedProcessor("linux"), "x86_64");
-  assertEquals(suggestedProcessor("macos"), "arm64");
+Deno.test("with two supported systems none is chosen at first, and the first step says so", () => {
   const answers = initialAnswers();
+  assertEquals([answers.os, answers.architecture], [null, ""]);
   assertEquals(answers.slots, "1");
   assertEquals(answers.agent, null);
-  assertEquals(systemProblems(answers), ["nameRequired"]);
+  assertEquals(systemProblems(answers), ["nameRequired", "systemRequired"]);
 });
 
 Deno.test("the first step refuses an empty or oversized name and any slots but a whole number from 1 to 100", () => {
-  const ok = { ...initialAnswers(), name: "build-mac-01" };
+  const ok = {
+    ...initialAnswers(),
+    name: "build-mac-01",
+    os: "linux" as const,
+    architecture: "arm64",
+  };
   assertEquals(systemProblems(ok), []);
   assertEquals(systemProblems({ ...ok, name: "   " }), ["nameRequired"]);
   assertEquals(systemProblems({ ...ok, name: "x".repeat(201) }), [
@@ -56,17 +58,38 @@ Deno.test("the first step refuses an empty or oversized name and any slots but a
   ]);
 });
 
+Deno.test("a system is required: none chosen, or one Bakery cannot set up, is the same problem", () => {
+  const ok = {
+    ...initialAnswers(),
+    name: "build-box-01",
+    os: "linux" as const,
+    architecture: "x64",
+  };
+  assertEquals(systemProblems(ok), []);
+  assertEquals(systemProblems({ ...ok, os: null, architecture: "" }), [
+    "systemRequired",
+  ]);
+  assertEquals(systemProblems({ ...ok, os: "macos", architecture: "arm64" }), [
+    "systemRequired",
+  ]);
+  // Shown in the order the fields are: name, system, tasks at once.
+  assertEquals(
+    systemProblems({ ...ok, name: "", os: null, architecture: "", slots: "0" }),
+    ["nameRequired", "systemRequired", "slotsInvalid"],
+  );
+});
+
 Deno.test("the enrollment is made only from complete answers, with the capabilities a coding machine needs and the chosen agent", () => {
   const complete = {
-    name: "  build-mac-01 ",
-    os: "macos" as const,
+    name: "  build-arm-01 ",
+    os: "linux" as const,
     architecture: "arm64",
     slots: "2",
     agent: "codex" as const,
   };
   assertEquals(enrollmentInput(complete), {
-    name: "build-mac-01",
-    os: "macos",
+    name: "build-arm-01",
+    os: "linux",
     architecture: "arm64",
     capabilities: ["git", "shell", "web", "model", "codex"],
     slots: 2,
@@ -75,13 +98,37 @@ Deno.test("the enrollment is made only from complete answers, with the capabilit
   assertEquals(enrollmentInput({ ...complete, name: "" }), null);
   assertEquals(enrollmentInput({ ...complete, slots: "0" }), null);
   assertEquals(enrollmentInput({ ...complete, architecture: "  " }), null);
+  assertEquals(
+    enrollmentInput({ ...complete, os: null, architecture: "" }),
+    null,
+  );
+  // Linux on x86_64 is supported: the row's stored form is x64.
+  assertEquals(
+    enrollmentInput({ ...complete, architecture: "x64" })?.architecture,
+    "x64",
+  );
+  // A system without an installer never makes a setup, whatever else is filled in.
+  for (
+    const [os, architecture] of [
+      ["linux", "riscv64"],
+      ["macos", "arm64"],
+      ["macos", "x86_64"],
+      ["windows", "x86_64"],
+    ] as const
+  ) {
+    assertEquals(
+      enrollmentInput({ ...complete, os: os as "linux", architecture }),
+      null,
+      `${os} ${architecture}`,
+    );
+  }
 });
 
 Deno.test("the worker settings name the machine, its slots and capabilities and exactly the chosen agent's, and never the setup code", () => {
   const answers = {
     name: "ci-linux-02",
     os: "linux" as const,
-    architecture: "x86_64",
+    architecture: "arm64",
     slots: "3",
   };
   const settings = (agent: "claude" | "codex" | "pi") =>
@@ -132,7 +179,7 @@ Deno.test("a machine name the settings file could misread is quoted so the servi
       input: enrollmentInput({
         name,
         os: "linux",
-        architecture: "x86_64",
+        architecture: "arm64",
         slots: "1",
         agent: "claude",
       })!,
@@ -170,9 +217,7 @@ Deno.test("the setup code is typed into a file only its owner can read, and a Li
   assertEquals(startWorkerCommand("macos"), null);
 });
 
-Deno.test("only Linux has steps to run the worker, and the repository setting is named per agent", () => {
-  assertEquals(hasInstaller("linux"), true);
-  assertEquals(hasInstaller("macos"), false);
+Deno.test("the repository setting is named per agent", () => {
   assertEquals(
     harnessRepositorySetting("claude"),
     "BAKERY_CLAUDE_HARNESS_REPOSITORY",
@@ -186,7 +231,7 @@ Deno.test("only Linux has steps to run the worker, and the repository setting is
   const input = enrollmentInput({
     name: "x",
     os: "linux",
-    architecture: "x86_64",
+    architecture: "arm64",
     slots: "1",
     agent: "pi",
   })!;
@@ -207,7 +252,7 @@ Deno.test("a machine with no known coding agent gets the settings without any ag
   const input = {
     name: "old-box",
     os: "linux" as const,
-    architecture: "x86_64",
+    architecture: "arm64",
     capabilities: ["git", "shell"],
     slots: 1,
   };

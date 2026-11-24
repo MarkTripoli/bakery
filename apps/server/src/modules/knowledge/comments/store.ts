@@ -11,6 +11,7 @@ import {
   commitCommentMentions,
   resolveMentions,
 } from "../../conversation/mentions.ts";
+import { lockArtifactScope, upsertArtifactGrant } from "../artifact-access.ts";
 import {
   type CommentRow,
   type CommentVersion,
@@ -116,11 +117,14 @@ export async function createComment(
       [work.organizationId, root.id],
     );
   } else if (input.anchor) validateAnchor(input.anchor, version);
-  // A comment notifies only people who can already read its thread; it never
-  // widens access, and one refused mention writes nothing.
+  // A comment notifies people who can already read its thread. With an
+  // accessLevel it also gives access to a mentioned person who cannot, when the
+  // writer may share; any refused mention writes nothing.
   const mentions = await resolveMentions(context, work.transaction, {
     kind: "comment_thread",
     conversationId: version.conversation_id,
+    artifactId: version.artifact_id,
+    ...(input.accessLevel ? { accessLevel: input.accessLevel } : {}),
   }, input.mentions);
   const inserted = await work.transaction.query<{ id: string }>(
     `insert into bakery.artifact_comments
@@ -144,6 +148,24 @@ export async function createComment(
     rootVersion,
     created: true,
   });
+  if (mentions.toGrant.length > 0 && input.accessLevel) {
+    const artifact = await lockArtifactScope(
+      work.transaction,
+      work.organizationId,
+      version.artifact_id,
+      "share",
+    );
+    for (const principalId of mentions.toGrant) {
+      await upsertArtifactGrant(context, work.transaction, {
+        organizationId: work.organizationId,
+        artifact,
+        principalId,
+        level: input.accessLevel,
+        grantedBy: work.principalId,
+        sourceCommentId: id,
+      });
+    }
+  }
   await commitCommentMentions(context, work.transaction, {
     organizationId: work.organizationId,
     commentId: id,

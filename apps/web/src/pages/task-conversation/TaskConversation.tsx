@@ -17,10 +17,12 @@ import { useBakeryApi } from "../../api/context.tsx";
 import {
   applicationQueryOptions,
   approvalsQueryOptions,
+  conversationAccessQueryOptions,
   conversationMessagesQueryOptions,
   conversationParticipantsQueryOptions,
   conversationTurnsQueryOptions,
   coordinationPlansQueryOptions,
+  effectiveAccessQueryOptions,
   planRevisionsQueryOptions,
   questionsQueryOptions,
   repositoryQueryOptions,
@@ -37,7 +39,9 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useSession } from "../../app/session-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { TaskFromIssue } from "../TaskFromIssue.tsx";
+import { useMentionField } from "../../mentions/useMentionField.tsx";
 import { Composer } from "./Composer.tsx";
+import { PeopleAddedDialog } from "../../mentions/PeopleAddedDialog.tsx";
 import {
   browserDraftStore,
   type Draft,
@@ -193,6 +197,27 @@ export function TaskConversation(
   const [sendPhase, setSendPhase] = useState<
     "idle" | "sending" | "unknown" | "forbidden" | "error"
   >(draft.sendId === null ? "idle" : "unknown");
+  const mentionField = useMentionField({
+    source: { kind: "conversation", id: conversationId },
+    value: draft.body,
+    onValue: (body) => {
+      setDraft({ ...draft, body });
+      if (sendPhase === "error" || sendPhase === "forbidden") {
+        setSendPhase("idle");
+      }
+    },
+    offline: !online,
+    disabled: sendPhase === "sending" || sendPhase === "unknown",
+  });
+  // The link to the people a mention added is for someone who may share the conversation.
+  const access = useQuery(effectiveAccessQueryOptions(api, scope));
+  const canShare = access.data?.capabilities.includes("conversation:share") ===
+    true;
+  const added = useQuery({
+    ...conversationAccessQueryOptions(api, scope, conversationId),
+    enabled: canShare && Boolean(scope.organizationId),
+  });
+  const [addedOpen, setAddedOpen] = useState(false);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -217,10 +242,18 @@ export function TaskConversation(
         body: frozen.body.trim(),
         clientMessageId: sendId,
         intent: frozen.intent === "ask" ? "agent_request" : "discussion",
+        ...(mentionField.mentions.length > 0
+          ? {
+            mentions: mentionField.mentions.map((mention) =>
+              mention.principalId
+            ),
+          }
+          : {}),
       },
     });
     if (!alive.current) return;
     if (result.ok) {
+      mentionField.clear();
       setDraft({ ...frozen, body: "", sendId: null, sendBody: null });
       setSendPhase("idle");
       void refresh();
@@ -229,6 +262,9 @@ export function TaskConversation(
     const failure = commandFailure(result.error);
     if (failure === "unknown") return setSendPhase("unknown");
     setDraft({ ...frozen, sendId: null, sendBody: null });
+    // The server refused a mention and wrote nothing: the draft stays, the
+    // refused names turn red and say why.
+    if (mentionField.refuse(result.error)) return setSendPhase("idle");
     setSendPhase(failure === "forbidden" ? "forbidden" : "error");
   };
 
@@ -420,6 +456,7 @@ export function TaskConversation(
   const runEnded = runStatus === "completed" || runStatus === "failed" ||
     runStatus === "canceled";
   const runBlocked = runStatus === "blocked";
+  const runPaused = runStatus === "paused";
   const runActive = task.currentRunId !== null && !runBlocked &&
     (runStatus === undefined
       ? task.status !== "completed" && task.status !== "failed" &&
@@ -512,11 +549,6 @@ export function TaskConversation(
     t("tasks.conversation.subtitle.preset"),
   ].filter((part) => part !== undefined).join(" · ");
   const reference = references?.[task.id] ?? task.id.slice(0, 8);
-  const statusTone = runBlocked
-    ? "warning"
-    : stage === "discuss"
-    ? "neutral"
-    : "information";
   const coordinationLink = (coordination.data?.items.length ?? 0) > 0;
   const planCard = (
     <UI.PlanSummaryCard
@@ -627,11 +659,6 @@ export function TaskConversation(
       {!phone && (
         <ShellSlot name="actions">
           <UI.Inline gap="standard">
-            <UI.StatusDot tone={statusTone}>
-              {runBlocked
-                ? t("tasks.conversation.status.blocked")
-                : t(`tasks.conversation.status.${stage}`)}
-            </UI.StatusDot>
             {coordinationLink && (
               <RouterLink
                 to="/tasks/$taskId/coordination"
@@ -794,19 +821,38 @@ export function TaskConversation(
               phase={sendPhase}
               offline={!online}
               runActive={runActive}
+              runPaused={runPaused}
               runBlocked={runBlocked}
               resultsHint={task.status === "completed" &&
                 task.currentRunId !== null}
-              onBody={(body) => {
-                setDraft({ ...draft, body });
-                if (sendPhase === "error" || sendPhase === "forbidden") {
-                  setSendPhase("idle");
-                }
-              }}
+              mentionField={mentionField}
               onIntent={(intent: DraftIntent) => setDraft({ ...draft, intent })}
               onSend={() => void send()}
               onRetry={() => void send()}
             />
+            {canShare
+              ? (
+                <>
+                  {(added.data?.length ?? 0) > 0 || addedOpen
+                    ? (
+                      <UI.Button
+                        onClick={() => setAddedOpen(true)}
+                        variant="text"
+                      >
+                        {t("mentions.added.link", {
+                          count: added.data?.length ?? 0,
+                        })}
+                      </UI.Button>
+                    )
+                    : null}
+                  <PeopleAddedDialog
+                    subject={{ kind: "conversation", id: conversationId }}
+                    onOpenChange={setAddedOpen}
+                    open={addedOpen}
+                  />
+                </>
+              )
+              : null}
           </>
         }
       >

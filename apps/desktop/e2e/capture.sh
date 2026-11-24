@@ -11,7 +11,7 @@ STATES="${STATES:-$(BAKERY_DESKTOP_LIST_PREVIEWS=1 "$BIN")}"
 SIZES="${SIZES:-960x640 400x560}"
 THEMES="${THEMES:-light dark}"
 mkdir -p "$OUT"
-: > "$OUT/results.tsv"
+[ -n "${APPEND:-}" ] || : > "$OUT/results.tsv"
 export DISPLAY=:99 WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 NO_AT_BRIDGE=1 TZ=UTC LANG=C.UTF-8
 
 for size in $SIZES; do
@@ -31,6 +31,9 @@ for size in $SIZES; do
         BAKERY_DESKTOP_REPORT="$report" timeout 40 dbus-run-session -- "$BIN" >"$OUT/$name.log" 2>&1 &
       app=$!
       for _ in $(seq 1 40); do grep -q '"event":"view"' "$report" 2>/dev/null && break; sleep 0.5; done
+      # The page is drawn only once it has loaded: the first start of a run (cold caches) can take longer
+      # than the 2 seconds below, and the picture was then a blank window.
+      for _ in $(seq 1 40); do grep -q '"event":"page_loaded"' "$report" 2>/dev/null && break; sleep 0.5; done
       sleep 2
       if cp "$fb/Xvfb_screen0" "$OUT/$name.xwd" 2>/dev/null; then
         result="$(python3 "$HERE/xwd2png.py" "$OUT/$name.xwd" "$OUT/$name.png")"

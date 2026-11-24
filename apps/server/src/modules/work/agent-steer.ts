@@ -8,6 +8,7 @@ import {
   attemptOrigin,
 } from "../auth/application/agent-power-grants.ts";
 import { spawnAuthority } from "./agent-spawn.ts";
+import { REVIEW_ACTION } from "../knowledge/reviewer-isolation.ts";
 
 /**
  * An agent steering another agent (chapter 25 section 9, issue #413, O19 as
@@ -80,9 +81,6 @@ export type SteerAdmission = Readonly<{
   fromRunId: string;
   sessionId: string | null;
 }>;
-
-/** The review step's job action; a step running it is a reviewer's. */
-const REVIEW_ACTION = "review.independent";
 
 /** Whether a step of a run is a reviewer's: its job runs the review action. */
 export async function stepIsReviewer(

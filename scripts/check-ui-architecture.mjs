@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   mkdirSync,
   mkdtempSync,
@@ -2126,6 +2127,66 @@ function relativeInside(root, path) {
 }
 
 /**
+ * A fingerprint of every file under `root` an analysis could read: its path,
+ * size and modification time. Installed packages and git's own files are left
+ * out; the lockfile and the package manager's record stand for the packages. Any
+ * file added, removed, resized or touched anywhere else changes it, so an
+ * answer is never older than the tree it was worked out from.
+ */
+function repositoryFingerprint(root) {
+  const hash = createHash("sha1");
+  const walk = (dir) => {
+    for (
+      const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+        a.name.localeCompare(b.name)
+      )
+    ) {
+      if (entry.name === "node_modules" || entry.name === ".git") continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile()) {
+        const stat = statSync(full);
+        hash.update(`${full}\0${stat.size}\0${stat.mtimeMs}\n`);
+      }
+    }
+  };
+  walk(root);
+  for (const record of ["node_modules/.modules.yaml"]) {
+    const stat = statSync(join(root, record), { throwIfNoEntry: false });
+    hash.update(`${record}\0${stat?.size}\0${stat?.mtimeMs}\n`);
+  }
+  return hash.digest("hex");
+}
+
+/** The whole-repository analysis behind a single-file answer, by root. */
+const analyses = new Map();
+let analysisRuns = 0;
+
+/**
+ * How many whole-repository analyses single-file answers have run in this
+ * process: one per distinct state of the tree, not one per call.
+ */
+export function describeFileAnalysisRuns() {
+  return analysisRuns;
+}
+
+/**
+ * The analysis `describeFile` answers from. The whole repository is analysed
+ * once per state of the tree (tens of seconds on a loaded host), so a tool that
+ * asks about several files, or one file after another, does not repeat it; an
+ * edit anywhere changes the fingerprint and the next question analyses again.
+ */
+function analysisOf(root) {
+  const fingerprint = repositoryFingerprint(root);
+  const cached = analyses.get(root);
+  if (cached?.fingerprint === fingerprint) return cached.analysis;
+  const analysis = discoverUiIdentities({ root, print: () => {} });
+  analysisRuns += 1;
+  analyses.set(root, { fingerprint, analysis });
+  return analysis;
+}
+
+/**
  * Everything the checker knows about one module: its diagnostics and the
  * catalog compositions that apply to it. One whole-workspace analysis, the
  * same one `checkUiArchitecture` runs, filtered to the file. Throws
@@ -2134,17 +2195,14 @@ function relativeInside(root, path) {
  */
 export function describeFile(path, { root = ROOT } = {}) {
   const relativePath = relativeInside(root, path);
-  const { diagnostics, appliedCompositions, files } = discoverUiIdentities({
-    root,
-    print: () => {},
-  });
+  const { diagnostics, appliedCompositions, files } = analysisOf(root);
   if (!files.includes(resolve(root, relativePath))) {
     throw new NotAnalyzedModuleError(relativePath);
   }
   return {
     file: relativePath,
     diagnostics: diagnostics.filter((entry) => entry.file === relativePath),
-    compositions: appliedCompositions.get(relativePath) ?? [],
+    compositions: [...(appliedCompositions.get(relativePath) ?? [])],
   };
 }
 

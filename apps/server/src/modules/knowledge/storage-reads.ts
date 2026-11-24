@@ -39,6 +39,12 @@ import {
   agentFileReadFor,
 } from "./agent-file-guard.ts";
 import { agentRootKeys } from "./agent-file-scope.ts";
+import {
+  hiddenEntryIds,
+  hiddenFromReviewer,
+  hiddenVersionIds,
+  reviewerIsolationOf,
+} from "./reviewer-isolation.ts";
 import { type StoragePolicy, storageQueryOf } from "./storage-tree.ts";
 import { ensureOrganizationTree } from "./storage-tree.ts";
 import { ensurePersonalFolder } from "./storage-working-areas.ts";
@@ -200,6 +206,13 @@ export async function readableEntry(
       system_key: row.system_key,
     },
   });
+  // A reviewer's read never reaches a writer step's side-write (O47). It is
+  // judged after the grant guard and apart from it: a grant opens folders,
+  // never versions this filter hides.
+  const isolation = await reviewerIsolationOf(tx, context, organizationId);
+  if ((await hiddenEntryIds(tx, isolation, organizationId, [row.id])).size) {
+    hiddenFromReviewer();
+  }
   return { ...row, path: above.rows[0].path };
 }
 
@@ -301,6 +314,12 @@ export async function readStorageFileByVersion(
     hit.entry_id,
   );
   if (file.kind !== "file") notFound();
+  const isolation = await reviewerIsolationOf(tx, context, organizationId);
+  if (
+    (await hiddenVersionIds(tx, isolation, organizationId, [versionId])).size
+  ) {
+    hiddenFromReviewer();
+  }
   const listedRow = await tx.query<ListedRow>(
     LISTED_SELECT + " where e.organization_id = $1 and e.id = $2",
     [organizationId, file.id],
@@ -426,7 +445,16 @@ export function createFolderLister(secret: string) {
         limit + 1,
       ],
     );
-    const rows = found.rows.slice(0, limit);
+    const page = found.rows.slice(0, limit);
+    // A reviewer's listing leaves out the files it may not read (O47). The
+    // cursor still follows the unfiltered page, so the next page is the same.
+    const hidden = await hiddenEntryIds(
+      tx,
+      await reviewerIsolationOf(tx, context, organizationId),
+      organizationId,
+      page.map((row) => row.id),
+    );
+    const rows = page.filter((row) => !hidden.has(row.id));
     // An agent's listing joins its step's read set (O46). A listing shows the
     // folder as it is now, so it is never pinned.
     const stepReader = await stepReaderOf(tx, context, organizationId);
@@ -443,7 +471,7 @@ export function createFolderLister(secret: string) {
     });
     if (readRow !== null) await recordStepRead(tx, readRow);
     const prefix = folder.path === "/" ? "" : folder.path;
-    const last = rows.at(-1);
+    const last = page.at(-1);
     return {
       items: rows.map((row) => listed(row, prefix + "/" + row.name)),
       nextCursor: found.rows.length > limit && last
@@ -604,6 +632,8 @@ export function createFileVersionLister(secret: string) {
           " on def.organization_id = av.organization_id" +
           " and def.id = av.agent_id" +
           " where v.organization_id = $1 and v.artifact_id = $2" +
+          // Staged and refused versions (O29) are not part of a file's history.
+          " and v.publication_status = 'current'" +
           " and ($3::int is null or v.revision < $3)" +
           " order by v.revision desc limit $4",
         [organizationId, file.artifact_id, before, limit + 1],
@@ -656,8 +686,16 @@ export function createFileVersionLister(secret: string) {
         [organizationId, file.id, before, limit + 1],
       );
     }
-    const rows = found.rows.slice(0, limit);
-    const last = rows.at(-1);
+    const page = found.rows.slice(0, limit);
+    // A reviewer's list leaves out the versions it may not read (O47).
+    const hidden = await hiddenVersionIds(
+      tx,
+      await reviewerIsolationOf(tx, context, organizationId),
+      organizationId,
+      page.map((row) => row.id),
+    );
+    const rows = page.filter((row) => !hidden.has(row.id));
+    const last = page.at(-1);
     return {
       items: rows.map((row) => ({
         id: row.id,
@@ -861,7 +899,8 @@ export function createFileProbeReader() {
           " on a.organization_id = v.organization_id and a.id = v.artifact_id" +
           " where v.organization_id = $1 and v.artifact_id = $2" +
           " and (($3::int is null and v.id = a.current_version_id)" +
-          " or v.revision = $3)",
+          // A revision names a published version; a staged or refused one is not.
+          " or (v.revision = $3 and v.publication_status = 'current'))",
         [organizationId, file.artifact_id, input.revision],
       )
       : await tx.query<{
@@ -988,7 +1027,8 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
           " where v.organization_id = $1 and v.artifact_id = $2" +
           " and (case when $4::uuid is not null then v.id = $4::uuid" +
           " when $3::int is null then v.id = a.current_version_id" +
-          " else v.revision = $3 end)",
+          // A revision names a published version; a staged or refused one is not.
+          " else v.revision = $3 and v.publication_status = 'current' end)",
         [organizationId, file.artifact_id, input.revision, pinnedId],
       )
       : await tx.query<BytesRow>(
@@ -1000,6 +1040,14 @@ export function createFileContentReader(blobStore?: OrganizationBlobStore) {
       );
     const row = found.rows[0];
     if (!row) notFound();
+    // A named revision is judged on its own: an earlier side-write stays
+    // hidden from a reviewer even when the current version is not (O47).
+    const isolation = await reviewerIsolationOf(tx, context, organizationId);
+    if (
+      (await hiddenVersionIds(tx, isolation, organizationId, [row.id])).size
+    ) {
+      hiddenFromReviewer();
+    }
     if (row.removed || (row.blob_id === null && row.content === null)) {
       throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
     }

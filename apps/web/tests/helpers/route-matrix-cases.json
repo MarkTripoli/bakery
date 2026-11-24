@@ -16,6 +16,10 @@
     "path": "/tasks/$taskId/coordination"
   },
   {
+    "id": "delivery",
+    "path": "/delivery"
+  },
+  {
     "id": "files",
     "path": "/files"
   },
@@ -48,8 +52,28 @@
     "path": "/library/agents/$agentId"
   },
   {
+    "id": "library-skill",
+    "path": "/library/skills/$skillId"
+  },
+  {
+    "id": "library-evaluation",
+    "path": "/library/evaluations/$batchId"
+  },
+  {
     "id": "issues",
     "path": "/issues"
+  },
+  {
+    "id": "batches",
+    "path": "/issues/batches"
+  },
+  {
+    "id": "batch-new",
+    "path": "/issues/batches/new"
+  },
+  {
+    "id": "batch-detail",
+    "path": "/issues/batches/$batchId"
   },
   {
     "id": "issue-detail",
@@ -74,6 +98,14 @@
   {
     "id": "machine-detail",
     "path": "/machines/$machineId"
+  },
+  {
+    "id": "machine-models",
+    "path": "/machines/$machineId/models"
+  },
+  {
+    "id": "machine-model-new",
+    "path": "/machines/$machineId/models/new"
   },
   {
     "id": "notifications",
@@ -152,6 +184,26 @@
     "path": "/installation/settings"
   },
   {
+    "id": "installation-monitoring-new",
+    "path": "/installation/monitoring/new"
+  },
+  {
+    "id": "installation-monitoring-destination",
+    "path": "/installation/monitoring/$destinationId"
+  },
+  {
+    "id": "installation-monitoring",
+    "path": "/installation/monitoring"
+  },
+  {
+    "id": "installation-usage",
+    "path": "/installation/usage"
+  },
+  {
+    "id": "installation-restore",
+    "path": "/installation/restore"
+  },
+  {
     "id": "installation-audit",
     "path": "/installation/audit"
   },
@@ -184,6 +236,10 @@
     "path": "/settings/organization/plugins/$installId"
   },
   {
+    "id": "plugin-page",
+    "path": "/plugins/$installId/$pageId"
+  },
+  {
     "id": "settings-organization-repository-rules",
     "path": "/settings/organization/repository-rules"
   },
@@ -214,6 +270,10 @@
   {
     "id": "organization-settings",
     "path": "/organization/settings"
+  },
+  {
+    "id": "organization-storage",
+    "path": "/organization/storage"
   },
   {
     "id": "artifact-retrieval",

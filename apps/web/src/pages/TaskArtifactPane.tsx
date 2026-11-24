@@ -275,6 +275,9 @@ export function TaskArtifactPane(
     ? "reconnecting"
     : "ready";
 
+  // A run that has published nothing draws no pane: the section appears with its
+  // first artifact (the run section design, "Removed").
+  if (state === "empty") return null;
   const labels: UI.ArtifactPaneLabels = {
     paneTitle: t("tasks.artifactPane.label"),
     versionSelect: t("tasks.artifactPane.versionSelect"),

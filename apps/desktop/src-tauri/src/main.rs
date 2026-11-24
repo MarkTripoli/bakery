@@ -1,16 +1,26 @@
 //! The Bakery desktop app: the Tauri shell around `bakery-desktop-core` (#77, slice 3).
 
+mod download;
+mod menu;
 mod net;
 mod shell;
 mod store;
+mod toast;
+mod update;
 
 use bakery_desktop_core::copy::{press, ButtonId, Press};
 use bakery_desktop_core::csp;
+use bakery_desktop_core::link_dialog::LinkDialog;
+use bakery_desktop_core::links::{
+    navigation, open_link, page_link, page_url, Navigation, LINK_SCHEME,
+};
 use bakery_desktop_core::platform::accept_callback;
-use bakery_desktop_core::session::Event;
+use bakery_desktop_core::session::{Event, ServerChoice};
+use bakery_desktop_core::settings::{resolve_server, Handoff, Settings};
 use bakery_desktop_core::view::View;
 use serde_json::json;
-use shell::Shell;
+use shell::{Shell, Startup};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{Manager, State};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -33,10 +43,69 @@ async fn press_button(
         Press::Shell(ButtonId::SetUpKeyring) => {
             let _ = app.opener().open_url(shell::KEYRING_HELP_URL, None::<&str>);
         }
+        Press::Shell(ButtonId::StartBakeryHelp) => {
+            let _ = app
+                .opener()
+                .open_url(shell::START_BAKERY_HELP_URL, None::<&str>);
+        }
         Press::Shell(ButtonId::QuitBakery) => app.exit(0),
-        Press::Shell(_) => {}
+        Press::Shell(ButtonId::Close) => shell.close_link_dialog(),
+        Press::Shell(ButtonId::TryPageAgain) => shell.inner().try_page_again().await,
+        Press::Shell(ButtonId::OpenLinkInBrowser) => {
+            if let Some(target) = shell.link_dialog_target() {
+                if app.opener().open_url(&target, None::<&str>).is_ok() {
+                    shell.close_link_dialog();
+                } else {
+                    shell.show_link_dialog(LinkDialog::BrowserDidNotOpen { address: target });
+                }
+            }
+        }
+        // The chooser's Continue sends the option and the text with `choose_server`.
+        Press::Chooser | Press::Shell(_) => {}
     }
     Ok(())
+}
+
+/// "Continue" in the chooser: what the person picked and typed.
+#[tauri::command]
+async fn choose_server(
+    shell: State<'_, Arc<Shell>>,
+    choice: ServerChoice,
+    typed: String,
+) -> Result<(), ()> {
+    shell
+        .inner()
+        .dispatch(Event::ChooserContinue { choice, typed })
+        .await;
+    Ok(())
+}
+
+/// Where the app keeps its small files: the server the person chose and the handoff a server change
+/// leaves for the next start. Nothing in them is secret.
+fn config_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("BAKERY_DESKTOP_CONFIG_DIR") {
+        return PathBuf::from(dir);
+    }
+    let home = || std::env::var("HOME").map(PathBuf::from).unwrap_or_default();
+    #[cfg(target_os = "windows")]
+    let base = std::env::var("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| home());
+    #[cfg(target_os = "macos")]
+    let base = home().join("Library").join("Application Support");
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let base = std::env::var("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| home().join(".config"));
+    base.join("bakery-desktop")
+}
+
+/// The handoff the last run left, read once and removed, so it never shows twice.
+fn take_handoff(dir: &std::path::Path) -> Option<Handoff> {
+    let path = dir.join(shell::HANDOFF_FILE);
+    let text = std::fs::read_to_string(&path).ok()?;
+    let _ = std::fs::remove_file(&path);
+    Handoff::parse(&text)
 }
 
 /// What the page found out when it tried things the policy must refuse. Only written to the report
@@ -63,6 +132,14 @@ fn test_hooks(app: &tauri::App, shell: &Arc<Shell>, server: &str) {
     if let Ok(dir) = std::env::var("BAKERY_DESKTOP_COMMANDS") {
         shell.watch_commands(std::path::PathBuf::from(dir));
     }
+    if let Ok(endpoint) = std::env::var("BAKERY_DESKTOP_UPDATE_TEST") {
+        let app = app.handle().clone();
+        let shell = Arc::clone(shell);
+        tauri::async_runtime::spawn(async move {
+            let result = update::check_and_verify(&app, &endpoint).await;
+            shell.report("update_checked", result);
+        });
+    }
     if std::env::var("BAKERY_DESKTOP_CSP_PROBE").is_ok() {
         let script = include_str!("probe.js").replace("__SERVER__", server);
         let window = window.clone();
@@ -77,15 +154,154 @@ fn test_hooks(app: &tauri::App, shell: &Arc<Shell>, server: &str) {
     }
 }
 
-/// A `bakery://` address the operating system handed over. Only a sign-in answer is acted on.
+/// A `bakery://` address the operating system handed over: a sign-in answer, or a page to open.
 fn handle_link(shell: &Arc<Shell>, raw: &str) {
     shell.report("link", json!({ "received": true }));
+    shell.bring_to_front();
     if let Ok(code) = accept_callback(raw) {
         let shell = Arc::clone(shell);
         tauri::async_runtime::spawn(async move {
             shell.dispatch(Event::CallbackReceived { code }).await;
         });
+        return;
     }
+    match open_link(raw) {
+        Ok(link) => match link.server {
+            Some(other) if !shell.is_connected_to(&other) => match page_url(&other, &link.path) {
+                Some(address) => shell.show_link_dialog(LinkDialog::OtherServer {
+                    server: other,
+                    link: address,
+                }),
+                None => shell.show_link_dialog(LinkDialog::CantOpen { link: raw.into() }),
+            },
+            _ => {
+                let shell = Arc::clone(shell);
+                tauri::async_runtime::spawn(async move { shell.open_link(link.path).await });
+            }
+        },
+        Err(reason) => {
+            shell.report("link_refused", json!({ "reason": reason }));
+            shell.show_link_dialog(LinkDialog::CantOpen { link: raw.into() });
+        }
+    }
+}
+
+/// What the app does with a link the window is about to follow, as the decision's side effects: the
+/// connected server's pages and the app's own stay (true), another web address goes to the system
+/// browser, mail and phone links to the system, and nothing else is followed. Returns whether the
+/// window may go there. A page's new-tab and `window.open` requests come through here too.
+fn follow(app: &tauri::AppHandle, server: &str, url: &tauri::Url) -> bool {
+    let shell = app.try_state::<Arc<Shell>>();
+    // A button in a notice asks for something by going to an address of its own, which the
+    // app answers and never loads. Only this run's nonce is answered.
+    if url.scheme() == toast::ACTION_SCHEME {
+        if let Some(shell) = &shell {
+            if let Some((action, id)) = toast::parse_action(url, shell.action_nonce()) {
+                shell.toast_action(&action, id);
+            }
+        }
+        return false;
+    }
+    // A page's own script hands over a link the web view would drop: one that asks for a new tab, or a
+    // local file. The link is judged like any other, and a page of this server opens in this window.
+    if url.scheme() == LINK_SCHEME {
+        if let Some(target) = page_link(url.as_str(), shell::run_nonce())
+            .and_then(|link| tauri::Url::parse(&link).ok())
+        {
+            if follow(app, server, &target) {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.navigate(target);
+                }
+            }
+        }
+        return false;
+    }
+    match navigation(server, url.as_str()) {
+        Navigation::Stay => true,
+        Navigation::Browser => {
+            let opened = app.opener().open_url(url.as_str(), None::<&str>).is_ok();
+            if let Some(shell) = shell {
+                shell.report("link_to_browser", json!({ "opened": opened }));
+                if !opened {
+                    shell.show_link_dialog(LinkDialog::BrowserDidNotOpen {
+                        address: url.to_string(),
+                    });
+                }
+            }
+            false
+        }
+        Navigation::System => {
+            let opened = app.opener().open_url(url.as_str(), None::<&str>).is_ok();
+            if let Some(shell) = shell {
+                shell.report("link_to_system", json!({ "opened": opened }));
+            }
+            false
+        }
+        Navigation::Refuse { scheme, reason } => {
+            if let Some(shell) = shell {
+                shell.report("link_refused", json!({ "reason": reason }));
+                let link = url.to_string();
+                shell.show_link_dialog(if scheme.is_empty() || scheme.starts_with("http") {
+                    LinkDialog::CantOpen { link }
+                } else {
+                    LinkDialog::NotWeb { scheme, link }
+                });
+            }
+            false
+        }
+    }
+}
+
+/// The script every page of the window runs first. A link that asks for a new tab, and a link to a local
+/// file, are dropped silently by the web view, so the click is caught here and the address is handed to the
+/// app on a private address that only this run's value opens.
+fn page_script() -> String {
+    format!(
+        r#"(() => {{
+  const nonce = {nonce:?};
+  const hand = (href) => {{
+    location.href = "{scheme}://" + nonce + "/?l=" + encodeURIComponent(href);
+  }};
+  const elsewhere = (a) => {{
+    const target = (a.getAttribute("target") || "").toLowerCase();
+    return target !== "" && target !== "_self" && target !== "_parent" && target !== "_top";
+  }};
+  document.addEventListener("click", (event) => {{
+    if (event.defaultPrevented || event.button !== 0) return;
+    const a = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+    if (!a) return;
+    let url;
+    try {{ url = new URL(a.href, location.href); }} catch (_) {{ return; }}
+    if (url.protocol === "file:" || elsewhere(a)) {{
+      event.preventDefault();
+      event.stopPropagation();
+      hand(url.href);
+    }}
+  }}, true);
+}})();"#,
+        nonce = shell::run_nonce(),
+        scheme = LINK_SCHEME,
+    )
+}
+
+/// Every link the window is about to follow goes through `follow`.
+fn links_plugin(server: String) -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    tauri::plugin::Builder::<tauri::Wry>::new("links")
+        .on_navigation(move |webview, url| follow(webview.app_handle(), &server, url))
+        .on_page_load(|webview, payload| {
+            if !matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                return;
+            }
+            let url = payload.url();
+            if let Some(shell) = webview.try_state::<Arc<Shell>>() {
+                // Where the window is, never the query: a one-use code travels in it.
+                shell.report(
+                    "page_loaded",
+                    json!({ "host": url.host_str(), "path": url.path() }),
+                );
+            }
+        })
+        .build()
 }
 
 fn main() {
@@ -96,7 +312,21 @@ fn main() {
         }
         return;
     }
-    let server = std::env::var("BAKERY_SERVER").unwrap_or_else(|_| "http://127.0.0.1:8000".into());
+    let config_dir = config_dir();
+    let settings = std::fs::read_to_string(config_dir.join("settings.json"))
+        .map(|text| Settings::parse(&text))
+        .unwrap_or_default();
+    let handoff = take_handoff(&config_dir);
+    // What the person chose in the app wins; `BAKERY_SERVER` is the setting before they choose.
+    let server = resolve_server(
+        settings.server.as_deref(),
+        std::env::var("BAKERY_SERVER").ok().as_deref(),
+    );
+    let startup = Startup {
+        config_dir,
+        settings,
+        handoff,
+    };
     let mut context = tauri::generate_context!();
     // The window may connect only to itself and to the one server configured, over HTTP and
     // WebSocket. The server is known only now, so the policy is built from it here.
@@ -110,19 +340,69 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {}))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(links_plugin(server.clone()))
+        .on_menu_event(|app, event| {
+            if let Some(shell) = app.try_state::<Arc<Shell>>() {
+                shell.menu_action(event.id().as_ref());
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_view,
             press_button,
+            choose_server,
             probe_result
         ])
         .setup(move |app| {
+            // The window is made here, not by the configuration, so that a file a page offers can be
+            // saved where the person chooses.
+            let window_config = app
+                .config()
+                .app
+                .windows
+                .first()
+                .cloned()
+                .expect("a window in the configuration");
+            // A page's new-tab and `window.open` requests are never opened as windows of their own:
+            // the address is judged like any other link, and a page of the connected server opens
+            // in this window, as the design says.
+            let for_new_window = app.handle().clone();
+            let server_for_new_window = server.clone();
+            tauri::WebviewWindowBuilder::from_config(app.handle(), &window_config)?
+                .initialization_script(page_script())
+                .on_download(download::handler(server.clone()))
+                .on_new_window(move |url, _features| {
+                    if follow(&for_new_window, &server_for_new_window, &url) {
+                        if let Some(window) = for_new_window.get_webview_window("main") {
+                            let _ = window.navigate(url);
+                        }
+                    }
+                    tauri::webview::NewWindowResponse::Deny
+                })
+                .build()?;
+            // After a server change the window comes back where it was.
+            let restored = startup.handoff.as_ref().and_then(|h| h.place);
+            if let (Some(place), Some(window)) = (restored, app.get_webview_window("main")) {
+                let _ = window.set_size(tauri::PhysicalSize::new(place.width, place.height));
+                let _ = window.set_position(tauri::PhysicalPosition::new(place.x, place.y));
+            }
             let shell = Shell::new(
                 app.handle().clone(),
                 server.clone(),
                 Arc::new(store::Keyring),
+                startup,
             );
             app.manage(Arc::clone(&shell));
+            shell.install_menu();
             test_hooks(app, &shell, &server);
+            if let Some(place) = restored {
+                shell.report(
+                    "place_restored",
+                    json!({ "width": place.width, "height": place.height }),
+                );
+            }
             shell.report(
                 "app_started",
                 json!({ "os": std::env::consts::OS, "arch": std::env::consts::ARCH }),

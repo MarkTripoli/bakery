@@ -17,6 +17,7 @@ import {
   readsOnlyInputs,
   resolveStepFiles,
   SEALED_STEP_FILES,
+  sealedByDefault,
   WORKFLOW_FILE_READ_AREAS,
   WORKFLOW_FILE_WRITE_AREAS,
   WorkflowStepFilesSchema,
@@ -49,6 +50,7 @@ import { readScopesForSession } from "../../apps/server/src/modules/execution/se
 import {
   INPUTS_ONLY_STEP_FILES,
   stepFilesFromSnapshot,
+  UNDECLARED_STEP_FILES,
 } from "../../apps/server/src/modules/execution/step-files.ts";
 
 const ORG = "0195f000-0000-7000-8000-0000000000a1";
@@ -189,6 +191,74 @@ Deno.test("compiler: sealed: false leaves the defaults and the digest alone", as
   assertEquals(narrowedNode.files?.read, ["inputs", "shared"]);
 });
 
+/** An evaluation.check step's input, as a batch hands it over. */
+const checkInput = {
+  evaluationResultId: "0195f000-0000-7000-8000-0000000000f1",
+  outputArtifactVersionId: "0195f000-0000-7000-8000-0000000000f2",
+  check: { kind: "contains", config: { substring: "ok" } },
+};
+
+Deno.test("compiler: an evaluation step is sealed by default (O53)", async () => {
+  for (
+    const uses of ["evaluation.check", "evaluation.sample", "evaluation.score"]
+  ) {
+    assert(sealedByDefault(uses), uses);
+  }
+  for (
+    const uses of ["workflow.noop", "harness.implement", "review.independent"]
+  ) {
+    assert(!sealedByDefault(uses), uses);
+  }
+  assert(!sealedByDefault("no.such.action"));
+  const evaluation = await compile([
+    step({ uses: "evaluation.check", with: checkInput }),
+  ]);
+  assert(
+    evaluation.ok,
+    JSON.stringify(evaluation.ok ? [] : evaluation.diagnostics),
+  );
+  const node = evaluation.document.steps[0];
+  assert(node && node.kind === "action");
+  assertEquals(node.files, { read: ["inputs"], write: ["outputs"] });
+  assertEquals(evaluation.plan.steps[0]?.files, {
+    read: ["inputs"],
+    write: ["outputs"],
+  });
+  // The default and the explicit sugar are the same plan and digest.
+  const sugar = await compile([
+    step({ uses: "evaluation.check", with: checkInput, sealed: true }),
+  ]);
+  assert(sugar.ok);
+  assertEquals(sugar.digest, evaluation.digest);
+});
+
+Deno.test("compiler: an evaluation step's own files section or sealed: false wins over the default", async () => {
+  const opened = await compile([
+    step({ uses: "evaluation.check", with: checkInput, sealed: false }),
+  ]);
+  assert(opened.ok, JSON.stringify(opened.ok ? [] : opened.diagnostics));
+  const openedNode = opened.document.steps[0];
+  assert(openedNode && openedNode.kind === "action");
+  assertEquals(openedNode.files, undefined);
+  const explicit = await compile([
+    step({
+      uses: "evaluation.check",
+      with: checkInput,
+      files: { read: ["inputs", "shared"], write: ["outputs"] },
+    }),
+  ]);
+  assert(explicit.ok, JSON.stringify(explicit.ok ? [] : explicit.diagnostics));
+  const explicitNode = explicit.document.steps[0];
+  assert(explicitNode && explicitNode.kind === "action");
+  assertEquals(explicitNode.files?.read, ["inputs", "shared"]);
+  // Any other step keeps the defaults when it authors neither.
+  const plain = await compile([step()]);
+  assert(plain.ok);
+  const plainNode = plain.document.steps[0];
+  assert(plainNode && plainNode.kind === "action");
+  assertEquals(plainNode.files, undefined);
+});
+
 Deno.test("compiler: sealed with a conflicting files section is refused by name", async () => {
   for (
     const files of [
@@ -222,15 +292,20 @@ Deno.test("compiler: a files section is canonical in the node and carried into t
   assertEquals(result.plan.steps[0]?.files, node.files);
 });
 
-Deno.test("compiler: an axis left out takes its default; no section keeps the digest", async () => {
+Deno.test("compiler: an omitted read takes its default, an omitted write only outputs and workspace; no section keeps the digest", async () => {
   const narrowed = await compile([step({ files: { read: ["inputs"] } })]);
   assert(narrowed.ok);
   const node = narrowed.document.steps[0];
   assert(node && node.kind === "action");
   assertEquals(node.files, {
     read: ["inputs"],
-    write: [...DEFAULT_STEP_FILES.write],
+    write: ["outputs", "workspace"],
   });
+  const writeOnly = await compile([step({ files: { write: ["outputs"] } })]);
+  assert(writeOnly.ok);
+  const writeOnlyNode = writeOnly.document.steps[0];
+  assert(writeOnlyNode && writeOnlyNode.kind === "action");
+  assertEquals(writeOnlyNode.files?.read, [...DEFAULT_STEP_FILES.read]);
   const plain = await compile([step()]);
   const again = await compile([step()]);
   assert(plain.ok && again.ok);
@@ -285,10 +360,10 @@ Deno.test("compiler: each malformed files section is a named diagnostic", async 
 
 // ------------------------------------------------- the claim and the scopes
 
-Deno.test("claim: a run before plans takes the defaults; a plan step its own section", async () => {
+Deno.test("claim: a step with no section gets the undeclared reads; a plan step its own section", async () => {
   assertEquals(
     stepFilesFromSnapshot({ schemaVersion: 1 }, "aa"),
-    DEFAULT_STEP_FILES,
+    UNDECLARED_STEP_FILES,
   );
   const result = await compile([
     step({ files: { read: ["inputs"], write: ["outputs"] } }),
@@ -300,7 +375,7 @@ Deno.test("claim: a run before plans takes the defaults; a plan step its own sec
     read: ["inputs"],
     write: ["outputs"],
   });
-  assertEquals(stepFilesFromSnapshot(snapshot, "bb"), DEFAULT_STEP_FILES);
+  assertEquals(stepFilesFromSnapshot(snapshot, "bb"), UNDECLARED_STEP_FILES);
   // A step the plan does not name gets the inputs-only section, never the defaults.
   assertEquals(stepFilesFromSnapshot(snapshot, "zz"), INPUTS_ONLY_STEP_FILES);
   assertEquals(
@@ -314,6 +389,78 @@ Deno.test("claim: a run before plans takes the defaults; a plan step its own sec
     ),
     INPUTS_ONLY_STEP_FILES,
   );
+});
+
+Deno.test("claim: no declared section and no grant mints no write tool and no connections read (#448)", async () => {
+  const plain = await compile([step({})]);
+  assert(plain.ok);
+  for (
+    const files of [
+      stepFilesFromSnapshot({ schemaVersion: 1 }, "aa"),
+      stepFilesFromSnapshot(
+        { runtime: { pin: {}, document: plain.document } },
+        "aa",
+      ),
+    ]
+  ) {
+    const scopes = [
+      ...grantedScopesForStep(files, []),
+      ...stepFileScopes(files),
+    ];
+    assert(!scopes.includes(FILES_WRITE_SCOPE), JSON.stringify(scopes));
+    assert(!scopes.some((scope) => scope.startsWith("files.write:")));
+    assert(!scopes.includes("files.read:connections"));
+    assert(scopes.includes("files.read:project"));
+  }
+  // A person's write grant still adds the write tool to an undeclared step.
+  assert(
+    grantedScopesForStep(UNDECLARED_STEP_FILES, [FILES_WRITE_SCOPE])
+      .includes(FILES_WRITE_SCOPE),
+  );
+  // A definition that declares a tree write area is an explicit grant.
+  const declared = await compile([
+    step({ files: { read: ["project"], write: ["run_folder"] } }),
+  ]);
+  assert(declared.ok);
+  const declaredScopes = stepFileScopes(
+    stepFilesFromSnapshot(
+      { runtime: { pin: {}, document: declared.document } },
+      "aa",
+    ),
+  );
+  assert(declaredScopes.includes(FILES_WRITE_SCOPE));
+  assert(declaredScopes.includes("files.write:run_folder"));
+});
+
+Deno.test("claim: a section that names only read mints no write tool and no tree write area", async () => {
+  const result = await compile([step({ files: { read: ["project"] } })]);
+  assert(result.ok);
+  const files = stepFilesFromSnapshot(
+    { runtime: { pin: {}, document: result.document } },
+    "aa",
+  );
+  assertEquals([...files.write], ["outputs", "workspace"]);
+  const scopes = [
+    ...grantedScopesForStep(files, []),
+    ...stepFileScopes(files),
+  ];
+  assert(!scopes.includes(FILES_WRITE_SCOPE), JSON.stringify(scopes));
+  assert(!scopes.some((scope) => scope.startsWith("files.write:")));
+});
+
+Deno.test("claim: a declared section that reads connections gets no connections read", async () => {
+  const result = await compile([
+    step({ files: { read: ["project", "connections"], write: ["outputs"] } }),
+  ]);
+  assert(result.ok);
+  const files = stepFilesFromSnapshot(
+    { runtime: { pin: {}, document: result.document } },
+    "aa",
+  );
+  assertEquals([...files.read], ["project"]);
+  const scopes = stepFileScopes(files);
+  assert(!scopes.includes("files.read:connections"), JSON.stringify(scopes));
+  assert(scopes.includes("files.read:project"));
 });
 
 Deno.test("scopes: the defaults mint the read and write tools and one scope per tree area", () => {

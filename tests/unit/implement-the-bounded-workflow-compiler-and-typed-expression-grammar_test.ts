@@ -22,6 +22,7 @@ import {
   WORKFLOW_COMPILER_LIMITS,
   WORKFLOW_COMPILER_MESSAGES,
   WorkflowCompilerInvariantError,
+  WorkflowExecutionPlanSchema,
   WorkflowSemanticDocumentSchema,
 } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 import {
@@ -2098,7 +2099,7 @@ Deno.test("JSON Schema subset converts to value types", () => {
   });
   assertEquals(
     convert(
-      (designSchemas["IntegrationActionInput"] as {
+      (designSchemas["ToolCallInput"] as {
         properties: Record<string, unknown>;
       }).properties["arguments"],
     ),
@@ -2785,10 +2786,11 @@ Deno.test("reference resolution: inputs, steps, task and typed fields", async ()
       workflow([
         {
           id: "call",
-          uses: "integration.action",
+          uses: "tool.call",
           with: {
-            actionId: "ping",
-            actionVersion: 1,
+            connectionId: "00000000-0000-4000-8000-000000000001",
+            tool: "ping",
+            toolVersion: 1,
             resourceId: "$input.repositoryId",
             arguments: { any: 1 },
           },
@@ -3548,10 +3550,11 @@ Deno.test("with values are type checked without coercion", async () => {
     rev("second", { evidence: ["$input.repositoryId"] }),
     {
       id: "call",
-      uses: "integration.action",
+      uses: "tool.call",
       with: {
-        actionId: "ping",
-        actionVersion: 1,
+        connectionId: "00000000-0000-4000-8000-000000000001",
+        tool: "ping",
+        toolVersion: 1,
         resourceId: "$input.repositoryId",
         arguments: { sha: "$step.verify.headSha", nested: ["$input.target"] },
       },
@@ -4053,10 +4056,13 @@ Deno.test("expandStepKeys refuses to exceed the step limit", async () => {
   const result = await accepted(workflow([repeatNode({}, { max: 2 })]));
   const [step] = result.plan.steps;
   assert(step);
+  // A repeat's loop entry says it is a repeat (#417).
+  assertEquals(step.loops.map((loop) => loop.kind), ["repeat"]);
   const big = {
     steps: [{
       ...step,
       loops: Array.from({ length: 4 }, () => ({
+        kind: "repeat" as const,
         repeat: "fix",
         max: 8,
         seed: false,
@@ -4125,12 +4131,404 @@ Deno.test("step skills, roles and slots each report their own code", async () =>
       { ...noop("aa"), sealed: true, files: { read: ["inputs", "shared"] } },
       "action_sealed_conflicts_files",
     ],
+    // #436: a step's tools must reference the workflow tools section.
+    [{ ...noop("aa"), tools: ["docs"] }, "action_tools_invalid"],
   ];
   for (const [step, code] of cases) {
     const result = await compileWorkflowDocument(workflow([step]));
     assert(!result.ok, code);
     assertEquals(result.diagnostics[0]?.code, code);
   }
+  // #436: the tools section itself is a map of named connections.
+  const badSection = await compileWorkflowDocument({
+    ...workflow([noop("aa")]),
+    tools: { docs: { connectionId: "not-a-uuid", allow: ["search"] } },
+  });
+  assert(!badSection.ok);
+  assertEquals(badSection.diagnostics[0]?.code, "workflow_tools_invalid");
+});
+
+Deno.test("a block that repairs must review its own result, and nothing merges before a review", async () => {
+  const repair: Def = { id: "repair", uses: "harness.repair" };
+  const review: Def = { id: "review", uses: "review.independent" };
+  const project: Def = { id: "project", uses: "delivery.candidate_evidence" };
+  const merge: Def = { id: "merge", uses: "delivery.merge" };
+  const block = (...steps: Def[]) => repeatNode({}, { steps });
+  await runCases([
+    [
+      "a repair block with no review",
+      workflow([block(repair, noop("after"))]),
+      [{ path: "/steps/0/repeat", code: "fix_loop_review_missing" }],
+    ],
+    [
+      "a review that is not the last step",
+      workflow([block(repair, review, noop("after"))]),
+      [{
+        path: "/steps/0/repeat/steps/1",
+        code: "fix_loop_review_not_last",
+      }],
+    ],
+    [
+      "a merge before the review",
+      workflow([merge, block(repair, review)]),
+      [{ path: "/steps/0", code: "merge_without_review" }],
+    ],
+    [
+      "a merge inside the block, before its review",
+      workflow([block(repair, merge, review)]),
+      [{
+        path: "/steps/0/repeat/steps/1",
+        code: "merge_without_review",
+      }],
+    ],
+  ]);
+  // The engine's own projection may follow the review; a merge after it is fine.
+  await accepted(workflow([block(repair, review, project), merge]));
+  await accepted(workflow([block(repair, review), merge]));
+  // Nothing changes for a workflow with no repair block.
+  await accepted(workflow([merge]));
+  await accepted(
+    workflow([repeatNode({}, { steps: [noop("try_one")] }), merge]),
+  );
+});
+
+// ---------------------------------------------------------------------------
+// #417: forEach, a bounded sequential loop over a list (interpreter revision 3).
+// ---------------------------------------------------------------------------
+
+function forEachNode(extra: Def = {}, body: Def = {}): Def {
+  return {
+    id: "cases",
+    forEach: {
+      items: "$step.prepare.cases",
+      max: 3,
+      as: "case",
+      steps: [{ ...noop("run_case"), with: { item: "$each.case" } }],
+      ...body,
+    },
+    ...extra,
+  };
+}
+
+const BUILD = {
+  id: "build",
+  uses: "harness.implement",
+  with: { repositoryId: "$input.repositoryId", planArtifact: ARTIFACT },
+};
+
+Deno.test("a forEach normalizes to a bounded loop whose steps run max times at worst", async () => {
+  const result = await accepted(workflow([
+    noop("prepare"),
+    forEachNode(),
+    { ...noop("after"), with: { ran: "$step.cases.iterations" } },
+  ]));
+  const loop = result.document.steps[1];
+  assert(loop?.kind === "forEach");
+  assertEquals(loop.items, {
+    kind: "ref",
+    root: "step",
+    path: ["prepare", "cases"],
+  });
+  assertEquals(loop.max, 3);
+  assertEquals(loop.as, "case");
+  assertEquals(loop.steps[0]?.kind, "action");
+  const runCase = result.plan.steps.find((step) =>
+    step.qualifiedId === "cases.run_case"
+  );
+  assertEquals(runCase?.keyTemplate, "cases@n.run_case");
+  assertEquals(runCase?.loops, [{
+    kind: "forEach",
+    repeat: "cases",
+    max: 3,
+    seed: false,
+  }]);
+  assertEquals(result.plan.worstCase.steps, 1 + 3 + 1);
+  // A literal list is a list too.
+  await accepted(workflow([forEachNode({}, { items: ["a", "b"] })]));
+  // A loop up to the ceiling of 12 items is accepted, and its plan parses
+  // under the published plan schema (loops[].max allows forEachMax).
+  const twelve = await accepted(
+    workflow([noop("prepare"), forEachNode({}, { max: 12 })]),
+  );
+  assertEquals(
+    twelve.plan.steps.find((step) => step.qualifiedId === "cases.run_case")
+      ?.loops[0]?.max,
+    WORKFLOW_COMPILER_LIMITS.forEachMax,
+  );
+  const parsed = WorkflowExecutionPlanSchema.safeParse(twelve.plan);
+  assert(parsed.success, parsed.success ? "" : parsed.error.message);
+});
+
+Deno.test("every forEach shape and scope code reports its exact path", async () => {
+  const loopAt = "/steps/1/forEach";
+  await runCases([
+    [
+      "max below one",
+      workflow([noop("prepare"), forEachNode({}, { max: 0 })]),
+      [{ path: `${loopAt}/max`, code: "for_each_max_invalid" }],
+    ],
+    [
+      "max above the ceiling",
+      workflow([noop("prepare"), forEachNode({}, { max: 13 })]),
+      [{ path: `${loopAt}/max`, code: "for_each_max_invalid" }],
+    ],
+    [
+      "max that is not a number",
+      workflow([noop("prepare"), forEachNode({}, { max: "3" })]),
+      [{ path: `${loopAt}/max`, code: "for_each_max_invalid" }],
+    ],
+    [
+      "item name with a capital first letter",
+      workflow([noop("prepare"), forEachNode({}, { as: "Case" })]),
+      [{ path: `${loopAt}/as`, code: "for_each_as_invalid" }],
+    ],
+    [
+      "item name that is not a string",
+      workflow([noop("prepare"), forEachNode({}, { as: 5 })]),
+      [{ path: `${loopAt}/as`, code: "for_each_as_invalid" }],
+    ],
+    [
+      "an inner loop reusing the outer loop's item name",
+      workflow([
+        noop("prepare"),
+        forEachNode({}, {
+          steps: [{
+            id: "inner",
+            forEach: {
+              items: "$each.case.parts",
+              max: 2,
+              as: "case",
+              steps: [noop("work")],
+            },
+          }],
+        }),
+      ]),
+      [{
+        path: `${loopAt}/steps/0/forEach/as`,
+        code: "for_each_as_invalid",
+      }],
+    ],
+    [
+      "missing items, max, as and steps",
+      workflow([{ id: "cases", forEach: {} }]),
+      [
+        { path: "/steps/0/forEach/items", code: "field_missing" },
+        { path: "/steps/0/forEach/max", code: "field_missing" },
+        { path: "/steps/0/forEach/as", code: "field_missing" },
+        { path: "/steps/0/forEach/steps", code: "field_missing" },
+      ],
+    ],
+    [
+      "parallel iterations are not part of the sequential loop",
+      workflow([noop("prepare"), forEachNode({}, { collect: true })]),
+      [{ path: loopAt, code: "field_unknown" }],
+    ],
+    [
+      "a loop with no steps",
+      workflow([noop("prepare"), forEachNode({}, { steps: [] })]),
+      [{ path: `${loopAt}/steps`, code: "field_invalid" }],
+    ],
+    [
+      "a loop body that is not an object",
+      workflow([{ id: "cases", forEach: [] }]),
+      [{ path: "/steps/0/forEach", code: "field_invalid" }],
+    ],
+    [
+      "a node that is both a loop and an action",
+      workflow([{ ...forEachNode(), uses: "workflow.noop" }]),
+      [{ path: "/steps/0", code: "node_kind_invalid" }],
+    ],
+    [
+      "a step named like the loop's own results",
+      workflow([
+        noop("prepare"),
+        forEachNode({}, { steps: [noop("iterations")] }),
+      ]),
+      [{ path: `${loopAt}/steps/0/id`, code: "node_id_reserved" }],
+    ],
+    [
+      "$each outside every loop",
+      workflow([{ ...noop("alone"), with: { item: "$each.case" } }]),
+      [{ path: "/steps/0/with", code: "reference_each_scope" }],
+    ],
+    [
+      "$each naming a loop that does not enclose the reader",
+      workflow([
+        noop("prepare"),
+        forEachNode({}, {
+          steps: [{ ...noop("run_case"), with: { item: "$each.other" } }],
+        }),
+      ]),
+      [{ path: `${loopAt}/steps/0/with`, code: "reference_each_scope" }],
+    ],
+    [
+      "a loop's items reading its own item",
+      workflow([forEachNode({}, { items: "$each.case" })]),
+      [{ path: "/steps/0/forEach/items", code: "reference_each_scope" }],
+    ],
+    [
+      "a step inside the loop read from after it",
+      workflow([
+        noop("prepare"),
+        forEachNode(),
+        { ...noop("after"), with: { last: "$step.cases.run_case" } },
+      ]),
+      [{ path: "/steps/2/with", code: "reference_each_scope" }],
+    ],
+    [
+      "the loop's results read from inside it",
+      workflow([
+        noop("prepare"),
+        forEachNode({}, {
+          steps: [{
+            ...noop("run_case"),
+            with: { n: "$step.cases.iterations" },
+          }],
+        }),
+      ]),
+      [{ path: `${loopAt}/steps/0/with`, code: "reference_future" }],
+    ],
+    [
+      "text that mentions $each mid-string",
+      workflow([{ ...noop("alone"), with: { note: "see $each.case" } }]),
+      [{ path: "/steps/0/with", code: "value_reference_ambiguous" }],
+    ],
+  ]);
+});
+
+Deno.test("a forEach is typed: its items must be a list and $each has the item's type", async () => {
+  const catalog = createDesignCatalog();
+  // A list of artifact references feeds a step that takes one.
+  await flowAccepted(
+    workflow([
+      BUILD,
+      {
+        id: "publish_each",
+        forEach: {
+          items: "$step.build.artifacts",
+          max: 4,
+          as: "artifact",
+          steps: [{
+            id: "publish",
+            uses: "artifact.publish",
+            with: { artifact: "$each.artifact" },
+          }],
+        },
+      },
+      {
+        id: "after",
+        uses: "workflow.noop",
+        if: '$step.publish_each.outcome == "completed"',
+      },
+    ]),
+    catalog,
+  );
+  await flowCases([
+    [
+      "items that are a string",
+      workflow([{
+        id: "cases",
+        forEach: {
+          items: "$input.target",
+          max: 2,
+          as: "case",
+          steps: [noop("work")],
+        },
+      }]),
+      [{ path: "/steps/0/forEach/items", code: "for_each_items_invalid" }],
+    ],
+    [
+      "an item field of the wrong type",
+      workflow([
+        BUILD,
+        {
+          id: "publish_each",
+          forEach: {
+            items: "$step.build.artifacts",
+            max: 4,
+            as: "artifact",
+            steps: [{
+              id: "publish",
+              uses: "artifact.publish",
+              with: { artifact: "$each.artifact.sha256" },
+            }],
+          },
+        },
+      ]),
+      [{
+        path: "/steps/1/forEach/steps/0/with/artifact",
+        code: "type_mismatch",
+      }],
+    ],
+    [
+      "an item field the item does not have",
+      workflow([
+        BUILD,
+        {
+          id: "publish_each",
+          forEach: {
+            items: "$step.build.artifacts",
+            max: 4,
+            as: "artifact",
+            steps: [{
+              id: "publish",
+              uses: "artifact.publish",
+              with: { artifact: "$each.artifact.missing" },
+            }],
+          },
+        },
+      ]),
+      [{
+        path: "/steps/1/forEach/steps/0/with/artifact",
+        code: "reference_field_unknown",
+      }],
+    ],
+    [
+      "an outcome the loop never records",
+      workflow([
+        BUILD,
+        {
+          id: "publish_each",
+          forEach: {
+            items: "$step.build.artifacts",
+            max: 4,
+            as: "artifact",
+            steps: [noop("work")],
+          },
+        },
+        {
+          ...noop("after"),
+          if: '$step.publish_each.outcome == "exhausted"',
+        },
+      ]),
+      [{ path: "/steps/2/if", code: "expression_operand_invalid" }],
+    ],
+  ], catalog);
+});
+
+Deno.test("a forEach's worst case is max times its body and counts against the limits", async () => {
+  assertEquals(
+    await worstOf([
+      noop("prepare"),
+      forEachNode({}, {
+        max: 4,
+        steps: [fast("one"), fast("two")],
+      }),
+    ]),
+    {
+      steps: 1 + 4 * 2,
+      attempts: 1 + 4 * 2,
+      timeMs: 1_800_000 + 4 * (10_000 + 10_000),
+      costUsd: 0,
+    },
+  );
+  assertEquals(
+    await diagnose(workflow([
+      noop("prepare"),
+      forEachNode({}, { max: 12, steps: [fast("one")] }),
+    ], { limits: { maxAttempts: 12 } })),
+    [{ path: "/limits", code: "expansion_attempts_exceeded" }],
+  );
 });
 
 Deno.test("every closed diagnostic code is exercised by this suite", () => {
@@ -4139,6 +4537,27 @@ Deno.test("every closed diagnostic code is exercised by this suite", () => {
   collector.add("/a", "field_invalid");
   collector.add("/b", "field_unknown");
   for (const diagnostic of collector.list()) {
+    exercisedCodes.add(diagnostic.code);
+  }
+  // The call codes need published child versions to trigger, which this
+  // suite's helpers do not offer; compile-a-workflow-call_test.ts exercises
+  // each of them through the compiler.
+  const callCodes = createDiagnosticCollector(16);
+  for (
+    const code of [
+      "call_shape_invalid",
+      "call_version_unavailable",
+      "call_child_invalid",
+      "call_input_unknown",
+      "call_input_missing",
+      "call_input_unusable",
+      "call_depth_exceeded",
+      "call_action_unsupported",
+      "call_output_unknown",
+      "workflow_outputs_invalid",
+    ] as const
+  ) callCodes.add("/call", code);
+  for (const diagnostic of callCodes.list()) {
     exercisedCodes.add(diagnostic.code);
   }
   assertEquals(

@@ -13,6 +13,7 @@ import { batchImplementedActions } from "../../packages/contracts/src/implemente
 Deno.test("the batch action registry assembles against the catalog", () => {
   const registry = createBatchActionRegistry({} as never, {
     cursorSecret: "cursor-secret",
+    budget: undefined,
   });
   const names = registry.list().map((action) => action.name);
   for (const name of batchImplementedActions) {
@@ -31,6 +32,7 @@ Deno.test("the batch action registry assembles against the catalog", () => {
 Deno.test("an Admin is not refused for want of an authorization guard on any batch action", () => {
   const registry = createBatchActionRegistry({} as never, {
     cursorSecret: "cursor-secret",
+    budget: undefined,
   });
   const admin = {
     subject: { principalId: "p", principalType: "human" },

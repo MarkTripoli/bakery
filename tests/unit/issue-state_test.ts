@@ -8,6 +8,7 @@ import {
   issueStatus,
   reasonAction,
   reasonKey,
+  reasonMessage,
   referencedNumber,
   startOffer,
 } from "../../apps/web/src/pages/issue-state.ts";
@@ -296,5 +297,85 @@ Deno.test("dependencies take their state from the check's evidence, and unread l
       ]),
     })).incomplete,
     true,
+  );
+});
+
+Deno.test("a reason that names no issue or label says so in words, never with an empty number or label", () => {
+  const rowWith = (id: string, reason: string, evidence: string[] = []) =>
+    ticket({
+      latestReadiness: readiness("waiting", [
+        check(id, "wait", reason, evidence),
+      ]),
+    });
+  const sentence = (row: IssueRow, code: string) => reasonMessage(row, code);
+  assertEquals(
+    sentence(
+      rowWith("dependencies_satisfied", "predecessor_open", [
+        "blocker:acme/web#150",
+      ]),
+      "predecessor_open",
+    ),
+    {
+      key: "issues.reason.predecessor_open",
+      values: { number: "150", label: "" },
+    },
+  );
+  assertEquals(
+    sentence(
+      rowWith("dependencies_satisfied", "predecessor_open"),
+      "predecessor_open",
+    ).key,
+    "issues.reason.predecessor_open_unnamed",
+  );
+  assertEquals(
+    sentence(
+      rowWith("dependencies_satisfied", "closed_unmerged"),
+      "closed_unmerged",
+    ).key,
+    "issues.reason.closed_unmerged_unnamed",
+  );
+  assertEquals(
+    sentence(
+      rowWith("dependencies_satisfied", "closed_unmerged", [
+        "blocker:acme/web#7",
+      ]),
+      "closed_unmerged",
+    ).key,
+    "issues.reason.closed_unmerged",
+  );
+  assertEquals(
+    sentence(rowWith("labels_present", "label_missing"), "label_missing").key,
+    "issues.reason.label_missing_unnamed",
+  );
+  assertEquals(
+    sentence(
+      rowWith("labels_present", "label_missing", ["label:ready"]),
+      "label_missing",
+    ).key,
+    "issues.reason.label_missing",
+  );
+  assertEquals(
+    sentence(rowWith("labels_present", "label_withdrawn"), "label_withdrawn")
+      .key,
+    "issues.reason.label_withdrawn_unnamed",
+  );
+  assertEquals(
+    sentence(
+      rowWith("labels_present", "label_withdrawn", ["label:ready"]),
+      "label_withdrawn",
+    ).key,
+    "issues.reason.label_withdrawn",
+  );
+  // A reason with nothing to name keeps its one sentence.
+  assertEquals(
+    sentence(
+      rowWith("acceptance_present", "acceptance_missing"),
+      "acceptance_missing",
+    ).key,
+    "issues.reason.acceptance_missing",
+  );
+  assertEquals(
+    sentence(rowWith("x", "weird"), "weird").key,
+    "issues.reason.unknown",
   );
 });

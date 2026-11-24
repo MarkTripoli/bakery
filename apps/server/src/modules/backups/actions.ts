@@ -40,6 +40,13 @@ import {
 } from "./postgres.ts";
 import { takeCutoff } from "./cutoff.ts";
 import { listBackupDrills, recordDrill } from "./drill.ts";
+import { getRestore, takeRestoreStep } from "./restore-release.ts";
+import { readUncertainActions } from "./uncertain-actions.ts";
+import {
+  dismissUpdateEvent,
+  listUpdateEvents,
+  readUpdateStatus,
+} from "./update-history.ts";
 import { maintainRun } from "./maintenance.ts";
 import {
   type BackupSettingsDependencies,
@@ -53,6 +60,11 @@ import {
   recordVerification,
   releaseRunnerSettings,
 } from "./settings-actions.ts";
+import {
+  getPointInTime,
+  putPointInTime,
+  recordWalReport,
+} from "./point-in-time.ts";
 
 type Run = z.output<typeof contractSchemas.BackupRun>;
 type Status = z.output<typeof contractSchemas.BackupStatus>;
@@ -70,6 +82,11 @@ export type BackupRouteOptions = {
   readonly secret: string;
   /** What the off-site destination and the runner's settings read need. */
   readonly settings: BackupSettingsDependencies;
+  /** The release this server runs and its own health check, for the Updates page. */
+  readonly running: () => {
+    release: string;
+    healthy: () => Promise<boolean>;
+  };
 };
 
 /** backups.list */
@@ -99,6 +116,83 @@ function listDrills(
     actor.subject.principalId,
     input,
     secret,
+  );
+}
+
+/** installationRestore.get */
+function getInstallationRestore(context: ActionContext) {
+  const { context: value } = installationActor(context);
+  return getRestore(value.transaction);
+}
+
+/** installationUncertainActions.get */
+function getInstallationUncertainActions(context: ActionContext) {
+  const { context: value } = installationActor(context);
+  return readUncertainActions(value.transaction);
+}
+
+/** installationUpdates.status */
+async function getInstallationUpdateStatus(
+  context: ActionContext,
+  running: () => { release: string; healthy: () => Promise<boolean> },
+) {
+  const { context: value } = installationActor(context);
+  const { release, healthy } = running();
+  return readUpdateStatus(value.transaction, {
+    release,
+    healthy: await healthy(),
+  });
+}
+
+/** installationUpdates.list */
+function listInstallationUpdates(
+  context: ActionContext,
+  input: { cursor?: string; limit?: number },
+  secret: string,
+) {
+  const { context: value, actor } = installationActor(context);
+  return listUpdateEvents(
+    value.transaction,
+    actor.subject.principalId,
+    input,
+    secret,
+  );
+}
+
+/** installationUpdates.dismiss */
+async function dismissInstallationUpdate(
+  context: ActionContext,
+  input: { id: string },
+) {
+  const { context: value, actor } = installationActor(context);
+  const principalId = actor.subject.principalId;
+  const event = await dismissUpdateEvent(
+    value.transaction,
+    input.id,
+    principalId,
+  );
+  await recordAuthAudit(value.transaction, value, {
+    organizationId: null,
+    principalId,
+    operation: Action.InstallationUpdatesDismiss,
+    resourceType: "installation_update_history",
+    resourceId: input.id,
+    details: { kind: event.kind },
+  });
+  return event;
+}
+
+/** installationRestore.step */
+function takeInstallationRestoreStep(
+  context: ActionContext,
+  input: { step: "intake" | "dispatch" | "workers"; confirmation: string },
+) {
+  const { context: value, actor } = installationActor(context);
+  return takeRestoreStep(
+    value.transaction,
+    value,
+    actor.subject.principalId,
+    input,
   );
 }
 
@@ -147,11 +241,19 @@ async function issueCredential(context: ActionContext): Promise<Issued> {
 const ADMIN_ACTIONS = [
   Action.BackupsList,
   Action.BackupsDrillsList,
+  Action.InstallationRestoreGet,
+  Action.InstallationRestoreStep,
+  Action.InstallationUncertainActionsGet,
+  Action.InstallationUpdatesStatus,
+  Action.InstallationUpdatesList,
+  Action.InstallationUpdatesDismiss,
   Action.BackupsStatus,
   Action.BackupsStart,
   Action.BackupRunnerCredentialIssue,
   Action.BackupScheduleGet,
   Action.BackupSchedulePut,
+  Action.BackupPointInTimeGet,
+  Action.BackupPointInTimePut,
   Action.BackupOffsiteGet,
   Action.BackupOffsitePut,
   Action.BackupOffsiteVerify,
@@ -161,6 +263,7 @@ export function createBackupActionRegistry(
   database: PgDatabase,
   secret: string,
   settings: BackupSettingsDependencies,
+  running: () => { release: string; healthy: () => Promise<boolean> },
 ): ActionRegistry {
   const registry = new ActionRegistry(
     createBackupSettingsAuthorityRunner(
@@ -191,6 +294,63 @@ export function createBackupActionRegistry(
     output: contractSchemas["Page<BackupDrill>"],
     policy: { ...policy, type: ActionKind.Query },
     handler: (context, input) => listDrills(context, input, secret),
+  }).register({
+    name: Action.InstallationRestoreGet,
+    method: HttpMethod.Get,
+    path: "/v1/installation/restore",
+    input: contractSchemas.Empty,
+    output: contractSchemas.InstallationRestore,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: getInstallationRestore,
+  }).register({
+    name: Action.InstallationUncertainActionsGet,
+    method: HttpMethod.Get,
+    path: "/v1/installation/uncertain-actions",
+    input: contractSchemas.Empty,
+    output: contractSchemas.InstallationUncertainActions,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: getInstallationUncertainActions,
+  }).register({
+    name: Action.InstallationUpdatesStatus,
+    method: HttpMethod.Get,
+    path: "/v1/installation/updates/status",
+    input: contractSchemas.Empty,
+    output: contractSchemas.InstallationUpdateStatus,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: (context) => getInstallationUpdateStatus(context, running),
+  }).register({
+    name: Action.InstallationUpdatesList,
+    method: HttpMethod.Get,
+    path: "/v1/installation/updates",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<InstallationUpdateEvent>"],
+    policy: { ...policy, type: ActionKind.Query },
+    handler: (context, input) =>
+      listInstallationUpdates(context, input, secret),
+  }).register({
+    name: Action.InstallationUpdatesDismiss,
+    method: HttpMethod.Post,
+    path: "/v1/installation/updates/:id/dismiss",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.InstallationUpdateEvent,
+    // Idempotency-Key is required. A browser session only, like the other
+    // installation settings: a notice is never dismissed with a token.
+    explicitIdempotency: "key",
+    successStatus: 200,
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
+    handler: dismissInstallationUpdate,
+  }).register({
+    name: Action.InstallationRestoreStep,
+    method: HttpMethod.Post,
+    path: "/v1/installation/restore/steps",
+    input: contractSchemas.InstallationRestoreStep,
+    output: contractSchemas.InstallationRestore,
+    // Idempotency-Key is required. A browser session only, like the other
+    // installation settings: a restore step is never taken with a token.
+    explicitIdempotency: "key",
+    successStatus: 200,
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
+    handler: (context, input) => takeInstallationRestoreStep(context, input),
   }).register({
     name: Action.BackupsStatus,
     method: HttpMethod.Get,
@@ -239,6 +399,24 @@ export function createBackupActionRegistry(
     explicitIdempotency: "key",
     policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
     handler: putSchedule,
+  }).register({
+    name: Action.BackupPointInTimeGet,
+    method: HttpMethod.Get,
+    path: "/v1/installation/backup-point-in-time",
+    input: contractSchemas.Empty,
+    output: contractSchemas.BackupPointInTime,
+    policy: { ...policy, type: ActionKind.Query },
+    handler: getPointInTime,
+  }).register({
+    name: Action.BackupPointInTimePut,
+    method: HttpMethod.Put,
+    path: "/v1/installation/backup-point-in-time",
+    input: contractSchemas.BackupPointInTimePut,
+    output: contractSchemas.BackupPointInTime,
+    // Like the schedule: Idempotency-Key required, If-Match once it exists.
+    explicitIdempotency: "key",
+    policy: { ...policy, type: ActionKind.Command, sessionOnly: true },
+    handler: putPointInTime,
   }).register({
     name: Action.BackupOffsiteGet,
     method: HttpMethod.Get,
@@ -467,6 +645,26 @@ export function createBackupRunnerRoutes(
       });
     }),
   );
+  // The restorable window the runner holds off-site: the oldest kept base
+  // backup and the newest archived WAL segment. No WAL bytes, no key.
+  app.post(
+    "/v1/backup-runner/wal",
+    guarded(async (context) => {
+      await withPgTransaction(
+        options.database,
+        (transaction) =>
+          authenticateRunner(transaction, context.req.raw.headers),
+      );
+      const input = await parseContract(
+        context,
+        contractSchemas.BackupWalReport,
+      );
+      return withPgTransaction(options.database, async (transaction) => {
+        await authenticateRunner(transaction, context.req.raw.headers);
+        return noStoreJson(await recordWalReport(transaction, input), 200);
+      });
+    }),
+  );
   // One restore drill the runner ran on the host: a backup set restored into an
   // isolated, throwaway database and checked there. The runner chooses the id,
   // so reporting it again returns the stored record.
@@ -505,9 +703,15 @@ export function createBackupRoutes(options: BackupRouteOptions) {
   app.use("/v1/installation/backups", options.browserSession);
   app.use("/v1/installation/backups/*", options.browserSession);
   app.use("/v1/installation/backup-schedule", options.browserSession);
+  app.use("/v1/installation/backup-point-in-time", options.browserSession);
   app.use("/v1/installation/backup-offsite", options.browserSession);
   app.use("/v1/installation/backup-offsite/*", options.browserSession);
   app.use("/v1/installation/backup-runner/*", options.browserSession);
+  app.use("/v1/installation/uncertain-actions", options.browserSession);
+  app.use("/v1/installation/updates", options.browserSession);
+  app.use("/v1/installation/updates/*", options.browserSession);
+  app.use("/v1/installation/restore", options.browserSession);
+  app.use("/v1/installation/restore/*", options.browserSession);
   app.route(
     "/",
     createApiRouter({
@@ -515,6 +719,7 @@ export function createBackupRoutes(options: BackupRouteOptions) {
         options.database,
         options.secret,
         options.settings,
+        options.running,
       ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,

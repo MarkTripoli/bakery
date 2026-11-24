@@ -78,6 +78,11 @@ The initial registry is below. All routes inherit applicable shared parser/route
 | `REVIEWER_UNAVAILABLE` | 503 | yes |
 | `WORKER_UNAVAILABLE` | 503 | yes |
 | `INSTALLATION_QUIESCED` | 503 | yes |
+| `INSTALLATION_RESTORING` | 503 | no |
+| `RESTORE_NOT_HELD` | 409 | no |
+| `RESTORE_CONFIRMATION_MISMATCH` | 422 | no |
+| `RESTORE_STEP_OUT_OF_ORDER` | 409 | no |
+| `RESTORE_STEP_ALREADY_TAKEN` | 409 | no |
 | `SNAPSHOT_SCOPE_TOO_LARGE` | 413 | no |
 | `AUTH_INVALID` | 401 | no |
 | `AUTH_EXPIRED` | 401 | no |

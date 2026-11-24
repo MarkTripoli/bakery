@@ -38,7 +38,7 @@ function registration(
 }
 
 Deno.test("workflow registry exposes the exact documented metadata allowlist", () => {
-  assertEquals(WORKFLOW_ACTION_NAMES.length, 24);
+  assertEquals(WORKFLOW_ACTION_NAMES.length, 25);
   assertEquals(Object.keys(WORKFLOW_ACTION_METADATA), [
     ...WORKFLOW_ACTION_NAMES,
   ]);
@@ -269,6 +269,10 @@ Deno.test("workflow runtime registers the exact runtime set with strict schemas"
     runtime.list().map(({ action }) => action).sort(),
     [
       "agent.freeform",
+      "coordination.split",
+      "delivery.deploy",
+      "delivery.health",
+      "delivery.prepare",
       "evaluation.check",
       "evaluation.score",
       "harness.implement",
@@ -278,8 +282,10 @@ Deno.test("workflow runtime registers the exact runtime set with strict schemas"
       "review.independent",
       "rpi.design",
       "rpi.plan",
+      "rpi.research",
       "secret.identity.read",
       "task.brief",
+      "tool.call",
       "workflow.noop",
       "workflow.stop",
     ],

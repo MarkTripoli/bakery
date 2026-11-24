@@ -1,4 +1,5 @@
-import type { ComponentProps, ReactNode, Ref } from "react";
+import type { ComponentProps, MutableRefObject, ReactNode, Ref } from "react";
+import type { MentionField } from "../mentions/useMentionField.tsx";
 import * as UI from "@bakery/ui";
 
 export type ArtifactDiscussionViewProps =
@@ -67,7 +68,11 @@ export type ArtifactCommentComposerModel = {
   readonly onSubmit: () => void;
   readonly submitLabel: string;
   readonly disabled: boolean;
+  /** Why the button is off while a mention waits on someone who can give access; null otherwise. */
+  readonly sendReason?: string | null;
   readonly inputRef?: Ref<HTMLTextAreaElement>;
+  /** Mentions: the textarea's props, the picker above it and the chips below (design-ux #73). */
+  readonly mentionField?: MentionField;
   readonly agentAction: ReactNode;
   readonly mode:
     | { readonly kind: "comment"; readonly anchor: ReactNode }
@@ -88,27 +93,68 @@ export function ArtifactCommentComposerView(
         composer.onSubmit();
       }}
     >
+      {composer.mentionField?.notice
+        ? (
+          <UI.InlineNotice role="alert" tone="error">
+            {composer.mentionField.notice}
+          </UI.InlineNotice>
+        )
+        : null}
+      {composer.mentionField?.picker ?? null}
       <textarea
+        {...(composer.mentionField?.fieldProps ?? {})}
         id={composer.id}
-        ref={composer.inputRef}
+        ref={(node) => {
+          if (typeof composer.inputRef === "function") composer.inputRef(node);
+          else if (composer.inputRef) {
+            (composer.inputRef as MutableRefObject<HTMLTextAreaElement | null>)
+              .current = node;
+          }
+          if (composer.mentionField) {
+            composer.mentionField.fieldProps.ref.current = node;
+          }
+        }}
         aria-label={composer.label}
         placeholder={composer.placeholder}
         value={composer.value}
-        onChange={(event) => composer.onChange(event.currentTarget.value)}
+        onChange={(event) =>
+          composer.mentionField
+            ? composer.mentionField.fieldProps.onChange(event)
+            : composer.onChange(event.currentTarget.value)}
         onKeyDown={(event) => {
+          composer.mentionField?.fieldProps.onKeyDown(event);
+          if (event.defaultPrevented) return;
           if (event.key === "Escape" && composer.mode.kind === "reply") {
             event.preventDefault();
             composer.mode.onCancel();
           }
         }}
       />
+      {composer.mentionField?.row ?? null}
       {composer.mode.kind === "comment" ? composer.mode.anchor : null}
       <UI.Inline>
-        <UI.Button type="submit" disabled={composer.disabled}>
+        <UI.Button
+          type="submit"
+          aria-describedby={composer.sendReason
+            ? `${composer.id}-reason`
+            : undefined}
+          disabled={composer.disabled}
+        >
           {composer.submitLabel}
         </UI.Button>
         {composer.agentAction}
       </UI.Inline>
+      {composer.sendReason
+        ? (
+          <UI.Text
+            id={`${composer.id}-reason`}
+            role="status"
+            variant="caption"
+          >
+            {composer.sendReason}
+          </UI.Text>
+        )
+        : null}
     </form>
   );
 }

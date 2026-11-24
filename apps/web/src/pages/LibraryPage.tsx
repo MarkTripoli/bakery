@@ -40,6 +40,8 @@ import {
   presetSteps,
 } from "./library/library-state.ts";
 import { presetSource } from "./library/copy-workflow.ts";
+import { EvaluationsTab } from "./library/EvaluationsTab.tsx";
+import { SkillsTab } from "./library/SkillsTab.tsx";
 import { type LibraryRow, LibraryRows } from "./library/LibraryRows.tsx";
 import { ImportDialog } from "./library/ImportDialog.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
@@ -305,7 +307,11 @@ export function LibraryPage() {
     ? memories.data?.truncated
     : agents.data?.truncated;
 
-  const content = forbidden
+  const content = tab === "evaluations"
+    ? <EvaluationsTab />
+    : tab === "skills"
+    ? <SkillsTab />
+    : forbidden
     ? (
       <UI.EmptyState
         title={translate("library.forbidden.title" as never)}
@@ -502,7 +508,10 @@ export function LibraryPage() {
             void navigate({
               to: "/library",
               search: {
-                tab: id === "agents" || id === "memory" ? id : undefined,
+                tab: id === "agents" || id === "skills" || id === "memory" ||
+                    id === "evaluations"
+                  ? id
+                  : undefined,
               },
               replace: true,
             })}
@@ -518,9 +527,19 @@ export function LibraryPage() {
               content: tab === "agents" ? content : null,
             },
             {
+              id: "skills",
+              label: translate("library.tab.skills"),
+              content: tab === "skills" ? content : null,
+            },
+            {
               id: "memory",
               label: translate("library.tab.memory" as never),
               content: tab === "memory" ? content : null,
+            },
+            {
+              id: "evaluations",
+              label: translate("library.tab.evaluations" as never),
+              content: tab === "evaluations" ? content : null,
             },
           ]}
         />

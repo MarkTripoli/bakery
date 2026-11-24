@@ -229,6 +229,8 @@ export type LoopWorld = {
   steps(): Promise<StepRow[]>;
   /** A plan run: the key the plan asks for next, or undefined once it is over. */
   nextKey(): Promise<string | undefined>;
+  /** A plan run reopened after it ended: the engine takes it up again. */
+  resumeEngine(): Promise<void>;
   /**
    * A plan run: asks the plan for its next step and admits it through the
    * production engine, as the engine function does. A step the engine
@@ -471,12 +473,13 @@ export async function openLoopWorld(
     // The host's view of a plan run, composed here as the server composes it.
     planHost: readPlanHost,
   });
-  const owner = await engine.acquireEngineOwner(
+  const firstOwner = await engine.acquireEngineOwner(
     run.id,
     crypto.randomUUID(),
     600_000,
   );
-  assertExists(owner);
+  assertExists(firstOwner);
+  let owner: typeof firstOwner = firstOwner;
   const reviewerCapabilities = [...workerFixtureCapabilities, "reviewer"];
   // Replay the plan the way the dispatcher does: admit (and so complete) every
   // projection step the engine asks for, then let it answer. A recorded result
@@ -810,6 +813,17 @@ export async function openLoopWorld(
     steps: stepRows,
     async nextKey() {
       return (await settle())?.stepKey;
+    },
+    async resumeEngine() {
+      // A run the engine ended and a person reopened is started again by its
+      // `run.requested` event; the world plays that part: a new owner.
+      const resumed = await engine.acquireEngineOwner(
+        run.id,
+        crypto.randomUUID(),
+        600_000,
+      );
+      assertExists(resumed, "the reopened run has no engine owner");
+      owner = resumed;
     },
     async admitNext() {
       const next = await settle();

@@ -5068,6 +5068,13 @@
       "frames": []
     },
     {
+      "routeId": "plugin-page",
+      "path": "/plugins/$installId/$pageId",
+      "status": "no-mock",
+      "rationale": "Designed in design-ux's #76 revision 5 (design-76/v5 on the pr-evidence branch): token-value mocks, not Paper frames, so there is no Paper artboard to score. The page is judged against those mocks in the PR's visual evidence and by the Storybook component lanes.",
+      "frames": []
+    },
+    {
       "routeId": "settings-organization-repository-rules",
       "path": "/settings/organization/repository-rules",
       "status": "no-mock",
@@ -5117,6 +5124,27 @@
       "frames": []
     },
     {
+      "routeId": "batches",
+      "path": "/issues/batches",
+      "status": "no-mock",
+      "rationale": "The list of batches, one row per batch, is designed with mocks in design-ux's UX design, revision 2, on #58; the mocks are PNGs on the pr-evidence branch, and Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "batch-new",
+      "path": "/issues/batches/new",
+      "status": "no-mock",
+      "rationale": "The start page, with its plain summary beside the form, is designed with a mock in design-ux's UX design, revision 2, on #58; Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "batch-detail",
+      "path": "/issues/batches/$batchId",
+      "status": "no-mock",
+      "rationale": "A batch's page, with its banner, three meters and issues table, is designed with mocks in design-ux's UX design, revision 2, on #58; Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "issue-detail",
       "path": "/issues/$issueId",
       "status": "no-mock",
@@ -5156,6 +5184,20 @@
       "path": "/machines/$machineId",
       "status": "no-mock",
       "rationale": "Live machine detail includes server-derived readiness, bounded dispatch blockers and Admin-only provider auth state. The approved worker-readiness K-0 detail Paper reference remains available through /__fixtures__/machines/detail for deterministic template coverage; this production route intentionally stays real-API only and is not scored against synthetic records.",
+      "frames": []
+    },
+    {
+      "routeId": "machine-models",
+      "path": "/machines/$machineId/models",
+      "status": "no-mock",
+      "rationale": "The Models tab lists the models served by providerRoutes for one machine, with server-derived health and an administrator-only switch. It was designed in the #70 slice 3 to 6 comment (design-70/fleet images), not as a Paper frame, and stays real-API only; it is not scored against synthetic records.",
+      "frames": []
+    },
+    {
+      "routeId": "machine-model-new",
+      "path": "/machines/$machineId/models/new",
+      "status": "no-mock",
+      "rationale": "Adding a model is an administrator-only form over providerRoutes.create with the server's own refusal of an address. It was designed in the #70 slice 3 to 6 comment (design-70/fleet images), not as a Paper frame, and stays real-API only.",
       "frames": []
     },
     {
@@ -5215,6 +5257,20 @@
       "frames": []
     },
     {
+      "routeId": "library-skill",
+      "path": "/library/skills/$skillId",
+      "status": "no-mock",
+      "rationale": "One skill, read only (its files as the version in use lists them, its versions, what uses it, who may use a private one, where it came from) is designed by design-ux on #74 (revision 3, mocks at design-74/v3/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "library-evaluation",
+      "path": "/library/evaluations/$batchId",
+      "status": "no-mock",
+      "rationale": "One evaluation run (its quality gate, results by test case, attempts, what it used, Stop run) is designed by design-ux on #75 (revision 4, mocks at pr-evidence design-75/v4/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "notifications",
       "path": "/notifications",
       "status": "no-mock",
@@ -5226,6 +5282,20 @@
       "path": "/installation/usage",
       "status": "no-mock",
       "rationale": "The installation usage page (#75) is designed by design-ux on #75 (revision 2, mock at pr-evidence design-75/v2/usage.png); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-updates",
+      "path": "/installation/updates",
+      "status": "no-mock",
+      "rationale": "The Updates page (#59 slice 4) is designed by design-ux on #59 (revisions 3 and 4, mock at pr-evidence design-59/v3/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-restore",
+      "path": "/installation/restore",
+      "status": "no-mock",
+      "rationale": "The Finish the restore page (#64 E4) is designed by design-ux on #64 (E3 design, mocks at pr-evidence design-64/e3/); Paper has no frame for it.",
       "frames": []
     },
     {

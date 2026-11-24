@@ -1,3 +1,4 @@
+import { FAULTS, isFaultCode } from "./faults.ts";
 import {
   CoordinatorTurnJobInputSchema,
   CoordinatorTurnJobOutputSchema,
@@ -625,10 +626,12 @@ function bounded<T extends Schema>(
   // A declared pattern is a constraint, not a note. Until this applied it, a
   // descriptor could promise a shape (0172 moved `taskType` from a closed set
   // to a kebab-case token here) and the only enforcement was min/max length.
+  // Unicode mode, as the client checks it, so a pattern can name code points
+  // past U+FFFF and the server and client agree on every string.
   if (boundedKind === "string" && typeof bounds.pattern === "string") {
     result = constrained(
       (result as z.ZodString).regex(
-        new RegExp(bounds.pattern),
+        new RegExp(bounds.pattern, "u"),
         `${path} must match the pattern ${bounds.pattern}.`,
       ),
       `${path} must match the pattern ${bounds.pattern}.`,
@@ -1878,6 +1881,27 @@ const actionSpecs: Record<
         "The approval record the decision was made on, referenced by the decisions ledger and the inbox.",
     },
   },
+  SplitOutput: {
+    fields: {
+      planId: "uuid",
+      status: "string",
+      lanes: "integer",
+      completedLanes: "integer",
+    },
+    bounds: {
+      status: { maxLength: 32 },
+      lanes: { min: 1, max: 32 },
+      completedLanes: { min: 0, max: 32 },
+    },
+    meanings: {
+      planId:
+        "The coordination plan the step created: one child work item per lane, joined by typed artifacts.",
+      status:
+        "The plan's terminal projection when the step completed: completed. A plan that ends any other way fails the step.",
+      lanes: "How many lanes the plan has.",
+      completedLanes: "How many of them completed.",
+    },
+  },
   WorkflowStopOutput: {
     fields: {
       outcome: "string",
@@ -1898,12 +1922,12 @@ const actionSpecs: Record<
 const actionOutputTypes = new Set(Object.keys(actionSpecs));
 /**
  * Action output names that are another contract under the action's own name:
- * doc 06 defines `IntegrationActionOutput = ActionResult (read or confirmed
- * write)`, so the action resolves to the one result shape the connection
- * routes already return instead of a second copy that could drift.
+ * doc 06 defines `ToolCallOutput = ActionResult (read or confirmed write)`, so
+ * the action resolves to the one result shape the connection routes already
+ * return instead of a second copy that could drift.
  */
 const actionOutputAliases: Readonly<Record<string, string>> = {
-  IntegrationActionOutput: "ActionResult",
+  ToolCallOutput: "ActionResult",
 };
 
 function actionOutput(name: string): Schema {
@@ -2029,10 +2053,14 @@ export function registeredWorkerActionInputSchema(action: string): z.ZodType {
   if (record(definition.inputFields)) {
     const shape: Record<string, Schema> = {};
     for (const [field, type] of Object.entries(definition.inputFields)) {
-      shape[field] = eventPrimitive(
-        String(type),
+      // A trailing `?` marks a field the caller may leave out, as in
+      // `versionId: "uuid?"` on plugin.job.
+      const optional = String(type).endsWith("?");
+      const primitive = eventPrimitive(
+        optional ? String(type).slice(0, -1) : String(type),
         `workerActions.${action}.input.${field}`,
       );
+      shape[field] = optional ? primitive.optional() : primitive;
     }
     return described(
       strictObject(shape),
@@ -4487,66 +4515,9 @@ export function generateContracts(
         ]
         : openApiParameters(action, schemas, input),
       responses: {
+        ...documentedErrorResponses(action.errors),
+        // A success variant such as 416 for a byte range keeps its own text.
         ...responses,
-        "400": { description: "Malformed request." },
-        "401": { description: "Authentication required." },
-        "403": { description: "Forbidden." },
-        ...(importAction && action.errors.includes("RESOURCE_NOT_FOUND")
-          ? {
-            "404": {
-              description: "Resource not found (RESOURCE_NOT_FOUND).",
-            },
-          }
-          : {}),
-        ...(importAction && action.errors.includes("IDEMPOTENCY_IN_FLIGHT")
-          ? {
-            "409": {
-              description:
-                "Idempotency request still in flight (IDEMPOTENCY_IN_FLIGHT).",
-            },
-          }
-          : {}),
-        ...(importAction && action.errors.includes("PRECONDITION_FAILED")
-          ? {
-            "412": {
-              description:
-                "Parent version precondition failed (PRECONDITION_FAILED).",
-            },
-          }
-          : {}),
-        ...(importAction &&
-            action.errors.includes("UNPROCESSABLE") &&
-            action.errors.includes("IDEMPOTENCY_PAYLOAD_MISMATCH")
-          ? {
-            "422": {
-              description:
-                "Unprocessable import (UNPROCESSABLE) or nonretryable idempotency payload mismatch (IDEMPOTENCY_PAYLOAD_MISMATCH).",
-            },
-          }
-          : {}),
-        ...(importAction && action.errors.includes("PRECONDITION_REQUIRED")
-          ? {
-            "428": {
-              description: "Precondition required (PRECONDITION_REQUIRED).",
-            },
-          }
-          : {}),
-        "500": { description: "Internal server error." },
-        ...(importAction &&
-            action.errors.includes("DEPENDENCY_UNAVAILABLE")
-          ? {
-            "503": {
-              description: "Dependency unavailable (DEPENDENCY_UNAVAILABLE).",
-            },
-          }
-          : {}),
-        ...(importAction && action.errors.includes("DEPENDENCY_TIMEOUT")
-          ? {
-            "504": {
-              description: "Dependency timeout (DEPENDENCY_TIMEOUT).",
-            },
-          }
-          : {}),
       },
     };
     if (
@@ -4586,4 +4557,58 @@ export function generateContracts(
   };
   if (previous) assertCompatible(previous, generated);
   return generated;
+}
+
+const errorStatusTitles: Readonly<Record<number, string>> = {
+  400: "Malformed request",
+  401: "Authentication required",
+  403: "Forbidden",
+  404: "Resource not found",
+  405: "Method not allowed",
+  409: "Conflict",
+  410: "Gone",
+  412: "Precondition failed",
+  413: "Content too large",
+  415: "Unsupported media type",
+  416: "Range not satisfiable",
+  422: "Unprocessable request",
+  426: "Upgrade required",
+  428: "Precondition required",
+  429: "Too many requests",
+  500: "Internal server error",
+  503: "Service unavailable",
+  504: "Gateway timeout",
+};
+
+/**
+ * OpenAPI error responses for an action: 400, 401, 403 and 500 always, plus
+ * the status of every code its catalog entry lists, each description naming
+ * the listed codes. Statuses come from FAULTS, the table the server answers
+ * with.
+ */
+export function documentedErrorResponses(
+  errors: readonly string[],
+): Record<string, { description: string }> {
+  const byStatus = new Map<number, string[]>(
+    [400, 401, 403, 500].map((status) => [status, []]),
+  );
+  for (const code of errors) {
+    if (!isFaultCode(code)) {
+      throw new ContractQualityError(`unknown catalog error code ${code}`);
+    }
+    const status = FAULTS[code][0];
+    byStatus.set(status, [...(byStatus.get(status) ?? []), code]);
+  }
+  return Object.fromEntries(
+    [...byStatus.entries()].sort(([left], [right]) => left - right).map((
+      [status, codes],
+    ) => {
+      const title = errorStatusTitles[status] ?? `HTTP ${status}`;
+      return [String(status), {
+        description: codes.length
+          ? `${title} (${codes.join(", ")}).`
+          : `${title}.`,
+      }];
+    }),
+  );
 }

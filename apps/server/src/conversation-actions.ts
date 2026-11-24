@@ -114,6 +114,15 @@ export type ConversationActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.ConversationAccessRevoke>,
   ) => Promise<z.output<typeof contractSchemas.ConversationAccessGrant>>;
+  accessSharers: (
+    context: ActionContext,
+  ) => Promise<z.output<typeof contractSchemas.ConversationSharers>>;
+  proposalsList: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.CursorQuery>,
+  ) => Promise<
+    z.output<typeof contractSchemas["Page<WorkflowDefinitionProposal>"]>
+  >;
 };
 
 export function createConversationActionRegistry(
@@ -185,6 +194,15 @@ export function createConversationActionRegistry(
     output: contractSchemas["Page<ConversationAccessGrant>"],
     policy: queryPolicy,
     handler: handlers.accessList,
+  });
+  registry.register({
+    name: ConversationImplementedAction.ConversationAccessSharers,
+    method: HttpMethod.Get,
+    path: "/v1/conversations/:id/access/sharers",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.ConversationSharers,
+    policy: queryPolicy,
+    handler: handlers.accessSharers,
   });
   registry.register({
     name: ConversationImplementedAction.ConversationAccessRevoke,
@@ -280,6 +298,17 @@ export function createConversationActionRegistry(
     policy: { ...queryPolicy, type: ActionKind.Command },
     successStatus: 200,
     handler: handlers.questionsAnswer,
+  });
+  // The workflow proposals a conversation's coordinator made, read with the
+  // conversation so the page can redraw each card after a reload (#39).
+  registry.register({
+    name: ConversationImplementedAction.WorkflowDefinitionProposalsList,
+    method: HttpMethod.Get,
+    path: "/v1/conversations/:id/workflow-definition-proposals",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<WorkflowDefinitionProposal>"],
+    policy: queryPolicy,
+    handler: handlers.proposalsList,
   });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, conversationImplementedActions);

@@ -45,6 +45,62 @@ export const CoordinationInputSpecSchema = z.object({
   "Typed handoff from an upstream lane's declared output into this lane.",
 );
 
+export const CoordinationLaneRunSpecSchema = z.object({
+  workflowId: z.string().uuid().describe(
+    "Identifier of the workflow definition whose active published version the lane's child runs; the engine starts the run when the lane is ready.",
+  ),
+  inputs: z.record(
+    z.string().min(1).max(64).describe("Name of one input of the workflow."),
+    z.unknown().describe("Value of that input, any JSON value."),
+  ).refine(
+    (value) => new TextEncoder().encode(JSON.stringify(value)).length <= 16_384,
+    { message: "lane run inputs must be at most 16 KiB" },
+  ).optional().describe(
+    "Inputs the child's run is started with, an object of at most 16 KiB; omitted means no inputs.",
+  ),
+}).strict().describe(
+  "What a lane runs: a published workflow and the inputs it starts with. A lane that names it is started by the engine once its prerequisites are done and the plan has room; a lane that does not leaves its child task for someone to start.",
+);
+
+/** Most authored steps one lane of a lowered parallel node may keep. */
+export const MAX_AUTHORED_STEPS = 200;
+/** Most UTF-8 bytes of JSON the authored steps of one lane may take. */
+export const MAX_AUTHORED_STEPS_BYTES = 32_768;
+/** Most UTF-8 bytes of JSON the authored exports of one lane may take. */
+export const MAX_AUTHORED_EXPORTS_BYTES = 8_192;
+/**
+ * The size of a value as the authored bounds measure it: UTF-8 bytes of its
+ * JSON, not characters. The lowering and the schema both use this one measure,
+ * so a lane the mapper accepts is a lane the schema accepts.
+ */
+export const jsonBytes = (value: unknown) =>
+  new TextEncoder().encode(JSON.stringify(value)).length;
+
+export const CoordinationLaneAuthoredSchema = z.object({
+  id: z.string().min(1).max(64).describe(
+    "Identifier of the lane as the author wrote it in the workflow, before it was normalized into the lane key; raising the split back to a workflow gives the lane this identifier.",
+  ),
+  steps: z.array(z.unknown().describe("One authored workflow step node."))
+    .max(MAX_AUTHORED_STEPS).refine(
+      (value) => jsonBytes(value) <= MAX_AUTHORED_STEPS_BYTES,
+      {
+        message: "authored lane steps must be at most 32 KiB",
+      },
+    ).describe(
+      "The lane's steps exactly as the compiled workflow holds them, in authored order, so lowering a parallel node loses nothing the instructions leave out.",
+    ),
+  exports: z.record(
+    z.string().min(1).max(64).describe("Export name as the author wrote it."),
+    z.unknown().describe("Exported value node, verbatim."),
+  ).refine((value) => jsonBytes(value) <= MAX_AUTHORED_EXPORTS_BYTES, {
+    message: "authored lane exports must be at most 8 KiB",
+  }).optional().describe(
+    "The lane's typed exports as the author wrote them, keyed by export name; absent when the workflow declares none for this lane.",
+  ),
+}).strict().describe(
+  "What an author wrote for a lane of a workflow's parallel node, kept verbatim next to the plan's own fields so a plan lowered from a workflow can be raised back to the same node. A lane an agent or a person composed directly carries none.",
+);
+
 export const CoordinationLaneSpecSchema = z.object({
   key: keySchema.describe("Unique key of this lane within the plan."),
   repositoryAlias: keySchema.describe(
@@ -54,7 +110,13 @@ export const CoordinationLaneSpecSchema = z.object({
     "Human-readable title copied onto the lane's child task.",
   ),
   instructions: z.string().max(20000).describe(
-    "Instructions for the agent working this lane, copied onto the child task description.",
+    "Instructions for the agent working this lane, copied onto the child task description; they stay the child's brief when the lane also names what it runs.",
+  ),
+  authored: CoordinationLaneAuthoredSchema.optional().describe(
+    "The lane as a workflow author wrote it, when the plan was lowered from a parallel node; the plan's behaviour never reads it.",
+  ),
+  run: CoordinationLaneRunSpecSchema.optional().describe(
+    "What the lane runs, when the engine should start it; absent keeps the child task a draft for someone to start.",
   ),
   prerequisites: z.array(keySchema).max(MAX_COORDINATION_LANES).describe(
     "Keys of lanes that must complete, with their declared outputs committed, before this lane may start.",
@@ -74,7 +136,7 @@ export const CoordinationPlanSpecSchema = z.object({
     .describe("Named lanes of the plan; lane keys are unique."),
   maxConcurrency: z.number().int().min(1).max(MAX_COORDINATION_CONCURRENCY)
     .describe(
-      "Requested most lanes running at once. Recorded with the plan for coordinators and readers; lane admission does not enforce it yet and is bounded by prerequisites, worker capacity and the shared plan budget.",
+      "Most lanes running at once. The engine enforces it for the lanes that name what they run: it starts a ready lane only while fewer than this many of the plan's lane children have a live run. A lane started by hand is bounded by prerequisites, worker capacity and the shared plan budget.",
     ),
   join: z.literal("all-required").describe(
     "Join policy: the parent completes only after every required lane completes.",
@@ -87,6 +149,17 @@ export const CoordinationPlanSpecSchema = z.object({
 );
 
 export type CoordinationPlanSpec = z.output<typeof CoordinationPlanSpecSchema>;
+
+/**
+ * The kind of the split fact (docs/technical-design/25-one-engine.md section 5,
+ * change 5): the plan spec IS its fact schema, so an agent's split decision, an
+ * author's parallel lanes lowered from a workflow, and the input of a
+ * `coordination.split` step are one structure with one validator. A platform
+ * kind: no customer defines or changes it.
+ */
+export const SPLIT_FACT_KIND = "bakery.split";
+export const SplitFactSchema = CoordinationPlanSpecSchema;
+export type SplitFact = CoordinationPlanSpec;
 
 const originReferenceSchema = z.string().trim().min(1).max(200).describe(
   "Provider-side reference of the ticket, such as an issue key or number, as the caller claims it; the server does not verify it.",
@@ -195,7 +268,8 @@ export type CoordinationIssue = Readonly<{
     | "repository_out_of_scope"
     | "shared_writable_checkout"
     | "input_not_declared_upstream"
-    | "output_duplicate";
+    | "output_duplicate"
+    | "lane_workflow_unknown";
 }>;
 
 export type ResolvedLane = Readonly<{

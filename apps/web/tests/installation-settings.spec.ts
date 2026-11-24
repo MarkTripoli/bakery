@@ -12,6 +12,7 @@ async function settingsFixture(page: Page) {
   const record = {
     registrationMode: "invitation",
     organizationCreationPolicy: "installation_admins",
+    updateFailurePolicy: "go_back",
     version: 1,
     updatedByPrincipalId: MOCK_PRINCIPAL_ID,
     updatedAt: "2026-10-11T14:12:00.000Z",

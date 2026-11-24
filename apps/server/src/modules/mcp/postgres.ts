@@ -77,6 +77,12 @@ export function createPostgresMcpPinnedStatePort(
                 from bakery.capability_bindings binding_any
                where binding_any.organization_id = connection.organization_id
                  and binding_any.mcp_connection_id = connection.id
+                 -- A binding an Admin withdrew grants nothing (#436).
+                 and not exists (
+                   select 1 from bakery.capability_binding_revocations revoked
+                    where revoked.organization_id = binding_any.organization_id
+                      and revoked.binding_id = binding_any.id
+                 )
                  and (binding_any.actor_ref is null
                       or binding_any.actor_ref = ${input.actorRef})
             ) as grant_live,
@@ -84,12 +90,17 @@ export function createPostgresMcpPinnedStatePort(
             -- The dispatching host's eligibility is read from the worker's own
             -- row, not taken from the caller: a caller that asserts it is
             -- eligible would otherwise be believed.
-            coalesce((
-              select host.status = 'online' and host.desired_mode = 'accepting'
-                from bakery.worker_hosts host
-               where host.organization_id = connection.organization_id
-                 and host.id = ${input.hostId}
-            ), false) as dispatching_host_eligible
+            case
+              -- The server's own broker has no worker row; it is eligible, and
+              -- the transport decides what that is worth (stdio is not).
+              when ${input.hostId}::uuid is null then true
+              else coalesce((
+                select host.status = 'online' and host.desired_mode = 'accepting'
+                  from bakery.worker_hosts host
+                 where host.organization_id = connection.organization_id
+                   and host.id = ${input.hostId}::uuid
+              ), false)
+            end as dispatching_host_eligible
           from bakery.mcp_connections connection
           join bakery.mcp_servers server
             on server.organization_id = connection.organization_id
@@ -103,6 +114,11 @@ export function createPostgresMcpPinnedStatePort(
               from bakery.capability_bindings b
              where b.organization_id = connection.organization_id
                and b.mcp_connection_id = connection.id
+               and not exists (
+                 select 1 from bakery.capability_binding_revocations revoked
+                  where revoked.organization_id = b.organization_id
+                    and revoked.binding_id = b.id
+               )
                -- The caller's own grant outranks an organization-wide one, and
                -- another actor's binding is not a candidate at all: selecting it
                -- would let a stranger's operation list stand in for this one.
@@ -121,6 +137,9 @@ export function createPostgresMcpPinnedStatePort(
                    or b.agent_version_id = ${input.agentVersionId ?? null})
                  and (b.step_key is null or b.step_key = ${
         input.stepKey ?? null
+      })
+                 and (b.seat_key is null or b.seat_key = ${
+        input.seatKey ?? null
       })
                  and (b.repository_id is null
                    or b.repository_id = ${input.repositoryId ?? null})
@@ -141,6 +160,7 @@ export function createPostgresMcpPinnedStatePort(
                         (b.workflow_version_id is not null)::int
                         + (b.agent_version_id is not null)::int
                         + (b.step_key is not null)::int
+                        + (b.seat_key is not null)::int
                         + (b.repository_id is not null)::int
                         + (b.skill_version_owner_id is not null)::int
                         + (b.automation_version_id is not null)::int
@@ -191,6 +211,7 @@ export function createPostgresMcpPinnedStatePort(
             id: row.pinned_id,
             digest: row.pinned_digest,
             toolNames: pinnedToolNames(row.pinned_manifest),
+            inputSchemas: pinnedInputSchemas(row.pinned_manifest),
           }
           : null,
         currentSnapshot: row.current_id && row.current_digest
@@ -199,6 +220,25 @@ export function createPostgresMcpPinnedStatePort(
       } satisfies McpPinnedState;
     },
   };
+}
+
+/** Each tool's declared input schema from a stored manifest, by tool name; a malformed manifest yields none. */
+function pinnedInputSchemas(manifest: unknown): Record<string, unknown> {
+  const schemas: Record<string, unknown> = {};
+  if (!manifest || typeof manifest !== "object") return schemas;
+  const tools = (manifest as { tools?: unknown }).tools;
+  if (!Array.isArray(tools)) return schemas;
+  for (const tool of tools) {
+    if (!tool || typeof tool !== "object") continue;
+    const { name, inputSchema } = tool as {
+      name?: unknown;
+      inputSchema?: unknown;
+    };
+    if (typeof name === "string" && inputSchema !== undefined) {
+      schemas[name] = inputSchema;
+    }
+  }
+  return schemas;
 }
 
 /** Tool names from a stored manifest, tolerating a malformed one by yielding none. */

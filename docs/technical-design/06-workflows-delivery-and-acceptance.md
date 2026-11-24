@@ -415,7 +415,7 @@ The initial action registry is intentionally small:
 rpi.research, rpi.design, rpi.plan
 harness.implement, harness.repair
 quality.check, review.independent
-integration.action
+tool.call
 delivery.candidate_evidence, delivery.merge, delivery.prepare, delivery.deploy,
 delivery.health
 agent.freeform, workflow.noop
@@ -534,7 +534,7 @@ fields are rejected unless marked `required: false`.
 | `harness.repair` | `RepairInput` | `HarnessOutput` |
 | `quality.check` | `CheckInput` | `CheckOutput` |
 | `review.independent` | `ReviewInput` | `ReviewOutput` |
-| `integration.action` | `IntegrationActionInput` | `IntegrationActionOutput` |
+| `tool.call` | `ToolCallInput` | `ToolCallOutput` |
 | `delivery.candidate_evidence` | `CandidateEvidence` | `CandidateEvidence` |
 | `delivery.prepare` | `PrepareInput` | `PrepareOutput` |
 | `delivery.merge` | `MergeInput` | `MergeOutput` |
@@ -546,13 +546,14 @@ fields are rejected unless marked `required: false`.
 | `memory.promote` | `MemoryPromoteInput` | `MemoryOutput` |
 | `evaluation.sample` | `EvaluationInput` | `EvaluationOutput` |
 
-`integration.action` uses the same expression DSL as every workflow action:
-`actionId`, `actionVersion`, and `resourceId` are typed fields, while
+`tool.call` uses the same expression DSL as every workflow action:
+`connectionId`, `tool`, `toolVersion`, and `resourceId` are typed fields, while
 `arguments` may contain typed `$input.*`, `$task.*`, or `$step.<qualified-id>.*`
-references validated against the selected action schema. The run's authorized
-connection/binding is resolved from the resource and immutable run context;
-workflow data cannot supply a connection, credential, URL, actor, or effect
-authority. Reads return `ActionResult`; writes return the durable
+references validated against the selected tool schema. The step names its
+connection, but the authority is the run's: the call is made as the person who
+started the run, under that person's grant on the connection; workflow data
+cannot supply a credential, URL, actor, or effect authority. `tool.call`
+replaces the earlier `integration.action`. Reads return `ActionResult`; writes return the durable
 `ActionResult` after the receipt is reconciled by its stable effect identity.
 The REST transport may return `ActionResult` with 200 for reads or an
 `IntegrationActionReceipt` with 202 for writes. For a write, `prepared`,
@@ -572,7 +573,7 @@ The machine-readable registry metadata is:
   "harness.repair": {"input":"RepairInput","output":"HarnessOutput","capabilities":["git","shell","model"],"cancel":"cooperative_fenced","retry":{"maxAttempts":1,"backoff":"0s","faults":["WORKER_UNAVAILABLE"]},"effectPolicy":"repository_revision"},
   "quality.check": {"input":"CheckInput","output":"CheckOutput","capabilities":["git","shell","browser"],"cancel":"cooperative_fenced","retry":{"maxAttempts":2,"backoff":"30s","faults":["WORKER_UNAVAILABLE","DEPENDENCY_TIMEOUT"]},"effectPolicy":"evidence_only"},
   "review.independent": {"input":"ReviewInput","output":"ReviewOutput","capabilities":["model","reviewer"],"cancel":"cooperative","retry":{"maxAttempts":1,"backoff":"0s","faults":["REVIEWER_UNAVAILABLE"]},"effectPolicy":"review_evidence"},
-  "integration.action": {"input":"IntegrationActionInput","output":"IntegrationActionOutput","capabilities":["integration"],"cancel":"cooperative_fenced","retry":{"maxAttempts":1,"backoff":"0s","faults":["DEPENDENCY_UNAVAILABLE"]},"effectPolicy":"external_effect_keyed_reconcile"},
+  "tool.call": {"input":"ToolCallInput","output":"ToolCallOutput","capabilities":["integration"],"cancel":"cooperative_fenced","retry":{"maxAttempts":1,"backoff":"0s","faults":["DEPENDENCY_UNAVAILABLE"]},"effectPolicy":"external_effect_keyed_reconcile"},
   "delivery.candidate_evidence": {"input":"CandidateEvidence","output":"CandidateEvidence","capabilities":[],"cancel":"immediate","retry":{"maxAttempts":1,"backoff":"0s","faults":[]},"effectPolicy":"projection_only"},
   "delivery.prepare": {"input":"PrepareInput","output":"PrepareOutput","capabilities":["delivery"],"cancel":"cooperative","retry":{"maxAttempts":1,"backoff":"0s","faults":["DEPENDENCY_UNAVAILABLE"]},"effectPolicy":"external_prepare"},
   "delivery.merge": {"input":"MergeInput","output":"MergeOutput","capabilities":["delivery"],"cancel":"cooperative","retry":{"maxAttempts":1,"backoff":"0s","faults":["DEPENDENCY_UNAVAILABLE"]},"effectPolicy":"external_effect_keyed"},
@@ -603,8 +604,9 @@ CheckOutput          = {allRequired: boolean, checkRunIds: uuid[] minItems=1 max
 CheckObservation     = {checkRunId: uuid, checkId: string minLength=1 maxLength=100, kind: enum(command|commits|title|description|merge_message), ruleKey: enum(commits.semantic|changeRequest.semanticTitle|changeRequest.description|code.magicNumbers|code.magicStrings)|null, result: enum(pending|passed|failed|unavailable|canceled), reason: enum(verified|exit_nonzero|signal|deadline|output_limit|rule_violation|description_placeholder|tool_missing|unsupported_checker|revision_unavailable|skipped|metadata_missing|metadata_too_large|rule_unbound|rule_binding_ambiguous|policy_missing|awaiting_result|canceled), exitCode: integer 0..255|null, durationMs: integer 0..86400000, outputDigest: sha256|null, evidence: ArtifactRef|null}
 ReviewInput          = {repositoryId: uuid, revision: string length=40, evidence: uuid[] minItems=1 maxItems=32}
 ReviewOutput         = {reviewId: uuid, sessionId: uuid, headSha: string minLength=1, baseSha: string minLength=1, policyDigest: string minLength=1, findings: Finding[] maxItems=25, blockingFindings: integer 0..25}
-IntegrationActionInput  = {actionId: string minLength=1, actionVersion: integer min=1, resourceId: uuid, arguments: json}
-IntegrationActionOutput = ActionResult (read or confirmed write)
+ToolCallInput  = {connectionId: uuid, tool: string minLength=1, toolVersion?: integer min=1, resourceId?: uuid, arguments: json}
+ToolCallOutput = ActionResult (read or confirmed write)
+(IntegrationActionInput stays the effect ledger's own record of one integration send.)
 IntegrationActionReceipt = transport-only write admission (HTTP 202; prepared|submitted|uncertain)
 CandidateEvidence    = {headSha: string minLength=1, baseSha: string minLength=1, policyDigest: string minLength=1, checksPassed: boolean, checkRunIds: uuid[] minItems=1, failedCheckIds: uuid[], blockingFindings: integer min=0, reviewId: uuid, findings: Finding[]}
 PrepareInput         = {repositoryId: uuid, headSha: string minLength=1, profileRevision: integer min=1}
@@ -1411,13 +1413,21 @@ prepare({repositoryId, headSha, profileRevision})
   -> {releaseId, artifactDigest, environment, status: "prepared"}
 deploy({releaseId, effectKey})
   -> {deploymentId, commitSha, effectId, status: "queued"|"deploying"|"unknown"|"failed"}
-status({deploymentId, effectKey})
-  -> {deploymentId, observedCommitSha?, effectId?, status: "queued"|"deploying"|"healthy"|"failed"|"unknown"}
+status({effectKey, deploymentId?})
+  -> {deploymentId|null, effectId|null, observedCommitSha?, status: "queued"|"deploying"|"healthy"|"degraded"|"failed"|"rolling_back"|"rolled_back"|"unknown"}
 health({deploymentId})
   -> {deploymentId, status: "healthy"|"degraded"|"failed", checkedAt, evidenceArtifactId}
 rollback({deploymentId, effectKey})
   -> {deploymentId, restoredCommitSha, effectId, status: "rolling_back"|"rolled_back"|"unknown"|"failed"}
 ```
+
+`status` takes the effect key alone because a lost answer to `deploy` leaves
+the caller without the provider's `deploymentId`; it answers for a deploy
+effect (`queued` to `degraded`, or `rolled_back` once restored) and for a
+rollback effect (`rolling_back`, `rolled_back`, `failed`). It answers
+`failed` only when it can prove the mutation did not happen (a key it never
+saw); otherwise `unknown`. A repeated effect key answers with the first call
+and never runs the mutation again.
 
 `delivery.merge` uses the same effect-key and read-after-write rule, returning
 the provider commit identity. An `unknown` deploy or rollback must call
@@ -1432,6 +1442,49 @@ provider deployment until `healthy`, `degraded`, or `failed`. Only `healthy` is
 a successful terminal outcome; `degraded` and `failed` terminalize the run and
 invoke `rollback` with a new stable effect key. An unknown rollback remains in
 reconciliation until its provider identity is confirmed.
+
+### Delivery steps in the engine
+
+`delivery.prepare`, `delivery.deploy` and `delivery.health` are engine-settled
+steps: no worker job, because the release directory of a local target lives on
+the server host. This is the one-engine rule of
+[chapter 25, "One engine (O1)"](25-one-engine.md#2-one-engine-o1) and its kernel
+rules K2 and K5 (the core names no pack; the step row exists before the effect;
+the effect has a key). It adds no node type: the actions are registered in the
+runtime set, and the engine gets one neutral port, `EngineStepRunner`, that a
+pack implements for the actions it owns.
+
+- **Admission.** The engine reads the step, calls the runner outside any
+  transaction, and records the answer in a second short one: `completed` writes
+  the output (audit `workflow.step.complete`), `failed` fails the step with a
+  stable code, `pending` leaves the row pending and stores the time of the next
+  look. A pending step reads as retryable until then, so the engine sleeps through
+  its existing retry path, then admits it again. With no runner configured the
+  step fails with `ENGINE_STEP_UNAVAILABLE`. The row also records when the step first
+  waited; a step still not done 30 minutes later fails with `ENGINE_STEP_TIMED_OUT`
+  (it has no job, so no attempt budget ends the wait).
+- **One effect key.** The step key `<runId>:<stepKey>:<iteration>` is the scope of
+  everything: the deployment record's request key, the target's `deploy:<scope>`
+  effect, and any rollback `rollback:<scope>:<n>`. The plan's own `effectKey`
+  input is validated but the target sees the stricter step identity. A replayed or
+  crashed step finds its record by that key and reads the target back; it never
+  deploys twice.
+- **Record, then act.** The deploy step creates the `deployments` row (queued)
+  before it calls the target, and the target journals the effect before it
+  switches. The `deployments` row is the durable effect record for the local
+  target. It does not write an `external_effects` row: that ledger is bound to
+  integration connections, grants and an adapter registry that reconcile it, none
+  of which a local directory target has.
+- **Steps.** `prepare` stages an immutable release. `deploy` makes it live and
+  stops there (`deploying`); an unknown answer keeps the step pending until the
+  same key reads back. `health` reads the running release, saves the observation
+  as an artifact version, and closes the record healthy, degraded or failed; a
+  degraded or failed release that replaced another is rolled back by the driver
+  under a new key, so there is no separate rollback step.
+- **Configuration.** `BAKERY_DELIVERY_RELEASE_ROOT`, `..._ARTIFACTS_DIR`,
+  `..._HEALTH_URL` and `..._ENVIRONMENT` come through `RuntimeConfig` together or
+  not at all. The target reads `<artifacts>/<sha>.artifact`, never builds, and
+  never runs a command.
 
 ## Schedules and event-triggered agents
 

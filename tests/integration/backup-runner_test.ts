@@ -354,7 +354,9 @@ Deno.test("a name re-pointed at a private address is withheld by the server and 
         (await Deno.stat(`${e.root}/${e.stub.name}/SHA256SUMS`)).isFile,
         true,
       );
-      assertEquals(e.receiver.requests.length, 0);
+      // No S3 client call reached the receiver. Its random loopback port can
+      // also get an unsigned probe from another process on a shared host.
+      assertEquals(e.receiver.signedRequests, []);
       // The server refused to release the pair and said so in the audit row.
       const audit = await e.audit();
       assertEquals(audit.length, 1);

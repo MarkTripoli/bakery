@@ -15,6 +15,12 @@ export type StackedRowProps =
     flush?: boolean;
     /** Marks the row whose detail is open beside the list. */
     selected?: boolean;
+    /**
+     * `wrap`: the title may run to more than one line. A link in it then keeps
+     * its own height, instead of the one-line 44px touch frame whose negative
+     * margins would pull the line below up under a wrapped title.
+     */
+    titleLines?: "one" | "wrap";
   };
 
 /**
@@ -22,8 +28,15 @@ export type StackedRowProps =
  * and short detail lines below. It is the phone form of a table row.
  */
 export function StackedRow(
-  { children, flush = false, selected = false, status, title, ...props }:
-    StackedRowProps,
+  {
+    children,
+    flush = false,
+    selected = false,
+    status,
+    title,
+    titleLines = "one",
+    ...props
+  }: StackedRowProps,
 ) {
   return (
     <article
@@ -32,6 +45,7 @@ export function StackedRow(
       data-inset={flush ? "none" : undefined}
       data-selected={selected ? "true" : undefined}
       data-state="default"
+      data-title-lines={titleLines === "wrap" ? "wrap" : undefined}
       data-ui-component="stackedRow"
       data-variant="default"
     >

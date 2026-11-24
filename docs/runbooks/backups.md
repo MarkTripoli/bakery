@@ -423,6 +423,158 @@ it passed, 1 when it failed, and 3 when it ran but its result could not be
 reported (a network error is retried three times; a refusal is not). The drill's
 own id is chosen by the host, so reporting the same drill twice records it once.
 
+## Restore in place: replacing the installation from a set
+
+This **replaces the whole installation**: Postgres (`bakery` and `inngest`),
+Redis and the skills tree. It is a destructive step on the host, run as **root
+on the host by the operator who holds the age identity**. No API call and no
+role can do it. Plan it as an incident: say who runs it, which set, and why.
+
+```sh
+sudo bash /opt/bakery/deploy/restore.sh /var/lib/bakery/backups/<set> /path/to/identity --confirm <set>
+```
+
+`--confirm` must be the set's own directory name. Without `--confirm` the
+script prints its usage line and exits 64; with another name it exits 65.
+Either way it changes nothing.
+
+**It refuses, and changes nothing, unless:**
+
+| exit | refusal | meaning |
+| ---- | ------- | ------- |
+| 64 | | bad arguments: the set or identity is missing, or `--confirm` is absent (the usage line is printed) |
+| 65 | `RESTORE_CONFIRMATION_REQUIRED` | the typed name is not the set's name |
+| 66 | `RESTORE_REFUSED_DRILL_FAILED` | `restore-drill.sh` of this set did not pass just now (the drill runs here and reports nothing, because the API may be the thing being replaced) |
+| 67 | `RESTORE_REFUSED_NO_PRE_BACKUP` | a backup of the installation as it is could not be taken first, so the restore could not be undone |
+| 70 | | Deno or the release checkout is missing |
+| 77 | | not run as root |
+
+**What it does, in order.**
+
+1. Takes the pre-restore backup and prints `PRE_RESTORE_BACKUP <name>`.
+2. Puts the proxy's pending page up (503 "installation pending") and stops the
+   api (both slots), dispatch, the worker and Inngest.
+3. Replaces `bakery` and `inngest` from their dumps (owners and grants as dumped),
+   Redis from its snapshot, and the skills tree. The old skills tree is kept as
+   `skills.pre-restore-<time>`.
+4. **Moves the worker's state aside** as `worker.pre-restore-<time>` and creates
+   an empty directory in its place. It is never restored: a copied worker
+   journal must not be replayed against older database truth.
+5. Brings the schema up to the running release, then runs the **restore fence**:
+   every effect that was prepared or submitted becomes `uncertain` (to be
+   reconciled, never sent again), every active attempt is quarantined and its job
+   waits for reconciliation, and every worker host is revoked.
+6. Starts the api only and puts the proxy back. Dispatch, the worker and Inngest
+   **stay stopped**. The restore hold keeps every guarded door answering 503
+   until an installation administrator re-enables it (see the next section).
+   It prints `RESTORE_COMPLETED_HELD`.
+
+**Redis is loaded in a separate step on purpose.** With the append-only file on
+(as production runs it) and only a snapshot present, Redis starts empty and
+ignores the snapshot. The script loads the snapshot in a one-shot server with the
+append-only file off, switches it on so a fresh file is written from memory, and
+only then starts the real server.
+
+**If it fails after the stores were touched** it exits 1, says
+`RESTORE_FAILED` and names the pre-restore backup. The installation stays
+stopped. Do not start any service by hand: restore the pre-restore backup the
+same way, or fix the cause and run the script again.
+
+**What it does not do.** It does not restore the secrets key (the operator keeps
+it; the drill already checked it matches). It does not read or send anything to a
+provider. What an unsettled effect did at its provider is not known, which is why
+it is `uncertain`.
+
+## After a restore: re-enabling the installation, step by step
+
+`restore.sh` leaves the installation **held**: the api is up, every door that
+starts or changes work answers `503 INSTALLATION_RESTORING`, and dispatch, the
+worker and Inngest are stopped. An installation administrator opens it again in
+a fixed order, one step at a time. There is no screen for it: it is two calls on
+the API, made with the administrator's browser session (an access token is
+refused).
+
+```sh
+# What is held, and which step is next
+GET  /v1/installation/restore
+# Take a step; Idempotency-Key is required
+POST /v1/installation/restore/steps   {"step": "intake", "confirmation": "<backup name>"}
+```
+
+The confirmation is the restored backup's name, exactly as `GET` shows it as
+`backupName`. A wrong one changes nothing.
+
+| order | step | what opens | what you do on the host first |
+| ----- | ---- | ---------- | ----------------------------- |
+| 1 | `intake` | new work: runs, webhooks, imports, catalog changes | nothing; check the restore's counts first |
+| 2 | `dispatch` | the background consumers (retention collector, storage purges) | start Inngest and dispatch: `runtime.sh background <sha>` without the worker, then `docker compose up -d inngest` |
+| 3 | `workers` | workers claim work again, and the restore is **released** | enrol each revoked worker host again, then start the worker |
+
+Look at what the restore held before step 1: `effectsHeld` is the number of
+effects that were unsettled and are now `uncertain`. They are reconciled by
+reading the provider, never sent again, and they stay `uncertain` until that is
+done. `workersRevoked` hosts must be enrolled again; their old assignments were
+quarantined and their jobs wait for reconciliation.
+
+**Named refusals** (each changes nothing):
+
+| code | status | meaning |
+| ---- | ------ | ------- |
+| `RESTORE_NOT_HELD` | 409 | no restore holds this installation |
+| `RESTORE_CONFIRMATION_MISMATCH` | 422 | the confirmation is not the restored backup's name |
+| `RESTORE_STEP_OUT_OF_ORDER` | 409 | a later step was asked for; the answer names the step to take |
+| `RESTORE_STEP_ALREADY_TAKEN` | 409 | that step is done; read the restore for the next one |
+
+The server keeps the order: no step opens a later door while an earlier one is
+closed. Each step is audited with the step and the backup's name.
+
+## Restore to a minute (Restore to any minute is on)
+
+While the installation setting "Restore to any minute" is on, Postgres archives
+its WAL (at least one segment a minute) into `/var/lib/bakery/wal-spool`, each
+backup set also holds `base.tar.age` (a `pg_basebackup` of the cluster), and the
+runner encrypts every segment and uploads it to `<prefix>wal/<segment>.age` at
+the off-site destination. The window shown in the setting is the range of
+minutes a restore can reach.
+
+To restore to a minute inside that window:
+
+1. Pick the newest set that has `base.tar.age` and finished **before** the
+   minute you want.
+2. Download the off-site WAL into an empty directory with any S3 client and the
+   bucket credentials you hold, for example
+   `aws s3 sync s3://<bucket>/<prefix>wal/ /root/wal-restore/`. Segments still
+   in the local spool (not shipped yet) are read too.
+3. Run, as root, with the minute in UTC:
+
+```sh
+sudo bash /opt/bakery/deploy/restore-to-time.sh /var/backups/bakery/<set> /root/backup-identity.txt \
+  --to 2026-11-21T10:15:00Z --wal /root/wal-restore --confirm <set>
+```
+
+It runs the restore drill of the set, takes a backup of the current
+installation, stops everything that writes, moves the Postgres data directory
+aside (`/var/lib/bakery/postgres.pre-restore-<time>`), rebuilds it from the base
+backup and replays the WAL up to the minute. Redis and the skills come from the
+set. The restore fence then treats everything after the minute as uncertain,
+and only the api is started: re-enable the installation as after any restore
+("After a restore" above).
+
+| exit | meaning |
+| --- | --- |
+| 0 | restored to the minute and held |
+| 64 | bad arguments (`--to`, `--wal` and `--confirm` are required) |
+| 65 | the confirmation was not the set's name; nothing changed |
+| 66 | the set has no base backup (taken while the switch was off); nothing changed |
+| 67 | the pre-restore backup could not be taken; nothing changed |
+| 68 | the minute is not a UTC instant, or is before the set finished; nothing changed |
+| 69 | the WAL ends before the minute: the old database is put back and services stay stopped; fetch the missing segments and run it again |
+| 70 | the host lacks Deno or the release checkout; nothing changed |
+| 71 | the restore drill of the set did not pass; nothing changed |
+| 72 | Postgres stopped for another reason during the replay, or never finished it: the old database is put back, services stay stopped, and the message shows Postgres's last log lines |
+| 77 | not run as root; nothing changed |
+| 1 | failed after the stores were touched; the message names the pre-restore backup |
+
 ## What the runner does when something goes wrong
 
 The order of a pass is: claim, hold the installation, wait for quiet, read

@@ -1,4 +1,10 @@
-import { createElement, type ReactNode, useId } from "react";
+import {
+  createContext,
+  createElement,
+  type ReactNode,
+  useContext,
+  useId,
+} from "react";
 import "../artifacts.css";
 
 export type ArtifactViewerContent =
@@ -36,6 +42,13 @@ export type ArtifactViewerContent =
     readonly onError?: () => void;
   }
   | { readonly kind: "unsupported"; readonly message: ReactNode };
+/**
+ * True inside a surface that already names the preview as a region (the task
+ * artifact pane). A viewer there is a labelled group, not a second landmark with
+ * the same name, so a person moving by landmarks meets one "Preview", not two.
+ */
+export const artifactViewerRegion = createContext(false);
+
 export type ArtifactViewerProps = {
   readonly label: ReactNode;
   readonly content: ArtifactViewerContent;
@@ -88,7 +101,11 @@ function markdown(text: string): ReactNode[] {
         code.push(lines[index++] ?? "");
       }
       index++;
-      blocks.push(<pre key={key}><code>{code.join("\n")}</code></pre>);
+      blocks.push(
+        <pre dir="ltr" key={key}>
+          <code>{code.join("\n")}</code>
+        </pre>,
+      );
       continue;
     }
     const heading = /^(#{1,6})\s+(.+)$/.exec(line);
@@ -142,6 +159,8 @@ function preview(content: ArtifactViewerContent): ReactNode {
     case "patch":
       return (
         <pre
+          // Code and log text read left to right whatever the page direction.
+          dir="ltr"
           data-ui-overflow="wrap"
           data-cut={content.cut === true ? "panel" : undefined}
         >
@@ -209,24 +228,24 @@ export function ArtifactViewer(
   }: ArtifactViewerProps,
 ) {
   const titleId = useId();
-  return (
-    <section
-      className="ui-artifact-viewer"
-      aria-labelledby={titleId}
-      aria-busy={state === "loading" || undefined}
-      data-testid={testId}
-      data-ui-component="artifactViewer"
-      data-variant={content.kind}
-      data-size={size}
-      data-state={state}
-    >
-      {
-        /* Opened full size, the page names the file above the card: the heading
-          stays only to name the card for assistive technology, and is not shown. */
-      }
-      <h2 id={titleId} hidden={size === "full"}>{label}</h2>
-      {state === "ready" ? preview(content) : null}
-      {footer}
-    </section>
+  const withinRegion = useContext(artifactViewerRegion);
+  return createElement(
+    withinRegion ? "div" : "section",
+    {
+      className: "ui-artifact-viewer",
+      ...(withinRegion ? { role: "group" } : {}),
+      "aria-labelledby": titleId,
+      "aria-busy": state === "loading" || undefined,
+      "data-testid": testId,
+      "data-ui-component": "artifactViewer",
+      "data-variant": content.kind,
+      "data-size": size,
+      "data-state": state,
+    },
+    /* Opened full size, the page names the file above the card: the heading
+      stays only to name the card for assistive technology, and is not shown. */
+    <h2 id={titleId} hidden={size === "full"}>{label}</h2>,
+    state === "ready" ? preview(content) : null,
+    footer,
   );
 }

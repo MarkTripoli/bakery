@@ -1,8 +1,11 @@
 //! The app's calls to the Bakery server: start a sign-in, trade the answer for a credential, and
 //! ask whether a kept credential is still good. What the server says is read by the core.
 
+use bakery_desktop_core::compat::{read_health, Kind};
+use bakery_desktop_core::copy::Identity;
 use bakery_desktop_core::pkce::Pkce;
 use bakery_desktop_core::platform::{APP_LINK, CLIENT_ID};
+use bakery_desktop_core::session::ServerAnswer;
 use bakery_desktop_core::wire::{
     exchange_failure, issued_credential, started_request, ExchangeFailure, StartedRequest,
 };
@@ -21,7 +24,8 @@ pub enum Exchange {
 }
 
 pub enum Standing {
-    Good,
+    /// Still accepted, and who it is for, as far as the server says.
+    Good(Identity),
     /// The server no longer accepts it.
     Ended,
     /// Could not tell: the server did not answer, or answered something else.
@@ -95,10 +99,95 @@ impl Client {
             .bearer_auth(credential)
             .send()
             .await;
-        match sent.map(|r| r.status().as_u16()) {
-            Ok(200) => Standing::Good,
-            Ok(401) => Standing::Ended,
+        let Ok(response) = sent else {
+            return Standing::Unknown;
+        };
+        let status = response.status().as_u16();
+        let body = response.text().await.unwrap_or_default();
+        match status {
+            200 => Standing::Good(identity_of(&body)),
+            401 => Standing::Ended,
             _ => Standing::Unknown,
         }
+    }
+
+    /// Asks for a one-use code that opens `return_to` in the window already signed in (the desktop
+    /// session handoff). `None` when the server refuses or does not answer; the code is a secret and
+    /// is never logged.
+    pub async fn create_handoff(&self, credential: &str, return_to: &str) -> Option<String> {
+        let sent = self
+            .http
+            .post(format!("{}/v1/desktop-handoffs", self.server))
+            .timeout(Duration::from_secs(10))
+            .bearer_auth(credential)
+            .json(&json!({ "returnTo": return_to }))
+            .send()
+            .await
+            .ok()?;
+        if sent.status().as_u16() != 201 {
+            return None;
+        }
+        let body: serde_json::Value = sent.json().await.ok()?;
+        body.get("code")?.as_str().map(str::to_string)
+    }
+
+    /// Ends the app's own sign-in on the server. "Already ended" counts as done: the server answers
+    /// 401 to a sign-in it no longer knows, and the person wanted it gone. Anything else, including
+    /// no answer within five seconds, means the server may still list it.
+    pub async fn revoke_current(&self, credential: &str) -> bool {
+        let sent = self
+            .http
+            .post(format!("{}/v1/me/sessions/revoke-current", self.server))
+            .timeout(Duration::from_secs(5))
+            .bearer_auth(credential)
+            .json(&json!({}))
+            .send()
+            .await;
+        matches!(sent.map(|r| r.status().as_u16()), Ok(200) | Ok(401))
+    }
+}
+
+/// The most of a health answer that is read: a real one is a few hundred bytes.
+const HEALTH_LIMIT: usize = 64 * 1024;
+
+/// Asks an address whether it is a Bakery server, at most ten seconds. Any answer is read, whatever
+/// its status: a degraded Bakery still says what it is.
+pub async fn probe(address: &str) -> ServerAnswer {
+    let Ok(http) = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+    else {
+        return ServerAnswer::NoAnswer;
+    };
+    let Ok(mut response) = http
+        .get(format!("{}/health", address.trim_end_matches('/')))
+        .send()
+        .await
+    else {
+        return ServerAnswer::NoAnswer;
+    };
+    let mut body = Vec::new();
+    while let Ok(Some(chunk)) = response.chunk().await {
+        body.extend_from_slice(&chunk);
+        if body.len() > HEALTH_LIMIT {
+            return ServerAnswer::Answered(Kind::NotBakery);
+        }
+    }
+    ServerAnswer::Answered(read_health(&String::from_utf8_lossy(&body)))
+}
+
+/// Name and email from the server's own words about the signed-in person; either may be missing.
+fn identity_of(body: &str) -> Identity {
+    let value: serde_json::Value = serde_json::from_str(body).unwrap_or_default();
+    let field = |name: &str| {
+        value
+            .get(name)
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    };
+    Identity {
+        name: field("displayName"),
+        email: field("email"),
     }
 }

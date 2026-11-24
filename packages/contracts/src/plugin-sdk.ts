@@ -218,7 +218,12 @@ export type PluginManifestErrorCode =
   | "LOCALE_NOT_A_NAME"
   | "LOCALE_REPLACES_CORE"
   | "NAMESPACE_INVALID"
-  | "STATE_SCHEMA_VERSION_INVALID";
+  | "STATE_SCHEMA_VERSION_INVALID"
+  | "PAGES_NOT_A_LIST"
+  | "PAGES_TOO_MANY"
+  | "PAGE_INVALID"
+  | "PAGE_ID_DUPLICATE"
+  | "PAGES_WITHOUT_UI_PAGE";
 
 const NAMESPACE_MAX = 64;
 const KEY_MAX = 128;
@@ -325,15 +330,159 @@ export type PluginManifest = Readonly<{
   requestedCapabilities: readonly PluginInstallCapability[];
   locales: readonly string[];
   stateSchemaVersion: number;
+  /**
+   * The oldest state schema this version reads exactly as it was saved (#34).
+   *
+   * An upgrade moves an install to a version whose reader can still make sense
+   * of what the old one saved, or it does not move. It defaults to the version's
+   * own `stateSchemaVersion`, which says "I read only what I wrote": a version
+   * that does not say otherwise is never assumed to read older state, because
+   * assuming it would corrupt data the first time the guess was wrong.
+   */
+  stateCompatibleFrom: number;
   stateNamespaces: readonly string[];
+  pages: readonly PluginPage[];
 }>;
+
+/**
+ * One page a version adds (#76, FS24): a stable id, the title Bakery shows in
+ * its own strip and sidebar, and the HTML file in the bundle that the page's
+ * sealed frame loads.
+ */
+export type PluginPage = Readonly<{
+  id: string;
+  title: string;
+  file: string;
+}>;
+
+/**
+ * Bounds on a version's pages. The sidebar shows six and folds the rest under
+ * More, so twenty is room to grow rather than a target; the file bound is the
+ * one the document read enforces before it answers.
+ */
+export const PLUGIN_PAGE_LIMITS = Object.freeze({
+  maxPages: 20,
+  idMaxLength: 64,
+  titleMaxLength: 80,
+  fileMaxLength: 200,
+  documentMaxBytes: 2 * 1024 * 1024,
+});
+
+const PAGE_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+const PAGE_FILE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const PAGE_KEYS = new Set(["id", "title", "file"]);
+
+function pageRefusal(code: PluginManifestErrorCode, detail: string): never {
+  throw new PluginManifestError(code, detail);
+}
+
+/**
+ * True for a character a title must not carry: C0/C1 controls and the
+ * bidirectional overrides, which would let a title reorder the text Bakery
+ * draws around it ("Provided by the plugin ...").
+ */
+function unsafeTitleCharacter(char: string): boolean {
+  const code = char.codePointAt(0) ?? 0;
+  return code < 0x20 || (code >= 0x7f && code <= 0x9f) ||
+    (code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069);
+}
+
+/**
+ * The bundle path a page loads, validated as a path that cannot leave the
+ * bundle: relative, forward slashes only, no empty, `.` or `..` segment, every
+ * segment a plain file name, and an `.html` file. The archive reader applies
+ * its own path rules again when the file is looked up, so this is the first of
+ * two locks rather than the only one.
+ */
+export function assertPluginPageFile(file: string): void {
+  if (file.length === 0 || file.length > PLUGIN_PAGE_LIMITS.fileMaxLength) {
+    pageRefusal("PAGE_INVALID", "page file is empty or too long");
+  }
+  const segments = file.split("/");
+  if (
+    segments.some((segment) =>
+      segment === "." || segment === ".." || !PAGE_FILE_SEGMENT.test(segment)
+    )
+  ) {
+    pageRefusal("PAGE_INVALID", "page file is not a plain relative path");
+  }
+  if (!file.endsWith(".html") || file === "manifest.json") {
+    pageRefusal("PAGE_INVALID", "page file must be an .html file");
+  }
+}
+
+/**
+ * A manifest's `pages`, validated strictly. Absent means none. A page list on a
+ * version that does not ask for `ui.page` is refused, because its author
+ * believed the pages would show and they never could.
+ */
+export function parsePluginPages(
+  value: unknown,
+  requestedCapabilities: readonly string[],
+): readonly PluginPage[] {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value)) {
+    pageRefusal("PAGES_NOT_A_LIST", "pages must be a list");
+  }
+  if (value.length > PLUGIN_PAGE_LIMITS.maxPages) {
+    pageRefusal(
+      "PAGES_TOO_MANY",
+      `at most ${PLUGIN_PAGE_LIMITS.maxPages} pages`,
+    );
+  }
+  if (value.length > 0 && !requestedCapabilities.includes("ui.page")) {
+    pageRefusal(
+      "PAGES_WITHOUT_UI_PAGE",
+      "pages are declared but ui.page is not requested",
+    );
+  }
+  const seen = new Set<string>();
+  const pages: PluginPage[] = [];
+  for (const entry of value) {
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+      pageRefusal("PAGE_INVALID", "a page is not an object");
+    }
+    const record = entry as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      if (!PAGE_KEYS.has(key)) {
+        pageRefusal("PAGE_INVALID", `unknown page key "${key}"`);
+      }
+    }
+    const { id, title, file } = record;
+    if (
+      typeof id !== "string" || id.length > PLUGIN_PAGE_LIMITS.idMaxLength ||
+      !PAGE_ID_PATTERN.test(id)
+    ) {
+      pageRefusal("PAGE_INVALID", "a page id is not a lowercase name");
+    }
+    if (seen.has(id)) {
+      pageRefusal("PAGE_ID_DUPLICATE", `page id "${id}" repeats`);
+    }
+    seen.add(id);
+    if (
+      typeof title !== "string" || title.trim() !== title ||
+      title.length === 0 || title.length > PLUGIN_PAGE_LIMITS.titleMaxLength ||
+      [...title].some(unsafeTitleCharacter)
+    ) {
+      pageRefusal("PAGE_INVALID", `page "${id}" has an unusable title`);
+    }
+    if (typeof file !== "string") {
+      pageRefusal("PAGE_INVALID", `page "${id}" names no file`);
+    }
+    assertPluginPageFile(file);
+    pages.push(Object.freeze({ id, title, file }));
+  }
+  return Object.freeze(pages);
+}
 
 const MANIFEST_KEYS = new Set([
   "name",
   "requestedCapabilities",
   "locales",
   "stateSchemaVersion",
+  "stateCompatibleFrom",
   "stateNamespaces",
+  "pages",
 ]);
 
 export function parsePluginManifest(manifest: unknown): PluginManifest {
@@ -435,6 +584,19 @@ export function parsePluginManifest(manifest: unknown): PluginManifest {
     );
   }
 
+  const stateCompatibleFrom = record.stateCompatibleFrom ?? stateSchemaVersion;
+  if (
+    typeof stateCompatibleFrom !== "number" ||
+    !Number.isInteger(stateCompatibleFrom) ||
+    stateCompatibleFrom < 1 ||
+    stateCompatibleFrom > stateSchemaVersion
+  ) {
+    throw new PluginManifestError(
+      "STATE_SCHEMA_VERSION_INVALID",
+      "stateCompatibleFrom must be a positive integer no greater than stateSchemaVersion",
+    );
+  }
+
   const namespaces = record.stateNamespaces ?? [];
   if (!Array.isArray(namespaces)) {
     throw new PluginManifestError(
@@ -459,6 +621,8 @@ export function parsePluginManifest(manifest: unknown): PluginManifest {
     requestedCapabilities: Object.freeze(requested),
     locales: Object.freeze(localesOut),
     stateSchemaVersion,
+    stateCompatibleFrom,
     stateNamespaces: Object.freeze(namespacesOut),
+    pages: parsePluginPages(record.pages, requested),
   });
 }

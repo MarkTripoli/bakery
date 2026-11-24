@@ -5,6 +5,7 @@
   "version": "0.0.0",
   "exports": {
     ".": "./src/env.ts",
+    "./desktop-update-feed": "./src/desktop-update-feed.ts",
     "./sentry": "./src/sentry.ts",
     "./sentry-build": "./src/sentry-build.ts",
     "./sentry-deno": "./src/sentry-deno.ts",

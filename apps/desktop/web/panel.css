@@ -34,7 +34,9 @@ body {
   display: grid;
   /* One full-width column, so a panel narrower than the window centres in the window. */
   grid-template-columns: minmax(0, 1fr);
-  place-items: center;
+  /* The panel centres when it fits; taller than the window it starts at the top and the page scrolls. */
+  place-items: start center;
+  overflow-y: auto;
   background: var(--color-canvas);
   color: var(--color-fg);
   font: var(--type-body);
@@ -56,6 +58,7 @@ body {
 
 .panel {
   box-sizing: border-box;
+  margin-block: auto;
   inline-size: 420px;
   padding: var(--space-8);
   display: flex;
@@ -207,4 +210,164 @@ body {
   grid-template-columns: minmax(0, 1fr);
   place-items: center;
   background: color-mix(in srgb, var(--color-canvas) 70%, transparent);
+}
+
+/* Two boxes one under the other: who is signed in, then the server. */
+.detail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Addresses read in the web's data face, as the design's server box shows them. */
+.detail__value {
+  overflow-wrap: anywhere;
+}
+
+/* An address on its own line reads in the data face; names and sentences stay in the body font. */
+.detail__value--address {
+  font: var(--type-data);
+}
+
+/* The server chooser (design-ux, #77 slice 4): two options in one bordered group. */
+.chooser {
+  display: flex;
+  flex-direction: column;
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-subtle);
+}
+
+.chooser__option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.chooser__option + .chooser__option {
+  border-block-start: var(--border-default) solid var(--color-border);
+}
+
+.chooser__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.chooser__head input[type="radio"] {
+  flex: none;
+  margin: 0;
+  inline-size: var(--size-checkbox);
+  block-size: var(--size-checkbox);
+  accent-color: var(--color-primary);
+}
+
+.chooser__label {
+  font: var(--type-body);
+  cursor: pointer;
+}
+
+/* Under the first option: its address and whether anything answers there now. */
+.chooser__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-inline-start: var(--space-6);
+}
+
+.chooser__address {
+  font: var(--type-data);
+  color: var(--color-fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.chooser__status {
+  flex: none;
+  font: var(--type-hint);
+  color: var(--color-fg-muted);
+}
+
+.chooser__boxrow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-6);
+}
+
+.chooser__boxrow[hidden] {
+  display: none;
+}
+
+.chooser__box {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--size-control);
+  padding: 0 var(--space-3);
+  font: var(--type-body);
+  color: var(--color-fg);
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-control);
+}
+
+.chooser__box[aria-invalid="true"] {
+  border-color: var(--color-destructive);
+}
+
+.chooser__help,
+.chooser__problem {
+  font: var(--type-hint);
+  color: var(--color-fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.chooser__problem {
+  color: var(--color-destructive);
+}
+
+/* Under 480 wide the address and its status stack on two lines. */
+@media (max-width: 479px) {
+  .chooser__line {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+  }
+
+  .chooser__box {
+    min-block-size: 44px;
+  }
+}
+
+/* A link's dialog (design-ux, #77 slice 5): 460 wide over the dimmed window; narrower windows fill
+   the width less 16 each side, as the panel does, and the buttons stack. */
+.panel--dialog {
+  inline-size: min(460px, calc(100% - var(--space-8)));
+}
+
+/* A link's dialog buttons: side by side at the end of the line on a wide window, the secondary first and
+   the primary last; stacked on a narrow one, the primary on top (design-ux, #77 slice 5, section 3). */
+.buttons--dialog {
+  flex-direction: row;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.buttons--dialog .btn {
+  inline-size: auto;
+  min-inline-size: 8rem;
+}
+
+@media (max-width: 479px) {
+  .buttons--dialog {
+    flex-direction: column-reverse;
+    justify-content: flex-start;
+  }
+
+  .buttons--dialog .btn {
+    inline-size: 100%;
+    min-block-size: 44px;
+  }
 }

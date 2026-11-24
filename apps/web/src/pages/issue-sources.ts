@@ -1,6 +1,7 @@
 import type {
   IntegrationResource,
   RepositoryResponse,
+  TicketPresetId,
   TicketSourceResponse,
 } from "../api/client.ts";
 
@@ -21,6 +22,21 @@ const text = (value: unknown): string => typeof value === "string" ? value : "";
 /** The label names the sheet starts with the first time a repository is turned on. */
 export const DEFAULT_START_LABEL = "bakery";
 export const DEFAULT_HOLD_LABEL = "hold";
+
+/**
+ * The built-in workflow a repository's saved policy runs. A policy that names
+ * none (or one this page does not know) is the standard one, which is also what
+ * the server treats an absent choice as.
+ */
+export const TICKET_PRESETS = [
+  "fixed-coding",
+  "fixed-coding-reviewed",
+] as const satisfies readonly TicketPresetId[];
+
+export function presetOfPolicy(policy: unknown): TicketPresetId {
+  const preset = record(policy).preset;
+  return preset === "fixed-coding-reviewed" ? preset : "fixed-coding";
+}
 
 /**
  * The repositories (not archived) in name order, each with its resource
@@ -157,7 +173,7 @@ export type SourcePolicy = {
   readonly automatic: { readonly enabled: boolean };
   readonly readiness: unknown;
   readonly approval: unknown;
-  readonly preset: "fixed-coding";
+  readonly preset: TicketPresetId;
 };
 
 export function policyOf(draft: SourceDraft, existing: unknown): SourcePolicy {
@@ -180,6 +196,7 @@ export function policyOf(draft: SourceDraft, existing: unknown): SourcePolicy {
     approval: Object.keys(approval).length > 0
       ? approval
       : { plan: "human_approval" as const },
-    preset: "fixed-coding" as const,
+    // Saving the labels keeps the workflow the repository was already set to.
+    preset: presetOfPolicy(existing),
   };
 }

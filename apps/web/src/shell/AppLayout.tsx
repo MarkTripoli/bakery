@@ -13,6 +13,7 @@ import {
   effectiveAccessQueryOptions,
   installationSettingsQueryOptions,
   organizationQueryOptions,
+  pluginPagesQueryOptions,
 } from "../api/query.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { OrganizationSwitchGuard } from "./OrganizationSwitchGuard.tsx";
@@ -35,6 +36,8 @@ import {
   INSTALLATION_INTEGRATIONS_PATH,
   InstallationSettingsNavigation,
 } from "./InstallationSettingsNavigation.tsx";
+import { HeldBanner } from "./HeldBanner.tsx";
+import { UpdateNotices, UpdatingPage, useUpdateWatch } from "./UpdateWatch.tsx";
 import { OrganizationSettingsNavigation } from "./OrganizationSettingsNavigation.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import {
@@ -115,6 +118,32 @@ function usePrimaryDestinations(
   });
   const canReadMetrics = access.data?.capabilities.includes("metric:read") ??
     false;
+  // The pages of the plugins that are on: the first six, then a way to the rest.
+  const pluginPages = useQuery({
+    ...pluginPagesQueryOptions(api, scope),
+    enabled: !fixture && session.status === "authenticated" &&
+      scope.organizationId !== null,
+  });
+  const pluginEntries = pluginPages.data?.items ?? [];
+  const pluginItems: UI.ApplicationRailItem[] = [
+    ...pluginEntries.slice(0, 6).map((entry) => ({
+      group: translate("shell.navigation.pluginsGroup"),
+      id: `plugin-${entry.installId}-${entry.pageId}`,
+      label: entry.title,
+      href: `/plugins/${entry.installId}/${entry.pageId}`,
+      matchPath: `/plugins/${entry.installId}/${entry.pageId}`,
+      icon: <UI.IconGlyph name="integration" />,
+    })),
+    ...(pluginEntries.length > 6
+      ? [{
+        id: "plugins-more",
+        group: translate("shell.navigation.pluginsGroup"),
+        label: translate("shell.navigation.morePluginPages"),
+        href: "/settings/organization/plugins",
+        icon: <UI.IconGlyph name="integration" />,
+      }]
+      : []),
+  ];
   const soon = fixture ? undefined : translate("shell.navigation.comingSoon");
   const unshipped = (
     id: string,
@@ -282,6 +311,7 @@ function usePrimaryDestinations(
       matchPath: "/settings",
       icon: <UI.IconGlyph name="settings-sun" />,
     },
+    ...pluginItems,
   ];
 }
 
@@ -584,6 +614,8 @@ function ShellFrame() {
   const pageTitle = usePageTitle(pathname);
   // The New task panel sits under Work, so the trail says so.
   const creatingTask = pathname === "/tasks/new" || pathname === "/tasks/new/";
+  // Says when Bakery is about to be, is being, or was updated (#59).
+  const update = useUpdateWatch();
   const onNavigate = (
     event: MouseEvent<HTMLAnchorElement>,
     item: { readonly href: string },
@@ -665,6 +697,8 @@ function ShellFrame() {
     (pathname === "/installation/monitoring" ||
       pathname.startsWith("/installation/monitoring/")) ||
     pathname === "/installation/usage" ||
+    pathname === "/installation/restore" ||
+    pathname === "/installation/updates" ||
     pathname === INSTALLATION_INTEGRATIONS_PATH ||
     pathname === "/__fixtures__/installation/settings";
   const organizationSettings = ORGANIZATION_FIXTURE_PATHS.includes(pathname);
@@ -738,45 +772,53 @@ function ShellFrame() {
       navigationLabel={translate("shell.navigation.menu")}
       navigationOpen={navigationOpen}
       onNavigationOpenChange={setNavigationOpen}
-      sectionNavigation={fixtureSettings
-        ? (
-          <SettingsNavigation
-            currentPath={pathname}
-            onNavigate={onNavigate}
-            viewport={viewport}
-          />
-        )
-        : installationSettings
-        ? (
-          <InstallationSettingsNavigation
-            currentPath={pathname === "/installation/audit" ||
-                (pathname === "/installation/monitoring" ||
-                  pathname.startsWith("/installation/monitoring/")) ||
-                pathname === "/installation/usage" ||
-                pathname === INSTALLATION_INTEGRATIONS_PATH
-              ? pathname
-              : "/installation/settings"}
-            onNavigate={onNavigate}
-            viewport={viewport}
-          />
-        )
-        : organizationSettings
-        ? (
-          <OrganizationSettingsNavigation
-            currentPath={pathname}
-            onNavigate={onNavigate}
-            viewport={viewport}
-          />
-        )
-        : productionSettings
-        ? (
-          <ProductionSettingsNavigation
-            currentPath={pathname}
-            onNavigate={onNavigate}
-            viewport={viewport}
-          />
-        )
-        : undefined}
+      sectionNavigation={
+        /* The phone and tablet picker is not drawn while Bakery is being
+          updated; the desktop list is part of the frame and stays (#59). */
+        update.updating && viewport !== "desktop"
+          ? undefined
+          : fixtureSettings
+          ? (
+            <SettingsNavigation
+              currentPath={pathname}
+              onNavigate={onNavigate}
+              viewport={viewport}
+            />
+          )
+          : installationSettings
+          ? (
+            <InstallationSettingsNavigation
+              currentPath={pathname === "/installation/audit" ||
+                  (pathname === "/installation/monitoring" ||
+                    pathname.startsWith("/installation/monitoring/")) ||
+                  pathname === "/installation/usage" ||
+                  pathname === "/installation/restore" ||
+                  pathname === "/installation/updates" ||
+                  pathname === INSTALLATION_INTEGRATIONS_PATH
+                ? pathname
+                : "/installation/settings"}
+              onNavigate={onNavigate}
+              viewport={viewport}
+            />
+          )
+          : organizationSettings
+          ? (
+            <OrganizationSettingsNavigation
+              currentPath={pathname}
+              onNavigate={onNavigate}
+              viewport={viewport}
+            />
+          )
+          : productionSettings
+          ? (
+            <ProductionSettingsNavigation
+              currentPath={pathname}
+              onNavigate={onNavigate}
+              viewport={viewport}
+            />
+          )
+          : undefined
+      }
       sidebar={
         <ShellSidebar
           currentPath={navigationPath}
@@ -875,15 +917,29 @@ function ShellFrame() {
       )}
       variant={shellVariant}
     >
-      <StartupGate
-        enabled={needsOrganization}
-        failure={restore.failure}
-        onRetry={restore.retry}
-        onSignOut={() => void navigate({ to: SIGN_OUT_PATH })}
-        signOutHref={SIGN_OUT_PATH}
+      {update.updating
+        ? null
+        : <HeldBanner pathname={pathname} updatePaused={update.paused} />}
+      <UpdateNotices update={update} />
+      {update.updating ? <UpdatingPage update={update} /> : null}
+      {
+        /* Hidden, never unmounted, while Bakery is being updated (#59): what
+          was typed on the page is still there when Bakery is back. */
+      }
+      <div
+        data-update-cover=""
+        hidden={update.updating}
       >
-        <Outlet />
-      </StartupGate>
+        <StartupGate
+          enabled={needsOrganization}
+          failure={restore.failure}
+          onRetry={restore.retry}
+          onSignOut={() => void navigate({ to: SIGN_OUT_PATH })}
+          signOutHref={SIGN_OUT_PATH}
+        >
+          <Outlet />
+        </StartupGate>
+      </div>
       <OrganizationSwitchGuard onAsk={() => setNavigationOpen(false)} />
     </UI.AppShell>
   );

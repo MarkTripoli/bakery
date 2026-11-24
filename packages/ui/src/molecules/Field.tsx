@@ -18,6 +18,8 @@ export type FieldProps = {
   /** `inline` puts the label in a left column beside the control (collapses to stacked on narrow screens). */
   layout?: "stacked" | "inline";
   required?: boolean;
+  /** `short` keeps a field that holds a short value (a name, a code) to 320px instead of the whole column. */
+  width?: "default" | "short";
   state?: "default" | "focus" | "invalid" | "disabled" | "readonly";
   variant?: "input" | "textarea" | "select";
 };
@@ -33,6 +35,7 @@ export function Field(
     layout = "stacked",
     note,
     required = false,
+    width = "default",
     state = "default",
     variant = "input",
   }: FieldProps,
@@ -44,6 +47,7 @@ export function Field(
         `ui-field--${variant}`,
         `ui-field--${layout}`,
         labelEnd && layout === "stacked" ? "ui-field--label-end" : "",
+        width === "short" ? "ui-field--short" : "",
       ].filter(Boolean).join(" ")}
       data-ui-component="field"
       data-variant={layout === "inline" ? "inline" : variant}

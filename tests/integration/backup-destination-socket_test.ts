@@ -65,7 +65,7 @@ Deno.test("the probe connects to the validated address, and to nothing else", as
     );
     assertEquals(ok.outcome, BackupProbeOutcome.Verified, String(ok.detail));
     assert(receiver.requests.some((r) => r.startsWith("PUT ")));
-    const reached = receiver.requests.length;
+    const reached = receiver.signedRequests.length;
 
     // Re-pointed at a private address: refused before any socket is opened.
     const repointed = await probeBackupDestination(
@@ -94,7 +94,7 @@ Deno.test("the probe connects to the validated address, and to nothing else", as
       resolverOf({}),
     );
     assertEquals(gone.outcome, BackupProbeOutcome.DestinationUnreachable);
-    assertEquals(receiver.requests.length, reached);
+    assertEquals(receiver.signedRequests.length, reached);
   } finally {
     await receiver.stop();
   }
@@ -121,7 +121,7 @@ Deno.test("a name re-pointed between the check and the connection is caught at t
     assertEquals(result.outcome, BackupProbeOutcome.DestinationPrivateAddress);
     assert(asked >= 2, `the connection asked again (${asked})`);
     // No request reached the receiver: the socket was never opened.
-    assertEquals(receiver.requests, []);
+    assertEquals(receiver.signedRequests, []);
   } finally {
     await receiver.stop();
   }
@@ -138,7 +138,7 @@ Deno.test("a test environment still refuses a private address that is not loopba
       resolverOf({ "s3-fixture": ["192.168.1.10"] }),
     );
     assertEquals(result.outcome, BackupProbeOutcome.DestinationPrivateAddress);
-    assertEquals(receiver.requests, []);
+    assertEquals(receiver.signedRequests, []);
   } finally {
     await receiver.stop();
   }

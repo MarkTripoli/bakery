@@ -25,6 +25,8 @@ const SESSION_ONLY_ACTIONS = [
   BackupImplementedAction.BackupSchedulePut,
   BackupImplementedAction.BackupOffsitePut,
   BackupImplementedAction.BackupOffsiteVerify,
+  BackupImplementedAction.InstallationRestoreStep,
+  BackupImplementedAction.InstallationUpdatesDismiss,
 ] as const;
 
 /** The reads: an administrator may use them with a token. */
@@ -33,12 +35,16 @@ const READ_ACTIONS = [
   BackupImplementedAction.BackupsStatus,
   BackupImplementedAction.BackupScheduleGet,
   BackupImplementedAction.BackupOffsiteGet,
+  BackupImplementedAction.InstallationRestoreGet,
+  BackupImplementedAction.InstallationUncertainActionsGet,
+  BackupImplementedAction.InstallationUpdatesStatus,
+  BackupImplementedAction.InstallationUpdatesList,
 ] as const;
 
 function registry() {
   return createBackupActionRegistry({} as PgDatabase, "unit-test-secret", {
     allowLoopbackEndpoint: false,
-  });
+  }, () => ({ release: "a".repeat(40), healthy: () => Promise.resolve(true) }));
 }
 
 function context(over: Partial<ActionContext> = {}): ActionContext {

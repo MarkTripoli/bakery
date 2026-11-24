@@ -1,0 +1,1149 @@
+{
+  "description": "Baseline rows the shared registry and the data model do not cover by themselves: operations served outside the registry or unbuilt, modeled tables that were not migrated under their modeled name, migrated tables the model does not list, and test files that may skip. The coverage rails fail when this file and the code disagree. Owners are existing open GitHub issues.",
+  "operations": {
+    "artifactVersions.create": {
+      "state": "unbuilt",
+      "owner": "#437",
+      "reason": "Workers publish versions; direct create arrives with blob-backed artifacts."
+    },
+    "artifacts.create": {
+      "state": "unbuilt",
+      "owner": "#437",
+      "reason": "Workers publish artifacts; direct create arrives with blob-backed artifacts."
+    },
+    "channelLinks.create": {
+      "state": "unbuilt",
+      "owner": "#27",
+      "reason": "Linking a conversation to a Slack thread is part of the Slack coordinator."
+    },
+    "collaboration.connect": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/app.ts",
+        "literal": "/v1/collaboration"
+      },
+      "test": {
+        "file": "tests/integration/web-collaboration-session-against-the-real-socket_test.ts",
+        "contains": "/v1/collaboration"
+      }
+    },
+    "evaluationResults.list": {
+      "state": "unbuilt",
+      "owner": "#427",
+      "reason": "Result reads under a run arrive with offline kernel runs."
+    },
+    "evaluationRuns.create": {
+      "state": "unbuilt",
+      "owner": "#427",
+      "reason": "Evaluation runs are replaced by evaluation batches; the run create arrives with offline kernel runs."
+    },
+    "evaluationRuns.list": {
+      "state": "unbuilt",
+      "owner": "#427",
+      "reason": "Evaluation runs are replaced by evaluation batches; the run reads arrive with offline kernel runs."
+    },
+    "events.connect": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/app.ts",
+        "literal": "/v1/events"
+      },
+      "test": {
+        "file": "tests/integration/deliver-bounded-authorized-websocket-events-and-replay_test.ts",
+        "contains": "/v1/events"
+      }
+    },
+    "externalEffects.get": {
+      "state": "unbuilt",
+      "owner": "#4",
+      "reason": "The external-effect ledger read arrives with merge and deployment evidence."
+    },
+    "externalEffects.list": {
+      "state": "unbuilt",
+      "owner": "#4",
+      "reason": "The external-effect ledger read arrives with merge and deployment evidence."
+    },
+    "externalIdentityLinks.create": {
+      "state": "unbuilt",
+      "owner": "#12",
+      "reason": "Verified identity links arrive with Slack installation."
+    },
+    "externalIdentityLinks.delete": {
+      "state": "unbuilt",
+      "owner": "#12",
+      "reason": "Verified identity links arrive with Slack installation."
+    },
+    "externalIdentityLinks.list": {
+      "state": "unbuilt",
+      "owner": "#12",
+      "reason": "Verified identity links arrive with Slack installation."
+    },
+    "intake.external": {
+      "state": "unbuilt",
+      "owner": "#21",
+      "reason": "Signed inbound webhooks are not mounted yet."
+    },
+    "intake.slack.commands": {
+      "state": "unbuilt",
+      "owner": "#27",
+      "reason": "Slack command intake arrives with the shared coordinator."
+    },
+    "intake.slack.events": {
+      "state": "unbuilt",
+      "owner": "#27",
+      "reason": "Slack event intake arrives with the shared coordinator."
+    },
+    "intake.slack.interactions": {
+      "state": "unbuilt",
+      "owner": "#27",
+      "reason": "Slack interaction intake arrives with the shared coordinator."
+    },
+    "integrationAuth.slackIdentityCallback": {
+      "state": "unbuilt",
+      "owner": "#12",
+      "reason": "Slack identity linking callback arrives with Slack installation."
+    },
+    "integrationCapabilities.list": {
+      "state": "unbuilt",
+      "owner": "#3",
+      "reason": "Connection capability reads are part of the native integrations epic."
+    },
+    "integrationDeliveries.get": {
+      "state": "unbuilt",
+      "owner": "#21",
+      "reason": "Export delivery history arrives with signed webhooks and exports."
+    },
+    "integrationDeliveries.list": {
+      "state": "unbuilt",
+      "owner": "#21",
+      "reason": "Export delivery history arrives with signed webhooks and exports."
+    },
+    "integrationDestinations.create": {
+      "state": "unbuilt",
+      "owner": "#21",
+      "reason": "Event export destinations arrive with signed webhooks and exports."
+    },
+    "integrationDestinations.list": {
+      "state": "unbuilt",
+      "owner": "#21",
+      "reason": "Event export destinations arrive with signed webhooks and exports."
+    },
+    "integrationDestinations.update": {
+      "state": "unbuilt",
+      "owner": "#21",
+      "reason": "Event export destinations arrive with signed webhooks and exports."
+    },
+    "integrationEffects.reconcile": {
+      "state": "unbuilt",
+      "owner": "#3",
+      "reason": "Effect reconciliation over HTTP is part of the native integrations epic."
+    },
+    "integrationProviders.list": {
+      "state": "unbuilt",
+      "owner": "#3",
+      "reason": "The provider registry read is part of the native integrations epic."
+    },
+    "integrationSubscriptions.create": {
+      "state": "unbuilt",
+      "owner": "#21",
+      "reason": "Event export subscriptions arrive with signed webhooks and exports."
+    },
+    "integrationSubscriptions.get": {
+      "state": "unbuilt",
+      "owner": "#21",
+      "reason": "Event export subscriptions arrive with signed webhooks and exports."
+    },
+    "integrationSubscriptions.list": {
+      "state": "unbuilt",
+      "owner": "#21",
+      "reason": "Event export subscriptions arrive with signed webhooks and exports."
+    },
+    "integrationSubscriptions.update": {
+      "state": "unbuilt",
+      "owner": "#21",
+      "reason": "Event export subscriptions arrive with signed webhooks and exports."
+    },
+    "jobs.list": {
+      "state": "unbuilt",
+      "owner": "#2",
+      "reason": "Only the per-job attempts read exists; the job list read is part of fleet and recovery."
+    },
+    "reviews.list": {
+      "state": "unbuilt",
+      "owner": "#37",
+      "reason": "Review history reads arrive with independent agent review."
+    },
+    "runs.retry": {
+      "state": "unbuilt",
+      "owner": "#37",
+      "reason": "Retrying a run belongs with bounded repair; only task-level retry exists today."
+    },
+    "worker.artifacts": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/index.ts",
+        "literal": "/v1/worker/attempts/:id/artifacts"
+      },
+      "test": {
+        "file": "tests/integration/storage-tree-worker-publication_test.ts",
+        "contains": "/artifacts"
+      }
+    },
+    "worker.claim": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/claims"
+      },
+      "test": {
+        "file": "tests/integration/assignment-guards-transactional-claim_test.ts",
+        "contains": "worker/claims"
+      }
+    },
+    "worker.context": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/context"
+      },
+      "test": {
+        "file": "tests/integration/read-pinned-run-inputs_test.ts",
+        "contains": "/context"
+      }
+    },
+    "worker.events": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/events"
+      },
+      "test": {
+        "file": "tests/integration/replay-committed-output_test.ts",
+        "contains": "/events"
+      }
+    },
+    "worker.handoffManifests": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/handoff-manifests"
+      },
+      "test": {
+        "file": "tests/integration/implement-fenced-handoff-manifests-and-exact-resume-eligibility_test.ts",
+        "contains": "handoff-manifests"
+      }
+    },
+    "worker.heartbeat": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/heartbeat"
+      },
+      "test": {
+        "file": "tests/integration/assignment-guards-transactional-claim_test.ts",
+        "contains": "worker/heartbeat"
+      }
+    },
+    "worker.invokeTool": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/tool-invocations.ts",
+        "literal": "/v1/worker/attempts/:id/tool-invocations"
+      },
+      "test": {
+        "file": "tests/integration/tool-gateway-invokes-effective-tools_test.ts",
+        "contains": "tool-invocations"
+      }
+    },
+    "worker.output.close": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/output-bindings/close"
+      },
+      "test": {
+        "file": "tests/integration/worker-claude-teardown_test.ts",
+        "contains": "output-bindings/close"
+      }
+    },
+    "worker.output.finalize": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/output-finalizations/:grantId"
+      },
+      "test": {
+        "file": "tests/helpers/output-transcript.ts",
+        "contains": "finalizeOutput"
+      }
+    },
+    "worker.output.open": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/output-bindings"
+      },
+      "test": {
+        "file": "tests/integration/replay-committed-output_test.ts",
+        "contains": "output-bindings"
+      }
+    },
+    "worker.output.revoke": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/output-finalizations/:grantId/revoke"
+      },
+      "test": {
+        "file": "tests/helpers/output-transcript.ts",
+        "contains": "revokeOutput"
+      }
+    },
+    "worker.plugin.broker": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/plugin-broker"
+      },
+      "test": {
+        "file": "tests/security/plugin-broker-relay_test.ts",
+        "contains": "/plugin-broker"
+      }
+    },
+    "worker.plugin.files": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/plugin-job-files"
+      },
+      "test": {
+        "file": "tests/security/plugin-job-files_test.ts",
+        "contains": "plugin-job-files"
+      }
+    },
+    "worker.previews": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/previews"
+      },
+      "test": {
+        "file": "tests/integration/serve-private-previews-on-a-separate-authenticated-origin_test.ts",
+        "contains": "/previews"
+      }
+    },
+    "worker.register": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/registration"
+      },
+      "test": {
+        "file": "tests/integration/link-a-machine-with-one-paste_test.ts",
+        "contains": "/v1/worker/registration"
+      }
+    },
+    "worker.renew": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/lease-renewals"
+      },
+      "test": {
+        "file": "tests/integration/trace-one-run-through-its-attempts_test.ts",
+        "contains": "lease-renewals"
+      }
+    },
+    "worker.repositorySource": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/job-attempts/:id/repository-source"
+      },
+      "test": {
+        "file": "tests/helpers/repository-inspection.ts",
+        "contains": "repository-source"
+      }
+    },
+    "worker.result": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/result"
+      },
+      "test": {
+        "file": "tests/integration/worker-terminal-receipt_test.ts",
+        "contains": "/result"
+      }
+    },
+    "worker.tools.secrets": {
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/execution/routes.ts",
+        "literal": "/v1/worker/attempts/:id/tools/secrets"
+      },
+      "test": {
+        "file": "tests/integration/run-fixed-secret-identity-action_test.ts",
+        "contains": "tools/secrets"
+      }
+    }
+  },
+  "tables": {
+    "modeledNotMigrated": {
+      "auth_users": {
+        "state": "provider-owned",
+        "implementedAs": "user"
+      },
+      "channel_links": {
+        "state": "unbuilt",
+        "owner": "#27",
+        "reason": "External thread routing arrives with the Slack coordinator."
+      },
+      "integration_providers": {
+        "state": "unbuilt",
+        "owner": "#3",
+        "reason": "The provider registry table arrives with the native integrations epic."
+      },
+      "workspaces": {
+        "state": "unbuilt",
+        "owner": "#2",
+        "reason": "Prepared worktree lifecycle rows arrive with fleet recovery; workers prepare workspaces on disk today."
+      },
+      "merge_entry_checks": {
+        "state": "implemented-as",
+        "implementedAs": "merge_entry_check_runs"
+      },
+      "evaluation_runs": {
+        "state": "implemented-as",
+        "implementedAs": "evaluation_batches"
+      }
+    },
+    "migratedNotModeled": {
+      "access_bindings": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0085_access_bindings.sql"
+      },
+      "access_tokens": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0081_access_tokens.sql"
+      },
+      "account": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0001_better_auth.sql"
+      },
+      "agent_file_grants": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0263_agent_file_grants.sql"
+      },
+      "agent_power_grants": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0231_agent_power_grants.sql"
+      },
+      "alert_channels": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0288_alert_channels.sql"
+      },
+      "alert_events": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0289_alert_rules.sql"
+      },
+      "alert_rules": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0289_alert_rules.sql"
+      },
+      "alert_states": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0289_alert_rules.sql"
+      },
+      "artifact_access_grants": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0307_artifact_access_grants.sql"
+      },
+      "artifact_draft_checkpoints": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0068_collaborative_drafts.sql"
+      },
+      "artifact_draft_comment_publications": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0177_artifact_draft_comment_publications.sql"
+      },
+      "artifact_draft_comments": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0176_artifact_draft_comments.sql"
+      },
+      "artifact_draft_publications": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0161_artifact_draft_publications.sql"
+      },
+      "artifact_draft_receipts": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0068_collaborative_drafts.sql"
+      },
+      "artifact_draft_reference_comments": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0178_artifact_draft_references.sql"
+      },
+      "artifact_draft_references": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0178_artifact_draft_references.sql"
+      },
+      "artifact_draft_suggestions": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0162_artifact_draft_suggestions.sql"
+      },
+      "artifact_draft_updates": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0068_collaborative_drafts.sql"
+      },
+      "artifact_drafts": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0068_collaborative_drafts.sql"
+      },
+      "artifact_extracts": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0282_artifact_extracts.sql"
+      },
+      "artifact_kind_versions": {
+        "module": "artifact-kinds",
+        "migration": "apps/server/src/modules/artifact-kinds/migrations/bakery/0171_artifact_kinds.sql"
+      },
+      "artifact_kinds": {
+        "module": "artifact-kinds",
+        "migration": "apps/server/src/modules/artifact-kinds/migrations/bakery/0171_artifact_kinds.sql"
+      },
+      "artifact_publication_replays": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0026_artifacts.sql"
+      },
+      "audit_retention_settings": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0090_audit_retention.sql"
+      },
+      "backup_cutoffs": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0295_backup_cutoffs.sql"
+      },
+      "backup_drills": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0301_backup_drills.sql"
+      },
+      "backup_offsite_settings": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0293_backup_settings.sql"
+      },
+      "backup_point_in_time_settings": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0308_backup_point_in_time.sql"
+      },
+      "backup_runner_credentials": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0277_backups.sql"
+      },
+      "backup_runs": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0277_backups.sql"
+      },
+      "backup_schedule_settings": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0293_backup_settings.sql"
+      },
+      "batch_issues": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0279_batches.sql"
+      },
+      "batches": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0279_batches.sql"
+      },
+      "blob_probes": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0267_blob_probes.sql"
+      },
+      "blob_upload_parts": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0166_blobs.sql"
+      },
+      "blob_upload_sessions": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0166_blobs.sql"
+      },
+      "blobs": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0166_blobs.sql"
+      },
+      "budget_reconciliation_failures": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0065_exact_budget_accounting_release_evidence.sql"
+      },
+      "budget_release_evidence": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0065_exact_budget_accounting_release_evidence.sql"
+      },
+      "capability_binding_revocations": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0344_capability_binding_seats.sql"
+      },
+      "coordination_lanes": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0120_coordination_plans.sql"
+      },
+      "coordination_plans": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0120_coordination_plans.sql"
+      },
+      "data_migrations": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0011_data_migration_ledger.sql"
+      },
+      "decisions_ledger": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0174_decisions_ledger.sql"
+      },
+      "definition_publish_grants": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0186_definition_publish_grants_and_proposal_supersession.sql"
+      },
+      "desktop_handoffs": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0306_desktop_handoffs.sql"
+      },
+      "desktop_sign_in_requests": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0260_desktop_sign_in_requests.sql"
+      },
+      "evaluation_attempts": {
+        "module": "delivery",
+        "migration": "apps/server/src/modules/delivery/migrations/bakery/0274_evaluation_batches.sql"
+      },
+      "evaluation_batches": {
+        "module": "delivery",
+        "migration": "apps/server/src/modules/delivery/migrations/bakery/0274_evaluation_batches.sql"
+      },
+      "evaluation_datasets": {
+        "module": "delivery",
+        "migration": "apps/server/src/modules/delivery/migrations/bakery/0274_evaluation_batches.sql"
+      },
+      "handoff_continuations": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0292_handoff_continuations.sql"
+      },
+      "handoff_manifests": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0291_handoff_manifests.sql"
+      },
+      "installation_email_settings": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0244_installation_email_settings.sql"
+      },
+      "installation_maintenance": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0294_installation_maintenance.sql"
+      },
+      "installation_restores": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0302_installation_restores.sql"
+      },
+      "installation_settings": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0077_installation_settings.sql"
+      },
+      "installation_update_history": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0319_installation_update_policy.sql"
+      },
+      "integration_deliveries": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0185_event_export.sql"
+      },
+      "integration_destinations": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0185_event_export.sql"
+      },
+      "integration_discoveries": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0138_integration_discoveries.sql"
+      },
+      "integration_grants": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0155_integration_grants.sql"
+      },
+      "invitation": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0001_better_auth.sql"
+      },
+      "jwks": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0009_oauth_provider.sql"
+      },
+      "mcp_tool_classifications": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0261_mcp_connection_management.sql"
+      },
+      "mcp_use_grants": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0261_mcp_connection_management.sql"
+      },
+      "member": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0001_better_auth.sql"
+      },
+      "merge_entry_check_runs": {
+        "module": "delivery",
+        "migration": "apps/server/src/modules/delivery/migrations/bakery/0164_merge_entries.sql"
+      },
+      "oauthAccessToken": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0009_oauth_provider.sql"
+      },
+      "oauthClient": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0009_oauth_provider.sql"
+      },
+      "oauthClientAssertion": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0009_oauth_provider.sql"
+      },
+      "oauthClientResource": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0009_oauth_provider.sql"
+      },
+      "oauthConsent": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0009_oauth_provider.sql"
+      },
+      "oauthRefreshToken": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0009_oauth_provider.sql"
+      },
+      "oauthResource": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0009_oauth_provider.sql"
+      },
+      "oauth_grant_activity": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0073_oauth_grant_activity.sql"
+      },
+      "oauth_grant_revocations": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0072_oauth_grant_revocations.sql"
+      },
+      "organization": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0001_better_auth.sql"
+      },
+      "organization_group_members": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0243_organization_groups.sql"
+      },
+      "organization_groups": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0243_organization_groups.sql"
+      },
+      "organization_roles": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0100_organization_roles.sql"
+      },
+      "organization_sso_settings": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0105_organization_sso_settings.sql"
+      },
+      "output_transcript_segments": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0076_output_transcript_archive.sql"
+      },
+      "package_imports": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0349_package_imports.sql"
+      },
+      "passkey": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0005_passkey.sql"
+      },
+      "password_reset_links": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0240_password_reset_links.sql"
+      },
+      "person_requests": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0246_person_requests.sql"
+      },
+      "plugin_authoring_attempts": {
+        "module": "workflows",
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0320_plugin_authoring_runs.sql"
+      },
+      "plugin_authoring_events": {
+        "module": "workflows",
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0320_plugin_authoring_runs.sql"
+      },
+      "plugin_authoring_runs": {
+        "module": "workflows",
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0320_plugin_authoring_runs.sql"
+      },
+      "plugin_install_grants": {
+        "module": "catalog",
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0200_plugin_installs_grants_and_state.sql"
+      },
+      "plugin_install_snapshot_state": {
+        "module": "catalog",
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0312_plugin_install_snapshots.sql"
+      },
+      "plugin_install_snapshots": {
+        "module": "catalog",
+        "migration": "apps/server/src/modules/catalog/migrations/bakery/0312_plugin_install_snapshots.sql"
+      },
+      "preview_sessions": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0270_private_previews.sql"
+      },
+      "probe_requests": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0278_probe_runner.sql"
+      },
+      "project_scope_profiles": {
+        "module": "projects",
+        "migration": "apps/server/src/modules/projects/migrations/bakery/0189_project_scope_profiles.sql"
+      },
+      "provider_authoritative_receipts": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0064_exact_budget_accounting_provider_authority.sql"
+      },
+      "provider_call_intents": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0064_exact_budget_accounting_provider_authority.sql"
+      },
+      "provider_incidents": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0203_provider_routes_and_incidents.sql"
+      },
+      "provider_pricing_snapshots": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0064_exact_budget_accounting_provider_authority.sql"
+      },
+      "provider_route_health": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0203_provider_routes_and_incidents.sql"
+      },
+      "provider_routes": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0203_provider_routes_and_incidents.sql"
+      },
+      "pull_request_line_counts": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0304_pull_request_line_counts.sql"
+      },
+      "pull_request_merge_attempts": {
+        "module": "delivery",
+        "migration": "apps/server/src/modules/delivery/migrations/bakery/0163_pull_request_merge_attempts.sql"
+      },
+      "pull_request_transitions": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0269_pull_request_lifecycle.sql"
+      },
+      "rateLimit": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0004_two_factor_assurance.sql"
+      },
+      "repair_allowances": {
+        "module": "delivery",
+        "migration": "apps/server/src/modules/delivery/migrations/bakery/0330_repair_allowances.sql"
+      },
+      "repository_onboardings": {
+        "module": "projects",
+        "migration": "apps/server/src/modules/projects/migrations/bakery/0048_issue46_trusted_inspection.sql"
+      },
+      "route_continuations": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0230_route_continuations.sql"
+      },
+      "run_access_grants": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0247_run_access_grants.sql"
+      },
+      "run_input_paths": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0232_storage_entries.sql"
+      },
+      "run_input_pins": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0165_run_input_pins.sql"
+      },
+      "run_power_grants": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0264_run_power_grants.sql"
+      },
+      "run_step_note_deliveries": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0213_run_step_notes.sql"
+      },
+      "run_step_notes": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0213_run_step_notes.sql"
+      },
+      "run_waits": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0187_human_approval_owner_waits_and_outcomes.sql"
+      },
+      "scimConnectionBinding": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0011_scim.sql"
+      },
+      "scimGroup": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0011_scim.sql"
+      },
+      "scimGroupMember": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0011_scim.sql"
+      },
+      "scimIdentityTombstone": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0011_scim.sql"
+      },
+      "scimProjectionGrant": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0011_scim.sql"
+      },
+      "scimSubject": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0011_scim.sql"
+      },
+      "scimUser": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0011_scim.sql"
+      },
+      "scim_connections": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0095_scim_connections.sql"
+      },
+      "scim_credentials": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0095_scim_connections.sql"
+      },
+      "scim_memberships": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/bakery/0095_scim_connections.sql"
+      },
+      "session": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0001_better_auth.sql"
+      },
+      "session_operation_audits": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0167_session_operation_credentials.sql"
+      },
+      "session_operation_credentials": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0167_session_operation_credentials.sql"
+      },
+      "session_operation_refusals": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0168_session_operation_refusals.sql"
+      },
+      "session_output_batches": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0049_execution_output.sql"
+      },
+      "session_output_finalization_manifests": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0122_output_transcript_finalization.sql"
+      },
+      "session_output_finalization_receipts": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0122_output_transcript_finalization.sql"
+      },
+      "session_output_finalization_segments": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0122_output_transcript_finalization.sql"
+      },
+      "session_output_finalizations": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0122_output_transcript_finalization.sql"
+      },
+      "session_output_producers": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0049_execution_output.sql"
+      },
+      "session_output_receipts": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0049_execution_output.sql"
+      },
+      "session_output_streams": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0049_execution_output.sql"
+      },
+      "skill_draft_files": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0276_skill_drafts.sql"
+      },
+      "skill_drafts": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0276_skill_drafts.sql"
+      },
+      "skill_imports": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0058_pinned_skill_import.sql"
+      },
+      "skill_use_grants": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0255_private_skills.sql"
+      },
+      "slack_identity_attempts": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0153_slack_identity_attempts.sql"
+      },
+      "ssoProvider": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0012_sso_provider.sql"
+      },
+      "step_read_set": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0287_step_read_set.sql"
+      },
+      "step_write_set": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0285_step_write_set.sql"
+      },
+      "storage_entries": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0232_storage_entries.sql"
+      },
+      "storage_file_versions": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0249_storage_working_areas.sql"
+      },
+      "storage_purge_requests": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0250_storage_purge_requests.sql"
+      },
+      "storage_settings": {
+        "module": "knowledge",
+        "migration": "apps/server/src/modules/knowledge/migrations/bakery/0249_storage_working_areas.sql"
+      },
+      "task_repositories": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0120_coordination_plans.sql"
+      },
+      "telemetry_destinations": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0271_telemetry_destinations.sql"
+      },
+      "tool_gateway_calls": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0344_capability_binding_seats.sql"
+      },
+      "twoFactor": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0004_two_factor_assurance.sql"
+      },
+      "user": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0001_better_auth.sql"
+      },
+      "verification": {
+        "module": "auth",
+        "migration": "apps/server/src/modules/auth/migrations/provider/0001_better_auth.sql"
+      },
+      "worker_claim_replays": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0025_worker_execution.sql"
+      },
+      "worker_enrollment_mutations": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0124_issue59_machine_readiness.sql"
+      },
+      "worker_enrollment_replays": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0025_worker_execution.sql"
+      },
+      "worker_heartbeat_replays": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0025_worker_execution.sql"
+      },
+      "worker_inventory_replays": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0124_issue59_machine_readiness.sql"
+      },
+      "worker_lease_renewal_replays": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0025_worker_execution.sql"
+      },
+      "worker_link_requests": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0311_worker_link_codes.sql"
+      },
+      "worker_maintenance_operations": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0309_worker_maintenance_operations.sql"
+      },
+      "worker_maintenance_receipts": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0310_worker_maintenance_receipts.sql"
+      },
+      "worker_provider_auth_reports": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0124_issue59_machine_readiness.sql"
+      },
+      "worker_registration_replays": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0025_worker_execution.sql"
+      },
+      "workflow_definition_proposals": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0183_unlisted_definitions_and_definition_proposals.sql"
+      },
+      "workflow_drafts": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0126_workflow_drafts.sql"
+      },
+      "workflow_skill_slots": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0256_workflow_skill_slots.sql"
+      },
+      "workflow_start_firings": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0331_workflow_start_firings.sql"
+      }
+    }
+  },
+  "conditionalSkips": {
+    "tests/provider/real-cli-conformance_test.ts": {
+      "reason": "Runs against a real provider CLI only when the host opts in; owner credentials never enter tests."
+    },
+    "tests/provider/lane-boundary_test.ts": {
+      "reason": "Real-CLI lane boundary, opt-in only."
+    },
+    "tests/native/native-worker-executor_test.ts": {
+      "reason": "Needs a writable cgroup root, which only some hosts grant."
+    },
+    "tests/e2e/run-plugin-jobs-behind-an-isolated-install-scoped-broker_test.ts": {
+      "reason": "Needs the plugin broker image built on the host."
+    },
+    "tests/e2e/run-one-real-bounded-codex-harness-through-the-worker_test.ts": {
+      "reason": "Needs a real Codex login; owner credentials never enter CI."
+    },
+    "tests/integration/run-one-real-bounded-codex-harness-through-the-worker_test.ts": {
+      "reason": "Needs a real Codex login; owner credentials never enter CI."
+    },
+    "tests/security/run-one-real-bounded-codex-harness-through-the-worker_test.ts": {
+      "reason": "Needs a real Codex login; owner credentials never enter CI."
+    },
+    "tests/integration/import-pinned-remote-skill-real-stack_test.ts": {
+      "reason": "Needs the opt-in remote skill stack."
+    },
+    "tests/recovery/import-pinned-remote-skill-real-stack_test.ts": {
+      "reason": "Needs the opt-in remote skill stack."
+    },
+    "tests/unit/lane-spawn-diagnostic-env_test.ts": {
+      "reason": "Diagnostic probe that runs only when BAKERY_TEST_LANE_PROBE=1."
+    },
+    "tests/e2e/prove-prompt-to-private-plugin-backend-authoring_test.ts": {
+      "reason": "The Docker job-runtime case needs Docker and the denoland/deno job image on the host; the other cases always run."
+    },
+    "tests/e2e/run-plugin-job-through-the-worker_test.ts": {
+      "reason": "Needs Docker and an alpine image on the host."
+    },
+    "tests/e2e/run-plugin-jobs-in-bubblewrap_test.ts": {
+      "reason": "Needs bubblewrap with user namespaces, which some hosts refuse."
+    }
+  }
+}

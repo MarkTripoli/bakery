@@ -5,7 +5,10 @@
 //! the web page's. No window says "PKCE", "token", "callback", "loopback" or "credential", and a test
 //! holds it to that.
 
-use crate::session::{Event, Refusal, Window};
+use crate::address::{is_this_computer_address, THIS_COMPUTER};
+use crate::session::{
+    Availability, Chooser, ChooserProblem, Event, Mismatch, Notice, Refusal, ServerChoice, Window,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -19,6 +22,24 @@ pub enum ButtonId {
     TryAgain,
     SetUpKeyring,
     QuitBakery,
+    UseDifferentServer,
+    SignOut,
+    /// "Continue" in the chooser: the page sends the option and the text with it.
+    Continue,
+    ChooseDifferent,
+    UseItAnyway,
+    /// "Try again" where the server is not answering.
+    TryServerAgain,
+    /// "How to start Bakery": opens the runbook in the browser.
+    StartBakeryHelp,
+    /// A link dialog's Copy: the page copies the whole link or address.
+    CopyLink,
+    /// A link dialog's Close or Cancel.
+    Close,
+    /// "Try again" in the dialog for a page the server would not give.
+    TryPageAgain,
+    /// "Open in your browser" in the another-server dialog.
+    OpenLinkInBrowser,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -51,6 +72,41 @@ pub enum Detail {
     Warning {
         text: String,
     },
+    /// Who is signed in, and where.
+    SignedIn {
+        name: Option<String>,
+        email: Option<String>,
+        address: String,
+    },
+    /// The server box and, under it, when it was last asked. The sentence has a `{time}` slot that
+    /// the page fills in on the person's own clock; with no time it is just the retry promise.
+    ServerTried {
+        address: String,
+        text: String,
+        at: Option<String>,
+    },
+    /// The server chooser's two options.
+    Chooser(ChooserDetail),
+}
+
+/// What the chooser draws: the app decides the words and the state; the page owns the typing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ChooserDetail {
+    pub selected: ServerChoice,
+    pub this_computer_address: String,
+    /// "Answering now" or "Not answering now"; nothing until it has been asked.
+    pub this_computer_status: Option<String>,
+    pub typed: String,
+    pub help: String,
+    /// The sentence under the box when the chooser stays open.
+    pub problem: Option<String>,
+}
+
+/// The person who is signed in, as the server names them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Identity {
+    pub name: Option<String>,
+    pub email: Option<String>,
 }
 
 /// The deadline line. The sentence has a `{time}` slot and `at` is the deadline itself: the page
@@ -92,6 +148,14 @@ pub struct Context<'a> {
     /// Whether the panel shows inside the "sign in again" dialog, whose waiting step has its own
     /// sentence: the page behind it comes back as the person left it.
     pub dialog: bool,
+    /// The line carried over the sign-in panel or the signed-in window.
+    pub notice: Option<&'a Notice>,
+    /// Who is signed in, once the server has said.
+    pub identity: Option<&'a Identity>,
+    /// When the server was last asked (an RFC 3339 time), where it is not answering.
+    pub last_tried: Option<&'a str>,
+    /// This computer's name, as the server lists the app's sign-in.
+    pub computer: Option<&'a str>,
 }
 
 fn button(id: ButtonId, label: &str, primary: bool) -> Button {
@@ -104,6 +168,22 @@ fn button(id: ButtonId, label: &str, primary: bool) -> Button {
 
 fn sign_in_button() -> Button {
     button(ButtonId::SignIn, "Sign in with your browser", true)
+}
+
+fn different_server_button() -> Button {
+    button(
+        ButtonId::UseDifferentServer,
+        "Use a different server",
+        false,
+    )
+}
+
+/// The line over the sign-in panel or the signed-in window, if the app carries one.
+fn notice_text(ctx: &Context) -> Option<String> {
+    ctx.notice.map(|notice| match notice {
+        Notice::Switched { address } => format!("Bakery now uses {address}."),
+        Notice::SignInForLink => "Sign in to open the page from your link.".into(),
+    })
 }
 
 fn server(ctx: &Context) -> Detail {
@@ -124,18 +204,26 @@ fn panel(heading: &str, text: Option<&str>, detail: Detail, buttons: Vec<Button>
 
 /// The panel for a window, or `None` for the app itself, which is the web app's own pages.
 pub fn panel_for(window: &Window, ctx: &Context) -> Option<Panel> {
-    let sign_in = || {
-        panel(
+    let sign_in = || Panel {
+        notice: notice_text(ctx),
+        ..panel(
             "Sign in to Bakery",
             Some("Bakery opens your browser to sign in, then brings you back here."),
             server(ctx),
-            vec![sign_in_button()],
+            vec![sign_in_button(), different_server_button()],
         )
     };
     Some(match window {
         Window::SignIn => sign_in(),
-        Window::SignedOut => Panel {
-            notice: Some("You signed out. Bakery no longer has your sign-in on this computer.".into()),
+        Window::SignedOut { ended_on_server } => Panel {
+            notice: Some(if *ended_on_server {
+                "You signed out. The sign-in is ended on the server and removed from this computer.".into()
+            } else {
+                format!(
+                    "You signed out on this computer. The server did not answer, so it may still list \u{201c}Bakery app \u{b7} {}\u{201d}. Revoke it under Account and security on the web.",
+                    ctx.computer.unwrap_or("this computer")
+                )
+            }),
             ..sign_in()
         },
         Window::Waiting => panel(
@@ -210,22 +298,162 @@ pub fn panel_for(window: &Window, ctx: &Context) -> Option<Panel> {
                 Detail::Warning { text: "Unlock or start your keyring, then sign in again.".into() },
                 vec![sign_in_button(), button(ButtonId::SetUpKeyring, "How to set up a keyring", false)],
             ),
-            // design-ux's words for #804; slice 4 adds "Use a different server" to this window.
-            Refusal::CannotStart => panel(
-                "Bakery could not reach the server",
-                Some(&format!("{} did not answer. Check that the Bakery server is running, then try again.", ctx.server)),
-                server(ctx),
-                vec![button(ButtonId::SignIn, "Try again", true)],
+            Refusal::NoKeyringStillListed => panel(
+                "Bakery could not save your sign-in",
+                Some("You confirmed in the browser, but this computer has no unlocked keyring to keep the sign-in in. Bakery never keeps it in a plain file."),
+                Detail::Warning {
+                    text: "Unlock or start your keyring, then sign in again. The unused sign-in may still be listed under Account and security on the web. Revoke it there.".into(),
+                },
+                vec![sign_in_button(), button(ButtonId::SetUpKeyring, "How to set up a keyring", false)],
             ),
         },
+        Window::Choose { chooser } => chooser_panel(chooser, ctx),
+        Window::Checking { address } => panel(
+            "Checking the server",
+            Some("This takes a few seconds."),
+            Detail::Working { text: format!("Asking {address}") },
+            vec![button(ButtonId::Cancel, "Cancel", false)],
+        ),
+        Window::NotAnswering => {
+            let here = is_this_computer_address(ctx.server);
+            let (heading, text, buttons) = if here {
+                (
+                    "Bakery is not running on this computer",
+                    "This app is only the window. The Bakery server runs separately and has not answered. Start it, then try again.".to_string(),
+                    vec![
+                        button(ButtonId::TryServerAgain, "Try again", true),
+                        different_server_button(),
+                        button(ButtonId::StartBakeryHelp, "How to start Bakery", false),
+                    ],
+                )
+            } else {
+                (
+                    "Bakery could not reach the server",
+                    format!("{} did not answer. Check that it is running and that this address is right.", ctx.server),
+                    vec![button(ButtonId::TryServerAgain, "Try again", true), different_server_button()],
+                )
+            };
+            panel(
+                heading,
+                Some(&text),
+                Detail::ServerTried {
+                    address: ctx.server.into(),
+                    text: if ctx.last_tried.is_some() {
+                        "Last tried {time}. Bakery tries again by itself.".into()
+                    } else {
+                        "Bakery tries again by itself.".into()
+                    },
+                    at: ctx.last_tried.map(Into::into),
+                },
+                buttons,
+            )
+        }
+        Window::Incompatible { mismatch, address } => panel(
+            match mismatch {
+                Mismatch::ServerOlder => "This server is older than this app",
+                Mismatch::AppOlder => "This app is older than this server",
+            },
+            Some(match mismatch {
+                Mismatch::ServerOlder => "Some pages may not work until the server is updated. Ask whoever runs it to update Bakery.",
+                Mismatch::AppOlder => "Some pages may not work until you update Bakery on this computer.",
+            }),
+            Detail::Server { address: address.clone() },
+            vec![
+                button(ButtonId::ChooseDifferent, "Choose a different server", true),
+                button(ButtonId::UseItAnyway, "Use it anyway", false),
+            ],
+        ),
+        Window::SigningOut => panel(
+            "Signing out",
+            None,
+            Detail::Working { text: "This takes a moment.".into() },
+            vec![],
+        ),
         Window::SignInAgain => panel(
             "Sign in again to continue",
             Some("Your sign-in on this computer ended. What you typed on this page is kept."),
             Detail::None,
             vec![sign_in_button(), button(ButtonId::QuitBakery, "Quit Bakery", false)],
         ),
-        Window::App => return None,
+        Window::App => Panel {
+            notice: notice_text(ctx),
+            ..panel(
+                "You are signed in",
+                None,
+                match ctx.identity {
+                    Some(who) if who.name.is_some() || who.email.is_some() => Detail::SignedIn {
+                        name: who.name.clone(),
+                        email: who.email.clone(),
+                        address: ctx.server.into(),
+                    },
+                    _ => server(ctx),
+                },
+                // Neither is the next step, so neither is primary; focus goes to the heading.
+                vec![different_server_button(), button(ButtonId::SignOut, "Sign out", false)],
+            )
+        },
     })
+}
+
+fn chooser_panel(chooser: &Chooser, ctx: &Context) -> Panel {
+    let problem = chooser.problem.map(|p| {
+        match p {
+            ChooserProblem::Empty => "Enter the server's address.",
+            ChooserProblem::NotWebAddress => "Enter a web address, for example https://bakery.example.com.",
+            ChooserProblem::HasCredentials => "Remove the name and password from the address.",
+            ChooserProblem::PlainHttp => "Use an address that starts with https. Plain http is only for a server on this computer.",
+            ChooserProblem::NoAnswer | ChooserProblem::NotBakery => "",
+        }
+        .to_string()
+    });
+    let problem = match chooser.problem {
+        Some(ChooserProblem::NoAnswer) => Some(format!(
+            "{} did not answer. Check the address and that the server is running.",
+            typed_address(&chooser.typed)
+        )),
+        Some(ChooserProblem::NotBakery) => Some(format!(
+            "{} answered, but it is not a Bakery server.",
+            typed_address(&chooser.typed)
+        )),
+        _ => problem,
+    };
+    panel(
+        "Choose a server",
+        Some(&if chooser.signed_in {
+            format!(
+                "You stay signed in to {} on this computer, so you can switch back without signing in again.",
+                ctx.server
+            )
+        } else {
+            "This app shows one Bakery server at a time.".to_string()
+        }),
+        Detail::Chooser(ChooserDetail {
+            selected: chooser.selected,
+            this_computer_address: THIS_COMPUTER.into(),
+            this_computer_status: match chooser.this_computer {
+                Availability::Unknown => None,
+                Availability::Answering => Some("Answering now".into()),
+                Availability::NotAnswering => Some("Not answering now".into()),
+            },
+            typed: chooser.typed.clone(),
+            help: "For example https://bakery.example.com".into(),
+            problem,
+        }),
+        vec![
+            button(ButtonId::Continue, "Continue", true),
+            button(ButtonId::Cancel, "Cancel", false),
+        ],
+    )
+}
+
+/// What the person typed, as the error sentence names it; the box's own words when it is empty.
+fn typed_address(typed: &str) -> String {
+    let trimmed = typed.trim();
+    if trimmed.is_empty() {
+        "That address".into()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 /// What pressing a button does.
@@ -235,6 +463,8 @@ pub enum Press {
     Event(Event),
     /// The shell does it: copy the address, open the keyring help, quit.
     Shell(ButtonId),
+    /// The page sends the chooser's option and text with a separate command.
+    Chooser,
 }
 
 pub fn press(button: ButtonId) -> Press {
@@ -245,9 +475,20 @@ pub fn press(button: ButtonId) -> Press {
         }
         ButtonId::Cancel => Press::Event(Event::CancelPressed),
         ButtonId::TryAgain => Press::Event(Event::TryExchangeAgain),
-        ButtonId::CopyAddress | ButtonId::SetUpKeyring | ButtonId::QuitBakery => {
-            Press::Shell(button)
-        }
+        ButtonId::UseDifferentServer => Press::Event(Event::UseDifferentServer),
+        ButtonId::SignOut => Press::Event(Event::SignOutPressed),
+        ButtonId::ChooseDifferent => Press::Event(Event::ChooseDifferent),
+        ButtonId::UseItAnyway => Press::Event(Event::UseItAnyway),
+        ButtonId::TryServerAgain => Press::Event(Event::RetryNow),
+        ButtonId::Continue => Press::Chooser,
+        ButtonId::CopyAddress
+        | ButtonId::SetUpKeyring
+        | ButtonId::QuitBakery
+        | ButtonId::StartBakeryHelp
+        | ButtonId::CopyLink
+        | ButtonId::Close
+        | ButtonId::TryPageAgain
+        | ButtonId::OpenLinkInBrowser => Press::Shell(button),
     }
 }
 
@@ -264,17 +505,53 @@ mod tests {
             until: Some("2026-11-20T14:32:00Z"),
             address: Some(URL),
             dialog: false,
+            notice: None,
+            identity: None,
+            last_tried: None,
+            computer: Some("Ana's laptop"),
+        }
+    }
+
+    fn chooser(selected: ServerChoice, problem: Option<ChooserProblem>) -> Chooser {
+        Chooser {
+            selected,
+            typed: "https://bakery.acme.example".into(),
+            problem,
+            this_computer: Availability::Answering,
+            signed_in: false,
         }
     }
 
     fn every_window() -> Vec<Window> {
         let mut all = vec![
             Window::SignIn,
-            Window::SignedOut,
+            Window::SignedOut {
+                ended_on_server: true,
+            },
+            Window::SignedOut {
+                ended_on_server: false,
+            },
             Window::Waiting,
             Window::BrowserDidNotOpen,
             Window::Finishing,
             Window::SignInAgain,
+            Window::Choose {
+                chooser: chooser(ServerChoice::Another, None),
+            },
+            Window::Checking {
+                address: "https://bakery.acme.example".into(),
+            },
+            Window::NotAnswering,
+            Window::Incompatible {
+                mismatch: Mismatch::ServerOlder,
+                address: "https://bakery.acme.example".into(),
+            },
+            Window::Incompatible {
+                mismatch: Mismatch::AppOlder,
+                address: "https://bakery.acme.example".into(),
+            },
+            Window::SigningOut,
+            Window::App,
         ];
         for r in [
             Refusal::Expired,
@@ -283,7 +560,7 @@ mod tests {
             Refusal::NotFromThisApp,
             Refusal::CouldNotFinish,
             Refusal::NoKeyring,
-            Refusal::CannotStart,
+            Refusal::NoKeyringStillListed,
         ] {
             all.push(Window::Refusal { refusal: r });
         }
@@ -349,15 +626,78 @@ mod tests {
     #[test]
     fn escape_reaches_cancel_only_where_the_design_has_one() {
         for window in every_window() {
-            let has_cancel = matches!(window, Window::Waiting | Window::BrowserDidNotOpen);
+            let has_cancel = matches!(
+                window,
+                Window::Waiting
+                    | Window::BrowserDidNotOpen
+                    | Window::Choose { .. }
+                    | Window::Checking { .. }
+            );
             let p = panel_for(&window, &ctx()).unwrap();
             assert_eq!(p.cancel().is_some(), has_cancel, "{window:?}");
         }
     }
 
     #[test]
-    fn the_app_itself_has_no_panel() {
-        assert_eq!(panel_for(&Window::App, &ctx()), None);
+    fn the_signed_in_window_offers_two_actions_and_neither_is_the_next_step() {
+        let p = panel_for(&Window::App, &ctx()).unwrap();
+        assert_eq!(p.heading, "You are signed in");
+        assert_eq!(
+            p.buttons
+                .iter()
+                .map(|b| b.label.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Use a different server", "Sign out"]
+        );
+        assert!(p.primary().is_none(), "focus goes to the heading");
+        // Without a name the server box stands alone; with one, who is signed in comes first.
+        assert_eq!(
+            p.detail,
+            Detail::Server {
+                address: SERVER.into()
+            }
+        );
+        let who = Identity {
+            name: Some("Ana Costa".into()),
+            email: Some("ana@acme.example".into()),
+        };
+        let named = panel_for(
+            &Window::App,
+            &Context {
+                identity: Some(&who),
+                ..ctx()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            named.detail,
+            Detail::SignedIn {
+                name: Some("Ana Costa".into()),
+                email: Some("ana@acme.example".into()),
+                address: SERVER.into()
+            }
+        );
+        // Only one of the two known: shown on its own.
+        let email_only = Identity {
+            name: None,
+            email: Some("ana@acme.example".into()),
+        };
+        let one = panel_for(
+            &Window::App,
+            &Context {
+                identity: Some(&email_only),
+                ..ctx()
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            one.detail,
+            Detail::SignedIn {
+                name: None,
+                email: Some(_),
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -371,6 +711,11 @@ mod tests {
             "verifier",
             "bearer",
             "bkd_",
+            "url",
+            "origin",
+            "host",
+            "endpoint",
+            "csp",
         ];
         for window in every_window() {
             let p = panel_for(&window, &ctx()).unwrap();
@@ -392,6 +737,13 @@ mod tests {
                 Detail::Warning { text } | Detail::Working { text } => {
                     shown.push_str(&format!(" {text}"))
                 }
+                Detail::ServerTried { text, .. } => shown.push_str(&format!(" {text}")),
+                Detail::Chooser(c) => shown.push_str(&format!(
+                    " {} {} {}",
+                    c.help,
+                    c.this_computer_status.clone().unwrap_or_default(),
+                    c.problem.clone().unwrap_or_default()
+                )),
                 _ => {}
             }
             let shown = shown.to_lowercase();
@@ -404,11 +756,17 @@ mod tests {
     #[test]
     fn the_signed_out_window_is_the_sign_in_panel_under_one_notice() {
         let plain = panel_for(&Window::SignIn, &ctx()).unwrap();
-        let out = panel_for(&Window::SignedOut, &ctx()).unwrap();
+        let out = panel_for(
+            &Window::SignedOut {
+                ended_on_server: true,
+            },
+            &ctx(),
+        )
+        .unwrap();
         assert_eq!(plain.notice, None);
         assert_eq!(
             out.notice.as_deref(),
-            Some("You signed out. Bakery no longer has your sign-in on this computer.")
+            Some("You signed out. The sign-in is ended on the server and removed from this computer.")
         );
         assert_eq!(
             Panel {
@@ -458,13 +816,13 @@ mod tests {
         assert!(says(Window::Refusal {
             refusal: Refusal::CouldNotFinish
         }));
-        assert!(says(Window::Refusal {
-            refusal: Refusal::CannotStart
-        }));
+        assert!(says(Window::NotAnswering));
         let shows = |w: Window| matches!(panel_for(&w, &ctx()).unwrap().detail, Detail::Server { ref address } if address == SERVER);
         for w in [
             Window::SignIn,
-            Window::SignedOut,
+            Window::SignedOut {
+                ended_on_server: true,
+            },
             Window::Refusal {
                 refusal: Refusal::Expired,
             },

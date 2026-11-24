@@ -8,6 +8,7 @@ import {
   putPluginState,
   updatePluginInstall,
 } from "./plugin-install-postgres.ts";
+import { getPluginPage, listPluginPages } from "./plugin-pages.ts";
 
 /**
  * Binds the six install/state operations to their Postgres implementations.
@@ -32,6 +33,9 @@ export function createPluginInstallHandlers(
       listPluginStateItems(context, input, installId(context), cursorSecret),
     putState: (context, input) =>
       putPluginState(context, input, installId(context)),
+    listPages: (context, input) =>
+      listPluginPages(context, input, cursorSecret),
+    getPage: getPluginPage,
   };
 }
 

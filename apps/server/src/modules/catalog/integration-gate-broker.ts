@@ -65,6 +65,8 @@ export type CredentialRequest = Readonly<{
    * value carried here, and the broker refuses.
    */
   generation: number;
+  /** Where the run behind the request may reach; `offline` is never brokered. */
+  runEnvironment?: "live" | "offline";
   subject: Readonly<{
     installId: string;
     resourceKind: string;
@@ -160,6 +162,36 @@ function encodeSegment(value: unknown): string {
     throw unprocessable("path value is not a safe segment");
   }
   return encodeURIComponent(text);
+}
+
+/** The longest free-text path value: a GitHub label name is at most 50 characters. */
+const FREE_TEXT_SEGMENT_MAX = 100;
+
+/**
+ * Encodes one validated free-text path segment (a label name). Unlike
+ * `encodeSegment` it accepts spaces and punctuation, because percent-encoding
+ * turns every one of them into part of a single segment: a slash, a question
+ * mark, a hash and a percent sign cannot change the path shape. What stays
+ * refused is what has no honest meaning as a name: nothing, a name of only
+ * dots, a control character, an unpaired surrogate and an overlong value.
+ */
+function encodeTextSegment(value: unknown): string {
+  if (typeof value !== "string") {
+    throw unprocessable("path value is not a safe segment");
+  }
+  if (
+    value.length === 0 || value.length > FREE_TEXT_SEGMENT_MAX ||
+    /^\.+$/.test(value) ||
+    [...value].some((char) => {
+      const code = char.codePointAt(0)!;
+      return code < 0x20 || code === 0x7f;
+    })
+  ) throw unprocessable("path value is not a safe segment");
+  try {
+    return encodeURIComponent(value);
+  } catch {
+    throw unprocessable("path value is not a safe segment");
+  }
 }
 
 function credentialVariants(credential: string): string[] {
@@ -342,6 +374,7 @@ export function createBrokerWithProfiles(
       const source = template.pathParams[name];
       if (source === undefined) throw unprocessable("unmapped path value");
       if (source === "input") return encodeSegment(input[name]);
+      if (source === "input-text") return encodeTextSegment(input[name]);
       const attribute = source.slice("binding:".length);
       if (!Object.hasOwn(boundValues, attribute)) {
         throw new StandardError({
@@ -424,6 +457,9 @@ export function createBrokerWithProfiles(
       // means the broker was built without a generation source, and the
       // credential port refuses rather than guessing.
       generation: generation as number,
+      ...(bound.runEnvironment === undefined
+        ? {}
+        : { runEnvironment: bound.runEnvironment }),
       subject: {
         installId: bound.installId,
         resourceKind: bound.resource.kind,

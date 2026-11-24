@@ -141,6 +141,8 @@ function workerBody(w: World) {
     failedCheckIds: w.failedChecks.map((check) => check.checkId),
     lastHeartbeatAt: new Date().toISOString(),
     credentialGeneration: 1,
+    archivedAt: null,
+    cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     version: 1,
@@ -334,11 +336,15 @@ test.describe("the Coding agents rows", () => {
     const w = world();
     await open(page, w);
     await expect(row(page, "claude")).toContainText("Claude Code");
-    await expect(row(page, "claude")).toContainText("Not signed in yet.");
+    // The row says the state once, as its badge; the banner carries the Sign in.
     await expect(row(page, "claude")).toContainText("Not signed in");
+    await expect(row(page, "claude")).not.toContainText("Not signed in yet.");
+    // One banner is the state, so the header has no badge.
+    await expect(header(page).locator('[data-ui-component="badge"]'))
+      .toHaveCount(0);
     await expect(
       row(page, "claude").getByRole("button", { name: "Sign in", exact: true }),
-    ).toBeEnabled();
+    ).toHaveCount(0);
     await expect(row(page, "claude").getByRole("button", { name: "Check" }))
       .toHaveCount(0);
     await expect(banner(page)).toContainText(
@@ -378,13 +384,48 @@ test.describe("the Coding agents rows", () => {
 
   test("an agent the machine has not reported cannot be signed in yet, and says so", async ({ page }) => {
     await open(page, world({ components: [] }));
-    await expect(row(page, "claude")).toContainText(
-      "Bakery has not heard from Claude Code on this machine yet.",
+    // The banner says why it has no button, and when it will; the row keeps only its badge.
+    await expect(banner(page)).toContainText(
+      "Bakery has not heard from Claude Code on this machine yet. You can sign in here when it has.",
     );
+    await expect(row(page, "claude")).not.toContainText(
+      "Bakery has not heard from",
+    );
+    await expect(row(page, "claude")).toContainText("Not signed in");
+    // No faded button: there is nothing to press.
     await expect(
       row(page, "claude").getByRole("button", { name: "Sign in", exact: true }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await expect(banner(page).getByRole("button")).toHaveCount(0);
+    await shot(page, "machine-agents-not-heard");
+  });
+
+  test("a second agent Bakery has not heard from has no Sign in, while the banner's agent keeps its one", async ({ page }) => {
+    // Codex is on the machine's list but has reported nothing, so it cannot be
+    // signed in yet; Claude Code is reported and is the banner's agent.
+    await open(
+      page,
+      world({
+        capabilities: ["git", "shell", "web", "model", "claude", "codex"],
+        components: ["harness.claude"],
+      }),
+    );
+    await expect(banner(page)).toContainText(
+      "Claude Code is not signed in yet.",
+    );
+    await expect(
+      banner(page).getByRole("button", { name: "Sign in", exact: true }),
+    ).toBeVisible();
+    // The banner's own row repeats nothing; the other row says why, and has no button, faded or not.
+    await expect(row(page, "claude").getByRole("button")).toHaveCount(0);
+    await expect(row(page, "codex")).toContainText("Not signed in");
+    await expect(row(page, "codex")).toContainText(
+      "Bakery has not heard from Codex on this machine yet.",
+    );
+    await expect(row(page, "codex").getByRole("button")).toHaveCount(0);
+    // The only Sign in on the page is the banner's.
+    await expect(page.getByRole("button", { name: "Sign in", exact: true }))
+      .toHaveCount(1);
   });
 
   test("ready, not checked and signed out each have their badge and the buttons beside it", async ({ page }) => {
@@ -401,9 +442,10 @@ test.describe("the Coding agents rows", () => {
       .toHaveCount(0);
     await expect(row(page, "codex").getByText("Signed out", { exact: true }))
       .toBeVisible();
+    // The banner has the Sign in again; the row keeps only Check.
     await expect(
       row(page, "codex").getByRole("button", { name: "Sign in again" }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(row(page, "codex").getByRole("button", { name: "Check" }))
       .toBeVisible();
     await expect(row(page, "pi").getByText("Not checked", { exact: true }))
@@ -422,18 +464,18 @@ test.describe("the Coding agents rows", () => {
     );
     await expect(banner(page).getByRole("button", { name: "Sign in again" }))
       .toBeVisible();
-    // The line under each agent follows its state.
-    await expect(row(page, "codex")).toContainText(
+    // The line never restates the badge, and never says a sign-in is used that is not.
+    await expect(row(page, "codex")).not.toContainText(
       "The sign-in on this machine no longer works.",
     );
     await expect(row(page, "codex")).not.toContainText("Uses the subscription");
-    await expect(row(page, "pi")).toContainText(
+    await expect(row(page, "pi")).not.toContainText(
       "Bakery has not checked the sign-in on this machine yet.",
     );
     await expect(row(page, "pi")).not.toContainText("Uses the subscription");
-    // The machine's own badge says so when an agent needs signing in.
+    // The banner is the state: no header badge while it is drawn.
     await expect(header(page).getByText("Needs attention", { exact: true }))
-      .toBeVisible();
+      .toHaveCount(0);
     await expect(header(page).getByText("Ready", { exact: true })).toHaveCount(
       0,
     );
@@ -455,11 +497,12 @@ test.describe("the Coding agents rows", () => {
     expect(w.listReads).toBe(0);
   });
 
-  test("a retired machine's rows have no buttons and nothing is asked of the administrators' list", async ({ page }) => {
+  test("a retired machine draws no coding agents and nothing is asked of the administrators' list", async ({ page }) => {
     const w = world({ status: "revoked" });
     await open(page, w);
-    await expect(row(page, "claude")).toBeVisible();
-    await expect(row(page, "claude").getByRole("button")).toHaveCount(0);
+    await expect(page.getByTestId("machine-detail-page")).toBeVisible();
+    await expect(page.getByTestId("machine-agents")).toHaveCount(0);
+    await expect(row(page, "claude")).toHaveCount(0);
     await page.waitForTimeout(500);
     expect(w.listReads).toBe(0);
   });
@@ -521,8 +564,9 @@ test.describe("the Coding agents rows", () => {
     const checks = page.getByTestId("machine-checks");
     await expect(checks).toContainText("Model access");
     await expect(checks).toContainText("claude: not signed in");
+    // The banner is the state: no header badge beside it.
     await expect(header(page).getByText("Needs attention", { exact: true }))
-      .toBeVisible();
+      .toHaveCount(0);
     await shot(page, "machine-agents-banner-model-check");
   });
 
@@ -632,6 +676,7 @@ test.describe("the Coding agents rows", () => {
     await expect(header(page).getByText("Ready", { exact: true }))
       .toBeVisible();
     await expect(header(page).getByText("Needs attention")).toHaveCount(0);
+    await shot(page, "machine-page-ready-signed-in");
   });
 
   test("for anyone but an administrator the header is the machine's own reading", async ({ page }) => {
@@ -678,10 +723,8 @@ test.describe("the sign-in dialog", () => {
   test("a code and an address: the steps, the code to copy, the wait and the expiry; then Signed in and Done", async ({ page }) => {
     const w = world({ script: script({ reads: ["completed"] }) });
     await open(page, w);
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(dialog(page)).toBeVisible();
     await expect(dialog(page)).toContainText(
       "Sign in to Claude Code on fixture-host",
@@ -709,10 +752,8 @@ test.describe("the sign-in dialog", () => {
   test("the code and the address are shown as steps, with a Copy and the expiry", async ({ page }) => {
     const w = world({ script: script({ reads: ["challenge_issued"] }) });
     await open(page, w);
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(dialog(page).getByText("2. Enter this code:")).toBeVisible();
     const link = dialog(page).getByRole("link", {
       name: "claude.ai/device",
@@ -747,10 +788,8 @@ test.describe("the sign-in dialog", () => {
         }),
       }),
     );
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     const openPage = dialog(page).getByRole("link", {
       name: "Open the sign-in page",
     });
@@ -781,10 +820,8 @@ test.describe("the sign-in dialog", () => {
         }),
       });
       await open(page, w);
-      await row(page, "claude").getByRole("button", {
-        name: "Sign in",
-        exact: true,
-      }).click();
+      await banner(page).getByRole("button", { name: "Sign in", exact: true })
+        .click();
       await expect(
         dialog(page).getByText("Sign-in did not work. Try again."),
       ).toBeVisible();
@@ -807,10 +844,8 @@ test.describe("the sign-in dialog", () => {
       }),
     });
     await open(page, w);
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(dialog(page).getByText("Sign-in did not work. Try again."))
       .toBeVisible();
     await expect(dialog(page).getByRole("link")).toHaveCount(0);
@@ -830,10 +865,8 @@ test.describe("the sign-in dialog", () => {
       }),
     });
     await open(page, w);
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(dialog(page).getByText("Sign-in did not work. Try again."))
       .toBeVisible();
     await expect(dialog(page).getByRole("link")).toHaveCount(0);
@@ -853,10 +886,8 @@ test.describe("the sign-in dialog", () => {
           }),
         }),
       );
-      await row(page, "claude").getByRole("button", {
-        name: "Sign in",
-        exact: true,
-      }).click();
+      await banner(page).getByRole("button", { name: "Sign in", exact: true })
+        .click();
       await expect(
         dialog(page).getByText(
           "Finish signing in from a terminal on the machine.",
@@ -882,10 +913,8 @@ test.describe("the sign-in dialog", () => {
         }),
       }),
     );
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(
       dialog(page).getByText(
         "Finish signing in from a terminal on the machine.",
@@ -909,10 +938,8 @@ test.describe("the sign-in dialog", () => {
         }),
       }),
     );
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(
       dialog(page).getByText(
         "Finish signing in on the machine itself. Run this in a terminal there:",
@@ -940,10 +967,8 @@ test.describe("the sign-in dialog", () => {
         }),
       }),
     );
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(
       dialog(page).getByText(
         "Finish signing in from a terminal on the machine.",
@@ -961,10 +986,8 @@ test.describe("the sign-in dialog", () => {
   test("a sign-in that failed offers Try again, which starts a new attempt", async ({ page }) => {
     const w = world({ script: script({ reads: ["failed"] }) });
     await open(page, w);
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(dialog(page).getByText("Sign-in did not work. Try again."))
       .toBeVisible();
     await shot(page, "machine-agents-dialog-failed", [], { windowOnly: true });
@@ -981,10 +1004,8 @@ test.describe("the sign-in dialog", () => {
       script: script({ reads: ["challenge_issued"] }),
     });
     await open(page, w);
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(dialog(page).getByText("Sign-in did not work. Try again."))
       .toBeVisible();
     expect(w.createdBindings.length).toBe(1);
@@ -1004,10 +1025,8 @@ test.describe("the sign-in dialog", () => {
       script: script({ reads: ["challenge_issued"] }),
     });
     await open(page, w);
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(dialog(page).getByText("Starting sign-in…")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog(page)).toHaveCount(0);
@@ -1021,10 +1040,8 @@ test.describe("the sign-in dialog", () => {
   test("an expired sign-in offers Start again", async ({ page }) => {
     const w = world({ script: script({ reads: ["expired"] }) });
     await open(page, w);
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(dialog(page).getByText("The sign-in expired.")).toBeVisible();
     await expect(dialog(page).getByRole("button", { name: "Start again" }))
       .toBeVisible();
@@ -1034,10 +1051,8 @@ test.describe("the sign-in dialog", () => {
   test("Cancel sign-in calls cancel and closes; Escape does the same; focus returns to the row", async ({ page }) => {
     const w = world();
     await open(page, w);
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(dialog(page).getByText("Waiting for you to finish…"))
       .toBeVisible();
     await dialog(page).getByRole("button", { name: "Cancel sign-in" }).click();
@@ -1060,10 +1075,12 @@ test.describe("the sign-in dialog", () => {
   test("a sign-in that cannot start says so and can be tried again", async ({ page }) => {
     const w = world({ components: [] });
     await open(page, w);
-    // No component reported: Sign in is disabled, so nothing starts.
+    // No component reported: there is no Sign in to press, so nothing starts.
     await expect(
       row(page, "claude").getByRole("button", { name: "Sign in", exact: true }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Sign in", exact: true }))
+      .toHaveCount(0);
     expect(w.createdAttempts).toEqual([]);
   });
 });
@@ -1079,10 +1096,8 @@ test.describe("the dialog while it starts", () => {
       if (route.request().method() === "POST") await held;
       await route.fallback();
     });
-    await row(page, "claude").getByRole("button", {
-      name: "Sign in",
-      exact: true,
-    }).click();
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
     await expect(dialog(page).getByText("Starting sign-in…")).toBeVisible();
     await expect(dialog(page).getByRole("button", { name: "Cancel sign-in" }))
       .toBeVisible();

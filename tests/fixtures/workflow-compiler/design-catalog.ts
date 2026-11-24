@@ -162,13 +162,24 @@ export const designSchemas: Readonly<Record<string, Schema>> = Object.freeze({
     findings: arr(finding()),
     blockingFindings: int({ minimum: 0 }),
   }),
-  IntegrationActionInput: obj({
-    actionId: nonEmpty(),
-    actionVersion: int({ minimum: 1 }),
+  ToolCallInput: obj({
+    connectionId: uuid(),
+    tool: nonEmpty(),
+    toolVersion: int({ minimum: 1 }),
     resourceId: uuid(),
     arguments: jsonValue(),
+  }, ["connectionId", "tool", "arguments"]),
+  ToolCallOutput: jsonValue(),
+  SplitInput: obj({
+    split: jsonValue(),
+    budgetLimitUsd: nonEmpty(),
+  }, ["split"]),
+  SplitOutput: obj({
+    planId: uuid(),
+    status: nonEmpty(),
+    lanes: int({ minimum: 1 }),
+    completedLanes: int({ minimum: 0 }),
   }),
-  IntegrationActionOutput: jsonValue(),
   CandidateEvidence: candidateEvidence(),
   PrepareInput: obj({
     repositoryId: uuid(),

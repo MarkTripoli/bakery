@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
@@ -12,16 +13,19 @@ import {
   pullRequestsQueryOptions,
   questionsQueryOptions,
   repositoryQueryOptions,
+  runControlCapabilitiesQueryOptions,
   taskQueryOptions,
   ticketLinksByIssueQueryOptions,
   ticketRequestsQueryOptions,
 } from "../api/query.ts";
 import { failureStatus } from "../app/async-state.ts";
+import { focusAfterPaint } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import { useSession } from "../app/session-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ageOf } from "./issue-state.ts";
+import { presetCopy } from "./task-composer-labels.ts";
 import {
   currentRequest,
   noteView,
@@ -31,9 +35,21 @@ import {
   questionRow,
   type QuestionRowView,
   startedBy,
+  STOP_POLL_MS,
+  stoppableRunId,
+  stoppableWithoutRun,
+  stopsBeforeStart,
   waitsOnAnswer,
+  workFinished,
   type WorkStartedBy,
 } from "./issues/work-model.ts";
+
+/** Focus the element with this test id once the screen has settled: where each exit of the Stop work question lands. */
+function focusTestId(testId: string): void {
+  focusAfterPaint(() =>
+    document.querySelector<HTMLElement>(`[data-testid="${testId}"]`)
+  );
+}
 
 type Translate = ReturnType<typeof useI18n>["translate"];
 
@@ -344,14 +360,17 @@ function NoteLine(
  * pull requests and Bakery's note on GitHub. Not shown until there is some work.
  */
 export function IssueWork(
-  { issueId, issueUrl, canWrite, reasonSentence, onStart }: {
+  { cardReasons, issueId, issueNumber, issueUrl, canWrite, reasonSentence }: {
     readonly issueId: string;
+    /** The issue's number, for the question Stop work asks. */
+    readonly issueNumber: number | null;
     readonly issueUrl: string;
     /** Developers and administrators may retry the note. */
     readonly canWrite: boolean;
     /** The sentence for a reason code, in the issue's own words. */
     readonly reasonSentence: (code: string) => string;
-    readonly onStart: () => void;
+    /** The reasons the issue's own status card gives, so the row does not say one twice. */
+    readonly cardReasons: readonly string[];
   },
 ) {
   const api = useBakeryApi();
@@ -359,13 +378,103 @@ export function IssueWork(
   const navigate = useNavigate();
   const { translate } = useI18n();
   const viewer = useSession().identity?.principalId ?? null;
-  const requests = useQuery(ticketRequestsQueryOptions(api, scope, issueId));
+  const queryClient = useQueryClient();
+  // The request this person asked to stop, and when: it reads "Stopping…" until
+  // the server reports the work ended, and is read again every few seconds.
+  const [stopped, setStopped] = useState<
+    { readonly requestId: string; readonly at: number } | null
+  >(null);
+  const [confirming, setConfirming] = useState(false);
+  // The request changed before the stop reached it (a run began, or its version
+  // moved): the stop did not happen, and the row alone would not say so.
+  const [outran, setOutran] = useState(false);
+  const requests = useQuery({
+    ...ticketRequestsQueryOptions(api, scope, issueId),
+    refetchInterval: (query) => {
+      if (stopped === null) return false;
+      const latest = currentRequest(query.state.data?.items ?? []);
+      return latest?.id === stopped.requestId && !workFinished(latest.progress)
+        ? STOP_POLL_MS
+        : false;
+    },
+  });
   const links = useQuery(ticketLinksByIssueQueryOptions(api, scope, issueId));
   const members = useQuery(organizationMembersQueryOptions(api, scope));
   const nameOf = (principalId: string) =>
     members.data?.items.find((member) => member.principalId === principalId)
       ?.displayName ?? null;
   const request = currentRequest(requests.data?.items ?? []);
+  const runId = request === null ? null : stoppableRunId(request);
+  // A person's request that has no run yet is stopped by the request itself.
+  const withoutRun = request !== null && stoppableWithoutRun(request);
+  const stopping = request !== null && stopped?.requestId === request.id &&
+    !workFinished(request.progress);
+  // Whether this person may stop the run is the run's own read, as on the task page.
+  const capabilities = useQuery({
+    ...runControlCapabilitiesQueryOptions(api, scope, runId ?? ""),
+    enabled: scope.organizationId !== null && runId !== null &&
+      stopped === null,
+  });
+  // With a run, whether this person may stop it is the run's own read; with
+  // none, it is the right to start work, which stopping is held to.
+  const mayStop = runId !== null
+    ? capabilities.data?.actions.some((item) =>
+      item.action === "cancel" && item.canRequest
+    ) ?? false
+    : withoutRun && canWrite;
+  const stop = useMutation({
+    mutationKey: ["runs.control", "cancel"],
+    mutationFn: async (
+      target: {
+        requestId: string;
+        runId: string | null;
+        version: number;
+      },
+    ) => {
+      const result = target.runId === null
+        ? await api.tickets.cancelRequest({
+          organizationId: scope.organizationId as string,
+          requestId: target.requestId,
+          version: target.version,
+          idempotencyKey: crypto.randomUUID(),
+        })
+        : await api.controlRun({
+          organizationId: scope.organizationId as string,
+          runId: target.runId,
+          input: { action: "cancel" },
+          idempotencyKey: crypto.randomUUID(),
+        });
+      if (!result.ok) {
+        // The request moved on while the question was open: a run began or
+        // the work ended (409), or it changed so its version no longer matches
+        // (412). Reading it again shows what is true now, so this is not a
+        // failure to report.
+        const status = failureStatus(result.error);
+        if (target.runId === null && (status === 409 || status === 412)) {
+          return "moved" as const;
+        }
+        throw result.error;
+      }
+      return "asked" as const;
+    },
+    onSuccess: (outcome, target) => {
+      if (outcome === "asked") {
+        setStopped({ requestId: target.requestId, at: Date.now() });
+      }
+      setOutran(outcome === "moved");
+    },
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: ["protected"] }),
+  });
+  // The work this person stopped has ended: the issue's own status card reads
+  // the same request, so it is read again once, instead of saying "in progress"
+  // beside Stopped.
+  const stoppedAndEnded = stopped !== null && request !== null &&
+    request.id === stopped.requestId && workFinished(request.progress);
+  useEffect(() => {
+    if (!stoppedAndEnded) return;
+    void queryClient.invalidateQueries({ queryKey: ["protected"] });
+  }, [stoppedAndEnded, queryClient]);
   const linkItems = links.data?.items ?? [];
   const own = request === null
     ? undefined
@@ -421,6 +530,37 @@ export function IssueWork(
   const reason = request === null ? null : progressReason(request);
   const next = request === null ? "none" : progressNext(request.progress);
   const repositoryTargets = request?.targets ?? [];
+  const stopButton = (
+    <UI.Button
+      variant="secondary"
+      data-testid="issue-stop-work"
+      onClick={() => {
+        stop.reset();
+        setOutran(false);
+        setConfirming(true);
+      }}
+    >
+      {translate("issues.work.stop.button" as never)}
+    </UI.Button>
+  );
+
+  const openTaskButton = next === "openTask" && own !== undefined && !stopping
+    ? (
+      <UI.Button
+        variant="secondary"
+        onClick={() =>
+          void navigate({
+            to: "/tasks/$taskId",
+            params: { taskId: own.taskId },
+          })}
+      >
+        {translate("issues.work.openTask" as never)}
+      </UI.Button>
+    )
+    : null;
+  // On a phone a row with both buttons shows them as one row of equal buttons.
+  const openAndStopTogether = phone && openTaskButton !== null && mayStop &&
+    !stopping;
 
   return (
     <UI.Stack
@@ -460,20 +600,32 @@ export function IssueWork(
         : null}
       {request !== null && by !== null
         ? (
-          <UI.Stack gap="compact" aria-live="polite">
+          <UI.Stack
+            gap="compact"
+            aria-live="polite"
+            data-testid="issue-work-progress"
+          >
             <UI.Inline gap="compact">
-              <UI.Badge
-                tone={waitsOnAnswer(request.progress, asking)
-                  ? "warning"
-                  : PROGRESS_TONE[request.progress]}
-              >
-                {translate(
-                  (waitsOnAnswer(request.progress, asking)
-                    ? "issues.work.progress.needsAnswer"
-                    : `issues.work.progress.${request.progress}`) as never,
+              {stopping
+                ? (
+                  <UI.Badge tone="neutral">
+                    {translate("issues.work.progress.stopping" as never)}
+                  </UI.Badge>
+                )
+                : (
+                  <UI.Badge
+                    tone={waitsOnAnswer(request.progress, asking)
+                      ? "warning"
+                      : PROGRESS_TONE[request.progress]}
+                  >
+                    {translate(
+                      (waitsOnAnswer(request.progress, asking)
+                        ? "issues.work.progress.needsAnswer"
+                        : `issues.work.progress.${request.progress}`) as never,
+                    )}
+                  </UI.Badge>
                 )}
-              </UI.Badge>
-              {reason !== null
+              {reason !== null && !stopping && !cardReasons.includes(reason)
                 ? <UI.Text>{reasonSentence(reason)}</UI.Text>
                 : null}
               <UI.Text variant="muted">
@@ -484,31 +636,124 @@ export function IssueWork(
                       ? by.name ?? ""
                       : "",
                   }),
+                  // The workflow it runs, for its whole life (a server that
+                  // predates the pin omits it, and nothing is said).
+                  request.presetId === undefined ||
+                    request.presetRevision === undefined
+                    ? ""
+                    : translate("issues.work.workflow" as never, {
+                      name: presetCopy(translate, request.presetId).title,
+                      version: request.presetRevision,
+                    }),
                   ago(request.createdAt, translate),
+                  // Who stopped it comes last: the time above is when the work
+                  // started. The viewer is "you"; a run canceled without a
+                  // person says nothing (#61 revision 7).
+                  request.progress === "canceled" &&
+                    request.stoppedByName !== null &&
+                    request.stoppedByName !== undefined
+                    ? request.stoppedByPrincipalId === viewer
+                      ? translate("issues.work.stoppedByYou" as never)
+                      : translate("issues.work.stoppedBy" as never, {
+                        name: request.stoppedByName,
+                      })
+                    : "",
                 ].filter(Boolean).join(" · ")}
               </UI.Text>
-              {next === "openTask" && own !== undefined
-                ? (
-                  <UI.Button
-                    variant="secondary"
-                    onClick={() =>
-                      void navigate({
-                        to: "/tasks/$taskId",
-                        params: { taskId: own.taskId },
-                      })}
-                  >
-                    {translate("issues.work.openTask" as never)}
-                  </UI.Button>
-                )
-                : null}
-              {next === "startWork"
-                ? (
-                  <UI.Button variant="secondary" onClick={onStart}>
-                    {translate("issues.start.button" as never)}
-                  </UI.Button>
-                )
-                : null}
+              {!openAndStopTogether ? openTaskButton : null}
+              {mayStop && !stopping && !phone ? stopButton : null}
             </UI.Inline>
+            {openAndStopTogether
+              ? (
+                // One row of two equal buttons, so they read as a pair.
+                <UI.Inline variant="actions" gap="compact">
+                  {openTaskButton}
+                  {stopButton}
+                </UI.Inline>
+              )
+              : mayStop && !stopping && phone
+              ? stopButton
+              : null}
+            {outran && mayStop && !stopping
+              ? (
+                <UI.InlineNotice tone="warning">
+                  {translate("issues.work.stop.changed" as never)}
+                </UI.InlineNotice>
+              )
+              : null}
+            {stop.isError && !stopping
+              ? (
+                <UI.InlineNotice tone="error">
+                  {translate("issues.work.stop.failed" as never)}
+                </UI.InlineNotice>
+              )
+              : null}
+            {stopsBeforeStart(request)
+              ? (
+                <UI.Text variant="caption">
+                  {translate("issues.work.stop.beforeStart" as never)}
+                </UI.Text>
+              )
+              : null}
+            {confirming && (runId !== null || withoutRun)
+              ? (
+                <UI.AlertDialog
+                  open
+                  data-actions-layout="stack"
+                  onOpenChange={(open) => {
+                    if (!open && !stop.isPending) {
+                      setConfirming(false);
+                      focusTestId("issue-stop-work");
+                    }
+                  }}
+                  state={stop.isPending ? "confirming" : "open"}
+                  title={issueNumber === null
+                    ? translate("issues.work.stop.titleNoNumber" as never)
+                    : translate("issues.work.stop.title" as never, {
+                      number: issueNumber,
+                    })}
+                  variant="destructive"
+                  cancelAction={
+                    <UI.Button
+                      variant="secondary"
+                      disabled={stop.isPending}
+                      onClick={() => {
+                        setConfirming(false);
+                        focusTestId("issue-stop-work");
+                      }}
+                    >
+                      {translate("issues.work.stop.keep" as never)}
+                    </UI.Button>
+                  }
+                  confirmAction={
+                    <UI.Button
+                      variant="destructive"
+                      disabled={stop.isPending}
+                      loading={stop.isPending}
+                      onClick={() =>
+                        stop.mutateAsync({
+                          requestId: request.id,
+                          runId,
+                          version: request.version,
+                        }).then(
+                          () => {
+                            setConfirming(false);
+                            focusTestId("issue-work-progress");
+                          },
+                          // The notice under the row says it failed; the row is unchanged.
+                          () => setConfirming(false),
+                        )}
+                    >
+                      {translate("issues.work.stop.confirm" as never)}
+                    </UI.Button>
+                  }
+                >
+                  <UI.Text>
+                    {translate("issues.work.stop.body" as never)}
+                  </UI.Text>
+                </UI.AlertDialog>
+              )
+              : null}
           </UI.Stack>
         )
         : null}

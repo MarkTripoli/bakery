@@ -53,6 +53,8 @@ const run = {
   workspaceBaseSha: null,
   requestedBy: "00000000-0000-4000-8000-000000000001",
   inngestRunId: null,
+  // Required since #921: the run's pinned environment.
+  environment: "live",
   status: "running",
   budgetLimitUsd: "10.00",
   startedAt: stamp,
@@ -89,6 +91,7 @@ const step = (id: string, stepKey: string, status: string) => ({
   createdAt: stamp,
   updatedAt: stamp,
   version: 1,
+  handoffManifest: null,
 });
 const session = (runStepId: string, status: string) => ({
   id: sessionId,
@@ -424,7 +427,7 @@ test(
 );
 
 test(
-  "a step with no session shows its raw output, open, and says why",
+  "a step with no session names its step, keeps the raw output closed, and says why",
   async ({ page }, testInfo) => {
     if (testInfo.project.name === "desktop") {
       await page.setViewportSize({ width: 1440, height: 900 });
@@ -439,11 +442,10 @@ test(
         timeout: 20_000,
       },
     );
-    await expect(page.locator("details", { hasText: "Raw output" }))
-      .toHaveAttribute(
-        "open",
-        "",
-      );
+    // The output is one click away, never open on its own.
+    const raw = page.locator("details", { hasText: "Raw output" });
+    await expect(raw).toBeVisible();
+    await expect(raw).not.toHaveAttribute("open", "");
     // No running step, no line.
     await expect(now(page)).toHaveCount(0);
     await still(page, "run-section-no-session", undefined, {

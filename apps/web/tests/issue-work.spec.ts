@@ -112,8 +112,12 @@ for (
       await open(page, ONE_REPOSITORY);
       const work = section(page);
       await expect(work.getByText("Working", { exact: true })).toBeVisible();
-      await expect(work.getByText(/started by you · 12 minutes ago/))
-        .toBeVisible();
+      // Who started it, the workflow it is pinned to, and when.
+      await expect(
+        work.getByText(
+          "started by you · Fixed coding, version 1 · 12 minutes ago",
+        ),
+      ).toBeVisible();
       await expect(work.getByRole("link", { name: "Fix the login redirect" }))
         .toHaveAttribute("href", `/tasks/${uuid(8100)}`);
       await expect(work.getByRole("button", { name: "Open task" }))
@@ -210,12 +214,65 @@ for (
         .toHaveCount(0);
     });
 
-    test("a stopped start can be started again", async ({ page }) => {
+    test("a stopped start is started again from the status card, not the row", async ({ page }) => {
       await open(page, { issue: 201, progress: "canceled" });
       await expect(section(page).getByText("Stopped", { exact: true }))
         .toBeVisible();
+      // One Start work on the page, and it is the card's.
       await expect(section(page).getByRole("button", { name: "Start work" }))
+        .toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Start work" }))
+        .toHaveCount(1);
+    });
+
+    test("a stopped start names who stopped it; a run canceled without a person names nobody", async ({ page }) => {
+      await open(page, {
+        issue: 201,
+        progress: "canceled",
+        stoppedBy: "Ana Reyes",
+      });
+      await expect(section(page).getByText("Stopped", { exact: true }))
         .toBeVisible();
+      await expect(
+        section(page).getByText(
+          "started by you · Fixed coding, version 1 · 12 minutes ago · stopped by Ana Reyes",
+        ),
+      ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stopped-by");
+    });
+
+    test("the person who stopped it is told it was them", async ({ page }) => {
+      await open(page, {
+        issue: 201,
+        progress: "canceled",
+        stoppedBy: "Fixture Admin",
+        stoppedByMe: true,
+      });
+      await expect(
+        section(page).getByText(
+          "started by you · Fixed coding, version 1 · 12 minutes ago · stopped by you",
+        ),
+      ).toBeVisible();
+    });
+
+    test("a run canceled without a person says Stopped and no name", async ({ page }) => {
+      await open(page, { issue: 201, progress: "canceled" });
+      await expect(section(page).getByText("Stopped", { exact: true }))
+        .toBeVisible();
+      await expect(section(page).getByText(/stopped by/)).toHaveCount(0);
+    });
+
+    test("the workflow a request runs is named with its version, as pinned", async ({ page }) => {
+      await open(page, {
+        ...ONE_REPOSITORY,
+        preset: { id: "fixed-coding-reviewed", revision: 2 },
+      });
+      await expect(
+        section(page).getByText(
+          "started by you · Coding with independent review, version 2 · 12 minutes ago",
+        ),
+      ).toBeVisible();
     });
 
     test("work started by a label names the label, not a person", async ({ page }) => {
@@ -426,6 +483,365 @@ for (
         .toBeVisible();
       await expect(section(page).getByRole("button", { name: "Try again" }))
         .toBeVisible();
+    });
+
+    const WITH_RUN: WorkSeed = { ...ONE_REPOSITORY, run: {} };
+    const stopButton = (page: Page) =>
+      section(page).getByRole("button", { name: "Stop work" });
+
+    test("Stop work asks first; Keep working sends nothing", async ({ page }) => {
+      const seen = await open(page, WITH_RUN);
+      await expect(stopButton(page)).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stop-row");
+      await stopButton(page).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog.getByRole("heading", { name: "Stop work on #201?" }))
+        .toBeVisible();
+      await expect(
+        dialog.getByText(
+          "Bakery stops at the next safe point. The task, its plan and any pull request stay as they are, and nothing is deleted on GitHub. To work on this issue again, press Start work; that begins a new task.",
+        ),
+      ).toBeVisible();
+      await still(page, "issue-work-stop-dialog");
+      await dialog.getByRole("button", { name: "Keep working" }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(stopButton(page)).toBeFocused();
+      await expect(section(page).getByText("Working", { exact: true }))
+        .toBeVisible();
+      expect(seen.stops).toHaveLength(0);
+    });
+
+    test("Stop work: confirm, Stopping…, then Stopped with Start work", async ({ page }) => {
+      const seen = await open(page, WITH_RUN);
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      const work = section(page);
+      await expect(work.getByText("Stopping…", { exact: true })).toBeVisible();
+      // One cancel, with its own key, and nothing else to press while it stops.
+      expect(seen.stops).toHaveLength(1);
+      expect(seen.stops[0]!.body).toEqual({ action: "cancel" });
+      expect(seen.stops[0]!.key).toMatch(/^[0-9a-f-]{36}$/);
+      await expect(stopButton(page)).toHaveCount(0);
+      await expect(work.getByRole("button", { name: "Open task" }))
+        .toHaveCount(0);
+      await expect(work.getByText("Working", { exact: true })).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stopping");
+      // The server reports the run ended; the page reads it again within 5 seconds.
+      seen.stopEnded = true;
+      await expect(work.getByText("Stopped", { exact: true })).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(work.getByText("Stopping…")).toHaveCount(0);
+      // Start work is the status card's button, shown once.
+      await expect(work.getByRole("button", { name: "Start work" }))
+        .toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Start work" }))
+        .toHaveCount(1);
+      await expect(stopButton(page)).toHaveCount(0);
+      // The issue's own status card follows the row: nothing still says the
+      // work is under way.
+      await expect(page.getByText("Bakery is working on this.")).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stopped");
+    });
+
+    test("a paused request waits for no five-minute line once the run is stopped", async ({ page }) => {
+      await page.clock.install();
+      const seen = await open(page, {
+        issue: 201,
+        progress: "suspended",
+        pausedReason: "hold_label_added",
+        run: {},
+      });
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      const work = section(page);
+      await expect(work.getByText("Stopping…", { exact: true })).toBeVisible();
+      // Past the old 15 seconds the page still says nothing about a wait: the
+      // server reports the finished run for a paused request, so the next read
+      // shows Stopped.
+      await page.clock.fastForward(16_000);
+      await expect(work.getByText(/It can take up to 5 minutes/)).toHaveCount(
+        0,
+      );
+      seen.stopEnded = true;
+      await page.clock.fastForward(6_000);
+      await expect(work.getByText("Stopped", { exact: true })).toBeVisible();
+    });
+
+    test(
+      "on a phone Open task and Stop work are one row of equal buttons",
+      async ({ page }, testInfo) => {
+        test.skip(viewport.name !== "phone", "a phone layout");
+        await open(page, WITH_RUN);
+        // boundingBox does not wait: Stop work appears once the run's controls
+        // are read, so wait for both buttons before measuring them.
+        await expect(stopButton(page)).toBeVisible();
+        await expect(section(page).getByRole("button", { name: "Open task" }))
+          .toBeVisible();
+        const open_ = (await section(page).getByRole("button", {
+          name: "Open task",
+        }).boundingBox())!;
+        const stop_ = (await stopButton(page).boundingBox())!;
+        expect(Math.abs(open_.y - stop_.y)).toBeLessThan(2);
+        expect(Math.abs(open_.width - stop_.width)).toBeLessThan(2);
+        // The 44px touch size is the phone project's; a narrow desktop window is not a touch screen.
+        if (testInfo.project.name === "mobile") {
+          expect(open_.height).toBeGreaterThanOrEqual(44);
+          expect(stop_.height).toBeGreaterThanOrEqual(44);
+        }
+      },
+    );
+
+    test("an issue whose number cannot be read asks the question without a number", async ({ page }) => {
+      // Number 0 is not a usable issue number, so the page shows no "#".
+      await issuesFixture(page, {
+        open: [{ ...ISSUE, number: 0, request: { disposition: "active" } }],
+        work: { ...WITH_RUN, issue: 0 },
+      });
+      await page.goto(`/issues/${uuid(0)}`);
+      await expect(stopButton(page)).toBeVisible();
+      await stopButton(page).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog.getByRole("heading", {
+        name: "Stop work on this issue?",
+      })).toBeVisible();
+      await expect(dialog.getByText(/#/)).toHaveCount(0);
+      await still(page, "issue-work-stop-dialog-no-number");
+    });
+
+    test("a person who may not stop the run sees no Stop work", async ({ page }) => {
+      await open(page, { ...ONE_REPOSITORY, run: { mayStop: false } });
+      await expect(section(page).getByRole("button", { name: "Open task" }))
+        .toBeVisible();
+      await expect(stopButton(page)).toHaveCount(0);
+    });
+
+    test("a refused stop says so and leaves the row as it was", async ({ page }) => {
+      const seen = await open(page, {
+        ...ONE_REPOSITORY,
+        run: { stop: "refused" },
+      });
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      const work = section(page);
+      await expect(work.getByText("Work could not be stopped. Try again."))
+        .toBeVisible();
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+      await expect(work.getByText("Working", { exact: true })).toBeVisible();
+      await expect(work.getByRole("button", { name: "Open task" }))
+        .toBeVisible();
+      await expect(stopButton(page)).toBeVisible();
+      expect(seen.stops).toHaveLength(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stop-failed");
+    });
+
+    test("work started from a label with no run yet says how to stop it on GitHub", async ({ page }) => {
+      await open(page, {
+        issue: 201,
+        progress: "waiting",
+        origin: "webhook",
+        triggerLabel: "bakery",
+        reason: "predecessor_open",
+      }, {
+        // The issue's own check names the one it depends on, so the sentence has its number.
+        open: [{
+          ...ISSUE,
+          verdict: "waiting",
+          checks: [{
+            id: "dependencies_satisfied",
+            status: "wait",
+            reason: "predecessor_open",
+            evidence: ["blocker:acme/web#150"],
+          }],
+          request: { disposition: "waiting" },
+        }],
+      });
+      await expect(
+        section(page).getByText(
+          "To stop this before it starts, remove the label on GitHub.",
+        ),
+      ).toBeVisible();
+      await expect(stopButton(page)).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-label-sentence");
+    });
+
+    const NO_RUN: WorkSeed = {
+      issue: 201,
+      progress: "waiting",
+      reason: "predecessor_open",
+    };
+
+    test("work a person started with no run yet is stopped by the request, with its version", async ({ page }) => {
+      const seen = await open(page, { ...NO_RUN, stoppedBy: "Ana Reyes" }, {
+        // The issue's own check names the one it depends on, so the sentence has its number.
+        open: [{
+          ...ISSUE,
+          verdict: "waiting",
+          checks: [{
+            id: "dependencies_satisfied",
+            status: "wait",
+            reason: "predecessor_open",
+            evidence: ["blocker:acme/web#150"],
+          }],
+          links: {
+            parent: null,
+            subIssuesTotal: 0,
+            blockedBy: [{
+              id: "d",
+              repositoryFullName: "acme/web",
+              number: 150,
+            }],
+            blockingTotal: 0,
+          },
+          request: { disposition: "waiting" },
+        }],
+      });
+      await expect(section(page).getByText("Waiting", { exact: true }))
+        .toBeVisible();
+      await expect(section(page).getByText(/remove the label on GitHub/))
+        .toHaveCount(0);
+      // The card names what it waits for once; neither it nor the row says "Depends on".
+      await expect(
+        page.getByText("Bakery will start this when acme/web#150 is done."),
+      ).toHaveCount(1);
+      await expect(page.getByText(/Depends on #150/)).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stop-row-no-run");
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      const work = section(page);
+      await expect(work.getByText("Stopped", { exact: true })).toBeVisible();
+      // The server's answer is accepted: nothing says the stop failed.
+      await expect(work.getByText("Work could not be stopped.")).toHaveCount(0);
+      // Stopped, the card offers Start when ready and names the dependency once.
+      await expect(
+        page.getByText(
+          "Bakery will start this by itself when acme/web#150 is done.",
+        ),
+      ).toHaveCount(1);
+      await expect(page.getByText(/Depends on #150/)).toHaveCount(0);
+      // One cancellation of the request, with its own key and its version; no run was asked.
+      expect(seen.cancels).toHaveLength(1);
+      expect(seen.cancels[0]!.key).toMatch(/^[0-9a-f-]{36}$/);
+      expect(seen.cancels[0]!.ifMatch).toMatch(/1/);
+      expect(seen.stops).toHaveLength(0);
+      await expect(
+        work.getByText(/started by you · .* · stopped by Ana Reyes$/),
+      ).toBeVisible();
+      await expect(stopButton(page)).toHaveCount(0);
+    });
+
+    test("a row whose reason differs from the card's still says its own", async ({ page }) => {
+      // The card (a ready issue) gives no reason; the request waits for the label.
+      await open(page, {
+        issue: 201,
+        progress: "waiting",
+        reason: "label_missing",
+      });
+      await expect(section(page).getByText("Waiting", { exact: true }))
+        .toBeVisible();
+      await expect(section(page).getByText("Missing a required label."))
+        .toBeVisible();
+    });
+
+    test("a person who may only read cannot stop work that has no run", async ({ page }) => {
+      await open(page, NO_RUN, { role: "viewer" });
+      await expect(section(page).getByText("Waiting", { exact: true }))
+        .toBeVisible();
+      await expect(stopButton(page)).toHaveCount(0);
+    });
+
+    test("a run that began while the question was open shows the row as it is now, not a failure", async ({ page }) => {
+      const seen = await open(page, { ...NO_RUN, cancel: "hasRun" });
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      const work = section(page);
+      // The page read the request again: a run exists, so it is Working and the run's Stop is offered.
+      await expect(work.getByText("Working", { exact: true })).toBeVisible();
+      await expect(work.getByText("Work could not be stopped. Try again."))
+        .toHaveCount(0);
+      expect(seen.cancels).toHaveLength(1);
+      await expect(stopButton(page)).toBeVisible();
+      // The run began first, so the stop did not happen, and the page says so.
+      await expect(
+        work.getByText(
+          "This work changed while you were deciding, so it was not stopped. Press Stop work again to stop it.",
+        ),
+      ).toBeVisible();
+    });
+
+    test("work that ended while the question was open is not reported as a failure", async ({ page }) => {
+      await open(page, { ...NO_RUN, cancel: "finished" });
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+      await expect(section(page).getByText("Work could not be stopped."))
+        .toHaveCount(0);
+      // The ended row says it; no second sentence.
+      await expect(
+        section(page).getByText(
+          "This work changed while you were deciding, so it was not stopped. Press Stop work again to stop it.",
+        ),
+      ).toHaveCount(0);
+    });
+
+    test("a request that changed while the question was open is read again, not reported as a failure", async ({ page }) => {
+      const seen = await open(page, { ...NO_RUN, cancel: "stale" });
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+      await expect(section(page).getByText("Work could not be stopped."))
+        .toHaveCount(0);
+      expect(seen.cancels).toHaveLength(1);
+      // The request changed first: the row reads as before, so the page says the stop did not happen.
+      await expect(
+        section(page).getByText(
+          "This work changed while you were deciding, so it was not stopped. Press Stop work again to stop it.",
+        ),
+      ).toBeVisible();
+      await expect(stopButton(page)).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "issue-work-stop-changed");
+      // Pressing Stop work again clears the notice.
+      await stopButton(page).click();
+      await expect(
+        section(page).getByText(
+          "This work changed while you were deciding, so it was not stopped. Press Stop work again to stop it.",
+        ),
+      ).toHaveCount(0);
+    });
+
+    test("a stop of a request with no run that fails says so and leaves the row", async ({ page }) => {
+      await open(page, { ...NO_RUN, cancel: "failed" });
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop work",
+      }).click();
+      await expect(
+        section(page).getByText("Work could not be stopped. Try again."),
+      ).toBeVisible();
+      await expect(section(page).getByText("Waiting", { exact: true }))
+        .toBeVisible();
+      await expect(stopButton(page)).toBeVisible();
     });
 
     test("on hold pauses with an information banner", async ({ page }) => {

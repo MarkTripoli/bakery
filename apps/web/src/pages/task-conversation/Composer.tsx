@@ -1,6 +1,8 @@
 import { useId } from "react";
 import * as UI from "@bakery/ui";
+import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import type { MentionField } from "../../mentions/useMentionField.tsx";
 import type { DraftIntent } from "./draft.ts";
 
 export const MESSAGE_MAX = 20_000;
@@ -14,11 +16,14 @@ export type ComposerProps = Readonly<{
   offline: boolean;
   /** A run is in progress: messages are saved and routed by run capabilities. */
   runActive: boolean;
+  /** The run is paused: nothing runs until it is resumed, so the note says when the message is read. */
+  runPaused?: boolean;
   /** The run waits for another task: the notice says so instead. */
   runBlocked?: boolean;
   /** Prompt to discuss results after a finished run. */
   resultsHint: boolean;
-  onBody: (value: string) => void;
+  /** The mention field: the textarea's props, the picker, the chips and what the server refused. */
+  mentionField: MentionField;
   onIntent: (value: DraftIntent) => void;
   onSend: () => void;
   onRetry: () => void;
@@ -36,20 +41,25 @@ export function Composer(
     phase,
     offline,
     runActive,
+    runPaused = false,
     runBlocked = false,
     resultsHint,
-    onBody,
+    mentionField,
     onIntent,
     onSend,
     onRetry,
   }: ComposerProps,
 ) {
   const { translate: t } = useI18n();
+  const phone = useShellViewport() === "phone";
   const id = useId();
   const tooLong = body.length > MESSAGE_MAX;
   const locked = phase === "sending" || phase === "unknown";
   const canSend = !locked && !offline && body.trim() !== "" && !tooLong &&
-    phase !== "forbidden";
+    phase !== "forbidden" && !mentionField.refused && !mentionField.blocked;
+  // A send that was giving access failed on the server: nothing was given.
+  const failedOffer = phase === "error" ? mentionField.failed : null;
+  const reasonId = `${id}-reason`;
   const notice = phase === "unknown"
     ? {
       tone: "warning" as const,
@@ -59,6 +69,11 @@ export function Composer(
     ? {
       tone: "error" as const,
       text: t("tasks.conversation.composer.forbidden"),
+    }
+    : failedOffer !== null
+    ? {
+      tone: "error" as const,
+      text: `${failedOffer.line} ${failedOffer.detail}`,
     }
     : phase === "error"
     ? { tone: "error" as const, text: t("tasks.conversation.composer.failed") }
@@ -74,9 +89,20 @@ export function Composer(
       }}
       notices={
         <>
-          {runActive && (
+          {mentionField.notice !== null && (
+            <UI.InlineNotice layout="bar" role="alert" tone="error">
+              {mentionField.notice}
+            </UI.InlineNotice>
+          )}
+          {runActive && phone && (
+            // A phone draws no mode hint, so the run notice has no hint to
+            // replace there: it stays one line above the box.
             <UI.InlineNotice layout="bar" tone="information">
-              {t("tasks.conversation.steering.saved")}
+              {t(
+                runPaused
+                  ? "tasks.conversation.steering.paused"
+                  : "tasks.conversation.steering.saved",
+              )}
             </UI.InlineNotice>
           )}
           {runBlocked && (
@@ -98,19 +124,22 @@ export function Composer(
           </div>
         </>
       }
+      picker={mentionField.picker}
+      mentions={mentionField.row}
       field={
         <textarea
+          {...mentionField.fieldProps}
           id={MESSAGE_FIELD_ID}
           name="message"
           aria-label={t("tasks.conversation.composer.label")}
           rows={1}
           placeholder={t("tasks.conversation.composer.placeholder")}
-          value={body}
           readOnly={locked}
           aria-invalid={tooLong || undefined}
           aria-describedby={tooLong ? `${id}-error` : `${id}-draft`}
-          onChange={(event) => onBody(event.currentTarget.value)}
           onKeyDown={(event) => {
+            mentionField.fieldProps.onKeyDown(event);
+            if (event.defaultPrevented) return;
             if (
               event.key === "Enter" && (event.metaKey || event.ctrlKey) &&
               canSend
@@ -134,7 +163,15 @@ export function Composer(
           ]}
         />
       }
-      hint={intent === "ask"
+      // While a run works or is paused, what a message does now replaces the
+      // mode hint: one line, not a banner above the box and a hint inside it.
+      hint={runActive && !phone
+        ? t(
+          runPaused
+            ? "tasks.conversation.steering.paused"
+            : "tasks.conversation.steering.saved",
+        )
+        : intent === "ask"
         ? t("tasks.conversation.intent.askHint")
         : t("tasks.conversation.intent.discussHint")}
       send={phase === "unknown"
@@ -146,17 +183,34 @@ export function Composer(
         : (
           <UI.Button
             type="submit"
+            aria-describedby={mentionField.sendReason !== null
+              ? reasonId
+              : undefined}
             disabled={!canSend}
             loading={phase === "sending"}
           >
             <UI.IconGlyph name="arrow" size="small" />
             {phase === "sending"
-              ? t("tasks.conversation.composer.sending")
-              : t("tasks.conversation.composer.send")}
+              ? mentionField.sendLabel !== null
+                ? t("mentions.offer.sending")
+                : t("tasks.conversation.composer.sending")
+              : failedOffer !== null
+              ? t("mentions.failed.retry")
+              : mentionField.sendLabel ?? t("tasks.conversation.composer.send")}
           </UI.Button>
         )}
       footnote={
         <>
+          {mentionField.sendReason !== null
+            ? (
+              <>
+                <span id={reasonId} role="status">
+                  {mentionField.sendReason}
+                </span>
+                <br />
+              </>
+            )
+            : null}
           {tooLong
             ? (
               <span id={`${id}-error`} role="alert">

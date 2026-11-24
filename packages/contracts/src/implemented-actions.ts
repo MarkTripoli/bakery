@@ -29,6 +29,7 @@ export const AuthImplementedAction = Object.freeze(
     BrowserSessionsList: "browserSessions.list",
     BrowserSessionsRevoke: "browserSessions.revoke",
     BrowserSessionsRevokeOthers: "browserSessions.revokeOthers",
+    BrowserSessionsRevokeCurrent: "browserSessions.revokeCurrent",
     ConnectedClientsList: "connectedClients.list",
     ConnectedClientsRevoke: "connectedClients.revoke",
     ProfileGet: "profile.get",
@@ -45,6 +46,8 @@ export const AuthImplementedAction = Object.freeze(
     PasswordResetsRedeem: "passwordResets.redeem",
     DesktopSignInsStart: "desktopSignIns.start",
     DesktopSignInsExchange: "desktopSignIns.exchange",
+    DesktopHandoffsCreate: "desktopHandoffs.create",
+    DesktopUpdatesGet: "desktopUpdates.get",
     AuditEventsList: "auditEvents.list",
     AuditEventsExport: "auditEvents.export",
     AuditEventsStream: "auditEvents.stream",
@@ -144,7 +147,19 @@ export const MachineImplementedAction = Object.freeze(
     WorkerReportInventory: "worker.reportInventory",
     WorkerComponentsList: "workerComponents.list",
     WorkersRepairEnrollment: "workers.repairEnrollment",
+    WorkerLinkPackage: "worker.linkPackage",
+    WorkerInspectLinkCode: "worker.inspectLinkCode",
+    WorkerCreateLinkRequest: "worker.createLinkRequest",
+    WorkerPollLinkRequest: "worker.pollLinkRequest",
+    WorkerLinkRequestsFind: "workerLinkRequests.find",
+    WorkerLinkRequestsApprove: "workerLinkRequests.approve",
+    WorkerLinkRequestsDecline: "workerLinkRequests.decline",
     WorkersRevoke: "workers.revoke",
+    WorkersArchive: "workers.archive",
+    WorkerMaintenanceCreate: "workerMaintenance.create",
+    WorkerMaintenanceList: "workerMaintenance.list",
+    WorkerMaintenanceGet: "workerMaintenance.get",
+    WorkerMaintenanceCancel: "workerMaintenance.cancel",
     ModelProviderAccountsList: "modelProviderAccounts.list",
     WorkerProviderBindingsList: "workerProviderBindings.list",
     WorkerProviderBindingsCreate: "workerProviderBindings.create",
@@ -153,6 +168,7 @@ export const MachineImplementedAction = Object.freeze(
     WorkerProviderAuthGet: "workerProviderAuth.get",
     WorkerProviderAuthCancel: "workerProviderAuth.cancel",
     WorkerReportProviderAuth: "worker.reportProviderAuth",
+    WorkerReportMaintenance: "worker.reportMaintenance",
     WorkersUpdate: "workers.update",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -178,6 +194,8 @@ export const ConversationImplementedAction = Object.freeze(
     ConversationsMentionCandidates: "conversations.mentionCandidates",
     ConversationAccessList: "conversationAccess.list",
     ConversationAccessRevoke: "conversationAccess.revoke",
+    ConversationAccessSharers: "conversationAccess.sharers",
+    WorkflowDefinitionProposalsList: "workflowDefinitionProposals.list",
   } as const satisfies Record<string, CatalogActionName>,
 );
 
@@ -378,12 +396,17 @@ export const DeliveryImplementedAction = Object.freeze(
     RunReviewsAccept: "runReviews.accept",
     ReviewFindingsList: "reviewFindings.list",
     RunDeliveryDecisionsList: "runDeliveryDecisions.list",
+    RunRepairAllowancesCreate: "runRepairAllowances.create",
+    RunRepairTriesList: "runRepairTries.list",
     PullRequestsList: "pullRequests.list",
     MergeEntriesList: "mergeEntries.list",
     MergeEntriesCreate: "mergeEntries.create",
     PullRequestsMerge: "pullRequests.merge",
     MergeAttemptsList: "mergeAttempts.list",
     MergeAttemptsReconcile: "mergeAttempts.reconcile",
+    DeploymentsList: "deployments.list",
+    DeploymentsCreate: "deployments.create",
+    DeploymentsRollback: "deployments.rollback",
     MetricsGet: "metrics.get",
     MetricsSources: "metrics.sources",
   } as const satisfies Record<string, CatalogActionName>,
@@ -405,6 +428,7 @@ export const EvaluationImplementedAction = Object.freeze(
     EvaluationBatchesList: "evaluationBatches.list",
     EvaluationBatchesGet: "evaluationBatches.get",
     EvaluationBatchesCancel: "evaluationBatches.cancel",
+    EvaluationBatchesRun: "evaluationBatches.run",
     EvaluationBatchesCompare: "evaluationBatches.compare",
     EvaluationBatchResultsList: "evaluationBatchResults.list",
     EvaluationAttemptsList: "evaluationAttempts.list",
@@ -415,9 +439,9 @@ export const evaluationImplementedActions = Object.freeze(
 );
 
 /**
- * Ticket source, cached ticket, readiness, link and request operations.
- * Remote ticket creation (`externalTickets.create`) is not part of this
- * group; the runtime registry and this list stay equal at every commit.
+ * Ticket source, cached ticket, readiness, link, request and remote ticket
+ * creation operations. The runtime registry and this list stay equal at every
+ * commit.
  */
 export const TicketImplementedAction = Object.freeze(
   {
@@ -431,6 +455,7 @@ export const TicketImplementedAction = Object.freeze(
     TicketSourcesSync: "ticketSources.sync",
     TicketRoutingRulesGet: "ticketRoutingRules.get",
     TicketRoutingRulesReplace: "ticketRoutingRules.replace",
+    ExternalTicketsCreate: "externalTickets.create",
     ExternalTicketsList: "externalTickets.list",
     ExternalTicketsGet: "externalTickets.get",
     TicketReadinessCreate: "ticketReadiness.create",
@@ -440,6 +465,7 @@ export const TicketImplementedAction = Object.freeze(
     TicketRequestsCreate: "ticketRequests.create",
     TicketRequestsList: "ticketRequests.list",
     TicketRequestsGet: "ticketRequests.get",
+    TicketRequestsCancel: "ticketRequests.cancel",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const ticketImplementedActions = Object.freeze(
@@ -504,6 +530,8 @@ export const WorkflowImplementedAction = Object.freeze(
     WorkflowsCreate: "workflows.create",
     WorkflowsUpdate: "workflows.update",
     WorkflowsCopy: "workflows.copy",
+    PackagesExport: "packages.export",
+    PackagesImport: "packages.import",
     WorkflowVersionsList: "workflowVersions.list",
     WorkflowVersionsGet: "workflowVersions.get",
     WorkflowVersionsSkills: "workflowVersions.skills",
@@ -533,6 +561,7 @@ export const workflowImplementedActions = Object.freeze(
 export const BatchImplementedAction = Object.freeze(
   {
     BatchesList: "batches.list",
+    BatchesStartable: "batches.startable",
     BatchesGet: "batches.get",
     BatchesCreate: "batches.create",
     BatchesPause: "batches.pause",
@@ -586,6 +615,34 @@ export const mcpConnectionImplementedActions = Object.freeze(
   Object.values(McpConnectionImplementedAction),
 );
 
+/**
+ * Capability bindings (#436): an Admin grants an agent version exact MCP tools;
+ * a workflow version's own bindings are written at publish.
+ */
+export const CapabilityBindingImplementedAction = Object.freeze(
+  {
+    CapabilityBindingsList: "capabilityBindings.list",
+    CapabilityBindingsCreate: "capabilityBindings.create",
+    CapabilityBindingsDelete: "capabilityBindings.delete",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const capabilityBindingImplementedActions = Object.freeze(
+  Object.values(CapabilityBindingImplementedAction),
+);
+
+/**
+ * Tool gateway calls (#436): an Admin settles a write whose outcome the
+ * gateway could not learn, so it is never sent again and never left unknown.
+ */
+export const ToolGatewayCallImplementedAction = Object.freeze(
+  {
+    ToolGatewayCallsSettle: "toolGatewayCalls.settle",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const toolGatewayCallImplementedActions = Object.freeze(
+  Object.values(ToolGatewayCallImplementedAction),
+);
+
 /** Registered workflow action discovery served by the handwritten Hono routes. */
 export const WorkflowActionDiscoveryImplementedAction = Object.freeze(
   {
@@ -620,6 +677,10 @@ export const ArtifactImplementedAction = Object.freeze(
     ArtifactCommentsList: "artifactComments.list",
     ArtifactCommentsListAcrossVersions: "artifactComments.listAcrossVersions",
     ArtifactCommentsMentionCandidates: "artifactComments.mentionCandidates",
+    ArtifactAccessGrant: "artifactAccess.grant",
+    ArtifactAccessList: "artifactAccess.list",
+    ArtifactAccessRevoke: "artifactAccess.revoke",
+    ArtifactAccessSharers: "artifactAccess.sharers",
     ArtifactsList: "artifacts.list",
     FilesSearch: "files.search",
     FilesFacts: "files.facts",
@@ -715,9 +776,17 @@ export const BackupImplementedAction = Object.freeze(
     BackupsStatus: "backups.status",
     BackupsStart: "backups.start",
     BackupsDrillsList: "backups.drills.list",
+    InstallationRestoreGet: "installationRestore.get",
+    InstallationRestoreStep: "installationRestore.step",
+    InstallationUncertainActionsGet: "installationUncertainActions.get",
+    InstallationUpdatesStatus: "installationUpdates.status",
+    InstallationUpdatesList: "installationUpdates.list",
+    InstallationUpdatesDismiss: "installationUpdates.dismiss",
     BackupRunnerCredentialIssue: "backupRunnerCredential.issue",
     BackupScheduleGet: "backupSchedule.get",
     BackupSchedulePut: "backupSchedule.put",
+    BackupPointInTimeGet: "backupPointInTime.get",
+    BackupPointInTimePut: "backupPointInTime.put",
     BackupOffsiteGet: "backupOffsite.get",
     BackupOffsitePut: "backupOffsite.put",
     BackupOffsiteVerify: "backupOffsite.verify",
@@ -838,6 +907,13 @@ export const CatalogImplementedAction = Object.freeze(
     SkillVersionsCreate: "skillVersions.create",
     SkillUseGrantsList: "skills.useGrants.list",
     SkillUseGrantsDelete: "skills.useGrants.delete",
+    SkillsSetActiveVersion: "skills.setActiveVersion",
+    SkillImportsGet: "skillImports.get",
+    SkillsTakeSourceUpdate: "skills.takeSourceUpdate",
+    SkillDraftFilesRename: "skillDraftFiles.rename",
+    SkillVersionsList: "skillVersions.list",
+    SkillVersionsGet: "skillVersions.get",
+    SkillFilesGet: "skillFiles.get",
     LibrarySearch: "library.search",
   } as const satisfies Record<string, CatalogActionName>,
 );
@@ -847,9 +923,11 @@ export const catalogImplementedActions = Object.freeze(
 export const catalogIdentityImplementedActions = Object.freeze(
   Object.values(CatalogImplementedAction).filter((action) =>
     action !== CatalogImplementedAction.SkillVersionsCreate &&
+    action !== CatalogImplementedAction.SkillVersionsList &&
     action !== CatalogImplementedAction.SkillsCopy &&
     action !== CatalogImplementedAction.SkillDraftsPublish &&
-    action !== CatalogImplementedAction.SkillsSourceUpdate
+    action !== CatalogImplementedAction.SkillsSourceUpdate &&
+    action !== CatalogImplementedAction.SkillsTakeSourceUpdate
   ),
 );
 
@@ -875,10 +953,23 @@ export const PluginInstallImplementedAction = Object.freeze(
     PluginStateGet: "pluginState.get",
     PluginStateItemsList: "pluginStateItems.list",
     PluginStatePut: "pluginState.put",
+    PluginPagesList: "pluginPages.list",
+    PluginPagesGet: "pluginPages.get",
+    PluginPageDocumentsGet: "pluginPageDocuments.get",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const pluginInstallImplementedActions = Object.freeze(
   Object.values(PluginInstallImplementedAction),
+);
+
+export const PluginAuthoringImplementedAction = Object.freeze(
+  {
+    PluginAuthoringRunsCreate: "pluginAuthoringRuns.create",
+    PluginAuthoringRunsGet: "pluginAuthoringRuns.get",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const pluginAuthoringImplementedActions = Object.freeze(
+  Object.values(PluginAuthoringImplementedAction),
 );
 
 export const PreviewImplementedAction = Object.freeze(
@@ -962,6 +1053,7 @@ export const implementedActions = Object.freeze(
     ...catalogImplementedActions,
     ...pluginPackageImplementedActions,
     ...pluginInstallImplementedActions,
+    ...pluginAuthoringImplementedActions,
     ...skillStorageImplementedActions,
     ...backupImplementedActions,
     ...telemetryDestinationImplementedActions,
@@ -970,6 +1062,8 @@ export const implementedActions = Object.freeze(
     ...integrationClientCredentialsImplementedActions,
     ...mcpServerImplementedActions,
     ...mcpConnectionImplementedActions,
+    ...capabilityBindingImplementedActions,
+    ...toolGatewayCallImplementedActions,
     ...batchImplementedActions,
     ...blobUploadImplementedActions,
     ...storageImplementedActions,
@@ -1009,6 +1103,7 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     Noop: "workflow.noop",
     Stop: "workflow.stop",
     HumanApproval: "human.approval",
+    Research: "rpi.research",
     Plan: "rpi.plan",
     Design: "rpi.design",
     Implement: "harness.implement",
@@ -1020,12 +1115,42 @@ export const WorkflowRuntimeImplementedAction = Object.freeze(
     EvaluationCheck: "evaluation.check",
     EvaluationScore: "evaluation.score",
     SecretIdentityRead: "secret.identity.read",
+    // Settled by the engine itself, like a projection but over time: the step
+    // calls the deployment target and completes when the deployment is terminal.
+    DeliveryPrepare: "delivery.prepare",
+    DeliveryDeploy: "delivery.deploy",
+    DeliveryHealth: "delivery.health",
+    // A deterministic call of one pinned tool on a connection, run by the server
+    // for the person who started the run (docs/technical-design/25-one-engine.md 15.4).
+    ToolCall: "tool.call",
+    // The parent run's step that owns a plan of child work items and completes
+    // from the plan's terminal projection (docs/technical-design/25-one-engine.md 5).
+    CoordinationSplit: "coordination.split",
   } as const satisfies Record<string, WorkflowActionName>,
 );
 
 export const workflowRuntimeImplementedActions = Object.freeze(
   Object.values(WorkflowRuntimeImplementedAction),
 );
+
+/**
+ * Actions the engine settles in its own admission, over time, through a runner a
+ * pack registers: no worker job. A projection finishes in one pass; these may
+ * answer "not yet" and are looked at again.
+ */
+export const ENGINE_SETTLED_STEP_ACTIONS = Object.freeze(
+  [
+    WorkflowRuntimeImplementedAction.DeliveryPrepare,
+    WorkflowRuntimeImplementedAction.DeliveryDeploy,
+    WorkflowRuntimeImplementedAction.DeliveryHealth,
+    WorkflowRuntimeImplementedAction.ToolCall,
+    WorkflowRuntimeImplementedAction.CoordinationSplit,
+  ] as const,
+);
+
+export function isEngineSettledStepAction(action: string): boolean {
+  return (ENGINE_SETTLED_STEP_ACTIONS as readonly string[]).includes(action);
+}
 
 /** Proves a workflow action registry holds exactly its assigned subset. */
 export function assertImplementedWorkflowActionRegistry(

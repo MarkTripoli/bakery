@@ -1,6 +1,8 @@
 import { assertEquals } from "@std/assert";
 import {
+  problemSentence,
   problemsOf,
+  SKILL_PROBLEM_SENTENCE,
   stepIndexOf,
   stepProblemLine,
   stepProblemLines,
@@ -75,6 +77,27 @@ Deno.test("a step's line is its first sentence, with no count", () => {
     stepProblemLines([
       problem("/steps/0", "One."),
       problem("/steps/0/x", "Two."),
+    ]).length,
+    2,
+  );
+});
+
+Deno.test("the three reasons a skill needs a choice read as one sentence, and it is not the fallback", () => {
+  for (
+    const code of [
+      "step_skill_slot_open",
+      "step_skill_stopped",
+      "step_skill_unavailable",
+    ]
+  ) {
+    assertEquals(problemSentence(code), SKILL_PROBLEM_SENTENCE);
+  }
+  assertEquals(SKILL_PROBLEM_SENTENCE, "A skill on this step needs a choice.");
+  // A step with a skill code and a step setting problem keeps both lines, in report order.
+  assertEquals(
+    stepProblemLines([
+      { path: "/steps/1/skills", code: "step_skill_slot_open", message: "x" },
+      { path: "/steps/1/uses", code: "step_skill_stopped", message: "x" },
     ]).length,
     2,
   );

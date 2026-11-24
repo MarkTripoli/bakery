@@ -1,4 +1,8 @@
 import type { z } from "zod";
+import { StandardError } from "@bakery/contracts/http";
+import type { CatalogPermissionKey } from "@bakery/contracts/contracts";
+import type { AuthorizedActionContext } from "../auth/application/authority.ts";
+import { authorize } from "../auth/application/authorize.ts";
 import {
   type ActionAuthorityRunner,
   type ActionContext,
@@ -21,6 +25,21 @@ import {
   catalogImplementedActions,
 } from "@bakery/contracts/implemented-actions";
 
+/**
+ * One file's verified bytes and the facts that describe them.
+ *
+ * Named because two places need it: the handler that produces it and the route
+ * that turns it into a raw response. The route used to carry its own copy of
+ * this shape, which is a cast that compiles until someone adds a field.
+ */
+export type SkillFileContent = {
+  readonly path: string;
+  readonly contentType: string;
+  readonly contentLength: number;
+  readonly contentDigest: string;
+  readonly content: Uint8Array;
+};
+
 export type CatalogActionHandlers = {
   listSources: (
     context: ActionContext,
@@ -40,7 +59,7 @@ export type CatalogActionHandlers = {
   ) => Promise<z.output<typeof contractSchemas.SkillSource>>;
   listSkills: (
     context: ActionContext,
-    input: z.output<typeof contractSchemas.CursorQuery>,
+    input: z.output<typeof contractSchemas.SkillQuery>,
   ) => Promise<z.output<typeof contractSchemas["Page<Skill>"]>>;
   getSkill: (
     context: ActionContext,
@@ -102,6 +121,26 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
   ) => Promise<z.output<typeof contractSchemas["Page<SkillUsage>"]>>;
+  takeSkillSourceUpdate: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillSourceUpdateTake>,
+  ) => Promise<z.output<typeof contractSchemas.Run>>;
+  getSkillImport: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.IdPath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillImportResult>>;
+  renameSkillDraftFile: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillDraftFileRename>,
+  ) => Promise<z.output<typeof contractSchemas.SkillDraft>>;
+  listSkillVersions: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.CursorQuery>,
+  ) => Promise<z.output<typeof contractSchemas["Page<SkillVersion>"]>>;
+  setSkillActiveVersion: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillActiveVersionSet>,
+  ) => Promise<z.output<typeof contractSchemas.Skill>>;
   deleteSkillUseGrant: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.IdPath>,
@@ -118,6 +157,19 @@ export type CatalogActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.LocalSkillVersion>,
   ) => Promise<z.output<typeof contractSchemas.SkillVersion>>;
+  /** One version by id, for a page that already knows which one it shows. */
+  getSkillVersion: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillVersionPath>,
+  ) => Promise<z.output<typeof contractSchemas.SkillVersion>>;
+  /**
+   * One file's verified bytes and the facts that describe them. The route builds
+   * the raw response from this; a JSON handler would have to base64 the bytes.
+   */
+  readSkillFile: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.SkillFilePath>,
+  ) => Promise<SkillFileContent>;
   searchLibrary: (
     context: ActionContext,
     input: z.output<typeof contractSchemas.LibrarySearchQuery>,
@@ -144,7 +196,12 @@ export const skillImportAuthorizationAction: ActionDefinition<
   path: "/v1/skill-imports",
   input: contractSchemas.SkillImport,
   output: contractSchemas.Run,
-  policy: commandPolicy,
+  // Developer for a personal import; the handler raises the bar to Admin for an
+  // organization import, which one access value cannot express.
+  policy: {
+    ...commandPolicy,
+    access: ActionAccess.DeveloperForPersonalAdminForOrganization,
+  },
   handler: () => {
     throw new Error("SKILL_IMPORT_AUTHORIZATION_ONLY");
   },
@@ -269,10 +326,19 @@ export function createCatalogActionRegistry(
     handler: handlers.importSkill,
   });
   registry.register({
+    name: CatalogImplementedAction.SkillImportsGet,
+    method: HttpMethod.Get,
+    path: "/v1/skill-imports/:id",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.SkillImportResult,
+    policy: queryPolicy,
+    handler: handlers.getSkillImport,
+  });
+  registry.register({
     name: CatalogImplementedAction.SkillsList,
     method: HttpMethod.Get,
     path: "/v1/skills",
-    input: contractSchemas.CursorQuery,
+    input: contractSchemas.SkillQuery,
     output: contractSchemas["Page<Skill>"],
     policy: queryPolicy,
     handler: handlers.listSkills,
@@ -334,6 +400,22 @@ export function createCatalogActionRegistry(
     output: contractSchemas["Page<SkillUsage>"],
     policy: queryPolicy,
     handler: handlers.listSkillUsage,
+  });
+  // Putting an older published version in use is authoring the skill: the
+  // owner of a personal skill, an Admin for an organization one, never Bakery's.
+  registry.register({
+    name: CatalogImplementedAction.SkillsSetActiveVersion,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/active-version",
+    input: contractSchemas.SkillActiveVersionSet,
+    output: contractSchemas.Skill,
+    successStatus: 200,
+    explicitIdempotency: "key-and-if-match",
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
+    },
+    handler: handlers.setSkillActiveVersion,
   });
   // The skill's authoring draft. Its author is the owner of a personal skill or
   // an Admin for an organization one; the handlers decide which from the skill.
@@ -398,6 +480,17 @@ export function createCatalogActionRegistry(
     handler: handlers.saveSkillDraftFile,
   });
   registry.register({
+    name: CatalogImplementedAction.SkillDraftFilesRename,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/draft/files/rename",
+    input: contractSchemas.SkillDraftFileRename,
+    output: contractSchemas.SkillDraft,
+    successStatus: 200,
+    explicitIdempotency: "key-and-if-match",
+    policy: { ...commandPolicy, access: draftAccess },
+    handler: handlers.renameSkillDraftFile,
+  });
+  registry.register({
     name: CatalogImplementedAction.SkillDraftFilesGet,
     method: HttpMethod.Get,
     path: "/v1/skills/:id/draft/files/:fileId",
@@ -439,11 +532,60 @@ export function createCatalogActionRegistry(
     policy: queryPolicy,
     handler: handlers.searchLibrary,
   });
+  // Reading one version, and one file's bytes, are the reads a skill page needs;
+  // a worker reaches the same two actions under a pinned version and a lease,
+  // which is why the catalog gives them that access policy rather than plain
+  // Developer. The file read is registered here too: the bytes come from the
+  // store this handler holds, and the route below builds the raw response.
+  const pinnedReadPolicy = (permission: CatalogPermissionKey) =>
+    ({
+      ...queryPolicy,
+      access: ActionAccess.DeveloperOrWorkerPinnedVersionAndCurrentLease,
+      // The access names the worker that reads the same path under a lease, and
+      // the registry therefore asks for a guard of its own. A person arrives
+      // through a session, so the guard asks exactly the permission the catalog
+      // gives this action; which versions that person may see is the handler's
+      // answer, told by the same visibility rule the listing uses.
+      authorize: (context: ActionContext) => {
+        const authority = (context as Partial<AuthorizedActionContext>)
+          .authority;
+        if (authority === undefined || !("organizationId" in authority)) {
+          throw new StandardError({ code: "AUTH_FORBIDDEN" });
+        }
+        authorize(authority, permission, {});
+      },
+    }) as const;
+  registry.register({
+    name: CatalogImplementedAction.SkillVersionsGet,
+    method: HttpMethod.Get,
+    path: "/v1/skill-versions/:id",
+    input: contractSchemas.SkillVersionPath,
+    output: contractSchemas.SkillVersion,
+    policy: pinnedReadPolicy("skillVersion:readPinned"),
+    handler: handlers.getSkillVersion,
+  });
+  // A file's bytes are a raw response the route builds under this action's
+  // authority, so the registered handler is never called; an agent's session
+  // call is answered by the route too, not by a base64 envelope.
+  registry.register({
+    name: CatalogImplementedAction.SkillFilesGet,
+    method: HttpMethod.Get,
+    path: "/v1/skill-versions/:id/files/:path",
+    input: contractSchemas.SkillFilePath,
+    output: contractSchemas.BinarySkillFile,
+    policy: pinnedReadPolicy("skillFile:read"),
+    handler: () => {
+      throw new StandardError({ code: "INTERNAL" });
+    },
+  });
   if (options.includeSkillVersionPublication !== false) {
     registry.register(skillCopyDefinition(handlers.copySkill));
     registry.register(skillDraftPublishDefinition(handlers.publishSkillDraft));
     registry.register(
       skillSourceUpdateDefinition(handlers.checkSkillSourceUpdate),
+    );
+    registry.register(
+      skillSourceUpdateTakeDefinition(handlers.takeSkillSourceUpdate),
     );
     registry.register({
       name: CatalogImplementedAction.SkillVersionsCreate,
@@ -456,6 +598,15 @@ export function createCatalogActionRegistry(
         access: ActionAccess.OwnerForPersonalAdminForOrganization,
       },
       handler: handlers.createSkillVersion,
+    });
+    registry.register({
+      name: CatalogImplementedAction.SkillVersionsList,
+      method: HttpMethod.Get,
+      path: "/v1/skills/:id/versions",
+      input: contractSchemas.CursorQuery,
+      output: contractSchemas["Page<SkillVersion>"],
+      policy: queryPolicy,
+      handler: handlers.listSkillVersions,
     });
   }
   assertRegisteredActions(registry);
@@ -507,12 +658,37 @@ export function createSkillDraftPublishActionRegistry(
 }
 
 /**
+ * Taking a reviewed update reads the source over the network, like the check,
+ * so it runs behind the same staged runners in routes.ts.
+ */
+function skillSourceUpdateTakeDefinition(
+  handler: CatalogActionHandlers["takeSkillSourceUpdate"],
+) {
+  return {
+    name: CatalogImplementedAction.SkillsTakeSourceUpdate,
+    method: HttpMethod.Post,
+    path: "/v1/skills/:id/source-update/take",
+    input: contractSchemas.SkillSourceUpdateTake,
+    output: contractSchemas.Run,
+    explicitIdempotency: "key-and-if-match",
+    policy: {
+      ...commandPolicy,
+      access: ActionAccess.OwnerForPersonalAdminForOrganization,
+    },
+    handler,
+  } as const;
+}
+
+/**
  * skills.sourceUpdate looks at a source over the network, so it runs in stages
  * (see routes.ts) and has a registry of its own, like a skill copy: the shared
  * catalog registry does not carry it.
  */
 export function createSkillSourceUpdateActionRegistry(
-  handlers: Pick<CatalogActionHandlers, "checkSkillSourceUpdate">,
+  handlers: Pick<
+    CatalogActionHandlers,
+    "checkSkillSourceUpdate" | "takeSkillSourceUpdate"
+  >,
   options: {
     authorityRunner?: ActionAuthorityRunner;
     commandRunner?: CommandRunner;
@@ -525,15 +701,22 @@ export function createSkillSourceUpdateActionRegistry(
   registry.register(
     skillSourceUpdateDefinition(handlers.checkSkillSourceUpdate),
   );
+  registry.register(
+    skillSourceUpdateTakeDefinition(handlers.takeSkillSourceUpdate),
+  );
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     CatalogImplementedAction.SkillsSourceUpdate,
+    CatalogImplementedAction.SkillsTakeSourceUpdate,
   ]);
   return registry;
 }
 
 export function createSkillVersionActionRegistry(
-  handlers: Pick<CatalogActionHandlers, "createSkillVersion">,
+  handlers: Pick<
+    CatalogActionHandlers,
+    "createSkillVersion" | "listSkillVersions"
+  >,
   options: {
     authorityRunner?: ActionAuthorityRunner;
     commandRunner?: CommandRunner;
@@ -557,9 +740,21 @@ export function createSkillVersionActionRegistry(
     },
     handler: handlers.createSkillVersion,
   });
+  // The list shares its path with publication, so it is served by this same
+  // router: two routers on one path answer each other's method with a 405.
+  registry.register({
+    name: CatalogImplementedAction.SkillVersionsList,
+    method: HttpMethod.Get,
+    path: "/v1/skills/:id/versions",
+    input: contractSchemas.CursorQuery,
+    output: contractSchemas["Page<SkillVersion>"],
+    policy: queryPolicy,
+    handler: handlers.listSkillVersions,
+  });
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     CatalogImplementedAction.SkillVersionsCreate,
+    CatalogImplementedAction.SkillVersionsList,
   ]);
   return registry;
 }
