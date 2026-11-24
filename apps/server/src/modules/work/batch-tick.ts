@@ -43,6 +43,7 @@ export type StartResult =
   }>
   | Readonly<{
     started: false;
+    pause?: string;
     passedOver?: readonly { externalTicketId: string; reason: string }[];
   }>;
 
@@ -54,6 +55,7 @@ export type BatchPorts = {
       organizationId: string;
       batchId: string;
       repositoryId: string;
+      presetId: string | null;
       startedBy: string;
     },
   ) => Promise<StartResult>;
@@ -266,6 +268,7 @@ async function apply(
         organizationId,
         batchId: id,
         repositoryId: batch.repositoryId,
+        presetId: batch.presetId,
         startedBy: batch.startedBy,
       });
       let position = batch.issues.reduce(
@@ -318,6 +321,14 @@ async function apply(
         await transaction.query(
           `update bakery.batches set next_approved = false, ${touch} where id = $1`,
           [id],
+        );
+      } else if (result.pause) {
+        await transaction.query(
+          `update bakery.batches
+              set state = 'paused', pause_reason = $2,
+                  paused_at = now(), ${touch}
+            where id = $1`,
+          [id, result.pause],
         );
       } else {
         await transaction.query(

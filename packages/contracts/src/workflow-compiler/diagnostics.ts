@@ -122,6 +122,7 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "workflow_outputs_invalid",
     "wait_shape_invalid",
     "wait_timeout_required",
+    "approval_wait_use_step",
     "parallel_lanes_invalid",
     "parallel_join_required",
     "parallel_failure_policy_required",
@@ -279,6 +280,8 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
     "A workflow output must be a name mapped to a `$step` reference.",
   wait_shape_invalid: "The wait must declare a duration or an event.",
   wait_timeout_required: "An event wait requires a timeout.",
+  approval_wait_use_step:
+    "Wait for a person with a `uses: human.approval` step: Bakery creates the approval and the step waits for the decision.",
   parallel_lanes_invalid: "The parallel lanes are invalid.",
   parallel_join_required: "The parallel join policy must be explicit.",
   parallel_failure_policy_required:

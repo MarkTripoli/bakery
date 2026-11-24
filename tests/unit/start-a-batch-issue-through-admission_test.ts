@@ -1,4 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert";
+import { StandardError } from "../../packages/contracts/src/http.ts";
 import {
   createBatchStartPort,
   listBatchCandidates,
@@ -50,7 +51,9 @@ const candidate = (number: number): Candidate => ({
 type Verdict =
   | { kind: "admitted"; id: string }
   | { kind: "existing" }
-  | { kind: "unadmitted"; reason: string };
+  | { kind: "unadmitted"; reason: string }
+  | { kind: "workflowNotReady" }
+  | { kind: "workflowRequired" };
 
 function harness(verdicts: Record<number, Verdict>) {
   const calls: {
@@ -63,13 +66,30 @@ function harness(verdicts: Record<number, Verdict>) {
     const number = call.number as number;
     calls.push({ number, caller: call.caller, call });
     const verdict = verdicts[number];
+    if (verdict.kind === "workflowRequired") {
+      return Promise.reject(
+        new StandardError({
+          code: "UNPROCESSABLE",
+          params: { issues: [{ code: "ticket_workflow_required" }] },
+        }),
+      );
+    }
+    const notReady = verdict.kind === "workflowNotReady";
+    const unadmitted = verdict.kind === "unadmitted" || notReady;
     return Promise.resolve({
-      kind: verdict.kind,
-      request: verdict.kind === "unadmitted"
+      kind: unadmitted ? "unadmitted" : verdict.kind,
+      request: unadmitted
         ? null
         : { id: (verdict as { id?: string }).id ?? "existing-request" },
       report: {
-        checks: verdict.kind === "unadmitted"
+        checks: notReady
+          ? [{
+            id: "preset_ready",
+            status: "fail",
+            reason: "preset_not_ready",
+            evidence: [],
+          }]
+          : verdict.kind === "unadmitted"
           ? [{ status: "fail", reason: verdict.reason, evidence: [] }]
           : [{ status: "pass" }],
       },
@@ -95,6 +115,7 @@ function harness(verdicts: Record<number, Verdict>) {
           organizationId: ORG,
           batchId: BATCH,
           repositoryId: REPO,
+          presetId: "fixed-coding-reviewed",
           startedBy: STARTER,
         }),
       queries: t.queries,
@@ -128,6 +149,20 @@ Deno.test("the first real admission wins, as the starter, with the issues passed
     assertEquals(call.call.intent, "start");
     assertEquals(call.call.prefetch, null);
     assertEquals(call.call.organizationId, ORG);
+    assertEquals(call.call.preset, "fixed-coding-reviewed");
+  }
+});
+
+Deno.test("a workflow the repository cannot run pauses the batch instead of passing issues over", async () => {
+  for (const kind of ["workflowNotReady", "workflowRequired"] as const) {
+    const h = harness({ 1: { kind }, 2: { kind: "admitted", id: "r2" } });
+    const result = await h.port([1, 2].map(candidate)).start();
+    assertEquals(result, {
+      started: false,
+      pause: "workflow_cannot_start",
+      passedOver: [],
+    });
+    assertEquals(h.calls.map((call) => call.number), [1]);
   }
 });
 

@@ -13333,6 +13333,16 @@ const transportSchemas = {
           "description": "The repository the batch works through. It must be taking issues (an enabled ticket source), and no other batch may be live in it."
         },
         {
+          "name": "presetId",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "fixed-coding",
+            "fixed-coding-reviewed"
+          ],
+          "description": "The built-in workflow every issue in this batch runs: fixed-coding or fixed-coding-reviewed. Required: a batch is never started without a workflow chosen, so no one is given a workflow they did not choose. Each issue is admitted with it; a workflow the repository cannot run stops the batch with the pause reason workflow_cannot_start."
+        },
+        {
           "name": "maxIssues",
           "type": "integer",
           "required": true,
@@ -35446,6 +35456,7 @@ const transportSchemas = {
       "fields": [
         "id",
         "repositoryId",
+        "presetId",
         "startedBy",
         "maxIssues",
         "maxHours",
@@ -35470,6 +35481,7 @@ const transportSchemas = {
         "version"
       ],
       "nullableFields": [
+        "presetId",
         "pauseReason",
         "pausedBy",
         "pausedAt",
@@ -35481,6 +35493,7 @@ const transportSchemas = {
       "fieldTypes": {
         "id": "uuid",
         "repositoryId": "uuid",
+        "presetId": "enum(fixed-coding|fixed-coding-reviewed)",
         "startedBy": "uuid",
         "maxIssues": "integer",
         "maxHours": "integer",
@@ -35508,6 +35521,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "id": "Stable UUID of the batch.",
         "repositoryId": "The repository it works in.",
+        "presetId": "The built-in workflow each of its issues runs; null for a batch started before the workflow was stored.",
         "startedBy": "The person who started it; their authority is re-checked before every issue.",
         "maxIssues": "Limit: issues to merge.",
         "maxHours": "Limit: hours before nothing new starts.",

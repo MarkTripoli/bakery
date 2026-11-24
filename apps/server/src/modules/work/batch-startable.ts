@@ -3,7 +3,10 @@ import type { ActionContext } from "@bakery/contracts/action-registry";
 import type { contractSchemas } from "@bakery/contracts/contracts";
 import { BatchImplementedAction } from "@bakery/contracts/implemented-actions";
 import { StandardError } from "@bakery/contracts/http";
-import { FIXED_CODING_PRESET } from "@bakery/contracts/workflow-presets";
+import {
+  FIXED_CODING_PRESET,
+  type WorkflowPresetDefinition,
+} from "@bakery/contracts/workflow-presets";
 import type { BudgetRuntimeConfig } from "@bakery/config";
 import {
   type CursorBinding,
@@ -48,13 +51,14 @@ export async function smallestBatchSpend(
   organizationId: string,
   repositoryId: string,
   budget: BudgetRuntimeConfig | undefined,
+  preset: WorkflowPresetDefinition = FIXED_CODING_PRESET,
 ): Promise<string | null> {
   const availability = await presetAvailability(
     transaction,
     organizationId,
     repositoryId,
-    FIXED_CODING_PRESET,
-    FIXED_CODING_PRESET.defaultBudgetLimitUsd,
+    preset,
+    preset.defaultBudgetLimitUsd,
     budget,
   );
   return availability.minimumBudgetLimitUsd ?? null;
