@@ -188,7 +188,13 @@ test.describe("collaborative documents against the real API", () => {
 
       expect(await read(byRevision.get(1)!)).toBe(seeded.text);
       const published = await read(byRevision.get(2)!);
-      expect([converged, converged + " [late]"]).toContain(published);
+      expect(published).toBe(converged);
+      await expect.poll(() => documentText(teammateEditor)).toBe(
+        converged + " [late]",
+      );
+      await expect.poll(() => documentText(adminEditor)).toBe(
+        converged + " [late]",
+      );
     } finally {
       await adminContext.close();
       await teammateContext.close();
