@@ -90,13 +90,14 @@ Deno.test("a take-over power reaches exactly its one step and its session", asyn
     for (
       const status of [
         await note(o.guest.cookie, o.run.runId, "build"),
-        await takeover(o.guest.cookie, o.run.runId, "build"),
         await steer(o.guest.cookie, o.buildSession),
+        await takeover(o.guest.cookie, o.run.runId, "build"),
       ]
     ) {
       assertNotEquals(status, 404);
       assertNotEquals(status, 403);
     }
+    assertEquals(await steer(o.guest.cookie, o.buildSession), 404);
     assertEquals(await note(o.guest.cookie, o.run.runId, "other"), 404);
     assertEquals(await takeover(o.guest.cookie, o.run.runId, "other"), 404);
     assertEquals(await steer(o.guest.cookie, o.otherSession), 404);
@@ -159,7 +160,7 @@ Deno.test("a review power comments on exactly its one artifact version", async (
       `/v1/runs/${o.run.runId}/requests/mine`,
     )).json() as { requests: { status: string }[] };
     assertEquals(mineList.requests.map((r) => r.status), ["handled"]);
-    assertEquals(await comment(o.guest.cookie, o.mine), 201);
+    assertEquals(await comment(o.guest.cookie, o.mine), 404);
   } finally {
     await o.finish();
   }
@@ -250,6 +251,148 @@ Deno.test("an observer reads only the granted session's own messages, never the 
     assertEquals(all.includes("sibling output"), true);
   } finally {
     await cleanupAuthFixture(o.fixture.pgDatabase, [developer.email]);
+    await o.finish();
+  }
+});
+
+Deno.test("one member's review or take-over ends the whole group's ask and its powers", async () => {
+  const o = await open();
+  try {
+    const askGuests = (payload: Record<string, unknown>) =>
+      api(
+        o.fixture,
+        o.fixture.cookie,
+        "POST",
+        `/v1/runs/${o.run.runId}/requests`,
+        { recipientRoleKey: "guest", ...payload },
+      );
+    const statusOf = async (principalId: string, intent: string) =>
+      (await o.fixture.pgDatabase.query<{ status: string }>(
+        `select status from bakery.person_requests
+          where organization_id = $1 and recipient_id = $2 and intent = $3`,
+        [o.fixture.organizationId, principalId, intent],
+      )).rows.map((row) => row.status);
+    const reviewAsk = await askGuests({
+      intent: "review",
+      artifactVersionId: o.mine,
+    });
+    assertEquals(reviewAsk.status, 201, await reviewAsk.text());
+    const comment = (cookie: string) =>
+      o.as(cookie, "POST", `/v1/artifact-versions/${o.mine}/comments`, {
+        body: "Reviewed.",
+      });
+    assertEquals(await comment(o.guest.cookie), 201);
+    assertEquals(await statusOf(o.stranger.principalId, "review"), [
+      "handled",
+    ]);
+    assertEquals(await comment(o.stranger.cookie), 404);
+
+    const takeAsk = await askGuests({ intent: "take_over", stepKey: "build" });
+    assertEquals(takeAsk.status, 201, await takeAsk.text());
+    const takeover = await o.as(
+      o.guest.cookie,
+      "POST",
+      `/v1/runs/${o.run.runId}/steps/build/takeover`,
+      { mode: "restart" },
+    );
+    assertNotEquals(takeover, 404);
+    assertNotEquals(takeover, 403);
+    assertEquals(await statusOf(o.stranger.principalId, "take_over"), [
+      "handled",
+    ]);
+    assertEquals(
+      await o.as(
+        o.stranger.cookie,
+        "POST",
+        `/v1/sessions/${o.buildSession}/messages`,
+        { body: "Mine now." },
+      ),
+      404,
+    );
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a Viewer asked to take over can read the session it may steer", async () => {
+  const o = await open();
+  const viewer = await addMember(o.fixture, "Viewer", "viewer");
+  try {
+    const feed = () =>
+      o.as(viewer.cookie, "GET", `/v1/sessions/${o.buildSession}/feed`);
+    assertEquals(await feed(), 404);
+    const made = await o.ask({
+      recipientId: viewer.principalId,
+      intent: "take_over",
+      stepKey: "build",
+    });
+    assertEquals(made.status, 201, await made.text());
+    assertEquals(await feed(), 200);
+  } finally {
+    await cleanupAuthFixture(o.fixture.pgDatabase, [viewer.email]);
+    await o.finish();
+  }
+});
+
+Deno.test("an observer's feed shows the steers sent to that session", async () => {
+  const o = await open();
+  try {
+    assertEquals(
+      (await o.ask({ intent: "take_over", stepKey: "build" })).status,
+      201,
+    );
+    const steer = async (sessionId: string, authorId: string, body: string) => {
+      const messageId = crypto.randomUUID();
+      await o.fixture.pgDatabase.query(
+        `insert into bakery.messages (
+           id, organization_id, conversation_id, author_id, message_type, body,
+           client_message_id, sequence, intent)
+         select $1, $2, $3, $4, 'user', $5, $6,
+                coalesce((select max(sequence) from bakery.messages
+                           where conversation_id = $3), 0) + 1, 'discussion'`,
+        [
+          messageId,
+          o.fixture.organizationId,
+          o.fixture.conversationId,
+          authorId,
+          body,
+          crypto.randomUUID(),
+        ],
+      );
+      await o.fixture.pgDatabase.query(
+        `insert into bakery.decisions_ledger
+           (organization_id, task_id, run_id, kind, subject_kind, subject_id,
+            decided_by, text, detail)
+         values ($1, $2, $3, 'steer', 'session', $4, $5, $6, $7::jsonb)`,
+        [
+          o.fixture.organizationId,
+          o.run.taskId,
+          o.run.runId,
+          sessionId,
+          authorId,
+          body,
+          JSON.stringify({ mode: "steer", messageId, truncated: false }),
+        ],
+      );
+    };
+    await steer(o.buildSession, o.guest.principalId, "my steer");
+    await steer(o.buildSession, o.fixture.principalId, "owner steer");
+    await steer(o.otherSession, o.fixture.principalId, "elsewhere");
+    const response = await api(
+      o.fixture,
+      o.guest.cookie,
+      "GET",
+      `/v1/sessions/${o.buildSession}/feed`,
+    );
+    assertEquals(response.status, 200, await response.clone().text());
+    const page = await response.json() as {
+      items: { message: { body: string } | null }[];
+    };
+    assertEquals(page.items.map((item) => item.message?.body).sort(), [
+      "my steer",
+      "owner steer",
+    ]);
+  } finally {
     await o.finish();
   }
 });

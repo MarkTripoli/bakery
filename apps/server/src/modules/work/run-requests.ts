@@ -7,7 +7,13 @@ import {
 } from "@bakery/persistence";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import { accessScopeClause } from "../auth/application/bindings.ts";
-import type { RunPower } from "../auth/application/run-grants.ts";
+import type { CatalogActionName } from "@bakery/contracts/contracts";
+import { permissionForAction } from "../auth/application/authorize.ts";
+import { roleHasPermission } from "../auth/application/permissions.ts";
+import {
+  RUN_GRANT_ACTIONS,
+  type RunPower,
+} from "../auth/application/run-grants.ts";
 import {
   AgentPower,
   assertAgentMayExercise,
@@ -73,14 +79,6 @@ export type RequestIntent =
  * refused here until their power is built, so no request promises a right it
  * cannot grant.
  */
-const AVAILABLE_INTENTS: readonly RequestIntent[] = [
-  "fyi",
-  "approve",
-  "answer",
-  "review",
-  "take_over",
-];
-
 const POWER_OF_INTENT: Readonly<Partial<Record<RequestIntent, RunPower>>> = {
   approve: "approve",
   answer: "answer",
@@ -100,7 +98,15 @@ const GRANT_TARGET: Readonly<
 const NO_TARGET = "00000000-0000-0000-0000-000000000000";
 
 /** Roles that already read every run, so a grant would add nothing. */
-const STANDING_READ_ROLES = ["admin", "developer", "viewer"];
+const SYSTEM_ROLES = ["admin", "developer", "viewer", "guest"] as const;
+
+const RUN_GRANT_PERMISSIONS = [
+  ...new Set(
+    (Object.keys(RUN_GRANT_ACTIONS) as CatalogActionName[]).map(
+      permissionForAction,
+    ),
+  ),
+];
 
 type RequestRow = {
   id: string;
@@ -274,10 +280,17 @@ export async function hasStandingRunAccess(
   );
   const row = found.rows[0];
   if (!row) return false;
-  if (row.permissions?.includes("run:read")) return true;
-  // A member with a custom role keeps the lowest system role, so this reads
-  // only a system role.
-  return row.role !== null && STANDING_READ_ROLES.includes(row.role);
+  const custom = row.permissions;
+  if (custom !== null) {
+    return RUN_GRANT_PERMISSIONS.every((permission) =>
+      custom.includes(permission)
+    );
+  }
+  const role = SYSTEM_ROLES.find((name) => name === row.role);
+  return role !== undefined &&
+    RUN_GRANT_PERMISSIONS.every((permission) =>
+      roleHasPermission(role, permission)
+    );
 }
 
 async function ledger(
@@ -398,13 +411,6 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
     groupId: value.recipientGroupId ?? null,
   });
 
-  if (!AVAILABLE_INTENTS.includes(value.intent)) {
-    unprocessable(
-      ["intent"],
-      "request_intent_unavailable",
-      "That request cannot be made",
-    );
-  }
   const power = POWER_OF_INTENT[value.intent];
   const asksQuestion = value.intent === "approve" || value.intent === "answer";
   if (!asksQuestion && value.questionId !== undefined) {
@@ -863,12 +869,19 @@ async function askOne(
     audienceGroupId: audience?.groupId ?? null,
   };
   // A request past its time is over; asking again makes a new one.
-  await transaction.query(
+  const expired = await transaction.query<{ id: string }>(
     `update bakery.person_requests
         set status = 'expired', updated_at = now(), version = version + 1
       where organization_id = $1 and run_id = $2 and recipient_id = $3
-        and intent = $4 and status = 'open' and expires_at <= now()`,
+        and intent = $4 and status = 'open' and expires_at <= now()
+      returning id`,
     [organizationId, run.id, recipientId, ask.intent],
+  );
+  await revokeRequestPowers(
+    transaction,
+    organizationId,
+    expired.rows.map((row) => row.id),
+    principalId,
   );
   const open = await transaction.query<{ id: string }>(
     `select id from bakery.person_requests
@@ -968,6 +981,14 @@ async function askOne(
   // doing, and the gate asks the grant only when the role refuses.
   if (ask.power !== undefined) {
     const target = GRANT_TARGET[ask.power];
+    await transaction.query(
+      `update bakery.run_power_grants
+          set revoked_at = now(), revoked_by = $5, version = version + 1
+        where organization_id = $1 and principal_id = $2 and power = $3
+          and coalesce(question_id, artifact_version_id, run_step_id) = $4
+          and revoked_at is null`,
+      [organizationId, recipientId, ask.power, ask.targetId, principalId],
+    );
     await transaction.query(
       `insert into bakery.run_power_grants (
          organization_id, run_id, principal_id, power, target_kind,
@@ -1223,16 +1244,13 @@ export async function handleRequestsOnTarget(
   intent: "review" | "take_over",
   targetId: string,
 ): Promise<void> {
-  const closed = await transaction.query<ClosedRequest>(
-    `update bakery.person_requests
-        set status = 'handled', responded_at = now(), updated_at = now(),
-            version = version + 1
-      where organization_id = $1 and recipient_id = $2 and target_id = $3
-        and intent = $4 and status = 'open'
-      returning ${CLOSED_REQUEST_COLUMNS}`,
-    [organizationId, principalId, targetId, intent],
+  await closeAnsweredAsk(
+    transaction,
+    organizationId,
+    principalId,
+    "intent = $3 and target_id = $4",
+    [intent, targetId],
   );
-  await recordHandled(transaction, organizationId, principalId, closed.rows);
 }
 
 export async function handleTakeOverRequests(
@@ -1242,16 +1260,82 @@ export async function handleTakeOverRequests(
   runId: string,
   stepKey: string,
 ): Promise<void> {
+  await closeAnsweredAsk(
+    transaction,
+    organizationId,
+    principalId,
+    "intent = 'take_over' and run_id = $3 and step_key = $4",
+    [runId, stepKey],
+  );
+}
+
+async function closeAnsweredAsk(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  targetSql: string,
+  targetValues: readonly unknown[],
+): Promise<void> {
+  const qualified = targetSql.replace(
+    /\b(intent|target_id|run_id|step_key)\b/g,
+    "request.$1",
+  );
   const closed = await transaction.query<ClosedRequest>(
-    `update bakery.person_requests
+    `with mine as (
+       select run_id, created_at, asked_by, audience_group_id,
+              audience_role_key
+         from bakery.person_requests
+        where organization_id = $1 and recipient_id = $2 and status = 'open'
+          and ${targetSql}
+     )
+     update bakery.person_requests request
         set status = 'handled', responded_at = now(), updated_at = now(),
-            version = version + 1
-      where organization_id = $1 and recipient_id = $2 and run_id = $3
-        and step_key = $4 and intent = 'take_over' and status = 'open'
-      returning ${CLOSED_REQUEST_COLUMNS}`,
-    [organizationId, principalId, runId, stepKey],
+            version = request.version + 1
+      where request.organization_id = $1 and request.status = 'open'
+        and ${qualified}
+        and (
+          request.recipient_id = $2 or exists (
+            select 1 from mine
+             where (mine.audience_group_id is not null
+                    or mine.audience_role_key is not null)
+               and mine.run_id = request.run_id
+               and mine.created_at = request.created_at
+               and mine.asked_by is not distinct from request.asked_by
+               and mine.audience_group_id
+                   is not distinct from request.audience_group_id
+               and mine.audience_role_key
+                   is not distinct from request.audience_role_key
+          )
+        )
+      returning ${
+      CLOSED_REQUEST_COLUMNS.split(", ").map((column) => "request." + column)
+        .join(", ")
+    }`,
+    [organizationId, principalId, ...targetValues],
+  );
+  await revokeRequestPowers(
+    transaction,
+    organizationId,
+    closed.rows.map((row) => row.id),
+    principalId,
   );
   await recordHandled(transaction, organizationId, principalId, closed.rows);
+}
+
+async function revokeRequestPowers(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  requestIds: readonly string[],
+  revokedBy: string,
+): Promise<void> {
+  if (requestIds.length === 0) return;
+  await transaction.query(
+    `update bakery.run_power_grants
+        set revoked_at = now(), revoked_by = $3, version = version + 1
+      where organization_id = $1 and source_request_id = any($2::uuid[])
+        and revoked_at is null`,
+    [organizationId, [...requestIds], revokedBy],
+  );
 }
 
 type ClosedRequest = {
