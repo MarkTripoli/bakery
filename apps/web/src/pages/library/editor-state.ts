@@ -14,12 +14,23 @@ export type EditorStep = {
   readonly skills: readonly string[];
 };
 
-export type EditorState = {
+export type LoopEdit = {
+  readonly path: readonly (string | number)[];
+  readonly min: number | null;
+  readonly max: number;
+  readonly allow: number | null;
+};
+
+export type EditorSnapshot = {
   readonly steps: readonly EditorStep[];
+  readonly loops: readonly LoopEdit[];
+};
+
+export type EditorState = EditorSnapshot & {
   /** Earlier states, oldest first; the last one undo returns to. */
-  readonly past: readonly (readonly EditorStep[])[];
+  readonly past: readonly EditorSnapshot[];
   /** States undone and not yet redone, newest first. */
-  readonly future: readonly (readonly EditorStep[])[];
+  readonly future: readonly EditorSnapshot[];
 };
 
 export type EditorAction =
@@ -34,9 +45,28 @@ export type EditorAction =
     readonly skills: readonly string[];
   }
   /** Start again from these steps: a different version is being edited. */
+  | {
+    readonly kind: "loop";
+    readonly path: readonly (string | number)[];
+    readonly min: number | null;
+    readonly max: number;
+    readonly allow: number | null;
+  }
   | { readonly kind: "reset"; readonly steps: readonly EditorStep[] }
   | { readonly kind: "undo" }
   | { readonly kind: "redo" };
+
+function straightLineOf(held: readonly unknown[]): boolean {
+  return held.every((node) => {
+    if (typeof node !== "object" || node === null || Array.isArray(node)) {
+      return false;
+    }
+    const record = node as Record<string, unknown>;
+    const kind = typeof record.kind === "string" ? record.kind : "";
+    return (kind === "" || kind === "action") &&
+      typeof record.id === "string";
+  });
+}
 
 /**
  * The definition the editor saves: the version's own definition with its
@@ -48,8 +78,11 @@ export type EditorAction =
 export function definitionOf(
   spec: Readonly<Record<string, unknown>> | null,
   steps: readonly EditorStep[],
+  loops: readonly LoopEdit[] = [],
 ): Record<string, unknown> {
-  const held = Array.isArray(spec?.steps) ? spec.steps : [];
+  const authored = applyLoops(spec, loops);
+  const held = Array.isArray(authored?.steps) ? authored.steps : [];
+  if (!straightLineOf(held)) return authored ?? {};
   const byId = new Map<string, Record<string, unknown>>();
   for (const raw of held) {
     if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
@@ -58,7 +91,7 @@ export function definitionOf(
     }
   }
   return {
-    ...(spec ?? {}),
+    ...(authored ?? {}),
     steps: steps.map((step) => {
       const node = byId.get(step.id);
       const agent = typeof node?.agentVersionId === "string"
@@ -89,6 +122,45 @@ export function definitionOf(
   };
 }
 
+export function applyLoops(
+  spec: Readonly<Record<string, unknown>> | null,
+  loops: readonly LoopEdit[],
+): Readonly<Record<string, unknown>> | null {
+  if (spec === null || loops.length === 0) return spec;
+  const copy = structuredClone(spec) as Record<string, unknown>;
+  for (const loop of loops) {
+    const node = nodeAt(copy, loop.path);
+    if (node === null) continue;
+    if (loop.min === null) delete node.min;
+    else node.min = loop.min;
+    node.max = loop.max;
+    if (loop.allow === null) delete node.allow;
+    else node.allow = loop.allow;
+  }
+  return copy;
+}
+
+function nodeAt(
+  root: Record<string, unknown>,
+  path: readonly (string | number)[],
+): Record<string, unknown> | null {
+  let held: unknown = root;
+  for (const segment of path) {
+    if (typeof segment === "number") {
+      if (!Array.isArray(held)) return null;
+      held = held[segment];
+    } else {
+      if (typeof held !== "object" || held === null || Array.isArray(held)) {
+        return null;
+      }
+      held = (held as Record<string, unknown>)[segment];
+    }
+  }
+  return typeof held === "object" && held !== null && !Array.isArray(held)
+    ? held as Record<string, unknown>
+    : null;
+}
+
 /** The skill version ids an authored step names; anything else is no skills. */
 export function skillsOfNode(
   node: Readonly<Record<string, unknown>> | undefined,
@@ -105,7 +177,7 @@ const sameList = (left: readonly string[], right: readonly string[]) =>
 export function editorStateOf(
   steps: readonly EditorStep[],
 ): EditorState {
-  return { steps: [...steps], past: [], future: [] };
+  return { steps: [...steps], loops: [], past: [], future: [] };
 }
 
 /** Whether the steps differ from the state the editor started from. */
@@ -135,12 +207,18 @@ export function freeStepId(
   }
 }
 
+const snapshot = (state: EditorState): EditorSnapshot => ({
+  steps: state.steps,
+  loops: state.loops,
+});
+
 const changed = (
   state: EditorState,
   steps: readonly EditorStep[],
 ): EditorState => ({
   steps,
-  past: [...state.past, state.steps],
+  loops: state.loops,
+  past: [...state.past, snapshot(state)],
   future: [],
 });
 
@@ -193,9 +271,36 @@ export function editorReducer(
         ),
       );
     }
+    case "loop": {
+      const key = action.path.join("/");
+      const at = state.loops.findIndex((loop) => loop.path.join("/") === key);
+      const next: LoopEdit = {
+        path: action.path,
+        min: action.min,
+        max: action.max,
+        allow: action.allow,
+      };
+      const held = at === -1 ? undefined : state.loops[at];
+      if (
+        held !== undefined && held.min === next.min && held.max === next.max &&
+        held.allow === next.allow
+      ) {
+        return state;
+      }
+      const loops = at === -1
+        ? [...state.loops, next]
+        : state.loops.map((loop, index) => index === at ? next : loop);
+      return {
+        steps: state.steps,
+        loops,
+        past: [...state.past, snapshot(state)],
+        future: [],
+      };
+    }
     case "reset":
       return {
         steps: [...action.steps],
+        loops: [],
         past: [],
         future: [],
       };
@@ -203,17 +308,19 @@ export function editorReducer(
       if (state.past.length === 0) return state;
       const previous = state.past[state.past.length - 1];
       return {
-        steps: previous,
+        steps: previous.steps,
+        loops: previous.loops,
         past: state.past.slice(0, -1),
-        future: [state.steps, ...state.future],
+        future: [snapshot(state), ...state.future],
       };
     }
     case "redo": {
       if (state.future.length === 0) return state;
       const next = state.future[0];
       return {
-        steps: next,
-        past: [...state.past, state.steps],
+        steps: next.steps,
+        loops: next.loops,
+        past: [...state.past, snapshot(state)],
         future: state.future.slice(1),
       };
     }

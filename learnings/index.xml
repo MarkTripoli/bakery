@@ -112,6 +112,8 @@
   <entry file="stale-shallow-entry-survives-unshallow.xml" scope="project" />
   <entry file="evidence-lane-not-named-file.xml" scope="project" />
   <entry file="mise-wrapper-hangs-cli.xml" scope="project" />
+  <entry file="seat-home-rewrite-breaks-toolchain-lookups.xml" scope="project" />
+  <entry file="hard-link-copies-mutate-the-original.xml" scope="project" />
   <entry file="ci-rerun-reuses-the-event-payload.xml" scope="project" />
   <entry file="pr-ci-runs-the-gate-route-only.xml" scope="project" />
   <entry file="catalog-change-runs-both-generators.xml" scope="project" />
