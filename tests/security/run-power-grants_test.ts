@@ -49,7 +49,7 @@ async function open() {
     "human.approval",
   );
   const ask = (intent: string, questionId: string) =>
-    api(fixture, fixture.cookie, "POST", `/v1/runs/${run.runId}/requests`, {
+    api(fixture, approver.cookie, "POST", `/v1/runs/${run.runId}/requests`, {
       recipientId: guest.principalId,
       intent,
       questionId,
@@ -345,6 +345,68 @@ Deno.test("a developer outside the named audience still cannot read or decide a 
       await cleanupAuthFixture(o.fixture.pgDatabase, [outsider.email]);
     }
   } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a person hands on only a decision they could make themselves, never one they were handed", async () => {
+  const o = await open();
+  const bystander = await addMember(o.fixture, "Bystander", "developer");
+  try {
+    const askAs = (
+      cookie: string,
+      recipientId: string,
+      intent: string,
+      questionId: string,
+    ) =>
+      api(o.fixture, cookie, "POST", `/v1/runs/${o.run.runId}/requests`, {
+        recipientId,
+        intent,
+        questionId,
+      });
+    const refused = async (response: Response) => {
+      const text = await response.text();
+      assertEquals(response.status, 403, text);
+      assertEquals(text.includes("request_power_not_held"), true, text);
+    };
+    await refused(
+      await askAs(bystander.cookie, o.guest.principalId, "approve", o.approval),
+    );
+    await refused(
+      await askAs(bystander.cookie, o.guest.principalId, "answer", o.question),
+    );
+    await refused(
+      await askAs(o.fixture.cookie, o.guest.principalId, "approve", o.approval),
+    );
+    const handed = await askAs(
+      o.approver.cookie,
+      bystander.principalId,
+      "approve",
+      o.approval,
+    );
+    assertEquals(handed.status, 201, await handed.text());
+    assertEquals(
+      (await o.get(bystander.cookie, `/v1/approvals/${o.approval}`)).status,
+      200,
+    );
+    await refused(
+      await askAs(bystander.cookie, o.guest.principalId, "approve", o.approval),
+    );
+    assertEquals(
+      (await o.get(o.guest.cookie, `/v1/approvals/${o.approval}`)).status,
+      404,
+    );
+    const guestRows = await o.fixture.pgDatabase.query(
+      `select 1 from bakery.run_power_grants
+        where organization_id = $1 and principal_id = $2
+       union all
+       select 1 from bakery.person_requests
+        where organization_id = $1 and recipient_id = $2`,
+      [o.fixture.organizationId, o.guest.principalId],
+    );
+    assertEquals(guestRows.rows.length, 0);
+  } finally {
+    await cleanupAuthFixture(o.fixture.pgDatabase, [bystander.email]);
     await o.finish();
   }
 });

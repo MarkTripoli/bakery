@@ -38,7 +38,7 @@ async function open() {
     approver.principalId,
   );
   const ask = (payload: Record<string, unknown>) =>
-    api(fixture, fixture.cookie, "POST", `/v1/runs/${run.runId}/requests`, {
+    api(fixture, approver.cookie, "POST", `/v1/runs/${run.runId}/requests`, {
       recipientId: guest.principalId,
       ...payload,
     });
@@ -308,6 +308,70 @@ Deno.test("a review or take-over request must name something of this run that ca
       201,
     );
     assertEquals((await o.powers()).length, 2);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("the ledger records each request and who ended it", async () => {
+  const o = await open();
+  try {
+    assertEquals(
+      (await o.ask({ intent: "approve", questionId: o.approval })).status,
+      201,
+    );
+    assertEquals(
+      (await o.ask({ intent: "answer", questionId: o.question })).status,
+      201,
+    );
+    const decided = await api(
+      o.fixture,
+      o.guest.cookie,
+      "POST",
+      `/v1/approvals/${o.approval}/decision`,
+      { decision: "approve", expectedVersion: 1 },
+    );
+    assertEquals(decided.status, 200, await decided.clone().text());
+    const answered = await api(
+      o.fixture,
+      o.approver.cookie,
+      "PUT",
+      `/v1/questions/${o.question}/answer`,
+      { answer: { text: "main" } },
+    );
+    assertEquals(answered.status, 200, await answered.clone().text());
+    const rows = await o.fixture.pgDatabase.query<{
+      kind: string;
+      decided_by: string;
+      text: string;
+      detail: Record<string, unknown>;
+    }>(
+      `select kind, decided_by, text, detail from bakery.decisions_ledger
+        where organization_id = $1 and run_id = $2 and kind like 'request%'
+        order by kind, text`,
+      [o.fixture.organizationId, o.run.runId],
+    );
+    assertEquals(
+      rows.rows.map((row) => [row.kind, row.text, row.decided_by]),
+      [
+        ["request", "answer", o.approver.principalId],
+        ["request", "approve", o.approver.principalId],
+        ["request_handled", "answer", o.approver.principalId],
+        ["request_handled", "approve", o.guest.principalId],
+      ],
+    );
+    const handled = rows.rows.filter((row) => row.kind === "request_handled");
+    assertEquals(
+      handled.map((row) => [
+        row.detail.status,
+        row.detail.recipientId,
+        row.detail.byRecipient,
+      ]),
+      [
+        ["answered", o.guest.principalId, false],
+        ["handled", o.guest.principalId, true],
+      ],
+    );
   } finally {
     await o.finish();
   }

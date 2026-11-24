@@ -22,6 +22,20 @@ export const AGENT_ASK_OWN_RUN_ONLY = "agent_ask_own_run_only";
 /** An agent asked a person, role or group no live ask grant names. */
 export const AGENT_ASK_AUDIENCE_NOT_GRANTED = "agent_ask_audience_not_granted";
 
+export const REQUEST_POWER_NOT_HELD = "request_power_not_held";
+
+type QuestionAudience = Readonly<
+  { type: string; principalIds?: readonly string[] }
+>;
+
+function decidesItself(
+  audience: QuestionAudience | null,
+  principalId: string,
+): boolean {
+  if (audience === null || audience.type !== "principals") return true;
+  return (audience.principalIds ?? []).includes(principalId);
+}
+
 /**
  * Requests on a run (issue #456, chapter 25 section 19).
  *
@@ -430,8 +444,10 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
       subject_type: string | null;
       status: string;
       expires_at: Date | null;
+      audience: QuestionAudience | null;
     }>(
-      `select kind, subject_type, status, expires_at from bakery.questions
+      `select kind, subject_type, status, expires_at, audience
+         from bakery.questions
         where organization_id = $1 and id = $2 and run_id = $3`,
       [organizationId, value.questionId, run.id],
     );
@@ -442,6 +458,12 @@ export async function createRunRequest(context: ActionContext, input: unknown) {
         "request_question_not_found",
         "No such approval or question on this run",
       );
+    }
+    if (
+      attributeAction(context, principalId).actorKind === "person" &&
+      !decidesItself(found.audience, principalId)
+    ) {
+      forbidden(REQUEST_POWER_NOT_HELD);
     }
     const kindMatches = power === "approve"
       ? found.kind === "approval" && found.subject_type === "run_step"
@@ -1190,13 +1212,15 @@ export async function completeRequestsOnQuestion(
   questionId: string,
   status: "answered" | "handled",
 ): Promise<void> {
-  await transaction.query(
+  const closed = await transaction.query<ClosedRequest>(
     `update bakery.person_requests
         set status = $3, responded_at = now(), updated_at = now(),
             version = version + 1
-      where organization_id = $1 and target_id = $2 and status = 'open'`,
+      where organization_id = $1 and target_id = $2 and status = 'open'
+      returning ${CLOSED_REQUEST_COLUMNS}`,
     [organizationId, questionId, status],
   );
+  await recordHandled(transaction, organizationId, principalId, closed.rows);
   await transaction.query(
     `update bakery.run_power_grants
         set revoked_at = now(), revoked_by = $3, version = version + 1
@@ -1218,14 +1242,16 @@ export async function handleRequestsOnTarget(
   intent: "review" | "take_over",
   targetId: string,
 ): Promise<void> {
-  await transaction.query(
+  const closed = await transaction.query<ClosedRequest>(
     `update bakery.person_requests
         set status = 'handled', responded_at = now(), updated_at = now(),
             version = version + 1
       where organization_id = $1 and recipient_id = $2 and target_id = $3
-        and intent = $4 and status = 'open'`,
+        and intent = $4 and status = 'open'
+      returning ${CLOSED_REQUEST_COLUMNS}`,
     [organizationId, principalId, targetId, intent],
   );
+  await recordHandled(transaction, organizationId, principalId, closed.rows);
 }
 
 /** The same for a take-over: the request names the step by run and step key. */
@@ -1236,12 +1262,52 @@ export async function handleTakeOverRequests(
   runId: string,
   stepKey: string,
 ): Promise<void> {
-  await transaction.query(
+  const closed = await transaction.query<ClosedRequest>(
     `update bakery.person_requests
         set status = 'handled', responded_at = now(), updated_at = now(),
             version = version + 1
       where organization_id = $1 and recipient_id = $2 and run_id = $3
-        and step_key = $4 and intent = 'take_over' and status = 'open'`,
+        and step_key = $4 and intent = 'take_over' and status = 'open'
+      returning ${CLOSED_REQUEST_COLUMNS}`,
     [organizationId, principalId, runId, stepKey],
   );
+  await recordHandled(transaction, organizationId, principalId, closed.rows);
+}
+
+type ClosedRequest = {
+  id: string;
+  task_id: string;
+  run_id: string;
+  recipient_id: string;
+  intent: RequestIntent;
+  status: "answered" | "handled";
+};
+
+const CLOSED_REQUEST_COLUMNS =
+  "id, task_id, run_id, recipient_id, intent, status";
+
+async function recordHandled(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  handledBy: string,
+  requests: readonly ClosedRequest[],
+): Promise<void> {
+  for (const request of requests) {
+    await ledger(transaction, {
+      organizationId,
+      taskId: request.task_id,
+      runId: request.run_id,
+      kind: "request_handled",
+      decidedBy: handledBy,
+      text: request.intent,
+      detail: {
+        requestId: request.id,
+        recipientId: request.recipient_id,
+        intent: request.intent,
+        status: request.status,
+        handledBy,
+        byRecipient: handledBy === request.recipient_id,
+      },
+    });
+  }
 }
