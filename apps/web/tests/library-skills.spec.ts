@@ -263,10 +263,16 @@ for (
       await expect(access.getByText("Weekly digest")).toBeVisible();
       await expect(
         access.getByText(
-          "Step “Draft the digest” · version 2 of this skill · since Nov 18, 2026",
+          "Step “Write the task brief” · version 2 of this skill · since Nov 18, 2026",
         ),
       ).toBeVisible();
-      await expect(access.getByRole("button")).toHaveCount(0);
+      await expect(access.getByRole("link", { name: "Weekly digest" }))
+        .toHaveAttribute(
+          "href",
+          /\/library\/workflows\/00000000-0000-4000-8000-000000000702$/,
+        );
+      await expect(access.getByRole("button")).toHaveText(["Stop allowing"]);
+      await expect(access.getByText(/\/steps\//)).toHaveCount(0);
       // The original's name is a link to its page, in the same sentence.
       const origin = page.getByTestId("skill-origin");
       await expect(origin).toContainText(
@@ -276,10 +282,13 @@ for (
         .toHaveAttribute("href", `${skillPage(IDS.writingGuide)}`);
       await expect(
         page.getByRole("button", {
-          name: /Stop|Edit|Check for updates|Make a copy/,
+          name: /Edit|Check for updates|Make a copy/,
         }),
       )
         .toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: /^Stop allowing/ }),
+      ).toHaveCount(1);
       await page.mouse.move(700, 700);
       await still(page, "skill-private");
       // Following the link opens the original, after the still is taken.
@@ -563,6 +572,344 @@ for (
           "The workflows, agents, skills and remembered facts Bakery uses to do work.",
         ),
       ).toBeVisible();
+    });
+  });
+}
+
+for (
+  const viewport of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "phone", width: 390, height: 844 },
+  ]
+) {
+  test.describe(`${viewport.name}: skill actions`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    const writes = (seen: readonly Seen[]) =>
+      seen.filter((entry) => entry.method !== "GET");
+    const menu = (page: Page) =>
+      page.getByRole("dialog", { name: /More actions for/ });
+    const menuItem = (page: Page, name: string) =>
+      menu(page).getByRole("button", { name });
+    const more = (page: Page) =>
+      page.getByTestId("skill-actions").getByRole("button");
+
+    test("a skill shared by Bakery can only be copied, and says why", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.writingGuide));
+      await expect(page.getByTestId("skill-shared-note")).toHaveText(
+        "Skills shared by Bakery cannot be changed. Make a copy to edit it.",
+      );
+      await expect(page.getByRole("button", { name: "Make a copy" }))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: /More/ })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Rename" })).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await still(page, "skill-shared-actions");
+      expect(writes(seen)).toEqual([]);
+    });
+
+    test("a copy is for the reader alone unless they manage the Library, and opens the new skill", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.writingGuide));
+      await page.getByRole("button", { name: "Make a copy" }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByText("Who is the copy for?")).toBeVisible();
+      await expect(dialog.getByRole("radio", { name: "Organization" }))
+        .toBeDisabled();
+      await expect(
+        dialog.getByText(
+          "Only people who manage the Library can add organization skills.",
+        ),
+      ).toBeVisible();
+      await expect(dialog.getByRole("radio", { name: "Private" }))
+        .toBeChecked();
+      await expect(dialog.getByLabel("Name")).toHaveValue(
+        "Writing guide (my copy)",
+      );
+      await page.mouse.move(700, 700);
+      await still(page, "skill-copy-dialog");
+      await dialog.getByLabel("Name").fill("Writing guide for me");
+      await dialog.getByRole("button", { name: "Make a copy" }).click();
+      await expect(page).toHaveURL(
+        /\/library\/skills\/00000000-0000-4000-8000-000000000\d+$/,
+      );
+      await expect(page.getByTestId("skill-toast")).toContainText(
+        "Copied as Writing guide for me.",
+      );
+      await expect(
+        page.getByRole("heading", { name: "Writing guide for me" }),
+      ).toBeVisible();
+      const copied = writes(seen);
+      expect(copied).toHaveLength(1);
+      expect(copied[0].method).toBe("POST");
+      expect(copied[0].path).toBe(`/v1/skills/${IDS.writingGuide}/copy`);
+      expect(copied[0].body).toMatchObject({
+        name: "Writing guide for me",
+        scope: "personal",
+      });
+      await page.mouse.move(700, 700);
+      await still(page, "skill-copied");
+    });
+
+    test("an administrator's copy defaults to the organization", async ({ page }) => {
+      const { seen } = await skillsFixture(page, { role: "admin" });
+      await page.goto(skillPage(IDS.writingGuide));
+      await page.getByRole("button", { name: "Make a copy" }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByRole("radio", { name: "Organization" }))
+        .toBeChecked();
+      const name = dialog.getByLabel("Name");
+      await expect(name).toHaveValue("Writing guide (Fixture Org)");
+      await dialog.getByRole("radio", { name: "Private" }).check();
+      await expect(name).toHaveValue("Writing guide (my copy)");
+      await dialog.getByRole("radio", { name: "Organization" }).check();
+      await expect(name).toHaveValue("Writing guide (Fixture Org)");
+      await name.fill("Our own guide");
+      await dialog.getByRole("radio", { name: "Private" }).check();
+      await expect(name).toHaveValue("Our own guide");
+      await dialog.getByRole("radio", { name: "Organization" }).check();
+      await dialog.getByRole("button", { name: "Make a copy" }).click();
+      await expect(page.getByTestId("skill-toast")).toBeVisible();
+      expect(writes(seen)[0].body?.scope).toBe("organization");
+      expect(writes(seen)[0].body?.name).toBe("Our own guide");
+    });
+
+    test("a copy with a name that is taken says so and keeps the dialog", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.writingGuide));
+      await page.getByRole("button", { name: "Make a copy" }).click();
+      const dialog = page.getByRole("dialog");
+      await dialog.getByLabel("Name").fill("Release notes");
+      await dialog.getByRole("button", { name: "Make a copy" }).click();
+      await expect(
+        dialog.getByText(
+          "A skill with this name already exists. Choose another name.",
+        ),
+      ).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`${IDS.writingGuide}$`));
+      await dialog.getByLabel("Name").fill("");
+      await dialog.getByRole("button", { name: "Make a copy" }).click();
+      await expect(dialog.getByText("Give it a name.")).toBeVisible();
+      expect(writes(seen)).toHaveLength(1);
+    });
+
+    test("a copy that fails says nothing changed and can be tried again", async ({ page }) => {
+      await skillsFixture(page, { copyStatus: 500 });
+      await page.goto(skillPage(IDS.writingGuide));
+      await page.getByRole("button", { name: "Make a copy" }).click();
+      const dialog = page.getByRole("dialog");
+      await dialog.getByRole("button", { name: "Make a copy" }).click();
+      await expect(dialog.getByRole("alert")).toHaveText(
+        "That did not work and nothing changed. Try again in a moment.",
+      );
+      await expect(dialog.getByRole("button", { name: "Make a copy" }))
+        .toBeEnabled();
+    });
+
+    test("the owner of a private skill renames it with its version, and a taken name is refused", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.houseStyle));
+      await expect(page.getByRole("button", { name: "Make a copy" }))
+        .toHaveCount(0);
+      await more(page).click();
+      await expect(menuItem(page, "Rename")).toBeVisible();
+      const viewport = page.viewportSize()!;
+      for (const name of ["Rename", "Make a copy", "Turn off"]) {
+        const box = (await menuItem(page, name).boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+      }
+      await still(page, "skill-more-menu");
+      await menuItem(page, "Rename").click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByLabel("Name")).toHaveValue("House style");
+      await page.mouse.move(700, 700);
+      await still(page, "skill-rename-dialog");
+      await dialog.getByLabel("Name").fill("Release notes");
+      await dialog.getByRole("button", { name: "Rename" }).click();
+      await expect(
+        dialog.getByText(
+          "A skill with this name already exists. Choose another name.",
+        ),
+      ).toBeVisible();
+      await dialog.getByLabel("Name").fill("Company style");
+      await dialog.getByRole("button", { name: "Rename" }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: "Company style" }))
+        .toBeVisible();
+      const patches = writes(seen).filter((entry) => entry.method === "PATCH");
+      expect(patches).toHaveLength(2);
+      expect(patches[1].path).toBe(`/v1/skills/${IDS.houseStyle}`);
+      expect(patches[1].body).toMatchObject({ name: "Company style" });
+      expect(patches[1].ifMatch).toContain("1");
+    });
+
+    test("turning a skill off asks first, then offers Turn on", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.houseStyle));
+      await more(page).click();
+      await menuItem(page, "Turn off").click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog.getByText("Turn off House style?")).toBeVisible();
+      await expect(dialog.getByText(/keep working with the version they have/))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "skill-turn-off-dialog");
+      await dialog.getByRole("button", { name: "Turn off" }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(page.getByText("Turned off", { exact: true })).toBeVisible();
+      expect(writes(seen).at(-1)?.body).toMatchObject({ enabled: false });
+      await more(page).click();
+      await expect(menuItem(page, "Turn off"))
+        .toHaveCount(0);
+      await menuItem(page, "Turn on").click();
+      await expect(page.getByTestId("skill-toast")).toContainText(
+        "House style is turned on.",
+      );
+      await expect(page.getByText("Turned off", { exact: true })).toHaveCount(
+        0,
+      );
+      expect(writes(seen).at(-1)?.body).toMatchObject({ enabled: true });
+    });
+
+    test("a change the server refuses says nothing changed", async ({ page }) => {
+      await skillsFixture(page, { updateStatus: 403 });
+      await page.goto(skillPage(IDS.houseStyle));
+      await more(page).click();
+      await menuItem(page, "Turn off").click();
+      const dialog = page.getByRole("alertdialog");
+      await dialog.getByRole("button", { name: "Turn off" }).click();
+      await expect(dialog.getByRole("alert")).toHaveText(
+        "You cannot change House style.",
+      );
+      await expect(page.getByText("Turned off", { exact: true })).toHaveCount(
+        0,
+      );
+    });
+
+    test("an organization skill is changed by an administrator and copied by anyone else", async ({ page }) => {
+      await skillsFixture(page);
+      await page.goto(skillPage(IDS.releaseNotes));
+      await expect(page.getByRole("button", { name: "Make a copy" }))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: /More/ })).toHaveCount(0);
+      await skillsFixture(page, { role: "admin" });
+      await page.reload();
+      await expect(page.getByRole("button", { name: "Make a copy" }))
+        .toHaveCount(0);
+      await more(page).click();
+      await expect(menu(page).getByRole("button")).toHaveText([
+        "Rename",
+        "Make a copy",
+        "Turn off",
+      ]);
+    });
+  });
+}
+
+for (
+  const viewport of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "phone", width: 390, height: 844 },
+  ]
+) {
+  test.describe(`${viewport.name}: stop allowing`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+    const stopButton = (page: Page) =>
+      page.getByRole("button", {
+        name: "Stop allowing Weekly digest to use this skill",
+      });
+    const writes = (seen: readonly Seen[]) =>
+      seen.filter((entry) => entry.method !== "GET");
+
+    test("Keep working: Cancel sends nothing and the row stays", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.houseStyle));
+      await stopButton(page).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog.getByText("Stop Weekly digest using House style?"))
+        .toBeVisible();
+      await expect(
+        dialog.getByText(
+          "New runs of Weekly digest cannot start until someone changes the step “Write the task brief”.",
+        ),
+      ).toBeVisible();
+      await expect(
+        dialog.getByText(
+          "Runs already going finish with the version they started with.",
+        ),
+      ).toBeVisible();
+      await expect(dialog.getByText("Your skill and its files do not change."))
+        .toBeVisible();
+      await expect(
+        dialog.getByText(
+          "To allow it again, attach the skill to the step in the workflow editor.",
+        ),
+      ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "skill-stop-allowing-dialog");
+      await dialog.getByRole("button", { name: "Cancel" }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(stopButton(page)).toBeFocused();
+      expect(writes(seen)).toEqual([]);
+    });
+
+    test("Stop allowing deletes the grant with its version, drops the row and says so", async ({ page }) => {
+      const { seen } = await skillsFixture(page);
+      await page.goto(skillPage(IDS.houseStyle));
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop allowing",
+      }).click();
+      await expect(page.getByTestId("skill-toast")).toContainText(
+        "Weekly digest can no longer use House style.",
+      );
+      const access = page.getByTestId("skill-access");
+      await expect(access.getByText("Weekly digest")).toHaveCount(0);
+      await expect(
+        access.getByText(
+          "Only you can open and use this skill. To let a shared workflow use it, attach it to a step in that workflow.",
+        ),
+      ).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "skill-private-no-grants");
+      const deleted = writes(seen);
+      expect(deleted).toHaveLength(1);
+      expect(deleted[0].method).toBe("DELETE");
+      expect(deleted[0].path).toBe(
+        `/v1/skills/${IDS.houseStyle}/use-grants/00000000-0000-4000-8000-000000000701`,
+      );
+      expect(deleted[0].ifMatch).toContain("1");
+      await page.mouse.move(700, 700);
+      await still(page, "skill-stopped-allowing");
+    });
+
+    test("a grant already stopped elsewhere is the same result, not an error", async ({ page }) => {
+      await skillsFixture(page, { stopStatus: 404 });
+      await page.goto(skillPage(IDS.houseStyle));
+      await stopButton(page).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Stop allowing",
+      }).click();
+      await expect(page.getByTestId("skill-toast")).toContainText(
+        "Weekly digest can no longer use House style.",
+      );
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    });
+
+    test("a stop that fails says nothing changed and keeps the question open", async ({ page }) => {
+      await skillsFixture(page, { stopStatus: 500 });
+      await page.goto(skillPage(IDS.houseStyle));
+      await stopButton(page).click();
+      const dialog = page.getByRole("alertdialog");
+      await dialog.getByRole("button", { name: "Stop allowing" }).click();
+      await expect(dialog.getByRole("alert")).toHaveText(
+        "Weekly digest can still use House style. Nothing changed.",
+      );
+      await expect(dialog.getByRole("button", { name: "Stop allowing" }))
+        .toBeEnabled();
+      await expect(page.getByTestId("skill-toast")).toHaveCount(0);
     });
   });
 }

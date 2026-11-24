@@ -2584,6 +2584,69 @@ for (
       expect(savedSkills(seen).confirmed).toEqual([uuid(8101)]);
     });
 
+    test("the owner who stopped a workflow can allow it again; the confirmation says how to stop", async ({ page }) => {
+      const { skills } = await openSkills(page, {
+        skills: {
+          items: [
+            skill({
+              stepPath: "/steps/1",
+              skillVersionId: uuid(8101),
+              skillName: "Release notes",
+              revision: 3,
+              scope: "personal",
+              ownerDisplayName: "Ana Ruiz",
+              mine: true,
+              status: "stopped",
+            }),
+            skill({
+              stepPath: "/steps/1",
+              skillVersionId: uuid(8102),
+              skillName: "Paused notes",
+              revision: 1,
+              scope: "personal",
+              ownerDisplayName: "Ben Kim",
+              mine: false,
+              status: "stopped",
+            }),
+          ],
+        },
+        catalog: [
+          catalogSkill({
+            slug: "release-notes",
+            name: "Release notes",
+            activeVersionId: uuid(8101),
+            activeRevision: 3,
+            scope: "personal",
+          }),
+        ],
+      });
+      const mine = skills.getByRole("listitem").filter({
+        hasText: "Release notes",
+      });
+      await expect(mine.getByText("You stopped this workflow using it."))
+        .toBeVisible();
+      const theirs = skills.getByRole("listitem").filter({
+        hasText: "Paused notes",
+      });
+      await expect(
+        theirs.getByText(
+          "Its owner does not allow this workflow to use it. Only its owner can allow it.",
+        ),
+      ).toBeVisible();
+      await expect(theirs.getByRole("button", { name: "Allow again" }))
+        .toHaveCount(0);
+      await mine.getByRole("button", { name: "Allow again" }).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toContainText(
+        "Let this workflow use your private skill?",
+      );
+      await expect(dialog).toContainText(
+        "To stop later, open the skill and choose Stop allowing. New runs of this workflow then cannot start until this step is changed.",
+      );
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-skills-allow-again");
+    });
+
     test("removing a skill says so and Undo puts it back", async ({ page }) => {
       const { seen, skills } = await openSkills(page, {
         skills: { items: [skill({ stepPath: "/steps/1" })] },
