@@ -49,7 +49,6 @@ export type ProviderCredentialsSectionProps = {
   readonly status: ProviderCredentialsStatus;
   /** Where the provider's OAuth application is created, if it has a page for it. */
   readonly guideUrl?: string;
-  /** Whether a person can connect this provider yet; false adds the reason line. */
   readonly connectAvailable?: boolean;
   readonly onChange: (
     field: keyof ProviderCredentialValues,
