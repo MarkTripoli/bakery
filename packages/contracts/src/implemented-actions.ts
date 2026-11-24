@@ -856,6 +856,15 @@ export const blobUploadImplementedActions = Object.freeze(
 export const StorageImplementedAction = Object.freeze(
   {
     StorageFilesPut: "storageFiles.put",
+    StorageConnectionsMount: "storageConnections.mount",
+    StorageConnectionPathsList: "storageConnectionPaths.list",
+    StorageConnectionPathsStat: "storageConnectionPaths.stat",
+    StorageConnectionPathsRead: "storageConnectionPaths.read",
+    StorageConnectionSyncsCreate: "storageConnectionSyncs.create",
+    StorageConnectionSyncsList: "storageConnectionSyncs.list",
+    StorageConnectionSyncsPause: "storageConnectionSyncs.pause",
+    StorageConnectionSyncsResume: "storageConnectionSyncs.resume",
+    StorageConnectionExportsCreate: "storageConnectionExports.create",
     StorageFoldersCreate: "storageFolders.create",
     StorageEntriesCopy: "storageEntries.copy",
     StorageEntriesMove: "storageEntries.move",

@@ -1,4 +1,5 @@
 import { pluginBrokerRelayRoute } from "./plugin-broker-relay.ts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { pluginJobFilesRoute } from "./plugin-job-files.ts";
 import { type Context, Hono } from "hono";
 import type { EngineStepRunner } from "../workflow-adapter/engine-steps.ts";
@@ -53,11 +54,21 @@ import { events } from "./events.ts";
 import { workerPreviewRoute } from "./previews.ts";
 import { workerHandoffManifestRoute } from "./handoff-manifests.ts";
 import {
+  createLocalToolCallRoute,
   createToolInvocationRoute,
   EFFECTIVE_TOOLS_PATH,
   effectiveToolsRoute,
+  LOCAL_TOOL_CALL_OUTCOME_PATH,
+  LOCAL_TOOL_CALLS_PATH,
+  localToolCallOutcomeRoute,
   TOOL_INVOCATIONS_PATH,
 } from "./tool-invocations.ts";
+import {
+  LOCAL_MCP_CONNECTIONS_PATH,
+  LOCAL_MCP_SNAPSHOTS_PATH,
+  localMcpConnectionsRoute,
+  localMcpSnapshotRoute,
+} from "./local-mcp-discovery.ts";
 import { inputReadRoute } from "./input-read.ts";
 import { heartbeat } from "./heartbeat.ts";
 import { enrollWorker, registerWorker } from "./registration.ts";
@@ -115,6 +126,8 @@ export type ExecutionRoutesOptions = ExecutionRouteOptions & {
   ticketLabelWriter?: TicketLabelWriter;
   /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
   engineSteps?: EngineStepRunner;
+  storageLocalRoot?: string;
+  storageBlobStore?: OrganizationBlobStore;
   /** Validated artifact preview origin; absent fails previews closed. */
   artifactPreviewOrigin?: string;
   /** Artifact registry shared with the MCP catalog tools. */
@@ -228,6 +241,8 @@ export function createExecutionRoutes(
       ticketNoteWriter: options.ticketNoteWriter,
       ticketLabelWriter: options.ticketLabelWriter,
       engineSteps: options.engineSteps,
+      storageLocalRoot: options.storageLocalRoot,
+      storageBlobStore: options.storageBlobStore,
     });
     app.all("/api/inngest", inngest);
     app.all("/api/inngest/*", inngest);
@@ -489,6 +504,32 @@ export function createExecutionRoutes(
     app.post(
       TOOL_INVOCATIONS_PATH,
       workerRouteHandler(options, (context) => invokeTool(context, options)),
+    );
+    app.post(
+      LOCAL_MCP_CONNECTIONS_PATH,
+      workerRouteHandler(
+        options,
+        (context) => localMcpConnectionsRoute(context, options),
+      ),
+    );
+    app.post(
+      LOCAL_MCP_SNAPSHOTS_PATH,
+      workerRouteHandler(
+        options,
+        (context) => localMcpSnapshotRoute(context, options),
+      ),
+    );
+    const localToolCall = createLocalToolCallRoute(toolGateway);
+    app.post(
+      LOCAL_TOOL_CALLS_PATH,
+      workerRouteHandler(options, (context) => localToolCall(context, options)),
+    );
+    app.post(
+      LOCAL_TOOL_CALL_OUTCOME_PATH,
+      workerRouteHandler(
+        options,
+        (context) => localToolCallOutcomeRoute(context, options),
+      ),
     );
   }
   app.post(

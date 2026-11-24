@@ -927,6 +927,10 @@ test("the section has no accessibility violations and fits a 390px screen", asyn
 const nowCard = (page: Page) =>
   page.getByTestId("delivery-section").getByTestId("delivery-now");
 const notice = (page: Page) => page.getByTestId("delivery-approval-notice");
+const actions = (card: Locator) =>
+  card.getByRole("button").and(
+    card.locator("button:not(.ui-reference__plain)"),
+  );
 const button = (card: Locator, name: string) =>
   card.getByRole("button", { name, exact: true });
 
@@ -1862,6 +1866,27 @@ async function openMerge(
   return seen;
 }
 
+test("a confirmation opens on Cancel past a read-only field and a field that cannot take focus", async ({ page }) => {
+  await openMerge(page, { ...CLEAN, pullRequests: [pullRequestRow(482)] });
+  const now = nowCard(page);
+  await button(now, "Merge").click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Merge pull request #482?",
+  });
+  await button(dialog, "Cancel").click();
+  await expect(dialog).toBeHidden();
+  await page.locator("dialog", { hasText: "Merge pull request #482?" })
+    .evaluate((element) => {
+      const hidden = document.createElement("input");
+      hidden.hidden = true;
+      const readOnly = document.createElement("input");
+      readOnly.readOnly = true;
+      element.prepend(readOnly, hidden);
+    });
+  await button(now, "Merge").click();
+  await expect(button(dialog, "Cancel")).toBeFocused();
+});
+
 test("an approved candidate at the reviewed head offers Merge, asks first, and queues the candidate it saw once", async ({ page }) => {
   const scenario: Scenario = { ...CLEAN, pullRequests: [pullRequestRow(482)] };
   const seen = await openMerge(page, scenario, {
@@ -1884,6 +1909,7 @@ test("an approved candidate at the reviewed head offers Merge, asks first, and q
     "Bakery merges commit 91d0aa3 exactly, as a squash merge.",
   );
   await expect(dialog).toContainText("A merge cannot be undone from Bakery.");
+  await expect(button(dialog, "Cancel")).toBeFocused();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
   expect(seen.merges).toHaveLength(0);
@@ -1950,7 +1976,7 @@ test("a merging entry whose newest attempt is unknown is the unknown card with C
   const now = nowCard(page);
   await expect(now).toContainText("Bakery does not know whether this merged");
   await expect(button(now, "Check again")).toBeVisible();
-  await expect(now.getByRole("button")).toHaveCount(1);
+  await expect(actions(now)).toHaveCount(1);
 });
 
 for (
@@ -2030,8 +2056,7 @@ for (
     await expect(now).toContainText(title);
     await expect(now).toContainText(text);
     await expect(mergeStep(page)).toContainText("Bakery did not merge.");
-    // One primary action, or none: pressing it must be able to help.
-    const buttons = now.getByRole("button");
+    const buttons = actions(now);
     const links = now.getByRole("link", { name: /Open on GitHub/ });
     await expect(buttons).toHaveCount(action === "Merge again" ? 1 : 0);
     await expect(links).toHaveCount(action === "Open on GitHub" ? 1 : 0);
@@ -2088,7 +2113,7 @@ test("a stopped merge stops showing when the pull request's head changes", async
   const now = nowCard(page);
   await expect(now).toContainText("Not merged: the pull request changed");
   await expect(now).toContainText("now ends at 4be19c2");
-  await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(actions(now)).toHaveCount(0);
 });
 
 test("someone who may not merge is told so and is offered no button", async ({ page }) => {
@@ -2203,7 +2228,7 @@ test("a pull request that moved after the approval is not offered to merge, and 
   );
   await expect(now).toContainText("Commit 91d0aa3 was approved");
   await expect(now).toContainText("now ends at 4be19c2");
-  await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(actions(now)).toHaveCount(0);
   // The results, review and approval are marked as being for the older commit,
   // not shown as green for the commit the pull request no longer ends at.
   const section = page.getByTestId("delivery-section");
@@ -2428,7 +2453,7 @@ test("an approved commit with no check results says so, offers no Merge, and nev
     "Bakery merges only what was checked, and it has no check results for commit 91d0aa3. Open the pull request to see its checks.",
   );
   await expect(now).not.toContainText("Ready to merge");
-  await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(actions(now)).toHaveCount(0);
   await expect(now.getByRole("link", { name: /Open on GitHub/ }))
     .toHaveAttribute("href", "https://github.com/o/r/pull/482");
   expect(seen.merges).toHaveLength(0);
@@ -2571,8 +2596,8 @@ for (const [name, scenario] of MERGE_STILLS) {
         await stillOfSection(page, `merge-${name}-${size}-${scheme}.png`);
         await page.setViewportSize({ width, height });
         if (name === "ready") {
-          // The confirmation, with the focus ring on Cancel where it lands.
-          await button(nowCard(page), "Merge").click();
+          await button(nowCard(page), "Merge").focus();
+          await page.keyboard.press("Enter");
           const dialog = page.getByRole("alertdialog");
           await dialog.waitFor();
           await expect(button(dialog, "Cancel")).toBeFocused();

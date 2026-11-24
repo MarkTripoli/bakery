@@ -790,7 +790,7 @@ Deno.test("an inputs-only step gets no file scope from a live write grant; a def
         (tx) =>
           stepFilesForAttempt(tx, fixture.organizationId, narrow.attemptId),
       ),
-      { read: ["inputs"], write: ["outputs"] },
+      { read: ["inputs"], write: ["outputs"], connections: [] },
     );
     const narrowScopes = await mintedScopes(fixture, narrow.attemptId);
     assertEquals(
