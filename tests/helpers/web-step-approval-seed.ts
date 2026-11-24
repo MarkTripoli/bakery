@@ -6,18 +6,6 @@ import {
 import { requestHumanApproval } from "../../apps/server/src/modules/work/human-approval-store.ts";
 import type { PgTransactionClient } from "../../packages/persistence/src/postgres.ts";
 
-/**
- * Asks the person behind a run's waiting step, as the database owner, for
- * `apps/web/tests/step-approval-real-api.spec.ts`. No server path raises a
- * `run_step` approval while a run is going (only the integration tests call
- * `requestHumanApproval`), and a workflow with an approval wait is refused at
- * admission, so this calls `requestHumanApproval` for a run that waits on the
- * named step. The decision route, the run's outcome and the page are the real
- * server. Prints one JSON line with the approval id.
- *
- * Usage: `web-step-approval-seed.ts <runId> <stepKey> <prompt>` against the
- * stack named by `DATABASE_URL` (the owner URL `compose-up.sh` writes).
- */
 const [runId, stepKey, prompt] = Deno.args.map((value) => value.trim());
 if (!runId || !stepKey || !prompt) {
   console.error(

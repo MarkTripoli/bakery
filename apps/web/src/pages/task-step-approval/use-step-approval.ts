@@ -9,6 +9,8 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { runQueryOptions } from "../../api/query.ts";
 import { approvalStep, latestStepApproval, openStepApproval } from "./model.ts";
 
+const STEP_PAGES_MAX = 20;
+
 export function useStepApproval(taskId: string, runId: string | null) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -21,11 +23,25 @@ export function useStepApproval(taskId: string, runId: string | null) {
   const items = approvals.data?.items ?? [];
   const approval = runId === null ? null : openStepApproval(items, runId);
   const latest = runId === null ? null : latestStepApproval(items, runId);
+  const firstSteps = runStepsListQueryOptions(api, scope, runId ?? "", {
+    cursor: undefined,
+    limit: 25,
+  });
   const steps = useQuery({
-    ...runStepsListQueryOptions(api, scope, runId ?? "", {
-      cursor: undefined,
-      limit: 25,
-    }),
+    ...firstSteps,
+    queryFn: async (context) => {
+      let page = await firstSteps.queryFn!(context);
+      for (let read = 1; read < STEP_PAGES_MAX; read += 1) {
+        if (page.items.some((item) => item.status === "waiting")) break;
+        const next = page.nextCursor;
+        if (next === null) break;
+        page = await runStepsListQueryOptions(api, scope, runId ?? "", {
+          cursor: next,
+          limit: 25,
+        }).queryFn!(context);
+      }
+      return page;
+    },
     enabled: scoped && latest !== null,
   });
   const step = approvalStep(steps.data?.items ?? []);

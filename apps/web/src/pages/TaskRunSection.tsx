@@ -229,7 +229,9 @@ export function TaskRunSection(
   // A failed read of the choices still leaves the run waiting on a model.
   const waitingOnModel = waitingOffers.length > 0 || waiting.failed;
   const stepApproval = useStepApproval(taskId, runId);
-  const waitingOnYou = enabled && stepApproval.approval !== null;
+  const waitingOnYou = enabled && stepApproval.approval?.mayDecide === true;
+  const waitingOnOthers = enabled && stepApproval.approval !== null &&
+    !waitingOnYou;
   const approvalStepName = stepName(stepApproval.step?.stepKey ?? null);
   const outcome = runOutcome(stepApproval.latest, run.data?.status);
   const outcomePerson = outcome === null
@@ -413,6 +415,13 @@ export function TaskRunSection(
             {t("tasks.stepApproval.review", { step: approvalStepName })}
           </UI.Button>
         </>
+      );
+    }
+    if (waitingOnOthers && online) {
+      return (
+        <UI.Text data-placement="line">
+          {t("tasks.stepApproval.refusal.outside")}
+        </UI.Text>
       );
     }
     if (!online) {

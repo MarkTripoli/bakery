@@ -143,7 +143,12 @@ type State = {
   runStatus: string;
 };
 
-async function open(page: Page): Promise<State> {
+type OpenOptions = {
+  /** Pages of completed steps before the waiting one, to prove the read pages. */
+  stepsBefore?: number;
+};
+
+async function open(page: Page, options: OpenOptions = {}): Promise<State> {
   const state: State = {
     approvals: [approval()],
     decisions: [],
@@ -155,15 +160,30 @@ async function open(page: Page): Promise<State> {
     `**/v1/runs/${runId}`,
     (r) => r.fulfill({ json: { ...run, status: state.runStatus } }),
   );
+  const before = options.stepsBefore ?? 0;
+  let stepReads = 0;
   await page.route(
     `**/v1/runs/${runId}/steps*`,
-    (r) =>
-      r.fulfill({
+    (r) => {
+      stepReads += 1;
+      if (before > 0 && stepReads === 1) {
+        return r.fulfill({
+          json: {
+            items: Array.from(
+              { length: before },
+              (_, index) => stepRow(uuid(30 + index), "design", "completed"),
+            ),
+            nextCursor: "page-2",
+          },
+        });
+      }
+      return r.fulfill({
         json: list([
           stepRow(doneStepId, "design", "completed"),
           stepRow(waitingStepId, "signoff", "waiting"),
         ]),
-      }),
+      });
+    },
   );
   await page.route(`**/v1/runs/${runId}/controls`, (r) =>
     r.fulfill({
@@ -269,6 +289,15 @@ const decideAs = (state: State, decision: string) => {
     await route.fulfill({ json: state.approvals[0] });
   };
 };
+
+test("an approval past the first page of steps still names its step", async ({ page }) => {
+  await open(page, { stepsBefore: 25 });
+  await expect(
+    page.getByText("The signoff needs your approval before Bakery builds."),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Review the signoff" }))
+    .toBeVisible();
+});
 
 test("a run waiting at an approval step says so and offers the review", async ({ page }) => {
   await open(page);

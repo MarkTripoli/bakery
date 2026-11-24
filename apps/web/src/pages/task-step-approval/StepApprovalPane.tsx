@@ -39,6 +39,7 @@ export function StepApprovalPane(
   const step = stepName(read.step?.stepKey ?? null);
   const locked = phase === "deciding" || phase === "unknown";
   const open = read.approval !== null;
+  const mine = read.approval?.mayDecide === true;
   const timeOf = (iso: string) =>
     formatDate(new Date(iso), locale, { timeZone, timeStyle: "short" });
   const dateOf = (iso: string) =>
@@ -105,6 +106,11 @@ export function StepApprovalPane(
     ? { tone: "error" as const, text: refusalText() }
     : earlier !== null
     ? { tone: "information" as const, text: refusalText() }
+    : !mine && open
+    ? {
+      tone: "information" as const,
+      text: t("tasks.stepApproval.refusal.outside"),
+    }
     : null;
   const body = (
     <UI.PaneSection
@@ -147,7 +153,7 @@ export function StepApprovalPane(
       </UI.Stack>
     </UI.PaneSection>
   );
-  const footer = !open ? null : phase === "unknown"
+  const footer = !open || !mine ? null : phase === "unknown"
     ? (
       <UI.Button
         disabled={!online}

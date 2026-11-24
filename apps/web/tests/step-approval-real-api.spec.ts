@@ -5,16 +5,6 @@ import { expect, type Page, test } from "@playwright/test";
 import { submitUntilAccepted } from "./helpers/api-retry.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
 
-/**
- * Real-API proof of a workflow approval step on the task page, against the
- * stack described in `task-conversation-real-api.spec.ts`. The run waits on a
- * duration step and `tests/helpers/web-step-approval-seed.ts` asks the
- * approval for it, because the server raises no `run_step` approval itself and
- * refuses a workflow with an approval wait at admission. It proves, on the real
- * server and database, the page's wait line and pane, and the outcome the
- * decision route records for Approve, Request changes and Reject. It does not
- * prove that an approved run continues, and it does not prove a Deliver run.
- */
 const realApi = process.env.BAKERY_REAL_API === "1";
 const email = process.env.BAKERY_REAL_EMAIL ?? "fs26-admin@example.test";
 const password = process.env.BAKERY_REAL_PASSWORD ?? "Fs26-Admin-Passw0rd-1";
@@ -131,7 +121,6 @@ async function post<T>(
   return await response.json() as T;
 }
 
-/** A published workflow whose first step asks a person and whose second does nothing. */
 async function publishedWorkflow(page: Page): Promise<string> {
   const slug = `w1-proof-${crypto.randomUUID().slice(0, 8)}`;
   const workflow = await post<{ id: string }>(page, "/v1/workflows", {
@@ -167,7 +156,6 @@ async function publishedWorkflow(page: Page): Promise<string> {
   return version.id;
 }
 
-/** A task with a run on that workflow, paused at its sign-off. */
 async function waiting(page: Page): Promise<{ task: Task; runId: string }> {
   const versionId = await publishedWorkflow(page);
   const task = await post<Task>(page, "/v1/tasks", {

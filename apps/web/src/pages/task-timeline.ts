@@ -51,7 +51,6 @@ const KNOWN_STEPS = {
   implement: "tasks.timeline.step.implement",
 } as const;
 
-/** A step's name for people: the known title, else its key in words. */
 export function stepTitle(t: Translator, stepKey: string): string {
   const known = KNOWN_STEPS[stepKey as keyof typeof KNOWN_STEPS];
   return known ? t(known) : capitalized(stepName(stepKey));
