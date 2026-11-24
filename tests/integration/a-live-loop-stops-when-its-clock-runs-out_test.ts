@@ -80,7 +80,7 @@ loopTest(
       await world.check(1, HEADS[1], {});
       await world.fixture.pgDatabase.query(
         `update bakery.review_cycles
-            set created_at = created_at - interval '24 hours'
+            set created_at = created_at - interval '23 hours 30 minutes'
           where organization_id = $1 and run_id = $2`,
         [world.fixture.organizationId, world.runId],
       );
@@ -116,6 +116,25 @@ loopTest(
     }, {
       budgetLimitUsd: "12.00",
       plan: { repairs: 2, limits: { maxCostUsd: 10 } },
+    });
+  },
+);
+
+loopTest(
+  "a run naming no budget takes the ceiling, still inside the per-run cap",
+  async () => {
+    await withReviewedRun(async (world) => {
+      const { rows } = await world.fixture.pgDatabase.query<
+        { budget_limit_usd: string }
+      >(
+        `select budget_limit_usd from bakery.workflow_runs
+          where organization_id = $1 and id = $2`,
+        [world.fixture.organizationId, world.runId],
+      );
+      assertEquals(rows[0].budget_limit_usd, "200.000000");
+    }, {
+      budgetLimitUsd: null,
+      plan: { repairs: 2, limits: { maxCostUsd: 500 } },
     });
   },
 );

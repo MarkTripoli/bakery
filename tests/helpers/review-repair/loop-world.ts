@@ -405,7 +405,7 @@ const sha = (text: string) => sha256Hex(canonicalJson(text));
 export async function openLoopWorld(
   fixture: WorkerFixture,
   options: {
-    budgetLimitUsd?: string;
+    budgetLimitUsd?: string | null;
     maxUsd?: number;
     /**
      * Run the reviewed workflow as a compiled plan that repairs at most
@@ -449,7 +449,9 @@ export async function openLoopWorld(
       workflowVersionId: published.versionId,
       executionMode: "repository",
       repositoryProfileId: repository.profileId,
-      budgetLimitUsd: options.budgetLimitUsd ?? "12.00",
+      ...(options.budgetLimitUsd === null
+        ? {}
+        : { budgetLimitUsd: options.budgetLimitUsd ?? "12.00" }),
       inputs: {
         repositoryId: repository.repositoryId,
         brief: {
@@ -990,7 +992,7 @@ export async function openLoopWorld(
 export async function withReviewedRun<T>(
   work: (world: LoopWorld, seeded: SeededChecks) => Promise<T>,
   options: {
-    budgetLimitUsd?: string;
+    budgetLimitUsd?: string | null;
     maxUsd?: number;
     /** Run the reviewed workflow as a compiled plan (#397). */
     plan?: {

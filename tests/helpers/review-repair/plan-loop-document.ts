@@ -33,7 +33,6 @@ export function reviewedPlanDocument(options: {
   readonly name: string;
   readonly agents: Readonly<Record<string, string>>;
   readonly repairs: number;
-  /** Workflow-level limits the plan declares, as an author would write them. */
   readonly limits?: {
     readonly wallClock?: string;
     readonly maxCostUsd?: number;
