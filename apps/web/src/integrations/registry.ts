@@ -14,11 +14,13 @@
 import type { ProviderWebModule } from "@bakery/integration-sdk/web";
 import type { ProviderManifest } from "@bakery/integration-sdk/provider";
 import { linearWebProvider } from "@bakery/integration-linear/web";
+import { slackWebProvider } from "@bakery/integration-slack/web";
 
 /** Every provider the web tier can render, one entry each. */
 export const WEB_PROVIDERS = Object.freeze(
   [
     linearWebProvider,
+    slackWebProvider,
   ] as const satisfies readonly ProviderWebModule<ProviderManifest>[],
 );
 

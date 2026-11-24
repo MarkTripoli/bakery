@@ -3728,6 +3728,9 @@
   "integrations.linear.credentials.stale": "These details changed since this page loaded. Nothing was saved. Check the current details, then enter yours again.",
   "integrations.linear.credentials.loading": "Loading the Linear details.",
   "integrations.linear.credentials.loadError": "The Linear details could not be loaded.",
+  "integrations.slack.name": "Slack",
+  "integrations.slack.fields.client_id": "Client ID",
+  "integrations.slack.fields.client_secret": "Client secret",
   "settings.integrations.credentials.clientIdRequired": "Enter the client ID.",
   "settings.integrations.credentials.clientSecretRequired": "Enter the client secret.",
   "settings.integrations.credentials.callbackLabel": "Callback URL",
@@ -6819,5 +6822,8 @@
   "tasks.delivery.release.dialog.forbidden": "You do not have permission to deploy this repository. Ask an administrator.",
   "tasks.delivery.release.dialog.error": "Bakery could not go back to the last release. Try again.",
   "tasks.delivery.release.dialog.noAnswer": "Bakery did not answer, so it may already be going back. You can press Go back again; it repeats the same request.",
-  "tasks.delivery.release.dialog.reason.empty": "Write why you are going back."
+  "tasks.delivery.release.dialog.reason.empty": "Write why you are going back.",
+  "integrations.slack.permission.read": "Bakery can read the channels and messages this bot can see in Slack.",
+  "integrations.slack.permission.write": "Bakery can post messages in the channels you selected.",
+  "integrations.slack.permission.other": "Slack granted {scope}, which Bakery does not use yet."
 }

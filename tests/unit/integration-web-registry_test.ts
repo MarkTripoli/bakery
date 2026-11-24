@@ -8,6 +8,8 @@ import {
   webProviderFor,
 } from "../../apps/web/src/integrations/registry.ts";
 import { webProviderDefects } from "@bakery/integration-sdk/web";
+import type { ProviderWebModule } from "@bakery/integration-sdk/web";
+import type { ProviderManifest } from "@bakery/integration-sdk/provider";
 import { catalogs, createTranslator, englishCatalog } from "@bakery/i18n";
 import { supportedLocales } from "@bakery/i18n";
 
@@ -96,7 +98,11 @@ Deno.test("each web module's manifest is the one its provider is deployed with",
 });
 
 Deno.test("every web module is well formed for its connect arm", () => {
-  for (const module of WEB_PROVIDERS) {
+  for (
+    const module of WEB_PROVIDERS as readonly ProviderWebModule<
+      ProviderManifest
+    >[]
+  ) {
     assertEquals(
       webProviderDefects(module),
       [],

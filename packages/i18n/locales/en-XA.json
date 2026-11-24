@@ -6819,5 +6819,11 @@
   "machines.add.open": "⟦Ôþëñ {name} ŧ⟧",
   "machines.add.another": "⟦Àðð àñôŧĥëŕ ɱàçĥïñë ŧëšŧ⟧",
   "machines.add.byHandPrefix": "⟦Ôŕ⟧",
-  "machines.add.byHand": "⟦šëŧ ûþ ƀÿ ĥàñð ŧë⟧"
+  "machines.add.byHand": "⟦šëŧ ûþ ƀÿ ĥàñð ŧë⟧",
+  "integrations.slack.name": "⟦Šļàçķ⟧",
+  "integrations.slack.fields.client_id": "⟦Çļïëñŧ ÏÐ ŧ⟧",
+  "integrations.slack.fields.client_secret": "⟦Çļïëñŧ šëçŕëŧ ŧë⟧",
+  "integrations.slack.permission.read": "⟦Ɓàķëŕÿ çàñ ŕëàð ŧĥë çĥàññëļš àñð ɱëššàĝëš ŧĥïš ƀôŧ çàñ šëë ïñ Šļàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "integrations.slack.permission.write": "⟦Ɓàķëŕÿ çàñ þôšŧ ɱëššàĝëš ïñ ŧĥë çĥàññëļš ÿôû šëļëçŧëð. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "integrations.slack.permission.other": "⟦Šļàçķ ĝŕàñŧëð {scope}, ŵĥïçĥ Ɓàķëŕÿ ðôëš ñôŧ ûšë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ ç⟧"
 }
