@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { Avatar } from "../atoms/Avatar.tsx";
 import { IconGlyph, type IconGlyphName } from "../atoms/IconGlyph.tsx";
 import { VisuallyHidden } from "../atoms/VisuallyHidden.tsx";
@@ -44,7 +44,7 @@ export type NotificationRowProps = {
   readonly id: string;
   /** Outlines the row once when it was arrived at from `/notifications?item=`. */
   readonly highlighted?: boolean;
-  readonly onSelect?: () => void;
+  readonly onSelect?: (event: MouseEvent<HTMLAnchorElement>) => void;
   /**
    * The row's catalogued state. It is derived (highlighted, unavailable
    * destination, unread, read) unless the caller names one, which only

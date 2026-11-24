@@ -58,6 +58,8 @@ export type NotificationListResponse = ClientOutputMap["Page<Notification>"];
 export type NotificationResponse = ClientOutputMap["Notification"];
 export type NotificationCountResponse = ClientOutputMap["NotificationCount"];
 export type NotificationTargetResponse = ClientOutputMap["NotificationTarget"];
+export type NotificationUndoMarkAllReadResponse =
+  ClientOutputMap["NotificationUndoMarkAllReadResult"];
 export type NotificationMarkAllReadResponse =
   ClientOutputMap["NotificationMarkAllReadResult"];
 export type NotificationCursorQuery = ClientInputMap["NotificationCursorQuery"];
@@ -1843,6 +1845,12 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<NotificationMarkAllReadResponse>>;
+  readonly undoMarkAllNotificationsRead: (options: {
+    readonly organizationId: string;
+    readonly batchId: string;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<NotificationUndoMarkAllReadResponse>>;
   readonly createTask: (options: {
     readonly organizationId: string;
     readonly input: TaskCreate;
@@ -6243,6 +6251,26 @@ export function createBakeryApiClient({
       try {
         const data = await client.actions["notifications.markAllRead"](
           { readBefore: options.readBefore },
+          {
+            signal: options.signal,
+            ...(options.idempotencyKey === undefined
+              ? {}
+              : { idempotencyKey: options.idempotencyKey }),
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async undoMarkAllNotificationsRead(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["notifications.undoMarkAllRead"](
+          { batchId: options.batchId },
           {
             signal: options.signal,
             ...(options.idempotencyKey === undefined
