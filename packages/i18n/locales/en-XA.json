@@ -6878,11 +6878,11 @@
   "delivery.chart.asTable": "⟦Šĥôŵ àš ŧàƀļë ŧë⟧",
   "delivery.chart.asChart": "⟦Šĥôŵ àš çĥàŕŧ ŧë⟧",
   "delivery.chart.noGap": "⟦Ëṽëŕÿ {unit} ŵàš ɱëàšûŕëð ïñ ŧĥïš þëŕïôð. ŧëšŧ çôþÿ ŧë⟧",
-  "delivery.chart.gapCount": "⟦Ñô ðàŧà ƒôŕ {count} ðàÿš ({gaps}). À ĝàþ ïš ñôŧ žëŕô. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "delivery.chart.gap": "⟦ñô ðàŧà, {from} ŧô {to} ŧëšŧ ç⟧",
   "delivery.chart.gapDay": "⟦ñô ðàŧà, {date} ŧëš⟧",
   "delivery.chart.column.day": "⟦Ðàÿ⟧",
   "delivery.chart.column.value": "⟦Ṽàļûë⟧",
   "delivery.chart.noData": "⟦Ñô ðàŧà…⟧",
-  "delivery.chart.show": "⟦Šĥôŵ⟧"
+  "delivery.chart.show": "⟦Šĥôŵ⟧",
+  "delivery.chart.gapCount": "⟦{count, plural, one {No data for 1 day ({gaps}).} other {No data for # days ({gaps}).}} À ĝàþ ïš ñôŧ žëŕô. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

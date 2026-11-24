@@ -427,15 +427,19 @@ function OverTime(props: DeliveryScreenProps) {
       label={translate(figure.label)}
       points={series?.points ?? []}
       showMenu={
-        <UI.Menu
-          aria-label={translate("delivery.chart.show")}
-          items={FIGURES.map((entry) => ({
-            id: entry.show,
+        <UI.Combobox
+          appearance="filter"
+          id="delivery-chart-show"
+          label={translate("delivery.chart.show")}
+          onChange={(event) =>
+            props.onShow(
+              isDeliveryShow(event.target.value) ? event.target.value : null,
+            )}
+          options={FIGURES.map((entry) => ({
             label: translate(entry.label),
-            selected: entry.show === shown,
+            value: entry.show,
           }))}
-          onSelect={(id) => props.onShow(isDeliveryShow(id) ? id : null)}
-          variant="selection"
+          value={shown}
         />
       }
       table={

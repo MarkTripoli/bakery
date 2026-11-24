@@ -200,6 +200,25 @@ for (
       await still(page, "delivery-range-reversed");
     });
 
+    test("over time: one line, a named gap, the Show menu and the table", async ({ page }) => {
+      await deliveryFixture(page);
+      await page.goto("/delivery?show=tasks");
+      await expect(page.getByRole("heading", { name: "Over time" }))
+        .toBeVisible();
+      const chart = page.getByTestId("delivery-chart");
+      await expect(chart).toBeVisible();
+      await expect(page.getByText(/No data for 1 day \(/)).toBeVisible();
+      await expect(page.getByText(/A gap is not zero/)).toBeVisible();
+      await page.getByRole("button", { name: "Show as table" }).click();
+      const table = page.getByRole("table", { name: "Tasks delivered" });
+      await expect(table).toBeVisible();
+      await expect(table.getByText("No data")).toHaveCount(1);
+      await page.getByRole("button", { name: "Show as chart" }).click();
+      await expect(page.getByTestId("delivery-chart")).toBeVisible();
+      await page.mouse.move(700, 700);
+      await still(page, "delivery-over-time");
+    });
+
     test("every metrics read is made for the page's organization", async ({ page }) => {
       const seen = await deliveryFixture(page);
       await page.goto("/delivery");
