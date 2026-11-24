@@ -215,6 +215,28 @@ if os.environ.get("ZOOM"):
                 off.append((n["role"], n["name"][:30], x - fx, w, fw))
     check("at 200% zoom nothing runs off the window sideways", not off, str(off[:3]))
 
+if state == "switched-long-address":
+    window_x, window_width = (0, 0)
+    if frames:
+        framed = Atspi.Component.get_extents(frames[0]["node"], Atspi.CoordType.SCREEN)
+        window_x, window_width = framed.x, framed.width
+
+    def text_of(node):
+        try:
+            return Atspi.Text.get_text(node, 0, -1) or ""
+        except Exception:
+            return ""
+
+    notice = [n for n in page if "now uses" in text_of(n["node"])]
+    check("the notice with a long address is on the page", len(notice) >= 1)
+    ends = []
+    for n in notice:
+        last = Atspi.Text.get_character_count(n["node"]) - 1
+        box = Atspi.Text.get_character_extents(n["node"], last, Atspi.CoordType.SCREEN)
+        ends.append(box.x + box.width)
+    check("a long address in the notice wraps instead of running off the window",
+          bool(ends) and all(end <= window_x + window_width for end in ends), str(ends))
+
 def activate(name):
     button = next((n for n in snapshot() if n["role"] == "push button" and n["name"] == name), None)
     if button is None:
