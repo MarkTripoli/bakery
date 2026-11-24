@@ -299,7 +299,8 @@ async function commentFacts(
   );
 }
 
-const SHARED_GRANT_COLUMNS = `grant_row.revoked_at is null as "grantLive",
+const SHARED_GRANT_COLUMNS = `grant_row.id is not null
+         and grant_row.revoked_at is null as "grantLive",
        granter.display_name as "sharedByName",
        grant_row.granted_at as "sharedAt"`;
 
