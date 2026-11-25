@@ -15,18 +15,26 @@ export type DetailRowProps =
      * column is unchanged.
      */
     labelWidth?: "default" | "wide";
+    stackOnPhone?: boolean;
   };
 
 /** A label and its value on one line, such as "Role  payments-api". */
 export function DetailRow(
-  { children, label, labelWidth = "default", tone = "default", ...props }:
-    DetailRowProps,
+  {
+    children,
+    label,
+    labelWidth = "default",
+    stackOnPhone = false,
+    tone = "default",
+    ...props
+  }: DetailRowProps,
 ) {
   return (
     <div
       className="ui-detail-row"
       {...props}
       data-label-width={labelWidth === "wide" ? "wide" : undefined}
+      data-stack={stackOnPhone ? "phone" : undefined}
       data-state="default"
       data-ui-component="detailRow"
       data-variant={tone}
