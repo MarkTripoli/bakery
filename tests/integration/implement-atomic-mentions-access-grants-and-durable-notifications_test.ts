@@ -218,6 +218,29 @@ async function world() {
   };
 }
 
+Deno.test("a mention's notification names its message in the anchor, so the inbox can land on it", async () => {
+  const w = await world();
+  try {
+    const writer = await w.human("Wren Writer", "developer");
+    const reader = await w.human("Rey Reader", "developer");
+    const chat = await w.conversation(writer);
+    const sent = await w.send(writer, chat, { mentions: [reader.principalId] });
+    assertEquals(sent.status, 201, await sent.clone().text());
+    const messageId = (await sent.json() as { id: string }).id;
+    const rows = await w.fixture.pgDatabase.query<
+      { target_anchor: string | null }
+    >(
+      "select target_anchor from bakery.notifications where target_id = $1",
+      [messageId],
+    );
+    assertEquals(rows.rows.map((row) => row.target_anchor), [
+      `message:${messageId}`,
+    ]);
+  } finally {
+    await w.close();
+  }
+});
+
 Deno.test("duplicate sends racing one mention commit the same rows as one send", async () => {
   const w = await world();
   try {
@@ -515,6 +538,39 @@ Deno.test("mark all read at a cutoff leaves a racing arrival unread, and the oth
       200,
     );
     assert(unreadAgain.revision > current.revision);
+  } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("a message mention opens its task at the message, including one stored with a sequence number", async () => {
+  const fixture = await openSocketFixture();
+  try {
+    const messageId = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.messages (
+         id, organization_id, conversation_id, author_id, message_type, body,
+         client_message_id, sequence, intent
+       ) values ($1, $2, $3, $4, 'user', 'look', $5, 1, 'discussion')`,
+      [
+        messageId,
+        fixture.organizationId,
+        fixture.conversationId,
+        fixture.principalId,
+        crypto.randomUUID(),
+      ],
+    );
+    const item = await arrive(fixture, messageId);
+    await fixture.pgDatabase.query(
+      "update bakery.notifications set target_anchor = '1' where id = $1",
+      [item.id],
+    );
+    const target = await body<
+      { status: string; path: string | null; anchor: string | null }
+    >(inbox(fixture, "GET", `/v1/notifications/${item.id}/target`), 200);
+    assertEquals(target.status, "available");
+    assertEquals(target.path, `/tasks/${fixture.taskId}`);
+    assertEquals(target.anchor, `message:${messageId}`);
   } finally {
     await fixture.close();
   }

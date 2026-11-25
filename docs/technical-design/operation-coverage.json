@@ -583,6 +583,10 @@
         "module": "mcp",
         "migration": "apps/server/src/modules/mcp/migrations/bakery/0344_capability_binding_seats.sql"
       },
+      "conversation_feed_sequences": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0369_session_tool_feed.sql"
+      },
       "coordination_lanes": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0120_coordination_plans.sql"
@@ -971,6 +975,10 @@
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0049_execution_output.sql"
       },
+      "session_tool_feed_events": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0369_session_tool_feed.sql"
+      },
       "skill_draft_files": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0276_skill_drafts.sql"
@@ -987,9 +995,21 @@
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0255_private_skills.sql"
       },
+      "slack_event_receipts": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0368_slack_installations_and_receipts.sql"
+      },
       "slack_identity_attempts": {
         "module": "integrations",
         "migration": "apps/server/src/modules/integrations/migrations/bakery/0153_slack_identity_attempts.sql"
+      },
+      "slack_installations": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0368_slack_installations_and_receipts.sql"
+      },
+      "slack_thread_bindings": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0368_slack_installations_and_receipts.sql"
       },
       "ssoProvider": {
         "module": "auth",

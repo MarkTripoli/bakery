@@ -95,9 +95,7 @@ Deno.test("AC: the session feed returns typed, ordered items keyed by session", 
 
     assertEquals(feed.items.length, bodies.length);
     for (const item of feed.items) {
-      // Every item is keyed by the session it was read from.
       assertEquals(item.sessionId, ids.agentSessionId);
-      // `kind` names exactly one non-null payload, and the others stay null.
       const payloads = [
         "message",
         "terminal",
@@ -116,13 +114,11 @@ Deno.test("AC: the session feed returns typed, ordered items keyed by session", 
       );
     }
 
-    // Ordered forward by sequence, strictly ascending.
     const sequences = feed.items.map((item) => BigInt(item.sequence));
     for (let index = 1; index < sequences.length; index += 1) {
       assert(sequences[index] > sequences[index - 1], "sequence ascends");
     }
 
-    // An agent_request message is a delivered input, everything else a message.
     const delivered = feed.items.filter((item) =>
       item.kind ===
         "delivered_input"
@@ -135,7 +131,6 @@ Deno.test("AC: the session feed returns typed, ordered items keyed by session", 
       messages.map((item) => item.message?.body),
       [bodies[0], bodies[2]],
     );
-    // The feed carries no secret material: redaction is a projection, not a flag.
     for (const item of feed.items) {
       assertEquals(item.redacted, false);
     }
@@ -196,9 +191,6 @@ Deno.test("AC: a malformed cursor is refused rather than silently ignored", () =
     assertEquals(problem.code, "INVALID_CURSOR");
   }));
 
-// A sentinel that looks like secret material a projection must not expose. It is
-// checked against the WHOLE serialized body, not one field: the defect worth
-// catching is a sentinel surfacing in a field nobody remembered.
 const LEASE_SENTINEL = "lease_2f9c4d1e-8a76-4b03-9c55-SENTINEL-DO-NOT-LEAK";
 
 Deno.test("AC: the projection exposes no column it does not name", () =>
@@ -207,10 +199,6 @@ Deno.test("AC: the projection exposes no column it does not name", () =>
     const taskId = await seedTask(fixture, seed);
     const ids = await seedLiveAttempt(fixture, seed, taskId, []);
 
-    // Put the sentinel in a column the feed deliberately does NOT select.
-    // `comment_context` is stored beside a message and is not part of the feed's
-    // projection, so it stands in for any column carrying secret material: if
-    // the projection ever widens to `select *`, this sentinel leaks.
     const inserted = await fixture.pgDatabase.query<{ id: string }>(
       `insert into bakery.messages
          (organization_id, conversation_id, message_type, body,
@@ -237,7 +225,6 @@ Deno.test("AC: the projection exposes no column it does not name", () =>
     assertEquals(response.status, 200);
     const serialized = await response.text();
 
-    // The message itself is visible; the unselected column beside it is not.
     assertEquals(serialized.includes("a visible message"), true);
     assertEquals(
       serialized.includes(LEASE_SENTINEL),
@@ -245,10 +232,6 @@ Deno.test("AC: the projection exposes no column it does not name", () =>
       "the feed exposed a column its projection does not name",
     );
 
-    // The mapper is the gate that actually holds: a column the SELECT happens to
-    // return still cannot reach the wire, because each item is built from named
-    // fields. This pins that shape, so widening the SELECT alone cannot start
-    // leaking and spreading a raw row into the item cannot pass unnoticed.
     const feed = JSON.parse(serialized) as Feed;
     const expected = [
       "id",

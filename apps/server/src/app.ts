@@ -881,7 +881,10 @@ export function createApp(options: {
           runControlRegistry,
           // Asking people from a step (#414): the same run request registry
           // the routes mount, so an agent's ask runs the person's handler.
-          createRunRequestActionRegistry(options.pgDatabase),
+          createRunRequestActionRegistry(
+            options.pgDatabase,
+            options.config.auth.secret,
+          ),
           // Connection drafts (#448 S9b): the same management registry the
           // routes mount, so a draft runs the same handler and guard.
           createMcpActionRegistry(options.pgDatabase, {
@@ -1136,6 +1139,7 @@ export function createApp(options: {
     createRunRequestRoutes({
       database: options.pgDatabase,
       session: tokenSession,
+      cursorSecret: options.config.auth.secret,
     }),
   );
   app.route(

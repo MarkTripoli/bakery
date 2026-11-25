@@ -48,7 +48,12 @@ import { requestHumanApproval, stopRun } from "../work/human-approval-store.ts";
 import {
   budgetContentDigest,
   type BudgetPolicy,
+  reserveToolCallCost,
   reserveWorkflowAction,
+  settleExistingToolCallCost,
+  settleRunToolCallCosts,
+  settleToolCallCost,
+  type ToolCallCostReservation,
 } from "../work/budget.ts";
 import { pinStepContextInputs } from "./step-context-inputs.ts";
 import {
@@ -896,6 +901,10 @@ async function finishPlanRunIn(
   if (!carriesPlanRuntime(context.runSnapshot)) {
     throw new Error("WORKFLOW_PLAN_RUN_REQUIRED");
   }
+  await settleRunToolCallCosts(transaction, {
+    organizationId: context.organizationId,
+    runId: context.runId,
+  });
   await projectRunEnd(
     transaction,
     context,
@@ -1662,40 +1671,52 @@ function stepRetryAtOf(dispatch: unknown): Date | null {
   return Number.isNaN(time) ? null : new Date(time);
 }
 
-/**
- * Settles a step a pack runner owns (the delivery steps today) the way a
- * projection is settled: no job, no budget. The
- * target is called outside any transaction, between two short ones: the first
- * decides the step is still due, the second records what the call answered.
- * A step that is not done keeps its row pending and carries the time of its
- * next look, so a crash anywhere in between replays into the same effect key.
- * The row also carries when it first waited; past the wait limit the step
- * fails with `ENGINE_STEP_TIMED_OUT` instead of waiting without end.
- */
 async function admitEngineStep(
   database: PgDatabase,
   runner: EngineStepRunner | undefined,
+  budgetPolicy: BudgetPolicy | undefined,
   key: LogicalInvocationKey,
   owner: EngineOwner | undefined,
 ): Promise<AdmissionRecord | null> {
   const due = await withPgTransaction(database, async (transaction) => {
     await requireEngineOwner(transaction, key.runId, owner);
-    const row = await loadLogical(transaction, key) as AdmissionStepRow;
+    const row = await loadLogical(transaction, key, true) as AdmissionStepRow;
     if (key.actionVersion !== row.workflowVersionId) {
       throw new StandardError({ code: "STATE_CONFLICT" });
     }
     if (!carriesPlanRuntime(row.runSnapshot)) return null;
-    if (planDispatchFromRow(row.stepDispatch) === null) return null;
+    const dispatch = planDispatchFromRow(row.stepDispatch);
+    if (dispatch === null) return null;
     const { action, input } = actionAndInputFromSnapshot(row);
     if (!isEngineSettledStepAction(action)) return null;
     const eligible = eligibleRunStatuses[row.runStatus] &&
       eligibleStepStatuses[row.stepStatus] && row.cancelRequestedAt === null;
-    return { row, action, input, eligible: eligible === true };
+    if (eligible !== true && action === "tool.call") {
+      await settleExistingToolCallCost(transaction, {
+        organizationId: row.organizationId,
+        runStepId: row.runStepId,
+        action,
+      });
+    }
+    return {
+      row,
+      action,
+      input,
+      limits: dispatch.limits,
+      eligible: eligible === true,
+    };
   });
   if (due === null) return null;
   if (!due.eligible) return { key, terminal: true };
   if (runner === undefined || !runner.handles(due.action)) {
     return await withPgTransaction(database, async (transaction) => {
+      if (due.action === "tool.call") {
+        await settleExistingToolCallCost(transaction, {
+          organizationId: due.row.organizationId,
+          runStepId: due.row.runStepId,
+          action: due.action,
+        });
+      }
       await projectFailure(
         transaction,
         due.row,
@@ -1707,8 +1728,14 @@ async function admitEngineStep(
   }
   const requestedBy = due.row.requestedBy;
   if (requestedBy === null) {
-    // A deployment and its evidence belong to a person; a run with none has no one to answer for it.
     return await withPgTransaction(database, async (transaction) => {
+      if (due.action === "tool.call") {
+        await settleExistingToolCallCost(transaction, {
+          organizationId: due.row.organizationId,
+          runStepId: due.row.runStepId,
+          action: due.action,
+        });
+      }
       await projectFailure(
         transaction,
         due.row,
@@ -1718,6 +1745,61 @@ async function admitEngineStep(
       return { key, terminal: true };
     });
   }
+  const costReservation = await withPgTransaction<
+    ToolCallCostReservation | null | false
+  >(database, async (transaction) => {
+    await requireEngineOwner(transaction, key.runId, owner);
+    const row = await loadLogical(transaction, key, true) as AdmissionStepRow;
+    const eligible = eligibleRunStatuses[row.runStatus] &&
+      eligibleStepStatuses[row.stepStatus] && row.cancelRequestedAt === null;
+    if (eligible !== true) {
+      if (due.action === "tool.call") {
+        await settleExistingToolCallCost(transaction, {
+          organizationId: row.organizationId,
+          runStepId: row.runStepId,
+          action: due.action,
+        });
+      }
+      return false;
+    }
+    const maxCostUsd = due.limits?.maxCostUsd;
+    if (due.action !== "tool.call" || maxCostUsd === undefined) return null;
+    const contentDigest = await budgetContentDigest({
+      action: due.action,
+      actionVersion: key.actionVersion,
+      input: due.input,
+      maxCostUsd,
+    });
+    await transaction.query("savepoint tool_call_cost_reservation");
+    try {
+      const reservation = await reserveToolCallCost(transaction, {
+        organizationId: row.organizationId,
+        runId: row.runId,
+        runStepId: row.runStepId,
+        action: due.action,
+        maxCostUsd,
+        contentDigest,
+        policy: budgetPolicy,
+      });
+      await transaction.query("release savepoint tool_call_cost_reservation");
+      return reservation;
+    } catch (error) {
+      await transaction.query(
+        "rollback to savepoint tool_call_cost_reservation",
+      );
+      const refusal = budgetAdmissionRefusal(error);
+      if (!refusal) throw error;
+      await transaction.query("release savepoint tool_call_cost_reservation");
+      await projectFailure(
+        transaction,
+        row,
+        `${refusal.code}:${refusal.message}`,
+        owner,
+      );
+      return false;
+    }
+  });
+  if (costReservation === false) return { key, terminal: true };
   const result = await runner.run({
     organizationId: due.row.organizationId,
     runId: due.row.runId,
@@ -1733,15 +1815,25 @@ async function admitEngineStep(
   return await withPgTransaction(database, async (transaction) => {
     await requireEngineOwner(transaction, key.runId, owner);
     const row = await loadLogical(transaction, key, true) as AdmissionStepRow;
-    // Cancelled, ended or finished meanwhile: whatever the call answered, the
-    // step is no longer ours to write.
     if (
       !eligibleRunStatuses[row.runStatus] ||
       !eligibleStepStatuses[row.stepStatus] || row.cancelRequestedAt !== null
     ) {
+      if (costReservation) {
+        await settleToolCallCost(transaction, {
+          organizationId: row.organizationId,
+          intentId: costReservation.intentId,
+        });
+      }
       return { key, terminal: true };
     }
     if (result.kind === "completed") {
+      if (costReservation) {
+        await settleToolCallCost(transaction, {
+          organizationId: row.organizationId,
+          intentId: costReservation.intentId,
+        });
+      }
       return await finishEngineStep(
         transaction,
         row,
@@ -1752,6 +1844,12 @@ async function admitEngineStep(
       );
     }
     if (result.kind === "failed") {
+      if (costReservation) {
+        await settleToolCallCost(transaction, {
+          organizationId: row.organizationId,
+          intentId: costReservation.intentId,
+        });
+      }
       await projectFailure(
         transaction,
         row,
@@ -1760,13 +1858,18 @@ async function admitEngineStep(
       );
       return { key, terminal: true };
     }
-    // Not done for too long: nobody else will end this wait, so the engine does.
     const waitingSince = stepWaitingSinceOf(row.stepDispatch);
     if (
       waitingSince !== null &&
       Date.now() - waitingSince.getTime() >=
         (runner.pacing?.(due.action)?.waitLimitMs ?? ENGINE_STEP_WAIT_LIMIT_MS)
     ) {
+      if (costReservation) {
+        await settleToolCallCost(transaction, {
+          organizationId: row.organizationId,
+          intentId: costReservation.intentId,
+        });
+      }
       await projectFailure(
         transaction,
         row,
@@ -1775,8 +1878,6 @@ async function admitEngineStep(
       );
       return { key, terminal: true };
     }
-    // Not done: the row stays pending, started, with the time of the next look
-    // and, the first time, the time it began to wait.
     await transaction.query(
       `update bakery.run_steps
           set dispatch = dispatch || jsonb_build_object(
@@ -1784,14 +1885,16 @@ async function admitEngineStep(
                 to_char(
                   (clock_timestamp() + ($3::integer * interval '1 millisecond'))
                     at time zone 'UTC',
-                  'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                  'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'
                 ),
                 'stepWaitingSince',
                 coalesce(
-                  dispatch ->> 'stepWaitingSince',
-                  to_char(
-                    clock_timestamp() at time zone 'UTC',
-                    'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                  dispatch -> 'stepWaitingSince',
+                  to_jsonb(
+                    to_char(
+                      clock_timestamp() at time zone 'UTC',
+                      'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"'
+                    )
                   )
                 )
               ),
@@ -2267,6 +2370,7 @@ export function createBakeryPostgresWorkflowRepository(options: {
       const delivery = await admitEngineStep(
         options.database,
         options.engineSteps,
+        options.budgetPolicy,
         key,
         owner,
       );

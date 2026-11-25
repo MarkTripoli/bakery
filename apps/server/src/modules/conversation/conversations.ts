@@ -68,7 +68,7 @@ function pathId(context: ActionContext): string {
 
 async function emit(
   transaction: PgTransactionClient,
-  context: ActionContext,
+  context: Pick<ActionContext, "requestId" | "traceId">,
   facts: {
     organizationId: string;
     principalId: string;
@@ -162,25 +162,25 @@ export async function getConversation(context: ActionContext) {
   return toConversation(row);
 }
 
-export async function createConversation(
-  context: ActionContext,
-  rawInput: unknown,
-) {
-  const { transaction, organizationId, principalId } = requireWorkTransaction(
-    context,
-  );
-  const input = rawInput as {
-    applicationId?: string | null;
-    repositoryId?: string | null;
-    title: string;
-  };
-  let applicationId = input.applicationId ?? null;
-  const repositoryId = input.repositoryId ?? null;
+export async function createConversationWithEvents(
+  transaction: PgTransactionClient,
+  facts: {
+    readonly organizationId: string;
+    readonly principalId: string;
+    readonly applicationId?: string | null;
+    readonly repositoryId?: string | null;
+    readonly title: string;
+    readonly requestId: string;
+    readonly traceId: string;
+  },
+): Promise<ConversationRow> {
+  let applicationId = facts.applicationId ?? null;
+  const repositoryId = facts.repositoryId ?? null;
   if (repositoryId !== null) {
     const repository = await transaction.query<{ application_id: string }>(
       `select application_id from bakery.repositories
         where organization_id = $1 and id = $2 and archived_at is null`,
-      [organizationId, repositoryId],
+      [facts.organizationId, repositoryId],
     );
     const owner = repository.rows[0]?.application_id;
     if (!owner) notFound();
@@ -194,7 +194,7 @@ export async function createConversation(
       `select 1 from bakery.applications
         where organization_id = $1 and id = $2 and archived_at is null
         for share`,
-      [organizationId, applicationId],
+      [facts.organizationId, applicationId],
     );
     if (application.rows.length !== 1) notFound();
   }
@@ -204,21 +204,45 @@ export async function createConversation(
      ) values ($1, $2, $3, $4, $5)
      returning ${COLUMNS}`,
     [
-      organizationId,
+      facts.organizationId,
       applicationId,
       repositoryId,
-      input.title.trim(),
-      principalId,
+      facts.title.trim(),
+      facts.principalId,
     ],
   );
   const row = inserted.rows[0];
   if (!row) throw new Error("CONVERSATION_INSERT_FAILED");
-  await emit(transaction, context, {
-    organizationId,
-    principalId,
+  await emit(transaction, facts, {
+    organizationId: facts.organizationId,
+    principalId: facts.principalId,
     operation: "conversations.create",
     eventType: "conversations.created",
     row,
+  });
+  return row;
+}
+
+export async function createConversation(
+  context: ActionContext,
+  rawInput: unknown,
+) {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  const input = rawInput as {
+    applicationId?: string | null;
+    repositoryId?: string | null;
+    title: string;
+  };
+  const row = await createConversationWithEvents(transaction, {
+    organizationId,
+    principalId,
+    applicationId: input.applicationId,
+    repositoryId: input.repositoryId,
+    title: input.title,
+    requestId: context.requestId,
+    traceId: context.traceId,
   });
   return toConversation(row);
 }

@@ -188,6 +188,10 @@ Deno.test("a recorded dispatch is read back as the fields a job is built from", 
     planDispatchFromRow(recorded({ agentVersionId: agentId })).agentVersionId,
     agentId,
   );
+  assertEquals(
+    planDispatchFromRow(recorded({ limits: { maxCostUsd: 0.1 } })).limits,
+    { maxCostUsd: 0.1 },
+  );
 });
 
 Deno.test("a missing or malformed recorded dispatch is a state conflict, never a guess", () => {
@@ -206,6 +210,12 @@ Deno.test("a missing or malformed recorded dispatch is a state conflict, never a
       recorded({ retry: { maxAttempts: 0 } }),
       recorded({ retry: { maxAttempts: 1.5 } }),
       recorded({ retry: { maxAttempts: "2" } }),
+      recorded({ limits: null }),
+      recorded({ limits: { maxCostUsd: "0.1" } }),
+      recorded({ limits: { maxCostUsd: Number.POSITIVE_INFINITY } }),
+      recorded({ limits: { unknown: 1 } }),
+      recorded({ limits: { maxCostUsd: -0.1 } }),
+      recorded({ limits: { maxFindings: 1.5 } }),
       (() => {
         const { input: _input, ...withoutInput } = recorded();
         return withoutInput;

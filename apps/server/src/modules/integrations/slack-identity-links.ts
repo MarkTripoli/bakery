@@ -290,6 +290,44 @@ export async function findSlackIdentityLink(
   };
 }
 
+export async function lockSlackIdentityLink(
+  transaction: PgTransactionClient,
+  input: { readonly organizationId: string } & SlackLinkIdentity,
+): Promise<SlackIdentityLink | undefined> {
+  if (!isUuid(input.organizationId) || !validIdentity(input)) return undefined;
+  const linked = await transaction.query<{
+    principalId: string;
+    state: "active" | "revoked";
+  }>(
+    `select principal_id as "principalId", state
+       from bakery.external_identity_links
+      where organization_id = $1 and provider = $2
+        and external_app_id = $3 and identity_scope = $4
+        and external_user_id = $5
+      for share`,
+    [
+      input.organizationId,
+      SLACK_LINK_PROVIDER,
+      input.appId,
+      input.teamId,
+      input.userId,
+    ],
+  );
+  const link = linked.rows[0];
+  if (link === undefined) return undefined;
+  const membership = await transaction.query<{ status: string }>(
+    `select status from bakery.organization_memberships
+      where organization_id = $1 and principal_id = $2
+      for share`,
+    [input.organizationId, link.principalId],
+  );
+  return {
+    principalId: link.principalId,
+    state: link.state,
+    memberCurrent: membership.rows[0]?.status === "active",
+  };
+}
+
 /**
  * The lookup `resolveSlackActor` takes, bound to a transaction and an
  * organization. A subject that does not name its app finds nothing: a link is

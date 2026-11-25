@@ -105,8 +105,6 @@ type Preview = {
   version: number;
 };
 
-// Stills pin the clock (BAKERY_STILL_FIXED=1, with -g on the still tests) so
-// every state reads the same time on desktop and phone. Timer tests never do.
 const FIXED = Date.parse("2026-11-20T09:00:00.000Z");
 const pinned = process.env.BAKERY_STILL_FIXED === "1";
 const now = () => (pinned ? FIXED : Date.now());
@@ -646,20 +644,24 @@ test("a grant that is not used in its 30 seconds is dropped and the card says to
 });
 
 test("a preview that reaches its time limit while the page is open changes without a reload", async ({ page }) => {
+  const start = now();
+  if (!pinned) await page.clock.install({ time: new Date(start) });
   const world = await prepare(page, {
-    current: preview({ expiresAt: new Date(now() + 3000).toISOString() }),
+    current: preview({
+      expiresAt: new Date(start + 60_000).toISOString(),
+    }),
   });
   await page.goto(`/tasks/${taskId}`);
   await expect(card(page).getByText("Running", { exact: true })).toBeVisible({
     timeout: 20_000,
   });
-  // The server now reads it as expired; the page was sent nothing.
   world.current = preview({
     status: "expired",
     stopReason: "time_limit",
-    stoppedAt: new Date(now()).toISOString(),
-    expiresAt: new Date(now() - 1000).toISOString(),
+    stoppedAt: new Date(start + 60_000).toISOString(),
+    expiresAt: new Date(start + 60_000).toISOString(),
   });
+  await page.clock.fastForward(60_500);
   await expect(card(page).getByText("Ended", { exact: true })).toBeVisible({
     timeout: 15_000,
   });

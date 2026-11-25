@@ -360,22 +360,15 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
         </UI.Text>
       )}
       {reasons.length > 0 && (
-        <UI.InlineNotice
+        <UI.TaskSetupNotice
+          heading={labels.setupHeading}
           id={setupId}
+          reasons={reasons.map((reason) => ({
+            id: reason,
+            content: labels.setupRequired[reason] ?? labels.setupUnknown,
+          }))}
           ref={setupRef}
-          role="none"
-          tabIndex={-1}
-          tone="warning"
-        >
-          <UI.Stack gap="compact">
-            <UI.Text>{labels.setupHeading}</UI.Text>
-            {reasons.map((reason) => (
-              <UI.Text key={reason}>
-                {labels.setupRequired[reason] ?? labels.setupUnknown}
-              </UI.Text>
-            ))}
-          </UI.Stack>
-        </UI.InlineNotice>
+        />
       )}
       {phase === "unknown"
         ? (

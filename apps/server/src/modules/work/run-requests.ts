@@ -5,9 +5,15 @@ import {
   appendDomainEvent,
   type PgTransactionClient,
 } from "@bakery/persistence";
+import {
+  type CursorBinding,
+  decodeCursor,
+  encodeCursor,
+} from "../../platform/cursor.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import {
   accessScopeClause,
+  BINDING_ROLES,
   bindingAllows,
   bindingCovers,
 } from "../auth/application/bindings.ts";
@@ -121,6 +127,13 @@ const RUN_GRANT_PERMISSIONS = [
     ),
   ),
 ];
+const RUN_READ_PERMISSION = permissionForAction("runs.get");
+const RUN_READ_SYSTEM_ROLES = SYSTEM_ROLES.filter((role) =>
+  roleHasPermission(role, RUN_READ_PERMISSION)
+);
+const RUN_READ_BINDING_ROLES = BINDING_ROLES.filter((role) =>
+  roleHasPermission(role, RUN_READ_PERMISSION)
+);
 
 type RequestRow = {
   id: string;
@@ -210,6 +223,8 @@ function toRunRequest(row: RequestRow) {
 type RunFacts = {
   id: string;
   task_id: string;
+  application_id: string;
+  repository_id: string | null;
   requested_by: string | null;
   task_created_by: string | null;
   workflow_owner: string | null;
@@ -236,8 +251,8 @@ async function loadRun(
     scopeSql = ` and ${scoped.sql}`;
   }
   const found = await transaction.query<RunFacts>(
-    `select run.id, run.task_id, run.requested_by,
-            task.created_by as task_created_by,
+    `select run.id, run.task_id, task.application_id, task.repository_id,
+            run.requested_by, task.created_by as task_created_by,
             definition.owner_principal_id as workflow_owner
        from bakery.workflow_runs as run
        join bakery.tasks as task
@@ -1428,6 +1443,323 @@ export async function myRunRequests(context: ActionContext) {
     [organizationId, runId, principalId, REQUEST_LIST_LIMIT],
   );
   return { requests: found.rows.map(toRunRequest) };
+}
+
+const PROJECT_RUN_PRINCIPALS_SQL = `
+  select distinct membership.principal_id
+    from bakery.organization_memberships as membership
+    join bakery.principals as principal on principal.id = membership.principal_id
+    left join bakery.organization_roles as custom
+      on custom.organization_id = membership.organization_id
+     and custom.id = membership.custom_role_id
+   where membership.organization_id = $1 and membership.status = 'active'
+     and principal.principal_type = 'human' and principal.disabled_at is null
+     and (
+       membership.role = any($3::text[])
+       or $4 = any(coalesce(custom.permissions, array[]::text[]))
+       or exists (
+         select 1
+           from bakery.access_bindings as binding
+          where binding.organization_id = membership.organization_id
+            and binding.principal_id = membership.principal_id
+            and binding.role_key = any($5::text[])
+            and (
+              binding.application_id = $6
+              or ($7::uuid is not null and binding.repository_id = $7)
+            )
+       )
+     )`;
+
+type RunAccessRow = {
+  id: string;
+  principal_id: string;
+  display_name: string;
+  via: string;
+  granted_by: string | null;
+  granted_by_name: string | null;
+  granted_by_kind: "person" | "agent" | "workflow";
+  created_at: Date | string;
+  cursor_created_at: string;
+  cursor_position: number;
+  source_request_id: string | null;
+  audience_name: string | null;
+  version: number;
+};
+
+type RunAccessPowerRow = {
+  principal_id: string;
+  intent: Exclude<RequestIntent, "fyi">;
+  step_key: string | null;
+  target_id: string;
+  expires_at: Date | string;
+};
+
+const RUN_ACCESS_ORDERING = "openRequest:desc,createdAt:desc,id:desc";
+
+export async function listRunAccess(
+  context: ActionContext,
+  input: { cursor?: string; limit?: number },
+  cursorSecret: string,
+) {
+  const {
+    transaction,
+    organizationId,
+    principalId,
+    accessScope,
+  } = requireWorkTransaction(context);
+  const run = await loadRun(context, transaction, organizationId, accessScope);
+  const limit = input.limit ?? 20;
+  const binding: CursorBinding = {
+    action: "runAccess.list",
+    organizationId,
+    principalId,
+    ordering: RUN_ACCESS_ORDERING,
+    filters: JSON.stringify({ runId: run.id }),
+    schemaVersion: 1,
+  };
+  const position = await decodeCursor(cursorSecret, input.cursor, binding);
+  const projectParameters = [
+    organizationId,
+    run.id,
+    RUN_READ_SYSTEM_ROLES,
+    RUN_READ_PERMISSION,
+    RUN_READ_BINDING_ROLES,
+    run.application_id,
+    run.repository_id,
+  ];
+  const project = await transaction.query<{ count: number }>(
+    `with project_principals as (${PROJECT_RUN_PRINCIPALS_SQL})
+     select count(*)::int as count from project_principals
+      where $2::uuid is not null`,
+    projectParameters,
+  );
+  const direct = await transaction.query<RunAccessRow>(
+    `with project_principals as (${PROJECT_RUN_PRINCIPALS_SQL})
+     select access_grant.id, access_grant.principal_id, principal.display_name,
+            access_grant.via, access_grant.granted_by,
+            grantor.display_name as granted_by_name,
+            access_grant.granted_by_kind, access_grant.created_at,
+            to_char(
+              access_grant.created_at at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+            ) as cursor_created_at,
+            case when current_open_request.present is not null
+              then 1 else 0 end as cursor_position,
+            access_grant.source_request_id, request.audience_name,
+            access_grant.version
+       from bakery.run_access_grants as access_grant
+       join bakery.principals as principal
+         on principal.id = access_grant.principal_id
+       join bakery.organization_memberships as membership
+         on membership.organization_id = access_grant.organization_id
+        and membership.principal_id = access_grant.principal_id
+        and membership.status = 'active'
+       left join bakery.principals as grantor
+         on grantor.id = access_grant.granted_by
+       left join bakery.person_requests as request
+         on request.organization_id = access_grant.organization_id
+        and request.id = access_grant.source_request_id
+       left join lateral (
+         select 1 as present
+           from bakery.person_requests as current_request
+          where current_request.organization_id = access_grant.organization_id
+            and current_request.run_id = access_grant.run_id
+            and current_request.recipient_id = access_grant.principal_id
+            and current_request.status = 'open'
+            and current_request.expires_at > now()
+          limit 1
+       ) as current_open_request on true
+      where access_grant.organization_id = $1 and access_grant.run_id = $2
+        and access_grant.revoked_at is null
+        and principal.principal_type = 'human' and principal.disabled_at is null
+        and not exists (
+          select 1 from project_principals as project
+           where project.principal_id = access_grant.principal_id
+        )
+        and (
+          $8::timestamptz is null or
+          (
+            case when current_open_request.present is not null
+              then 1 else 0 end,
+            access_grant.created_at,
+            access_grant.id
+          ) < ($10::integer, $8, $9::uuid)
+        )
+      order by (current_open_request.present is not null) desc,
+               access_grant.created_at desc, access_grant.id desc
+      limit $11`,
+    [
+      ...projectParameters,
+      position?.createdAt ?? null,
+      position?.id ?? null,
+      position?.position ?? null,
+      limit + 1,
+    ],
+  );
+  const directCount = await transaction.query<{ count: number }>(
+    `with project_principals as (${PROJECT_RUN_PRINCIPALS_SQL})
+     select count(*)::int as count
+       from bakery.run_access_grants as access_grant
+       join bakery.principals as principal
+         on principal.id = access_grant.principal_id
+       join bakery.organization_memberships as membership
+         on membership.organization_id = access_grant.organization_id
+        and membership.principal_id = access_grant.principal_id
+        and membership.status = 'active'
+      where access_grant.organization_id = $1 and access_grant.run_id = $2
+        and access_grant.revoked_at is null
+        and principal.principal_type = 'human' and principal.disabled_at is null
+        and not exists (
+          select 1 from project_principals as project
+           where project.principal_id = access_grant.principal_id
+        )`,
+    projectParameters,
+  );
+  const visible = direct.rows.slice(0, limit);
+  const powers = await transaction.query<RunAccessPowerRow>(
+    `select power.principal_id, request.intent, request.step_key,
+            request.target_id, power.expires_at
+       from bakery.run_power_grants as power
+       join bakery.person_requests as request
+         on request.organization_id = power.organization_id
+        and request.id = power.source_request_id
+      where power.organization_id = $1 and power.run_id = $2
+        and power.principal_id = any($3::uuid[])
+        and power.revoked_at is null and power.expires_at > now()
+      order by power.created_at, power.id`,
+    [organizationId, run.id, visible.map((row) => row.principal_id)],
+  );
+  const powersByPrincipal = new Map<string, RunAccessPowerRow[]>();
+  for (const power of powers.rows) {
+    const current = powersByPrincipal.get(power.principal_id);
+    if (current === undefined) {
+      powersByPrincipal.set(power.principal_id, [power]);
+    } else {
+      current.push(power);
+    }
+  }
+  const projectCount = project.rows[0]?.count ?? 0;
+  const directTotal = directCount.rows[0]?.count ?? 0;
+  const last = visible.at(-1);
+  return {
+    projectCount,
+    totalCount: projectCount + directTotal,
+    items: visible.map((row) => ({
+      id: row.id,
+      principal: {
+        principalId: row.principal_id,
+        displayName: row.display_name,
+      },
+      via: row.via,
+      grantedBy: row.granted_by === null ? null : {
+        principalId: row.granted_by,
+        displayName: row.granted_by_name ?? row.granted_by,
+      },
+      grantedByKind: row.granted_by_kind,
+      grantedAt: iso(row.created_at),
+      sourceRequestId: row.source_request_id,
+      audience: row.audience_name,
+      powers: (powersByPrincipal.get(row.principal_id) ?? []).map((power) => ({
+        intent: power.intent,
+        stepKey: power.step_key,
+        targetId: power.target_id,
+        expiresAt: iso(power.expires_at),
+      })),
+      version: row.version,
+    })),
+    nextCursor: direct.rows.length > limit && last
+      ? await encodeCursor(cursorSecret, binding, {
+        createdAt: last.cursor_created_at,
+        position: last.cursor_position,
+        id: last.id,
+      })
+      : null,
+  };
+}
+
+export async function removeRunAccess(context: ActionContext) {
+  const { transaction, organizationId, principalId, accessScope } =
+    requireWorkTransaction(context);
+  const run = await loadRun(context, transaction, organizationId, accessScope);
+  const targetId = context.params.principalId;
+  if (!targetId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  const expectedVersion = requireCommandMetadata(context).expectedVersion;
+  if (expectedVersion === undefined) {
+    throw new StandardError({ code: "PRECONDITION_REQUIRED" });
+  }
+  const current = await transaction.query<{
+    id: string;
+    version: number;
+    revoked_at: Date | null;
+  }>(
+    `select id, version, revoked_at
+       from bakery.run_access_grants
+      where organization_id = $1 and run_id = $2 and principal_id = $3
+      order by (revoked_at is null) desc, created_at desc, id desc
+      limit 1 for update`,
+    [organizationId, run.id, targetId],
+  );
+  const grant = current.rows[0];
+  if (!grant) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (grant.version !== expectedVersion || grant.revoked_at !== null) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  await transaction.query(
+    `update bakery.run_access_grants
+        set revoked_at = now(), revoked_by = $2, version = version + 1
+      where id = $1 and revoked_at is null`,
+    [grant.id, principalId],
+  );
+  const withdrawn = await transaction.query<{ id: string }>(
+    `update bakery.person_requests
+        set status = 'withdrawn', withdrawn_at = now(), withdrawn_by = $4,
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and run_id = $2 and recipient_id = $3
+        and status = 'open'
+      returning id`,
+    [organizationId, run.id, targetId, principalId],
+  );
+  const revoked = await transaction.query<{ id: string }>(
+    `update bakery.run_power_grants
+        set revoked_at = now(), revoked_by = $4, version = version + 1
+      where organization_id = $1 and run_id = $2 and principal_id = $3
+        and revoked_at is null
+      returning id`,
+    [organizationId, run.id, targetId, principalId],
+  );
+  await ledger(transaction, {
+    organizationId,
+    taskId: run.task_id,
+    runId: run.id,
+    kind: "run_access_removed",
+    decidedBy: principalId,
+    text: "access removed",
+    detail: {
+      principalId: targetId,
+      withdrawnRequestCount: withdrawn.rows.length,
+      revokedPowerCount: revoked.rows.length,
+    },
+  });
+  await appendAudit(transaction, {
+    organizationId,
+    principalId,
+    operation: "runAccess.remove",
+    resourceType: "run_access_grant",
+    resourceId: grant.id,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    details: {
+      runId: run.id,
+      principalId: targetId,
+      withdrawnRequestCount: withdrawn.rows.length,
+      revokedPowerCount: revoked.rows.length,
+    },
+  });
+  return {
+    principalId: targetId,
+    version: grant.version + 1,
+    withdrawnRequestCount: withdrawn.rows.length,
+  };
 }
 
 /**

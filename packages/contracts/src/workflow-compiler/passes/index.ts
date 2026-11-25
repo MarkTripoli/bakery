@@ -108,9 +108,19 @@ function walkNode(walk: Walk, node: WorkflowNode, depth: number): void {
       walkNodes(walk, node.steps, depth + 1, REPEAT_RESERVED, seedSteps);
       return;
     }
-    case "forEach":
-      walkNodes(walk, node.steps, depth + 1, REPEAT_RESERVED);
+    case "forEach": {
+      const children = checkScope(walk, node.steps, REPEAT_RESERVED);
+      for (const name of Object.keys(node.collect ?? {})) {
+        if (children.has(name) || REPEAT_RESERVED.has(name)) {
+          walk.collector.add(
+            locationOf(walk, node, "forEach", "collect", name),
+            "output_name_conflict",
+          );
+        }
+      }
+      for (const child of node.steps) walkNode(walk, child, depth + 1);
       return;
+    }
     case "parallel": {
       const laneIds = checkScope(walk, node.lanes, undefined);
       for (const lane of node.lanes) {

@@ -106,8 +106,8 @@ coordination lane gate. After convergence there is one.
   on the flat loop, then that code is deleted. No live run is migrated.
 - The **plan interpreter becomes the engine**. Its revisions stay append-only
   and pinned per run: revision 3 adds delivery facts and `forEach`, revision 4
-  adds loop bounds, and a later revision adds `route`.
-- The **coordination lane gate becomes the split primitive** (section 5).
+  adds loop bounds, revision 5 adds bounded parallel `forEach` and ordered
+  collection, and a later revision adds `route`.
 
 The decision is recorded in
 [chapter 6, "Decision record: one interpreter"](06-workflows-delivery-and-acceptance.md#decision-record-one-interpreter-15-november-2026),
@@ -380,12 +380,21 @@ in the loop's panel.
   maximum. A loop may start with a smaller allowance (`repeat.allow`). When it
   uses that allowance without meeting its exit condition, the engine stops the
   run with the stable code `limit_reached`. A person then allows more rounds
-  through `POST /v1/runs/:id/repair-allowances`, which records a
-  `limit_change` decision and reopens the run; asking again for the same stop
-  returns that decision and reopens nothing. Accepting as is and stopping are
-  not built for a repeat limit yet. More rounds can never go past `max`. When `max` is reached, the loop ends as exhausted and the
-  run ends `needs_human` with `limit_reached`. Raising the cap of 8 is not part
-  of this decision.
+  through `POST /v1/runs/:id/repair-allowances`, which records a `limit_change`
+  decision and reopens the run; asking again for the same stop returns that
+  decision and reopens nothing. Accepting as is and stopping are not built for a
+  repeat limit yet. More rounds can never go past `max`. When `max` is reached,
+  the loop ends as exhausted and the run ends `needs_human` with
+  `limit_reached`. Raising the cap of 8 is not part of this decision.
+
+`forEach` has a separate concurrency bound. `maxConcurrency` defaults to one
+and cannot exceed the loop's `max`. Revision 5 may start that many iterations,
+but a failure starts no fresh iteration; iterations already running settle
+before the loop reports the first failure in item order. `collect` maps names
+to values read after each successful iteration and publishes lists in original
+item order, independent of completion order. A loop with concurrency above one
+cannot contain a step whose file policy may write `workspace`; authors must
+narrow every such step to isolated outputs or another non-workspace area.
 
 ## 11. Workflow editor decisions
 
@@ -617,7 +626,7 @@ mapping from port verbs to tools.
 | `tool.call`        | A deterministic step with no agent. `with` is type-checked against the pinned input schema; output is typed when the tool declares a schema, otherwise opaque until published as an artifact of a kind. `tool.call` replaces `integration.action`                                                                                                                                                                                                                                                                     |
 | Side effects       | An Admin classifies each enabled tool (O26): read; write, idempotent (names its effect-key argument); write, reconcilable (paired with a read tool); write, opaque (default: at most once, an unknown outcome waits for a person). Server hints are suggestions only                                                                                                                                                                                                                                                  |
 | Long-running tools | The grant declares the asynchronous form; one step waits durably and the ledger's reconcile read polls                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Feed and cost      | A `tool` feed item per call; produced files as `artifact` items. A per-call cost ceiling is reserved and settled like model usage                                                                                                                                                                                                                                                                                                                                                                                     |
+| Feed and cost      | A `tool` feed item per call; produced files as `artifact` items. When `limits.maxCostUsd` is present, the engine reserves that ceiling against both installation and run accounts before dispatch. A pending call keeps the hold. A completed, failed, canceled or timed-out call settles the full declared ceiling because tool results carry no provider usage receipt. The tool-cost intent is keyed by run step, so replay reuses and settles the same two reservations instead of multiplying spend |
 | Local or remote    | Remote servers are called by the server-side broker; local (`stdio`) servers are launched by the worker from a pinned command, as a placement requirement. Third-party local servers run under the T1 sandbox or an operator allowlist                                                                                                                                                                                                                                                                                |
 | Trust              | Results never carry authority, are schema-validated and size-bounded. Tools only first (O31): resources later as read tools; sampling, elicitation and roots stay off                                                                                                                                                                                                                                                                                                                                                 |
 
@@ -742,11 +751,19 @@ step has its design tool exactly when its session's gateway lists a bound tool,
 so a Paper connection bound to the step, its seat or its agent is the design
 tool. A Pi or Codex host without `paper` never claims the step.
 
+**Session feed.** The gateway routes remain the owners of invocation and
+settlement. Before dispatch the worker persists a `started` lifecycle item in
+`session_tool_feed_events`; every settlement path persists its terminal item.
+`sessions.feed` projects those items alongside session output under the shared
+conversation sequence and keyset cursor, preserving one stable order across item
+kinds without taking ownership of dispatch. The projection exposes only bounded
+action, tool, target and result metadata. Request and response payloads,
+credentials and secrets stay behind the gateway boundary.
+
 Not yet served: native integration actions through the gateway (the route
 refuses `integrationConnectionId` with
-`tool_invocation_integration_unsupported`), local stdio servers (slice H), the
-Pi and Codex harnesses (they still use the worker's `paper` capability), a feed
-item per gateway call and per-call cost.
+`tool_invocation_integration_unsupported`), local stdio servers (slice H), and
+the Pi and Codex harnesses (they still use the worker's `paper` capability).
 
 ### 15.6 Example: a video-production factory
 

@@ -785,9 +785,10 @@ for (
       const events = await memoryEvents(page);
       const sheet = await open(page, 1);
       await expect.poll(() => events.subscribes.length).toBeGreaterThan(0);
-      expect(events.subscribes[0].scopes).toEqual([
-        { type: "memory", id: MOCK_ORGANIZATION_ID },
-      ]);
+      expect(events.subscribes[0].scopes).toContainEqual({
+        type: "memory",
+        id: MOCK_ORGANIZATION_ID,
+      });
       await expect(sheet.getByTestId("memory-changed-by-other")).toHaveCount(0);
       seen.correct(1, "Deploys run from main after review.");
       events.revised(1);

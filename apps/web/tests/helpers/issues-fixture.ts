@@ -249,7 +249,7 @@ export type Options = {
 export async function chooseFilter(page: Page, name: string) {
   const radio = page.getByRole("radio", { name });
   await expect(async () => {
-    await radio.click({ force: true });
+    await radio.check({ force: true });
     await expect(radio).toBeChecked({ timeout: 1_000 });
   }).toPass({ timeout: 20_000 });
 }

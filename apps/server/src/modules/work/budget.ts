@@ -57,6 +57,22 @@ export type WorkflowBudgetReservationInput = Readonly<{
   policy: BudgetPolicy | undefined;
 }>;
 
+export type ToolCallCostReservation = Readonly<{
+  intentId: string;
+  installationReservationId: string;
+  runReservationId: string;
+}>;
+
+export type ToolCallCostReservationInput = Readonly<{
+  organizationId: string;
+  runId: string;
+  runStepId: string;
+  action: string;
+  maxCostUsd: number;
+  contentDigest: string;
+  policy: BudgetPolicy | undefined;
+}>;
+
 export type UsageReceipt = Readonly<{
   usageFactId: string;
   providerCallId: string;
@@ -145,6 +161,19 @@ type IntentRow = Readonly<{
   installationReservationId: string | null;
   runReservationId: string | null;
   providerCallIntentId: string | null;
+}>;
+
+type ToolCallCostIntentRow = Readonly<{
+  id: string;
+  organizationId: string;
+  runId: string;
+  runStepId: string;
+  action: string;
+  reservedUsd: string;
+  contentDigest: string;
+  status: string;
+  installationReservationId: string | null;
+  runReservationId: string | null;
 }>;
 
 type ReservationRow = Readonly<{
@@ -865,6 +894,333 @@ export async function reserveWorkflowAction(
     runReservationId,
     providerCallIntentId,
   };
+}
+
+function toolCallCostDedupeKey(runStepId: string, action: string): string {
+  return `tool-cost:${runStepId}:${action}`;
+}
+
+async function loadToolCallCostIntent(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  dedupeKey: string,
+): Promise<ToolCallCostIntentRow | undefined> {
+  const result = await transaction.query<ToolCallCostIntentRow>(
+    `select id, organization_id as "organizationId", run_id as "runId",
+            run_step_id as "runStepId", action,
+            reserved_usd as "reservedUsd", content_digest as "contentDigest",
+            dedupe_key as "dedupeKey", status,
+            installation_reservation_id as "installationReservationId",
+            run_reservation_id as "runReservationId"
+       from bakery.tool_call_cost_intents
+      where organization_id = $1 and dedupe_key = $2
+      for update`,
+    [organizationId, dedupeKey],
+  );
+  return result.rows[0];
+}
+
+function replayToolCallCostReservation(
+  current: ToolCallCostIntentRow | undefined,
+  options: ToolCallCostReservationInput,
+  amount: bigint,
+): ToolCallCostReservation | undefined {
+  if (!current) return undefined;
+  if (current.status !== "held" && current.status !== "settled") {
+    conflict("budget_intent_status_invalid");
+  }
+  if (
+    current.runId !== options.runId ||
+    current.runStepId !== options.runStepId ||
+    current.action !== options.action ||
+    current.contentDigest !== options.contentDigest ||
+    parseMicroUsd(current.reservedUsd, "stored_reserved_usd") !== amount
+  ) {
+    conflict("budget_replay_content_mismatch");
+  }
+  if (!current.installationReservationId || !current.runReservationId) {
+    conflict("budget_replay_reservations_missing");
+  }
+  return {
+    intentId: current.id,
+    installationReservationId: current.installationReservationId,
+    runReservationId: current.runReservationId,
+  };
+}
+
+export async function reserveToolCallCost(
+  transaction: PgTransactionClient,
+  options: ToolCallCostReservationInput,
+): Promise<ToolCallCostReservation> {
+  if (options.action !== "tool.call") {
+    conflict("tool_cost_action_invalid");
+  }
+  const policy = requirePolicy(options.policy);
+  if (!SHA256.test(options.contentDigest)) {
+    conflict("budget_content_digest_invalid");
+  }
+  const amount = parseMicroUsd(options.maxCostUsd, "max_cost_usd");
+  const amountText = formatMicroUsd(amount);
+  const dedupeKey = toolCallCostDedupeKey(
+    options.runStepId,
+    options.action,
+  );
+  const existing = replayToolCallCostReservation(
+    await loadToolCallCostIntent(
+      transaction,
+      options.organizationId,
+      dedupeKey,
+    ),
+    options,
+    amount,
+  );
+  if (existing) return existing;
+  const planBudget = await lockPlanBudget(
+    transaction,
+    options.organizationId,
+    options.runId,
+  );
+  const period = await installationPeriod(transaction);
+  const installation = await account(transaction, {
+    scope: "installation",
+    organizationId: null,
+    runId: null,
+    periodStart: period.periodStart,
+    periodEnd: period.periodEnd,
+    limitUsd: policy.installationMonthlyLimitUsd,
+  });
+  const run = await loadRun(transaction, options.organizationId, options.runId);
+  const runAccount = await account(transaction, {
+    scope: "run",
+    organizationId: options.organizationId,
+    runId: options.runId,
+    periodStart: run.createdAt,
+    periodEnd: new Date(
+      run.createdAt.getTime() + policy.maxRunDurationSeconds * 1_000,
+    ),
+    limitUsd: run.limitUsd,
+  });
+  const concurrent = replayToolCallCostReservation(
+    await loadToolCallCostIntent(
+      transaction,
+      options.organizationId,
+      dedupeKey,
+    ),
+    options,
+    amount,
+  );
+  if (concurrent) return concurrent;
+  if (planBudget) {
+    await assertPlanBudget(
+      transaction,
+      options.organizationId,
+      planBudget,
+      amount,
+    );
+  }
+  const intentId = crypto.randomUUID();
+  await transaction.query(
+    `insert into bakery.tool_call_cost_intents (
+       id, organization_id, run_id, run_step_id, action, reserved_usd,
+       content_digest, dedupe_key, status
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, 'held')`,
+    [
+      intentId,
+      options.organizationId,
+      options.runId,
+      options.runStepId,
+      options.action,
+      amountText,
+      options.contentDigest,
+      dedupeKey,
+    ],
+  );
+  const installationReservationId = crypto.randomUUID();
+  const runReservationId = crypto.randomUUID();
+  for (
+    const [id, budgetAccountId] of [
+      [installationReservationId, installation.id],
+      [runReservationId, runAccount.id],
+    ] as const
+  ) {
+    await transaction.query(
+      `insert into bakery.budget_reservations (
+         id, organization_id, budget_account_id, run_step_id, dedupe_key,
+         reserved_usd, settled_usd, status, expires_at, version
+       ) values ($1, $2, $3, $4, $5, $6, null, 'held',
+                 now() + ($7::integer * interval '1 second'), 1)`,
+      [
+        id,
+        options.organizationId,
+        budgetAccountId,
+        options.runStepId,
+        dedupeKey,
+        amountText,
+        policy.reservationTtlSeconds,
+      ],
+    );
+    const updated = await transaction.query(
+      `update bakery.budget_accounts
+          set reserved_usd = reserved_usd + $2::numeric,
+              updated_at = now(), version = version + 1
+        where id = $1
+          and reserved_usd + settled_usd + $2::numeric <= limit_usd
+        returning id`,
+      [budgetAccountId, amountText],
+    );
+    if (!updated.rows[0]) conflict("budget_cap_exceeded");
+  }
+  await transaction.query(
+    `update bakery.tool_call_cost_intents
+        set installation_reservation_id = $2,
+            run_reservation_id = $3,
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $4`,
+    [
+      options.organizationId,
+      installationReservationId,
+      runReservationId,
+      intentId,
+    ],
+  );
+  return {
+    intentId,
+    installationReservationId,
+    runReservationId,
+  };
+}
+
+async function settleToolCallCostIntent(
+  transaction: PgTransactionClient,
+  intent: ToolCallCostIntentRow,
+): Promise<void> {
+  if (intent.status === "settled") return;
+  if (intent.status !== "held") conflict("budget_reservation_not_held");
+  if (
+    !intent.installationReservationId || !intent.runReservationId
+  ) {
+    conflict("budget_reservations_missing");
+  }
+  const reservationResult = await transaction.query<ReservationRow>(
+    `select id, budget_account_id as "budgetAccountId",
+            reserved_usd as "reservedUsd", settled_usd as "settledUsd", status
+       from bakery.budget_reservations
+      where organization_id = $1 and id = any($2::uuid[])`,
+    [intent.organizationId, [
+      intent.installationReservationId,
+      intent.runReservationId,
+    ]],
+  );
+  const reservations = reservationResult.rows;
+  if (reservations.length !== 2) conflict("budget_reservations_missing");
+  await lockAccounts(
+    transaction,
+    reservations.map((reservation) => reservation.budgetAccountId),
+  );
+  await lockReservations(transaction, intent.organizationId, [
+    intent.installationReservationId,
+    intent.runReservationId,
+  ]);
+  const amountMicros = parseMicroUsd(
+    intent.reservedUsd,
+    "stored_reserved_usd",
+  );
+  const amount = formatMicroUsd(amountMicros);
+  for (const reservation of reservations) {
+    if (
+      reservation.status !== "held" ||
+      parseMicroUsd(reservation.reservedUsd, "stored_reserved_usd") !==
+        amountMicros
+    ) {
+      conflict("budget_reservation_not_held");
+    }
+    const updated = await transaction.query(
+      `update bakery.budget_accounts
+          set reserved_usd = reserved_usd - $2::numeric,
+              settled_usd = settled_usd + $2::numeric,
+              updated_at = now(), version = version + 1
+        where id = $1 and reserved_usd >= $2::numeric
+        returning id`,
+      [reservation.budgetAccountId, amount],
+    );
+    if (!updated.rows[0]) conflict("budget_reservation_balance_invalid");
+    const settled = await transaction.query(
+      `update bakery.budget_reservations
+          set settled_usd = reserved_usd, status = 'settled',
+              updated_at = now(), version = version + 1
+        where organization_id = $1 and id = $2 and status = 'held'
+        returning id`,
+      [intent.organizationId, reservation.id],
+    );
+    if (!settled.rows[0]) conflict("budget_reservation_not_held");
+  }
+  const settledIntent = await transaction.query(
+    `update bakery.tool_call_cost_intents
+        set status = 'settled', updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2 and status = 'held'
+      returning id`,
+    [intent.organizationId, intent.id],
+  );
+  if (!settledIntent.rows[0]) conflict("budget_reservation_not_held");
+}
+
+export async function settleToolCallCost(
+  transaction: PgTransactionClient,
+  options: Readonly<{ organizationId: string; intentId: string }>,
+): Promise<void> {
+  const result = await transaction.query<ToolCallCostIntentRow>(
+    `select id, organization_id as "organizationId", run_id as "runId",
+            run_step_id as "runStepId", action,
+            reserved_usd as "reservedUsd", content_digest as "contentDigest",
+            dedupe_key as "dedupeKey", status,
+            installation_reservation_id as "installationReservationId",
+            run_reservation_id as "runReservationId"
+       from bakery.tool_call_cost_intents
+      where organization_id = $1 and id = $2
+      for update`,
+    [options.organizationId, options.intentId],
+  );
+  const intent = result.rows[0];
+  if (!intent) conflict("budget_intent_missing");
+  await settleToolCallCostIntent(transaction, intent);
+}
+
+export async function settleExistingToolCallCost(
+  transaction: PgTransactionClient,
+  options: Readonly<{
+    organizationId: string;
+    runStepId: string;
+    action: string;
+  }>,
+): Promise<void> {
+  const intent = await loadToolCallCostIntent(
+    transaction,
+    options.organizationId,
+    toolCallCostDedupeKey(options.runStepId, options.action),
+  );
+  if (intent) await settleToolCallCostIntent(transaction, intent);
+}
+
+export async function settleRunToolCallCosts(
+  transaction: PgTransactionClient,
+  options: Readonly<{ organizationId: string; runId: string }>,
+): Promise<void> {
+  const result = await transaction.query<ToolCallCostIntentRow>(
+    `select id, organization_id as "organizationId", run_id as "runId",
+            run_step_id as "runStepId", action,
+            reserved_usd as "reservedUsd", content_digest as "contentDigest",
+            dedupe_key as "dedupeKey", status,
+            installation_reservation_id as "installationReservationId",
+            run_reservation_id as "runReservationId"
+       from bakery.tool_call_cost_intents
+      where organization_id = $1 and run_id = $2 and status = 'held'
+      order by id
+      for update`,
+    [options.organizationId, options.runId],
+  );
+  for (const intent of result.rows) {
+    await settleToolCallCostIntent(transaction, intent);
+  }
 }
 
 export const COORDINATOR_TURN_DEDUPE_PREFIX = "coordinator-turn:";

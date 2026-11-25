@@ -9860,6 +9860,92 @@
   },
   {
    "group": "Observation",
+   "name": "tool_call_cost_intents",
+   "purpose": "Replay-safe per-call cost ceiling admission and settlement",
+   "fields": [
+    {
+     "name": "organization_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": "organizations"
+    },
+    {
+     "name": "run_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "run_step_id",
+     "type": "uuid",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "action",
+     "type": "text",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "reserved_usd",
+     "type": "numeric(14,6)",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "content_digest",
+     "type": "text",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "dedupe_key",
+     "type": "text",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "status",
+     "type": "enum(held,settled)",
+     "nullable": false,
+     "references": null
+    },
+    {
+     "name": "installation_reservation_id",
+     "type": "uuid?",
+     "nullable": true,
+     "references": "budget_reservations"
+    },
+    {
+     "name": "run_reservation_id",
+     "type": "uuid?",
+     "nullable": true,
+     "references": "budget_reservations"
+    }
+   ],
+   "constraints": "Only tool.call creates an intent. UNIQUE(organization_id,dedupe_key); dedupe is the run step and action. The content digest and NUMERIC(14,6) ceiling are immutable on replay. The installation and run reservation ids are written together in the reservation transaction. A pending call keeps both holds; completed, failed, canceled and timed-out calls settle the full ceiling in both accounts.",
+   "scopedReferences": [
+    {
+     "fields": [
+      "organization_id",
+      "run_id"
+     ],
+     "references": "workflow_runs(organization_id,id)",
+     "nullable": false
+    },
+    {
+     "fields": [
+      "organization_id",
+      "run_step_id"
+     ],
+     "references": "run_steps(organization_id,id)",
+     "nullable": false
+    }
+   ]
+  },
+  {
+   "group": "Observation",
    "name": "budget_reservations",
    "purpose": "Concurrency-safe spend hold",
    "fields": [

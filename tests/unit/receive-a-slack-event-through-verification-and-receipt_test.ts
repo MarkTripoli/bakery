@@ -1,0 +1,405 @@
+import { assert, assertEquals, assertThrows } from "@std/assert";
+import type { PgTransactionClient } from "@bakery/persistence";
+import { StandardError } from "../../packages/contracts/src/http.ts";
+import {
+  assertMessageBodySize,
+  MAX_MESSAGE_BODY_BYTES,
+} from "../../apps/server/src/modules/conversation/postgres.ts";
+import {
+  receiveSlackEvent,
+  type SlackIntakeDependencies,
+  type SlackIntakeResult,
+} from "../../apps/server/src/modules/integrations/slack-intake.ts";
+import {
+  commitSlackReceipt,
+  type CommitSlackReceiptResult,
+  type PersistedSlackDecision,
+  type SlackInstallationRecord,
+  sweepExpiredSlackReceipts,
+} from "../../apps/server/src/modules/integrations/slack-receipts.ts";
+import { sha256Hex } from "../../apps/server/src/modules/integrations/intake-signature.ts";
+
+const NOW_MS = 1_800_000_000_000;
+const encoder = new TextEncoder();
+const installation: SlackInstallationRecord = {
+  installationId: "11111111-1111-4111-8111-111111111111",
+  organizationId: "22222222-2222-4222-8222-222222222222",
+  appId: "A0APP",
+  teamId: "T0TEAM",
+  botUserId: "U0BOT",
+  signingSecretId: null,
+  status: "active",
+};
+
+async function sign(
+  timestamp: string,
+  body: string,
+  secret: Uint8Array<ArrayBuffer>,
+) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    secret,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const mac = new Uint8Array(
+    await crypto.subtle.sign(
+      "HMAC",
+      key,
+      encoder.encode(`v0:${timestamp}:${body}`),
+    ),
+  );
+  return `v0=${[...mac].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+
+type Harness = {
+  readonly deps: SlackIntakeDependencies;
+  readonly commits: Parameters<SlackIntakeDependencies["commit"]>[0][];
+  readonly secrets: Uint8Array<ArrayBuffer>[];
+  readonly secretLoads: number[];
+  readonly requestedAppIds: string[];
+};
+
+function harness(
+  options: {
+    installed?: boolean;
+    commitResult?: CommitSlackReceiptResult;
+    commitThrows?: boolean;
+  } = {},
+): Harness {
+  const commits: Harness["commits"] = [];
+  const secrets: Uint8Array<ArrayBuffer>[] = [];
+  const secretLoads: number[] = [];
+  const requestedAppIds: string[] = [];
+  return {
+    commits,
+    secrets,
+    secretLoads,
+    requestedAppIds,
+    deps: {
+      signingSecrets: (appId) => {
+        requestedAppIds.push(appId);
+        secretLoads.push(secretLoads.length + 1);
+        const secret = encoder.encode("signing-secret");
+        secrets.push(secret);
+        return Promise.resolve([{ appId: installation.appId, secret }]);
+      },
+      findInstallation: (appId, teamId) =>
+        Promise.resolve(
+          options.installed === false || appId !== installation.appId ||
+            teamId !== installation.teamId
+            ? null
+            : installation,
+        ),
+      commit: (input) => {
+        if (options.commitThrows) return Promise.reject(new Error("db down"));
+        commits.push(input);
+        return Promise.resolve(
+          options.commitResult ?? {
+            kind: "recorded",
+            receiptId: "rcpt-1",
+            outcome: input.decision.kind === "ignore" ? "ignored" : "accepted",
+          },
+        );
+      },
+      sha256Hex,
+      now: () => NOW_MS,
+    },
+  };
+}
+
+async function deliver(
+  deps: SlackIntakeDependencies,
+  body: unknown,
+  overrides: { signature?: string | null; timestamp?: string | null } = {},
+): Promise<SlackIntakeResult> {
+  const text = typeof body === "string" ? body : JSON.stringify(body);
+  const timestamp = String(Math.floor(NOW_MS / 1000));
+  return await receiveSlackEvent({
+    raw: encoder.encode(text),
+    signatureHeader: "signature" in overrides
+      ? overrides.signature!
+      : await sign(timestamp, text, encoder.encode("signing-secret")),
+    timestampHeader: "timestamp" in overrides
+      ? overrides.timestamp!
+      : timestamp,
+  }, deps);
+}
+
+const mention = (extra: Record<string, unknown> = {}) => ({
+  type: "event_callback",
+  event_id: "Ev1",
+  api_app_id: installation.appId,
+  team_id: installation.teamId,
+  authorizations: [{
+    team_id: installation.teamId,
+    user_id: installation.botUserId,
+  }],
+  event: {
+    type: "app_mention",
+    channel: "C1",
+    user: "U1",
+    ts: "1.1",
+    text: "hi",
+  },
+  ...extra,
+});
+
+Deno.test("the handshake answers its challenge and commits nothing", async () => {
+  const h = harness();
+  const result = await deliver(h.deps, {
+    type: "url_verification",
+    api_app_id: installation.appId,
+    challenge: "abc",
+  });
+  assertEquals(result, { kind: "challenge", challenge: "abc" });
+  assertEquals(h.commits.length, 0);
+});
+
+Deno.test("an unsigned, badly signed or stale delivery is one AUTH_INVALID and touches nothing", async () => {
+  const h = harness();
+  const body = mention();
+  const refusedAuth: SlackIntakeResult = {
+    kind: "refused",
+    code: "AUTH_INVALID",
+  };
+  assertEquals(await deliver(h.deps, body, { signature: null }), refusedAuth);
+  assertEquals(
+    await deliver(h.deps, body, { signature: "v0=" + "0".repeat(64) }),
+    refusedAuth,
+  );
+  assertEquals(await deliver(h.deps, body, { timestamp: "1" }), refusedAuth);
+  assertEquals(h.commits.length, 0);
+  assertEquals(h.secretLoads, [1]);
+});
+
+Deno.test("the body is read as an event only after it verifies", async () => {
+  const h = harness();
+  assertEquals(await deliver(h.deps, "not json"), {
+    kind: "refused",
+    code: "MALFORMED_REQUEST",
+  });
+  assertEquals(await deliver(h.deps, "not json", { signature: null }), {
+    kind: "refused",
+    code: "AUTH_INVALID",
+  });
+});
+
+Deno.test("a verified event for a workspace nobody installed is refused like a bad signature", async () => {
+  const h = harness({ installed: false });
+  assertEquals(await deliver(h.deps, mention()), {
+    kind: "refused",
+    code: "AUTH_INVALID",
+  });
+  assertEquals(h.commits.length, 0);
+});
+
+Deno.test("a mention commits its receipt, then is acknowledged as accepted", async () => {
+  const h = harness();
+  const result = await deliver(h.deps, mention());
+  assertEquals(result, {
+    kind: "acknowledged",
+    disposition: "accepted",
+    receiptId: "rcpt-1",
+  });
+  assertEquals(h.commits.length, 1);
+  assertEquals(h.commits[0]!.eventId, "Ev1");
+  assertEquals(h.commits[0]!.decision.kind, "mention");
+  assertEquals(h.commits[0]!.payloadDigest.length, 64);
+});
+
+Deno.test("a mention rejected during durable admission is not acknowledged as accepted", async () => {
+  const h = harness({
+    commitResult: {
+      kind: "recorded",
+      receiptId: "rcpt-1",
+      outcome: "ignored",
+    } as unknown as CommitSlackReceiptResult,
+  });
+  assertEquals(await deliver(h.deps, mention()), {
+    kind: "acknowledged",
+    disposition: "rejected",
+    receiptId: "rcpt-1",
+  });
+});
+
+Deno.test("an ignored event commits a receipt carrying no text, and is rejected, not accepted", async () => {
+  const h = harness();
+  const echo = mention({
+    event: {
+      type: "message",
+      thread_ts: "1.0",
+      channel: "C1",
+      user: "U9",
+      ts: "2.0",
+      text: "secret",
+      bot_id: "B1",
+    },
+  });
+  const result = await deliver(h.deps, echo);
+  assertEquals(result, {
+    kind: "acknowledged",
+    disposition: "rejected",
+    receiptId: "rcpt-1",
+  });
+  const decision = h.commits[0]!.decision;
+  assertEquals(decision.kind, "ignore");
+  assert(!JSON.stringify(h.commits[0]).includes("secret"));
+});
+
+Deno.test("an unbound human reply is rejected after durable admission ignores it", async () => {
+  const h = harness({
+    commitResult: {
+      kind: "recorded",
+      receiptId: "rcpt-1",
+      outcome: "ignored",
+    } as unknown as CommitSlackReceiptResult,
+  });
+  const reply = mention({
+    event: {
+      type: "message",
+      thread_ts: "1.0",
+      channel: "C1",
+      user: "U9",
+      ts: "2.0",
+      text: "unlinked secret",
+    },
+  });
+  assertEquals(await deliver(h.deps, reply), {
+    kind: "acknowledged",
+    disposition: "rejected",
+    receiptId: "rcpt-1",
+  });
+  assertEquals(h.commits[0]!.decision.kind, "thread_reply");
+});
+
+Deno.test("a retry is a duplicate, and the same id with other bytes is a payload mismatch", async () => {
+  const again = harness({
+    commitResult: {
+      kind: "duplicate",
+      receiptId: "rcpt-0",
+      outcome: "accepted",
+    },
+  });
+  assertEquals(await deliver(again.deps, mention()), {
+    kind: "acknowledged",
+    disposition: "duplicate",
+    receiptId: "rcpt-0",
+  });
+  const changed = harness({ commitResult: { kind: "conflict" } });
+  assertEquals(await deliver(changed.deps, mention()), {
+    kind: "refused",
+    code: "IDEMPOTENCY_PAYLOAD_MISMATCH",
+  });
+});
+
+Deno.test("an installation disabled before receipt commit is refused", async () => {
+  const h = harness({
+    commitResult: {
+      kind: "inactive",
+    } as unknown as CommitSlackReceiptResult,
+  });
+  assertEquals(await deliver(h.deps, mention()), {
+    kind: "refused",
+    code: "AUTH_INVALID",
+  });
+});
+
+Deno.test("receipt validation rejects incomplete accepted work before storage", async () => {
+  let queries = 0;
+  const transaction = {
+    query() {
+      queries += 1;
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    },
+  } as unknown as PgTransactionClient;
+  const result = await commitSlackReceipt(transaction, {
+    installationId: installation.installationId,
+    appId: installation.appId,
+    eventId: "Ev1",
+    payloadDigest: "a".repeat(64),
+    decision: {
+      kind: "mention",
+      eventId: "Ev1",
+    } as unknown as PersistedSlackDecision,
+    now: new Date(NOW_MS),
+  });
+  assertEquals(result, { kind: "malformed" });
+  assertEquals(queries, 0);
+});
+
+Deno.test("Slack retention drains multiple batches and obeys its run bound", async () => {
+  const sizes = [500, 1];
+  let queries = 0;
+  const draining = {
+    query() {
+      queries += 1;
+      return Promise.resolve({ rows: [], rowCount: sizes.shift() ?? 0 });
+    },
+  } as unknown as PgTransactionClient;
+  assertEquals(
+    await sweepExpiredSlackReceipts(draining, {
+      now: new Date(NOW_MS),
+      limit: 500,
+      maxBatches: 100,
+    }),
+    { deleted: 501, batches: 2 },
+  );
+  assertEquals(queries, 2);
+
+  const bounded = {
+    query() {
+      queries += 1;
+      return Promise.resolve({ rows: [], rowCount: 500 });
+    },
+  } as unknown as PgTransactionClient;
+  queries = 0;
+  assertEquals(
+    await sweepExpiredSlackReceipts(bounded, {
+      now: new Date(NOW_MS),
+      limit: 500,
+      maxBatches: 2,
+    }),
+    { deleted: 1_000, batches: 2 },
+  );
+  assertEquals(queries, 2);
+});
+
+Deno.test("a database failure is thrown, never answered as queued", async () => {
+  const h = harness({ commitThrows: true });
+  let thrown: unknown;
+  try {
+    await deliver(h.deps, mention());
+  } catch (error) {
+    thrown = error;
+  }
+  assert(thrown instanceof Error && thrown.message === "db down");
+});
+
+Deno.test("only selected signing secrets are loaded and zeroed", async () => {
+  const h = harness();
+  await deliver(h.deps, mention());
+  await deliver(h.deps, mention(), { signature: null });
+  assertEquals(h.secrets.length, 1);
+  for (const secret of h.secrets) assert(secret.every((byte) => byte === 0));
+});
+
+Deno.test("the untrusted app id only bounds signing-secret selection", async () => {
+  const h = harness();
+  await deliver(h.deps, mention());
+  await deliver(h.deps, mention({ api_app_id: "A1OTHER" }));
+  await deliver(h.deps, "[1,2]");
+  assertEquals(h.requestedAppIds, [installation.appId, "A1OTHER"]);
+});
+
+Deno.test("Slack message size follows the canonical UTF-8 byte boundary", () => {
+  const exact = "é".repeat(MAX_MESSAGE_BODY_BYTES / 2);
+  assertEquals(encoder.encode(exact).byteLength, MAX_MESSAGE_BODY_BYTES);
+  assertMessageBodySize(exact);
+  const error = assertThrows(
+    () => assertMessageBodySize(`${exact}a`),
+    StandardError,
+  );
+  assertEquals(error.code, "BODY_TOO_LARGE");
+});

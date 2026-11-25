@@ -4279,6 +4279,8 @@ Deno.test("a forEach normalizes to a bounded loop whose steps run max times at w
   });
   assertEquals(loop.max, 3);
   assertEquals(loop.as, "case");
+  assertEquals(loop.maxConcurrency, 1);
+  assertEquals(loop.collect, {});
   assertEquals(loop.steps[0]?.kind, "action");
   const runCase = result.plan.steps.find((step) =>
     step.qualifiedId === "cases.run_case"
@@ -4367,9 +4369,25 @@ Deno.test("every forEach shape and scope code reports its exact path", async () 
       ],
     ],
     [
-      "parallel iterations are not part of the sequential loop",
+      "collect must be a value map",
       workflow([noop("prepare"), forEachNode({}, { collect: true })]),
-      [{ path: loopAt, code: "field_unknown" }],
+      [{ path: `${loopAt}/collect`, code: "field_invalid" }],
+    ],
+    [
+      "concurrency cannot be zero",
+      workflow([noop("prepare"), forEachNode({}, { maxConcurrency: 0 })]),
+      [{
+        path: `${loopAt}/maxConcurrency`,
+        code: "parallel_concurrency_invalid",
+      }],
+    ],
+    [
+      "concurrency cannot exceed max",
+      workflow([noop("prepare"), forEachNode({}, { maxConcurrency: 4 })]),
+      [{
+        path: `${loopAt}/maxConcurrency`,
+        code: "parallel_concurrency_invalid",
+      }],
     ],
     [
       "a loop with no steps",
@@ -4393,6 +4411,40 @@ Deno.test("every forEach shape and scope code reports its exact path", async () 
         forEachNode({}, { steps: [noop("iterations")] }),
       ]),
       [{ path: `${loopAt}/steps/0/id`, code: "node_id_reserved" }],
+    ],
+    [
+      "a collect name cannot collide with a loop step",
+      workflow([
+        noop("prepare"),
+        forEachNode({}, {
+          steps: [noop("work")],
+          collect: { work: true },
+        }),
+      ]),
+      [{
+        path: `${loopAt}/collect/work`,
+        code: "output_name_conflict",
+      }],
+    ],
+    [
+      "a collect name cannot replace a loop result",
+      workflow([
+        noop("prepare"),
+        forEachNode({}, { collect: { outcome: true } }),
+      ]),
+      [{
+        path: `${loopAt}/collect/outcome`,
+        code: "output_name_conflict",
+      }],
+    ],
+    [
+      "a secret-like collect name cannot be read",
+      workflow([
+        noop("prepare"),
+        forEachNode({}, { collect: { password: true } }),
+        { ...noop("after"), with: { value: "$step.cases.password" } },
+      ]),
+      [{ path: "/steps/2/with", code: "reference_secret_forbidden" }],
     ],
     [
       "$each outside every loop",
@@ -4442,6 +4494,28 @@ Deno.test("every forEach shape and scope code reports its exact path", async () 
       [{ path: "/steps/0/with", code: "value_reference_ambiguous" }],
     ],
   ]);
+});
+
+Deno.test("a parallel forEach refuses workspace writes", async () => {
+  const result = await compileWorkflowDocument(
+    plain(workflow([
+      BUILD,
+      forEachNode({}, {
+        items: "$step.build.artifacts",
+        maxConcurrency: 2,
+        steps: [noop("work")],
+      }),
+    ])),
+    { catalog: createDesignCatalog() },
+  );
+  assert(!result.ok);
+  assertEquals(
+    result.diagnostics.map(({ path, code }) => ({ path, code })),
+    [{
+      path: "/steps/1/forEach/steps/0/files",
+      code: "for_each_parallel_workspace_write",
+    }],
+  );
 });
 
 Deno.test("a forEach is typed: its items must be a list and $each has the item's type", async () => {
