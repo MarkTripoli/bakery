@@ -19,6 +19,7 @@ import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   cohortSummary,
   leadTimeHours,
+  percentile,
   readDeliveredTasks,
   type TaskTimeline,
   waitShares,
@@ -36,6 +37,7 @@ import {
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
+const WEEK_MS = 7 * DAY_MS;
 const DEFAULT_SPAN_MS = 30 * DAY_MS;
 const MAX_SPAN_MS = 366 * DAY_MS;
 const MAX_POINTS = 1000;
@@ -158,7 +160,7 @@ export const METRIC_DEFINITIONS: Readonly<Record<MetricKey, Definition>> =
     [MetricKey.TaskLeadTime]: {
       unit: "hours",
       cohort:
-        "Tasks delivered in each period: from the first admitted run to the first merged pull request, else the last completed run",
+        "Nearest-rank median hours for tasks delivered in each period, from the first admitted run to the first merged pull request, else the last completed run",
       placedBy: "delivered",
     },
     [MetricKey.DeploymentFrequency]: {
@@ -209,11 +211,12 @@ export function measurementRevision(key: MetricKey): string {
   return revisionOf(key, METRIC_DEFINITIONS[key]);
 }
 
-export type Resolution = "minute" | "hour" | "day";
+export type Resolution = "minute" | "hour" | "day" | "week";
 const RESOLUTION_MS: Record<Resolution, number> = {
   minute: 60_000,
   hour: HOUR_MS,
   day: DAY_MS,
+  week: WEEK_MS,
 };
 
 export type MetricWindow = Readonly<{
@@ -536,7 +539,6 @@ export function noDeployEvidence(window: MetricWindow): SeriesBody {
   };
 }
 
-/** Buckets placements into points; mean for hours and ratio, sum otherwise. */
 export function aggregate(
   key: MetricKey,
   placed: readonly Placement[],
@@ -547,6 +549,9 @@ export function aggregate(
   const sums = new Array<number>(window.buckets).fill(0);
   const known = new Array<number>(window.buckets).fill(0);
   const members = new Array<number>(window.buckets).fill(0);
+  const bucketSamples = key === MetricKey.TaskLeadTime
+    ? Array.from({ length: window.buckets }, () => [] as number[])
+    : null;
   const reasons = new Map<MissingReason, number>();
   let sample = 0;
   let stillOpen = 0;
@@ -564,6 +569,7 @@ export function aggregate(
     if (p.value === null) continue;
     sums[index] += p.value;
     known[index] += 1;
+    bucketSamples?.[index]?.push(p.value);
     sample += 1;
     if (
       key === MetricKey.MergeRate && p.value === 0 && p.fact?.status === "open"
@@ -589,13 +595,12 @@ export function aggregate(
     }
     sample = placed.filter((p) => p.value !== null).length;
   }
-  const mean = unit === "hours" || unit === "ratio";
+  const average = unit === "hours" || unit === "ratio";
   const points = sums.map((sum, index) => {
     const at = new Date(window.from.getTime() + index * window.bucketMs)
       .toISOString();
     if (known[index] === 0) {
-      // A count with no records is zero; a mean of nothing is unknown.
-      if (!mean && anyRead) {
+      if (!average && anyRead) {
         return members[index] === 0
           ? { at, value: 0, unknownReason: null }
           : { at, value: null, unknownReason: "no_known_values" as const };
@@ -608,7 +613,10 @@ export function aggregate(
           : "no_known_values" as const,
       };
     }
-    return { at, value: mean ? sum / known[index] : sum, unknownReason: null };
+    const value = bucketSamples === null
+      ? average ? sum / known[index] : sum
+      : percentile(bucketSamples[index]!, 0.5);
+    return { at, value, unknownReason: null };
   });
   if (stillOpen > 0) reasons.set("still_open", stillOpen);
   const missingReasons = [...reasons.entries()]

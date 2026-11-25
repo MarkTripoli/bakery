@@ -31,6 +31,14 @@ Deno.test("both metric reads accept exactly the server's metric keys", () => {
     }
   }
 });
+Deno.test("the metric series read accepts weekly buckets", () => {
+  assert(
+    contractSchemas.MetricsQuery.safeParse({
+      metric: MetricKey.Merged,
+      resolution: "week",
+    }).success,
+  );
+});
 
 Deno.test("every metric key has a definition with a unit and a cohort", () => {
   assertEquals(Object.keys(METRIC_DEFINITIONS).sort(), [...KEYS].sort());

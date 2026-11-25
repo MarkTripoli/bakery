@@ -5,6 +5,7 @@ import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createDeliveryActionRegistry } from "./actions.ts";
 import { createDeliveryHandlers } from "./handlers.ts";
 import type { MergeDispatchDependencies } from "./merge-dispatch.ts";
+import type { ReconcileDependencies } from "../integrations/reconcile.ts";
 
 /**
  * Delivery evidence routes. They sit behind the token-accepting session
@@ -17,6 +18,7 @@ export function createDeliveryRoutes(options: {
   publicBaseUrl: string;
   cursorSecret: string;
   merge: MergeDispatchDependencies;
+  registration: Omit<ReconcileDependencies, "database">;
   environmentAddress?: (environment: string) => string | null;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -25,6 +27,7 @@ export function createDeliveryRoutes(options: {
   app.use("/v1/runs/:id/delivery-decisions", options.session);
   app.use("/v1/reviews/:id/findings", options.session);
   app.use("/v1/pull-requests", options.session);
+  app.use("/v1/tasks/:id/pull-requests", options.session);
   app.use("/v1/merge-entries", options.session);
   app.use("/v1/pull-requests/:id/merge", options.session);
   app.use("/v1/merge-attempts/reconcile", options.session);
@@ -42,6 +45,7 @@ export function createDeliveryRoutes(options: {
           options.merge,
           options.environmentAddress,
         ),
+        { database: options.database, ...options.registration },
       ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,

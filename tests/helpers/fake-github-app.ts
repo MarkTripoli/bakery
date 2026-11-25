@@ -83,6 +83,9 @@ export type FakePullRequest = {
   baseSha: string;
   mergedSha: string | null;
   updatedAt: string;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
 };
 
 /** What a test sets on a pull request it seeds; the rest is defaulted. */
@@ -1309,6 +1312,9 @@ export function createFakeGitHubApp(
       baseSha: seed.baseSha ?? fakeCommitSha(),
       mergedSha: seed.mergedSha ?? (merged ? fakeCommitSha() : null),
       updatedAt,
+      additions: seed.additions ?? 0,
+      deletions: seed.deletions ?? 0,
+      changedFiles: seed.changedFiles ?? 0,
     };
     reads.pullRequests.set(item.number, pullRequest);
     return pullRequest;
@@ -1754,6 +1760,9 @@ export function createFakeGitHubApp(
     updated_at: pull.updatedAt,
     closed_at: pull.state === "closed" ? pull.updatedAt : null,
     merged_at: pull.merged ? pull.updatedAt : null,
+    additions: pull.additions,
+    deletions: pull.deletions,
+    changed_files: pull.changedFiles,
     head: { label: "o:feature", ref: "feature", sha: pull.headSha },
     base: { label: "o:main", ref: "main", sha: pull.baseSha },
   });
