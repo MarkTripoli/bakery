@@ -20,6 +20,7 @@ import { mayActOnQuestion } from "../auth/application/run-grants.ts";
 import { completeRequestsOnQuestion } from "../work/run-requests.ts";
 import type { CoordinatorEffect } from "./coordinator.ts";
 import {
+  appendMessageCreateAudit,
   hasQueuedTurnCapacity,
   lockConversationScope,
   resolveCoordinatorAgentVersion,
@@ -655,23 +656,21 @@ async function resumeAskingTurn(
   return true;
 }
 
-/**
- * Appends a system message with the `agent_request` intent and queues exactly
- * one coordinator turn for it, inside the caller's transaction. Used for
- * question answers, the expiry sweep and approval change requests; every
- * caller holds the conversation row lock (message sequence and queue cap).
- * A full queue refuses like `messages.create` does.
- */
 export async function queueAgentRequest(
   transaction: PgTransactionClient,
   facts: {
     organizationId: string;
     conversationId: string;
     authorId: string;
+    messageType?: "human" | "system";
     body: string;
     clientMessageId: string;
     scope: ScopeFacts;
     traceId: string;
+    audit?: {
+      readonly principalId: string;
+      readonly requestId: string;
+    };
   },
 ): Promise<void> {
   const { organizationId } = facts;
@@ -703,12 +702,13 @@ export async function queueAgentRequest(
     `insert into bakery.messages (
        organization_id, conversation_id, author_id, message_type, body,
        client_message_id, sequence, intent
-     ) values ($1, $2, $3, 'system', $4, $5, $6, 'agent_request')
+     ) values ($1, $2, $3, $4, $5, $6, $7, 'agent_request')
      returning id`,
     [
       organizationId,
       facts.conversationId,
       facts.authorId,
+      facts.messageType ?? "system",
       facts.body,
       facts.clientMessageId,
       sequence,
@@ -768,6 +768,18 @@ export async function queueAgentRequest(
     outboxDeliveryKey:
       `conversation:${facts.conversationId}:turn:${turnId}:version:1`,
   });
+  if (facts.audit) {
+    await appendMessageCreateAudit(transaction, {
+      organizationId,
+      principalId: facts.audit.principalId,
+      conversationId: facts.conversationId,
+      messageId,
+      requestId: facts.audit.requestId,
+      traceId: facts.traceId,
+      intent: "agent_request",
+      sequence,
+    });
+  }
 }
 
 /**
