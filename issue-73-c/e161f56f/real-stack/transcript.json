@@ -1,0 +1,61 @@
+[
+  {
+    "at": "9.0",
+    "event": "inbox",
+    "rows": 2,
+    "first": "A Unread Ana Duarte mentioned you Refund policy 1 min ago 11/25/2026, 1:52:26 PM"
+  },
+  {
+    "at": "9.1",
+    "event": "target resolved",
+    "status": 200,
+    "body": "{\"status\":\"available\",\"targetKind\":\"comment\",\"path\":\"/shared/documents/be000000-0000-4000-8000-000000000020?version=be000000-0000-4000-8000-000000000021&comment=be000000-0000-4000-8000-000000000032\",\"anchor\":\"comment:be000000-0000-4000-8000-000000000032\",\"shar"
+  },
+  {
+    "at": "9.2",
+    "event": "target resolved",
+    "status": 200,
+    "body": "{\"status\":\"available\",\"targetKind\":\"comment\",\"path\":\"/shared/documents/be000000-0000-4000-8000-000000000020?version=be000000-0000-4000-8000-000000000021&comment=be000000-0000-4000-8000-000000000032\",\"anchor\":\"comment:be000000-0000-4000-8000-000000000032\",\"shar"
+  },
+  {
+    "at": "9.4",
+    "event": "landed",
+    "path": "/shared/documents/be000000-0000-4000-8000-000000000020",
+    "search": "?version=be000000-0000-4000-8000-000000000021&comment=be000000-0000-4000-8000-000000000032&at=comment%3Abe000000-0000-4000-8000-000000000032&n=be000000-0000-4000-8000-000000000052&r=1",
+    "outlined": "Discussion Open A A teammate Nov 25, 2026, 1:53 PM Ben, please check the holiday rule too. Reply Load replies",
+    "taskChrome": 0
+  },
+  {
+    "at": "9.4",
+    "event": "notification marked read",
+    "status": 200,
+    "sent": "{\"id\":\"be000000-0000-4000-8000-000000000052\",\"read\":true,\"expectedCasVersion\":1}"
+  },
+  {
+    "at": "13.8",
+    "event": "back on inbox",
+    "path": "/notifications"
+  },
+  {
+    "at": "13.9",
+    "event": "grant revoked"
+  },
+  {
+    "at": "14.6",
+    "event": "target resolved",
+    "status": 200,
+    "body": "{\"status\":\"unavailable\",\"targetKind\":\"comment\",\"path\":null,\"anchor\":null,\"reason\":\"no_longer_shared\",\"sharedByName\":\"Ana Duarte\",\"sharedAt\":\"2026-11-25T18:53:26.041Z\"}"
+  },
+  {
+    "at": "14.6",
+    "event": "unavailable",
+    "testid": "shared-unavailable-no_longer_shared",
+    "text": "This document is no longer shared with you Ask Ana Duarte if you still need it. Back to notifications Mark read",
+    "url": "/notifications?open=be000000-0000-4000-8000-000000000051&r=1"
+  },
+  {
+    "at": "18.7",
+    "event": "inbox after",
+    "path": "/notifications"
+  }
+]
