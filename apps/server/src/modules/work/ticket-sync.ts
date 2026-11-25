@@ -12,7 +12,7 @@ import {
   type RecheckAction,
   recheckTicket,
 } from "./ticket-admission.ts";
-import { requestedIntentFromLabels } from "./ticket-policy.ts";
+import { labelSetOf, requestedIntentFromLabels } from "./ticket-policy.ts";
 import { prefetchTicketReads, type TicketPrefetch } from "./ticket-prefetch.ts";
 import {
   findTicketForNumber,
@@ -678,7 +678,10 @@ async function dispatchCandidate(
   }
   if (
     answer.issue.kind === "present" &&
-    requestedIntentFromLabels(answer.issue.snapshot.labels, source.policy) !==
+    requestedIntentFromLabels(
+        labelSetOf(answer.issue.snapshot),
+        source.policy,
+      ) !==
       null
   ) {
     const admitted = await admitTicket(deps, {

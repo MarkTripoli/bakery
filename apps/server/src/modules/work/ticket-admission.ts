@@ -52,8 +52,10 @@ import {
 import {
   chosenWorkflowId,
   intentFromLabels,
+  labelSetOf,
   requestedIntentFromLabels,
   type TicketLabelBasis,
+  type TicketLabels,
   workflowRequired,
 } from "./ticket-policy.ts";
 import {
@@ -313,7 +315,7 @@ function requirementsChanged(): StandardError {
 /** The label basis of a new admission, from its origin and the issue's labels. */
 export function labelBasisFor(
   origin: TicketRequestOrigin,
-  labels: readonly string[],
+  labels: TicketLabels,
   policy: TicketSource["policy"],
 ): TicketLabelBasis {
   if (origin === "manual") return "manual";
@@ -564,9 +566,9 @@ async function evaluate(
   return await evaluateReadiness(input);
 }
 
-function issueLabels(prefetch: TicketPrefetch): readonly string[] {
+function issueLabels(prefetch: TicketPrefetch): TicketLabels {
   return prefetch.issue.kind === "present"
-    ? prefetch.issue.snapshot.labels
+    ? labelSetOf(prefetch.issue.snapshot)
     : [];
 }
 

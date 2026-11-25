@@ -15,8 +15,10 @@ import {
   automaticAdmissionAllowed,
   intentFromLabels,
   labelsCoverIntent,
+  labelSetOf,
   parseOffsetInstant,
   type TicketLabelBasis,
+  type TicketLabels,
 } from "./ticket-policy.ts";
 import {
   basisDigest,
@@ -147,7 +149,7 @@ export type ReadinessInput = {
 
 type PresentIssue = {
   normalized: NormalizedTicketSnapshot;
-  labels: readonly string[];
+  labels: TicketLabels;
 };
 
 type Context = {
@@ -771,7 +773,9 @@ export async function evaluateReadiness(
       providerUpdatedAt: issue.providerUpdatedAt,
     })
     : null;
-  const labels = issue.kind === "present" ? issue.snapshot.labels : [];
+  const labels: TicketLabels = issue.kind === "present"
+    ? labelSetOf(issue.snapshot)
+    : [];
   const requirements = normalized === null
     ? null
     : await requirementsDigest(normalized);

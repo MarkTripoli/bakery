@@ -41,6 +41,19 @@ const signatureMatches = (
   return expected.every((byte, index) => byte === input.signature[index]);
 };
 
+Deno.test("Linear declares label and status as its ticket triggers, and a tickets manifest without label is a defect (#407)", () => {
+  assertEquals(linearProviderManifest.ticketTriggers, ["label", "status"]);
+  const { ticketTriggers: _declared, ...undeclared } = linearProviderManifest;
+  assertEquals(manifestDefects(undeclared), [
+    "A provider that serves tickets declares ticketTriggers with label, the trigger every ticket source uses.",
+  ]);
+  assertEquals(
+    manifestDefects({ ...linearProviderManifest, ticketTriggers: ["status"] })
+      .length,
+    1,
+  );
+});
+
 Deno.test("the Linear manifest and implementation pass the SDK's own checks", () => {
   assertEquals(manifestDefects(linearProviderManifest), []);
   assertEquals(serverProviderDefects(linearServerProvider), []);
