@@ -3136,7 +3136,7 @@ export const clientManifest = {
       "output": "SkillDraft",
       "event": "",
       "mcp": "",
-      "idempotency": "natural; the same draft comes back",
+      "idempotency": "Idempotency-Key; opening again with a new key returns the same draft",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -10609,7 +10609,7 @@ export const clientManifest = {
       "output": "BlobUploadSession",
       "event": "",
       "mcp": "bakery_blobUploads_start",
-      "idempotency": "None: each call opens a new session, and a retry that completes twice stores nothing (recordBlob is insert-on-conflict)",
+      "idempotency": "Idempotency-Key; a new key opens a new session, and a retry that completes twice stores nothing (recordBlob is insert-on-conflict)",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -10632,7 +10632,7 @@ export const clientManifest = {
       "output": "BlobUploadSession",
       "event": "",
       "mcp": "bakery_blobUploads_part",
-      "idempotency": "Natural: a part is keyed by its ordinal, so a retry replaces the same row rather than appending",
+      "idempotency": "Idempotency-Key; a part is keyed by its ordinal, so a retry with a new key replaces the same row rather than appending",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -10657,7 +10657,7 @@ export const clientManifest = {
       "output": "Blob",
       "event": "",
       "mcp": "bakery_blobUploads_complete",
-      "idempotency": "Natural: completing an already-completed session answers with the blob it produced, so a client that never saw the first response can retry safely; recordBlob is insert-on-conflict-do-nothing, so the bytes are stored once",
+      "idempotency": "Idempotency-Key; completing an already-completed session answers with the blob it produced, and recordBlob is insert-on-conflict-do-nothing, so the bytes are stored once",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -13726,7 +13726,7 @@ export const clientManifest = {
       "output": "MergeAttempt",
       "event": "merge.dispatched",
       "mcp": "bakery_pullRequests_merge",
-      "idempotency": "natural",
+      "idempotency": "Idempotency-Key; the same key answers with the first merge attempt",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -13751,7 +13751,7 @@ export const clientManifest = {
       "output": "MergeReconciliation",
       "event": "merge.reconciled",
       "mcp": "bakery_mergeAttempts_reconcile",
-      "idempotency": "natural",
+      "idempotency": "Idempotency-Key; a new key reconciles again",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",

@@ -562,6 +562,21 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "machine-work",
+    path: "/machines/$machineId/work",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "reconnecting",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
     id: "machine-models",
     path: "/machines/$machineId/models",
     classification: "production",
@@ -1813,6 +1828,20 @@ const machineChecksRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const machineWorkRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/$machineId/work",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <MachineDetailPage
+      machineId={machineWorkRoute.useParams().machineId}
+      tab="work"
+    />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const machineModelsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/machines/$machineId/models",
@@ -2994,6 +3023,7 @@ const routeTree = rootRoute.addChildren([
   machineNewByHandRoute,
   machineDetailRoute,
   machineChecksRoute,
+  machineWorkRoute,
   machineModelsRoute,
   machineModelNewRoute,
   statusRoute,

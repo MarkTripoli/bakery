@@ -112,6 +112,10 @@
     "path": "/machines/$machineId/checks"
   },
   {
+    "id": "machine-work",
+    "path": "/machines/$machineId/work"
+  },
+  {
     "id": "machine-models",
     "path": "/machines/$machineId/models"
   },

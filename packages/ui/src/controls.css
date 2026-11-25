@@ -35,6 +35,10 @@ input:not([type="hidden"], [type="radio"], [type="checkbox"]) {
   font: inherit;
 }
 
+.ui-tabs__tab > [data-ui-component="badge"] {
+  margin-inline-start: var(--space-2);
+}
+
 .ui-button,
 .ui-icon-button {
   align-items: center;

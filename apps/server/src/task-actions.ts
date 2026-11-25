@@ -4,6 +4,7 @@ import {
   type ActionContext,
   ActionKind,
   ActionRegistry,
+  assertRegisteredActions,
   type CommandRunner,
   HttpMethod,
   TransactionIsolation,
@@ -249,5 +250,6 @@ export function createTaskActionRegistry(
     handler: handlers.usageList,
   });
   assertImplementedActionRegistry(registry, taskImplementedActions);
+  assertRegisteredActions(registry);
   return registry;
 }

@@ -1465,6 +1465,9 @@
 .ui-inline[data-controls="filters"] {
   align-items: flex-end;
 }
+.ui-inline[data-controls="figures"] > .ui-stat-tile {
+  flex: 0 0 auto;
+}
 /* A header with a long path wraps the path under the name and keeps its action
    at the end of the line, never dropped beneath the text. */
 @media (min-width: 744px) {
@@ -1821,6 +1824,9 @@
 }
 .ui-data-table--ruled[data-inset="edge"][data-rows="double"] td {
   block-size: calc(var(--space-12) + var(--space-3) - var(--border-default));
+}
+.ui-data-table--ruled[data-inset="edge"][data-rows="auto"] td {
+  padding-block: var(--space-3);
 }
 .ui-data-table button.ui-data-table__select {
   background: transparent;

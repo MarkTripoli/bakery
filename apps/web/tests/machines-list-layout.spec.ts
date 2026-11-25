@@ -157,7 +157,9 @@ test.describe("machines list layout", () => {
       expect([...widths], "one width for Fix and Open").toHaveLength(1);
       // One badge, one line and one button per machine, and no second status.
       const first = rows.first();
-      await expect(first).toContainText("macOS · Claude Code, Codex · 1 slot");
+      await expect(first).toContainText(
+        "macOS · Claude Code, Codex · 0 of 1 tasks",
+      );
       await expect(first).toContainText("Ready");
       await expect(first.getByRole("button", { name: `Open ${LONG_NAME}` }))
         .toBeVisible();
@@ -200,7 +202,7 @@ test.describe("machines list layout", () => {
       "Machine",
       "System",
       "Coding agents",
-      "Tasks at once",
+      "Tasks",
       "Last seen",
       "Status",
       "Action",

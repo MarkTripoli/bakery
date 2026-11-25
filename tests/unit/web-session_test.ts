@@ -186,6 +186,7 @@ function fakeApi(
       replace: rejecting,
     },
     workerComponents: { list: rejecting },
+    workerAttempts: { list: rejecting },
     providerRoutes: {
       list: rejecting,
       health: rejecting,
