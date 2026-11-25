@@ -1,4 +1,4 @@
-import { ticketFamilyActionsOf } from "../work/ticket-family-actions.ts";
+import { ticketFamilyActionsOf } from "../integrations/registry.ts";
 import type {
   TicketStatusChange,
   TicketStatusResult,

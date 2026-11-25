@@ -12,7 +12,7 @@ import {
   type TicketNoteResult,
   type TicketNoteWriter,
 } from "../work/ticket-notes.ts";
-import { ticketFamilyActionsOf } from "../work/ticket-family-actions.ts";
+import { ticketFamilyActionsOf } from "../integrations/registry.ts";
 import { connectionInvokeDeps } from "./invoke.ts";
 
 export type NoteActionRef = Readonly<{ id: string; version: number }>;

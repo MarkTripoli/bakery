@@ -5,7 +5,7 @@ import {
 } from "../../apps/server/src/modules/catalog/integration-providers/github.ts";
 import { createGateTicketStatusWriter } from "../../apps/server/src/modules/integrations/ticket-statuses.ts";
 import type { GateSend } from "../../apps/server/src/modules/integrations/ticket-gate.ts";
-import { ticketFamilyActionsOf } from "../../apps/server/src/modules/work/ticket-family-actions.ts";
+import { ticketFamilyActionsOf } from "../../apps/server/src/modules/integrations/registry.ts";
 
 type Handler = {
   input: { safeParse(value: unknown): { success: boolean } };

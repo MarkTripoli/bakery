@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { githubIntegration } from "../../apps/server/src/modules/catalog/integration-providers/github.ts";
-import { ticketFamilyActionsOf } from "../../apps/server/src/modules/work/ticket-family-actions.ts";
+import { ticketFamilyActionsOf } from "../../apps/server/src/modules/integrations/registry.ts";
 import { ticketNoteBody } from "../../apps/server/src/modules/work/ticket-notes.ts";
 import {
   createGateTicketNoteWriter,

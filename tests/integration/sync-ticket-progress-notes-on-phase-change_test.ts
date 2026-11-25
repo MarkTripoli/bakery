@@ -431,8 +431,8 @@ async function deliverOnce(
 ) {
   const sourceId = await fx.insertSource({
     policy: outcomeStatuses === undefined
-      ? fx.policy()
-      : { ...fx.policy(), outcomeStatuses },
+      ? fx.policy({ completion: "task" })
+      : { ...fx.policy({ completion: "task" }), outcomeStatuses },
   });
   fx.reader.setIssue({ number, labels: [EXECUTE_LABEL] });
   const request = (await fx.admit(sourceId, { number, intent: "start" }))
