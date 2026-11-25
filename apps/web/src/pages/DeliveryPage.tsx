@@ -43,6 +43,7 @@ const SHOW = "show";
 const MISSING = "missing";
 
 const RECORDS_PAGE = 50;
+const CHART_DAILY_MAX_MS = 90 * 86_400_000;
 
 /**
  * `/delivery`: what was delivered and how long it took.
@@ -86,17 +87,27 @@ export function DeliveryPage() {
     ...(repositoryId === null ? {} : { repositoryId }),
   };
   const enabled = !tooLong;
-  const merged = useSeries("prs.merged", base, enabled);
-  const closed = useSeries("prs.closedUnmerged", base, enabled);
-  const open = useSeries("prs.openAtCutoff", base, enabled);
-  const tasks = useSeries("tasks.leadTimeHours", base, enabled);
-  const lines = useSeries("prs.changedLines", base, enabled);
+  const metric = SHOW_METRIC[show ?? "merged"];
+  const merged = useSeries("prs.merged", base, enabled, "figure");
+  const closed = useSeries("prs.closedUnmerged", base, enabled, "figure");
+  const open = useSeries("prs.openAtCutoff", base, enabled, "figure");
+  const tasks = useSeries("tasks.leadTimeHours", base, enabled, "figure");
+  const lines = useSeries("prs.changedLines", base, enabled, "figure");
+  const chartResolution = window.to.getTime() - window.from.getTime() >
+      CHART_DAILY_MAX_MS
+    ? "week" as const
+    : "day" as const;
+  const chart = useSeries(
+    metric,
+    { ...base, resolution: chartResolution },
+    enabled,
+    "chart",
+  );
   const repositories = useQuery(
     repositoriesListQueryOptions(api, scope, { limit: 100 }),
   );
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
 
-  const metric = SHOW_METRIC[show ?? "merged"];
   const sources = useInfiniteQuery({
     ...metricSourcesQueryOptions(api, scope, {
       metric,
@@ -172,17 +183,14 @@ export function DeliveryPage() {
             to: formatDay(new Date(window.to.getTime() - 1)),
           }
           : custom}
-        series={{
-          merged: merged.data === undefined
-            ? null
-            : { points: merged.data.points },
-          tasks: tasks.data === undefined
-            ? null
-            : { points: tasks.data.points },
-          open: open.data === undefined ? null : { points: open.data.points },
-          closed: closed.data === undefined
-            ? null
-            : { points: closed.data.points },
+        chart={{
+          status: chart.isError
+            ? "error"
+            : chart.isPending
+            ? "loading"
+            : "ready",
+          points: chart.data?.points ?? [],
+          to: chart.data?.to ?? base.to,
         }}
         figures={{
           merged: mergedCount,
@@ -217,12 +225,14 @@ export function DeliveryPage() {
           })}
         onRefresh={() => {
           for (const query of queries) void query.refetch();
+          void chart.refetch();
         }}
         onRepositoryChange={(id) => write({ [REPOSITORY]: id ?? undefined })}
         onRetry={() => {
           for (const query of queries) void query.refetch();
         }}
         onRetryRecords={() => void sources.refetch()}
+        onRetryChart={() => void chart.refetch()}
         onShow={(next) =>
           write({ [SHOW]: next ?? undefined, [MISSING]: undefined })}
         onShowLast30Days={() =>
@@ -257,7 +267,7 @@ export function DeliveryPage() {
 type SeriesBase = {
   readonly from: string;
   readonly to: string;
-  readonly resolution: "day";
+  readonly resolution: NonNullable<MetricsQuery["resolution"]>;
   readonly repositoryId?: string;
 };
 
@@ -266,11 +276,15 @@ function useSeries(
   metric: MetricsQuery["metric"],
   base: SeriesBase,
   enabled: boolean,
+  purpose: "figure" | "chart",
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
+  const options = metricSeriesQueryOptions(api, scope, { ...base, metric });
   return useQuery({
-    ...metricSeriesQueryOptions(api, scope, { ...base, metric }),
+    ...options,
+    queryKey: [...options.queryKey, purpose],
+    retry: purpose === "chart" ? false : undefined,
     enabled: enabled && scope.organizationId !== null,
   });
 }

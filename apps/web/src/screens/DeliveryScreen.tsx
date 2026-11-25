@@ -69,9 +69,11 @@ export type DeliveryScreenProps = {
   readonly records: DeliveryRecords;
   /** How long tasks took and where the time went; null when no task was delivered. */
   readonly leadTime: LeadTime | null;
-  readonly series: Readonly<
-    Record<DeliveryShow, { readonly points: readonly ChartPoint[] } | null>
-  >;
+  readonly chart: {
+    readonly status: "loading" | "error" | "ready";
+    readonly points: readonly ChartPoint[];
+    readonly to: string;
+  };
   /** Admins are sent to reconnect; everyone else is told who can. */
   readonly canReconnect: boolean;
   readonly reconnectHref: string;
@@ -84,6 +86,7 @@ export type DeliveryScreenProps = {
   readonly onMissingOnly: (on: boolean) => void;
   readonly onLoadMore: () => void;
   readonly onRetryRecords: () => void;
+  readonly onRetryChart: () => void;
   readonly onRetry: () => void;
   readonly onRefresh: () => void;
   readonly onShowLast30Days: () => void;
@@ -413,7 +416,7 @@ function OverTime(props: DeliveryScreenProps) {
   const { translate, locale, timeZone } = useI18n();
   const shown: DeliveryShow = props.show ?? "merged";
   const figure = FIGURES.find((entry) => entry.show === shown)!;
-  const series = props.series[shown];
+  const series = props.chart;
   const day = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeZone,
@@ -422,7 +425,10 @@ function OverTime(props: DeliveryScreenProps) {
   return (
     <DeliveryChart
       label={translate(figure.label)}
-      points={series?.points ?? []}
+      onRetry={props.onRetryChart}
+      points={series.points}
+      to={series.to}
+      status={series.status}
       showMenu={
         <UI.Combobox
           appearance="filter"
@@ -461,7 +467,7 @@ function OverTime(props: DeliveryScreenProps) {
           ]}
           emptyMessage={translate("delivery.chart.noData")}
           getRowKey={(point) => point.at}
-          rows={series === null ? [] : [...series.points]}
+          rows={[...series.points]}
         />
       }
       unitLabel={translate(figure.detail)}

@@ -2991,9 +2991,10 @@ const transportSchemas = {
           "enum": [
             "minute",
             "hour",
-            "day"
+            "day",
+            "week"
           ],
-          "description": "Time-bucket size for the returned series: minute, hour, or day; finer buckets over a long window are limited by the 1,000-point series cap."
+          "description": "Time-bucket size for the returned series: minute, hour, day or week; finer buckets over a long window are limited by the 1,000-point series cap."
         },
         {
           "name": "repositoryId",
@@ -26179,7 +26180,7 @@ const transportSchemas = {
         "points": "MetricPoint[]",
         "from": "timestamp",
         "to": "timestamp",
-        "resolution": "enum(minute|hour|day)",
+        "resolution": "enum(minute|hour|day|week)",
         "unit": "enum(count|ratio|hours|lines)",
         "cohort": "string",
         "sampleCount": "integer",

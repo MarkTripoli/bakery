@@ -36,6 +36,7 @@ import {
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
+const WEEK_MS = 7 * DAY_MS;
 const DEFAULT_SPAN_MS = 30 * DAY_MS;
 const MAX_SPAN_MS = 366 * DAY_MS;
 const MAX_POINTS = 1000;
@@ -209,11 +210,12 @@ export function measurementRevision(key: MetricKey): string {
   return revisionOf(key, METRIC_DEFINITIONS[key]);
 }
 
-export type Resolution = "minute" | "hour" | "day";
+export type Resolution = "minute" | "hour" | "day" | "week";
 const RESOLUTION_MS: Record<Resolution, number> = {
   minute: 60_000,
   hour: HOUR_MS,
   day: DAY_MS,
+  week: WEEK_MS,
 };
 
 export type MetricWindow = Readonly<{

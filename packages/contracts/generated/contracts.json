@@ -40147,12 +40147,13 @@
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Time-bucket size for the returned series: minute, hour, or day; finer buckets over a long window are limited by the 1,000-point series cap.",
+                "description": "Time-bucket size for the returned series: minute, hour, day or week; finer buckets over a long window are limited by the 1,000-point series cap.",
                 "type": "string",
                 "enum": [
                   "minute",
                   "hour",
-                  "day"
+                  "day",
+                  "week"
                 ]
               }
             },
@@ -65962,12 +65963,13 @@
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
             },
             "resolution": {
-              "description": "Time-bucket size for the returned series: minute, hour, or day; finer buckets over a long window are limited by the 1,000-point series cap.",
+              "description": "Time-bucket size for the returned series: minute, hour, day or week; finer buckets over a long window are limited by the 1,000-point series cap.",
               "type": "string",
               "enum": [
                 "minute",
                 "hour",
-                "day"
+                "day",
+                "week"
               ]
             },
             "repositoryId": {
@@ -188996,7 +188998,8 @@
               "enum": [
                 "minute",
                 "hour",
-                "day"
+                "day",
+                "week"
               ],
               "description": "Aggregation resolution used for the metric series."
             },
@@ -308241,12 +308244,13 @@
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
         },
         "resolution": {
-          "description": "Time-bucket size for the returned series: minute, hour, or day; finer buckets over a long window are limited by the 1,000-point series cap.",
+          "description": "Time-bucket size for the returned series: minute, hour, day or week; finer buckets over a long window are limited by the 1,000-point series cap.",
           "type": "string",
           "enum": [
             "minute",
             "hour",
-            "day"
+            "day",
+            "week"
           ]
         },
         "repositoryId": {
@@ -431647,7 +431651,8 @@
           "enum": [
             "minute",
             "hour",
-            "day"
+            "day",
+            "week"
           ],
           "description": "Aggregation resolution used for the metric series."
         },

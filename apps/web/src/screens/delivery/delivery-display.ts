@@ -445,6 +445,24 @@ export function chartGaps(points: readonly ChartPoint[]): readonly ChartGap[] {
   return gaps;
 }
 
+export function chartMissingDays(
+  points: readonly ChartPoint[],
+  to: string,
+): number {
+  const upper = Date.parse(to);
+  let missingMilliseconds = 0;
+  for (const [index, point] of points.entries()) {
+    if (point.value !== null) continue;
+    const next = points[index + 1];
+    const end = Math.min(
+      next === undefined ? upper : Date.parse(next.at),
+      upper,
+    );
+    missingMilliseconds += Math.max(0, end - Date.parse(point.at));
+  }
+  return Math.ceil(missingMilliseconds / 86_400_000);
+}
+
 export function chartMaximum(points: readonly ChartPoint[]): number {
   let maximum = 0;
   for (const point of points) {

@@ -251,6 +251,31 @@ for (
       await page.mouse.move(700, 700);
       await still(page, "delivery-over-time");
     });
+    test("a period over 90 days asks for weekly chart points", async ({ page }) => {
+      const seen = await deliveryFixture(page);
+      await page.goto(
+        "/delivery?period=custom&from=2026-01-01&to=2026-06-01",
+      );
+      await expect(page.getByRole("heading", { name: "Over time" }))
+        .toBeVisible();
+      await expect.poll(() => seen.metricResolutions).toContain("week");
+    });
+
+    test("a failed chart stays inside Over time and retries without replacing the page", async ({ page }) => {
+      const seen = await deliveryFixture(page, { chartFailsUntilRetry: true });
+      await page.goto(
+        "/delivery?period=custom&from=2026-01-01&to=2026-06-01",
+      );
+      const chart = page.locator("[data-section='delivery-over-time']");
+      await expect(chart.getByText("The chart could not be loaded."))
+        .toBeVisible();
+      await expect(
+        page.getByRole("button", { name: /^Pull requests merged, 11\./ }),
+      ).toBeVisible();
+      seen.restoreChart();
+      await chart.getByRole("button", { name: "Try again" }).click();
+      await expect(chart.getByTestId("delivery-chart")).toBeVisible();
+    });
 
     test("a dense series keeps the band label off the line", async ({ page }) => {
       await deliveryFixture(page);

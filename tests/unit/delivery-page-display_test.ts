@@ -6,6 +6,7 @@ import type {
 import {
   chartGaps,
   chartMaximum,
+  chartMissingDays,
   chartSegments,
   countFigure,
   durationWords,
@@ -326,4 +327,17 @@ Deno.test("a chart breaks its line where nothing was measured and names the gaps
   assertEquals(chartMaximum(points), 5);
   assertEquals(chartSegments([]).length, 0);
   assertEquals(chartGaps([]).length, 0);
+});
+
+Deno.test("chart gaps count the actual days in partial weekly buckets", () => {
+  const points = [
+    { at: "2026-01-01T00:00:00.000Z", value: null },
+    { at: "2026-01-08T00:00:00.000Z", value: null },
+    { at: "2026-01-15T00:00:00.000Z", value: 2 },
+    { at: "2026-01-22T00:00:00.000Z", value: null },
+  ];
+  assertEquals(
+    chartMissingDays(points, "2026-01-25T00:00:00.000Z"),
+    17,
+  );
 });

@@ -5,6 +5,7 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import {
   chartGaps,
   chartMaximum,
+  chartMissingDays,
   type ChartPoint,
   chartSegments,
 } from "./delivery-display.ts";
@@ -18,14 +19,20 @@ export function DeliveryChart(
     points,
     label,
     unitLabel,
-    table,
     showMenu,
+    table,
+    status,
+    to,
+    onRetry,
   }: {
     readonly points: readonly ChartPoint[];
     readonly label: string;
     readonly unitLabel: string;
     readonly table: ReactNode;
     readonly showMenu: ReactNode;
+    readonly status: "loading" | "error" | "ready";
+    readonly to: string;
+    readonly onRetry: () => void;
   },
 ) {
   const { translate, locale, timeZone } = useI18n();
@@ -81,7 +88,7 @@ export function DeliveryChart(
       gap,
     };
   });
-  const gapCount = gaps.reduce((sum, gap) => sum + gap.points, 0);
+  const gapCount = chartMissingDays(points, to);
   const hiddenGapLabels = bands.flatMap((band) =>
     band.labelVisible ? [] : [band.description]
   );
@@ -103,7 +110,21 @@ export function DeliveryChart(
           )}
         </UI.Button>
       </UI.Inline>
-      {asTable
+      {status === "loading"
+        ? <UI.Skeleton aria-label={translate("delivery.loading")} />
+        : status === "error"
+        ? (
+          <UI.ErrorState
+            action={
+              <UI.Button onClick={onRetry}>
+                {translate("delivery.chart.retry")}
+              </UI.Button>
+            }
+            title={translate("delivery.chart.error")}
+            variant="region"
+          />
+        )
+        : asTable
         ? table
         : measured === 0
         ? (

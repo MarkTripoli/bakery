@@ -7191,5 +7191,7 @@
   "delivery.chart.band": "⟪No data, {from} to {to}⟫",
   "delivery.chart.bandDay": "⟪No data, {date}⟫",
   "delivery.chart.noDataPeriod": "⟪No data for this period. A gap is not zero.⟫",
-  "delivery.chart.column.day": "⟪Date⟫"
+  "delivery.chart.column.day": "⟪Date⟫",
+  "delivery.chart.error": "⟪The chart could not be loaded.⟫",
+  "delivery.chart.retry": "⟪Try again⟫"
 }

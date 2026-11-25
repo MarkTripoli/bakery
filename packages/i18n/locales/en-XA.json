@@ -7191,5 +7191,7 @@
   "delivery.chart.band": "⟦Ñô ðàŧà, {from} ŧô {to} ŧëšŧ ç⟧",
   "delivery.chart.bandDay": "⟦Ñô ðàŧà, {date} ŧëš⟧",
   "delivery.chart.noDataPeriod": "⟦Ñô ðàŧà ƒôŕ ŧĥïš þëŕïôð. À ĝàþ ïš ñôŧ žëŕô. ŧëšŧ çôþÿ ŧëš⟧",
-  "delivery.chart.column.day": "⟦Ðàŧë⟧"
+  "delivery.chart.column.day": "⟦Ðàŧë⟧",
+  "delivery.chart.error": "⟦Ŧĥë çĥàŕŧ çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþ⟧",
+  "delivery.chart.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧"
 }

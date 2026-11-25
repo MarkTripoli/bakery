@@ -25,6 +25,7 @@ export type DeliveryOptions = {
   allAccountedFor?: boolean;
   revision?: string | null;
   nothingMeasured?: boolean;
+  chartFailsUntilRetry?: boolean;
 };
 
 const point = (day: number, value: number | null) => ({
@@ -218,6 +219,8 @@ export async function deliveryFixture(
   // The organization each metrics read was made for, as the API sees it.
   const organizationHeaders: (string | undefined)[] = [];
   let metricReads = 0;
+  const metricResolutions: string[] = [];
+  let chartUnavailable = options.chartFailsUntilRetry === true;
   await page.route(
     (url) => url.pathname === "/v1/metrics",
     (route) => {
@@ -225,7 +228,20 @@ export async function deliveryFixture(
         route.request().headers()["bakery-organization-id"],
       );
       metricReads += 1;
-      const metric = new URL(route.request().url()).searchParams.get("metric")!;
+      const requestUrl = new URL(route.request().url());
+      const metric = requestUrl.searchParams.get("metric")!;
+      const resolution = requestUrl.searchParams.get("resolution") ?? "day";
+      metricResolutions.push(resolution);
+      if (
+        chartUnavailable && metric === "prs.changedLines" &&
+        resolution === "week"
+      ) {
+        return json(route, {
+          code: "INTERNAL",
+          message: "chart unavailable",
+          requestId: uuid(900),
+        }, 500);
+      }
       if (metric === "tasks.leadTimeHours") {
         return json(
           route,
@@ -280,6 +296,10 @@ export async function deliveryFixture(
     records,
     pullRequests,
     organizationHeaders,
+    metricResolutions,
+    restoreChart() {
+      chartUnavailable = false;
+    },
     get metricReads() {
       return metricReads;
     },
