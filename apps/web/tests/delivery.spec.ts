@@ -256,6 +256,36 @@ for (
       await still(page, "delivery-pull-requests");
     });
 
+    test("Lines changed records show counts and missing reasons", async ({ page }) => {
+      await deliveryFixture(page);
+      await page.goto("/delivery");
+      const show = page.getByRole("combobox", { name: "Show" });
+      await show.selectOption("lines");
+      const records = page.getByTestId("delivery-records");
+      const rowRole = viewport.name === "phone" ? "listitem" : "row";
+      const known = records.getByRole(rowRole).filter({
+        hasText: "Fix the retry window",
+      });
+      const missing = records.getByRole(rowRole).filter({
+        hasText: "Tidy the settings copy",
+      });
+      if (viewport.name === "phone") {
+        await expect(known).toContainText("Lines: 51");
+        await expect(missing).toContainText(/Lines: Not line-counted/);
+      } else {
+        await expect(records.getByRole("columnheader", { name: "Lines" }))
+          .toBeVisible();
+        await expect(known.getByRole("cell", { name: "51" })).toBeVisible();
+        await expect(missing.getByRole("cell", { name: /Not line-counted/ }))
+          .toBeVisible();
+      }
+      await show.selectOption("merged");
+      const merged = records.getByRole(rowRole).filter({
+        hasText: "Fix the retry window",
+      });
+      await expect(merged).toContainText("51");
+    });
+
     test("a reversed custom range names the end to fix, and asks for nothing", async ({ page }) => {
       const seen = await deliveryFixture(page);
       const before = seen.metricReads;

@@ -877,7 +877,7 @@ function RecordsSection(
           header: translate("delivery.records.column.opened"),
           cell: (row: RecordRow) => dayAndTime(row.openedAt),
         },
-        ...(shown === "merged"
+        ...(shown === "merged" || shown === "lines"
           ? [
             {
               id: "merged",
