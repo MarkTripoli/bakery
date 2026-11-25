@@ -1,38 +1,36 @@
-import { assertEquals } from "@std/assert";
-import { clientManifest } from "../../packages/contracts/generated/client-manifest.ts";
-import type { ActionDefinition } from "../../packages/contracts/src/action-registry.ts";
+import { assertThrows } from "@std/assert";
+import {
+  ActionKind,
+  ActionRegistry,
+  ActionRegistryError,
+  assertRegisteredActions,
+  HttpMethod,
+} from "../../packages/contracts/src/action-registry.ts";
+import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
 import { createCatalogActionRegistry } from "../../apps/server/src/modules/catalog/actions.ts";
-import { createDeliveryActionRegistry } from "../../apps/server/src/modules/delivery/actions.ts";
-
-const declared = new Map<string, string>(
-  clientManifest.actions.map((entry) => [entry.action, entry.idempotency]),
-);
 
 const commandRunner = { run: () => Promise.reject(new Error("not run")) };
 
-function keyRequiredButUndeclared(
-  actions: readonly ActionDefinition[],
-): string[] {
-  return actions
-    .filter((action) =>
-      action.policy.type === "command" && action.naturalIdempotency !== true
-    )
-    .filter((action) =>
-      !(declared.get(action.name) ?? "").includes("Idempotency-Key")
-    )
-    .map((action) => action.name)
-    .sort();
-}
-
-Deno.test("every command a registry runs with a key tells the client to send one (#74)", () => {
-  const registries = [
-    createCatalogActionRegistry({} as never, {
-      commandRunner: commandRunner as never,
-    }),
-    createDeliveryActionRegistry({} as never, {} as never, {} as never),
-  ];
-  assertEquals(
-    registries.flatMap((registry) => keyRequiredButUndeclared(registry.list())),
-    [],
+Deno.test("a registry that runs a command with a key refuses a catalog entry that does not tell clients to send one (#74)", () => {
+  const registry = new ActionRegistry(undefined, commandRunner as never);
+  registry.register({
+    name: "skillDrafts.get",
+    method: HttpMethod.Get,
+    path: "/v1/skills/:id/draft",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.SkillDraft,
+    policy: { type: ActionKind.Command, access: "Public" },
+    handler: () => Promise.reject(new Error("not run")),
+  } as never);
+  assertThrows(
+    () => assertRegisteredActions(registry),
+    ActionRegistryError,
+    "needs an Idempotency-Key the catalog does not tell clients to send",
   );
+});
+
+Deno.test("the catalog registry the server builds assembles with its command runner (#74)", () => {
+  createCatalogActionRegistry({} as never, {
+    commandRunner: commandRunner as never,
+  });
 });

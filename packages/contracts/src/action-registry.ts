@@ -642,6 +642,14 @@ export class ActionRegistry {
     }
     return action;
   }
+  requiresIdempotencyKey(action: ActionDefinition): boolean {
+    return action.policy.type === ActionKind.Command &&
+      this.#commandRunner !== undefined &&
+      action.naturalIdempotency !== true &&
+      (this.#commandRunnerScope === "all" ||
+        action.explicitIdempotency !== undefined);
+  }
+
   list(): readonly ActionDefinition[] {
     return [...this.#actions.values()];
   }
@@ -797,7 +805,7 @@ function describeMismatchValue(value: unknown): string {
 }
 
 export function assertRegisteredActions(
-  registry: Pick<ActionRegistry, "list">,
+  registry: Pick<ActionRegistry, "list" | "requiresIdempotencyKey">,
 ): void {
   for (const action of registry.list()) {
     const matches = catalogActions.filter((catalog) =>
@@ -809,6 +817,14 @@ export function assertRegisteredActions(
       );
     }
     const catalog = matches[0];
+    if (
+      registry.requiresIdempotencyKey(action) &&
+      !catalog.idempotency.includes("Idempotency-Key")
+    ) {
+      throw new ActionRegistryError(
+        `action ${action.name} needs an Idempotency-Key the catalog does not tell clients to send`,
+      );
+    }
     const fields: [string, unknown, unknown][] = [
       ["method", action.method.toUpperCase(), catalog.method.toUpperCase()],
       [
