@@ -133,7 +133,8 @@ export function createSessionFeedHandler(secret: string) {
                   null::text as body, null::text as intent, event.sequence,
                   event.occurred_at as created_at,
                   event.tool_gateway_call_id as tool_call_id,
-                  call.effective_name as tool_name, event.phase as tool_phase,
+                  coalesce(call.effective_name, call.tool_name) as tool_name,
+                  event.phase as tool_phase,
                   event.ok as tool_ok
              from bakery.session_tool_feed_events event
              join bakery.tool_gateway_calls call

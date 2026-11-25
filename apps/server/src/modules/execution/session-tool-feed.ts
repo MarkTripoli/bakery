@@ -16,10 +16,20 @@ type ToolFeedScope = {
   agent_session_id: string;
 };
 
+function assertToolFeedEvent(event: ToolFeedEvent): void {
+  const valid = event.phase === "started"
+    ? event.ok === null
+    : event.phase === "completed"
+    ? event.ok !== null
+    : event.ok === false;
+  if (!valid) throw new Error("TOOL_FEED_EVENT_INVALID");
+}
+
 export async function appendSessionToolFeedEvent(
   transaction: PgTransactionClient,
   event: ToolFeedEvent,
 ): Promise<void> {
+  assertToolFeedEvent(event);
   const scope = (await transaction.query<ToolFeedScope>(
     `select task.conversation_id,
             ${assignedAgentSessionSql("job")} as agent_session_id

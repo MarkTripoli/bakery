@@ -6,9 +6,7 @@ create table bakery.conversation_feed_sequences (
     primary key (organization_id, conversation_id),
   constraint conversation_feed_sequences_conversation_fk
     foreign key (organization_id, conversation_id)
-    references bakery.conversations (organization_id, id) on delete cascade,
-  constraint conversation_feed_sequences_last_sequence_check
-    check (last_sequence > 0)
+    references bakery.conversations (organization_id, id) on delete cascade
 );
 
 grant select, insert on bakery.conversation_feed_sequences to bakery_app;
@@ -16,13 +14,7 @@ grant update (last_sequence)
   on bakery.conversation_feed_sequences to bakery_app;
 
 alter table bakery.tool_gateway_calls
-  add column effective_name text;
-
-update bakery.tool_gateway_calls
-  set effective_name = tool_name;
-
-alter table bakery.tool_gateway_calls
-  alter column effective_name set not null,
+  add column effective_name text,
   add constraint tool_gateway_calls_organization_id_unique
     unique (organization_id, id);
 
@@ -49,14 +41,6 @@ create table bakery.session_tool_feed_events (
   constraint session_tool_feed_events_call_fk
     foreign key (organization_id, tool_gateway_call_id)
     references bakery.tool_gateway_calls (organization_id, id) on delete cascade,
-  constraint session_tool_feed_events_phase_check
-    check (phase in ('started', 'completed', 'failed')),
-  constraint session_tool_feed_events_ok_check
-    check (
-      (phase = 'started' and ok is null) or
-      (phase = 'completed' and ok is not null) or
-      (phase = 'failed' and ok = false)
-    ),
   constraint session_tool_feed_events_session_sequence_unique
     unique (organization_id, agent_session_id, sequence),
   constraint session_tool_feed_events_call_phase_unique

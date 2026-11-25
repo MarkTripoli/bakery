@@ -19,6 +19,8 @@ export async function allocateConversationFeedSequence(
     [organizationId, conversationId],
   );
   const sequence = allocated.rows[0]?.sequence;
-  if (sequence === undefined) throw new Error("FEED_SEQUENCE_UNAVAILABLE");
+  if (sequence === undefined || !/^[1-9]\d*$/.test(sequence)) {
+    throw new Error("FEED_SEQUENCE_UNAVAILABLE");
+  }
   return sequence;
 }

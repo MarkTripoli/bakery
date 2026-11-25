@@ -281,6 +281,11 @@ async function recordSentCall(
   | { kind: "sent"; callId: string }
   | { kind: "replay"; previous: CallRow }
 > {
+  if (
+    typeof call.tool.name !== "string" || call.tool.name.trim().length === 0
+  ) {
+    throw new Error("TOOL_EFFECTIVE_NAME_INVALID");
+  }
   const inserted = await transaction.query<{ id: string }>(
     `insert into bakery.tool_gateway_calls (
        organization_id, attempt_id, idempotency_key, mcp_connection_id,
@@ -296,7 +301,7 @@ async function recordSentCall(
       call.idempotencyKey,
       call.tool.connectionId,
       call.tool.toolName,
-      call.tool.name,
+      call.tool.name.trim(),
       call.tool.snapshotDigest,
       call.argumentsDigest,
       call.tool.readOnly,
