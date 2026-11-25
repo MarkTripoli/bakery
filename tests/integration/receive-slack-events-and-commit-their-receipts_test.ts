@@ -478,13 +478,53 @@ Deno.test("running Slack ingress uses canonical conversation admission", async (
       assertEquals(exactMessage.rows[0]?.bytes, MAX_MESSAGE_BODY_BYTES);
 
       const beforeOversize = await slackDurableCounts(f);
+      const oversizeEventId = eventId();
+      const oversizePayload = replyPayload(
+        oversizeEventId,
+        `${exactText}a`,
+        "1.5",
+      );
       const oversize = await postSlackEvent(
         f,
         signingSecret,
-        replyPayload(eventId(), `${exactText}a`, "1.5"),
+        oversizePayload,
       );
-      assertEquals(oversize.status, 503);
-      assertEquals(await slackDurableCounts(f), beforeOversize);
+      assertEquals(oversize.status, 200);
+      assertEquals(
+        (await oversize.json() as { disposition: string }).disposition,
+        "rejected",
+      );
+      const afterOversize = {
+        ...beforeOversize,
+        receipts: beforeOversize.receipts + 1,
+      };
+      assertEquals(await slackDurableCounts(f), afterOversize);
+      const oversizeReceipt = await f.pgDatabase.query<{
+        outcome: string;
+        status: string;
+        processed_at: Date | null;
+      }>(
+        `select outcome, status, processed_at
+           from bakery.slack_event_receipts
+          where app_id = $1 and event_id = $2`,
+        [value.appId, oversizeEventId],
+      );
+      assertEquals(oversizeReceipt.rows[0]?.outcome, "ignored");
+      assertEquals(oversizeReceipt.rows[0]?.status, "ignored");
+      assert(oversizeReceipt.rows[0]?.processed_at instanceof Date);
+
+      const duplicateOversize = await postSlackEvent(
+        f,
+        signingSecret,
+        oversizePayload,
+      );
+      assertEquals(duplicateOversize.status, 200);
+      assertEquals(
+        (await duplicateOversize.json() as { disposition: string })
+          .disposition,
+        "duplicate",
+      );
+      assertEquals(await slackDurableCounts(f), afterOversize);
     } finally {
       await cleanup(f, otherOrganizationId);
       if (unrelatedSecretId !== null) {

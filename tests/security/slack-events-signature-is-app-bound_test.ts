@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { sha256Hex } from "../../apps/server/src/modules/integrations/intake-signature.ts";
 import { receiveSlackEvent } from "../../apps/server/src/modules/integrations/slack-intake.ts";
 import type { SlackInstallationRecord } from "../../apps/server/src/modules/integrations/slack-receipts.ts";
@@ -8,11 +8,16 @@ import {
 } from "../../apps/server/src/modules/integrations/slack-receipts.ts";
 import type { SlackInstallation } from "../../apps/server/src/modules/integrations/slack-scope.ts";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
-import { StandardError } from "../../packages/contracts/src/http.ts";
 import { linkSlackIdentity } from "../../apps/server/src/modules/integrations/slack-identity-links.ts";
+import {
+  sealInstallationSecret,
+  writeInstallationSecretVersion,
+} from "../../apps/server/src/modules/secrets/installation-secrets.ts";
 import { openInstallationFixture } from "../helpers/installation-settings.ts";
 
 const encoder = new TextEncoder();
+type Fixture = Awaited<ReturnType<typeof openInstallationFixture>>;
+
 const nowMs = 1_800_000_000_000;
 
 async function sign(
@@ -37,6 +42,32 @@ async function sign(
   const hex = [...digest].map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
   return `v0=${hex}`;
+}
+async function postSlackEvent(
+  fixture: Fixture,
+  signingSecret: string,
+  payload: unknown,
+): Promise<Response> {
+  const body = JSON.stringify(payload);
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  return await fixture.app.fetch(
+    new Request(
+      `${fixture.config.publicBaseUrl}/v1/webhooks/slack/events`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-slack-request-timestamp": timestamp,
+          "x-slack-signature": await sign(
+            timestamp,
+            body,
+            encoder.encode(signingSecret),
+          ),
+        },
+        body,
+      },
+    ),
+  );
 }
 
 Deno.test("a Slack app signature cannot authorize another app", async () => {
@@ -209,7 +240,16 @@ async function authorityCounts(
 }
 
 Deno.test("Slack coordinator admission requires live human action authority", async () => {
-  const fixture = await openInstallationFixture(true);
+  const directory = await Deno.makeTempDir({ prefix: "bakery-slack-auth-" });
+  const keyFile = `${directory}/key`;
+  await Deno.writeFile(keyFile, crypto.getRandomValues(new Uint8Array(32)), {
+    mode: 0o600,
+  });
+  const fixture = await openInstallationFixture(true, {
+    secretsKey: { file: keyFile, keyId: "slack-auth-fixture-key-v1" },
+  });
+  const signingSecret = `security-${crypto.randomUUID()}`;
+  let signingSecretId: string | null = null;
   try {
     const developerId = fixture.developerId;
     assert(typeof developerId === "string");
@@ -226,13 +266,26 @@ Deno.test("Slack coordinator admission requires live human action authority", as
       }`,
       scopes: [],
     };
+    const sealed = await sealInstallationSecret(
+      fixture.config.secretsKey,
+      null,
+      signingSecret,
+    );
+    signingSecretId = sealed.secretId;
     const registered = await withPgTransaction(
       fixture.runtimePgDatabase,
-      (transaction) =>
-        registerSlackInstallation(transaction, {
+      async (transaction) => {
+        await writeInstallationSecretVersion(transaction, sealed, {
+          name: `Slack ${value.appId}`,
+          provider: "slack",
+          principalId: fixture.adminId,
+        });
+        return await registerSlackInstallation(transaction, {
           organizationId: fixture.organizationId,
           installation: value,
-        }),
+          signingSecretId: sealed.secretId,
+        });
+      },
     );
     assert(registered.ok);
     const adminLink = await withPgTransaction(
@@ -307,32 +360,49 @@ Deno.test("Slack coordinator admission requires live human action authority", as
     );
     assert(guestLink.ok);
     const beforeGuest = await authorityCounts(fixture);
-    const guestDenied = await assertRejects(
-      () =>
-        withPgTransaction(
-          fixture.runtimePgDatabase,
-          (transaction) =>
-            commitSlackReceipt(transaction, {
-              installationId: registered.installation.installationId,
-              appId: value.appId,
-              eventId: "EvAuthGuest",
-              payloadDigest: "c".repeat(64),
-              decision: {
-                kind: "mention",
-                eventId: "EvAuthGuest",
-                channelId: "C0GUEST",
-                userId: "U0GUEST",
-                ts: "2.1",
-                threadTs: "2.1",
-                text: "forbidden",
-              },
-              now: new Date(),
-            }),
-        ),
-      StandardError,
+    const guestPayload = {
+      type: "event_callback",
+      event_id: "EvAuthGuest",
+      api_app_id: value.appId,
+      team_id: value.teamId,
+      authorizations: [{
+        team_id: value.teamId,
+        user_id: value.botUserId,
+      }],
+      event: {
+        type: "app_mention",
+        channel: "C0GUEST",
+        user: "U0GUEST",
+        ts: "2.1",
+        text: "forbidden",
+      },
+    };
+    const guestDenied = await postSlackEvent(
+      fixture,
+      signingSecret,
+      guestPayload,
     );
-    assertEquals(guestDenied.code, "RESOURCE_NOT_FOUND");
-    assertEquals(await authorityCounts(fixture), beforeGuest);
+    assertEquals(guestDenied.status, 200);
+    assertEquals(
+      (await guestDenied.json() as { disposition: string }).disposition,
+      "rejected",
+    );
+    const afterGuest = {
+      ...beforeGuest,
+      receipts: beforeGuest.receipts + 1,
+    };
+    assertEquals(await authorityCounts(fixture), afterGuest);
+    const guestDuplicate = await postSlackEvent(
+      fixture,
+      signingSecret,
+      guestPayload,
+    );
+    assertEquals(guestDuplicate.status, 200);
+    assertEquals(
+      (await guestDuplicate.json() as { disposition: string }).disposition,
+      "duplicate",
+    );
+    assertEquals(await authorityCounts(fixture), afterGuest);
 
     await fixture.pgDatabase.query(
       `update bakery.organization_memberships set role = 'viewer'
@@ -351,37 +421,74 @@ Deno.test("Slack coordinator admission requires live human action authority", as
       ],
     );
     const beforeGrantOnly = await authorityCounts(fixture);
-    const grantOnlyDenied = await assertRejects(
-      () =>
-        withPgTransaction(
-          fixture.runtimePgDatabase,
-          (transaction) =>
-            commitSlackReceipt(transaction, {
-              installationId: registered.installation.installationId,
-              appId: value.appId,
-              eventId: "EvAuthGrant",
-              payloadDigest: "d".repeat(64),
-              decision: {
-                kind: "thread_reply",
-                eventId: "EvAuthGrant",
-                channelId: "C0AUTH",
-                userId: "U0GUEST",
-                ts: "1.2",
-                threadTs: "1.1",
-                text: "grant only",
-              },
-              now: new Date(),
-            }),
-        ),
-      StandardError,
+    const grantOnlyPayload = {
+      type: "event_callback",
+      event_id: "EvAuthGrant",
+      api_app_id: value.appId,
+      team_id: value.teamId,
+      authorizations: [{
+        team_id: value.teamId,
+        user_id: value.botUserId,
+      }],
+      event: {
+        type: "message",
+        channel: "C0AUTH",
+        user: "U0GUEST",
+        ts: "1.2",
+        thread_ts: "1.1",
+        text: "grant only",
+      },
+    };
+    const grantOnlyDenied = await postSlackEvent(
+      fixture,
+      signingSecret,
+      grantOnlyPayload,
     );
-    assertEquals(grantOnlyDenied.code, "AUTH_FORBIDDEN");
-    assertEquals(await authorityCounts(fixture), beforeGrantOnly);
+    assertEquals(grantOnlyDenied.status, 200);
+    assertEquals(
+      (await grantOnlyDenied.json() as { disposition: string }).disposition,
+      "rejected",
+    );
+    const afterGrantOnly = {
+      ...beforeGrantOnly,
+      receipts: beforeGrantOnly.receipts + 1,
+    };
+    assertEquals(await authorityCounts(fixture), afterGrantOnly);
+    const grantOnlyDuplicate = await postSlackEvent(
+      fixture,
+      signingSecret,
+      grantOnlyPayload,
+    );
+    assertEquals(grantOnlyDuplicate.status, 200);
+    assertEquals(
+      (await grantOnlyDuplicate.json() as { disposition: string })
+        .disposition,
+      "duplicate",
+    );
+    assertEquals(await authorityCounts(fixture), afterGrantOnly);
   } finally {
-    await fixture.pgDatabase.query(
-      "delete from bakery.slack_installations where organization_id = $1",
-      [fixture.organizationId],
-    );
-    await fixture.finish();
+    try {
+      await fixture.pgDatabase.query(
+        "delete from bakery.slack_installations where organization_id = $1",
+        [fixture.organizationId],
+      );
+      if (signingSecretId !== null) {
+        await fixture.pgDatabase.query(
+          "update bakery.secrets set active_version_id = null where id = $1",
+          [signingSecretId],
+        );
+        await fixture.pgDatabase.query(
+          "delete from bakery.secret_versions where secret_id = $1",
+          [signingSecretId],
+        );
+        await fixture.pgDatabase.query(
+          "delete from bakery.secrets where id = $1",
+          [signingSecretId],
+        );
+      }
+      await fixture.finish();
+    } finally {
+      await Deno.remove(directory, { recursive: true });
+    }
   }
 });

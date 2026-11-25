@@ -242,6 +242,16 @@ type SlackReceiptWork = Exclude<
   PersistedSlackDecision,
   { readonly kind: "ignore" }
 >;
+const PERMANENT_SLACK_ADMISSION_CODES = new Set([
+  "AUTH_FORBIDDEN",
+  "BODY_TOO_LARGE",
+  "RESOURCE_NOT_FOUND",
+]);
+
+function isPermanentSlackAdmissionError(error: unknown): boolean {
+  return error instanceof StandardError &&
+    PERMANENT_SLACK_ADMISSION_CODES.has(error.code);
+}
 
 async function findOrCreateSlackConversation(
   transaction: PgTransactionClient,
@@ -321,11 +331,14 @@ async function handoffSlackWork(
     toPrincipalId(link.principalId),
     toOrganizationId(input.installation.organizationId),
   );
-  authorize(actor, permissionForAction(action), { action });
-  if (!isOrganizationMember(actor)) {
-    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  try {
+    authorize(actor, permissionForAction(action), { action });
+    assertMessageBodySize(input.work.text);
+  } catch (error) {
+    if (!isPermanentSlackAdmissionError(error)) throw error;
+    return false;
   }
-  assertMessageBodySize(input.work.text);
+  if (!isOrganizationMember(actor)) return false;
   const requestId = crypto.randomUUID();
   const traceId = crypto.randomUUID();
   const conversationId = await findOrCreateSlackConversation(
