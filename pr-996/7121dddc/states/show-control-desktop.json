@@ -1,0 +1,12 @@
+{
+  "tag": "SELECT",
+  "value": "merged",
+  "options": [
+    "Pull requests merged",
+    "Pull requests opened",
+    "Still open",
+    "Closed without merging",
+    "Lines changed",
+    "Time a task took (typical)"
+  ]
+}
