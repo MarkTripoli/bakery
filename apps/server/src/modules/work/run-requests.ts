@@ -5,6 +5,11 @@ import {
   appendDomainEvent,
   type PgTransactionClient,
 } from "@bakery/persistence";
+import {
+  type CursorBinding,
+  decodeCursor,
+  encodeCursor,
+} from "../../platform/cursor.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
 import {
   accessScopeClause,
@@ -1474,6 +1479,8 @@ type RunAccessRow = {
   granted_by_name: string | null;
   granted_by_kind: "person" | "agent" | "workflow";
   created_at: Date | string;
+  cursor_created_at: string;
+  cursor_position: number;
   source_request_id: string | null;
   audience_name: string | null;
   version: number;
@@ -1487,11 +1494,30 @@ type RunAccessPowerRow = {
   expires_at: Date | string;
 };
 
-export async function listRunAccess(context: ActionContext) {
-  const { transaction, organizationId, accessScope } = requireWorkTransaction(
-    context,
-  );
+const RUN_ACCESS_ORDERING = "openRequest:desc,createdAt:desc,id:desc";
+
+export async function listRunAccess(
+  context: ActionContext,
+  input: { cursor?: string; limit?: number },
+  cursorSecret: string,
+) {
+  const {
+    transaction,
+    organizationId,
+    principalId,
+    accessScope,
+  } = requireWorkTransaction(context);
   const run = await loadRun(context, transaction, organizationId, accessScope);
+  const limit = input.limit ?? 20;
+  const binding: CursorBinding = {
+    action: "runAccess.list",
+    organizationId,
+    principalId,
+    ordering: RUN_ACCESS_ORDERING,
+    filters: JSON.stringify({ runId: run.id }),
+    schemaVersion: 1,
+  };
+  const position = await decodeCursor(cursorSecret, input.cursor, binding);
   const projectParameters = [
     organizationId,
     run.id,
@@ -1513,11 +1539,21 @@ export async function listRunAccess(context: ActionContext) {
             access_grant.via, access_grant.granted_by,
             grantor.display_name as granted_by_name,
             access_grant.granted_by_kind, access_grant.created_at,
+            to_char(
+              access_grant.created_at at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+            ) as cursor_created_at,
+            case when request.status = 'open' and request.expires_at > now()
+              then 1 else 0 end as cursor_position,
             access_grant.source_request_id, request.audience_name,
             access_grant.version
        from bakery.run_access_grants as access_grant
        join bakery.principals as principal
          on principal.id = access_grant.principal_id
+       join bakery.organization_memberships as membership
+         on membership.organization_id = access_grant.organization_id
+        and membership.principal_id = access_grant.principal_id
+        and membership.status = 'active'
        left join bakery.principals as grantor
          on grantor.id = access_grant.granted_by
        left join bakery.person_requests as request
@@ -1525,28 +1561,52 @@ export async function listRunAccess(context: ActionContext) {
         and request.id = access_grant.source_request_id
       where access_grant.organization_id = $1 and access_grant.run_id = $2
         and access_grant.revoked_at is null
+        and principal.principal_type = 'human' and principal.disabled_at is null
         and not exists (
           select 1 from project_principals as project
            where project.principal_id = access_grant.principal_id
         )
+        and (
+          $8::timestamptz is null or
+          (
+            case when request.status = 'open' and request.expires_at > now()
+              then 1 else 0 end,
+            access_grant.created_at,
+            access_grant.id
+          ) < ($10::integer, $8, $9::uuid)
+        )
       order by (
         request.status = 'open' and request.expires_at > now()
       ) desc, access_grant.created_at desc, access_grant.id desc
-      limit $8`,
-    [...projectParameters, REQUEST_LIST_LIMIT],
+      limit $11`,
+    [
+      ...projectParameters,
+      position?.createdAt ?? null,
+      position?.id ?? null,
+      position?.position ?? null,
+      limit + 1,
+    ],
   );
   const directCount = await transaction.query<{ count: number }>(
     `with project_principals as (${PROJECT_RUN_PRINCIPALS_SQL})
      select count(*)::int as count
        from bakery.run_access_grants as access_grant
+       join bakery.principals as principal
+         on principal.id = access_grant.principal_id
+       join bakery.organization_memberships as membership
+         on membership.organization_id = access_grant.organization_id
+        and membership.principal_id = access_grant.principal_id
+        and membership.status = 'active'
       where access_grant.organization_id = $1 and access_grant.run_id = $2
         and access_grant.revoked_at is null
+        and principal.principal_type = 'human' and principal.disabled_at is null
         and not exists (
           select 1 from project_principals as project
            where project.principal_id = access_grant.principal_id
         )`,
     projectParameters,
   );
+  const visible = direct.rows.slice(0, limit);
   const powers = await transaction.query<RunAccessPowerRow>(
     `select power.principal_id, request.intent, request.step_key,
             request.target_id, power.expires_at
@@ -1555,9 +1615,10 @@ export async function listRunAccess(context: ActionContext) {
          on request.organization_id = power.organization_id
         and request.id = power.source_request_id
       where power.organization_id = $1 and power.run_id = $2
+        and power.principal_id = any($3::uuid[])
         and power.revoked_at is null and power.expires_at > now()
       order by power.created_at, power.id`,
-    [organizationId, run.id],
+    [organizationId, run.id, visible.map((row) => row.principal_id)],
   );
   const powersByPrincipal = new Map<string, RunAccessPowerRow[]>();
   for (const power of powers.rows) {
@@ -1570,10 +1631,11 @@ export async function listRunAccess(context: ActionContext) {
   }
   const projectCount = project.rows[0]?.count ?? 0;
   const directTotal = directCount.rows[0]?.count ?? 0;
+  const last = visible.at(-1);
   return {
     projectCount,
     totalCount: projectCount + directTotal,
-    items: direct.rows.map((row) => ({
+    items: visible.map((row) => ({
       id: row.id,
       principal: {
         principalId: row.principal_id,
@@ -1596,6 +1658,13 @@ export async function listRunAccess(context: ActionContext) {
       })),
       version: row.version,
     })),
+    nextCursor: direct.rows.length > limit && last
+      ? await encodeCursor(cursorSecret, binding, {
+        createdAt: last.cursor_created_at,
+        position: last.cursor_position,
+        id: last.id,
+      })
+      : null,
   };
 }
 

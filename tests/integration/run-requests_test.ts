@@ -32,6 +32,7 @@ type RunAccess = {
     powers: { intent: string; stepKey: string | null }[];
     version: number;
   }[];
+  nextCursor: string | null;
 };
 
 type RunAccessRemoval = {
@@ -179,6 +180,7 @@ Deno.test("run access lists direct people separately from project access", async
       })),
       [{ intent: "take_over", stepKey: o.run.stepKey }],
     );
+    assertEquals(access.nextCursor, null);
     assertEquals(
       (await api(o.fixture, o.other.cookie, "GET", path)).status,
       200,
@@ -187,7 +189,134 @@ Deno.test("run access lists direct people separately from project access", async
       (await api(o.fixture, o.guest.cookie, "GET", path)).status,
       200,
     );
+    await o.fixture.pgDatabase.query(
+      `update bakery.organization_memberships
+          set status = 'inactive', updated_at = now(), version = version + 1
+        where organization_id = $1 and principal_id = $2`,
+      [o.fixture.organizationId, o.guest.principalId],
+    );
+    const inactiveAccess = await body<RunAccess>(
+      await api(o.fixture, o.dev.cookie, "GET", path),
+      200,
+    );
+    assertEquals(inactiveAccess.projectCount, 3);
+    assertEquals(inactiveAccess.totalCount, 3);
+    assertEquals(inactiveAccess.items, []);
+    assertEquals(inactiveAccess.nextCursor, null);
   } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("run access pages every direct person beyond the first twenty", async () => {
+  const o = await open();
+  const userIds = Array.from({ length: 51 }, () => crypto.randomUUID());
+  const principalIds = Array.from({ length: 51 }, () => crypto.randomUUID());
+  const membershipIds = Array.from({ length: 51 }, () => crypto.randomUUID());
+  try {
+    await o.fixture.pgDatabase.query(
+      `insert into public."user" (
+         id, name, email, "emailVerified", "createdAt", "updatedAt"
+       )
+       select user_id, 'Page person ' || ordinality,
+              'page-' || user_id || '@example.test', true, now(), now()
+         from unnest($1::uuid[]) with ordinality as seed(user_id, ordinality)`,
+      [userIds],
+    );
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.principals (
+         id, provider_user_id, display_name, principal_type
+       )
+       select principal_id, user_id, 'Page person ' || ordinality, 'human'
+         from unnest($1::uuid[], $2::uuid[]) with ordinality
+              as seed(principal_id, user_id, ordinality)`,
+      [principalIds, userIds],
+    );
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.organization_memberships (
+         id, organization_id, principal_id, role, status, joined_at,
+         created_at, updated_at, version
+       )
+       select membership_id, $3, principal_id, 'guest', 'active', now(),
+              now(), now(), 1
+         from unnest($1::uuid[], $2::uuid[]) as seed(membership_id, principal_id)`,
+      [membershipIds, principalIds, o.fixture.organizationId],
+    );
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.run_access_grants (
+         organization_id, run_id, task_id, principal_id, via, granted_by,
+         granted_by_kind
+       )
+       select $1, $2, $3, principal_id, 'request', $4, 'person'
+         from unnest($5::uuid[]) as seed(principal_id)`,
+      [
+        o.fixture.organizationId,
+        o.run.runId,
+        o.run.taskId,
+        o.dev.principalId,
+        principalIds,
+      ],
+    );
+    const path = `/v1/runs/${o.run.runId}/access?limit=20`;
+    const first = await body<RunAccess>(
+      await api(o.fixture, o.dev.cookie, "GET", path),
+      200,
+    );
+    assertEquals(first.projectCount, 2);
+    assertEquals(first.totalCount, 53);
+    assertEquals(first.items.length, 20);
+    assertNotEquals(first.nextCursor, null);
+    const second = await body<RunAccess>(
+      await api(
+        o.fixture,
+        o.dev.cookie,
+        "GET",
+        `${path}&cursor=${encodeURIComponent(first.nextCursor!)}`,
+      ),
+      200,
+    );
+    assertEquals(second.totalCount, 53);
+    assertEquals(second.items.length, 20);
+    assertNotEquals(second.nextCursor, null);
+    const third = await body<RunAccess>(
+      await api(
+        o.fixture,
+        o.dev.cookie,
+        "GET",
+        `${path}&cursor=${encodeURIComponent(second.nextCursor!)}`,
+      ),
+      200,
+    );
+    assertEquals(third.totalCount, 53);
+    assertEquals(third.items.length, 11);
+    assertEquals(third.nextCursor, null);
+    assertEquals(
+      new Set(
+        [...first.items, ...second.items, ...third.items].map(
+          (item) => item.principal.principalId,
+        ),
+      ).size,
+      51,
+    );
+  } finally {
+    await o.fixture.pgDatabase.query(
+      `delete from bakery.run_access_grants
+        where organization_id = $1 and principal_id = any($2::uuid[])`,
+      [o.fixture.organizationId, principalIds],
+    );
+    await o.fixture.pgDatabase.query(
+      `delete from bakery.organization_memberships
+        where organization_id = $1 and principal_id = any($2::uuid[])`,
+      [o.fixture.organizationId, principalIds],
+    );
+    await o.fixture.pgDatabase.query(
+      "delete from bakery.principals where id = any($1::uuid[])",
+      [principalIds],
+    );
+    await o.fixture.pgDatabase.query(
+      `delete from public."user" where id = any($1::uuid[])`,
+      [userIds],
+    );
     await o.finish();
   }
 });

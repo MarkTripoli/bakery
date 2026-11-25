@@ -13766,7 +13766,7 @@ export const clientManifest = {
       "action": "runAccess.list",
       "access": "Developer",
       "permission": "run:read",
-      "input": "Empty",
+      "input": "RunAccessQuery",
       "output": "RunAccessList",
       "event": "",
       "mcp": "",
@@ -33663,6 +33663,26 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
+    },
+    "RunAccessQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "Opaque continuation token from the previous run-access page; bound to this run, caller, organization, ordering and filter set. RunAccessQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum removable direct grants returned on this page; defaults to 20 and cannot exceed 100. RunAccessQuery.limit must be at least 1. RunAccessQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Pages through removable direct grants on one run, with open source requests first and then newest grants first."
     },
     "RunRequestCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -115947,7 +115967,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
-          "description": "Project access plus all current direct grants after excluding people already counted through project access."
+          "description": "Project access plus active human recipients with current direct grants after excluding people already counted through project access."
         },
         "items": {
           "type": "array",
@@ -116135,18 +116155,33 @@ export const clientManifest = {
               "version"
             ],
             "additionalProperties": false,
-            "description": "Removable direct grants, open-request first and then newest first, bounded to fifty. Each array item follows this format."
+            "description": "One page of removable direct grants, open-request first and then newest first. Each array item follows this format."
           },
-          "description": "Removable direct grants, open-request first and then newest first, bounded to fifty."
+          "description": "One page of removable direct grants, open-request first and then newest first."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque continuation token for the next direct-grant page, or null when this page is the end."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunAccessList.nextCursor may be null in this transport value."
         }
       },
       "required": [
         "projectCount",
         "totalCount",
-        "items"
+        "items",
+        "nextCursor"
       ],
       "additionalProperties": false,
-      "description": "Who can see a run, separating project access from removable direct grants."
+      "description": "Who can see a run, separating project access from paginated removable direct grants."
     },
     "RunAccessRemoval": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

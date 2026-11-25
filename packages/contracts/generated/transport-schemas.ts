@@ -13841,6 +13841,35 @@ const transportSchemas = {
       ],
       "description": "Replaces the organization's storage limits (O42): versions kept, trash and scratch retention, maximum file size and the organization, project and personal quotas."
     },
+    "RunAccessQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from the previous run-access page; bound to this run, caller, organization, ordering and filter set."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 20
+          },
+          "description": "Maximum removable direct grants returned on this page; defaults to 20 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind the cursor to this operation, current principal, organization, run, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Pages through removable direct grants on one run, with open source requests first and then newest grants first."
+    },
     "RunRequestCreate": {
       "fields": [
         {
@@ -36624,19 +36653,24 @@ const transportSchemas = {
       "fields": [
         "projectCount",
         "totalCount",
-        "items"
+        "items",
+        "nextCursor"
       ],
       "fieldTypes": {
         "projectCount": "integer",
         "totalCount": "integer",
-        "items": "RunAccessItem[]"
+        "items": "RunAccessItem[]",
+        "nextCursor": "string|null"
       },
-      "nullableFields": [],
-      "description": "Who can see a run, separating project access from removable direct grants.",
+      "nullableFields": [
+        "nextCursor"
+      ],
+      "description": "Who can see a run, separating project access from paginated removable direct grants.",
       "fieldDescriptions": {
         "projectCount": "Active people who can see the run through an organization role, custom role or matching project binding.",
-        "totalCount": "Project access plus all current direct grants after excluding people already counted through project access.",
-        "items": "Removable direct grants, open-request first and then newest first, bounded to fifty."
+        "totalCount": "Project access plus active human recipients with current direct grants after excluding people already counted through project access.",
+        "items": "One page of removable direct grants, open-request first and then newest first.",
+        "nextCursor": "Opaque continuation token for the next direct-grant page, or null when this page is the end."
       }
     },
     "RunAccessRemoval": {

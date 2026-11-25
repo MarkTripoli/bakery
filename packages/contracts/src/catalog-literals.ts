@@ -1194,6 +1194,7 @@ export type ContractInputName =
   | "RoleBindingCreate"
   | "RoleBindingUpdate"
   | "RouteContinuationAdmit"
+  | "RunAccessQuery"
   | "RunBlockingTask"
   | "RunControl"
   | "RunCreate"

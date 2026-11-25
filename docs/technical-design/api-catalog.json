@@ -14447,7 +14447,7 @@
       "method": "GET",
       "path": "/v1/runs/{id}/access",
       "action": "runAccess.list",
-      "input": "Empty",
+      "input": "RunAccessQuery",
       "output": "RunAccessList",
       "event": "",
       "idempotency": "read",

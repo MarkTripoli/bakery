@@ -12,6 +12,7 @@ export function createRunRequestRoutes(
   options: {
     database: PgDatabase;
     session: MiddlewareHandler<{ Variables: AuthVariables }>;
+    cursorSecret: string;
   },
 ) {
   const app = new Hono<{ Variables: AuthVariables }>();
@@ -23,7 +24,10 @@ export function createRunRequestRoutes(
   app.route(
     "/",
     createApiRouter({
-      registry: createRunRequestActionRegistry(options.database),
+      registry: createRunRequestActionRegistry(
+        options.database,
+        options.cursorSecret,
+      ),
       createContext: createActionContext,
       deadlineMs: RUN_REQUEST_DEADLINE_MS,
     }),

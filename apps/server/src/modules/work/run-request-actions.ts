@@ -35,6 +35,7 @@ import {
  */
 export function createRunRequestActionRegistry(
   database: PgDatabase,
+  cursorSecret: string,
 ): ActionRegistry {
   const registry = new ActionRegistry(
     new PostgresAuthorityRunner(database),
@@ -85,10 +86,10 @@ export function createRunRequestActionRegistry(
     name: RunRequestImplementedAction.RunAccessList,
     method: HttpMethod.Get,
     path: "/v1/runs/:id/access",
-    input: contractSchemas.Empty,
+    input: contractSchemas.RunAccessQuery,
     output: contractSchemas.RunAccessList,
     policy: read,
-    handler: (context) => listRunAccess(context),
+    handler: (context, input) => listRunAccess(context, input, cursorSecret),
   }).register({
     name: RunRequestImplementedAction.RunAccessRemove,
     method: HttpMethod.Post,
