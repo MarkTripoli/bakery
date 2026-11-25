@@ -30,6 +30,7 @@ export const linearProviderManifest = {
   // reviews - so claiming the family would put a port nothing can serve on the
   // engine's list of places to look for a pull request.
   families: ["tickets"],
+  ticketTriggers: ["label", "status"],
   // Linear has no manifest-posted app registration: an administrator creates an
   // OAuth application in Linear and supplies its client id and secret.
   appRegistration: {

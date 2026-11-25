@@ -239,6 +239,58 @@ Deno.test("issue 82 unit policy: a renamed label is read by its new name only", 
   );
 });
 
+Deno.test("a label pinned by its stable id keeps its meaning after a rename on the provider (#407)", () => {
+  const pinned = parseTicketSourcePolicy({
+    ...policyDocument(),
+    labels: {
+      execute: EXECUTE,
+      planOnly: PLAN_ONLY,
+      hold: "bakery:hold",
+      ids: { execute: "L_exec", planOnly: null, hold: "L_hold" },
+    },
+  });
+  const renamed = { names: ["agent go"], ids: ["L_exec"] };
+  assertEquals(intentFromLabels(renamed, pinned), {
+    intent: "start",
+    hold: false,
+  });
+  assertEquals(
+    intentFromLabels({ names: [EXECUTE], ids: ["L_other"] }, pinned),
+    { intent: null, hold: false },
+    "the old name on another label asks for nothing",
+  );
+  assertEquals(
+    intentFromLabels({
+      names: ["agent go", "paused"],
+      ids: ["L_exec", "L_hold"],
+    }, pinned),
+    { intent: null, hold: true },
+  );
+  assertEquals(
+    intentFromLabels({ names: [PLAN_ONLY], ids: ["L_any"] }, pinned),
+    { intent: "plan", hold: false },
+    "a label without an id is still read by its name",
+  );
+  assertEquals(
+    intentFromLabels([EXECUTE], pinned),
+    { intent: "start", hold: false },
+    "a read that names no ids falls back to names",
+  );
+  assertThrows(
+    () =>
+      parseTicketSourcePolicy({
+        ...policyDocument(),
+        labels: {
+          execute: EXECUTE,
+          planOnly: null,
+          hold: "bakery:hold",
+          ids: { execute: "L_same", planOnly: null, hold: "L_same" },
+        },
+      }),
+    StandardError,
+  );
+});
+
 Deno.test("issue 82 unit policy: label coverage ignores hold and execute covers both intents", () => {
   assertEquals(labelsCoverIntent([EXECUTE], POLICY, "start"), true);
   assertEquals(labelsCoverIntent([EXECUTE], POLICY, "plan"), true);

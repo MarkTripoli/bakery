@@ -156,6 +156,10 @@ export const ResourceKindSchema = z.strictObject({
   ),
 }).describe("A resource kind a provider discovers.");
 
+export const TicketTriggerSchema = z.enum(["label", "status"]).describe(
+  "What can make a ticket ready on this provider: a label applied to it, or its status by stable id.",
+);
+
 export const ProviderManifestSchema = z.strictObject({
   slug: ProviderSlugSchema,
   integrationId: IntegrationIdSchema,
@@ -178,12 +182,17 @@ export const ProviderManifestSchema = z.strictObject({
   resourceKinds: z.array(ResourceKindSchema).max(32).describe(
     "Resource kinds the provider discovers and what facts each can serve.",
   ),
+  ticketTriggers: z.array(TicketTriggerSchema).min(1).max(2).optional()
+    .describe(
+      "For a provider that serves tickets, what can make a ticket ready: label, status or both. A ticket source on this provider may name statuses only when it declares status.",
+    ),
 }).describe(
   "Provider manifest: the data the host, the gate and the web bundle read without importing provider code.",
 );
 
 export type ProviderManifest = z.infer<typeof ProviderManifestSchema>;
 export type ProviderFamily = z.infer<typeof ProviderFamilySchema>;
+export type TicketTrigger = z.infer<typeof TicketTriggerSchema>;
 export type ResourceKind = z.infer<typeof ResourceKindSchema>;
 export type AppRegistration = z.infer<typeof AppRegistrationSchema>;
 export type ConnectKind = z.infer<typeof ConnectKindSchema>;
@@ -224,6 +233,15 @@ export function manifestDefects(manifest: ProviderManifest): string[] {
   const kindIds = manifest.resourceKinds.map((kind) => kind.id);
   if (new Set(kindIds).size !== kindIds.length) {
     defects.push("resourceKinds repeats a kind id.");
+  }
+  const triggers = manifest.ticketTriggers ?? [];
+  if (manifest.families.includes("tickets") && !triggers.includes("label")) {
+    defects.push(
+      "A provider that serves tickets declares ticketTriggers with label, the trigger every ticket source uses.",
+    );
+  }
+  if (new Set(triggers).size !== triggers.length) {
+    defects.push("ticketTriggers lists the same trigger twice.");
   }
   return defects;
 }
