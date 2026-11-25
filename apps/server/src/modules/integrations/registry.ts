@@ -2,8 +2,15 @@ import {
   type ActivatedProviders,
   activateProviders,
   type ProviderManifest,
+  type TicketActionRef,
+  type TicketFamilyAction,
   type TicketTrigger,
 } from "@bakery/integration-sdk/provider";
+import {
+  TICKET_NOTE_ACTION,
+  TICKET_NOTE_UPDATE_ACTION,
+  TICKET_STATUS_ACTION,
+} from "../catalog/integration-providers/github.ts";
 import { linearServerProvider } from "@bakery/integration-linear/server";
 import { slackServerProvider } from "@bakery/integration-slack/server";
 
@@ -282,4 +289,38 @@ export function ticketTriggersOf(provider: string): readonly TicketTrigger[] {
   return Object.hasOwn(TICKET_TRIGGERS, provider)
     ? TICKET_TRIGGERS[provider]!
     : ["label"];
+}
+
+export type TicketFamilyActions = Readonly<
+  Partial<Record<TicketFamilyAction, TicketActionRef>>
+>;
+
+const GITHUB_TICKET_FAMILY_ACTIONS: TicketFamilyActions = {
+  "comment.create": TICKET_NOTE_ACTION,
+  "comment.update": TICKET_NOTE_UPDATE_ACTION,
+  "status.set": TICKET_STATUS_ACTION,
+};
+
+export function ticketFamilyActionsFrom(
+  manifests: readonly Pick<ProviderManifest, "slug" | "ticketActions">[],
+  core: Readonly<Record<string, TicketFamilyActions>>,
+): Readonly<Record<string, TicketFamilyActions>> {
+  const declared: Record<string, TicketFamilyActions> = { ...core };
+  for (const manifest of manifests) {
+    if (manifest.ticketActions !== undefined) {
+      declared[manifest.slug] = manifest.ticketActions;
+    }
+  }
+  return declared;
+}
+
+const TICKET_FAMILY_ACTIONS = ticketFamilyActionsFrom(
+  SERVER_PROVIDERS.map((provider) => provider.manifest),
+  { [GITHUB_PROVIDER_IDENTITY.slug]: GITHUB_TICKET_FAMILY_ACTIONS },
+);
+
+export function ticketFamilyActionsOf(provider: string): TicketFamilyActions {
+  return Object.hasOwn(TICKET_FAMILY_ACTIONS, provider)
+    ? TICKET_FAMILY_ACTIONS[provider]!
+    : {};
 }
