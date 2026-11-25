@@ -1,0 +1,142 @@
+[
+  {
+    "at": "5.8",
+    "event": "start",
+    "read": "51:false 52:false 53:false 54:false"
+  },
+  {
+    "at": "9.8",
+    "event": "inbox",
+    "rows": 4,
+    "texts": [
+      "A Unread Ana Duarte mentioned you Refund policy 4 min ago 11",
+      "A Unread Ana Duarte mentioned you Refund policy 4 min ago 11",
+      "A Unread Ana Duarte mentioned you Refund policy 5 min ago 11",
+      "A Unread Ana Duarte mentioned you No longer available 7 min "
+    ]
+  },
+  {
+    "at": "10.4",
+    "event": "write",
+    "method": "PATCH",
+    "path": "/v1/notifications/be000000-0000-4000-8000-000000000053",
+    "body": "{\"id\":\"be000000-0000-4000-8000-000000000053\",\"read\":true,\"expectedCasVersion\":3}"
+  },
+  {
+    "at": "13.7",
+    "event": "conversation",
+    "path": "/shared/conversations/be000000-0000-4000-8000-000000000011",
+    "search": "?message=be000000-0000-4000-8000-000000000061&at=message%3Abe000000-0000-4000-80",
+    "outlined": 1,
+    "outlineAfterFade": 0,
+    "outlinedText": "Ana Duarte Nov 25, 2026, 2:31 PM Ben, the refund window needs your eyes.",
+    "top": 270,
+    "bottom": 356,
+    "viewport": 900,
+    "resolve": 0,
+    "edit": 0,
+    "taskLinks": 0,
+    "share": 0,
+    "rawId": false,
+    "isoTime": false,
+    "main": "Refund policy You can read and reply in this conversation. The rest of this task is not shared with you. Opened from a notification. Ana Duarte Nov 25, 2026, 2:31 PM Ben, the refund window needs your eyes. Ana Duarte Nov 25, 2026, 2:33 PM A later note with no mention. Send",
+    "read": "51:false 52:false 53:true 54:false"
+  },
+  {
+    "at": "17.6",
+    "event": "write",
+    "method": "PATCH",
+    "path": "/v1/notifications/be000000-0000-4000-8000-000000000052",
+    "body": "{\"id\":\"be000000-0000-4000-8000-000000000052\",\"read\":true,\"expectedCasVersion\":3}"
+  },
+  {
+    "at": "21.6",
+    "event": "document",
+    "path": "/shared/documents/be000000-0000-4000-8000-000000000020",
+    "search": "?version=be000000-0000-4000-8000-000000000021&comment=be000000-0000-4000-8000-00",
+    "outlined": 1,
+    "outlineAfterFade": 0,
+    "outlinedText": "Discussion Open A A teammate Nov 25, 2026, 2:34 PM Ben, please check the holiday rule too. Reply Load replies",
+    "top": 353,
+    "bottom": 621,
+    "viewport": 900,
+    "resolve": 0,
+    "edit": 0,
+    "taskLinks": 0,
+    "share": 0,
+    "rawId": false,
+    "isoTime": false,
+    "main": "Opened from a notification. ARTIFACT · TEXT/PLAIN Version 1 Refund policy Ana Duarte shared this document with you on Nov 25, 2026. Immutable versions Version 1 You can read this document and comment on it. The rest of the task is not shared with you. Preview Refunds are issued within 14 days of a return. Comments Discussion Open A A teammate Nov 25, 2026, 2:34 PM Ben, is 14 days right for returns? Reply Load replies",
+    "read": "51:false 52:true 53:true 54:false"
+  },
+  {
+    "at": "26.7",
+    "event": "document after reload",
+    "outlined": 0,
+    "search": "?version=be000000-0000-4000-8000-000000000021&comment=be000000-0000-4000-8000-00"
+  },
+  {
+    "at": "30.0",
+    "event": "document grant revoked"
+  },
+  {
+    "at": "32.1",
+    "event": "no-longer-shared",
+    "testid": "shared-unavailable-no_longer_shared",
+    "url": "/notifications?open=be000000-0000-4000-8000-000000000051&r=1",
+    "main": "Notifications This document is no longer shared with you Ask Ana Duarte if you still need it. Back to notifications Mark read",
+    "read": "51:false 52:true 53:true 54:false"
+  },
+  {
+    "at": "33.2",
+    "event": "back without mark read",
+    "read": "51:false 52:true 53:true 54:false"
+  },
+  {
+    "at": "35.3",
+    "event": "no-longer-shared-again",
+    "testid": "shared-unavailable-no_longer_shared",
+    "url": "/notifications?open=be000000-0000-4000-8000-000000000051&r=1",
+    "main": "Notifications This document is no longer shared with you Ask Ana Duarte if you still need it. Back to notifications Mark read",
+    "read": "51:false 52:true 53:true 54:false"
+  },
+  {
+    "at": "35.4",
+    "event": "write",
+    "method": "PATCH",
+    "path": "/v1/notifications/be000000-0000-4000-8000-000000000051",
+    "body": "{\"id\":\"be000000-0000-4000-8000-000000000051\",\"read\":true,\"expectedCasVersion\":1}"
+  },
+  {
+    "at": "37.4",
+    "event": "after Mark read",
+    "main": "Notifications This document is no longer shared with you Ask Ana Duarte if you still need it. Back to notifications Marked read.",
+    "read": "51:true 52:true 53:true 54:false"
+  },
+  {
+    "at": "42.1",
+    "event": "deleted",
+    "testid": "shared-unavailable-gone",
+    "url": "/notifications?open=be000000-0000-4000-8000-000000000054&r=1",
+    "main": "Notifications This document was deleted Someone removed it. Nothing here can be opened. Back to notifications Mark read",
+    "read": "51:true 52:true 53:true 54:false"
+  },
+  {
+    "at": "46.7",
+    "event": "shared-link-no-notification",
+    "testid": "shared-unavailable-unknown",
+    "url": "/shared/documents/be000000-0000-4000-8000-000000000020",
+    "main": "This is no longer available It was deleted, or it is no longer shared with you. Back to notifications",
+    "read": "51:true 52:true 53:true 54:false"
+  },
+  {
+    "at": "46.8",
+    "event": "done",
+    "read": "51:true 52:true 53:true 54:false"
+  },
+  {
+    "at": "52.4",
+    "event": "phone",
+    "overflow": 0
+  }
+]
