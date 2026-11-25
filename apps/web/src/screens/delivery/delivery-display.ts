@@ -122,7 +122,6 @@ export type Freshness =
   }
   | { readonly kind: "stale"; readonly lastRead: string | null };
 
-/** What the server said about the two series the line is read from. */
 export type FreshnessInput = {
   readonly merged: MetricSeries | undefined;
   readonly tasks: MetricSeries | undefined;
