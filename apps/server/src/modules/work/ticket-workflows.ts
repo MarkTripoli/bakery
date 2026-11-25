@@ -13,6 +13,7 @@ import {
   recheckTicket,
 } from "./ticket-admission.ts";
 import type { TicketLabelWriter } from "./ticket-labels.ts";
+import type { TicketStatusWriter } from "./ticket-statuses.ts";
 import type { TicketNoteWriter } from "./ticket-notes.ts";
 import { labelSetOf, requestedIntentFromLabels } from "./ticket-policy.ts";
 import {
@@ -75,6 +76,7 @@ export type TicketWorkflowDeps = {
   noteWriter?: TicketNoteWriter;
   /** Changes Bakery's progress labels after a note is written; without it labels are left alone. */
   labelWriter?: TicketLabelWriter;
+  statusWriter?: TicketStatusWriter;
 };
 
 /** What the intake function did for one source of the delivery's repository. */
@@ -338,11 +340,12 @@ async function syncProgress(
   database: PgDatabase,
   writer: TicketNoteWriter,
   labels: TicketLabelWriter | undefined,
+  statuses: TicketStatusWriter | undefined,
   source: PollSource,
   signal: AbortSignal,
 ): Promise<ProgressSyncResult | undefined> {
   try {
-    return await syncSourceProgress({ database, writer, labels }, {
+    return await syncSourceProgress({ database, writer, labels, statuses }, {
       organizationId: source.organizationId,
       sourceId: source.sourceId,
       signal,
@@ -401,6 +404,7 @@ export async function pollTicketSource(
         deps.database,
         deps.noteWriter,
         deps.labelWriter,
+        deps.statusWriter,
         source,
         signal,
       );

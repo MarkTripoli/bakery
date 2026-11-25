@@ -200,6 +200,7 @@ Deno.test("github declares its two comment actions and an unknown provider decla
   assertEquals(ticketFamilyActionsOf("github"), {
     "comment.create": { id: "github.issue.comment.create", version: 1 },
     "comment.update": { id: "github.issue.comment.update", version: 1 },
+    "status.set": { id: "github.issue.state.update", version: 1 },
   });
   assertEquals(ticketFamilyActionsOf("linear"), {});
   assertEquals(ticketFamilyActionsOf("toString"), {});

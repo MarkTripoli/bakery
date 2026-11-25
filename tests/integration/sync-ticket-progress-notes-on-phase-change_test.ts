@@ -9,6 +9,10 @@ import {
   syncSourceProgress,
 } from "../../apps/server/src/modules/work/ticket-progress-sync.ts";
 import type {
+  TicketStatusChange,
+  TicketStatusWriter,
+} from "../../apps/server/src/modules/work/ticket-statuses.ts";
+import type {
   TicketLabelChange,
   TicketLabelResult,
   TicketLabelWriter,
@@ -405,4 +409,64 @@ Deno.test("deployed_healthy: a closed pull request, a merged one with no deploym
       false,
       "the request does not complete without a deployment",
     );
+  }));
+
+function memoryStatuses(): TicketStatusWriter & {
+  changes: TicketStatusChange[];
+} {
+  const writer = {
+    changes: [] as TicketStatusChange[],
+    set(change: TicketStatusChange) {
+      writer.changes.push(change);
+      return Promise.resolve({ kind: "set" as const });
+    },
+  };
+  return writer;
+}
+
+async function deliverOnce(
+  fx: TicketFixture,
+  number: number,
+  outcomeStatuses?: { delivered?: string },
+) {
+  const sourceId = await fx.insertSource({
+    policy: outcomeStatuses === undefined
+      ? fx.policy()
+      : { ...fx.policy(), outcomeStatuses },
+  });
+  fx.reader.setIssue({ number, labels: [EXECUTE_LABEL] });
+  const request = (await fx.admit(sourceId, { number, intent: "start" }))
+    .request!;
+  const statuses = memoryStatuses();
+  const syncWithStatuses = () =>
+    syncSourceProgress(
+      { database: fx.runtime, writer: fx.notes, statuses },
+      {
+        organizationId: fx.organizationId,
+        sourceId,
+        signal: new AbortController().signal,
+      },
+    );
+  await syncWithStatuses();
+  assertEquals(statuses.changes.length, 0, "nothing is set before delivery");
+  await setRun(fx, request.workflowRunId, "completed", 0);
+  await syncWithStatuses();
+  await syncWithStatuses();
+  assertStringIncludes(fx.notes.posts.at(-1)!.body, "Delivered.");
+  return { request, statuses };
+}
+
+Deno.test("a delivered request sets the policy's delivered status once, and none without it", () =>
+  withTicketFixture(async (fx) => {
+    const named = await deliverOnce(fx, 1201, {
+      delivered: "closed:completed",
+    });
+    assertEquals(named.statuses.changes.length, 1);
+    assertEquals(named.statuses.changes[0].statusId, "closed:completed");
+    assertEquals(
+      named.statuses.changes[0].idempotencyKey,
+      `${named.request.id}:status:delivered`,
+    );
+    const absent = await deliverOnce(fx, 1202);
+    assertEquals(absent.statuses.changes.length, 0);
   }));

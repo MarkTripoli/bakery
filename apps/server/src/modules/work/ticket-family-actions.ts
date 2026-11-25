@@ -5,6 +5,7 @@ import type {
 import {
   TICKET_NOTE_ACTION,
   TICKET_NOTE_UPDATE_ACTION,
+  TICKET_STATUS_ACTION,
 } from "../catalog/integration-providers/github.ts";
 
 export type TicketFamilyActions = Readonly<
@@ -14,6 +15,7 @@ export type TicketFamilyActions = Readonly<
 const GITHUB_TICKET_ACTIONS: TicketFamilyActions = {
   "comment.create": TICKET_NOTE_ACTION,
   "comment.update": TICKET_NOTE_UPDATE_ACTION,
+  "status.set": TICKET_STATUS_ACTION,
 };
 
 const DECLARED_TICKET_ACTIONS: Readonly<Record<string, TicketFamilyActions>> = {

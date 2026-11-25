@@ -17,6 +17,11 @@ const LABEL_REMOVE_REF = {
   version: 1,
 } as const;
 const LABELS_LIST_REF = { id: "github.issue.labels.list", version: 1 } as const;
+const STATE_UPDATE_REF = {
+  id: "github.issue.state.update",
+  version: 1,
+} as const;
+const ISSUE_READ_REF = { id: "github.issue.read", version: 1 } as const;
 
 /** The action that creates an issue (#32): one remote ticket, found again by its effect marker. */
 export const TICKET_CREATE_ACTION = CREATE_ISSUE_REF;
@@ -24,6 +29,7 @@ export const TICKET_CREATE_ACTION = CREATE_ISSUE_REF;
 export const TICKET_LABELS_ADD_ACTION = LABELS_ADD_REF;
 /** The action that removes one Bakery-owned label from an issue without touching the others (#32). */
 export const TICKET_LABEL_REMOVE_ACTION = LABEL_REMOVE_REF;
+export const TICKET_STATUS_ACTION = STATE_UPDATE_REF;
 const MAX_PAGES = 20;
 const PAGE_SIZE = 100;
 
@@ -535,6 +541,122 @@ const removeLabel = defineAction({
   },
 });
 
+export const GITHUB_ISSUE_STATUS_IDS = [
+  "open",
+  "closed",
+  "closed:completed",
+  "closed:not_planned",
+  "closed:duplicate",
+] as const;
+
+export type GithubIssueStatusId = (typeof GITHUB_ISSUE_STATUS_IDS)[number];
+
+const issueStatusId = z.enum(GITHUB_ISSUE_STATUS_IDS).describe(
+  "GitHub issue status id in the vocabulary the status read emits: open, closed, or closed:<reason> for completed, not_planned or duplicate.",
+);
+
+const issueState = z.enum(["open", "closed"]).describe(
+  "GitHub issue state.",
+);
+
+const issueStateReason = orNull(
+  z.enum(["completed", "not_planned", "duplicate", "reopened"]).describe(
+    "Why GitHub says the issue is in its state.",
+  ),
+  "GitHub state reason, or null when the issue carries none.",
+);
+
+export function githubIssueStateOf(
+  statusId: GithubIssueStatusId,
+): { state: "open" | "closed"; state_reason: string | null } {
+  if (statusId === "open") return { state: "open", state_reason: null };
+  if (statusId === "closed") return { state: "closed", state_reason: null };
+  return { state: "closed", state_reason: statusId.slice("closed:".length) };
+}
+
+const stateUpdateInput = z.strictObject({
+  issueNumber: issueNumber(
+    "Positive issue number within the already-authorized repository; not a global GitHub issue id.",
+  ),
+  statusId: issueStatusId,
+}).describe(
+  "Authorized issue status change arguments: which issue of the bound repository and the status id to set.",
+);
+
+const stateReceipt = z.strictObject({
+  statusId: issueStatusId,
+}).describe("Safe status change receipt exposing only the status id now set.");
+
+const providerIssueState = z.object({
+  number: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).describe(
+    "Issue number inside its repository.",
+  ),
+  state: issueState,
+  state_reason: issueStateReason.optional().describe(
+    "GitHub state reason; absent or null when the issue carries none.",
+  ),
+}).describe(
+  "Provider issue projection used to confirm a status change; unrelated provider fields are discarded.",
+);
+
+function issueHasStatus(raw: unknown, statusId: GithubIssueStatusId): boolean {
+  const issue = providerIssueState.parse(raw);
+  const wanted = githubIssueStateOf(statusId);
+  if (issue.state !== wanted.state) return false;
+  return wanted.state_reason === null ||
+    (issue.state_reason ?? null) === wanted.state_reason;
+}
+
+const updateIssueState = defineAction({
+  id: STATE_UPDATE_REF.id,
+  version: STATE_UPDATE_REF.version,
+  input: stateUpdateInput,
+  output: stateReceipt,
+  effect: "reconcile",
+  resourceKind: "github.repository",
+  requests: [STATE_UPDATE_REF, ISSUE_READ_REF],
+  reconcileRequests: [ISSUE_READ_REF],
+  providerPermissions: { issues: "write" },
+  resourceProjection: [],
+  async reconcile(ctx) {
+    const raw = await ctx.provider.request(ISSUE_READ_REF, {
+      issue_number: ctx.input.issueNumber,
+    });
+    return issueHasStatus(raw, ctx.input.statusId)
+      ? { status: "confirmed", result: { statusId: ctx.input.statusId } }
+      : { status: "uncertain" };
+  },
+  async execute(ctx, input) {
+    const raw = await ctx.provider.request(STATE_UPDATE_REF, {
+      issue_number: input.issueNumber,
+      ...githubIssueStateOf(issueStatusId.parse(input.statusId)),
+    });
+    providerIssueState.parse(raw);
+    return { statusId: input.statusId };
+  },
+});
+
+const stateUpdateRequestInput = z.strictObject({
+  issue_number: issueNumber(
+    "Issue number placed in the request path; the host fills owner and repository from the bound resource.",
+  ),
+  state: issueState,
+  state_reason: issueStateReason,
+}).describe(
+  "Issue status change request input: issue number, state and state reason.",
+);
+
+const stateUpdateBody = z.strictObject({
+  state: issueState,
+  state_reason: issueStateReason,
+}).describe("JSON body of the issue status change request.");
+
+const issueReadRequestInput = z.strictObject({
+  issue_number: issueNumber(
+    "Issue number placed in the request path; the host fills owner and repository from the bound resource.",
+  ),
+}).describe("Issue read request input: the issue number.");
+
 const updateRequestInput = z.strictObject({
   comment_id: commentId,
   body: z.string().min(1).max(16_000).describe(
@@ -645,9 +767,47 @@ export const githubIntegration = defineIntegration({
     { ...CREATE_ISSUE_REF },
     { ...LABELS_ADD_REF },
     { ...LABEL_REMOVE_REF },
+    { ...STATE_UPDATE_REF },
   ],
   resourceKinds: ["github.repository"],
   requests: [
+    {
+      ...STATE_UPDATE_REF,
+      method: "PATCH",
+      effect: "write",
+      idempotent: true,
+      resourceKind: "github.repository",
+      pathTemplate: "/repos/{owner}/{repo}/issues/{issue_number}",
+      pathParams: {
+        owner: "binding:owner",
+        repo: "binding:repo",
+        issue_number: "input",
+      },
+      input: stateUpdateRequestInput,
+      query: [],
+      body: stateUpdateBody,
+      response: providerIssueState,
+      maxResponseBytes: 524_288,
+      providerPermissions: { issues: "write" },
+    },
+    {
+      ...ISSUE_READ_REF,
+      method: "GET",
+      effect: "read",
+      idempotent: true,
+      resourceKind: "github.repository",
+      pathTemplate: "/repos/{owner}/{repo}/issues/{issue_number}",
+      pathParams: {
+        owner: "binding:owner",
+        repo: "binding:repo",
+        issue_number: "input",
+      },
+      input: issueReadRequestInput,
+      query: [],
+      response: providerIssueState,
+      maxResponseBytes: 524_288,
+      providerPermissions: { issues: "read" },
+    },
     {
       ...COMMENT_REF,
       method: "POST",
@@ -798,4 +958,5 @@ export const githubIntegration = defineIntegration({
   [`${CREATE_ISSUE_REF.id}@${CREATE_ISSUE_REF.version}`]: createIssue,
   [`${LABELS_ADD_REF.id}@${LABELS_ADD_REF.version}`]: addLabels,
   [`${LABEL_REMOVE_REF.id}@${LABEL_REMOVE_REF.version}`]: removeLabel,
+  [`${STATE_UPDATE_REF.id}@${STATE_UPDATE_REF.version}`]: updateIssueState,
 });
