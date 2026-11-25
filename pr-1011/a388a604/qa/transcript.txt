@@ -1,0 +1,6 @@
+DIALOG Cancel | Finish and stop instead | Retire now
+MODE 200 if-match "2" {"status":"draining"}
+BODY-LINES ["It takes no new work and stops once its current work is done.","Finish and stop"]
+MODE 200 if-match "3" {"status":"online"}
+MODE 200 if-match "4" {"status":"offline"}
+PAUSED-LINES ["It takes no new work until someone resumes it.","Paused","A retired machine takes no work and cannot be used again until it is added again."]
