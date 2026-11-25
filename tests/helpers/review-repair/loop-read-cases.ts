@@ -7,7 +7,7 @@ import {
   createDeliveryActionRegistry,
   createDeliveryHandlers,
 } from "../../../apps/server/src/modules/delivery/index.ts";
-import { mergeDispatchStub } from "../merge-dispatch-stub.ts";
+import { mergeDispatchStub, registrationStub } from "../merge-dispatch-stub.ts";
 import {
   type ChecksFixture,
   openChecksFixture,
@@ -58,6 +58,7 @@ async function openReads(): Promise<Reads> {
   const registry = createDeliveryActionRegistry(
     checks.fixture.appPg,
     createDeliveryHandlers(SECRET, mergeDispatchStub("loop-read-cases opens")),
+    registrationStub("loop-read-cases", checks.fixture.appPg),
   );
   return {
     ...checks,
@@ -703,6 +704,7 @@ export function registerLoopReadCases(): void {
             SECRET,
             mergeDispatchStub("loop-read-cases late reads"),
           ),
+          registrationStub("loop-read-cases", reads.fixture.appPg),
         );
         const list = async (
           query: Record<string, unknown>,
