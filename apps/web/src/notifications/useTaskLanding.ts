@@ -11,7 +11,6 @@ const LOOK_MS = 4_000;
  */
 const STABLE_MS = 400;
 
-/** The element a landing names; the run section's heading when it names none. */
 function selectorFor(landing: LandingSearch): string | null {
   const target = parseLanding(landing.at);
   if (target === null) {
