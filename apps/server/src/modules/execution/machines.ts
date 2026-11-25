@@ -179,14 +179,21 @@ async function safeWorkerProjection(
     updated_at: Date;
     version: number;
     now: Date;
+    active_attempt_count: number;
   }>(
     `select id, organization_id, principal_id, name, os, architecture,
             capabilities, toolchain_versions, slots, status, desired_mode,
             last_heartbeat_at, credential_generation, inventory_revision,
             archived_at, cleanup_state, cleanup_requested_at,
             cleanup_confirmed_at,
-            created_at, updated_at, version, clock_timestamp() as now
-     from bakery.worker_hosts
+            created_at, updated_at, version, clock_timestamp() as now,
+            (select count(*)::int from bakery.job_attempts attempt
+              where attempt.organization_id = host.organization_id
+                and attempt.worker_host_id = host.id
+                and attempt.status in ('leased', 'running', 'canceling')
+                and attempt.lease_expires_at > clock_timestamp())
+              as active_attempt_count
+     from bakery.worker_hosts host
      where id = $1`,
     [hostId],
   );
@@ -247,6 +254,7 @@ async function safeWorkerProjection(
     readinessReason: readiness.reason,
     failedCheckIds: readiness.failedCheckIds,
     unsettledAttemptCount: unsettled.rows[0]?.count ?? 0,
+    activeAttemptCount: host.active_attempt_count,
     lastHeartbeatAt: host.last_heartbeat_at
       ? iso(host.last_heartbeat_at)
       : null,

@@ -5677,6 +5677,28 @@
     },
     {
       "group": "Workers",
+      "method": "GET",
+      "path": "/v1/workers/{id}/attempts",
+      "action": "workerAttempts.list",
+      "access": "Developer",
+      "permission": "worker:read",
+      "input": "WorkerAttemptListQuery",
+      "output": "Page<WorkerAttemptRead>",
+      "event": "",
+      "mcp": "bakery_workerAttempts_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
       "method": "POST",
       "path": "/v1/worker-enrollments",
       "action": "workers.enroll",

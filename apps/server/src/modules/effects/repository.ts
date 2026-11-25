@@ -470,7 +470,7 @@ export type OutcomeChange =
     remoteId: string | null;
     safeResult: unknown;
   }>
-  | Readonly<{ kind: "uncertain" }>
+  | Readonly<{ kind: "uncertain"; remoteId?: string }>
   | Readonly<{ kind: "retry"; delaySeconds: number }>
   | Readonly<{ kind: "failed"; failureCode: string }>;
 
@@ -511,10 +511,11 @@ export async function casOutcome(
       break;
     case "uncertain":
       sql = `update bakery.external_effects
-        set status = 'uncertain', ${common}
+        set status = 'uncertain', remote_id = coalesce($5, remote_id),
+            ${common}
       ${fence}
       returning ${SELECT_COLUMNS}`;
-      values = [];
+      values = [change.remoteId ?? null];
       break;
     case "retry":
       sql = `update bakery.external_effects
@@ -576,6 +577,7 @@ export async function casReconcileLease(
 /** What a read-only reconciliation check writes. */
 export type ReconcileCheck = Readonly<{
   confirmed: Readonly<{ remoteId: string | null; safeResult: unknown }> | null;
+  failureCode?: string;
   evidence: unknown;
 }>;
 
@@ -594,10 +596,15 @@ export async function recordReconcileCheck(
 ): Promise<ExternalEffectRow | null> {
   const result = await tx.query(
     `update bakery.external_effects
-        set status = case when $4::boolean then 'confirmed' else status end,
-            remote_id = case when $4::boolean then $5::text else remote_id end,
+        set status = case when $4::boolean then 'confirmed'
+                          when $8::text is not null then 'failed'
+                          else status end,
+            remote_id = case when $4::boolean
+                             then coalesce($5::text, remote_id)
+                             else remote_id end,
             safe_result = case when $4::boolean then $6::jsonb
                                else safe_result end,
+            failure_code = coalesce($8::text, failure_code),
             last_checked_at = clock_timestamp(),
             reconciliation_attempts = reconciliation_attempts + 1,
             reconciliation_evidence = $7::jsonb,
@@ -615,6 +622,7 @@ export async function recordReconcileCheck(
       check.confirmed?.remoteId ?? null,
       JSON.stringify(check.confirmed?.safeResult ?? null),
       JSON.stringify(check.evidence),
+      check.confirmed === null ? check.failureCode ?? null : null,
     ],
   );
   return result.rows.length === 0 ? null : parseEffectRow(result.rows[0]);

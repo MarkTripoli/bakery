@@ -96,6 +96,7 @@ import {
 } from "./shared.ts";
 import { createExecutionRunControlApp } from "./control.ts";
 import { createAttemptReadApp } from "./attempt-read.ts";
+import { listMachineAttempts } from "./machine-attempt-read.ts";
 import { createSessionRoutes } from "./session-routes.ts";
 import { createOutputReadApp } from "./output-read.ts";
 import { secretIdentityToolRoute } from "./secret-identity.ts";
@@ -319,6 +320,10 @@ export function createExecutionRoutes(
   app.get(
     "/v1/workers",
     routeHandler(options, (context) => listWorkers(context, options)),
+  );
+  app.get(
+    "/v1/workers/:id/attempts",
+    routeHandler(options, (context) => listMachineAttempts(context, options)),
   );
   app.get(
     "/v1/workers/:id/dispatch-blockers",
