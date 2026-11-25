@@ -527,15 +527,17 @@ test.describe("the Coding agents rows", () => {
 
   test("the machine's software is one entry by agent name and version, in no internal words", async ({ page }) => {
     await open(page, threeStates());
+    await page.getByRole("tab", { name: "Checks and software" }).click();
     const software = page.getByTestId("machine-software");
     await expect(software).toHaveCount(1);
     await expect(software).toContainText("Software");
-    await expect(software).toContainText("Claude Code 1.0.0");
-    await expect(software).toContainText("Codex 1.0.0");
-    await expect(software).toContainText("Pi 1.0.0");
-    const about = page.getByTestId("machine-about");
-    await expect(about).not.toContainText("harness");
-    await expect(about).not.toContainText("external");
+    for (const name of ["Claude Code", "Codex", "Pi"]) {
+      await expect(
+        software.locator("tr, [role=listitem]").filter({ hasText: name }),
+      ).toContainText("1.0.0");
+    }
+    await expect(software).not.toContainText("harness");
+    await expect(software).not.toContainText("external");
   });
 
   test("failed checks that are only an agent's sign-in are that agent's banner, and the check still lists", async ({ page }) => {
@@ -561,7 +563,7 @@ test.describe("the Coding agents rows", () => {
     );
     await expect(banner(page)).not.toContainText("Other work continues.");
     await expect(page.getByTestId("machine-problem-banner")).toHaveCount(0);
-    // The failed check is still in Checks.
+    await page.getByRole("tab", { name: "Checks and software" }).click();
     const checks = page.getByTestId("machine-checks");
     await expect(checks).toContainText("Model access");
     await expect(checks).toContainText("claude: not signed in");

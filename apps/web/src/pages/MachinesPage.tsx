@@ -31,19 +31,7 @@ const FILTER_MIN_MACHINES = 10;
 
 type MachineRow = WorkerResponse;
 
-export function formatMachineDate(
-  value: string | null | undefined,
-  locale: string,
-  timeZone: string,
-  fallback: string,
-): string {
-  if (!value) return fallback;
-  return new Intl.DateTimeFormat(locale, {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone,
-  }).format(new Date(value));
-}
+export { formatMachineDate } from "./machine-state.ts";
 
 export function boundedReason(reason: string | null | undefined): string {
   const text = reason?.trim() || "";
@@ -275,7 +263,12 @@ export function MachinesPage() {
                     variant="inline"
                     value={filter}
                     onChange={(value) => setFilter(value as MachineFilter)}
-                    options={(["all", "needsAttention", "offline"] as const)
+                    options={([
+                      "all",
+                      "needsAttention",
+                      "offline",
+                      "retired",
+                    ] as const)
                       .map((value) => ({
                         value,
                         label: translate(`machines.filter.${value}` as never),
