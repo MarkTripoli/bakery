@@ -1,0 +1,6 @@
+begin;
+insert into bakery.applications(id,organization_id,slug,name,description) values ('7a1f0a50-0000-4000-8000-000000000001','02749885-a5a6-43b3-9da5-d8370300cde3','landing-proof','Landing proof','Real stack proof data');
+insert into bakery.conversations(id,organization_id,application_id,title,created_by) values ('7a1f0a50-0000-4000-8000-000000000002','02749885-a5a6-43b3-9da5-d8370300cde3','7a1f0a50-0000-4000-8000-000000000001','Landing proof','ea86d53a-7412-443f-9c29-c562764a6adb');
+insert into bakery.tasks(id,organization_id,application_id,conversation_id,title,description,task_type,status,created_by) values ('7a1f0a50-0000-4000-8000-000000000003','02749885-a5a6-43b3-9da5-d8370300cde3','7a1f0a50-0000-4000-8000-000000000001','7a1f0a50-0000-4000-8000-000000000002','Plan the onboarding checks','A task with a long conversation','feature','draft','ea86d53a-7412-443f-9c29-c562764a6adb');
+insert into bakery.messages(organization_id,conversation_id,author_id,message_type,body,client_message_id,sequence,intent,created_at,updated_at) select '02749885-a5a6-43b3-9da5-d8370300cde3','7a1f0a50-0000-4000-8000-000000000002','ea86d53a-7412-443f-9c29-c562764a6adb','user','Message number '||g,'seed-'||g,g,'discussion', now() - ((60-g) * interval '1 minute'), now() - ((60-g) * interval '1 minute') from generate_series(1,60) g;
+commit;

@@ -1,0 +1,69 @@
+[
+  {
+    "at": "3.1",
+    "event": "signed in",
+    "path": "/"
+  },
+  {
+    "at": "5.4",
+    "event": "mentions inbox",
+    "rows": 0
+  },
+  {
+    "at": "7.0",
+    "event": "target resolved"
+  },
+  {
+    "at": "7.0",
+    "event": "target resolved"
+  },
+  {
+    "at": "7.2",
+    "event": "messages request",
+    "cursor": "first"
+  },
+  {
+    "at": "7.2",
+    "event": "messages request",
+    "cursor": "page-i7LbIE"
+  },
+  {
+    "at": "7.3",
+    "event": "messages request",
+    "cursor": "first"
+  },
+  {
+    "at": "7.3",
+    "event": "messages request",
+    "cursor": "page-i7LbIE"
+  },
+  {
+    "at": "7.5",
+    "event": "messages request",
+    "cursor": "page-qtfazk"
+  },
+  {
+    "at": "7.9",
+    "event": "notification marked read"
+  },
+  {
+    "at": "8.0",
+    "event": "read response",
+    "status": 428,
+    "body": "{\"type\":\"http://localhost:8788/problems/precondition-required\",\"title\":\"Precondition required\",\"status\":428,\"detail\":\"This request requires a precondition that was not provided.\",\"instance\":\"urn:bakery:request:ce7821e2-4eba-46d9-b70d-529a018b4984\",\"code\":\"PRECONDITION_REQUIRED\",\"requestId\":\"ce7821e2",
+    "sent": "{\"id\":\"9ad1ed1f-5779-4058-815f-3f456822c09e\",\"read\":true,\"expectedCasVersion\":1}"
+  },
+  {
+    "at": "8.3",
+    "event": "landed",
+    "text": "You 08:50 AM Message number 4",
+    "outlines": 1,
+    "url": "/tasks/7a1f0a50-0000-4000-8000-000000000003"
+  },
+  {
+    "at": "11.2",
+    "event": "back on inbox",
+    "mentionsSelected": "true",
+    "rows": 1
+  }
+]
