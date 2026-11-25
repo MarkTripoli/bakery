@@ -7238,7 +7238,6 @@
   "machines.retire.dialogWork": "⟪Work running on it is not stopped or moved, and it can no longer report on that work. To let it finish first, choose Finish and stop instead, and retire the machine when it has no work.⟫",
   "machines.tabs.work": "⟪Work⟫",
   "machines.work.slots.title": "⟪Slots⟫",
-  "machines.work.slots.total": "⟪Slots⟫",
   "machines.work.slots.occupied": "⟪Occupied⟫",
   "machines.work.slots.unoccupied": "⟪Unoccupied⟫",
   "machines.work.slots.what": "⟪A slot is held by one attempt: work being run, being cancelled, or a check with no task. It is not one task.⟫",
@@ -7288,5 +7287,6 @@
   "machines.work.empty.needs_attention.title": "⟪Nothing needs attention⟫",
   "machines.work.empty.needs_attention.description": "⟪Work whose outcome is not known, such as when the machine lost contact, would be listed here.⟫",
   "machines.work.empty.finished.title": "⟪No finished work yet⟫",
-  "machines.work.empty.finished.description": "⟪Completed, failed and cancelled work shows here, newest first.⟫"
+  "machines.work.empty.finished.description": "⟪Completed, failed and cancelled work shows here, newest first.⟫",
+  "machines.work.slots.total": "⟪In total⟫"
 }

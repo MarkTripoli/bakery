@@ -7066,7 +7066,7 @@
   "machines.tabs.models": "Models",
   "machines.tabs.work": "Work",
   "machines.work.slots.title": "Slots",
-  "machines.work.slots.total": "Slots",
+  "machines.work.slots.total": "In total",
   "machines.work.slots.occupied": "Occupied",
   "machines.work.slots.unoccupied": "Unoccupied",
   "machines.work.slots.what": "A slot is held by one attempt: work being run, being cancelled, or a check with no task. It is not one task.",
