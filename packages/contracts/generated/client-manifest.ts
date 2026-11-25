@@ -3136,7 +3136,7 @@ export const clientManifest = {
       "output": "SkillDraft",
       "event": "",
       "mcp": "",
-      "idempotency": "natural; the same draft comes back",
+      "idempotency": "Idempotency-Key; opening again with a new key returns the same draft",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -13726,7 +13726,7 @@ export const clientManifest = {
       "output": "MergeAttempt",
       "event": "merge.dispatched",
       "mcp": "bakery_pullRequests_merge",
-      "idempotency": "natural",
+      "idempotency": "Idempotency-Key; the same key answers with the first merge attempt",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -13751,7 +13751,7 @@ export const clientManifest = {
       "output": "MergeReconciliation",
       "event": "merge.reconciled",
       "mcp": "bakery_mergeAttempts_reconcile",
-      "idempotency": "natural",
+      "idempotency": "Idempotency-Key; a new key reconciles again",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
