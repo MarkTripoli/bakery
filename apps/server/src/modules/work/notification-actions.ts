@@ -113,7 +113,7 @@ export function createNotificationActionRegistry(
     path: "/v1/notifications/:id",
     input: contractSchemas.NotificationReadUpdate,
     output: contractSchemas.Notification,
-    explicitIdempotency: "key-and-if-match",
+    explicitIdempotency: "key",
     policy: write,
     handler: handlers.setRead,
   });
