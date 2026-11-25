@@ -1,5 +1,11 @@
 import { presetRead } from "./helpers/preset-read.ts";
-import { expect, type Page, type Route, test } from "@playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import {
   mockAuthenticatedSession,
@@ -175,6 +181,7 @@ async function mockComposer(
     taskReply?: (route: Route, attempt: number) => Promise<void> | void;
     runReply?: (route: Route, attempt: number) => Promise<void> | void;
     taskAfterRun?: () => unknown;
+    presets?: unknown[];
   } = {},
 ): Promise<Seen> {
   const seen: Seen = { tasks: [], runs: [] };
@@ -187,7 +194,7 @@ async function mockComposer(
   await page.route("**/v1/workflow-presets*", (route) =>
     route.fulfill({
       json: {
-        items: [preset(options.availability)],
+        items: options.presets ?? [preset(options.availability)],
         nextCursor: null,
       },
     }));
@@ -411,7 +418,18 @@ test("a setup-required preset names every missing requirement and a press sends 
   await field.repository(page).selectOption(repositoryId);
   await field.preset(page).selectOption("fixed-coding");
   await field.title(page).fill("Needs setup");
-  const list = form(page).getByRole("listitem");
+  const setupNotice = form(page).locator(
+    "[data-ui-component='inlineNotice'][tabindex='-1']",
+  );
+  await expect(setupNotice).toBeVisible();
+  await expect(setupNotice.getByRole("list")).toHaveCount(1);
+  await expect(setupNotice.getByRole("listitem")).toHaveCount(
+    Object.keys(REASON_COPY).length,
+  );
+  await expect(setupNotice.getByText(
+    "You can still create the task without a run: choose No workflow.",
+  )).toBeVisible();
+  const list = setupNotice.getByRole("listitem");
   await expect(list).toHaveCount(Object.keys(REASON_COPY).length);
   for (const [reason, copy] of Object.entries(REASON_COPY)) {
     // The budget reason also names the smallest budget that works ($6.00).
@@ -425,11 +443,8 @@ test("a setup-required preset names every missing requirement and a press sends 
     /This workflow cannot start here yet/,
   );
   await field.start(page).click();
-  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
-  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCSS(
-    "outline-style",
-    "solid",
-  );
+  await expect(setupNotice).toBeFocused();
+  await expect(setupNotice).toHaveCSS("outline-style", "solid");
   expect(seen.tasks).toHaveLength(0);
   expect(seen.runs).toHaveLength(0);
   // The rule it names is a link to the page where it is changed.
@@ -459,16 +474,16 @@ test("still: the composer pressed with one requirement missing", async ({ page }
   await field.repository(page).selectOption(repositoryId);
   await field.preset(page).selectOption("fixed-coding");
   await field.title(page).fill("Needs a coding agent");
-  await expect(form(page).getByRole("listitem")).toHaveCount(1);
+  const setupNotice = form(page).locator(
+    "[data-ui-component='inlineNotice'][tabindex='-1']",
+  );
+  await expect(setupNotice.getByRole("listitem")).toHaveCount(0);
   await expect(
     form(page).getByText(REASON_COPY.coding_agent_unbound, { exact: true }),
   ).toBeVisible();
   await field.start(page).click();
-  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
-  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCSS(
-    "outline-style",
-    "solid",
-  );
+  await expect(setupNotice).toBeFocused();
+  await expect(setupNotice).toHaveCSS("outline-style", "solid");
   await still(page, "composer-not-ready-pressed");
 });
 
@@ -496,7 +511,11 @@ test("a budget below the reservation names the smallest one that works and sends
     ),
   ).toBeVisible();
   await field.start(page).click();
-  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
+  await expect(
+    form(page).locator(
+      "[data-ui-component='inlineNotice'][tabindex='-1']",
+    ),
+  ).toBeFocused();
   expect(seen.tasks).toHaveLength(0);
   expect(seen.runs).toHaveLength(0);
   await field.budget(page).fill("2");
@@ -504,7 +523,11 @@ test("a budget below the reservation names the smallest one that works and sends
     "data-reasons",
     /budget_below_reservation/,
   );
-  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCount(0);
+  await expect(
+    form(page).locator(
+      "[data-ui-component='inlineNotice'][tabindex='-1']",
+    ),
+  ).toHaveCount(0);
   await field.budget(page).fill("1.5");
   await expect(form(page)).not.toHaveAttribute(
     "data-reasons",
@@ -529,7 +552,11 @@ test("the default-budget server reason clears when the user raises the budget", 
   );
   await expect(field.start(page)).toBeEnabled();
   await field.start(page).click();
-  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
+  await expect(
+    form(page).locator(
+      "[data-ui-component='inlineNotice'][tabindex='-1']",
+    ),
+  ).toBeFocused();
   expect(seen.tasks).toHaveLength(0);
   expect(seen.runs).toHaveLength(0);
   await field.budget(page).fill("6");
@@ -537,7 +564,11 @@ test("the default-budget server reason clears when the user raises the budget", 
     "data-reasons",
     /budget_below_reservation/,
   );
-  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCount(0);
+  await expect(
+    form(page).locator(
+      "[data-ui-component='inlineNotice'][tabindex='-1']",
+    ),
+  ).toHaveCount(0);
   await expect(field.start(page)).toBeEnabled();
 });
 
@@ -1060,4 +1091,150 @@ test("Start run stays enabled with no workflow chosen: pressing it asks for one 
   expect(seen.runs).toHaveLength(0);
   await workflow.selectOption({ label: "Fixed coding" });
   await expect(page.getByText("Choose a workflow first.")).toHaveCount(0);
+});
+
+const GATES_INPUTS = {
+  repositoryId: { type: "uuid", required: true },
+  brief: { type: "TaskBrief", required: true },
+  gates: { type: "string", enum: ["plan", "none"], required: true },
+};
+const deliver = (id: string) =>
+  presetRead({
+    id,
+    revision: 1,
+    digest: "c".repeat(64),
+    nameKey: `workflowPresets.${id}.name`,
+    steps: [{ id: "brief", uses: "task.brief" }, {
+      id: "plan",
+      uses: "rpi.plan",
+    }],
+    defaultBudgetLimitUsd: "5.00",
+    availability: { minimumBudgetLimitUsd: null, status: "ready", reasons: [] },
+  }, GATES_INPUTS);
+const WITH_DELIVER = [
+  preset(),
+  deliver("deliver-oneshot"),
+  deliver("deliver-lean"),
+];
+const approval = (page: Page) =>
+  page.getByRole("checkbox", { name: "Wait for my approval before building" });
+
+test("the approval box is not drawn with no workflow, nor for a workflow with no approval steps", async ({ page }) => {
+  await mockComposer(page, { presets: WITH_DELIVER });
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await expect(field.preset(page)).toHaveValue("");
+  await expect(approval(page)).toHaveCount(0);
+  await field.preset(page).selectOption("fixed-coding");
+  await expect(field.budget(page)).toBeVisible();
+  await expect(approval(page)).toHaveCount(0);
+  await still(page, "task-composer-no-approval");
+});
+
+test("a Deliver template draws the approval box ticked, between Workflow and Budget, with its help text", async ({ page }) => {
+  await mockComposer(page, { presets: WITH_DELIVER });
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await field.preset(page).selectOption("deliver-oneshot");
+  await expect(approval(page)).toBeChecked();
+  await expect(
+    form(page).getByText(
+      "This workflow has approval steps before it builds. Ticked: the run waits at each one until you approve it. Cleared: it skips them and builds straight away.",
+    ),
+  ).toBeVisible();
+  const at = async (locator: Locator) => (await locator.boundingBox())!.y;
+  expect(await at(field.preset(page))).toBeLessThan(await at(approval(page)));
+  expect(await at(approval(page))).toBeLessThan(await at(field.budget(page)));
+  await page.mouse.move(5, 5);
+  await still(page, "task-composer-approval");
+});
+
+test("ticked sends gates plan; cleared sends gates none and the choice survives a switch of template", async ({ page }) => {
+  const seen = await mockComposer(page, { presets: WITH_DELIVER });
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await field.preset(page).selectOption("deliver-oneshot");
+  await approval(page).uncheck();
+  await field.preset(page).selectOption("deliver-lean");
+  await expect(approval(page)).not.toBeChecked();
+  await field.title(page).fill(task.title);
+  await field.start(page).click();
+  await expect(page).toHaveURL(new RegExp(`/tasks/${taskId}$`));
+  expect(seen.runs[0].body).toEqual({
+    presetId: "deliver-lean",
+    repositoryProfileId: profileId,
+    executionMode: "repository",
+    budgetLimitUsd: "5.00",
+    gates: "none",
+  });
+});
+
+test("left ticked, a Deliver template run is sent with gates plan", async ({ page }) => {
+  const seen = await mockComposer(page, { presets: WITH_DELIVER });
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await field.preset(page).selectOption("deliver-oneshot");
+  await field.title(page).fill(task.title);
+  await field.start(page).click();
+  await expect(page).toHaveURL(new RegExp(`/tasks/${taskId}$`));
+  expect(seen.runs[0].body).toMatchObject({
+    presetId: "deliver-oneshot",
+    gates: "plan",
+  });
+});
+
+test("switching from a Deliver template to Fixed coding sends no gates", async ({ page }) => {
+  const seen = await mockComposer(page, { presets: WITH_DELIVER });
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await field.preset(page).selectOption("deliver-oneshot");
+  await approval(page).uncheck();
+  await field.preset(page).selectOption("fixed-coding");
+  await expect(approval(page)).toHaveCount(0);
+  await field.title(page).fill(task.title);
+  await field.start(page).click();
+  await expect(page).toHaveURL(new RegExp(`/tasks/${taskId}$`));
+  expect(seen.runs[0].body).not.toHaveProperty("gates");
+});
+
+test("Plan first and no workflow send no run, so no approval choice", async ({ page }) => {
+  const seen = await mockComposer(page, { presets: WITH_DELIVER });
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await field.preset(page).selectOption("deliver-oneshot");
+  await expect(approval(page)).toBeVisible();
+  await form(page).getByRole("checkbox", { name: "Plan first" }).check();
+  await expect(approval(page)).toHaveCount(0);
+  await field.title(page).fill(task.title);
+  await form(page).getByRole("button", { name: "Create task and plan" })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`/tasks/${taskId}$`));
+  expect(seen.runs).toHaveLength(0);
+});
+
+test("an unknown outcome locks the approval box showing what was sent; a reload restores it", async ({ page }) => {
+  const seen = await mockComposer(page, {
+    presets: WITH_DELIVER,
+    runReply: (route, attempt) =>
+      attempt === 1
+        ? route.abort("failed")
+        : route.fulfill({ status: 201, json: run }),
+  });
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await field.preset(page).selectOption("deliver-oneshot");
+  await approval(page).uncheck();
+  await field.title(page).fill(task.title);
+  await field.start(page).click();
+  await expect(field.retry(page)).toBeVisible();
+  await expect(approval(page)).toBeDisabled();
+  await expect(approval(page)).not.toBeChecked();
+  await page.reload();
+  await expect(field.retry(page)).toBeVisible();
+  await expect(approval(page)).toBeDisabled();
+  await expect(approval(page)).not.toBeChecked();
+  await field.retry(page).click();
+  await expect(page).toHaveURL(new RegExp(`/tasks/${taskId}$`));
+  expect(seen.runs[1]).toEqual(seen.runs[0]);
+  expect(seen.runs[1].body).toMatchObject({ gates: "none" });
 });

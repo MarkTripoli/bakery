@@ -157,6 +157,7 @@ export * from "./molecules/ErrorState.tsx";
 export * from "./molecules/Field.tsx";
 export * from "./molecules/Identity.tsx";
 export * from "./molecules/InlineNotice.tsx";
+export * from "./molecules/TaskSetupNotice.tsx";
 export * from "./molecules/CellStack.tsx";
 export * from "./molecules/DetailRow.tsx";
 export * from "./molecules/ListRow.tsx";

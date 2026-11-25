@@ -7169,5 +7169,7 @@
   "tasks.stepApproval.refusal.outside": "⟪This decision is for the people on this task. Ask one of them.⟫",
   "tasks.stepApproval.refusal.failed": "⟪Your decision was not recorded. Try again.⟫",
   "tasks.stepApproval.refusal.forbidden": "⟪You are not allowed to decide on this.⟫",
-  "tasks.stepApproval.refusal.unknown": "⟪Your decision may not have been recorded. Retry sends the same decision once.⟫"
+  "tasks.stepApproval.refusal.unknown": "⟪Your decision may not have been recorded. Retry sends the same decision once.⟫",
+  "tasks.composer.approval": "⟪Wait for my approval before building⟫",
+  "tasks.composer.approvalHint": "⟪This workflow has approval steps before it builds. Ticked: the run waits at each one until you approve it. Cleared: it skips them and builds straight away.⟫"
 }

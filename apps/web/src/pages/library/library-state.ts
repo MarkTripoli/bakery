@@ -51,3 +51,11 @@ export function byName<
 export function presetSteps(preset: WorkflowPresetResponse): number {
   return treeOf(preset.definition).stepCount;
 }
+
+export function presetDeclaresGates(definition: unknown): boolean {
+  const inputs = typeof definition === "object" && definition !== null
+    ? (definition as { readonly inputs?: unknown }).inputs
+    : undefined;
+  return typeof inputs === "object" && inputs !== null &&
+    Object.hasOwn(inputs, "gates");
+}
