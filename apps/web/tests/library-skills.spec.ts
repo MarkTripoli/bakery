@@ -98,7 +98,9 @@ for (
         ).toBeVisible();
       }
       await expect(page.getByText("Only mine")).toHaveCount(0);
-      await expect(page.getByRole("button", { name: /New skill|Make a copy/ }))
+      await expect(page.getByRole("button", { name: "New skill" }))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: "Make a copy" }))
         .toHaveCount(0);
       await expect(page.getByRole("searchbox", { name: "Find a skill" }))
         .toBeVisible();
@@ -282,10 +284,15 @@ for (
         .toHaveAttribute("href", `${skillPage(IDS.writingGuide)}`);
       await expect(
         page.getByRole("button", {
-          name: /Edit|Check for updates|Make a copy/,
+          name: /Check for updates|Make a copy/,
         }),
       )
         .toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: "Continue editing" }).or(
+          page.getByRole("button", { name: "Edit", exact: true }),
+        ),
+      ).toHaveCount(1);
       await expect(
         page.getByRole("button", { name: /^Stop allowing/ }),
       ).toHaveCount(1);
@@ -592,7 +599,7 @@ for (
     const menuItem = (page: Page, name: string) =>
       menu(page).getByRole("button", { name });
     const more = (page: Page) =>
-      page.getByTestId("skill-actions").getByRole("button");
+      page.getByTestId("skill-actions").getByRole("button", { name: "More" });
 
     test("a skill shared by Bakery can only be copied, and says why", async ({ page }) => {
       const { seen } = await skillsFixture(page);

@@ -410,6 +410,15 @@ export type SkillListResponse = ClientOutputMap["Page<Skill>"];
 export type SkillScope = SkillResponse["scope"];
 /** One revision of a skill, draft, published or retired, with its file manifest. */
 export type SkillVersionResponse = ClientOutputMap["SkillVersion"];
+export type SkillCreate = ClientInputMap["SkillCreate"];
+export type SkillDraftResponse = ClientOutputMap["SkillDraft"];
+export type SkillDraftFileResponse = ClientOutputMap["SkillDraftFile"];
+export type SkillDraftCheckResponse = ClientOutputMap["SkillDraftCheck"];
+export type SkillDraftUpdate = Omit<ClientInputMap["SkillDraftUpdate"], "id">;
+export type SkillDraftFileSave = Omit<
+  ClientInputMap["SkillDraftFileSave"],
+  "id"
+>;
 export type SkillVersionListResponse = ClientOutputMap["Page<SkillVersion>"];
 /** One agent or workflow version that names a skill, and which of its versions. */
 export type SkillUsageListResponse = ClientOutputMap["Page<SkillUsage>"];
@@ -2245,6 +2254,81 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<SkillResponse>>;
+  readonly createSkill: (options: {
+    readonly organizationId: string;
+    readonly input: SkillCreate;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillResponse>>;
+  readonly openSkillDraft: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftResponse>>;
+  readonly getSkillDraft: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftResponse>>;
+  readonly getSkillDraftFile: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly fileId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftFileResponse>>;
+  readonly updateSkillDraft: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: SkillDraftUpdate;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftResponse>>;
+  readonly saveSkillDraftFile: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: SkillDraftFileSave;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftResponse>>;
+  readonly renameSkillDraftFile: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly path: string;
+    readonly newPath: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftResponse>>;
+  readonly deleteSkillDraftFile: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly fileId: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftResponse>>;
+  readonly discardSkillDraft: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<void>>;
+  readonly checkSkillDraft: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillDraftCheckResponse>>;
+  readonly publishSkillDraft: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillVersionResponse>>;
   readonly copySkill: (options: {
     readonly organizationId: string;
     readonly id: string;
@@ -7415,6 +7499,195 @@ export function createBakeryApiClient({
         if (data.id !== options.id) {
           throw new ApiTransportError("protocol", 200);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createSkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.create"](
+          options.input,
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async openSkillDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDrafts.open"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getSkillDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDrafts.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getSkillDraftFile(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDraftFiles.get"](
+          { id: options.id, fileId: options.fileId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateSkillDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDrafts.update"](
+          { id: options.id, ...options.input },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async saveSkillDraftFile(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDraftFiles.save"](
+          { id: options.id, ...options.input },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async renameSkillDraftFile(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDraftFiles.rename"](
+          { id: options.id, path: options.path, newPath: options.newPath },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async deleteSkillDraftFile(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDraftFiles.delete"](
+          { id: options.id, fileId: options.fileId },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async discardSkillDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        await client.actions["skillDrafts.discard"](
+          { id: options.id },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data: undefined };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async checkSkillDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDrafts.check"](
+          { id: options.id },
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async publishSkillDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillDrafts.publish"](
+          { id: options.id },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
         return { ok: true, data };
       } catch (error) {
         return failed(error);
