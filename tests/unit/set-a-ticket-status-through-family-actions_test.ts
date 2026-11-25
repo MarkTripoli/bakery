@@ -5,7 +5,10 @@ import {
 } from "../../apps/server/src/modules/catalog/integration-providers/github.ts";
 import { createGateTicketStatusWriter } from "../../apps/server/src/modules/integrations/ticket-statuses.ts";
 import type { GateSend } from "../../apps/server/src/modules/integrations/ticket-gate.ts";
-import { ticketFamilyActionsOf } from "../../apps/server/src/modules/integrations/registry.ts";
+import {
+  ticketFamilyActionsFrom,
+  ticketFamilyActionsOf,
+} from "../../apps/server/src/modules/integrations/registry.ts";
 
 type Handler = {
   input: { safeParse(value: unknown): { success: boolean } };
@@ -120,4 +123,24 @@ Deno.test("github declares status.set and the gate writer sends it, or answers p
     problemCode: "provider_capability_missing",
   });
   assertEquals(sent.length, 1);
+});
+
+Deno.test("a provider manifest's ticketActions are what the writers resolve, beside the core GitHub map (#407)", () => {
+  const comment = { id: "acme.comment.post", version: 2 };
+  const declared = ticketFamilyActionsFrom(
+    [
+      { slug: "acme", ticketActions: { "comment.create": comment } },
+      { slug: "quiet", ticketActions: undefined },
+    ],
+    { core: { "status.set": { id: "core.status", version: 1 } } },
+  );
+  assertEquals(declared.acme, { "comment.create": comment });
+  assertEquals(declared.core, {
+    "status.set": { id: "core.status", version: 1 },
+  });
+  assertEquals(Object.hasOwn(declared, "quiet"), false);
+  assertEquals(
+    Object.keys(ticketFamilyActionsOf("github")).sort(),
+    ["comment.create", "comment.update", "status.set"],
+  );
 });

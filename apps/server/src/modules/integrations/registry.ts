@@ -295,13 +295,29 @@ export type TicketFamilyActions = Readonly<
   Partial<Record<TicketFamilyAction, TicketActionRef>>
 >;
 
-const TICKET_FAMILY_ACTIONS: Readonly<Record<string, TicketFamilyActions>> = {
-  [GITHUB_PROVIDER_IDENTITY.slug]: {
-    "comment.create": TICKET_NOTE_ACTION,
-    "comment.update": TICKET_NOTE_UPDATE_ACTION,
-    "status.set": TICKET_STATUS_ACTION,
-  },
+const GITHUB_TICKET_FAMILY_ACTIONS: TicketFamilyActions = {
+  "comment.create": TICKET_NOTE_ACTION,
+  "comment.update": TICKET_NOTE_UPDATE_ACTION,
+  "status.set": TICKET_STATUS_ACTION,
 };
+
+export function ticketFamilyActionsFrom(
+  manifests: readonly Pick<ProviderManifest, "slug" | "ticketActions">[],
+  core: Readonly<Record<string, TicketFamilyActions>>,
+): Readonly<Record<string, TicketFamilyActions>> {
+  const declared: Record<string, TicketFamilyActions> = { ...core };
+  for (const manifest of manifests) {
+    if (manifest.ticketActions !== undefined) {
+      declared[manifest.slug] = manifest.ticketActions;
+    }
+  }
+  return declared;
+}
+
+const TICKET_FAMILY_ACTIONS = ticketFamilyActionsFrom(
+  SERVER_PROVIDERS.map((provider) => provider.manifest),
+  { [GITHUB_PROVIDER_IDENTITY.slug]: GITHUB_TICKET_FAMILY_ACTIONS },
+);
 
 export function ticketFamilyActionsOf(provider: string): TicketFamilyActions {
   return Object.hasOwn(TICKET_FAMILY_ACTIONS, provider)
