@@ -1,6 +1,7 @@
 import { type DiagnosticCollector, pointerOf } from "../diagnostics.ts";
 import { WORKFLOW_COMPILER_LIMITS } from "../limits.ts";
 import type { WorkflowNode, WorkflowSemanticDocument } from "../schema.ts";
+import { resolveStepFiles } from "../step-files.ts";
 import type { NodeLocations } from "./shape.ts";
 
 /** Worst-case totals of a node list or a whole workflow. */
@@ -123,6 +124,77 @@ export function workflowWorstCase(
   return sum(document.steps, 1);
 }
 
+function checkParallelForEachPolicy(
+  nodes: readonly WorkflowNode[],
+  parallel: boolean,
+  locations: NodeLocations,
+  collector: DiagnosticCollector,
+): void {
+  for (const node of nodes) {
+    switch (node.kind) {
+      case "action":
+        if (
+          parallel &&
+          resolveStepFiles(node.files).write.includes("workspace")
+        ) {
+          collector.add(
+            pointerOf([...(locations.get(node) ?? []), "files"]),
+            "for_each_parallel_workspace_write",
+          );
+        }
+        break;
+      case "wait":
+        break;
+      case "sequence":
+        checkParallelForEachPolicy(
+          node.steps,
+          parallel,
+          locations,
+          collector,
+        );
+        break;
+      case "branch":
+        checkParallelForEachPolicy(node.then, parallel, locations, collector);
+        checkParallelForEachPolicy(node.else, parallel, locations, collector);
+        break;
+      case "repeat":
+        if (node.seed.form === "sequence") {
+          checkParallelForEachPolicy(
+            node.seed.steps,
+            parallel,
+            locations,
+            collector,
+          );
+        }
+        checkParallelForEachPolicy(
+          node.steps,
+          parallel,
+          locations,
+          collector,
+        );
+        break;
+      case "parallel":
+        for (const lane of node.lanes) {
+          checkParallelForEachPolicy(
+            lane.steps,
+            parallel,
+            locations,
+            collector,
+          );
+        }
+        break;
+      case "forEach":
+        checkParallelForEachPolicy(
+          node.steps,
+          parallel || (node.maxConcurrency ?? 1) > 1,
+          locations,
+          collector,
+        );
+        break;
+    }
+  }
+}
+
 function checkRepeatPolicy(
   nodes: readonly WorkflowNode[],
   depth: number,
@@ -189,6 +261,7 @@ export function checkWorkflowBounds(
   locations: NodeLocations,
   collector: DiagnosticCollector,
 ): WorstCase {
+  checkParallelForEachPolicy(document.steps, false, locations, collector);
   const limits = document.limits;
   if (limits.maxRepairCycles !== undefined) {
     checkRepeatPolicy(

@@ -8,6 +8,7 @@ import { createToolCallStepRunner } from "../../apps/server/src/modules/tool-cal
 import { seedPlanRun, setRow } from "../helpers/plan-run.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
+import { fundedModelPolicy } from "../helpers/funded-model-job.ts";
 import { compiled, noop } from "../helpers/workflow-interpreter.ts";
 import {
   consumerDepsFor,
@@ -54,6 +55,7 @@ async function atTheToolCall(
         needs: ["first"],
         with: { ...input, arguments: { $literal: { ...GITHUB_ARGS } } },
         effectKey: ["comment", "$input.target"],
+        limits: { maxCostUsd: 0.1 },
       },
     ], { target: { type: "uuid", required: true } }),
     { inputs: { target: rig.resourceId } },
@@ -70,6 +72,7 @@ async function atTheToolCall(
     database: fixture.pgDatabase,
     maxAttempts: 3,
     engineSteps: composeEngineStepRunners([runner]),
+    budgetPolicy: fundedModelPolicy,
   });
   const request: EngineStepRequest = {
     organizationId: fixture.organizationId,
@@ -106,6 +109,24 @@ const effectsOf = async (fixture: WorkerFixture) =>
     [fixture.organizationId],
   )).rows;
 
+const reservationsOf = async (fixture: WorkerFixture, runId: string) =>
+  (await fixture.pgDatabase.query<{
+    status: string;
+    reserved: string;
+    settled: string | null;
+  }>(
+    `select reservation.status,
+            reservation.reserved_usd::text as reserved,
+            reservation.settled_usd::text as settled
+       from bakery.budget_reservations reservation
+       join bakery.run_steps step
+         on step.organization_id = reservation.organization_id
+        and step.id = reservation.run_step_id
+      where step.run_id = $1 and step.step_key = 'comment'
+      order by reservation.id`,
+    [runId],
+  )).rows;
+
 Deno.test("a tool.call write is settled by the engine through one keyed ledger effect (#435)", () =>
   withWorkerFixture(async (fixture) => {
     const github = fakeGithub();
@@ -135,6 +156,13 @@ Deno.test("a tool.call write is settled by the engine through one keyed ledger e
       [seeded.job.runId],
     );
     assertEquals(jobs.rows.length, 0);
+    const replay = await repository.admit(key, seeded.owner);
+    assertEquals(replay.terminal, true);
+    const reservations = await reservationsOf(fixture, seeded.job.runId);
+    assertEquals(reservations, [
+      { status: "settled", reserved: "0.100000", settled: "0.100000" },
+      { status: "settled", reserved: "0.100000", settled: "0.100000" },
+    ]);
   }));
 
 Deno.test("a tool.call step replayed after a crash finds its effect and sends nothing twice (#435)", () =>
@@ -158,27 +186,39 @@ Deno.test("a tool.call write whose outcome is not known leaves the step pending,
   withWorkerFixture(async (fixture) => {
     const github = fakeGithub();
     github.post = "hang";
-    const { runner, request } = await atTheToolCall(fixture, github, {
+    const { seeded, repository } = await atTheToolCall(fixture, github, {
       deadlineMs: 50,
     });
-    const result = await runner.run(request);
-    assertEquals(result, { kind: "pending" });
+    const key = await repository.findNext(seeded.job.runId, seeded.owner);
+    assert(key !== undefined);
+    const admitted = await repository.admit(key, seeded.owner);
+    assertEquals(admitted, { key, terminal: false });
     const effects = await effectsOf(fixture);
     assertEquals(effects.length, 1);
     assert(effects[0].status !== "confirmed");
+    assertEquals(await reservationsOf(fixture, seeded.job.runId), [
+      { status: "held", reserved: "0.100000", settled: null },
+      { status: "held", reserved: "0.100000", settled: null },
+    ]);
   }));
 
 Deno.test("a tool.call write the provider refuses fails the step with a fixed code (#435)", () =>
   withWorkerFixture(async (fixture) => {
     const github = fakeGithub();
     github.post = { status: 422 };
-    const { runner, request } = await atTheToolCall(fixture, github);
-    const result = await runner.run(request);
-    assertEquals(
-      result.kind === "failed" && result.code,
-      "TOOL_CALL_EFFECT_FAILED",
-    );
+    const { seeded, repository } = await atTheToolCall(fixture, github);
+    const key = await repository.findNext(seeded.job.runId, seeded.owner);
+    assert(key !== undefined);
+    const admitted = await repository.admit(key, seeded.owner);
+    assertEquals(admitted.terminal, true);
+    const row = await step(fixture, seeded.job.runId);
+    assertEquals(row.status, "failed");
+    assert(JSON.stringify(row.error).includes("TOOL_CALL_EFFECT_FAILED"));
     const effects = await effectsOf(fixture);
     assertEquals(effects.length, 1);
     assertEquals(effects[0].status, "failed");
+    assertEquals(await reservationsOf(fixture, seeded.job.runId), [
+      { status: "settled", reserved: "0.100000", settled: "0.100000" },
+      { status: "settled", reserved: "0.100000", settled: "0.100000" },
+    ]);
   }));

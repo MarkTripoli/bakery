@@ -414,10 +414,22 @@ function resolveStep(
             path.slice(position + 1),
           );
         }
+        if (Object.hasOwn(authored.collect ?? {}, segment)) {
+          if (isSecretName(segment)) {
+            return { ok: false, code: "reference_secret_forbidden" };
+          }
+          const failure = flowCheck(reader, flow, undefined);
+          if (failure) return { ok: false, code: failure };
+          return finishWalk(
+            {
+              kind: "list",
+              item: flow.forEachExports.get(segment) ?? { kind: "json" },
+            },
+            path.slice(position + 1),
+          );
+        }
         const scope = flow.bodyScope!;
         if (!scope.byId.has(segment)) return fieldUnknown;
-        // A step inside the loop names the iteration the reader is in, so
-        // only a reader inside the same loop may name one.
         if (!insideScope(reader, scope)) {
           return { ok: false, code: "reference_each_scope" };
         }

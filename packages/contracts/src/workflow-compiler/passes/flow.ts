@@ -239,6 +239,15 @@ function checkForEach(
     env.collector.add(pointerOf([...base, "as"]), "for_each_as_invalid");
   }
   visitScope(env, flow.bodyScope!);
+  for (const [name, value] of Object.entries(node.collect ?? {})) {
+    const analyzed = analyzeValue(
+      env,
+      readerEndOf(flow.bodyScope!, flow),
+      value,
+      [...base, "collect", name],
+    );
+    flow.forEachExports.set(name, analyzed.type);
+  }
 }
 
 /** Lane identifiers ordered so every lane follows its prerequisites. */

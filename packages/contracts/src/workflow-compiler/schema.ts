@@ -403,10 +403,6 @@ export type WorkflowParallelNode = {
   lanes: WorkflowLane[];
   outputs: Record<string, Record<string, WorkflowValueNode>>;
 };
-/**
- * A bounded, sequential loop over a list (interpreter revision 3). The body
- * runs once per item, in list order; `$each.<as>` reads the current item.
- */
 export type WorkflowForEachNode = {
   kind: "forEach";
   id: string;
@@ -414,8 +410,10 @@ export type WorkflowForEachNode = {
   if?: WorkflowExpressionNode | undefined;
   items: WorkflowValueNode;
   max: number;
+  maxConcurrency?: number | undefined;
   as: string;
   steps: WorkflowNode[];
+  collect?: Record<string, WorkflowValueNode> | undefined;
 };
 export type WorkflowNode =
   | WorkflowActionNode
@@ -628,7 +626,7 @@ const parallelNodeSchema = z.object({
 
 const forEachNodeSchema = z.object({
   kind: z.literal("forEach").describe(
-    "Tag marking a bounded sequential loop over a list.",
+    "Tag marking a bounded loop over a list.",
   ),
   ...baseNodeShape,
   items: z.lazy(() => WorkflowValueNodeSchema).describe(
@@ -637,12 +635,21 @@ const forEachNodeSchema = z.object({
   max: z.number().int().min(1).max(12).describe(
     "Most items the loop accepts; also the iteration count the worst case assumes.",
   ),
+  maxConcurrency: z.number().int().min(1).max(12).optional().describe(
+    "Most loop iterations allowed to run at once; absent means one.",
+  ),
   as: z.string().regex(/^[a-z][A-Za-z0-9]{0,63}$/).describe(
     "Name the body reads the current item by, as $each.<as>; distinct from every enclosing forEach's name.",
   ),
   steps: stepsSchema(),
+  collect: z.record(
+    nameSchema,
+    described(z.lazy(() => WorkflowValueNodeSchema), "Collected value node."),
+  ).optional().describe(
+    "Values gathered after each completed iteration, in item order.",
+  ),
 }).strict().describe(
-  "Bounded sequential forEach: runs its steps once per list item, in order, one iteration at a time.",
+  "Bounded forEach with optional bounded parallelism and deterministic collection.",
 );
 
 /** Normalized workflow node of any kind. */
