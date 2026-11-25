@@ -81,11 +81,14 @@ export type ResolvedToolPin = Readonly<{
   snapshotId: string;
   snapshotDigest: string;
   tool: string;
-  /**
-   * The read an Admin paired with a reconcilable write, pinned beside it so an
-   * unproven write can be confirmed; null when the tool has none.
-   */
   pairedRead: string | null;
+  asyncForm: McpAsyncForm | null;
+}>;
+
+export type McpAsyncForm = Readonly<{
+  kind: "submit_poll_v1";
+  effectKeyArgument: string;
+  pollTool: string;
 }>;
 
 type ConnectionRow = {
@@ -189,17 +192,27 @@ export async function checkToolCallPins(
       refuse(pin, "tool_call_tool_not_enabled");
       continue;
     }
-    // A write the Admin classified as reconcilable, against this snapshot, is
-    // confirmed by its paired read; the step's binding must admit that read.
-    const paired = await transaction.query<{ paired_read_tool: string | null }>(
-      `select paired_read_tool from bakery.mcp_tool_classifications
+    const paired = await transaction.query<{
+      effect_class: string;
+      paired_read_tool: string | null;
+      effect_key_argument: string | null;
+    }>(
+      `select effect_class, paired_read_tool, effect_key_argument
+         from bakery.mcp_tool_classifications
         where organization_id = $1 and connection_id = $2 and tool_name = $3
-          and snapshot_digest = $4 and effect_class = 'write_reconcilable'`,
+          and snapshot_digest = $4
+          and effect_class in ('write_reconcilable', 'write_async')`,
       [facts.organizationId, row.id, pin.tool, row.snapshot_digest],
     );
-    const pairedRead = paired.rows[0]?.paired_read_tool ?? null;
+    const classified = paired.rows[0];
+    const pairedRead = classified?.paired_read_tool ?? null;
     if (pairedRead !== null && !enabled.includes(pairedRead)) {
       refuse(pin, "tool_call_paired_read_not_enabled");
+      continue;
+    }
+    const asyncForm = asyncFormOf(classified);
+    if (classified?.effect_class === "write_async" && asyncForm === null) {
+      refuse(pin, "tool_call_async_form_incomplete");
       continue;
     }
     pins.push(Object.freeze({
@@ -209,9 +222,31 @@ export async function checkToolCallPins(
       snapshotDigest: row.snapshot_digest,
       tool: pin.tool,
       pairedRead,
+      asyncForm,
     }));
   }
   return { issues, pins };
+}
+
+function asyncFormOf(
+  classified:
+    | Readonly<{
+      effect_class: string;
+      paired_read_tool: string | null;
+      effect_key_argument: string | null;
+    }>
+    | undefined,
+): McpAsyncForm | null {
+  if (
+    classified?.effect_class !== "write_async" ||
+    classified.paired_read_tool === null ||
+    classified.effect_key_argument === null
+  ) return null;
+  return Object.freeze({
+    kind: "submit_poll_v1",
+    effectKeyArgument: classified.effect_key_argument,
+    pollTool: classified.paired_read_tool,
+  });
 }
 
 /**
@@ -232,8 +267,8 @@ export async function writeToolCallBindings(
       `insert into bakery.capability_bindings (
          organization_id, workflow_version_id, step_key, mcp_connection_id,
          mcp_snapshot_id, mcp_snapshot_digest, actor_ref, allowed_operations,
-         required
-       ) values ($1, $2, $3, $4, $5, $6, null, $7::jsonb, true)`,
+         required, mcp_async_form
+       ) values ($1, $2, $3, $4, $5, $6, null, $7::jsonb, true, $8::jsonb)`,
       [
         facts.organizationId,
         facts.workflowVersionId,
@@ -244,6 +279,7 @@ export async function writeToolCallBindings(
         JSON.stringify(
           pin.pairedRead === null ? [pin.tool] : [pin.tool, pin.pairedRead],
         ),
+        pin.asyncForm === null ? null : JSON.stringify(pin.asyncForm),
       ],
     );
   }
