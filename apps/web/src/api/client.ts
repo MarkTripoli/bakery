@@ -308,6 +308,11 @@ export type WorkerEnrollmentResponse = ClientOutputMap["WorkerEnrollment"];
 export type EnrollmentStatus = ClientOutputMap["EnrollmentStatus"];
 export type WorkerComponentListResponse =
   ClientOutputMap["Page<WorkerComponent>"];
+export type WorkerAttemptListResponse =
+  ClientOutputMap["Page<WorkerAttemptRead>"];
+export type WorkerAttemptResponse = WorkerAttemptListResponse["items"][number];
+export type WorkerAttemptState =
+  ClientInputMap["WorkerAttemptListQuery"]["state"];
 export type WorkerProviderBindingListResponse =
   ClientOutputMap["Page<WorkerProviderBinding>"];
 export type WorkerProviderAuthAttemptResponse =
@@ -1446,6 +1451,16 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerComponentListResponse>>;
+  };
+  readonly workerAttempts: {
+    readonly list: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly state: WorkerAttemptState;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerAttemptListResponse>>;
   };
   readonly workerProviderBindings: {
     readonly list: (options: {
@@ -3861,6 +3876,20 @@ export function createBakeryApiClient({
           (scoped) =>
             scoped.actions["workerComponents.list"]({
               id: options.id,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+    },
+    workerAttempts: {
+      list(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workerAttempts.list"]({
+              id: options.id,
+              state: options.state,
               cursor: options.cursor,
               limit: options.limit,
             }, { signal: options.signal }),
