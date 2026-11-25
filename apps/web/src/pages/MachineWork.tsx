@@ -287,20 +287,13 @@ export function MachineWork(
         variant="stack"
         data-testid="machine-slots"
       >
-        <UI.DescriptionList>
-          <UI.DescriptionItem
-            title={message("machines.work.slots.total")}
-            description={String(capacity.slots)}
-          />
-          <UI.DescriptionItem
-            title={message("machines.work.slots.occupied")}
-            description={String(capacity.occupied)}
-          />
-          <UI.DescriptionItem
-            title={message("machines.work.slots.unoccupied")}
-            description={String(capacity.unoccupied)}
-          />
-        </UI.DescriptionList>
+        <UI.Text data-testid="machine-slot-line">
+          {message("machines.work.slots.line", {
+            total: capacity.slots,
+            occupied: capacity.occupied,
+            unoccupied: capacity.unoccupied,
+          })}
+        </UI.Text>
         <UI.Text variant="caption">
           {message("machines.work.slots.what")}
         </UI.Text>

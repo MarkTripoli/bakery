@@ -228,9 +228,9 @@ test.describe("machine page: Work", () => {
     );
     const slots = page.getByTestId("machine-slots");
     await expect(slots).toContainText("Slots");
-    await expect(slots).toContainText("3");
-    await expect(slots).toContainText("Occupied");
-    await expect(slots).toContainText("Unoccupied");
+    await expect(page.getByTestId("machine-slot-line")).toHaveText(
+      "3 in total, 2 occupied, 1 unoccupied.",
+    );
     await expect(slots).toContainText(
       "A slot is held by one attempt: work being run, being cancelled, or a check with no task. It is not one task.",
     );
@@ -260,12 +260,9 @@ test.describe("machine page: Work", () => {
   test("the unoccupied slots never go below zero, and do not come from the rows", async ({ page }) => {
     await fixture(page, { slots: 1, occupied: 3 });
     await page.goto(WORK);
-    const slots = page.getByTestId("machine-slots");
-    await expect(slots.getByText("Unoccupied")).toBeVisible();
-    await expect(
-      slots.locator("dd, [data-ui-component=descriptionItem]").last(),
-    )
-      .toContainText("0");
+    await expect(page.getByTestId("machine-slot-line")).toHaveText(
+      "1 in total, 3 occupied, 0 unoccupied.",
+    );
     await expect(rowsOf(page)).toHaveCount(2);
   });
 
