@@ -432,6 +432,7 @@ function manualStartInput(
       repositoryArchived: false,
       repositoryHasActiveProfile: true,
       presetReady: true,
+      blockerRule: "merged_change",
     },
     policy: defaultTicketSourcePolicy(),
     policyRevision: 1,

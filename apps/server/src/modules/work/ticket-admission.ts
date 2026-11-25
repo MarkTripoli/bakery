@@ -34,6 +34,7 @@ import {
   RouteOutcomeCode,
 } from "../integrations/fact-reads.ts";
 import { lockAuthority } from "../integrations/write-authority.ts";
+import { ticketBlockerRuleOf } from "../integrations/registry.ts";
 import { createRunCommand } from "./run-command.ts";
 import {
   createCoordinationPlanCommand,
@@ -335,7 +336,10 @@ type Frame = {
   authority:
     & Pick<
       ReadinessSourceFacts,
-      "connectionEnabled" | "installationEnabled" | "resourceSelected"
+      | "connectionEnabled"
+      | "installationEnabled"
+      | "resourceSelected"
+      | "blockerRule"
     >
     & { repositoryFullName: string };
 };
@@ -396,6 +400,7 @@ async function sourceAuthority(
   );
   return {
     repositoryFullName: scope.handle.repositoryFullName,
+    blockerRule: ticketBlockerRuleOf(scope.handle.provider),
     connectionEnabled: verdict !== RouteOutcomeCode.ConnectionNotEnabled &&
       verdict !== RouteOutcomeCode.ConnectionChanged,
     installationEnabled: verdict !== RouteOutcomeCode.InstallationUnavailable &&
@@ -422,6 +427,7 @@ async function sourceFacts(
     installationEnabled: frame.authority.installationEnabled,
     resourceSelected: frame.authority.resourceSelected,
     repositoryFullName: frame.authority.repositoryFullName,
+    blockerRule: frame.authority.blockerRule,
   };
   if (source.repositoryId === null) {
     return {
