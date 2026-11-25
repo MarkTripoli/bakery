@@ -4,10 +4,8 @@ import {
   defaultTicketSourcePolicy,
   type TicketSourcePolicy,
 } from "../../packages/contracts/src/ticket-admission.ts";
-import {
-  assertPolicyTriggersDeclared,
-  ticketTriggersOf,
-} from "../../apps/server/src/modules/work/ticket-triggers.ts";
+import { assertPolicyTriggersDeclared } from "../../apps/server/src/modules/work/ticket-triggers.ts";
+import { ticketTriggersOf } from "../../apps/server/src/modules/integrations/registry.ts";
 
 const withStatuses: TicketSourcePolicy = {
   ...defaultTicketSourcePolicy(),

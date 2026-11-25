@@ -1,20 +1,7 @@
 import { StandardError } from "@bakery/contracts/http";
 import type { TicketSourcePolicy } from "@bakery/contracts/ticket-admission";
-import type { TicketTrigger } from "@bakery/integration-sdk/provider";
-import { linearServerProvider } from "@bakery/integration-linear/server";
 import type { PgTransactionClient } from "../../platform/database.ts";
-
-const GITHUB_TICKET_TRIGGERS: readonly TicketTrigger[] = ["label", "status"];
-
-const DECLARED: Readonly<Record<string, readonly TicketTrigger[]>> = {
-  github: GITHUB_TICKET_TRIGGERS,
-  [linearServerProvider.manifest.slug]: linearServerProvider.manifest
-    .ticketTriggers ?? ["label"],
-};
-
-export function ticketTriggersOf(provider: string): readonly TicketTrigger[] {
-  return DECLARED[provider] ?? ["label"];
-}
+import { ticketTriggersOf } from "../integrations/registry.ts";
 
 export function assertPolicyTriggersDeclared(
   provider: string,
