@@ -7175,7 +7175,6 @@
   "delivery.chart.heading": "⟪Over time⟫",
   "delivery.chart.asTable": "⟪Show as table⟫",
   "delivery.chart.asChart": "⟪Show as chart⟫",
-  "delivery.chart.noGap": "⟪Every {unit} was measured in this period.⟫",
   "delivery.chart.gapCount": "⟪{count, plural, one {No data for 1 day ({gaps}).} other {No data for # days ({gaps}).}} A gap is not zero.⟫",
   "delivery.chart.gapCountLabeled": "⟪{count, plural, one {No data for 1 day.} other {No data for # days.}} A gap is not zero.⟫",
   "delivery.chart.gap": "⟪no data, {from} to {to}⟫",
@@ -7193,5 +7192,6 @@
   "delivery.chart.noDataPeriod": "⟪No data for this period. A gap is not zero.⟫",
   "delivery.chart.column.day": "⟪Date⟫",
   "delivery.chart.error": "⟪The chart could not be loaded.⟫",
-  "delivery.chart.retry": "⟪Try again⟫"
+  "delivery.chart.retry": "⟪Try again⟫",
+  "delivery.chart.noGap": "⟪Every day has a measurement for {series} in this period.⟫"
 }

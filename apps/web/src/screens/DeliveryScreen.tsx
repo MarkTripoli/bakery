@@ -470,7 +470,6 @@ function OverTime(props: DeliveryScreenProps) {
           rows={[...series.points]}
         />
       }
-      unitLabel={translate(figure.detail)}
     />
   );
 }

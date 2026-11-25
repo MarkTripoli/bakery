@@ -18,7 +18,6 @@ export function DeliveryChart(
   {
     points,
     label,
-    unitLabel,
     showMenu,
     table,
     status,
@@ -27,7 +26,6 @@ export function DeliveryChart(
   }: {
     readonly points: readonly ChartPoint[];
     readonly label: string;
-    readonly unitLabel: string;
     readonly table: ReactNode;
     readonly showMenu: ReactNode;
     readonly status: "loading" | "error" | "ready";
@@ -224,7 +222,7 @@ export function DeliveryChart(
             </UI.Inline>
             <UI.Text id={descriptionId} variant="muted">
               {gaps.length === 0
-                ? translate("delivery.chart.noGap", { unit: unitLabel })
+                ? translate("delivery.chart.noGap", { series: label })
                 : hiddenGapLabels.length === 0
                 ? translate("delivery.chart.gapCountLabeled", {
                   count: gapCount,

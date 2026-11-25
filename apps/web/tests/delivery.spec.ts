@@ -45,6 +45,11 @@ for (
         .toBeVisible();
       await expect(page.getByRole("button", { name: /^Period:/ }))
         .toBeVisible();
+      await expect(
+        page.locator("[data-section='delivery-over-time']").getByText(
+          "Every day has a measurement for Pull requests merged in this period.",
+        ),
+      ).toBeVisible();
       const time = page.getByTestId("delivery-time");
       await expect(time.getByRole("heading", { name: "How long a task took" }))
         .toBeVisible();
