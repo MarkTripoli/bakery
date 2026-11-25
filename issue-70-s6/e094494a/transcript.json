@@ -1,0 +1,70 @@
+[
+  {
+    "at": "9.0",
+    "event": "attempts read",
+    "state": "now",
+    "cursor": null,
+    "status": 200
+  },
+  {
+    "at": "10.6",
+    "event": "now",
+    "rows": 2,
+    "slots": "Slots 3 in total, 2 occupied, 1 unoccupied. A slot is held by one attempt: work being run, being cancelled, or a check with no task. It is not one task."
+  },
+  {
+    "at": "10.7",
+    "event": "attempts read",
+    "state": "needs_attention",
+    "cursor": null,
+    "status": 200
+  },
+  {
+    "at": "12.5",
+    "event": "needs attention",
+    "rows": 2,
+    "first": "No task: repository.inspect Not reported Running Slot hold ran out Nov 25, 2026, 2:50 PM"
+  },
+  {
+    "at": "12.6",
+    "event": "attempts read",
+    "state": "finished",
+    "cursor": null,
+    "status": 200
+  },
+  {
+    "at": "14.4",
+    "event": "finished",
+    "rows": 25
+  },
+  {
+    "at": "14.4",
+    "event": "attempts read",
+    "state": "finished",
+    "cursor": "eyJ2IjoyLCJhIjoid29ya2VyQXR0ZW1wdHMubGlzdCIsInAiOiJlN2I4MDEwOC02ZjNlLTRkNGItYTBiNi02ZGI3MWZmMjRlOGUiLCJvIjoiMWYwMjdlN2ItZGM1Mi00MGZkLWJiOGUtM2JlMDExNWY5OTgzIiwiciI6ImNyZWF0ZWRBdDpkZXNjLGlkOmRlc2MiLCJmIjoie1wid29ya2VySG9zdElkXCI6XCI3MGE2MDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMDJcIixcInN0YXRlXCI6XCJmaW5pc2hlZFwifSIsInMiOjEsImsiOiJyb3ciLCJjIjoiMjAyNi0xMS0yNFQyMDoyNjowOC43NjcxODNaIiwiaSI6IjcwYTgwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAzOCJ9.BJaS5fAsn-WuApu9MVYUX17-qvi5sHUn5GG6ExJjcrM",
+    "status": 200
+  },
+  {
+    "at": "15.9",
+    "event": "finished after load more",
+    "rows": 30,
+    "loadMore": 0
+  },
+  {
+    "at": "16.0",
+    "event": "one running attempt completed"
+  },
+  {
+    "at": "18.5",
+    "event": "attempts read",
+    "state": "now",
+    "cursor": null,
+    "status": 200
+  },
+  {
+    "at": "20.8",
+    "event": "after",
+    "rows": 1,
+    "slots": "Slots 3 in total, 1 occupied, 2 unoccupied. A slot is held by one attempt: work being run, being cancelled, or a check with no task. It is not one task."
+  }
+]
