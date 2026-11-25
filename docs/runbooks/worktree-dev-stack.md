@@ -27,7 +27,7 @@ hold them. The three sockets stay open until all three ports are read, so they d
 
 ## 2. A database
 
-Any PostgreSQL 16. A throwaway container named for the worktree:
+Any PostgreSQL 18. A throwaway container named for the worktree:
 
 ```bash
 docker run -d --name "$STACK-pg" -e POSTGRES_USER=postgres \

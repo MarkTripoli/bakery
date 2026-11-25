@@ -1,3 +1,4 @@
+import { boundedPostgresMutation } from "../../platform/bounded-mutation.ts";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { contractSchemas, type JsonValue } from "@bakery/contracts/contracts";
 import { z } from "zod";
@@ -10,11 +11,6 @@ import {
   decodeCursor,
   encodeCursor,
 } from "../../platform/cursor.ts";
-import {
-  POSTGRES_FOREIGN_KEY_REFUSALS,
-  POSTGRES_UNIQUE_VIOLATION,
-  postgresErrorCode,
-} from "../../platform/postgres-errors.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import { attributeAction } from "../auth/application/action-attribution.ts";
@@ -244,24 +240,8 @@ export function toSkill(row: SkillRow) {
   };
 }
 
-export async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
-  try {
-    return await work();
-  } catch (error) {
-    if (error instanceof StandardError) throw error;
-    const code = postgresErrorCode(error);
-    if (code === POSTGRES_UNIQUE_VIOLATION) {
-      throw new StandardError({ code: "STATE_CONFLICT", cause: error });
-    }
-    if (
-      ["22001", "22P02", "23502", ...POSTGRES_FOREIGN_KEY_REFUSALS].includes(
-        code ?? "",
-      )
-    ) {
-      throw new StandardError({ code: "UNPROCESSABLE", cause: error });
-    }
-    throw error;
-  }
+export function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
+  return boundedPostgresMutation(work);
 }
 
 export async function recordMutation(

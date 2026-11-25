@@ -1,3 +1,4 @@
+import { boundedPostgresMutation } from "../../platform/bounded-mutation.ts";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import {
   requireCommandMetadata,
@@ -21,11 +22,6 @@ import {
   encodeCursor,
 } from "../../platform/cursor.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
-import {
-  POSTGRES_FOREIGN_KEY_REFUSALS,
-  POSTGRES_UNIQUE_VIOLATION,
-  postgresErrorCode,
-} from "../../platform/postgres-errors.ts";
 import { accessScopeClause } from "../auth/application/bindings.ts";
 import {
   encodedByteLength,
@@ -295,30 +291,14 @@ async function readActiveBranchLock(
   return parsed.data.branches;
 }
 
-async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
-  try {
-    return await work();
-  } catch (error) {
-    if (error instanceof StandardError) throw error;
-    const code = postgresErrorCode(error);
-    if (code === POSTGRES_UNIQUE_VIOLATION) {
-      // #65: name which uniqueness rule refused, so a client can say whether
-      // the short name is taken or the repository was already added.
+function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
+  return boundedPostgresMutation(work, {
+    checkViolationIsUnprocessable: true,
+    conflictParams: (error) => {
       const reason = UNIQUE_CONFLICT_REASONS[constraintOf(error) ?? ""];
-      throw new StandardError({
-        code: "STATE_CONFLICT",
-        cause: error,
-        ...(reason ? { params: { reason } } : {}),
-      });
-    }
-    if (
-      ["22001", "22P02", "23502", "23514", ...POSTGRES_FOREIGN_KEY_REFUSALS]
-        .includes(code ?? "")
-    ) {
-      throw new StandardError({ code: "UNPROCESSABLE", cause: error });
-    }
-    throw error;
-  }
+      return reason ? { reason } : undefined;
+    },
+  });
 }
 
 /**
