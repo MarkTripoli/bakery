@@ -5,6 +5,7 @@ import {
 import { defaultWorkflowCompilerCatalog } from "@bakery/contracts/workflow-compiler/default-catalog";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import type { WorkflowValidationIssue } from "./validation.ts";
+import { type McpAsyncForm, parseMcpAsyncForm } from "../mcp/async-form.ts";
 
 /**
  * A published workflow version pins the MCP tool each of its `tool.call` steps
@@ -83,12 +84,6 @@ export type ResolvedToolPin = Readonly<{
   tool: string;
   pairedRead: string | null;
   asyncForm: McpAsyncForm | null;
-}>;
-
-export type McpAsyncForm = Readonly<{
-  kind: "submit_poll_v1";
-  effectKeyArgument: string;
-  pollTool: string;
 }>;
 
 type ConnectionRow = {
@@ -237,12 +232,8 @@ function asyncFormOf(
     }>
     | undefined,
 ): McpAsyncForm | null {
-  if (
-    classified?.effect_class !== "write_async" ||
-    classified.paired_read_tool === null ||
-    classified.effect_key_argument === null
-  ) return null;
-  return Object.freeze({
+  if (classified?.effect_class !== "write_async") return null;
+  return parseMcpAsyncForm({
     kind: "submit_poll_v1",
     effectKeyArgument: classified.effect_key_argument,
     pollTool: classified.paired_read_tool,

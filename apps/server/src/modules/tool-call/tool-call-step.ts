@@ -11,6 +11,7 @@ import {
   createEffectExecutor,
   type EffectExecutorDeps,
 } from "../effects/index.ts";
+import { type McpAsyncForm, parseMcpAsyncForm } from "../mcp/async-form.ts";
 import { createMcpEffectPort } from "../mcp/effect-port.ts";
 import { invokeMcpTool, type McpInvokeDeps } from "../mcp/invoke.ts";
 import { McpToolCallError } from "../mcp/tool-transport.ts";
@@ -123,12 +124,6 @@ function actionResultSchema(): { parse(value: unknown): unknown } {
   return schema;
 }
 
-function asyncKeyArgumentOf(form: unknown): string | null {
-  if (form === null || typeof form !== "object") return null;
-  const key = (form as { effectKeyArgument?: unknown }).effectKeyArgument;
-  return typeof key === "string" && key.length > 0 ? key : null;
-}
-
 export function createToolCallStepRunner(
   deps: ToolCallStepDeps,
 ): EngineStepRunner {
@@ -236,7 +231,7 @@ export function createToolCallStepRunner(
         allowed: Array.isArray(pin.rows[0].allowed)
           ? pin.rows[0].allowed as unknown[]
           : [],
-        asyncKeyArgument: asyncKeyArgumentOf(pin.rows[0].async_form),
+        asyncForm: parseMcpAsyncForm(pin.rows[0].async_form),
         effectClass: effect.rows[0]?.effect_class ?? null,
         keyArgument: effect.rows[0]?.effect_key_argument ?? null,
         pairedRead: effect.rows[0]?.paired_read_tool ?? null,
@@ -277,7 +272,7 @@ export function createToolCallStepRunner(
         pairedRead: facts.pairedRead,
         allowed: facts.allowed,
         runStepId: facts.runStepId,
-        asyncKeyArgument: facts.asyncKeyArgument,
+        asyncForm: facts.asyncForm,
       });
     }
     try {
@@ -334,7 +329,7 @@ export function createToolCallStepRunner(
       pairedRead: string | null;
       allowed: readonly unknown[];
       runStepId: string | null;
-      asyncKeyArgument: string | null;
+      asyncForm: McpAsyncForm | null;
     }>,
   ): Promise<EngineStepResult> {
     if (mcpExecutor === undefined) {
@@ -362,8 +357,8 @@ export function createToolCallStepRunner(
     }
     if (
       write.effectClass === "write_async" &&
-      (write.asyncKeyArgument === null || write.pairedRead === null ||
-        !write.allowed.includes(write.pairedRead))
+      (write.asyncForm === null ||
+        !write.allowed.includes(write.asyncForm.pollTool))
     ) {
       return failed(
         "TOOL_CALL_MCP_ASYNC_UNPINNED",
@@ -371,8 +366,8 @@ export function createToolCallStepRunner(
       );
     }
     const key = toolCallEffectKey(request);
-    const args = write.asyncKeyArgument !== null
-      ? { ...write.arguments, [write.asyncKeyArgument]: key }
+    const args = write.asyncForm !== null
+      ? { ...write.arguments, [write.asyncForm.effectKeyArgument]: key }
       : write.effectClass === "write_idempotent" &&
           write.keyArgument !== null &&
           write.arguments[write.keyArgument] === undefined

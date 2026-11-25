@@ -750,6 +750,29 @@ Deno.test("an async poll that ends badly fails the step with a fixed code (#439)
   }
 });
 
+Deno.test("an async write polls the poll frozen at publish even after an Admin repoints the classification (#439)", () =>
+  withRunner(
+    async (fixture, runner, server, w) => {
+      const req = request(
+        fixture,
+        w,
+        { text: "hello" },
+        "lookup@2",
+        "create_note",
+      );
+      assertEquals((await runner.run(req)).kind, "pending");
+      assertEquals((await runner.run(req)).kind, "completed");
+      assertEquals(noteCalls(server, "create_note").length, 1);
+      assertEquals(noteCalls(server, "note_status").length, 1);
+      assertEquals(noteCalls(server, "find_note").length, 0);
+    },
+    { ...ASYNC, pairedRead: "find_note", withFindNote: true },
+    polled(
+      [{ state: "succeeded" }],
+      () => ({ structuredContent: { accepted: true } }),
+    ),
+  ));
+
 Deno.test("an async write whose binding has no frozen poll is not sent (#439)", () =>
   withRunner(
     async (fixture, runner, server, w) => {
