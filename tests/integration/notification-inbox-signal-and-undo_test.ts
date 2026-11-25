@@ -160,6 +160,38 @@ Deno.test("every inbox change signals its recipient and mark-all undo is bounded
     );
 
     await t.step(
+      "the web client's request marks read with the version in the body and no If-Match",
+      async () => {
+        const current = (await fixture.pgDatabase.query<{ revision: number }>(
+          "select revision from bakery.notifications where id = $1",
+          [second.id],
+        )).rows[0]!.revision;
+        const read = await json<{ revision: number; readAt: string | null }>(
+          await api(fixture, "PATCH", `/v1/notifications/${second.id}`, {
+            read: true,
+            expectedCasVersion: current,
+          }),
+          200,
+        );
+        assert(read.readAt !== null);
+        const stale = await api(
+          fixture,
+          "PATCH",
+          `/v1/notifications/${second.id}`,
+          { read: false, expectedCasVersion: current },
+        );
+        assertEquals(stale.status, 409, await stale.text());
+        await json(
+          await api(fixture, "PATCH", `/v1/notifications/${second.id}`, {
+            read: false,
+            expectedCasVersion: read.revision,
+          }),
+          200,
+        );
+      },
+    );
+
+    await t.step(
       "mark all and undo signal; undo restores only untouched rows, once",
       async () => {
         assertEquals(await unread(), 2);

@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "6598ad95761856f0520b656e4abc1dc4ba4ae4d6"
+    "f12807319179f32b96bb509a4b61cfa2beb76eb1"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:a3e493119604f361c23da81f325627e5828c3db4aeda7a041762f8261063242d",
-  "reason": "#70 slice 6 machine work read by dev-server on 2026-11-25 under the owner's standing breaking-change authorization (2026-10-09), main 6598ad95761856f0520b656e4abc1dc4ba4ae4d6: WorkerHost gains a required activeAttemptCount, the live-lease slot occupancy the scheduler admits against, and workerAttempts.list returns one machine's attempts by state. No client has been released that builds a WorkerHost, and the web test mocks in this PR carry the field.",
+  "targetCompatibilityDigest": "sha256:923ae300943dcf274794156ecb4f89223c16bbaf682f0b7703ec72b480450558",
+  "reason": "#70 slice 6 machine work read by dev-server on 2026-11-25 under the owner's standing breaking-change authorization (2026-10-09), main f12807319179f32b96bb509a4b61cfa2beb76eb1: WorkerHost gains a required activeAttemptCount, the live-lease slot occupancy the scheduler admits against, and workerAttempts.list returns one machine's attempts by state. No client has been released that builds a WorkerHost, and the web test mocks in this PR carry the field.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "6598ad95761856f0520b656e4abc1dc4ba4ae4d6"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a3e493119604f361c23da81f325627e5828c3db4aeda7a041762f8261063242d",
+      "reason": "#70 slice 6 machine work read by dev-server on 2026-11-25 under the owner's standing breaking-change authorization (2026-10-09), main 6598ad95761856f0520b656e4abc1dc4ba4ae4d6: WorkerHost gains a required activeAttemptCount, the live-lease slot occupancy the scheduler admits against, and workerAttempts.list returns one machine's attempts by state. No client has been released that builds a WorkerHost, and the web test mocks in this PR carry the field."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
