@@ -642,12 +642,16 @@ export class ActionRegistry {
     }
     return action;
   }
-  requiresIdempotencyKey(action: ActionDefinition): boolean {
+  #runsThroughCommandRunner(action: ActionDefinition): boolean {
     return action.policy.type === ActionKind.Command &&
       this.#commandRunner !== undefined &&
-      action.naturalIdempotency !== true &&
-      (this.#commandRunnerScope === "all" ||
+      (this.#commandRunnerScope === "all" || action.naturalIdempotency ||
         action.explicitIdempotency !== undefined);
+  }
+
+  requiresIdempotencyKey(action: ActionDefinition): boolean {
+    return action.naturalIdempotency !== true &&
+      this.#runsThroughCommandRunner(action);
   }
 
   list(): readonly ActionDefinition[] {
@@ -727,10 +731,7 @@ export class ActionRegistry {
       if (authorizedContext.signal.aborted) {
         throw new DOMException("Action aborted", "AbortError");
       }
-      const commandRunner = action.policy.type === ActionKind.Command &&
-          this.#commandRunner &&
-          (this.#commandRunnerScope === "all" || action.naturalIdempotency ||
-            action.explicitIdempotency !== undefined)
+      const commandRunner = this.#runsThroughCommandRunner(action)
         ? this.#commandRunner
         : undefined;
       const metadata =
