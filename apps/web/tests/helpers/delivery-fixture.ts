@@ -26,6 +26,7 @@ export type DeliveryOptions = {
   revision?: string | null;
   nothingMeasured?: boolean;
   chartFailsUntilRetry?: boolean;
+  uncounted?: number;
   metricPoints?: Partial<
     Record<
       "prs.merged" | "prs.changedLines",
@@ -285,7 +286,18 @@ export async function deliveryFixture(
           metric,
           metric === "prs.changedLines" ? "lines" : "count",
           points?.map((point) => point.value) ?? [2, 4, 0, 5],
-          points === undefined ? {} : { points },
+          {
+            ...(points === undefined ? {} : { points }),
+            ...(metric === "prs.changedLines" && options.uncounted
+              ? {
+                missingCount: options.uncounted,
+                missingReasons: [{
+                  reason: "no_diff_totals",
+                  count: options.uncounted,
+                }],
+              }
+              : {}),
+          },
           blank,
         ),
       );

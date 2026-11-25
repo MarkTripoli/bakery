@@ -37,23 +37,49 @@ test("selected merged chart and table use the merge-count samples, not line coun
     ]);
   }
 });
-test("Show offers all six series and displays opened and changed lines", async ({ page }) => {
+const SHOW_CHOICES = [
+  "Pull requests merged",
+  "Pull requests opened",
+  "Still open",
+  "Closed without merging",
+  "Lines changed",
+  "Time a task took (typical)",
+];
+
+async function chooseShow(page: Page, label: string) {
+  await page.getByRole("button", { name: /^Show:/ }).click();
+  await page.getByRole("navigation", { name: "Show" }).getByRole("button", {
+    name: label,
+    exact: true,
+    pressed: false,
+  }).click();
+}
+
+test("Show is a menu of all six series and displays opened and changed lines", async ({ page }) => {
   await deliveryFixture(page);
   await page.goto("/delivery");
-  const show = page.getByRole("combobox", { name: "Show" });
-  await expect(show.locator("option")).toHaveText([
-    "Pull requests merged",
-    "Pull requests opened",
-    "Still open",
-    "Closed without merging",
-    "Lines changed",
-    "Time a task took (typical)",
-  ]);
-  await show.selectOption("opened");
+  await expect(page.getByRole("combobox", { name: "Show" })).toHaveCount(0);
+  await page.getByRole("button", { name: /^Show:/ }).click();
+  const menu = page.getByRole("navigation", { name: "Show" });
+  for (const choice of SHOW_CHOICES) {
+    await expect(menu.getByRole("button", { name: choice, exact: true }))
+      .toBeVisible();
+  }
+  await expect(
+    menu.getByRole("button", {
+      name: "Pull requests merged",
+      exact: true,
+      pressed: true,
+    }),
+  ).toBeVisible();
+  await page.mouse.move(700, 700);
+  await still(page, "delivery-show-menu");
+  await page.keyboard.press("Escape");
+  await chooseShow(page, "Pull requests opened");
   await expect(
     page.getByRole("img", { name: "Pull requests opened" }),
   ).toBeVisible();
-  await show.selectOption("lines");
+  await chooseShow(page, "Lines changed");
   await expect(page.getByRole("img", { name: "Lines changed" }))
     .toBeVisible();
   await page.getByRole("button", { name: "Show as table" }).click();
@@ -259,8 +285,7 @@ for (
     test("Lines changed records show counts and missing reasons", async ({ page }) => {
       await deliveryFixture(page);
       await page.goto("/delivery");
-      const show = page.getByRole("combobox", { name: "Show" });
-      await show.selectOption("lines");
+      await chooseShow(page, "Lines changed");
       const records = page.getByTestId("delivery-records");
       const rowRole = viewport.name === "phone" ? "listitem" : "row";
       const known = records.getByRole(rowRole).filter({
@@ -281,11 +306,76 @@ for (
           name: "Not line-counted · diff totals unavailable",
         })).toBeVisible();
       }
-      await show.selectOption("merged");
+      await chooseShow(page, "Pull requests merged");
       const merged = records.getByRole(rowRole).filter({
         hasText: "Fix the retry window",
       });
       await expect(merged).toContainText("51");
+    });
+
+    test("Size and quality: lines, what could not be counted as a link to those records, and an honest Unknown", async ({ page }) => {
+      await deliveryFixture(page, { uncounted: 1 });
+      await page.goto("/delivery");
+      const section = page.getByTestId("delivery-quality");
+      await expect(section.getByRole("heading", { name: "Size and quality" }))
+        .toBeVisible();
+      await expect(section.getByText("11 lines in 11 pull requests"))
+        .toBeVisible();
+      await expect(
+        section.getByText("Counted once for each merged pull request."),
+      ).toBeHidden();
+      await section.getByRole("button", { name: "About lines changed" })
+        .click();
+      await expect(
+        page.getByText("Counted once for each merged pull request."),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(
+        section.getByText("Unknown. Not counted for the whole period yet."),
+      )
+        .toBeVisible();
+      await section.getByRole("button", { name: "1 pull request" }).click();
+      expect(
+        await page.evaluate(() => document.activeElement?.id),
+      ).toBe("delivery-records-heading");
+      await expect(page).toHaveURL(/show=lines/);
+      await expect(page).toHaveURL(/missing=/);
+      const records = page.getByTestId("delivery-records");
+      const rowRole = viewport.name === "phone" ? "listitem" : "row";
+      await expect(records.getByText("Tidy the settings copy")).toBeVisible();
+      await expect(records.getByText("Fix the retry window")).toHaveCount(0);
+      await expect(
+        records.getByRole(rowRole).filter({
+          hasText: "Not line-counted",
+        }),
+      ).toHaveCount(1);
+      await page.mouse.move(700, 700);
+      await still(page, "delivery-size-and-quality");
+    });
+
+    test("Size and quality hides the uncounted row when every pull request was counted", async ({ page }) => {
+      await deliveryFixture(page);
+      await page.goto("/delivery");
+      const section = page.getByTestId("delivery-quality");
+      await expect(section.getByText("11 lines in 11 pull requests"))
+        .toBeVisible();
+      await expect(section.getByText("Could not be line-counted"))
+        .toHaveCount(0);
+    });
+
+    test("offline says when the figures were last updated, and online says nothing", async ({ page, context }) => {
+      await deliveryFixture(page);
+      await page.goto("/delivery");
+      await expect(page.getByTestId("delivery-quality")).toBeVisible();
+      await expect(page.getByText(/^Last updated /)).toHaveCount(0);
+      await context.setOffline(true);
+      await page.evaluate(() => globalThis.dispatchEvent(new Event("offline")));
+      await expect(page.getByText(/^Last updated \d/)).toHaveCount(1);
+      await page.mouse.move(700, 700);
+      await still(page, "delivery-offline");
+      await context.setOffline(false);
+      await page.evaluate(() => globalThis.dispatchEvent(new Event("online")));
+      await expect(page.getByText(/^Last updated /)).toHaveCount(0);
     });
 
     test("a reversed custom range names the end to fix, and asks for nothing", async ({ page }) => {

@@ -82,6 +82,29 @@ export function openFigure(series: MetricSeries | undefined): Figure {
     : { kind: "value", value: last.value };
 }
 
+export type SizeAndQuality = {
+  readonly lines: {
+    readonly total: number;
+    readonly pullRequests: number;
+  } | null;
+  readonly uncounted: number;
+};
+
+export function sizeAndQualityOf(
+  series: MetricSeries | undefined,
+): SizeAndQuality {
+  if (series === undefined || series.completeness === "unknown") {
+    return { lines: null, uncounted: 0 };
+  }
+  return {
+    lines: {
+      total: series.points.reduce((sum, point) => sum + (point.value ?? 0), 0),
+      pullRequests: series.sampleCount,
+    },
+    uncounted: series.missingCount,
+  };
+}
+
 /** The line above the figures. Disconnected outranks stale outranks missing. */
 export type Freshness =
   | { readonly kind: "complete"; readonly asOf: string | null }

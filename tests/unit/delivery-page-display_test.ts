@@ -19,6 +19,7 @@ import {
   recordRow,
   ruleKey,
   SHOW_METRIC,
+  sizeAndQualityOf,
   withSomethingMissing,
 } from "../../apps/web/src/screens/delivery/delivery-display.ts";
 
@@ -340,5 +341,30 @@ Deno.test("chart gaps count the actual days in partial weekly buckets", () => {
   assertEquals(
     chartMissingDays(points, "2026-01-25T00:00:00.000Z"),
     17,
+  );
+});
+
+Deno.test("size and quality sums the counted lines and carries what could not be counted", () => {
+  const lines = series({
+    name: "prs.changedLines",
+    points: [
+      { at: "2026-11-01T00:00:00.000Z", value: 40, unknownReason: null },
+      { at: "2026-11-02T00:00:00.000Z", value: null, unknownReason: null },
+      { at: "2026-11-03T00:00:00.000Z", value: 11, unknownReason: null },
+    ],
+    sampleCount: 2,
+    missingCount: 3,
+  });
+  assertEquals(sizeAndQualityOf(lines), {
+    lines: { total: 51, pullRequests: 2 },
+    uncounted: 3,
+  });
+});
+
+Deno.test("size and quality is unknown, not zero, for a series that was never read", () => {
+  assertEquals(sizeAndQualityOf(undefined), { lines: null, uncounted: 0 });
+  assertEquals(
+    sizeAndQualityOf(series({ completeness: "unknown", sampleCount: 0 })),
+    { lines: null, uncounted: 0 },
   );
 });

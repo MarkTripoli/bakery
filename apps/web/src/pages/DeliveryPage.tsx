@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { formatDate } from "@bakery/i18n";
 import { useBakeryApi } from "../api/context.tsx";
+import { useConnectivity } from "../app/connectivity.ts";
+import { useI18n } from "../i18n/I18nProvider.tsx";
 import type { MetricsQuery } from "../api/client.ts";
 import {
   effectiveAccessQueryOptions,
@@ -24,6 +27,7 @@ import {
   openFigure,
   recordRow,
   SHOW_METRIC,
+  sizeAndQualityOf,
 } from "../screens/delivery/delivery-display.ts";
 import {
   deliveryWindow,
@@ -57,6 +61,8 @@ export function DeliveryPage() {
   const scope = useProtectedScope();
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as Record<string, unknown>;
+  const connectivity = useConnectivity();
+  const { locale, timeZone } = useI18n();
 
   const period = isDeliveryPeriod(search[PERIOD]) ? search[PERIOD] : "last30";
   const repositoryId = typeof search[REPOSITORY] === "string"
@@ -210,7 +216,15 @@ export function DeliveryPage() {
           })
           : null}
         hiddenCount={hiddenCount}
+        lastUpdated={merged.dataUpdatedAt > 0
+          ? formatDate(new Date(merged.dataUpdatedAt), locale, {
+            timeStyle: "short",
+            timeZone,
+          })
+          : null}
         leadTime={leadTimeOf(tasks.data)}
+        offline={connectivity === "offline" || connectivity === "reconnecting"}
+        quality={sizeAndQualityOf(lines.data)}
         missingOnly={missingOnly}
         onCustomChange={(range) =>
           write({ [FROM]: range.from, [TO]: range.to })}
@@ -239,6 +253,7 @@ export function DeliveryPage() {
         onRetryChart={() => void chart.refetch()}
         onShow={(next) =>
           write({ [SHOW]: next ?? undefined, [MISSING]: undefined })}
+        onShowUncounted={() => write({ [SHOW]: "lines", [MISSING]: "1" })}
         onShowLast30Days={() =>
           write({ [PERIOD]: "last30", [FROM]: undefined, [TO]: undefined })}
         period={period}

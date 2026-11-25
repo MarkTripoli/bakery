@@ -7200,5 +7200,15 @@
   "integrations.slack.credentials.saveFailed": "The details could not be saved. Enter the client secret again, then save.",
   "integrations.slack.credentials.stale": "These details changed since this page loaded. Nothing was saved. Check the current details, then enter yours again.",
   "integrations.slack.credentials.loading": "Loading the Slack details.",
-  "integrations.slack.credentials.loadError": "The Slack details could not be loaded."
+  "integrations.slack.credentials.loadError": "The Slack details could not be loaded.",
+  "delivery.lastUpdated": "Last updated {time}",
+  "delivery.quality.heading": "Size and quality",
+  "delivery.quality.lines.label": "Lines changed",
+  "delivery.quality.lines.helpLabel": "About lines changed",
+  "delivery.quality.lines.help": "Counted once for each merged pull request.",
+  "delivery.quality.lines.value": "{lines, plural, one {# line} other {# lines}} in {count, plural, one {# pull request} other {# pull requests}}",
+  "delivery.quality.uncounted.label": "Could not be line-counted",
+  "delivery.quality.uncounted.value": "{count, plural, one {# pull request} other {# pull requests}}",
+  "delivery.quality.openToMerge.label": "Open to merge",
+  "delivery.quality.openToMerge.unknown": "Unknown. Not counted for the whole period yet."
 }

@@ -7200,5 +7200,15 @@
   "delivery.chart.lines": "⟦Ļïñëš çĥàñĝëð ŧë⟧",
   "delivery.chart.tasks": "⟦Ŧïɱë à ŧàšķ ŧôôķ (ŧÿþïçàļ) ŧëšŧ çô⟧",
   "delivery.records.rule.opened": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ôþëñëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). Ðëƒïñïŧïôñš, ṽëŕšïôñ {version}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
-  "delivery.records.rule.opened.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ôþëñëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
+  "delivery.records.rule.opened.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ôþëñëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "delivery.lastUpdated": "⟦Ļàšŧ ûþðàŧëð {time} ŧëšŧ⟧",
+  "delivery.quality.heading": "⟦Šïžë àñð ǫûàļïŧÿ ŧëš⟧",
+  "delivery.quality.lines.label": "⟦Ļïñëš çĥàñĝëð ŧë⟧",
+  "delivery.quality.lines.helpLabel": "⟦Àƀôûŧ ļïñëš çĥàñĝëð ŧëšŧ⟧",
+  "delivery.quality.lines.help": "⟦Çôûñŧëð ôñçë ƒôŕ ëàçĥ ɱëŕĝëð þûļļ ŕëǫûëšŧ. ŧëšŧ çôþÿ ŧë⟧",
+  "delivery.quality.lines.value": "⟦{lines, plural, one {# line} other {# lines}} ïñ {count, plural, one {# pull request} other {# pull requests}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "delivery.quality.uncounted.label": "⟦Çôûļð ñôŧ ƀë ļïñë-çôûñŧëð ŧëšŧ ç⟧",
+  "delivery.quality.uncounted.value": "⟦{count, plural, one {# pull request} other {# pull requests}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "delivery.quality.openToMerge.label": "⟦Ôþëñ ŧô ɱëŕĝë ŧë⟧",
+  "delivery.quality.openToMerge.unknown": "⟦Ûñķñôŵñ. Ñôŧ çôûñŧëð ƒôŕ ŧĥë ŵĥôļë þëŕïôð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ⟧"
 }

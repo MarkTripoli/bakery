@@ -1,3 +1,4 @@
+import { useState } from "react";
 import * as UI from "@bakery/ui";
 import { formatDate, formatNumber } from "@bakery/i18n";
 import { DeliveryChart } from "./delivery/DeliveryChart.tsx";
@@ -13,6 +14,7 @@ import {
   type LeadTime,
   type RecordRow,
   ruleKey,
+  type SizeAndQuality,
   type TimePartId,
 } from "./delivery/delivery-display.ts";
 import {
@@ -54,6 +56,9 @@ export type DeliveryScreenProps = {
     | "notFound";
   readonly figures: Readonly<Record<(typeof FIGURES)[number]["show"], Figure>>;
   readonly freshness: Freshness | null;
+  readonly offline: boolean;
+  readonly lastUpdated: string | null;
+  readonly quality: SizeAndQuality;
   /** Records the reader may not open; the line shows only above zero. */
   readonly hiddenCount: number;
   readonly repositories: readonly DeliveryRepository[];
@@ -84,6 +89,7 @@ export type DeliveryScreenProps = {
   readonly onPeriodChange: (period: DeliveryPeriod) => void;
   readonly onCustomChange: (range: { from: string; to: string }) => void;
   readonly onShow: (show: DeliveryShow | null) => void;
+  readonly onShowUncounted: () => void;
   readonly onMissingOnly: (on: boolean) => void;
   readonly onLoadMore: () => void;
   readonly onRetryRecords: () => void;
@@ -238,6 +244,44 @@ export function DeliveryScreen(props: DeliveryScreenProps) {
   );
 }
 
+function MenuPicker(
+  { items, label, onSelect, word }: {
+    readonly items: UI.MenuItem[];
+    readonly label: string;
+    readonly onSelect: (id: string) => void;
+    readonly word: string;
+  },
+) {
+  const [open, setOpen] = useState(false);
+  return (
+    <UI.Popover
+      align="end"
+      label={word}
+      onOpenChange={setOpen}
+      open={open}
+      trigger={
+        <>
+          {label}
+          <UI.IconGlyph name="chevron-down" size="small" />
+        </>
+      }
+      triggerAppearance="toolbar"
+      triggerLabel={label}
+      variant="interactive"
+    >
+      <UI.Menu
+        aria-label={word}
+        items={items}
+        onSelect={(id) => {
+          setOpen(false);
+          onSelect(id);
+        }}
+        variant="selection"
+      />
+    </UI.Popover>
+  );
+}
+
 /** The two filters, right of the title; both live in the address. */
 function Filters(props: DeliveryScreenProps) {
   const { translate } = useI18n();
@@ -273,26 +317,7 @@ function Filters(props: DeliveryScreenProps) {
     items: UI.MenuItem[],
     onSelect: (id: string) => void,
   ) => (
-    <UI.Popover
-      align="end"
-      label={word}
-      trigger={
-        <>
-          {label}
-          <UI.IconGlyph name="chevron-down" size="small" />
-        </>
-      }
-      triggerAppearance="toolbar"
-      triggerLabel={label}
-      variant="interactive"
-    >
-      <UI.Menu
-        aria-label={word}
-        items={items}
-        onSelect={onSelect}
-        variant="selection"
-      />
-    </UI.Popover>
+    <MenuPicker items={items} label={label} onSelect={onSelect} word={word} />
   );
   return (
     <UI.Stack gap="compact">
@@ -363,6 +388,7 @@ function Ready(props: DeliveryScreenProps) {
     return (
       <>
         <FreshnessNotice {...props} />
+        <OfflineLine {...props} />
         <UI.EmptyState
           action={
             <UI.Button onClick={props.onShowLast30Days}>
@@ -382,6 +408,7 @@ function Ready(props: DeliveryScreenProps) {
   return (
     <UI.Stack gap="spacious">
       <FreshnessNotice {...props} />
+      <OfflineLine {...props} />
       <UI.Inline gap="standard" variant="quarters">
         {FIGURES.map((figure) => {
           const value = figureText(props.figures[figure.show]);
@@ -415,9 +442,79 @@ function Ready(props: DeliveryScreenProps) {
           </UI.Text>
         )
         : null}
+      <SizeAndQualitySection {...props} />
       {props.leadTime === null ? null : <TimeWent lead={props.leadTime} />}
       <OverTime {...props} />
       <RecordsSection {...props} figureText={figureText} />
+    </UI.Stack>
+  );
+}
+
+function OfflineLine(props: DeliveryScreenProps) {
+  const { translate } = useI18n();
+  return props.offline && props.lastUpdated !== null
+    ? (
+      <UI.Text variant="muted">
+        {translate("delivery.lastUpdated", { time: props.lastUpdated })}
+      </UI.Text>
+    )
+    : null;
+}
+
+function SizeAndQualitySection(props: DeliveryScreenProps) {
+  const { translate } = useI18n();
+  const { lines, uncounted } = props.quality;
+  return (
+    <UI.Stack data-testid="delivery-quality" gap="standard">
+      <UI.Heading level="subsection" rank={2}>
+        {translate("delivery.quality.heading")}
+      </UI.Heading>
+      <UI.DescriptionList>
+        <UI.DetailRow
+          label={
+            <UI.Inline gap="compact">
+              {translate("delivery.quality.lines.label")}
+              <UI.HelpTip label={translate("delivery.quality.lines.helpLabel")}>
+                {translate("delivery.quality.lines.help")}
+              </UI.HelpTip>
+            </UI.Inline>
+          }
+          labelWidth="wide"
+        >
+          {lines === null
+            ? translate("delivery.figure.unknown")
+            : translate("delivery.quality.lines.value", {
+              lines: lines.total,
+              count: lines.pullRequests,
+            })}
+        </UI.DetailRow>
+        {uncounted > 0
+          ? (
+            <UI.DetailRow
+              label={translate("delivery.quality.uncounted.label")}
+              labelWidth="wide"
+            >
+              <UI.Button
+                onClick={() => {
+                  props.onShowUncounted();
+                  showRecordsHeading();
+                }}
+                variant="text"
+              >
+                {translate("delivery.quality.uncounted.value", {
+                  count: uncounted,
+                })}
+              </UI.Button>
+            </UI.DetailRow>
+          )
+          : null}
+        <UI.DetailRow
+          label={translate("delivery.quality.openToMerge.label")}
+          labelWidth="wide"
+        >
+          {translate("delivery.quality.openToMerge.unknown")}
+        </UI.DetailRow>
+      </UI.DescriptionList>
     </UI.Stack>
   );
 }
@@ -446,19 +543,19 @@ function OverTime(props: DeliveryScreenProps) {
       to={series.to}
       status={series.status}
       showMenu={
-        <UI.Combobox
-          appearance="filter"
-          id="delivery-chart-show"
-          label={translate("delivery.chart.show")}
-          onChange={(event) =>
-            props.onShow(
-              isDeliveryShow(event.target.value) ? event.target.value : null,
-            )}
-          options={CHART_SERIES.map((entry) => ({
+        <MenuPicker
+          items={CHART_SERIES.map((entry) => ({
+            id: entry.show,
             label: translate(entry.label),
-            value: entry.show,
+            selected: entry.show === shown,
           }))}
-          value={shown}
+          label={`${translate("delivery.chart.show")}: ${
+            translate(figure.label)
+          }`}
+          onSelect={(id) => {
+            if (isDeliveryShow(id)) props.onShow(id);
+          }}
+          word={translate("delivery.chart.show")}
         />
       }
       table={

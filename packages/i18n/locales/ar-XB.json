@@ -7200,5 +7200,15 @@
   "delivery.chart.lines": "⟪Lines changed⟫",
   "delivery.chart.tasks": "⟪Time a task took (typical)⟫",
   "delivery.records.rule.opened": "⟪Counted by when each was opened, in your time zone ({zone}). Definitions, version {version}.⟫",
-  "delivery.records.rule.opened.noVersion": "⟪Counted by when each was opened, in your time zone ({zone}).⟫"
+  "delivery.records.rule.opened.noVersion": "⟪Counted by when each was opened, in your time zone ({zone}).⟫",
+  "delivery.lastUpdated": "⟪Last updated {time}⟫",
+  "delivery.quality.heading": "⟪Size and quality⟫",
+  "delivery.quality.lines.label": "⟪Lines changed⟫",
+  "delivery.quality.lines.helpLabel": "⟪About lines changed⟫",
+  "delivery.quality.lines.help": "⟪Counted once for each merged pull request.⟫",
+  "delivery.quality.lines.value": "⟪{lines, plural, one {# line} other {# lines}} in {count, plural, one {# pull request} other {# pull requests}}⟫",
+  "delivery.quality.uncounted.label": "⟪Could not be line-counted⟫",
+  "delivery.quality.uncounted.value": "⟪{count, plural, one {# pull request} other {# pull requests}}⟫",
+  "delivery.quality.openToMerge.label": "⟪Open to merge⟫",
+  "delivery.quality.openToMerge.unknown": "⟪Unknown. Not counted for the whole period yet.⟫"
 }
