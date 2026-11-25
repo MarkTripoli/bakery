@@ -1,4 +1,5 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
+import type { Inngest } from "inngest";
 import { openInstallationFixture } from "../helpers/installation-settings.ts";
 import {
   commitSlackReceipt,
@@ -13,6 +14,7 @@ import {
   sealInstallationSecret,
   writeInstallationSecretVersion,
 } from "../../apps/server/src/modules/secrets/installation-secrets.ts";
+import { createIntegrationIntakeRetention } from "../../apps/server/src/modules/integrations/intake-retention.ts";
 
 type Fixture = Awaited<ReturnType<typeof openInstallationFixture>>;
 
@@ -231,11 +233,31 @@ Deno.test("the running server ignores an unreadable unrelated app secret", async
       };
       assertEquals(result.disposition, "accepted");
       assert(typeof result.receiptId === "string");
-      const receipts = await f.pgDatabase.query<{ id: string }>(
-        "select id from bakery.slack_event_receipts where id = $1",
+      const receipts = await f.pgDatabase.query<{
+        id: string;
+        app_id: string;
+        processing_intent: string;
+        channel_id: string;
+        user_id: string;
+        event_ts: string;
+        thread_ts: string;
+        message_text: string;
+      }>(
+        `select id, app_id, processing_intent, channel_id, user_id, event_ts,
+                thread_ts, message_text
+           from bakery.slack_event_receipts where id = $1`,
         [result.receiptId],
       );
-      assertEquals(receipts.rows, [{ id: result.receiptId }]);
+      assertEquals(receipts.rows, [{
+        id: result.receiptId,
+        app_id: value.appId,
+        processing_intent: "mention",
+        channel_id: "C1CHANNEL",
+        user_id: "U1AUTHOR",
+        event_ts: "1.1",
+        thread_ts: "1.1",
+        message_text: "hello",
+      }]);
     } finally {
       await cleanup(f, otherOrganizationId);
       if (unrelatedSecretId !== null) {
@@ -362,6 +384,17 @@ async function commit(
   payloadDigest: string,
   outcome: "accepted" | "ignored" = "accepted",
 ) {
+  const decision = outcome === "ignored"
+    ? { kind: "ignore" as const, reason: "unsupported_event" as const }
+    : {
+      kind: "mention" as const,
+      eventId: event,
+      channelId: "C0CHANNEL",
+      userId: "U0AUTHOR",
+      ts: "1.1",
+      threadTs: "1.1",
+      text: "test message",
+    };
   return await withPgTransaction(
     f.runtimePgDatabase,
     (tx) =>
@@ -370,7 +403,7 @@ async function commit(
         appId: value.appId,
         eventId: event,
         payloadDigest,
-        outcome,
+        decision,
         now: new Date(),
       }),
   );
@@ -446,13 +479,19 @@ Deno.test("an ignored event leaves a receipt with no text to read", async () => 
     )).rows.map((row) => row.column_name).sort();
     assertEquals(columns, [
       "app_id",
+      "channel_id",
       "event_id",
+      "event_ts",
       "expires_at",
       "id",
       "installation_id",
+      "message_text",
       "outcome",
       "payload_digest",
+      "processing_intent",
       "received_at",
+      "thread_ts",
+      "user_id",
     ]);
   });
 });
@@ -490,6 +529,55 @@ Deno.test("receipts expire after the retention window, and only those are swept"
     );
     const again = await commit(f, value, id, fresh, digest("f"));
     assert(again.kind === "duplicate" && again.outcome === "accepted");
+  });
+});
+Deno.test("the production retention function sweeps expired Slack receipts", async () => {
+  await withFixture(async (f) => {
+    const value = installation();
+    const made = await register(f, f.organizationId, value);
+    assert(made.ok);
+    const installationId = made.installation.installationId;
+    const old = eventId();
+    const fresh = eventId();
+    await commit(f, value, installationId, old, digest("7"));
+    await commit(f, value, installationId, fresh, digest("8"));
+    await f.pgDatabase.query(
+      "update bakery.slack_event_receipts set expires_at = now() - interval '1 minute' where event_id = $1",
+      [old],
+    );
+    let handler:
+      | ((context: { step: unknown }) => Promise<unknown>)
+      | undefined;
+    const client = {
+      createFunction(_: unknown, body: typeof handler) {
+        handler = body;
+        return {};
+      },
+    } as unknown as Inngest;
+    createIntegrationIntakeRetention({
+      client,
+      database: f.runtimePgDatabase,
+    });
+    const steps: string[] = [];
+    const outcome = await handler!({
+      step: {
+        run: async <T>(id: string, work: () => Promise<T>) => {
+          steps.push(id);
+          return await work();
+        },
+      },
+    });
+    assertEquals(outcome, {
+      inbound: { deleted: 0, batches: 0 },
+      slackDeleted: 1,
+    });
+    assertEquals(steps, ["sweep-expired-intake-receipts"]);
+    const remaining = await f.pgDatabase.query<{ event_id: string }>(
+      `select event_id from bakery.slack_event_receipts
+        where installation_id = $1 order by event_id`,
+      [installationId],
+    );
+    assertEquals(remaining.rows, [{ event_id: fresh }]);
   });
 });
 

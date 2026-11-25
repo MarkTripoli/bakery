@@ -1,12 +1,12 @@
 import {
   readSlackEvent,
   readSlackRequestHeaders,
-  type SlackEventDecision,
   verifySlackRequestSignature,
 } from "./slack-request.ts";
 import { isSlackAppId } from "./slack-scope.ts";
 import type {
   CommitSlackReceiptResult,
+  PersistedSlackDecision,
   SlackInstallationRecord,
   SlackReceiptOutcome,
 } from "./slack-receipts.ts";
@@ -49,7 +49,7 @@ export type SlackIntakeDependencies = {
     readonly installation: SlackInstallationRecord;
     readonly eventId: string;
     readonly payloadDigest: string;
-    readonly decision: SlackEventDecision;
+    readonly decision: PersistedSlackDecision;
   }) => Promise<CommitSlackReceiptResult>;
   readonly sha256Hex: (raw: Uint8Array<ArrayBuffer>) => Promise<string>;
   readonly now: () => number;

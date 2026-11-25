@@ -116,7 +116,7 @@ async function handleSlackEvent(
               appId: installation.appId,
               eventId,
               payloadDigest,
-              outcome: decision.kind === "ignore" ? "ignored" : "accepted",
+              decision,
               now: new Date(now()),
             }),
           controller.signal,

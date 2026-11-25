@@ -654,7 +654,10 @@ Deno.test("issue 71 retention: the retention function runs hourly at minute 17, 
         },
       },
     });
-    assertEquals(outcome, { deleted: 2, batches: 1 });
+    assertEquals(outcome, {
+      inbound: { deleted: 2, batches: 1 },
+      slackDeleted: 0,
+    });
     assertEquals(steps, ["sweep-expired-intake-receipts"]);
     assertEquals(await receiptIds(f), [live]);
   });

@@ -6,6 +6,7 @@ import {
   isSlackUserId,
   type SlackInstallation,
 } from "./slack-scope.ts";
+import type { SlackEventDecision } from "./slack-request.ts";
 
 export const SLACK_RECEIPT_RETENTION_DAYS = 7;
 
@@ -140,6 +141,10 @@ export async function findSlackInstallation(
 }
 
 export type SlackReceiptOutcome = "accepted" | "ignored";
+export type PersistedSlackDecision = Exclude<
+  SlackEventDecision,
+  { readonly kind: "challenge" }
+>;
 
 export type CommitSlackReceiptResult =
   | { readonly kind: "recorded"; readonly receiptId: string }
@@ -158,24 +163,28 @@ export async function commitSlackReceipt(
     readonly appId: string;
     readonly eventId: string;
     readonly payloadDigest: string;
-    readonly outcome: SlackReceiptOutcome;
+    readonly decision: PersistedSlackDecision;
     readonly now: Date;
   },
 ): Promise<CommitSlackReceiptResult> {
+  const work = input.decision.kind === "ignore" ? null : input.decision;
   if (
     !isUuid(input.installationId) || !isSlackAppId(input.appId) ||
     !EVENT_ID.test(input.eventId) || !DIGEST.test(input.payloadDigest) ||
-    Number.isNaN(input.now.getTime())
+    Number.isNaN(input.now.getTime()) ||
+    (work !== null && work.eventId !== input.eventId)
   ) return { kind: "malformed" };
   const expiresAt = new Date(
     input.now.getTime() + SLACK_RECEIPT_RETENTION_DAYS * 86_400_000,
   );
   const receiptId = crypto.randomUUID();
+  const outcome: SlackReceiptOutcome = work === null ? "ignored" : "accepted";
   const inserted = await transaction.query(
     `insert into bakery.slack_event_receipts (
        id, app_id, event_id, installation_id, payload_digest, outcome,
-       received_at, expires_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8)
+       processing_intent, channel_id, user_id, event_ts, thread_ts,
+       message_text, received_at, expires_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
      on conflict (app_id, event_id) do nothing`,
     [
       receiptId,
@@ -183,7 +192,13 @@ export async function commitSlackReceipt(
       input.eventId,
       input.installationId,
       input.payloadDigest,
-      input.outcome,
+      outcome,
+      work?.kind ?? null,
+      work?.channelId ?? null,
+      work?.userId ?? null,
+      work?.ts ?? null,
+      work?.threadTs ?? null,
+      work?.text ?? null,
       input.now,
       expiresAt,
     ],

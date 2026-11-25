@@ -1,7 +1,8 @@
 import type { Inngest } from "inngest";
-import type { PgDatabase } from "../../platform/database.ts";
+import { type PgDatabase, withPgTransaction } from "../../platform/database.ts";
 import { RouteStatus } from "./intake-receipts.ts";
 import type { ReconcileDependencies } from "./reconcile.ts";
+import { sweepExpiredSlackReceipts } from "./slack-receipts.ts";
 
 /**
  * Receipt retention.
@@ -126,7 +127,18 @@ export function createIntegrationIntakeRetention(
     async ({ step }) =>
       await step.run(
         "sweep-expired-intake-receipts",
-        () => sweepExpiredReceipts(options.database),
+        async () => {
+          const inbound = await sweepExpiredReceipts(options.database);
+          const slackDeleted = await withPgTransaction(
+            options.database,
+            (transaction) =>
+              sweepExpiredSlackReceipts(transaction, {
+                now: new Date(),
+                limit: RECEIPT_SWEEP_BATCH,
+              }),
+          );
+          return { inbound, slackDeleted };
+        },
       ),
   );
 }
