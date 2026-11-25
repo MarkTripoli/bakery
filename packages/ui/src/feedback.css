@@ -204,6 +204,17 @@
   outline-offset: var(--space-0-5);
 }
 
+.ui-task-setup-notice__content {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.ui-task-setup-notice__reasons {
+  color: var(--color-fg);
+  margin: var(--space-0);
+  padding-inline-start: var(--space-5);
+}
+
 .ui-toast {
   /* One line of text sits on the middle of the dismiss button's row, not above empty space. */
   align-items: center;

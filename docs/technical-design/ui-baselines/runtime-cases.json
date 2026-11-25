@@ -2417,6 +2417,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.taskSetupNotice.contract.desktop-light-fine",
+      "catalogId": "ui.taskSetupNotice",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-tasksetupnotice--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.text.contract.desktop-light-fine",
       "catalogId": "ui.text",
       "requiredCaseId": "contract",

@@ -7,6 +7,7 @@ import { TextInput } from "../atoms/TextInput.tsx";
 import { Combobox } from "../molecules/Combobox.tsx";
 import { Field } from "../molecules/Field.tsx";
 import { InlineNotice } from "../molecules/InlineNotice.tsx";
+import { TaskSetupNotice } from "../molecules/TaskSetupNotice.tsx";
 import "../controls.css";
 
 /**
@@ -358,22 +359,16 @@ export function TaskComposerForm(
         : null}
       {setup
         ? (
-          <div
-            className="ui-task-composer__setup"
+          <TaskSetupNotice
+            heading={labels.setupHeading}
             id={setupId}
+            nextStep={labels.setupNoWorkflow}
+            reasons={setupReasons.map((reason) => ({
+              id: reason,
+              content: labels.setupRequired[reason] ?? labels.setupUnknown,
+            }))}
             ref={setupRef}
-            tabIndex={-1}
-          >
-            <p>{labels.setupHeading}</p>
-            <ul>
-              {setupReasons.map((reason) => (
-                <li data-reason={reason} key={reason}>
-                  {labels.setupRequired[reason] ?? labels.setupUnknown}
-                </li>
-              ))}
-            </ul>
-            <p>{labels.setupNoWorkflow}</p>
-          </div>
+          />
         )
         : null}
       <Field htmlFor={`${id}-title`} label={labels.title} required>

@@ -418,7 +418,18 @@ test("a setup-required preset names every missing requirement and a press sends 
   await field.repository(page).selectOption(repositoryId);
   await field.preset(page).selectOption("fixed-coding");
   await field.title(page).fill("Needs setup");
-  const list = form(page).getByRole("listitem");
+  const setupNotice = form(page).locator(
+    "[data-ui-component='inlineNotice'][tabindex='-1']",
+  );
+  await expect(setupNotice).toBeVisible();
+  await expect(setupNotice.getByRole("list")).toHaveCount(1);
+  await expect(setupNotice.getByRole("listitem")).toHaveCount(
+    Object.keys(REASON_COPY).length,
+  );
+  await expect(setupNotice.getByText(
+    "You can still create the task without a run: choose No workflow.",
+  )).toBeVisible();
+  const list = setupNotice.getByRole("listitem");
   await expect(list).toHaveCount(Object.keys(REASON_COPY).length);
   for (const [reason, copy] of Object.entries(REASON_COPY)) {
     // The budget reason also names the smallest budget that works ($6.00).
@@ -432,11 +443,8 @@ test("a setup-required preset names every missing requirement and a press sends 
     /This workflow cannot start here yet/,
   );
   await field.start(page).click();
-  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
-  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCSS(
-    "outline-style",
-    "solid",
-  );
+  await expect(setupNotice).toBeFocused();
+  await expect(setupNotice).toHaveCSS("outline-style", "solid");
   expect(seen.tasks).toHaveLength(0);
   expect(seen.runs).toHaveLength(0);
   // The rule it names is a link to the page where it is changed.
@@ -466,16 +474,16 @@ test("still: the composer pressed with one requirement missing", async ({ page }
   await field.repository(page).selectOption(repositoryId);
   await field.preset(page).selectOption("fixed-coding");
   await field.title(page).fill("Needs a coding agent");
-  await expect(form(page).getByRole("listitem")).toHaveCount(1);
+  const setupNotice = form(page).locator(
+    "[data-ui-component='inlineNotice'][tabindex='-1']",
+  );
+  await expect(setupNotice.getByRole("listitem")).toHaveCount(0);
   await expect(
     form(page).getByText(REASON_COPY.coding_agent_unbound, { exact: true }),
   ).toBeVisible();
   await field.start(page).click();
-  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
-  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCSS(
-    "outline-style",
-    "solid",
-  );
+  await expect(setupNotice).toBeFocused();
+  await expect(setupNotice).toHaveCSS("outline-style", "solid");
   await still(page, "composer-not-ready-pressed");
 });
 
@@ -503,7 +511,11 @@ test("a budget below the reservation names the smallest one that works and sends
     ),
   ).toBeVisible();
   await field.start(page).click();
-  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
+  await expect(
+    form(page).locator(
+      "[data-ui-component='inlineNotice'][tabindex='-1']",
+    ),
+  ).toBeFocused();
   expect(seen.tasks).toHaveLength(0);
   expect(seen.runs).toHaveLength(0);
   await field.budget(page).fill("2");
@@ -511,7 +523,11 @@ test("a budget below the reservation names the smallest one that works and sends
     "data-reasons",
     /budget_below_reservation/,
   );
-  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCount(0);
+  await expect(
+    form(page).locator(
+      "[data-ui-component='inlineNotice'][tabindex='-1']",
+    ),
+  ).toHaveCount(0);
   await field.budget(page).fill("1.5");
   await expect(form(page)).not.toHaveAttribute(
     "data-reasons",
@@ -536,7 +552,11 @@ test("the default-budget server reason clears when the user raises the budget", 
   );
   await expect(field.start(page)).toBeEnabled();
   await field.start(page).click();
-  await expect(form(page).locator(".ui-task-composer__setup")).toBeFocused();
+  await expect(
+    form(page).locator(
+      "[data-ui-component='inlineNotice'][tabindex='-1']",
+    ),
+  ).toBeFocused();
   expect(seen.tasks).toHaveLength(0);
   expect(seen.runs).toHaveLength(0);
   await field.budget(page).fill("6");
@@ -544,7 +564,11 @@ test("the default-budget server reason clears when the user raises the budget", 
     "data-reasons",
     /budget_below_reservation/,
   );
-  await expect(form(page).locator(".ui-task-composer__setup")).toHaveCount(0);
+  await expect(
+    form(page).locator(
+      "[data-ui-component='inlineNotice'][tabindex='-1']",
+    ),
+  ).toHaveCount(0);
   await expect(field.start(page)).toBeEnabled();
 });
 

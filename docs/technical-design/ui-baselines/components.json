@@ -6305,6 +6305,120 @@
       }
     },
     {
+      "id": "ui.taskSetupNotice",
+      "name": "TaskSetupNotice",
+      "description": "Explains why a workflow cannot start using one shared, focusable warning in the task composer and task page.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/TaskSetupNotice",
+      "usage": {
+        "whenToUse": "Display the server's setup reasons beside a blocked workflow start; pass the composer-only No workflow guidance as nextStep.",
+        "whenNotToUse": "Use InlineNotice for unrelated warnings or AlertBanner for page-level conditions.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "paperAbsentReason": "The approved #67 design addendum specifies this shared warning without a separate Paper frame.",
+      "a11y": {
+        "role": "none",
+        "accessibleName": "none",
+        "keyboard": [
+          "Blocked Start moves focus to the warning"
+        ],
+        "notes": "The inner InlineNotice receives focus and the existing focus ring. One reason is a sentence; several reasons retain server order in a list."
+      },
+      "tokens": [
+        "--color-fg",
+        "--space-0",
+        "--space-2",
+        "--space-5"
+      ],
+      "variants": [
+        "warning"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Shows one reason as a sentence and several in server order with optional composer guidance.",
+          "variants": [
+            "warning"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.taskSetupNotice.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.taskSetupNotice.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.taskSetupNotice.contract.desktop-light-fine"
+          ]
+        },
+        "notApplicable": {
+          "pointer:coarse": "The notice has no pointer-only action; blocked Start stays a native button."
+        },
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      }
+    },
+    {
       "id": "ui.alertBanner",
       "name": "AlertBanner",
       "description": "Announces a persistent page-level condition with a clear recovery action.",
