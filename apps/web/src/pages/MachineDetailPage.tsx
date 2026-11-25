@@ -409,6 +409,8 @@ export function MachineDetailPage(
       workerData && Array.isArray(workerData.failedCheckIds)
     ? agentOfFailedChecks(workerData.failedCheckIds, agents)
     : null;
+  const bannerSaysMode = reason !== null && signInBanner === null &&
+    (reason.kind === "paused" || reason.kind === "finishing");
   // The agent the coding-agent banner names, if that banner is drawn.
   const agentBannerRow = (!reason && bannerAgent) || signInBanner
     ? (signInBanner ?? bannerAgent!)
@@ -718,7 +720,8 @@ export function MachineDetailPage(
                         label: message(translate, `machines.mode.${mode}`),
                       }))}
                     />
-                    {modeNote
+                    {modeNote &&
+                        !(modeNote.kind === "saved" && bannerSaysMode)
                       ? (
                         <UI.InlineNotice
                           tone={modeNote.kind === "saved"

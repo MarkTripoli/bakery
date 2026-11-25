@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import * as UI from "@bakery/ui";
 import type { MessageArguments, MessageKey, Translator } from "@bakery/i18n";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { useShellViewport } from "../app/responsive.ts";
 import { boundedReason } from "./MachinesPage.tsx";
 import { checkInfo, groupChecks } from "./machine-page-state.ts";
 import { type SoftwareRow, softwareRows } from "./machine-software.ts";
@@ -226,6 +227,7 @@ function SoftwareSection(
     },
 ) {
   const { translate } = useI18n();
+  const phone = useShellViewport() === "phone";
   const updateText = (row: SoftwareRow) =>
     row.update.kind === "available"
       ? message(translate, "machines.software.update.available", {
@@ -269,6 +271,47 @@ function SoftwareSection(
               </UI.Button>
             }
           />
+        )
+        : rows.length > 0 && phone
+        ? (
+          <UI.Stack
+            gap="none"
+            role="list"
+            aria-label={message(translate, "machines.software.title")}
+          >
+            {rows.map((row) => (
+              <div key={row.key} role="listitem">
+                <UI.StackedRow
+                  title={row.agent
+                    ? message(translate, `machines.agent.${row.agent}`)
+                    : row.name}
+                  status={
+                    <UI.Badge
+                      tone={row.update.kind === "available"
+                        ? "warning"
+                        : "neutral"}
+                    >
+                      {updateText(row)}
+                    </UI.Badge>
+                  }
+                >
+                  <UI.Text variant="caption">
+                    {message(translate, "machines.software.line", {
+                      kind: message(
+                        translate,
+                        `machines.software.kind.${row.kind}`,
+                      ),
+                      version: row.version,
+                      owner: message(
+                        translate,
+                        `machines.software.owner.${row.installedBy}`,
+                      ),
+                    })}
+                  </UI.Text>
+                </UI.StackedRow>
+              </div>
+            ))}
+          </UI.Stack>
         )
         : rows.length > 0
         ? (

@@ -156,20 +156,20 @@ test.describe("machines list states", () => {
         [
           "ci-linux-03",
           "Not responding",
-          "Not responding. It has stopped answering Bakery.",
+          "It has stopped answering Bakery.",
           "Open",
         ],
-        ["ci-linux-04", "Offline", "Offline. Bakery cannot reach it.", "Open"],
+        ["ci-linux-04", "Offline", "Bakery cannot reach it.", "Open"],
         [
           "spare-linux-05",
           "Paused",
-          "Paused. It takes no new work until someone resumes it.",
+          "It takes no new work until someone resumes it.",
           "Open",
         ],
         [
           "spare-linux-06",
           "Finishing up",
-          "Finishing its current work. It takes no new work.",
+          "It takes no new work and stops once its current work is done.",
           "Open",
         ],
         [
@@ -178,7 +178,7 @@ test.describe("machines list states", () => {
           "Linux · Claude Code, Codex · 2 slots",
           "Open",
         ],
-        ["old-mac-08", "Retired", "Retired. It no longer takes work.", "Open"],
+        ["old-mac-08", "Retired", "It no longer takes work.", "Open"],
       ];
       const geometries: RowActionGeometry[] = [];
       for (const [name, badge, line, action] of expectations) {

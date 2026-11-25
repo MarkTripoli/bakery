@@ -3728,7 +3728,7 @@ export function createBakeryApiClient({
               {
                 ifMatch: options.version === undefined
                   ? undefined
-                  : versionEtag(options.version),
+                  : `"${options.version}"`,
                 idempotencyKey: options.idempotencyKey,
                 signal: options.signal,
               },

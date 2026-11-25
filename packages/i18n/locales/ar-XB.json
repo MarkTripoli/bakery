@@ -2332,7 +2332,6 @@
   "machines.badge.finishing": "⟪Finishing up⟫",
   "machines.badge.checking": "⟪Checking⟫",
   "machines.badge.ready": "⟪Ready⟫",
-  "machines.reason.offline": "⟪Offline. Bakery cannot reach it.⟫",
   "machines.reason.checkFailed": "⟪{count, plural, one {# check failed.} other {# checks failed.}}⟫",
   "machines.row.fix": "⟪Fix⟫",
   "machines.row.open": "⟪Open⟫",
@@ -2355,11 +2354,6 @@
   "machines.empty.adminOnly": "⟪Ask an organization administrator to add one.⟫",
   "machines.forbidden.title": "⟪You cannot see machines⟫",
   "machines.forbidden.description": "⟪Only organization members can see machines.⟫",
-  "machines.reason.retired": "⟪Retired. It no longer takes work.⟫",
-  "machines.reason.stale": "⟪Not responding. It has stopped answering Bakery.⟫",
-  "machines.reason.needsAttention": "⟪Needs attention. Open it to see why.⟫",
-  "machines.reason.paused": "⟪Paused. It takes no new work until someone resumes it.⟫",
-  "machines.reason.finishing": "⟪Finishing its current work. It takes no new work.⟫",
   "tasks.delivery.heading": "⟪Delivery⟫",
   "tasks.delivery.loading": "⟪Loading delivery status⟫",
   "tasks.delivery.error.title": "⟪Delivery status could not be loaded.⟫",
@@ -7193,5 +7187,12 @@
   "machines.column.agents": "⟪Coding agents⟫",
   "machines.column.slots": "⟪Tasks at once⟫",
   "machines.column.lastSeen": "⟪Last seen⟫",
-  "machines.agents.none": "⟪None yet⟫"
+  "machines.agents.none": "⟪None yet⟫",
+  "machines.reason.retired": "⟪It no longer takes work.⟫",
+  "machines.reason.offline": "⟪Bakery cannot reach it.⟫",
+  "machines.reason.stale": "⟪It has stopped answering Bakery.⟫",
+  "machines.reason.needsAttention": "⟪Open it to see why.⟫",
+  "machines.reason.paused": "⟪It takes no new work until someone resumes it.⟫",
+  "machines.reason.finishing": "⟪It takes no new work and stops once its current work is done.⟫",
+  "machines.software.line": "⟪{kind} · {version} · {owner}⟫"
 }

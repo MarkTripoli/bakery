@@ -251,7 +251,7 @@ test.describe("machine page: the one banner", () => {
     {
       name: "offline",
       facts: { connectivity: "offline" },
-      title: "Offline. Bakery cannot reach it.",
+      title: "Bakery cannot reach it.",
       body: "Check that the machine is on and the Bakery worker is running.",
       fix: null,
       tone: "warning",
@@ -259,7 +259,7 @@ test.describe("machine page: the one banner", () => {
     {
       name: "not responding",
       facts: { connectivity: "stale" },
-      title: "Not responding. It has stopped answering Bakery.",
+      title: "It has stopped answering Bakery.",
       body: "Work is not sent to it until it answers again.",
       fix: null,
       tone: "warning",
@@ -268,7 +268,7 @@ test.describe("machine page: the one banner", () => {
       // Someone chose it: nothing is wrong, so it is information, not amber.
       name: "paused",
       facts: { status: "offline", desiredMode: "paused" },
-      title: "Paused. It takes no new work until someone resumes it.",
+      title: "It takes no new work until someone resumes it.",
       body: "It keeps the work it has.",
       fix: "Take work again",
       tone: "information",
@@ -276,7 +276,7 @@ test.describe("machine page: the one banner", () => {
     {
       name: "finishing up",
       facts: { status: "draining", desiredMode: "draining" },
-      title: "Finishing its current work. It takes no new work.",
+      title: "It takes no new work and stops once its current work is done.",
       body: null,
       fix: "Take work again",
       tone: "information",
@@ -284,7 +284,7 @@ test.describe("machine page: the one banner", () => {
     {
       name: "retired",
       facts: { status: "revoked", desiredMode: "revoked" },
-      title: "Retired. It no longer takes work.",
+      title: "It no longer takes work.",
       body: "Set it up again to use it.",
       fix: "Set up again",
       tone: "information",
@@ -404,26 +404,33 @@ test.describe("machine page: the one banner", () => {
     await expect(software).toContainText(
       "This page does not install updates.",
     );
+    const phone = (page.viewportSize()?.width ?? 1440) < 600;
     const table = software.getByRole("table");
-    await expect(table.getByRole("columnheader")).toHaveText([
-      "Software",
-      "Kind",
-      "Version",
-      "Installed by",
-      "Update",
-    ]);
-    const claude = table.getByRole("row").filter({ hasText: "Claude Code" });
+    if (phone) {
+      await expect(table).toHaveCount(0);
+      const clipped = await software.getByRole("listitem").evaluateAll((
+        items,
+      ) => items.filter((item) => item.scrollWidth > item.clientWidth).length);
+      expect(clipped).toBe(0);
+    } else {
+      await expect(table.getByRole("columnheader")).toHaveText([
+        "Software",
+        "Kind",
+        "Version",
+        "Installed by",
+        "Update",
+      ]);
+    }
+    const rowOf = (text: string) =>
+      phone
+        ? software.getByRole("listitem").filter({ hasText: text })
+        : table.getByRole("row").filter({ hasText: text });
+    const claude = rowOf("Claude Code");
     await expect(claude).toContainText("Coding agent");
     await expect(claude).toContainText("Already on the machine");
     await expect(claude).toContainText("1.3.0 is available");
-    await expect(
-      table.getByRole("row").filter({ hasText: "worker-supervisor" }),
-    )
-      .toContainText("Up to date");
-    await expect(table.getByRole("row").filter({ hasText: "git" }))
-      .toContainText(
-        "Not reported",
-      );
+    await expect(rowOf("worker-supervisor")).toContainText("Up to date");
+    await expect(rowOf("git")).toContainText("Not reported");
     await expect(software.getByRole("button")).toHaveCount(0);
     await expect(page.getByTestId("machine-about")).toHaveCount(0);
     await shot(page, "machine-page-software");
@@ -529,13 +536,15 @@ test.describe("machine page: mode and Retire", () => {
       .toBeChecked();
     // The control shows the server's state, so it changes when the update returns.
     await mode.getByRole("radio", { name: "Paused" }).click({ force: true });
-    await expect(mode.getByText("Paused. It keeps the work it has."))
-      .toBeVisible();
+    await expect(banner(page)).toContainText("It keeps the work it has.");
+    await expect(mode.getByRole("status")).toHaveCount(0);
     expect(f.patches).toHaveLength(1);
     expect(f.patches[0]!.postDataJSON()).toEqual({ status: "offline" });
-    expect(f.patches[0]!.headers()["if-match"]).toBe('"v1"');
+    expect(f.patches[0]!.headers()["if-match"]).toBe('"1"');
     expect(f.patches[0]!.headers()["idempotency-key"]).toBeTruthy();
-    await expect(banner(page)).toContainText("Paused.");
+    await expect(banner(page)).toContainText(
+      "It takes no new work until someone resumes it.",
+    );
     await shot(page, "machine-page-mode");
     await banner(page).getByRole("button", { name: "Take work again" }).click();
     await expect(banner(page)).toHaveCount(0);
@@ -585,7 +594,7 @@ test.describe("machine page: mode and Retire", () => {
       "Finish and stop instead",
       "Retire now",
     ]);
-    await shot(page, "machine-page-retire");
+    await shot(page, "machine-page-retire", [], { windowOnly: true });
     // Cancelling retires nothing.
     await dialog.getByRole("button", { name: "Cancel" }).click();
     expect(f.revokes).toHaveLength(0);
@@ -595,7 +604,7 @@ test.describe("machine page: mode and Retire", () => {
       name: "Retire now",
     }).click();
     await expect(banner(page)).toContainText(
-      "Retired. It no longer takes work.",
+      "It no longer takes work.",
     );
     expect(f.revokes).toHaveLength(1);
     expect(f.revokes[0]!.headers()["idempotency-key"]).toBeTruthy();
@@ -612,15 +621,15 @@ test.describe("machine page: mode and Retire", () => {
       name: "Finish and stop instead",
     }).click();
     await expect(page.getByRole("alertdialog")).toHaveCount(0);
-    await expect(
-      page.getByTestId("machine-mode").getByText(
-        "Finishing up. It takes no new work.",
-      ),
-    ).toBeVisible();
+    await expect(banner(page)).toContainText(
+      "It takes no new work and stops once its current work is done.",
+    );
+    await expect(page.getByTestId("machine-mode").getByRole("status"))
+      .toHaveCount(0);
     expect(f.patches).toHaveLength(1);
     expect(f.patches[0]!.postDataJSON()).toEqual({ status: "draining" });
     expect(f.revokes).toHaveLength(0);
-    await shot(page, "machine-page-finish-instead");
+    await shot(page, "machine-page-finish-instead", [], { windowOnly: true });
   });
 
   test("a retired machine has one action, Set up again, which re-pairs the same machine in the wizard's words", async ({ page }) => {
@@ -690,7 +699,7 @@ test.describe("machine page: mode and Retire", () => {
     await open(page, f);
     const detail = page.getByTestId("machine-detail-page");
     await expect(banner(page)).toContainText(
-      "Retired. It no longer takes work.",
+      "It no longer takes work.",
     );
     await expect(
       detail.locator('[data-ui-component="badge"]').filter({
@@ -793,7 +802,9 @@ test.describe("machine page: mode and Retire", () => {
       fixture({ status: "offline", desiredMode: "paused" }),
       "developer",
     );
-    await expect(banner(page)).toContainText("Paused.");
+    await expect(banner(page)).toContainText(
+      "It takes no new work until someone resumes it.",
+    );
     // The fix changes the machine, so it is for administrators.
     await expect(banner(page).getByRole("button")).toHaveCount(0);
     await expect(page.getByTestId("machine-mode")).toHaveCount(0);

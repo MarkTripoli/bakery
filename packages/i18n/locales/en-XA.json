@@ -2335,7 +2335,6 @@
   "machines.badge.finishing": "⟦Ƒïñïšĥïñĝ ûþ ŧë⟧",
   "machines.badge.checking": "⟦Çĥëçķïñĝ…⟧",
   "machines.badge.ready": "⟦Ŕëàðÿ⟧",
-  "machines.reason.offline": "⟦Ôƒƒļïñë. Ɓàķëŕÿ çàññôŧ ŕëàçĥ ïŧ. ŧëšŧ çôþÿ⟧",
   "machines.reason.checkFailed": "⟦{count, plural, one {# check failed.} other {# checks failed.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "machines.row.fix": "⟦Ƒïẋ⟧",
   "machines.row.open": "⟦Ôþëñ⟧",
@@ -2358,11 +2357,6 @@
   "machines.empty.adminOnly": "⟦Àšķ àñ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕ ŧô àðð ôñë. ŧëšŧ çôþÿ ŧëš⟧",
   "machines.forbidden.title": "⟦Ÿôû çàññôŧ šëë ɱàçĥïñëš ŧëšŧ ç⟧",
   "machines.forbidden.description": "⟦Ôñļÿ ôŕĝàñïžàŧïôñ ɱëɱƀëŕš çàñ šëë ɱàçĥïñëš. ŧëšŧ çôþÿ ŧëš⟧",
-  "machines.reason.retired": "⟦Ŕëŧïŕëð. Ïŧ ñô ļôñĝëŕ ŧàķëš ŵôŕķ. ŧëšŧ çôþÿ⟧",
-  "machines.reason.stale": "⟦Ñôŧ ŕëšþôñðïñĝ. Ïŧ ĥàš šŧôþþëð àñšŵëŕïñĝ Ɓàķëŕÿ. ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "machines.reason.needsAttention": "⟦Ñëëðš àŧŧëñŧïôñ. Ôþëñ ïŧ ŧô šëë ŵĥÿ. ŧëšŧ çôþÿŧ⟧",
-  "machines.reason.paused": "⟦Þàûšëð. Ïŧ ŧàķëš ñô ñëŵ ŵôŕķ ûñŧïļ šôɱëôñë ŕëšûɱëš ïŧ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
-  "machines.reason.finishing": "⟦Ƒïñïšĥïñĝ ïŧš çûŕŕëñŧ ŵôŕķ. Ïŧ ŧàķëš ñô ñëŵ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "tasks.delivery.heading": "⟦Ðëļïṽëŕÿ…⟧",
   "tasks.delivery.loading": "⟦Ļôàðïñĝ ðëļïṽëŕÿ šŧàŧûš ŧëšŧ ç⟧",
   "tasks.delivery.error.title": "⟦Ðëļïṽëŕÿ šŧàŧûš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿŧ⟧",
@@ -7193,5 +7187,12 @@
   "machines.column.agents": "⟦Çôðïñĝ àĝëñŧš ŧë⟧",
   "machines.column.slots": "⟦Ŧàšķš àŧ ôñçë ŧë⟧",
   "machines.column.lastSeen": "⟦Ļàšŧ šëëñ ŧ⟧",
-  "machines.agents.none": "⟦Ñôñë ÿëŧ…⟧"
+  "machines.agents.none": "⟦Ñôñë ÿëŧ…⟧",
+  "machines.reason.retired": "⟦Ïŧ ñô ļôñĝëŕ ŧàķëš ŵôŕķ. ŧëšŧ ç⟧",
+  "machines.reason.offline": "⟦Ɓàķëŕÿ çàññôŧ ŕëàçĥ ïŧ. ŧëšŧ ç⟧",
+  "machines.reason.stale": "⟦Ïŧ ĥàš šŧôþþëð àñšŵëŕïñĝ Ɓàķëŕÿ. ŧëšŧ çôþÿ⟧",
+  "machines.reason.needsAttention": "⟦Ôþëñ ïŧ ŧô šëë ŵĥÿ. ŧëšŧ⟧",
+  "machines.reason.paused": "⟦Ïŧ ŧàķëš ñô ñëŵ ŵôŕķ ûñŧïļ šôɱëôñë ŕëšûɱëš ïŧ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "machines.reason.finishing": "⟦Ïŧ ŧàķëš ñô ñëŵ ŵôŕķ àñð šŧôþš ôñçë ïŧš çûŕŕëñŧ ŵôŕķ ïš ðôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "machines.software.line": "⟦{kind} · {version} · {owner} ŧëšŧ çô⟧"
 }

@@ -532,8 +532,9 @@ test.describe("the Coding agents rows", () => {
     await expect(software).toHaveCount(1);
     await expect(software).toContainText("Software");
     for (const name of ["Claude Code", "Codex", "Pi"]) {
-      await expect(software.getByRole("row").filter({ hasText: name }))
-        .toContainText("1.0.0");
+      await expect(
+        software.locator("tr, [role=listitem]").filter({ hasText: name }),
+      ).toContainText("1.0.0");
     }
     await expect(software).not.toContainText("harness");
     await expect(software).not.toContainText("external");
