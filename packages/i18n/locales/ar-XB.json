@@ -7253,5 +7253,6 @@
   "shared.unavailable.unknown.title": "⟪This is no longer available⟫",
   "shared.unavailable.unknown.body": "⟪It was deleted, or it is no longer shared with you.⟫",
   "shared.backToInbox": "⟪Back to notifications⟫",
-  "shared.conversation.reply.empty": "⟪Write a message first.⟫"
+  "shared.conversation.reply.empty": "⟪Write a message first.⟫",
+  "shared.document.showCommentsUnknown": "⟪Show comments⟫"
 }

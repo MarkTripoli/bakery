@@ -32,7 +32,7 @@ export function SharedDocumentPage(
   const { translate: t, locale } = useI18n();
   const navigate = useNavigate();
   const landing = useRef(current).current;
-  const [rootCount, setRootCount] = useState(0);
+  const [rootCount, setRootCount] = useState<number | null>(null);
   const [commentSettled, setCommentSettled] = useState(false);
   const settleComment = useCallback(() => setCommentSettled(true), []);
   const scoped = scope.organizationId !== null;
@@ -141,9 +141,11 @@ export function SharedDocumentPage(
           : null}
         comments={{
           title: t("artifact.comments.title"),
-          openLabel: t("shared.document.showComments", {
-            count: String(rootCount),
-          }),
+          openLabel: rootCount === null
+            ? t("shared.document.showCommentsUnknown" as never)
+            : t("shared.document.showComments", {
+              count: String(rootCount),
+            }),
           linkedCommentId: landing.gone === true ? null : comment ?? null,
         }}
       />

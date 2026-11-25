@@ -102,31 +102,36 @@ export function SharedUnavailable(
         variant="filtered"
         data-testid={`shared-unavailable-${reason}`}
         action={
-          <UI.Inline>
-            <UI.Button
-              variant="primary"
-              onClick={() =>
-                void navigate({ to: "/notifications", search: {} })}
-            >
-              {translate("shared.backToInbox" as never)}
-            </UI.Button>
-            {canMark && !marked
+          <UI.Stack gap="standard">
+            <UI.Inline>
+              <UI.Button
+                variant="primary"
+                onClick={() =>
+                  void navigate({ to: "/notifications", search: {} })}
+              >
+                {translate("shared.backToInbox" as never)}
+              </UI.Button>
+              {canMark && !marked
+                ? (
+                  <UI.Button
+                    variant="secondary"
+                    onClick={() => void markRead()}
+                  >
+                    {translate("notifications.row.markRead" as never)}
+                  </UI.Button>
+                )
+                : null}
+            </UI.Inline>
+            {markFailed
               ? (
-                <UI.Button variant="secondary" onClick={() => void markRead()}>
-                  {translate("notifications.row.markRead" as never)}
-                </UI.Button>
+                <UI.InlineNotice tone="error" role="alert">
+                  {translate("notifications.row.saveFailed")}
+                </UI.InlineNotice>
               )
               : null}
-          </UI.Inline>
+          </UI.Stack>
         }
       />
-      {markFailed
-        ? (
-          <UI.InlineNotice tone="error" role="alert">
-            {translate("notifications.row.saveFailed")}
-          </UI.InlineNotice>
-        )
-        : null}
     </>
   );
 }

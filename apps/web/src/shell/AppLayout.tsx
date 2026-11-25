@@ -49,6 +49,7 @@ import {
   SIGN_OUT_PATH,
 } from "../app/auth-required.tsx";
 import { ORGANIZATION_STORAGE_PATH } from "../app/auth-paths.ts";
+import { isEditing } from "../app/focus.ts";
 import { useThemePreference } from "../app/server-presentation.tsx";
 import { useSession } from "../app/session-context.tsx";
 import {
@@ -647,6 +648,7 @@ function ShellFrame() {
       frame = requestAnimationFrame(() => {
         // A notification's landing put focus on the part it opened: keep it.
         if (document.activeElement?.hasAttribute("data-landing-focus")) return;
+        if (isEditing(document.activeElement)) return;
         const heading = document.querySelector<HTMLElement>("main h1");
         if (!heading || heading === focusedHeading) return;
         if (!heading.hasAttribute("tabindex")) heading.tabIndex = -1;

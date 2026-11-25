@@ -33,12 +33,15 @@ const ANA_ID = "00000000-0000-4000-8000-0000000000b2";
 const opened = (path: string) =>
   `${path}?n=${NOTIFICATION_ID}&r=${NOTIFICATION_REVISION}`;
 
-async function conversationWorld(page: Page) {
+async function conversationWorld(page: Page, delayMessagesMs = 0) {
   await mockAuthenticatedSession(page);
   await page.route(
     `**/v1/conversations/${CONVERSATION_ID}/messages*`,
-    (route) =>
-      route.fulfill({
+    async (route) => {
+      if (delayMessagesMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delayMessagesMs));
+      }
+      return route.fulfill({
         json: {
           items: [{
             id: MESSAGE_ID,
@@ -58,7 +61,8 @@ async function conversationWorld(page: Page) {
           }],
           nextCursor: null,
         },
-      }),
+      });
+    },
   );
   await page.route(
     `**/v1/conversations/${CONVERSATION_ID}/participants*`,
@@ -88,7 +92,10 @@ async function conversationWorld(page: Page) {
 
 async function openSharedComments(page: Page) {
   const panel = page.getByRole("button", { name: /^Show comments/ });
-  if (await panel.isVisible()) await panel.click();
+  if (await panel.isVisible()) {
+    await expect(panel).not.toContainText("(0)");
+    await panel.click();
+  }
   await expect(page.getByLabel("Comment", { exact: true })).toBeVisible();
 }
 
@@ -227,6 +234,75 @@ for (
       );
       await expect(body.getByText("The part this notification was about"))
         .toHaveCount(1);
+    });
+
+    test("typing a reply straight after landing keeps every character and the focus", async ({ page }) => {
+      await conversationWorld(page, 1200);
+      await stubNotification(
+        page,
+        {
+          status: "available",
+          targetKind: "conversation_message",
+          path: `${CONVERSATION_PATH}?message=${MESSAGE_ID}`,
+          anchor: `message:${MESSAGE_ID}`,
+        },
+        { taskId: TASK_ID, targetId: MESSAGE_ID, title: MENTIONED },
+      );
+      await open(page);
+      const box = page.getByRole("textbox", { name: /Reply/ });
+      await box.click();
+      await page.keyboard.type("Looks right to me", { delay: 40 });
+      await expect(
+        page.locator("[data-message-id][data-landed='true']"),
+      ).toBeVisible();
+      await page.waitForTimeout(1500);
+      await expect(box).toHaveValue("Looks right to me");
+      await expect(box).toBeFocused();
+    });
+
+    test("Mark read failure sits inside the card, not beside it", async ({ page }) => {
+      await mockAuthenticatedSession(page);
+      await page.route("**/v1/artifacts/**", (route) =>
+        route.fulfill({
+          status: 403,
+          json: { type: "about:blank", title: "Forbidden", status: 403 },
+        }));
+      await stubNotification(
+        page,
+        {
+          status: "unavailable",
+          targetKind: "comment",
+          path: null,
+          anchor: null,
+          reason: "no_longer_shared",
+          sharedByName: GRANTER,
+        },
+        { taskId: TASK_ID, targetId: COMMENT_ID },
+      );
+      await page.route(
+        (url) => url.pathname === `/v1/notifications/${NOTIFICATION_ID}`,
+        (route) =>
+          route.request().method() === "PATCH"
+            ? route.fulfill({
+              status: 500,
+              json: { type: "about:blank", title: "Failed", status: 500 },
+            })
+            : route.fallback(),
+      );
+      await page.goto(opened(DOCUMENT_PATH));
+      await page.getByRole("button", { name: "Mark read" }).click();
+      const card = page.getByTestId("shared-unavailable-no_longer_shared");
+      const notice = page.getByRole("alert");
+      await expect(notice).toBeVisible();
+      const cardBox = (await card.boundingBox())!;
+      const noticeBox = (await notice.boundingBox())!;
+      expect(noticeBox.y).toBeGreaterThanOrEqual(cardBox.y);
+      expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(
+        cardBox.y + cardBox.height,
+      );
+      expect(noticeBox.x + noticeBox.width).toBeLessThanOrEqual(
+        cardBox.x + cardBox.width,
+      );
     });
 
     test("Send stays on with nothing typed: pressing it says what is missing and focuses the box", async ({ page }) => {

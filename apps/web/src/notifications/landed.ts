@@ -1,3 +1,5 @@
+import { isEditing } from "../app/focus.ts";
+
 /** How long the one-time outline stays on what a notification opened. */
 export const LANDED_MS = 2_500;
 
@@ -18,6 +20,7 @@ export function landOn(
     () => element.removeAttribute("data-landed"),
     LANDED_MS,
   );
+  if (isEditing(document.activeElement)) return true;
   const focus = focusTarget ?? element;
   if (!focus.hasAttribute("tabindex")) focus.setAttribute("tabindex", "-1");
   // The shell moves focus to the page title after a route change; a landing's

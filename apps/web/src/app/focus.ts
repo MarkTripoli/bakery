@@ -1,5 +1,12 @@
 import { useEffect, useRef } from "react";
 
+export function isEditing(element: Element | null | undefined): boolean {
+  if (!(element instanceof HTMLElement)) return false;
+  return element.isContentEditable || element.matches(
+    "textarea, select, input:not([type=button], [type=submit], [type=reset], [type=checkbox], [type=radio])",
+  );
+}
+
 /**
  * Focus after an action replaced the control that triggered it. A control that
  * is gone takes focus with it, and focus then falls to the page body, which

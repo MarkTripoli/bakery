@@ -6078,6 +6078,7 @@
   "shared.document.notice": "You can read this document and comment on it. The rest of the task is not shared with you.",
   "shared.document.sharedBy": "{name} shared this document with you on {date}.",
   "shared.document.showComments": "Show comments ({count})",
+  "shared.document.showCommentsUnknown": "Show comments",
   "shared.document.gone.title": "This document was deleted",
   "shared.document.noLongerShared.title": "This document is no longer shared with you",
   "shared.conversation.reply.empty": "Write a message first.",
