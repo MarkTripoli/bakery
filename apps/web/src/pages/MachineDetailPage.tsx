@@ -33,6 +33,7 @@ import {
 } from "./CodingAgents.tsx";
 import { MachineModels } from "./MachineModels.tsx";
 import { MachineChecks } from "./MachineChecks.tsx";
+import { MachineWork } from "./MachineWork.tsx";
 import {
   agentNeedingSignIn,
   agentOfFailedChecks,
@@ -128,7 +129,7 @@ export function MachineDetailPage(
     justAdded = false,
     focusChecks = false,
   }: {
-    readonly tab?: "overview" | "models" | "checks";
+    readonly tab?: "overview" | "models" | "checks" | "work";
     readonly focusChecks?: boolean;
     /** True when the Models tab was reached by saving a new model, which it says once. */
     readonly justAdded?: boolean;
@@ -766,7 +767,13 @@ export function MachineDetailPage(
                 selectedId={tab}
                 onSelect={(id) =>
                   void navigate(
-                    id === "models"
+                    id === "work"
+                      ? {
+                        to: "/machines/$machineId/work",
+                        params: { machineId },
+                        search: {},
+                      }
+                      : id === "models"
                       ? {
                         to: "/machines/$machineId/models",
                         params: { machineId },
@@ -1023,6 +1030,21 @@ export function MachineDetailPage(
                             )
                             : null}
                         </>
+                      )
+                      : null,
+                  },
+                  {
+                    id: "work",
+                    label: message(translate, "machines.tabs.work"),
+                    content: tab === "work"
+                      ? (
+                        <MachineWork
+                          machineId={machineId}
+                          slots={workerData.slots}
+                          occupied={workerData.activeAttemptCount}
+                          connectivity={workerData.connectivity ?? "stale"}
+                          lastHeartbeatAt={workerData.lastHeartbeatAt}
+                        />
                       )
                       : null,
                   },

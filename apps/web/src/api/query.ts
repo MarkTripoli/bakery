@@ -158,6 +158,8 @@ import type {
   UsageSummary,
   UserPreferences,
   UserProfile,
+  WorkerAttemptListResponse,
+  WorkerAttemptState,
   WorkerComponentListResponse,
   WorkerEnrollmentListResponse,
   WorkerListResponse,
@@ -786,6 +788,44 @@ export function providerRouteHealthQueryOptions(
       );
     },
     enabled: Boolean(scope.organizationId),
+  });
+}
+
+export function workerAttemptsQueryOptions(
+  client: Pick<BakeryApiClient, "workerAttempts">,
+  scope: ApiScope,
+  workerId: string,
+  state: WorkerAttemptState,
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    WorkerAttemptListResponse,
+    ApiFailure,
+    { pages: WorkerAttemptListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "workerAttempts.list", {
+      workerId,
+      state,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.workerAttempts.list({
+          organizationId: requireOrganization(scope),
+          id: workerId,
+          state,
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId && workerId),
+    retry: retryNetworkOnce,
+    staleTime: 5_000,
   });
 }
 
