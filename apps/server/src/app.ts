@@ -54,8 +54,6 @@ import {
   TICKET_CREATE_ACTION,
   TICKET_LABEL_REMOVE_ACTION,
   TICKET_LABELS_ADD_ACTION,
-  TICKET_NOTE_ACTION,
-  TICKET_NOTE_UPDATE_ACTION,
 } from "./modules/catalog/integration-providers/github.ts";
 import { createGateRemoteTicketCreator } from "./modules/integrations/ticket-create.ts";
 import { createGateSender } from "./modules/integrations/ticket-gate.ts";
@@ -63,6 +61,8 @@ import { createGateTicketLabelWriter } from "./modules/integrations/ticket-label
 import { createGateTicketNoteWriter } from "./modules/integrations/ticket-notes.ts";
 import type { RemoteTicketCreator } from "./modules/work/ticket-create.ts";
 import type { TicketLabelWriter } from "./modules/work/ticket-labels.ts";
+import type { TicketStatusWriter } from "./modules/work/ticket-statuses.ts";
+import { createGateTicketStatusWriter } from "./modules/integrations/ticket-statuses.ts";
 import type { TicketNoteWriter } from "./modules/work/ticket-notes.ts";
 import { createPluginInstallRoutes } from "./modules/catalog/plugin-install-routes.ts";
 import { createPluginAuthoringRoutes } from "./modules/workflows/plugin-authoring/routes.ts";
@@ -272,6 +272,7 @@ export function createApp(options: {
   ticketCreator?: RemoteTicketCreator;
   /** Changes Bakery's progress labels on a ticket; the integration gate by default, an in-memory one in tests. */
   ticketLabelWriter?: TicketLabelWriter;
+  ticketStatusWriter?: TicketStatusWriter;
   draftIsolation?: DraftIsolation;
   skillFileStore?: SkillFileStoreOperations;
   /**
@@ -383,20 +384,11 @@ export function createApp(options: {
         ),
     },
   });
-  // The composition root names the provider whose comment action writes
-  // the note, as it names the webhook ingress below. The ticket routes and the
-  // background poll share the one writer.
   const ticketNoteWriter = options.ticketNoteWriter ??
     createGateTicketNoteWriter({
       database: options.pgDatabase,
       registry: integrationRegistry,
       providerRequests,
-      noteActions: {
-        github: {
-          create: TICKET_NOTE_ACTION,
-          update: TICKET_NOTE_UPDATE_ACTION,
-        },
-      },
     });
   const ticketGateSend = createGateSender({
     database: options.pgDatabase,
@@ -418,6 +410,8 @@ export function createApp(options: {
         },
       },
     });
+  const ticketStatusWriter = options.ticketStatusWriter ??
+    createGateTicketStatusWriter({ send: ticketGateSend });
   const integrations = {
     github: githubAppClient,
     secretsKey: options.config.secretsKey,
@@ -827,6 +821,7 @@ export function createApp(options: {
       integrations,
       ticketNoteWriter,
       ticketLabelWriter,
+      ticketStatusWriter,
       // The engine settles a tool call itself, over the integration door; the
       // delivery steps run only where the install configured a target.
       engineSteps: composeEngineStepRunners([

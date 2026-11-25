@@ -52,6 +52,7 @@ import { createBatchSupervisorWorkflow } from "../work/batch-tick.ts";
 import { createBatchCancelPort } from "../work/batch-cancel-port.ts";
 import { createBatchStartPort } from "../work/batch-start-port.ts";
 import type { TicketLabelWriter } from "../work/ticket-labels.ts";
+import type { TicketStatusWriter } from "../work/ticket-statuses.ts";
 import type { TicketNoteWriter } from "../work/ticket-notes.ts";
 import { selectTicketSourceReader } from "../work/ticket-reader-selection.ts";
 import { GITHUB_PROVIDER } from "../integrations/registry.ts";
@@ -100,8 +101,8 @@ function createTicketAutomation(options: {
   integrations: IntegrationsBackgroundDependencies;
   /** Writes the ticket status note; without it the poll keeps none. */
   noteWriter?: TicketNoteWriter;
-  /** Changes Bakery's progress labels; without it the poll leaves labels alone. */
   labelWriter?: TicketLabelWriter;
+  statusWriter?: TicketStatusWriter;
 }) {
   const deps = {
     client: options.client,
@@ -123,6 +124,7 @@ function createTicketAutomation(options: {
     budget: options.budget,
     noteWriter: options.noteWriter,
     labelWriter: options.labelWriter,
+    statusWriter: options.statusWriter,
   };
   return [createTicketIntakeWorkflow(deps), createTicketPollWorkflow(deps)];
 }
@@ -137,8 +139,8 @@ export function createDefaultInngestFunctions(options: {
   integrations?: IntegrationsBackgroundDependencies;
   /** Writes the ticket status note on each poll; absent, the poll keeps none. */
   ticketNoteWriter?: TicketNoteWriter;
-  /** Changes Bakery's progress labels on each poll; absent, the poll leaves labels alone. */
   ticketLabelWriter?: TicketLabelWriter;
+  ticketStatusWriter?: TicketStatusWriter;
   /** Coordinator executor override; default is the worker executor outside the test environment (see `readCoordinatorExecutor`). */
   coordinatorExecutor?: CoordinatorTurnExecutor;
   /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
@@ -273,6 +275,7 @@ export function createDefaultInngestFunctions(options: {
           integrations: options.integrations,
           noteWriter: options.ticketNoteWriter,
           labelWriter: options.ticketLabelWriter,
+          statusWriter: options.ticketStatusWriter,
         }),
       ]
       : []),
@@ -379,6 +382,7 @@ export function createInngestHttpHandler(options: {
   integrations?: IntegrationsBackgroundDependencies;
   ticketNoteWriter?: TicketNoteWriter;
   ticketLabelWriter?: TicketLabelWriter;
+  ticketStatusWriter?: TicketStatusWriter;
   engineSteps?: EngineStepRunner;
   storageLocalRoot?: string;
   storageBlobStore?: OrganizationBlobStore;
@@ -401,6 +405,7 @@ export function createInngestHttpHandler(options: {
         integrations: options.integrations,
         ticketNoteWriter: options.ticketNoteWriter,
         ticketLabelWriter: options.ticketLabelWriter,
+        ticketStatusWriter: options.ticketStatusWriter,
         engineSteps: options.engineSteps,
         storageLocalRoot: options.storageLocalRoot,
         storageBlobStore: options.storageBlobStore,

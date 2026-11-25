@@ -7,6 +7,7 @@ import {
 } from "./ticket-delivery-store.ts";
 import type { TicketLabelWriter } from "./ticket-labels.ts";
 import { noteProblemCode, type TicketNoteWriter } from "./ticket-notes.ts";
+import type { TicketStatusWriter } from "./ticket-statuses.ts";
 import {
   type TicketAudience,
   ticketProgressBody,
@@ -63,6 +64,7 @@ type Candidate = {
   sync_health: string;
   in_flight: boolean;
   backing_off: boolean;
+  delivered_status_id: string | null;
 };
 
 /** What one call did. */
@@ -80,6 +82,7 @@ const READ_CANDIDATES = `
          source.provider, source.integration_connection_id as connection_id,
          source.integration_resource_id as resource_id, ticket.number,
          ticket.visibility, link.status_comment_external_id,
+         source.policy -> 'outcomeStatuses' ->> 'delivered' as delivered_status_id,
          link.last_synced_run_revision, link.sync_health,
          (link.sync_health = 'pending'
             and link.updated_at > now() - make_interval(secs => $3)) as in_flight,
@@ -122,6 +125,7 @@ export async function syncSourceProgress(
     writer: TicketNoteWriter;
     /** Changes Bakery's progress labels after a note posts; absent, labels are left alone. */
     labels?: TicketLabelWriter;
+    statuses?: TicketStatusWriter;
   },
   call: {
     organizationId: string;
@@ -151,6 +155,7 @@ export async function syncSourceProgress(
       previousLabel: string | null;
       claimedVersion: number;
       body: string;
+      deliveredStatusId: string | null;
     }> = [];
     for (const row of read.rows) {
       if (claimed.length >= PROGRESS_SYNC_LIMIT) break;
@@ -218,6 +223,7 @@ export async function syncSourceProgress(
         label: phase.label,
         previousLabel: ticketProgressLabelOfCode(row.last_synced_run_revision),
         claimedVersion,
+        deliveredStatusId: verdict.delivered ? row.delivered_status_id : null,
         body: ticketProgressBody({
           phase,
           // Only a ticket observed as private may carry the task's title.
@@ -295,8 +301,21 @@ export async function syncSourceProgress(
         }
       }
     }
-    // The comment id is kept whenever the note posted, so a label that failed
-    // never makes the next sync post a second comment.
+    if (
+      healthy && claim.deliveredStatusId !== null &&
+      deps.statuses !== undefined
+    ) {
+      const status = await setDeliveredStatus(
+        deps.statuses,
+        call,
+        row,
+        claim.deliveredStatusId,
+      );
+      if (status.kind === "failed") {
+        problem = noteProblemCode(status.problemCode);
+        healthy = status.problemCode === "provider_capability_missing";
+      }
+    }
     await withPgTransaction(deps.database, (transaction) =>
       recordLinkProgress(
         transaction,
@@ -314,4 +333,27 @@ export async function syncSourceProgress(
     else result.failed++;
   }
   return result;
+}
+
+async function setDeliveredStatus(
+  statuses: TicketStatusWriter,
+  call: { organizationId: string; signal: AbortSignal },
+  row: Candidate,
+  statusId: string,
+): ReturnType<TicketStatusWriter["set"]> {
+  try {
+    return await statuses.set({
+      organizationId: call.organizationId,
+      actorPrincipalId: row.authority_principal_id!,
+      provider: row.provider,
+      connectionId: row.connection_id,
+      resourceId: row.resource_id,
+      issueNumber: Number(row.number),
+      statusId,
+      idempotencyKey: `${row.request_id}:status:delivered`,
+      signal: call.signal,
+    });
+  } catch {
+    return { kind: "failed", problemCode: "status_set_failed" };
+  }
 }

@@ -152,7 +152,7 @@ export function codingAgents(
 }
 
 /** Which rows a filter keeps; "needsAttention" also keeps a machine that has stopped answering. */
-export type MachineFilter = "all" | "needsAttention" | "offline";
+export type MachineFilter = "all" | "needsAttention" | "offline" | "retired";
 
 export function machineMatchesFilter(
   machine: MachineFacts,
@@ -160,7 +160,21 @@ export function machineMatchesFilter(
 ): boolean {
   if (filter === "all") return true;
   const badge = machineBadge(machine);
-  return filter === "offline"
-    ? badge === "offline"
-    : badge === "needsAttention" || badge === "notResponding";
+  if (filter === "offline") return badge === "offline";
+  if (filter === "retired") return badge === "retired";
+  return badge === "needsAttention" || badge === "notResponding";
+}
+
+export function formatMachineDate(
+  value: string | null | undefined,
+  locale: string,
+  timeZone: string,
+  fallback: string,
+): string {
+  if (!value) return fallback;
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone,
+  }).format(new Date(value));
 }

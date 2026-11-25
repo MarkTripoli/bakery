@@ -1,6 +1,6 @@
 import { type Context } from "hono";
 import type { AuthVariables } from "../auth/middleware.ts";
-import { StandardError } from "@bakery/contracts/http";
+import { parseStrongIfMatch, StandardError } from "@bakery/contracts/http";
 import {
   type CursorBinding,
   decodeCursor,
@@ -411,12 +411,8 @@ export async function reportProviderAuth(
 function requireIfMatchVersion(
   context: Context<{ Variables: AuthVariables }>,
 ): number {
-  const ifMatch = context.req.header("If-Match");
-  if (ifMatch === undefined) {
-    throw new StandardError({ code: "PRECONDITION_FAILED" });
-  }
-  const version = Number(ifMatch.replaceAll('"', ""));
-  if (!Number.isSafeInteger(version) || version < 1) {
+  const version = parseStrongIfMatch(context.req.header("If-Match"));
+  if (version === undefined) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
   return version;

@@ -110,6 +110,7 @@ import {
 } from "../catalog/worker-reads.ts";
 import { WORKER_SKILL_READ_HEADERS } from "@bakery/contracts/worker-skill-read";
 import type { TicketLabelWriter } from "../work/ticket-labels.ts";
+import type { TicketStatusWriter } from "../work/ticket-statuses.ts";
 import type { TicketNoteWriter } from "../work/ticket-notes.ts";
 
 export type ExecutionRoutesOptions = ExecutionRouteOptions & {
@@ -123,8 +124,8 @@ export type ExecutionRoutesOptions = ExecutionRouteOptions & {
   integrations?: IntegrationsBackgroundDependencies;
   /** Writes Bakery's status note on a ticket; the ticket poll keeps it current. Absent: the poll writes none. */
   ticketNoteWriter?: TicketNoteWriter;
-  /** Changes Bakery's progress labels; see `ticket-labels.ts`. */
   ticketLabelWriter?: TicketLabelWriter;
+  ticketStatusWriter?: TicketStatusWriter;
   /** Settles the steps a pack owns (delivery today); absent, they fail with a stable code. */
   engineSteps?: EngineStepRunner;
   storageLocalRoot?: string;
@@ -241,6 +242,7 @@ export function createExecutionRoutes(
       integrations: options.integrations,
       ticketNoteWriter: options.ticketNoteWriter,
       ticketLabelWriter: options.ticketLabelWriter,
+      ticketStatusWriter: options.ticketStatusWriter,
       engineSteps: options.engineSteps,
       storageLocalRoot: options.storageLocalRoot,
       storageBlobStore: options.storageBlobStore,

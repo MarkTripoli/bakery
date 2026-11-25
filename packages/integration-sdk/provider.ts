@@ -34,6 +34,8 @@ export {
   RESERVED_PROVIDER_SLUGS,
   ResourceKindSchema,
   servesFamily,
+  TicketActionRefSchema,
+  TicketFamilyActionSchema,
   TicketTriggerSchema,
 } from "./src/provider-manifest.ts";
 export type {
@@ -42,6 +44,8 @@ export type {
   ProviderFamily,
   ProviderManifest,
   ResourceKind,
+  TicketActionRef,
+  TicketFamilyAction,
   TicketTrigger,
 } from "./src/provider-manifest.ts";
 export {

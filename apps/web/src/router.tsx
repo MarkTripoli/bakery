@@ -534,6 +534,21 @@ export const routeCoverage = [
     ],
   },
   {
+    id: "machine-checks",
+    path: "/machines/$machineId/checks",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "reconnecting",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
     id: "machine-models",
     path: "/machines/$machineId/models",
     classification: "production",
@@ -1785,6 +1800,23 @@ const machineDetailRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const machineChecksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/$machineId/checks",
+  validateSearch: (search: Record<string, unknown>): { focus?: "checks" } =>
+    search.focus === "checks" ? { focus: "checks" } : {},
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <MachineDetailPage
+      machineId={machineChecksRoute.useParams().machineId}
+      tab="checks"
+      focusChecks={machineChecksRoute.useSearch().focus === "checks"}
+    />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const machineModelsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/machines/$machineId/models",
@@ -3027,6 +3059,7 @@ const routeTree = rootRoute.addChildren([
   machineNewRoute,
   machineNewByHandRoute,
   machineDetailRoute,
+  machineChecksRoute,
   machineModelsRoute,
   machineModelNewRoute,
   statusRoute,

@@ -513,3 +513,33 @@ Deno.test("at runtime supplying a port for an unclaimed family is refused", () =
     ),
   );
 });
+
+Deno.test("ticketActions on a provider that does not serve tickets is a defect", () => {
+  const ref = { id: "acme.issue.comment.create", version: 1 };
+  const unserved: ProviderManifest = {
+    ...testManifest({ families: [] }),
+    ticketActions: { "comment.create": ref },
+  };
+  assert(
+    manifestDefects(unserved).some((defect) =>
+      defect.includes("ticketActions")
+    ),
+  );
+  const served: ProviderManifest = {
+    ...testManifest({ families: ["tickets"], ticketTriggers: ["label"] }),
+    ticketActions: { "comment.create": ref },
+  };
+  assertEquals(
+    manifestDefects(served).filter((defect) =>
+      defect.includes("ticketActions")
+    ),
+    [],
+  );
+  assert(ProviderManifestSchema.safeParse(unserved).success);
+  assert(
+    !ProviderManifestSchema.safeParse({
+      ...unserved,
+      ticketActions: { "comment.delete": ref },
+    }).success,
+  );
+});
