@@ -21,8 +21,51 @@ import {
   storedMessageMentions,
 } from "./mentions.ts";
 
-const MAX_MESSAGE_BODY_BYTES = 32 * 1024;
+export const MAX_MESSAGE_BODY_BYTES = 32 * 1024;
 const MAX_QUEUED_TURNS = 50;
+
+export function assertMessageBodySize(body: string): void {
+  if (new TextEncoder().encode(body).byteLength <= MAX_MESSAGE_BODY_BYTES) {
+    return;
+  }
+  throw new StandardError({
+    code: "BODY_TOO_LARGE",
+    params: { limit: MAX_MESSAGE_BODY_BYTES },
+  });
+}
+
+export async function appendMessageCreateAudit(
+  transaction: PgTransactionClient,
+  facts: {
+    readonly organizationId: string;
+    readonly principalId: string;
+    readonly conversationId: string;
+    readonly messageId: string;
+    readonly requestId: string;
+    readonly traceId: string;
+    readonly intent: string;
+    readonly sequence: string;
+    readonly mentioned?: readonly string[];
+    readonly granted?: readonly string[];
+  },
+): Promise<void> {
+  await appendAudit(transaction, {
+    organizationId: facts.organizationId,
+    principalId: facts.principalId,
+    operation: "messages.create",
+    resourceType: "message",
+    resourceId: facts.messageId,
+    requestId: facts.requestId,
+    traceId: facts.traceId,
+    details: {
+      conversationId: facts.conversationId,
+      intent: facts.intent,
+      sequence: facts.sequence,
+      mentioned: facts.mentioned ?? [],
+      granted: facts.granted ?? [],
+    },
+  });
+}
 
 type ConversationScope = {
   id: string;
@@ -274,14 +317,7 @@ export async function createMessage(
     "update",
   );
 
-  if (
-    new TextEncoder().encode(input.body).byteLength > MAX_MESSAGE_BODY_BYTES
-  ) {
-    throw new StandardError({
-      code: "BODY_TOO_LARGE",
-      params: { limit: MAX_MESSAGE_BODY_BYTES },
-    });
-  }
+  assertMessageBodySize(input.body);
 
   const replay = await transaction.query<MessageRow>(
     `select id, conversation_id, author_id, agent_session_id, message_type,
@@ -422,21 +458,17 @@ export async function createMessage(
     });
   }
 
-  await appendAudit(transaction, {
+  await appendMessageCreateAudit(transaction, {
     organizationId,
     principalId,
-    operation: "messages.create",
-    resourceType: "message",
-    resourceId: message.id,
+    conversationId,
+    messageId: message.id,
     requestId: context.requestId,
     traceId: context.traceId,
-    details: {
-      conversationId,
-      intent: input.intent,
-      sequence,
-      mentioned: mentions.people.map((person) => person.principalId),
-      granted: mentions.toGrant,
-    },
+    intent: input.intent,
+    sequence,
+    mentioned: mentions.people.map((person) => person.principalId),
+    granted: mentions.toGrant,
   });
   return toMessage(message);
 }

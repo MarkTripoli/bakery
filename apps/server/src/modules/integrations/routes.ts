@@ -17,6 +17,7 @@ import type { PgDatabase } from "../../platform/database.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createIntegrationsActionRegistry } from "./actions.ts";
 import { mountIntakeRoute } from "./intake-routes.ts";
+import { mountSlackIntakeRoute } from "./slack-intake-routes.ts";
 import type { InstallationTokenBroker } from "./token-broker.ts";
 import type {
   ActiveIntegrationRegistry,
@@ -209,6 +210,10 @@ export function createIntegrationsRoutes(options: {
     secretsKey: options.secretsKey,
     publicBaseUrl: options.publicBaseUrl,
     ingress: options.ingress,
+  });
+  mountSlackIntakeRoute(app, {
+    database: options.database,
+    secretsKey: options.secretsKey,
   });
   app.route(
     "/",
