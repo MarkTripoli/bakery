@@ -24,7 +24,11 @@ const savedSlackCredentials = {
   version: 2,
 };
 
-async function fixture(page: Page): Promise<void> {
+async function fixture(
+  page: Page,
+  credentials: typeof slackCredentials | typeof savedSlackCredentials =
+    slackCredentials,
+): Promise<void> {
   await mockAuthenticatedSession(page);
   await page.route(
     "**/v1/integration-client-credentials/slack",
@@ -32,7 +36,7 @@ async function fixture(page: Page): Promise<void> {
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(slackCredentials),
+        body: JSON.stringify(credentials),
       }),
   );
   await page.route("**/v1/integration-connections", (route) =>
