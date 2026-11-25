@@ -7177,6 +7177,7 @@
   "delivery.chart.asChart": "⟪Show as chart⟫",
   "delivery.chart.noGap": "⟪Every {unit} was measured in this period.⟫",
   "delivery.chart.gapCount": "⟪{count, plural, one {No data for 1 day ({gaps}).} other {No data for # days ({gaps}).}} A gap is not zero.⟫",
+  "delivery.chart.gapCountLabeled": "⟪{count, plural, one {No data for 1 day.} other {No data for # days.}} A gap is not zero.⟫",
   "delivery.chart.gap": "⟪no data, {from} to {to}⟫",
   "delivery.chart.gapDay": "⟪no data, {date}⟫",
   "delivery.chart.noData": "⟪No data⟫",

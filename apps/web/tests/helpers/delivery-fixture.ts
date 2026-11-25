@@ -23,9 +23,7 @@ export type DeliveryOptions = {
   runs?: number;
   /** Every task's recorded intervals cover all of its time: nothing is unaccounted for. */
   allAccountedFor?: boolean;
-  /** The definitions version the series report; null when the server serves none. */
   revision?: string | null;
-  /** Every series reports no measurement at all, as a period with no activity does. */
   nothingMeasured?: boolean;
 };
 

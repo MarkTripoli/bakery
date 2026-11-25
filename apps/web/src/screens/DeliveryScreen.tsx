@@ -60,7 +60,6 @@ export type DeliveryScreenProps = {
   readonly repositoryId: string | null;
   readonly period: DeliveryPeriod;
   readonly periodTooLong: boolean;
-  /** The custom range ends before it starts; the picker says so. */
   readonly rangeReversed: boolean;
   readonly custom: { readonly from: string; readonly to: string };
   /** The window the figures were asked for, for the empty-period sentence. */
@@ -70,7 +69,6 @@ export type DeliveryScreenProps = {
   readonly records: DeliveryRecords;
   /** How long tasks took and where the time went; null when no task was delivered. */
   readonly leadTime: LeadTime | null;
-  /** One line per chosen figure, with its gaps, and the same points as a table. */
   readonly series: Readonly<
     Record<DeliveryShow, { readonly points: readonly ChartPoint[] } | null>
   >;
@@ -126,7 +124,6 @@ const FIGURES = [
   },
 ] as const;
 
-/** A chosen figure sends the reader to the rows it counted. */
 function showRecordsHeading() {
   const heading = document.getElementById("delivery-records-heading");
   if (heading === null) return;

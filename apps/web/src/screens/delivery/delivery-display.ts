@@ -397,7 +397,6 @@ const RULE_KEYS_NO_VERSION = {
   closed: "delivery.records.rule.closed.noVersion",
 } as const satisfies Record<DeliveryShow, MessageKey>;
 
-/** The line under the records, with the definitions version only when served. */
 export function ruleKey(
   show: DeliveryShow,
   version: string | null,
@@ -412,10 +411,6 @@ export type ChartSegment = readonly Readonly<{ at: string; value: number }>[];
 
 export type ChartGap = Readonly<{ from: string; to: string; points: number }>;
 
-/**
- * The runs of measured points a chart draws as separate lines, so a stretch
- * with no measurement leaves a break instead of drawing a line across it.
- */
 export function chartSegments(
   points: readonly ChartPoint[],
 ): readonly ChartSegment[] {
@@ -433,7 +428,6 @@ export function chartSegments(
   return segments;
 }
 
-/** The stretches with no measurement, with the dates that bound them. */
 export function chartGaps(points: readonly ChartPoint[]): readonly ChartGap[] {
   const gaps: { from: string; to: string; points: number }[] = [];
   let open: { from: string; to: string; points: number } | null = null;
@@ -451,7 +445,6 @@ export function chartGaps(points: readonly ChartPoint[]): readonly ChartGap[] {
   return gaps;
 }
 
-/** The highest value a chart's line reaches; 0 when nothing was measured. */
 export function chartMaximum(points: readonly ChartPoint[]): number {
   let maximum = 0;
   for (const point of points) {

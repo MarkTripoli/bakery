@@ -107,7 +107,6 @@ for (
             .toBeVisible();
         }
       }
-      // No Blocked column while nothing records it, and a task row has no repository.
       await expect(records.getByRole("columnheader", { name: "Blocked" }))
         .toHaveCount(0);
       await expect(records.getByRole("columnheader", { name: "Repository" }))
@@ -184,7 +183,6 @@ for (
       await expect(records.getByText("Tidy the settings page")).toBeVisible();
       await expect(records.getByText("The records could not be loaded."))
         .toHaveCount(0);
-      // Choosing a figure sends the reader to the rows it counted.
       const after = await chosen.boundingBox();
       expect(after).toEqual(before);
       expect(
@@ -215,7 +213,6 @@ for (
         .toBeVisible();
       const chart = page.getByTestId("delivery-chart");
       await expect(chart).toBeVisible();
-      await expect(page.getByText(/No data for 1 day \(/)).toBeVisible();
       await expect(page.getByText(/A gap is not zero/)).toBeVisible();
       const band = chart.locator("[data-gap-band]");
       await expect(band).toHaveCount(1);
@@ -226,6 +223,9 @@ for (
           .toBeVisible();
       } else {
         await expect(chart.getByText("No data, Nov 2, 2026")).toBeVisible();
+        await expect(
+          page.getByText("No data for 1 day. A gap is not zero."),
+        ).toBeVisible();
       }
       await expect(chart.locator("[data-chart-tick='max']")).toHaveText("40");
       const chartBox = await chart.boundingBox();
@@ -332,33 +332,32 @@ for (
       );
     });
 
-    test("the rail lists Delivery for a reader with metric:read", async ({ page }) => {
-      // A phone keeps the rail behind its menu; the rule is the same there.
-      test.skip(viewport.name === "phone");
-      await deliveryFixture(page);
-      await page.route(
-        "**/v1/organizations/*/effective-access",
-        (route) => access(route, ["metric:read"]),
-      );
-      await page.goto("/delivery");
-      await expect(page.getByRole("link", { name: "Delivery", exact: true }))
-        .toBeVisible();
-      await page.mouse.move(700, 700);
-      await still(page, "delivery-rail");
-    });
+    if (viewport.name === "desktop") {
+      test("the rail lists Delivery for a reader with metric:read", async ({ page }) => {
+        await deliveryFixture(page);
+        await page.route(
+          "**/v1/organizations/*/effective-access",
+          (route) => access(route, ["metric:read"]),
+        );
+        await page.goto("/delivery");
+        await expect(page.getByRole("link", { name: "Delivery", exact: true }))
+          .toBeVisible();
+        await page.mouse.move(700, 700);
+        await still(page, "delivery-rail");
+      });
 
-    test("the rail does not list Delivery without metric:read", async ({ page }) => {
-      test.skip(viewport.name === "phone");
-      await deliveryFixture(page);
-      await page.route(
-        "**/v1/organizations/*/effective-access",
-        (route) => access(route, []),
-      );
-      await page.goto("/delivery");
-      await expect(page.getByRole("link", { name: "Projects", exact: true }))
-        .toBeVisible();
-      await expect(page.getByRole("link", { name: "Delivery", exact: true }))
-        .toHaveCount(0);
-    });
+      test("the rail does not list Delivery without metric:read", async ({ page }) => {
+        await deliveryFixture(page);
+        await page.route(
+          "**/v1/organizations/*/effective-access",
+          (route) => access(route, []),
+        );
+        await page.goto("/delivery");
+        await expect(page.getByRole("link", { name: "Projects", exact: true }))
+          .toBeVisible();
+        await expect(page.getByRole("link", { name: "Delivery", exact: true }))
+          .toHaveCount(0);
+      });
+    }
   });
 }

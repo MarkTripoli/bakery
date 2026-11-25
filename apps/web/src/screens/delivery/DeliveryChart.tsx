@@ -56,9 +56,11 @@ export function DeliveryChart(
     const to = across(Date.parse(gap.to));
     const left = Math.max(PAD.left, from - slot / 2);
     const right = Math.min(width - PAD.right, to + slot / 2);
+    const bandWidth = Math.max(3, right - left);
     return {
       left,
-      width: Math.max(3, right - left),
+      width: bandWidth,
+      labelVisible: bandWidth >= LABEL_WIDTH,
       key: `${gap.from}-${gap.to}`,
       label: gap.from === gap.to
         ? translate("delivery.chart.bandDay", {
@@ -68,9 +70,21 @@ export function DeliveryChart(
           from: day.format(new Date(gap.from)),
           to: day.format(new Date(gap.to)),
         }),
+      description: gap.from === gap.to
+        ? translate("delivery.chart.gapDay", {
+          date: day.format(new Date(gap.from)),
+        })
+        : translate("delivery.chart.gap", {
+          from: day.format(new Date(gap.from)),
+          to: day.format(new Date(gap.to)),
+        }),
       gap,
     };
   });
+  const gapCount = gaps.reduce((sum, gap) => sum + gap.points, 0);
+  const hiddenGapLabels = bands.flatMap((band) =>
+    band.labelVisible ? [] : [band.description]
+  );
   return (
     <UI.SettingsSection
       data-section="delivery-over-time"
@@ -120,7 +134,7 @@ export function DeliveryChart(
                     x={band.left}
                     y={PAD.top}
                   />
-                  {band.width < LABEL_WIDTH ? null : (
+                  {!band.labelVisible ? null : (
                     <text
                       fill="currentColor"
                       fontSize={11}
@@ -190,20 +204,13 @@ export function DeliveryChart(
             <UI.Text id={descriptionId} variant="muted">
               {gaps.length === 0
                 ? translate("delivery.chart.noGap", { unit: unitLabel })
+                : hiddenGapLabels.length === 0
+                ? translate("delivery.chart.gapCountLabeled", {
+                  count: gapCount,
+                })
                 : translate("delivery.chart.gapCount", {
-                  count: gaps.reduce((sum, gap) => sum + gap.points, 0),
-                  gaps: gaps
-                    .map((gap) =>
-                      gap.from === gap.to
-                        ? translate("delivery.chart.gapDay", {
-                          date: day.format(new Date(gap.from)),
-                        })
-                        : translate("delivery.chart.gap", {
-                          from: day.format(new Date(gap.from)),
-                          to: day.format(new Date(gap.to)),
-                        })
-                    )
-                    .join("; "),
+                  count: gapCount,
+                  gaps: hiddenGapLabels.join("; "),
                 })}
             </UI.Text>
           </>
