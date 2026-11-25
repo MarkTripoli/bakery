@@ -5808,6 +5808,29 @@ export const clientManifest = {
     },
     {
       "group": "Workers",
+      "method": "GET",
+      "path": "/v1/workers/{id}/attempts",
+      "action": "workerAttempts.list",
+      "access": "Developer",
+      "permission": "worker:read",
+      "input": "WorkerAttemptListQuery",
+      "output": "Page<WorkerAttemptRead>",
+      "event": "",
+      "mcp": "bakery_workerAttempts_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
       "method": "POST",
       "path": "/v1/worker-enrollments",
       "action": "workers.enroll",
@@ -14576,6 +14599,38 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Task-bound paginated attempt identity read. Rechecks current organization grants and active task, application, repository ownership."
     },
+    "WorkerAttemptListQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "now",
+            "needs_attention",
+            "finished"
+          ],
+          "description": "Which of the machine's attempts to list, as the server classifies them: now is a current attempt with a live lease, which holds a slot; needs_attention is lost, quarantined, superseded or expired-lease work whose outcome needs a look; finished is completed, failed or canceled work."
+        },
+        "cursor": {
+          "description": "Opaque continuation token from a prior page of this list for the same machine and state; rejected if replayed for another machine, state, principal or organization. WorkerAttemptListQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "Maximum attempts returned per page; defaults to 25 and cannot exceed 100. WorkerAttemptListQuery.limit must be at least 1. WorkerAttemptListQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "additionalProperties": false,
+      "description": "Query for one machine's attempts in one server-owned state, newest first."
+    },
     "AgentVersionCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -20741,6 +20796,7 @@ export const clientManifest = {
             "workerEnrollments.list",
             "machines.dispatchBlockers",
             "workers.get",
+            "workerAttempts.list",
             "workers.enroll",
             "workerEnrollments.get",
             "workerEnrollments.cancel",
@@ -38887,6 +38943,243 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of JobAttemptRead."
     },
+    "Page<WorkerAttemptRead>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable attempt identity."
+              },
+              "jobId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Execution job the attempt ran."
+              },
+              "taskId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Task the job belongs to, through its workflow run or its coordinator conversation; null for work with no task, such as a repository inspection."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkerAttemptRead.taskId may be null in this transport value."
+              },
+              "taskTitle": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Current title of that task, bounded to 200 characters; null when the job has no task."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkerAttemptRead.taskTitle may be null in this transport value."
+              },
+              "runStepId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Workflow run step the job executes; null for a standalone job."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkerAttemptRead.runStepId may be null in this transport value."
+              },
+              "stepKey": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Key of that run step; null for a standalone job."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkerAttemptRead.stepKey may be null in this transport value."
+              },
+              "jobAction": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Action the job performs, such as a coordinator turn or a repository inspection; shown when there is no step."
+              },
+              "codingAgent": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "pi",
+                      "claude_code",
+                      "codex",
+                      "mastra"
+                    ],
+                    "description": "Coding agent frozen on the job when it was created; null for work that runs no agent."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkerAttemptRead.codingAgent may be null in this transport value."
+              },
+              "model": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Model pinned on the job's billing when it was created; null for work that calls no model."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkerAttemptRead.model may be null in this transport value."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "leased",
+                  "running",
+                  "canceling",
+                  "completed",
+                  "failed",
+                  "canceled",
+                  "lost",
+                  "quarantined"
+                ],
+                "description": "Persisted attempt lifecycle."
+              },
+              "leaseState": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "expired",
+                  "lost",
+                  "closed",
+                  "unknown"
+                ],
+                "description": "Server-evaluated lease state at read time; superseded or quarantined attempts are unknown."
+              },
+              "startedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the worker started the attempt; null before it started."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkerAttemptRead.startedAt may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the attempt was assigned to the machine; stable keyset position."
+              }
+            },
+            "required": [
+              "id",
+              "jobId",
+              "taskId",
+              "taskTitle",
+              "runStepId",
+              "stepKey",
+              "jobAction",
+              "codingAgent",
+              "model",
+              "status",
+              "leaseState",
+              "startedAt",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One attempt a machine was assigned, with the work it ran and no credentials, lease tokens, fences, raw configuration, inputs or results."
+          },
+          "description": "WorkerAttemptRead items in this cursor page. Page<WorkerAttemptRead>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<WorkerAttemptRead>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<WorkerAttemptRead>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<WorkerAttemptRead>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<WorkerAttemptRead>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of WorkerAttemptRead."
+    },
     "NoContent": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "null",
@@ -51130,6 +51423,7 @@ export const clientManifest = {
                   "workerEnrollments.list",
                   "machines.dispatchBlockers",
                   "workers.get",
+                  "workerAttempts.list",
                   "workers.enroll",
                   "workerEnrollments.get",
                   "workerEnrollments.cancel",
@@ -52986,6 +53280,12 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
               },
+              "activeAttemptCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Attempts holding one of this machine's slots right now: leased, running or canceling with a lease that has not expired, the same count the scheduler admits new work against. It counts slot occupancy, not tasks or past work; slots minus this is free capacity."
+              },
               "lastHeartbeatAt": {
                 "anyOf": [
                   {
@@ -53102,6 +53402,7 @@ export const clientManifest = {
               "toolchainVersions",
               "slots",
               "status",
+              "activeAttemptCount",
               "lastHeartbeatAt",
               "credentialGeneration",
               "archivedAt",
@@ -74123,6 +74424,7 @@ export const clientManifest = {
             "workerEnrollments.list",
             "machines.dispatchBlockers",
             "workers.get",
+            "workerAttempts.list",
             "workers.enroll",
             "workerEnrollments.get",
             "workerEnrollments.cancel",
@@ -75679,6 +75981,12 @@ export const clientManifest = {
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
         },
+        "activeAttemptCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Attempts holding one of this machine's slots right now: leased, running or canceling with a lease that has not expired, the same count the scheduler admits new work against. It counts slot occupancy, not tasks or past work; slots minus this is free capacity."
+        },
         "lastHeartbeatAt": {
           "anyOf": [
             {
@@ -75795,6 +76103,7 @@ export const clientManifest = {
         "toolchainVersions",
         "slots",
         "status",
+        "activeAttemptCount",
         "lastHeartbeatAt",
         "credentialGeneration",
         "archivedAt",
@@ -80694,6 +81003,12 @@ export const clientManifest = {
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
                 },
+                "activeAttemptCount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Attempts holding one of this machine's slots right now: leased, running or canceling with a lease that has not expired, the same count the scheduler admits new work against. It counts slot occupancy, not tasks or past work; slots minus this is free capacity."
+                },
                 "lastHeartbeatAt": {
                   "anyOf": [
                     {
@@ -80810,6 +81125,7 @@ export const clientManifest = {
                 "toolchainVersions",
                 "slots",
                 "status",
+                "activeAttemptCount",
                 "lastHeartbeatAt",
                 "credentialGeneration",
                 "archivedAt",
