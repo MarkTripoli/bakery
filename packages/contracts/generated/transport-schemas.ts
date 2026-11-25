@@ -13575,9 +13575,10 @@ const transportSchemas = {
             "read",
             "write_idempotent",
             "write_reconcilable",
+            "write_async",
             "write_opaque"
           ],
-          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_async starts a remote operation under a Bakery-owned operation key that a paired read tool polls until it ends; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
         },
         {
           "name": "effectKeyArgument",
@@ -13587,7 +13588,7 @@ const transportSchemas = {
           "bounds": {
             "maxLength": 128
           },
-          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
+          "description": "For write_idempotent and write_async only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares; for write_async the paired read tool must declare it too."
         },
         {
           "name": "pairedReadTool",
@@ -13597,12 +13598,13 @@ const transportSchemas = {
           "bounds": {
             "maxLength": 128
           },
-          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
+          "description": "For write_reconcilable and write_async only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened or, for write_async, polls the operation it started."
         }
       ],
       "rules": [
-        "effectKeyArgument is required for write_idempotent and refused for any other class",
-        "pairedReadTool is required for write_reconcilable and refused for any other class",
+        "effectKeyArgument is required for write_idempotent and write_async and refused for any other class",
+        "pairedReadTool is required for write_reconcilable and write_async and refused for any other class",
+        "for write_async the paired read tool's input schema declares effectKeyArgument",
         "the tool must be in the connection's current snapshot"
       ],
       "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
@@ -35922,7 +35924,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "toolName": "string",
-        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
+        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_async|write_opaque)",
         "classified": "boolean",
         "effectKeyArgument": "string",
         "pairedReadTool": "string",
@@ -35935,8 +35937,8 @@ const transportSchemas = {
         "toolName": "The tool's name in the pinned snapshot.",
         "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
         "classified": "True once an Admin has classified this tool.",
-        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
-        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
+        "effectKeyArgument": "For write_idempotent and write_async, the argument that carries the effect key; otherwise null.",
+        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; for write_async, the read tool that polls the operation; otherwise null.",
         "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
         "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
         "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."

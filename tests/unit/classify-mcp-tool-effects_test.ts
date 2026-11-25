@@ -31,7 +31,7 @@ const tools = [
   {
     name: "get_issue",
     description: "",
-    inputSchema: { type: "object", properties: {} },
+    inputSchema: { type: "object", properties: { request_id: {} } },
   },
   { name: "bare", description: "", inputSchema: { type: "object" } },
 ];
@@ -277,6 +277,66 @@ Deno.test("a reconcilable write pairs only with a tool already classified read",
     "UNPROCESSABLE",
     "paired_read_not_read",
   );
+});
+
+Deno.test("an async write names a key both tools declare and polls through a read", async () => {
+  const classifiedRead = [
+    row({ tool_name: "get_issue", effect_class: "read" }),
+    row({ tool_name: "search", effect_class: "read" }),
+  ];
+  const cases: [string, Record<string, unknown>, string][] = [
+    ["async without a key", {
+      effectClass: "write_async",
+      pairedReadTool: "get_issue",
+    }, "effect_key_required"],
+    ["async without a poll", {
+      effectClass: "write_async",
+      effectKeyArgument: "request_id",
+    }, "paired_read_required"],
+    ["async polling itself", {
+      effectClass: "write_async",
+      effectKeyArgument: "request_id",
+      pairedReadTool: "create_issue",
+    }, "paired_read_is_self"],
+    ["async polling a tool that lacks the key", {
+      effectClass: "write_async",
+      effectKeyArgument: "request_id",
+      pairedReadTool: "search",
+    }, "async_poll_lacks_effect_key"],
+  ];
+  for (const [name, input, reason] of cases) {
+    const { context, writes } = stand({ rows: classifiedRead });
+    await refused(
+      () => putMcpToolClassification(context, input as never),
+      "UNPROCESSABLE",
+      reason,
+    );
+    assertEquals(writes, [], name);
+  }
+  const unread = stand();
+  await refused(
+    () =>
+      putMcpToolClassification(unread.context, {
+        effectClass: "write_async",
+        effectKeyArgument: "request_id",
+        pairedReadTool: "get_issue",
+      } as never),
+    "UNPROCESSABLE",
+    "paired_read_not_read",
+  );
+  const { context, writes } = stand({ rows: classifiedRead });
+  const saved = await putMcpToolClassification(context, {
+    effectClass: "write_async",
+    effectKeyArgument: "request_id",
+    pairedReadTool: "get_issue",
+  } as never);
+  assertEquals(saved.effectClass, "write_async");
+  assertEquals(writes.length, 1);
+  assertEquals(writes[0].values.slice(3, 6), [
+    "write_async",
+    "request_id",
+    "get_issue",
+  ]);
 });
 
 Deno.test("a first classification takes no version; a change must carry the one it read", async () => {
