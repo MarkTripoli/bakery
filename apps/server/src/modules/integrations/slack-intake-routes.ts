@@ -107,20 +107,31 @@ async function handleSlackEvent(
             findSlackInstallation(transaction, { appId, teamId }),
           controller.signal,
         ),
-      commit: ({ installation, eventId, payloadDigest, decision }) =>
-        withPgTransaction(
-          options.database,
-          (transaction) =>
-            commitSlackReceipt(transaction, {
-              installationId: installation.installationId,
-              appId: installation.appId,
-              eventId,
-              payloadDigest,
-              decision,
-              now: new Date(now()),
-            }),
-          controller.signal,
-        ),
+      commit: async ({ installation, eventId, payloadDigest, decision }) => {
+        try {
+          return await withPgTransaction(
+            options.database,
+            (transaction) =>
+              commitSlackReceipt(transaction, {
+                installationId: installation.installationId,
+                appId: installation.appId,
+                eventId,
+                payloadDigest,
+                decision,
+                now: new Date(now()),
+              }),
+            controller.signal,
+          );
+        } catch (error) {
+          if (decision.kind !== "ignore") {
+            throw new StandardError({
+              code: "DEPENDENCY_UNAVAILABLE",
+              cause: error,
+            });
+          }
+          throw error;
+        }
+      },
       sha256Hex,
       now,
     });

@@ -668,6 +668,7 @@ export async function queueAgentRequest(
     organizationId: string;
     conversationId: string;
     authorId: string;
+    messageType?: "human" | "system";
     body: string;
     clientMessageId: string;
     scope: ScopeFacts;
@@ -703,12 +704,13 @@ export async function queueAgentRequest(
     `insert into bakery.messages (
        organization_id, conversation_id, author_id, message_type, body,
        client_message_id, sequence, intent
-     ) values ($1, $2, $3, 'system', $4, $5, $6, 'agent_request')
+     ) values ($1, $2, $3, $4, $5, $6, $7, 'agent_request')
      returning id`,
     [
       organizationId,
       facts.conversationId,
       facts.authorId,
+      facts.messageType ?? "system",
       facts.body,
       facts.clientMessageId,
       sequence,

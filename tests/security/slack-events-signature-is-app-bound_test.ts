@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { sha256Hex } from "../../apps/server/src/modules/integrations/intake-signature.ts";
 import { receiveSlackEvent } from "../../apps/server/src/modules/integrations/slack-intake.ts";
 import type { SlackInstallationRecord } from "../../apps/server/src/modules/integrations/slack-receipts.ts";
@@ -84,6 +84,7 @@ Deno.test("a Slack app signature cannot authorize another app", async () => {
       return Promise.resolve({
         kind: "recorded",
         receiptId: crypto.randomUUID(),
+        outcome: "accepted",
       });
     },
     sha256Hex,
@@ -131,31 +132,34 @@ Deno.test("a Slack receipt cannot bind one app to another app's installation", a
     );
     assert(firstRegistration.ok);
     assert(secondRegistration.ok);
-    await assertRejects(
-      () =>
-        withPgTransaction(
-          fixture.runtimePgDatabase,
-          (transaction) =>
-            commitSlackReceipt(transaction, {
-              installationId: secondRegistration.installation.installationId,
-              appId: first.appId,
+    assertEquals(
+      await withPgTransaction(
+        fixture.runtimePgDatabase,
+        (transaction) =>
+          commitSlackReceipt(transaction, {
+            installationId: secondRegistration.installation.installationId,
+            appId: first.appId,
+            eventId: "EvAppBound1",
+            payloadDigest: "a".repeat(64),
+            decision: {
+              kind: "mention",
               eventId: "EvAppBound1",
-              payloadDigest: "a".repeat(64),
-              decision: {
-                kind: "mention",
-                eventId: "EvAppBound1",
-                channelId: "C0CHANNEL",
-                userId: "U0AUTHOR",
-                ts: "1.1",
-                threadTs: "1.1",
-                text: "secure",
-              },
-              now: new Date(),
-            }),
-        ),
-      Error,
-      "violates foreign key constraint",
+              channelId: "C0CHANNEL",
+              userId: "U0AUTHOR",
+              ts: "1.1",
+              threadTs: "1.1",
+              text: "secure",
+            },
+            now: new Date(),
+          }),
+      ),
+      { kind: "inactive" },
     );
+    const receipts = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.slack_event_receipts
+        where event_id = 'EvAppBound1'`,
+    );
+    assertEquals(receipts.rows[0]?.count, "0");
   } finally {
     await fixture.finish();
   }

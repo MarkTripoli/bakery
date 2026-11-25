@@ -91,7 +91,11 @@ function harness(
         if (options.commitThrows) return Promise.reject(new Error("db down"));
         commits.push(input);
         return Promise.resolve(
-          options.commitResult ?? { kind: "recorded", receiptId: "rcpt-1" },
+          options.commitResult ?? {
+            kind: "recorded",
+            receiptId: "rcpt-1",
+            outcome: input.decision.kind === "ignore" ? "ignored" : "accepted",
+          },
         );
       },
       sha256Hex,
@@ -198,6 +202,21 @@ Deno.test("a mention commits its receipt, then is acknowledged as accepted", asy
   assertEquals(h.commits[0]!.eventId, "Ev1");
   assertEquals(h.commits[0]!.decision.kind, "mention");
   assertEquals(h.commits[0]!.payloadDigest.length, 64);
+});
+
+Deno.test("a mention rejected during durable admission is not acknowledged as accepted", async () => {
+  const h = harness({
+    commitResult: {
+      kind: "recorded",
+      receiptId: "rcpt-1",
+      outcome: "ignored",
+    } as unknown as CommitSlackReceiptResult,
+  });
+  assertEquals(await deliver(h.deps, mention()), {
+    kind: "acknowledged",
+    disposition: "rejected",
+    receiptId: "rcpt-1",
+  });
 });
 
 Deno.test("an ignored event commits a receipt carrying no text, and is rejected, not accepted", async () => {

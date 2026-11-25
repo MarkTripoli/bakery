@@ -139,7 +139,7 @@ export async function receiveSlackEvent(
     case "recorded":
       return {
         kind: "acknowledged",
-        disposition: decision.kind === "ignore" ? "rejected" : "accepted",
+        disposition: committed.outcome === "ignored" ? "rejected" : "accepted",
         receiptId: committed.receiptId,
       };
     case "duplicate":

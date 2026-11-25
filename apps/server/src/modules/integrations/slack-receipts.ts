@@ -1,5 +1,6 @@
 import type { PgTransactionClient } from "@bakery/persistence";
 import { z } from "zod";
+import { queueAgentRequest } from "../conversation/questions.ts";
 import {
   isSlackAppId,
   isSlackEnterpriseId,
@@ -7,6 +8,7 @@ import {
   isSlackUserId,
   type SlackInstallation,
 } from "./slack-scope.ts";
+import { findSlackIdentityLink } from "./slack-identity-links.ts";
 import { SLACK_IGNORE_REASONS } from "./slack-request.ts";
 
 export const SLACK_RECEIPT_RETENTION_DAYS = 7;
@@ -200,7 +202,11 @@ export type PersistedSlackDecision = z.output<
 >;
 
 export type CommitSlackReceiptResult =
-  | { readonly kind: "recorded"; readonly receiptId: string }
+  | {
+    readonly kind: "recorded";
+    readonly receiptId: string;
+    readonly outcome: SlackReceiptOutcome;
+  }
   | {
     readonly kind: "duplicate";
     readonly receiptId: string;
@@ -209,6 +215,115 @@ export type CommitSlackReceiptResult =
   | { readonly kind: "conflict" }
   | { readonly kind: "inactive" }
   | { readonly kind: "malformed" };
+
+type ActiveSlackInstallation = {
+  readonly organizationId: string;
+  readonly teamId: string;
+};
+
+type SlackReceiptWork = Exclude<
+  PersistedSlackDecision,
+  { readonly kind: "ignore" }
+>;
+
+async function findOrCreateSlackConversation(
+  transaction: PgTransactionClient,
+  installation: ActiveSlackInstallation & { readonly installationId: string },
+  principalId: string,
+  work: SlackReceiptWork,
+): Promise<string | null> {
+  await transaction.query(
+    `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+    [
+      `slack-thread:${installation.installationId}:${work.channelId}:${work.threadTs}`,
+    ],
+  );
+  const existing = await transaction.query<{ conversationId: string }>(
+    `select conversation_id as "conversationId"
+       from bakery.slack_thread_bindings
+      where organization_id = $1 and installation_id = $2
+        and channel_id = $3 and thread_ts = $4`,
+    [
+      installation.organizationId,
+      installation.installationId,
+      work.channelId,
+      work.threadTs,
+    ],
+  );
+  if (existing.rows[0]) return existing.rows[0].conversationId;
+  if (work.kind === "thread_reply") return null;
+  const opened = await transaction.query<{ id: string }>(
+    `insert into bakery.conversations (organization_id, title, created_by)
+     values ($1, 'Slack thread', $2) returning id`,
+    [installation.organizationId, principalId],
+  );
+  const conversationId = opened.rows[0]?.id;
+  if (!conversationId) throw new Error("SLACK_CONVERSATION_INSERT_FAILED");
+  await transaction.query(
+    `insert into bakery.slack_thread_bindings (
+       id, organization_id, installation_id, channel_id, thread_ts,
+       conversation_id, created_by)
+     values ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      crypto.randomUUID(),
+      installation.organizationId,
+      installation.installationId,
+      work.channelId,
+      work.threadTs,
+      conversationId,
+      principalId,
+    ],
+  );
+  return conversationId;
+}
+
+async function handoffSlackWork(
+  transaction: PgTransactionClient,
+  input: {
+    readonly installation: ActiveSlackInstallation & {
+      readonly installationId: string;
+    };
+    readonly appId: string;
+    readonly eventId: string;
+    readonly work: SlackReceiptWork;
+  },
+): Promise<boolean> {
+  const link = await findSlackIdentityLink(transaction, {
+    organizationId: input.installation.organizationId,
+    appId: input.appId,
+    teamId: input.installation.teamId,
+    userId: input.work.userId,
+  });
+  if (!link || link.state !== "active" || !link.memberCurrent) return false;
+  const conversationId = await findOrCreateSlackConversation(
+    transaction,
+    input.installation,
+    link.principalId,
+    input.work,
+  );
+  if (conversationId === null) return false;
+  const scope = await transaction.query<{
+    application_id: string | null;
+    repository_id: string | null;
+  }>(
+    `select application_id, repository_id from bakery.conversations
+      where organization_id = $1 and id = $2 for update`,
+    [input.installation.organizationId, conversationId],
+  );
+  const conversationScope = scope.rows[0];
+  if (!conversationScope) throw new Error("SLACK_CONVERSATION_MISSING");
+  await queueAgentRequest(transaction, {
+    organizationId: input.installation.organizationId,
+    conversationId,
+    authorId: link.principalId,
+    messageType: "human",
+    body: input.work.text,
+    clientMessageId: `slack:${input.appId}:${input.eventId}`,
+    scope: { ...conversationScope, task_id: null },
+    traceId: crypto.randomUUID(),
+  });
+  return true;
+}
 
 export async function commitSlackReceipt(
   transaction: PgTransactionClient,
@@ -231,24 +346,26 @@ export async function commitSlackReceipt(
   if (work !== null && work.eventId !== input.eventId) {
     return { kind: "malformed" };
   }
-  const installation = await transaction.query(
-    `select 1 from bakery.slack_installations
+  const found = await transaction.query<ActiveSlackInstallation>(
+    `select organization_id as "organizationId", team_id as "teamId"
+       from bakery.slack_installations
       where app_id = $1 and id = $2 and status = 'active'
       for share`,
     [input.appId, input.installationId],
   );
-  if (installation.rows.length !== 1) return { kind: "inactive" };
+  const active = found.rows[0];
+  if (!active) return { kind: "inactive" };
+  const receiptId = crypto.randomUUID();
+  const outcome: SlackReceiptOutcome = work === null ? "ignored" : "accepted";
+  const status = work === null ? "ignored" : "pending";
   const expiresAt = new Date(
     input.now.getTime() + SLACK_RECEIPT_RETENTION_DAYS * 86_400_000,
   );
-  const receiptId = crypto.randomUUID();
-  const outcome: SlackReceiptOutcome = work === null ? "ignored" : "accepted";
   const inserted = await transaction.query(
     `insert into bakery.slack_event_receipts (
        id, app_id, event_id, installation_id, payload_digest, outcome,
-       processing_intent, channel_id, user_id, event_ts, thread_ts,
-       message_text, received_at, expires_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       status, received_at, processed_at, expires_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      on conflict (app_id, event_id) do nothing`,
     [
       receiptId,
@@ -257,31 +374,51 @@ export async function commitSlackReceipt(
       input.installationId,
       input.payloadDigest,
       outcome,
-      work?.kind ?? null,
-      work?.channelId ?? null,
-      work?.userId ?? null,
-      work?.ts ?? null,
-      work?.threadTs ?? null,
-      work?.text ?? null,
+      status,
+      input.now,
+      work === null ? input.now : null,
+      expiresAt,
+    ],
+  );
+  if (inserted.rowCount !== 1) {
+    const existing = await transaction.query<{
+      id: string;
+      payloadDigest: string;
+      outcome: SlackReceiptOutcome;
+    }>(
+      `select id, payload_digest as "payloadDigest", outcome
+         from bakery.slack_event_receipts
+        where app_id = $1 and event_id = $2`,
+      [input.appId, input.eventId],
+    );
+    const row = existing.rows[0]!;
+    return row.payloadDigest === input.payloadDigest
+      ? { kind: "duplicate", receiptId: row.id, outcome: row.outcome }
+      : { kind: "conflict" };
+  }
+  if (work === null) return { kind: "recorded", receiptId, outcome };
+  const handedOff = await handoffSlackWork(transaction, {
+    installation: { ...active, installationId: input.installationId },
+    appId: input.appId,
+    eventId: input.eventId,
+    work,
+  });
+  const settledOutcome: SlackReceiptOutcome = handedOff
+    ? "accepted"
+    : "ignored";
+  await transaction.query(
+    `update bakery.slack_event_receipts
+        set outcome = $2, status = $3, processed_at = $4, expires_at = $5
+      where id = $1`,
+    [
+      receiptId,
+      settledOutcome,
+      handedOff ? "completed" : "ignored",
       input.now,
       expiresAt,
     ],
   );
-  if (inserted.rowCount === 1) return { kind: "recorded", receiptId };
-  const existing = await transaction.query<{
-    id: string;
-    payloadDigest: string;
-    outcome: SlackReceiptOutcome;
-  }>(
-    `select id, payload_digest as "payloadDigest", outcome
-       from bakery.slack_event_receipts
-      where app_id = $1 and event_id = $2`,
-    [input.appId, input.eventId],
-  );
-  const row = existing.rows[0]!;
-  return row.payloadDigest === input.payloadDigest
-    ? { kind: "duplicate", receiptId: row.id, outcome: row.outcome }
-    : { kind: "conflict" };
+  return { kind: "recorded", receiptId, outcome: settledOutcome };
 }
 
 export type SlackReceiptSweepResult = {
@@ -307,7 +444,8 @@ export async function sweepExpiredSlackReceipts(
     const removed = await database.query(
       `with doomed as materialized (
          select id from bakery.slack_event_receipts
-          where expires_at <= $1 and outcome = 'ignored'
+          where expires_at <= $1
+            and status in ('completed', 'ignored', 'failed')
           order by expires_at, id
           limit $2
           for update skip locked
