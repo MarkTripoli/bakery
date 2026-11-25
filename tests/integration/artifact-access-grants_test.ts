@@ -272,6 +272,24 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
           { method: "POST", body: { body: "Looks right to me." } },
         );
         assertEquals(posted.status, 201, await posted.text());
+        const listed = await json<
+          { items: { authorId: string; authorName?: string | null }[] }
+        >(
+          await as(ana, `/v1/artifact-versions/${version}/comments?limit=50`),
+          200,
+        );
+        const names = (await db.query<{ id: string; display_name: string }>(
+          "select id, display_name from bakery.principals where id = any($1)",
+          [listed.items.map((item) => item.authorId)],
+        )).rows;
+        assert(listed.items.length > 0);
+        for (const item of listed.items) {
+          assertEquals(
+            item.authorName,
+            names.find((n: { id: string }) => n.id === item.authorId)
+              ?.display_name,
+          );
+        }
         // Not the task, not publishing, not resharing, not the grant list's writes.
         assertDenied(await status(await as(ana, `/v1/tasks/${f.taskId}`)));
         // The editor is closed at read_comment and open at edit: opening a draft

@@ -22202,6 +22202,7 @@ const transportSchemas = {
         "id",
         "artifactVersionId",
         "authorId",
+        "authorName",
         "body",
         "anchor",
         "status",
@@ -22218,6 +22219,7 @@ const transportSchemas = {
         "id": "uuid",
         "artifactVersionId": "uuid",
         "authorId": "uuid",
+        "authorName": "string|null",
         "body": "string|null",
         "anchor": "CommentAnchor|null",
         "status": "enum(open|resolved)|null",
@@ -22241,12 +22243,14 @@ const transportSchemas = {
       ],
       "description": "placement is derived only when viewVersionId is requested and never changes the stored anchor. Deleted rows expose body:null and redact quote/context text from both original and placement anchors, retaining their kind and position.",
       "optionalFields": [
+        "authorName",
         "placement"
       ],
       "fieldDescriptions": {
         "id": "Stable UUID identifying the artifact comment record.",
         "artifactVersionId": "Stable UUID linking this record to the related artifact version entity.",
         "authorId": "Stable UUID linking this record to the related author entity.",
+        "authorName": "Display name of the comment's author, shown to every reader who can see the comment, including a reader with a grant to the document alone; null when the author has no display name.",
         "body": "User-visible body content carried by the record.",
         "anchor": "Source location anchored by the comment.",
         "status": "Current lifecycle status of the record.",
