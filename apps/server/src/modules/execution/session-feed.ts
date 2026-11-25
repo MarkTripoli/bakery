@@ -16,23 +16,21 @@ type PageInput = { cursor?: string; limit?: number; sequenceAfter?: string };
 
 type SessionFeedRow = {
   id: string;
+  source_kind: "message" | "tool";
   conversation_id: string;
   author_id: string | null;
   agent_session_id: string | null;
-  message_type: string;
-  body: string;
-  intent: string;
+  message_type: string | null;
+  body: string | null;
+  intent: string | null;
   sequence: string;
   created_at: Date | string;
+  tool_call_id: string | null;
+  tool_name: string | null;
+  tool_phase: "started" | "completed" | "failed" | null;
+  tool_ok: boolean | null;
 };
 
-/**
- * Whether an item had secret material withheld from it.
- *
- * No current source can carry such material: the projection reads attributed
- * message columns only. A source that can must compute this per item instead of
- * reusing this constant.
- */
 const PROJECTION_WITHHOLDS_NOTHING = false;
 
 function iso(value: Date | string): string {
@@ -47,13 +45,6 @@ function sessionPathId(context: ActionContext): string {
   return id;
 }
 
-/**
- * A feed item's kind is derived from the stored message, never sent by a
- * client. An `agent_request` message is what a person or the system delivered
- * into the session, which is what a watcher sees as a delivered input; every
- * other intent is a plain attributed message (the harness speaking, or
- * discussion).
- */
 function feedKind(row: SessionFeedRow): "message" | "delivered_input" {
   return row.intent === "agent_request" ? "delivered_input" : "message";
 }
@@ -64,28 +55,6 @@ function authorKind(row: SessionFeedRow): "person" | "agent" | "system" {
   return "person";
 }
 
-/**
- * One page of a session's live feed.
- *
- * The feed is a typed view over what a session actually produced, keyed by
- * session and ordered forward by (sequence, id). Every item carries exactly the
- * payload its `kind` names; the other payload fields stay null so a reader can
- * switch on `kind` without guessing. An item is never dropped in favour of a
- * partial one, so a client resuming from its last sequence sees a gapless
- * continuation.
- *
- * Redaction has two gates, and the mapper is the one that holds. The mapper
- * builds each item from named fields, so a column the SELECT happens to return
- * still cannot reach the wire: widening the SELECT alone leaves every test
- * green, while spreading the raw row into the item leaks at once. The SELECT is
- * the second gate, not the first, and no column it reads today holds secret
- * ciphertext, a lease token or a raw provider payload. A message body is
- * authored by a person, and text a person typed is their message, not a server
- * secret, so the feed republishes it verbatim rather than guessing at what
- * inside it looks secret. A future source that can carry real secret material
- * (harness terminal or tool output) must redact per item and set `redacted`
- * from that, never reuse the constant below.
- */
 export function createSessionFeedHandler(secret: string) {
   return async function sessionFeed(
     context: ActionContext,
@@ -133,26 +102,52 @@ export function createSessionFeedHandler(secret: string) {
       ? position?.id ?? null
       : null;
     const result = await transaction.query<SessionFeedRow>(
-      `select message.id, message.conversation_id, message.author_id,
-              message.agent_session_id, message.message_type, message.body,
-              message.intent, message.sequence::text, message.created_at
-         from bakery.messages message
-        where message.organization_id = $1
-          and message.conversation_id = $2
-          and (
-            $3::bigint is null or
-            (message.sequence, message.id) > ($3::bigint, $4::uuid)
-          )
-          and (
-            not $6::boolean or message.agent_session_id = $7::uuid or exists (
-              select 1 from bakery.decisions_ledger steer
-               where steer.organization_id = message.organization_id
-                 and steer.kind = 'steer' and steer.subject_kind = 'session'
-                 and steer.subject_id = $7::uuid
-                 and steer.detail ->> 'messageId' = message.id::text
-            )
-          )
-        order by message.sequence asc, message.id asc
+      `select feed.id, feed.source_kind, feed.conversation_id,
+              feed.author_id, feed.agent_session_id, feed.message_type,
+              feed.body, feed.intent, feed.sequence::text, feed.created_at,
+              feed.tool_call_id, feed.tool_name, feed.tool_phase, feed.tool_ok
+         from (
+           select message.id, 'message'::text as source_kind,
+                  message.conversation_id, message.author_id,
+                  message.agent_session_id, message.message_type, message.body,
+                  message.intent, message.sequence, message.created_at,
+                  null::uuid as tool_call_id, null::text as tool_name,
+                  null::text as tool_phase, null::boolean as tool_ok
+             from bakery.messages message
+            where message.organization_id = $1
+              and message.conversation_id = $2
+              and (
+                not $6::boolean or message.agent_session_id = $7::uuid or exists (
+                  select 1 from bakery.decisions_ledger steer
+                   where steer.organization_id = message.organization_id
+                     and steer.kind = 'steer'
+                     and steer.subject_kind = 'session'
+                     and steer.subject_id = $7::uuid
+                     and steer.detail ->> 'messageId' = message.id::text
+                )
+              )
+           union all
+           select event.id, 'tool'::text as source_kind,
+                  event.conversation_id, null::uuid as author_id,
+                  event.agent_session_id, null::text as message_type,
+                  null::text as body, null::text as intent, event.sequence,
+                  event.occurred_at as created_at,
+                  event.tool_gateway_call_id as tool_call_id,
+                  call.effective_name as tool_name, event.phase as tool_phase,
+                  event.ok as tool_ok
+             from bakery.session_tool_feed_events event
+             join bakery.tool_gateway_calls call
+               on call.organization_id = event.organization_id
+              and call.id = event.tool_gateway_call_id
+            where event.organization_id = $1
+              and event.conversation_id = $2
+              and event.agent_session_id = $7::uuid
+         ) feed
+        where (
+          $3::bigint is null or
+          (feed.sequence, feed.id) > ($3::bigint, $4::uuid)
+        )
+        order by feed.sequence asc, feed.id asc
         limit $5`,
       [
         organizationId,
@@ -168,8 +163,40 @@ export function createSessionFeedHandler(secret: string) {
     const visible = result.rows.slice(0, limit);
     const last = visible.at(-1);
     const items = visible.map((row) => {
+      if (row.source_kind === "tool") {
+        if (
+          row.tool_call_id === null ||
+          row.tool_name === null ||
+          row.tool_phase === null
+        ) throw new Error("TOOL_FEED_EVENT_INVALID");
+        return {
+          id: row.id,
+          sessionId: id,
+          sequence: row.sequence,
+          kind: "tool" as const,
+          occurredAt: iso(row.created_at),
+          redacted: PROJECTION_WITHHOLDS_NOTHING,
+          message: null,
+          terminal: null,
+          status: null,
+          tool: {
+            callId: row.tool_call_id,
+            name: row.tool_name,
+            phase: row.tool_phase,
+            ok: row.tool_ok,
+          },
+          fileChange: null,
+          artifact: null,
+          usage: null,
+          deliveredInput: null,
+        };
+      }
+      if (
+        row.body === null ||
+        row.message_type === null ||
+        row.intent === null
+      ) throw new Error("MESSAGE_FEED_EVENT_INVALID");
       const kind = feedKind(row);
-      const body = row.body;
       return {
         id: row.id,
         sessionId: id,
@@ -183,7 +210,7 @@ export function createSessionFeedHandler(secret: string) {
             authorId: row.author_id,
             authorKind: authorKind(row),
             messageType: row.message_type,
-            body,
+            body: row.body,
           }
           : null,
         terminal: null,
@@ -193,7 +220,7 @@ export function createSessionFeedHandler(secret: string) {
         artifact: null,
         usage: null,
         deliveredInput: kind === "delivered_input"
-          ? { messageId: row.id, body }
+          ? { messageId: row.id, body: row.body }
           : null,
       };
     });

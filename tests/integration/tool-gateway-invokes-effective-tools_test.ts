@@ -104,6 +104,18 @@ type Session = {
   snapshotId: string;
 };
 
+type ToolFeedItem = {
+  kind: string;
+  sequence: string;
+  message: { body: string } | null;
+  tool: {
+    callId: string;
+    name: string;
+    phase: "started" | "completed" | "failed";
+    ok: boolean | null;
+  } | null;
+};
+
 /** A claimed attempt in a workflow run, and an enabled MCP connection. */
 async function session(
   fixture: WorkerFixture,
@@ -330,6 +342,43 @@ function invoke(
   );
 }
 
+async function agentSessionId(
+  fixture: WorkerFixture,
+  s: Session,
+): Promise<string> {
+  const found = await fixture.pgDatabase.query<{ id: string }>(
+    `select session.id
+       from bakery.job_attempts attempt
+       join bakery.jobs job
+         on job.organization_id = attempt.organization_id
+        and job.id = attempt.job_id
+       join bakery.agent_sessions session
+         on session.organization_id = job.organization_id
+        and session.run_step_id = job.run_step_id
+      where attempt.organization_id = $1 and attempt.id = $2
+      order by session.created_at, session.id
+      limit 1`,
+    [fixture.organizationId, s.assignment.attemptId],
+  );
+  const id = found.rows[0]?.id;
+  assert(typeof id === "string");
+  return id;
+}
+
+async function sessionFeed(
+  fixture: WorkerFixture,
+  s: Session,
+): Promise<ToolFeedItem[]> {
+  const response = await adminRequest(
+    fixture,
+    `/v1/sessions/${await agentSessionId(fixture, s)}/feed`,
+    undefined,
+    { method: "GET" },
+  );
+  assertEquals(response.status, 200, await response.clone().text());
+  return (await response.json() as { items: ToolFeedItem[] }).items;
+}
+
 function withGateway(
   body: (
     fixture: WorkerFixture,
@@ -417,6 +466,42 @@ Deno.test("a session lists only the tools its step binds and calls one through t
       [fixture.organizationId, s.assignment.attemptId],
     );
     assertEquals(recorded.rows.map((row) => row.status), ["completed"]);
+  }));
+
+Deno.test("a remote tool call appends ordered lifecycle items once (#435)", () =>
+  withGateway(async (fixture, server) => {
+    const s = await session(fixture);
+    await bind(fixture, s, { stepKey: "worker" }, ["search"]);
+
+    const key = crypto.randomUUID();
+    const called = await invoke(fixture, s, "search", { query: "bakery" }, key);
+    assertEquals(called.status, 200, await called.clone().text());
+
+    const first = await sessionFeed(fixture, s);
+    assertEquals(first.map((item) => item.kind), ["tool", "tool"]);
+    assertEquals(first.map((item) => item.sequence), ["1", "2"]);
+    assertEquals(
+      first.filter((item) => item.tool !== null).map((item) => ({
+        name: item.tool!.name,
+        phase: item.tool!.phase,
+        ok: item.tool!.ok,
+      })),
+      [
+        { name: "search", phase: "started", ok: null },
+        { name: "search", phase: "completed", ok: true },
+      ],
+    );
+
+    const replay = await invoke(
+      fixture,
+      s,
+      "search",
+      { query: "bakery" },
+      key,
+    );
+    assertEquals(replay.status, 200, await replay.clone().text());
+    assertEquals(await sessionFeed(fixture, s), first);
+    assertEquals(server.calls.length, 1);
   }));
 
 Deno.test("two calls at once with one key send once; the other is a replay, never a 500 (#436)", () =>

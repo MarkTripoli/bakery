@@ -15,6 +15,7 @@ import {
   sessionToolScope,
 } from "../mcp/tool-gateway.ts";
 import { assertActiveLease, lockAttempt } from "./events.ts";
+import { appendSessionToolFeedEvent } from "./session-tool-feed.ts";
 import { jsonResponse, parseContract } from "./http.ts";
 import {
   assertAttemptMutationSession,
@@ -173,6 +174,14 @@ export function brokerResult(toolName: string, output: unknown) {
     : [{ type: "text", text: JSON.stringify(output ?? null) }];
   return { toolName, content, isError: false, fault: null };
 }
+function completedToolOk(result: unknown): boolean {
+  return !(
+    result !== null &&
+    typeof result === "object" &&
+    "isError" in result &&
+    result.isError === true
+  );
+}
 
 function failedResult(toolName: string, code: string) {
   return {
@@ -197,22 +206,38 @@ async function settle(
     }
   >,
 ): Promise<void> {
-  await workerTransaction(options.database, headers, async (transaction) => {
-    await transaction.query(
-      `update bakery.tool_gateway_calls
-          set status = $2, result = $3::jsonb, failure_code = $4,
-              settled_at = now()
-        where id = $1 and status = 'sent'`,
-      [
+  await workerTransaction(
+    options.database,
+    headers,
+    async (transaction, identity) => {
+      const organizationId = identity.host.organization_id;
+      const updated = await transaction.query<{ id: string }>(
+        `update bakery.tool_gateway_calls
+            set status = $3, result = $4::jsonb, failure_code = $5,
+                settled_at = now()
+          where organization_id = $1 and id = $2 and status = 'sent'
+          returning id`,
+        [
+          organizationId,
+          callId,
+          outcome.status,
+          outcome.status === "completed"
+            ? JSON.stringify(outcome.result ?? null)
+            : null,
+          outcome.status === "failed" ? outcome.code : null,
+        ],
+      );
+      if (updated.rows[0] === undefined) return;
+      await appendSessionToolFeedEvent(transaction, {
+        organizationId,
         callId,
-        outcome.status,
-        outcome.status === "completed"
-          ? JSON.stringify(outcome.result ?? null)
-          : null,
-        outcome.status === "failed" ? outcome.code : null,
-      ],
-    );
-  });
+        phase: outcome.status,
+        ok: outcome.status === "completed"
+          ? completedToolOk(outcome.result)
+          : false,
+      });
+    },
+  );
 }
 
 function gatewayCallDigest(
@@ -256,8 +281,9 @@ async function recordSentCall(
   const inserted = await transaction.query<{ id: string }>(
     `insert into bakery.tool_gateway_calls (
        organization_id, attempt_id, idempotency_key, mcp_connection_id,
-       tool_name, snapshot_digest, arguments_digest, read_only, status
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8, 'sent')
+       tool_name, effective_name, snapshot_digest, arguments_digest, read_only,
+       status
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'sent')
      on conflict (organization_id, attempt_id, idempotency_key)
        do nothing
      returning id`,
@@ -267,13 +293,22 @@ async function recordSentCall(
       call.idempotencyKey,
       call.tool.connectionId,
       call.tool.toolName,
+      call.tool.name,
       call.tool.snapshotDigest,
       call.argumentsDigest,
       call.tool.readOnly,
     ],
   );
   const callId = inserted.rows[0]?.id;
-  if (callId !== undefined) return { kind: "sent", callId };
+  if (callId !== undefined) {
+    await appendSessionToolFeedEvent(transaction, {
+      organizationId: call.organizationId,
+      callId,
+      phase: "started",
+      ok: null,
+    });
+    return { kind: "sent", callId };
+  }
   const raced = await readGatewayCall(
     transaction,
     call.organizationId,
@@ -707,6 +742,14 @@ export async function localToolCallOutcomeRoute(
           identity.host.id,
         ],
       );
+      if (updated.rows[0] !== undefined) {
+        await appendSessionToolFeedEvent(transaction, {
+          organizationId: identity.host.organization_id,
+          callId: callId.data,
+          phase: input.status,
+          ok: input.status === "completed" ? input.isError !== true : false,
+        });
+      }
       return updated.rows[0] ?? null;
     },
   );

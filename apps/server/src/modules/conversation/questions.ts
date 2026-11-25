@@ -16,6 +16,7 @@ import {
   encodeCursor,
 } from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { allocateConversationFeedSequence } from "./feed-sequence.ts";
 import { mayActOnQuestion } from "../auth/application/run-grants.ts";
 import { completeRequestsOnQuestion } from "../work/run-requests.ts";
 import type { CoordinatorEffect } from "./coordinator.ts";
@@ -691,14 +692,11 @@ export async function queueAgentRequest(
     transaction,
     organizationId,
   );
-  const next = await transaction.query<{ sequence: string }>(
-    `select (coalesce(max(sequence), 0) + 1)::text as sequence
-       from bakery.messages
-      where organization_id = $1 and conversation_id = $2`,
-    [organizationId, facts.conversationId],
+  const sequence = await allocateConversationFeedSequence(
+    transaction,
+    organizationId,
+    facts.conversationId,
   );
-  const sequence = next.rows[0]?.sequence;
-  if (!sequence) throw new Error("MESSAGE_SEQUENCE_UNAVAILABLE");
   const message = await transaction.query<{ id: string }>(
     `insert into bakery.messages (
        organization_id, conversation_id, author_id, message_type, body,

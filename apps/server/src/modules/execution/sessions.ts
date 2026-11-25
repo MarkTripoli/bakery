@@ -33,6 +33,7 @@ import {
   type SteeringMode,
 } from "./adapter-capabilities.ts";
 import { enqueueWorkerControlCommand } from "./coordination.ts";
+import { allocateConversationFeedSequence } from "../conversation/feed-sequence.ts";
 
 type SessionRow = {
   id: string;
@@ -404,14 +405,11 @@ export async function steerAgentSession(
     });
   }
 
-  const next = await transaction.query<{ sequence: string }>(
-    `select (coalesce(max(sequence), 0) + 1)::text as sequence
-       from bakery.messages
-      where organization_id = $1 and conversation_id = $2`,
-    [organizationId, session.conversation_id],
+  const sequence = await allocateConversationFeedSequence(
+    transaction,
+    organizationId,
+    session.conversation_id,
   );
-  const sequence = next.rows[0]?.sequence;
-  if (!sequence) throw new Error("MESSAGE_SEQUENCE_UNAVAILABLE");
   const inserted = await transaction.query<MessageRow>(
     `insert into bakery.messages (
        organization_id, conversation_id, author_id, message_type, body,
