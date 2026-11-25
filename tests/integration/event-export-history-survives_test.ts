@@ -354,7 +354,7 @@ Deno.test("deleting a subscription cannot erase delivery history", async () => {
           ],
         ),
       Error,
-      "violates foreign key constraint",
+      "foreign key constraint",
     );
 
     const remaining = await q<{ count: number }>(
@@ -403,7 +403,7 @@ Deno.test("a subscription cannot reach another connection's destination or sourc
           resourceId,
         ]),
       Error,
-      "violates foreign key constraint",
+      "foreign key constraint",
     );
 
     // Its own connection, another connection's source resource.
@@ -418,7 +418,7 @@ Deno.test("a subscription cannot reach another connection's destination or sourc
           otherResourceId,
         ]),
       Error,
-      "violates foreign key constraint",
+      "foreign key constraint",
     );
 
     // The matching pair is accepted, so the refusals above are about the
@@ -444,7 +444,7 @@ Deno.test("a subscription cannot reach another connection's destination or sourc
           `identity-${crypto.randomUUID()}`,
         ]),
       Error,
-      "violates foreign key constraint",
+      "foreign key constraint",
     );
 
     const accepted = await q<{ count: number }>(
@@ -495,7 +495,7 @@ Deno.test("a connection with history is deleted only after its history is swept"
           connectionId,
         ]),
       Error,
-      "violates foreign key constraint",
+      "foreign key constraint",
     );
 
     // The application role cannot sweep history, and that is the point: it holds

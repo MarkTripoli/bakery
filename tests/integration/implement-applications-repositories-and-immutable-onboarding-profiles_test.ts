@@ -1,6 +1,7 @@
+import { POSTGRES_FOREIGN_KEY_REFUSALS } from "../../apps/server/src/platform/postgres-errors.ts";
 import { bakeryDataMigrations } from "../../apps/server/src/data-migrations.ts";
 import type { Hono } from "hono";
-import { assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { createApiRouter } from "../../packages/contracts/src/http.ts";
 import {
   readTestDatabaseConfig,
@@ -1501,7 +1502,11 @@ Deno.test("Projects Phase 1 persists tenant-safe identity and rejects manual obs
       })
     );
     assertEquals(observationDeleteCallbackCompleted, true);
-    assertEquals(errorCode(observationDeleteError), "23503");
+    assert(
+      POSTGRES_FOREIGN_KEY_REFUSALS.includes(
+        errorCode(observationDeleteError) ?? "",
+      ),
+    );
     assertEquals(
       errorConstraintName(observationDeleteError),
       "tasks_observation_pin_fk",
@@ -1518,7 +1523,11 @@ Deno.test("Projects Phase 1 persists tenant-safe identity and rejects manual obs
       })
     );
     assertEquals(profileDeleteCallbackCompleted, false);
-    assertEquals(errorCode(profileDeleteError), "23503");
+    assert(
+      POSTGRES_FOREIGN_KEY_REFUSALS.includes(
+        errorCode(profileDeleteError) ?? "",
+      ),
+    );
     assertEquals(
       errorConstraintName(profileDeleteError),
       "tasks_repository_profile_fk",

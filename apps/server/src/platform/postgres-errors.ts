@@ -1,6 +1,15 @@
 /** Postgres SQLSTATE for a unique-constraint violation. */
 export const POSTGRES_UNIQUE_VIOLATION = "23505";
 
+export const POSTGRES_FOREIGN_KEY_REFUSALS: readonly string[] = [
+  "23503",
+  "23001",
+];
+
+export function isPostgresForeignKeyRefusal(error: unknown): boolean {
+  return POSTGRES_FOREIGN_KEY_REFUSALS.includes(postgresErrorCode(error) ?? "");
+}
+
 /** Reads `.code` off an unknown thrown value without asserting its shape. */
 export function postgresErrorCode(error: unknown): string | undefined {
   if (typeof error !== "object" || error === null || !("code" in error)) {

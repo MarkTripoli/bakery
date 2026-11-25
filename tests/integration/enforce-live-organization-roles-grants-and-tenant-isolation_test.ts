@@ -1,3 +1,4 @@
+import { POSTGRES_FOREIGN_KEY_REFUSALS } from "../../apps/server/src/platform/postgres-errors.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
   ActionKind,
@@ -1506,7 +1507,7 @@ Deno.test("non-owner transactions isolate grants, clean one pooled connection, a
   };
   const expectPostgresError = async (
     work: () => Promise<unknown>,
-    code: string,
+    code: string | readonly string[],
   ) => {
     let caught: unknown;
     try {
@@ -1515,7 +1516,9 @@ Deno.test("non-owner transactions isolate grants, clean one pooled connection, a
       caught = error;
     }
     assert(caught && typeof caught === "object" && "code" in caught);
-    assertEquals((caught as { code: string }).code, code);
+    const caughtCode = (caught as { code: string }).code;
+    if (typeof code === "string") assertEquals(caughtCode, code);
+    else assert(code.includes(caughtCode), caughtCode);
   };
 
   try {
@@ -2183,7 +2186,7 @@ Deno.test("non-owner transactions isolate grants, clean one pooled connection, a
            where "organizationId" = $1 and id = $2`,
           [organizationA, adminMembershipA],
         ),
-      "23503",
+      POSTGRES_FOREIGN_KEY_REFUSALS,
     );
     assertEquals(
       (await fixture.pgDatabase.query<{

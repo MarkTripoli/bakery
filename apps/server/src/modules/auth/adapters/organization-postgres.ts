@@ -15,6 +15,7 @@ import {
 } from "../../../platform/cursor.ts";
 import type { PgTransactionClient } from "../../../platform/database.ts";
 import {
+  POSTGRES_FOREIGN_KEY_REFUSALS,
   POSTGRES_UNIQUE_VIOLATION,
   postgresErrorCode,
 } from "../../../platform/postgres-errors.ts";
@@ -272,7 +273,10 @@ async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
     if (code === POSTGRES_UNIQUE_VIOLATION) {
       throw new StandardError({ code: "STATE_CONFLICT", cause: error });
     }
-    if (["22001", "22P02", "23502", "23503", "23514"].includes(code ?? "")) {
+    if (
+      ["22001", "22P02", "23502", "23514", ...POSTGRES_FOREIGN_KEY_REFUSALS]
+        .includes(code ?? "")
+    ) {
       throw new StandardError({ code: "UNPROCESSABLE", cause: error });
     }
     throw error;
