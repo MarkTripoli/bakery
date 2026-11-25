@@ -314,6 +314,18 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
               ?.display_name,
           );
         }
+        const outsider = await person("Zed", "member");
+        for (
+          const path of [
+            `/v1/artifacts/${artifact}`,
+            `/v1/artifacts/${artifact}/versions?limit=50`,
+            `/v1/artifact-versions/${version}/comments?limit=50`,
+          ]
+        ) {
+          const text = await (await as(ana, path)).text();
+          assert(!text.includes(outsider.principalId), path);
+          assert(!text.includes(`Zed ${tag}`), path);
+        }
         // Not the task, not publishing, not resharing, not the grant list's writes.
         assertDenied(await status(await as(ana, `/v1/tasks/${f.taskId}`)));
         // The editor is closed at read_comment and open at edit: opening a draft
