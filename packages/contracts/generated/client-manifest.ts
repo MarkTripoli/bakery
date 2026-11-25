@@ -13762,6 +13762,53 @@ export const clientManifest = {
     {
       "group": "Work",
       "method": "GET",
+      "path": "/v1/runs/{id}/access",
+      "action": "runAccess.list",
+      "access": "Developer",
+      "permission": "runRequest:read",
+      "input": "Empty",
+      "output": "RunAccessList",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
+      "method": "POST",
+      "path": "/v1/runs/{id}/access/{principalId}/remove",
+      "action": "runAccess.remove",
+      "access": "Developer",
+      "permission": "runRequest:write",
+      "input": "Empty",
+      "output": "RunAccessRemoval",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "PRECONDITION_FAILED",
+        "PRECONDITION_REQUIRED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Work",
+      "method": "GET",
       "path": "/v1/runs/{id}/requests/mine",
       "action": "runRequests.mine",
       "access": "Current member",
@@ -21063,6 +21110,8 @@ export const clientManifest = {
             "mergeAttempts.reconcile",
             "runRequests.create",
             "runRequests.list",
+            "runAccess.list",
+            "runAccess.remove",
             "runRequests.mine",
             "runRequests.withdraw",
             "groups.list",
@@ -51429,6 +51478,8 @@ export const clientManifest = {
                   "mergeAttempts.reconcile",
                   "runRequests.create",
                   "runRequests.list",
+                  "runAccess.list",
+                  "runAccess.remove",
                   "runRequests.mine",
                   "runRequests.withdraw",
                   "groups.list",
@@ -74420,6 +74471,8 @@ export const clientManifest = {
             "mergeAttempts.reconcile",
             "runRequests.create",
             "runRequests.list",
+            "runAccess.list",
+            "runAccess.remove",
             "runRequests.mine",
             "runRequests.withdraw",
             "groups.list",
@@ -115879,6 +115932,252 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "The requests made on one run, or the requests addressed to the caller on one run, newest first."
+    },
+    "RunAccessList": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "projectCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Active people who can see the run through an organization role, custom role or matching project binding."
+        },
+        "totalCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Project access plus all current direct grants after excluding people already counted through project access."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID of the direct grant."
+              },
+              "principal": {
+                "type": "object",
+                "properties": {
+                  "principalId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID of the person."
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Current display name of the person."
+                  }
+                },
+                "required": [
+                  "principalId",
+                  "displayName"
+                ],
+                "additionalProperties": false,
+                "description": "The person who can see the run through this grant."
+              },
+              "via": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "How direct access was granted, such as a request."
+              },
+              "grantedBy": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "principalId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Stable UUID of the person."
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Current display name of the person."
+                      }
+                    },
+                    "required": [
+                      "principalId",
+                      "displayName"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The person recorded as granting access, or null when that principal no longer exists."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunAccessItem.grantedBy may be null in this transport value."
+              },
+              "grantedByKind": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "agent",
+                  "workflow"
+                ],
+                "description": "Whether a person, agent or workflow granted the access."
+              },
+              "grantedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time direct access began."
+              },
+              "sourceRequestId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The request that first granted access, or null when none remains."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunAccessItem.sourceRequestId may be null in this transport value."
+              },
+              "audience": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The frozen role or group name through which the source request was made, or null for one person."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunAccessItem.audience may be null in this transport value."
+              },
+              "powers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "intent": {
+                      "type": "string",
+                      "enum": [
+                        "review",
+                        "approve",
+                        "answer",
+                        "take_over"
+                      ],
+                      "description": "What the person may do."
+                    },
+                    "stepKey": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The run step the power concerns, or null when it targets another kind of row."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "RunAccessPower.stepKey may be null in this transport value."
+                    },
+                    "targetId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "The approval, question, artifact version or run step the power targets."
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC time the power ends if it has not already been used or revoked."
+                    }
+                  },
+                  "required": [
+                    "intent",
+                    "stepKey",
+                    "targetId",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Current unexpired powers on this run for the person. Each array item follows this format."
+                },
+                "description": "Current unexpired powers on this run for the person."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used as If-Match when removing access."
+              }
+            },
+            "required": [
+              "id",
+              "principal",
+              "via",
+              "grantedBy",
+              "grantedByKind",
+              "grantedAt",
+              "sourceRequestId",
+              "audience",
+              "powers",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "Removable direct grants, open-request first and then newest first, bounded to fifty. Each array item follows this format."
+          },
+          "description": "Removable direct grants, open-request first and then newest first, bounded to fifty."
+        }
+      },
+      "required": [
+        "projectCount",
+        "totalCount",
+        "items"
+      ],
+      "additionalProperties": false,
+      "description": "Who can see a run, separating project access from removable direct grants."
+    },
+    "RunAccessRemoval": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "principalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Person whose direct access was removed."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Final version of the revoked direct grant."
+        },
+        "withdrawnRequestCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Open requests addressed to the person that were withdrawn in the same transaction."
+        }
+      },
+      "required": [
+        "principalId",
+        "version",
+        "withdrawnRequestCount"
+      ],
+      "additionalProperties": false,
+      "description": "Result of atomically removing one person's direct run access and ending their open requests and powers."
     },
     "Page<StorageFolderItem>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

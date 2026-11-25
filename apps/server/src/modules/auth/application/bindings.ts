@@ -62,6 +62,7 @@ export const BINDABLE_ACTIONS: Readonly<
   "runs.create": "task",
   "runs.list": "task",
   "runs.get": "run",
+  "runAccess.list": "run",
   "runSteps.list": "run",
   "runSteps.given": "run",
 });

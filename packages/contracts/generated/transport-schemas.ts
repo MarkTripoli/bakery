@@ -36535,6 +36535,129 @@ const transportSchemas = {
         "requests": "Requests in newest-first order; bounded to the most recent fifty."
       }
     },
+    "RunAccessPerson": {
+      "fields": [
+        "principalId",
+        "displayName"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "displayName": "string"
+      },
+      "nullableFields": [],
+      "description": "One person who has direct access to a run, identified by their current display name.",
+      "fieldDescriptions": {
+        "principalId": "Stable UUID of the person.",
+        "displayName": "Current display name of the person."
+      }
+    },
+    "RunAccessPower": {
+      "fields": [
+        "intent",
+        "stepKey",
+        "targetId",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "intent": "enum(review|approve|answer|take_over)",
+        "stepKey": "string|null",
+        "targetId": "uuid",
+        "expiresAt": "timestamp"
+      },
+      "nullableFields": [
+        "stepKey"
+      ],
+      "description": "One current, expiring power that accompanied a request giving direct run access.",
+      "fieldDescriptions": {
+        "intent": "What the person may do.",
+        "stepKey": "The run step the power concerns, or null when it targets another kind of row.",
+        "targetId": "The approval, question, artifact version or run step the power targets.",
+        "expiresAt": "UTC time the power ends if it has not already been used or revoked."
+      }
+    },
+    "RunAccessItem": {
+      "projection": "run_access_grants",
+      "fields": [
+        "id",
+        "principal",
+        "via",
+        "grantedBy",
+        "grantedByKind",
+        "grantedAt",
+        "sourceRequestId",
+        "audience",
+        "powers",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "principal": "RunAccessPerson",
+        "via": "string",
+        "grantedBy": "RunAccessPerson|null",
+        "grantedByKind": "enum(person|agent|workflow)",
+        "grantedAt": "timestamp",
+        "sourceRequestId": "uuid|null",
+        "audience": "string|null",
+        "powers": "RunAccessPower[]",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "grantedBy",
+        "sourceRequestId",
+        "audience"
+      ],
+      "description": "One removable direct grant on a run, with its provenance and current request powers.",
+      "fieldDescriptions": {
+        "id": "Stable UUID of the direct grant.",
+        "principal": "The person who can see the run through this grant.",
+        "via": "How direct access was granted, such as a request.",
+        "grantedBy": "The person recorded as granting access, or null when that principal no longer exists.",
+        "grantedByKind": "Whether a person, agent or workflow granted the access.",
+        "grantedAt": "UTC time direct access began.",
+        "sourceRequestId": "The request that first granted access, or null when none remains.",
+        "audience": "The frozen role or group name through which the source request was made, or null for one person.",
+        "powers": "Current unexpired powers on this run for the person.",
+        "version": "Optimistic-concurrency version used as If-Match when removing access."
+      }
+    },
+    "RunAccessList": {
+      "fields": [
+        "projectCount",
+        "totalCount",
+        "items"
+      ],
+      "fieldTypes": {
+        "projectCount": "integer",
+        "totalCount": "integer",
+        "items": "RunAccessItem[]"
+      },
+      "nullableFields": [],
+      "description": "Who can see a run, separating project access from removable direct grants.",
+      "fieldDescriptions": {
+        "projectCount": "Active people who can see the run through an organization role, custom role or matching project binding.",
+        "totalCount": "Project access plus all current direct grants after excluding people already counted through project access.",
+        "items": "Removable direct grants, open-request first and then newest first, bounded to fifty."
+      }
+    },
+    "RunAccessRemoval": {
+      "fields": [
+        "principalId",
+        "version",
+        "withdrawnRequestCount"
+      ],
+      "fieldTypes": {
+        "principalId": "uuid",
+        "version": "integer",
+        "withdrawnRequestCount": "integer"
+      },
+      "nullableFields": [],
+      "description": "Result of atomically removing one person's direct run access and ending their open requests and powers.",
+      "fieldDescriptions": {
+        "principalId": "Person whose direct access was removed.",
+        "version": "Final version of the revoked direct grant.",
+        "withdrawnRequestCount": "Open requests addressed to the person that were withdrawn in the same transaction."
+      }
+    },
     "StorageFolderItem": {
       "fields": [
         "id",

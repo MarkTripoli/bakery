@@ -21,6 +21,25 @@ type Request = {
   askedBy: { principalId: string } | null;
 };
 
+type RunAccess = {
+  projectCount: number;
+  totalCount: number;
+  items: {
+    id: string;
+    principal: { principalId: string; displayName: string };
+    via: string;
+    grantedBy: { principalId: string; displayName: string } | null;
+    powers: { intent: string; stepKey: string | null }[];
+    version: number;
+  }[];
+};
+
+type RunAccessRemoval = {
+  principalId: string;
+  version: number;
+  withdrawnRequestCount: number;
+};
+
 async function body<T>(response: Response, status: number): Promise<T> {
   const text = await response.text();
   assertEquals(response.status, status, text);
@@ -107,6 +126,160 @@ Deno.test("asking someone gives them the run to see, and nothing else", async ()
       200,
     );
     assertEquals(list.requests.length, 1);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("run access lists direct people separately from project access", async () => {
+  const o = await open();
+  try {
+    assertEquals(
+      (await api(o.fixture, o.fixture.cookie, "POST", "/v1/access-bindings", {
+        principalId: o.other.principalId,
+        roleKey: "viewer",
+        scopeType: "application",
+        scopeId: o.fixture.applicationId,
+      })).status,
+      201,
+    );
+    await body<Request>(
+      await o.ask(o.dev.cookie, {
+        recipientId: o.other.principalId,
+        intent: "fyi",
+      }),
+      201,
+    );
+    await body<Request>(
+      await o.ask(o.dev.cookie, {
+        recipientId: o.guest.principalId,
+        intent: "take_over",
+        stepKey: o.run.stepKey,
+      }),
+      201,
+    );
+    const path = `/v1/runs/${o.run.runId}/access`;
+    const access = await body<RunAccess>(
+      await api(o.fixture, o.dev.cookie, "GET", path),
+      200,
+    );
+    assertEquals(access.projectCount, 3);
+    assertEquals(access.totalCount, 4);
+    assertEquals(access.items.length, 1);
+    assertEquals(access.items[0]?.principal, {
+      principalId: o.guest.principalId,
+      displayName: "Gus",
+    });
+    assertEquals(access.items[0]?.via, "request");
+    assertEquals(access.items[0]?.grantedBy?.principalId, o.dev.principalId);
+    assertEquals(
+      access.items[0]?.powers.map(({ intent, stepKey }) => ({
+        intent,
+        stepKey,
+      })),
+      [{ intent: "take_over", stepKey: o.run.stepKey }],
+    );
+    assertEquals(
+      (await api(o.fixture, o.other.cookie, "GET", path)).status,
+      200,
+    );
+    assertEquals(
+      (await api(o.fixture, o.guest.cookie, "GET", path)).status,
+      200,
+    );
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("removing direct access withdraws every open request atomically", async () => {
+  const o = await open();
+  try {
+    const made = await body<Request>(
+      await o.ask(o.dev.cookie, {
+        recipientId: o.guest.principalId,
+        intent: "take_over",
+        stepKey: o.run.stepKey,
+      }),
+      201,
+    );
+    const accessPath = `/v1/runs/${o.run.runId}/access`;
+    const access = await body<RunAccess>(
+      await api(o.fixture, o.dev.cookie, "GET", accessPath),
+      200,
+    );
+    const grant = access.items[0]!;
+    const removePath = `${accessPath}/${o.guest.principalId}/remove`;
+    assertEquals(
+      (await api(
+        o.fixture,
+        o.guest.cookie,
+        "POST",
+        removePath,
+        {},
+        grant.version,
+      )).status,
+      404,
+    );
+    const removed = await body<RunAccessRemoval>(
+      await api(
+        o.fixture,
+        o.dev.cookie,
+        "POST",
+        removePath,
+        {},
+        grant.version,
+      ),
+      200,
+    );
+    assertEquals(removed, {
+      principalId: o.guest.principalId,
+      version: grant.version + 1,
+      withdrawnRequestCount: 1,
+    });
+    assertEquals(
+      (await api(
+        o.fixture,
+        o.dev.cookie,
+        "POST",
+        removePath,
+        {},
+        grant.version,
+      )).status,
+      412,
+    );
+    assertEquals(
+      (await api(o.fixture, o.guest.cookie, "GET", `/v1/runs/${o.run.runId}`))
+        .status,
+      404,
+    );
+    const requests = await body<{ requests: Request[] }>(
+      await api(
+        o.fixture,
+        o.dev.cookie,
+        "GET",
+        `/v1/runs/${o.run.runId}/requests`,
+      ),
+      200,
+    );
+    assertEquals(
+      requests.requests.find((item) => item.id === made.id)?.status,
+      "withdrawn",
+    );
+    const powers = await o.fixture.pgDatabase.query(
+      `select 1 from bakery.run_power_grants
+        where organization_id = $1 and run_id = $2 and principal_id = $3
+          and revoked_at is null`,
+      [o.fixture.organizationId, o.run.runId, o.guest.principalId],
+    );
+    assertEquals(powers.rows, []);
+    const ledger = await o.fixture.pgDatabase.query<{ kind: string }>(
+      `select kind from bakery.decisions_ledger
+        where organization_id = $1 and run_id = $2
+          and kind = 'run_access_removed'`,
+      [o.fixture.organizationId, o.run.runId],
+    );
+    assertEquals(ledger.rows.map((row) => row.kind), ["run_access_removed"]);
   } finally {
     await o.finish();
   }

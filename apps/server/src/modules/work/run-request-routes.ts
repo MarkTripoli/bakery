@@ -18,6 +18,8 @@ export function createRunRequestRoutes(
   app.use("/v1/runs/:id/requests", options.session);
   app.use("/v1/runs/:id/requests/*", options.session);
   app.use("/v1/run-requests/*", options.session);
+  app.use("/v1/runs/:id/access", options.session);
+  app.use("/v1/runs/:id/access/*", options.session);
   app.route(
     "/",
     createApiRouter({
