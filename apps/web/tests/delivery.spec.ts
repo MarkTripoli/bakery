@@ -7,6 +7,36 @@ import { MOCK_ORGANIZATION_ID } from "./helpers/mock-session.ts";
 import { repository, uuid } from "./helpers/projects-fixture.ts";
 
 registerPageHealth(test);
+test("selected merged chart and table use the merge-count samples, not line counts", async ({ page }) => {
+  const samples = Array.from({ length: 7 }, (_, index) => ({
+    at: new Date(Date.UTC(2026, 10, 5 + index * 3)).toISOString(),
+    value: 1,
+    unknownReason: null,
+  }));
+  await deliveryFixture(page, {
+    metricPoints: {
+      "prs.merged": samples,
+      "prs.changedLines": samples.map((sample, index) => ({
+        ...sample,
+        at: new Date(Date.UTC(2026, 10, 4 + index * 3)).toISOString(),
+        value: 34 + index * 6,
+      })),
+    },
+  });
+  await page.goto("/delivery");
+  const chart = page.getByTestId("delivery-chart");
+  await expect(chart.locator("[data-chart-tick='max']")).toHaveText("1");
+  await page.getByRole("button", { name: "Show as table" }).click();
+  const table = page.getByRole("table", { name: "Pull requests merged" });
+  await expect(table.getByRole("row")).toHaveCount(8);
+  for (const [index, sample] of samples.entries()) {
+    const row = table.getByRole("row").nth(index + 1);
+    await expect(row.getByRole("cell")).toHaveText([
+      `Nov ${5 + index * 3}, 2026`,
+      String(sample.value),
+    ]);
+  }
+});
 
 /** Answers the effective-access read with a role and the given capabilities. */
 const access = (route: Route, capabilities: string[]) => {
@@ -224,10 +254,10 @@ for (
       expect(Number(await band.getAttribute("width"))).toBeGreaterThan(100);
       if (viewport.name === "phone") {
         await expect(chart.getByText(/^No data, /)).toHaveCount(0);
-        await expect(page.getByText(/\(no data, Nov 2, 2026\)/))
+        await expect(page.getByText(/\(no data, Nov 3, 2026\)/))
           .toBeVisible();
       } else {
-        await expect(chart.getByText("No data, Nov 2, 2026")).toBeVisible();
+        await expect(chart.getByText("No data, Nov 3, 2026")).toBeVisible();
         await expect(
           page.getByText("No data for 1 day. A gap is not zero."),
         ).toBeVisible();
@@ -236,8 +266,8 @@ for (
       const chartBox = await chart.boundingBox();
       expect(chartBox!.height).toBe(200);
       await expect(chart.locator("[data-chart-point]")).toHaveCount(1);
-      const firstCaption = await page.getByText(/^Oct 31, 2026$/).boundingBox();
-      const lastCaption = await page.getByText(/^Nov 3, 2026$/).boundingBox();
+      const firstCaption = await page.getByText(/^Nov 1, 2026$/).boundingBox();
+      const lastCaption = await page.getByText(/^Nov 4, 2026$/).boundingBox();
       expect(Math.abs(firstCaption!.y - lastCaption!.y)).toBeLessThan(2);
       expect(lastCaption!.x).toBeGreaterThan(firstCaption!.x);
       const table2 = page.getByRole("table", { name: "Tasks delivered" });

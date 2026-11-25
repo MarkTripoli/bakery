@@ -26,6 +26,12 @@ export type DeliveryOptions = {
   revision?: string | null;
   nothingMeasured?: boolean;
   chartFailsUntilRetry?: boolean;
+  metricPoints?: Partial<
+    Record<
+      "prs.merged" | "prs.changedLines",
+      readonly { at: string; value: number; unknownReason: null }[]
+    >
+  >;
 };
 
 const point = (day: number, value: number | null) => ({
@@ -233,7 +239,7 @@ export async function deliveryFixture(
       const resolution = requestUrl.searchParams.get("resolution") ?? "day";
       metricResolutions.push(resolution);
       if (
-        chartUnavailable && metric === "prs.changedLines" &&
+        chartUnavailable && metric === "prs.merged" &&
         resolution === "week"
       ) {
         return json(route, {
@@ -269,14 +275,17 @@ export async function deliveryFixture(
           series(options.revision, metric, "count", [3, 4, 5, 4], {}, blank),
         );
       }
+      const points = metric === "prs.merged" || metric === "prs.changedLines"
+        ? options.metricPoints?.[metric]
+        : undefined;
       return json(
         route,
         series(
           options.revision,
           metric,
           metric === "prs.changedLines" ? "lines" : "count",
-          [2, 4, 0, 5],
-          {},
+          points?.map((point) => point.value) ?? [2, 4, 0, 5],
+          points === undefined ? {} : { points },
           blank,
         ),
       );

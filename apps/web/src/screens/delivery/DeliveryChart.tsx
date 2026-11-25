@@ -33,7 +33,7 @@ export function DeliveryChart(
     readonly onRetry: () => void;
   },
 ) {
-  const { translate, locale, timeZone } = useI18n();
+  const { translate, locale } = useI18n();
   const phone = useShellViewport() === "phone";
   const [asTable, setAsTable] = useState(false);
   const descriptionId = useId();
@@ -54,7 +54,7 @@ export function DeliveryChart(
   const slot = plotWidth / Math.max(1, times.length - 1);
   const day = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
-    timeZone,
+    timeZone: "UTC",
   });
   const bands = gaps.map((gap) => {
     const from = across(Date.parse(gap.from));

@@ -413,13 +413,13 @@ function Ready(props: DeliveryScreenProps) {
 }
 
 function OverTime(props: DeliveryScreenProps) {
-  const { translate, locale, timeZone } = useI18n();
+  const { translate, locale } = useI18n();
   const shown: DeliveryShow = props.show ?? "merged";
   const figure = FIGURES.find((entry) => entry.show === shown)!;
   const series = props.chart;
   const day = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
-    timeZone,
+    timeZone: "UTC",
   });
   const numberFormat = new Intl.NumberFormat(locale);
   return (

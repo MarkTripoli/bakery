@@ -88,6 +88,9 @@ export function DeliveryPage() {
   };
   const enabled = !tooLong;
   const metric = SHOW_METRIC[show ?? "merged"];
+  const chartMetric = show === null || show === "merged"
+    ? "prs.merged"
+    : metric;
   const merged = useSeries("prs.merged", base, enabled, "figure");
   const closed = useSeries("prs.closedUnmerged", base, enabled, "figure");
   const open = useSeries("prs.openAtCutoff", base, enabled, "figure");
@@ -98,7 +101,7 @@ export function DeliveryPage() {
     ? "week" as const
     : "day" as const;
   const chart = useSeries(
-    metric,
+    chartMetric,
     { ...base, resolution: chartResolution },
     enabled,
     "chart",
