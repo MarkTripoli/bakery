@@ -9,6 +9,9 @@ export type Target = {
   targetKind: string;
   path: string | null;
   anchor: string | null;
+  reason?: "gone" | "no_longer_shared" | "unknown";
+  sharedByName?: string;
+  sharedAt?: string;
 };
 
 const stamp = "2026-01-01T00:00:00.000Z";
@@ -24,13 +27,13 @@ export async function stubNotification(
 ) {
   const reads: unknown[] = [];
   await page.route(
-    `**/v1/notifications/${NOTIFICATION_ID}/target`,
+    (url) => url.pathname === `/v1/notifications/${NOTIFICATION_ID}/target`,
     (route) => route.fulfill({ json: target }),
   );
-  await page.route(`**/v1/notifications/${NOTIFICATION_ID}`, (route) => {
-    reads.push(route.request().postDataJSON());
-    return route.fulfill({
-      json: {
+  await page.route(
+    (url) => url.pathname === `/v1/notifications/${NOTIFICATION_ID}`,
+    (route) => {
+      const row = {
         id: NOTIFICATION_ID,
         organizationId: "00000000-0000-4000-8000-000000000003",
         recipientId: "00000000-0000-4000-8000-000000000001",
@@ -47,9 +50,14 @@ export async function stubNotification(
         read: true,
         revision: NOTIFICATION_REVISION + 1,
         createdAt: stamp,
-      },
-    });
-  });
+      };
+      if (route.request().method() === "GET") {
+        return route.fulfill({ json: row });
+      }
+      reads.push(route.request().postDataJSON());
+      return route.fulfill({ json: row });
+    },
+  );
   await page.route(
     "**/v1/notifications?*",
     (route) => route.fulfill({ json: { items: [], nextCursor: null } }),

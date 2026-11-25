@@ -5285,6 +5285,20 @@
       "frames": []
     },
     {
+      "routeId": "shared-document",
+      "path": "/shared/documents/$artifactId",
+      "status": "no-mock",
+      "rationale": "Shared document page (SharedDocumentPage): the landing for someone whose access to one document comes from a mention grant. Searched the in-repo Paper baseline manifests and mocks on 2026-11-24 for mention, shared, grant, access and landing frames: entitlements-baselines.json holds only the organization access page (/organization/access) and nothing depicts a grant-only document. The design source is design-ux's UX design comment on issue #73 (2026-11-24, slice 2, landings for someone with only a grant), which supersedes Paper for this surface.",
+      "frames": []
+    },
+    {
+      "routeId": "shared-conversation",
+      "path": "/shared/conversations/$conversationId",
+      "status": "no-mock",
+      "rationale": "Shared conversation page (SharedConversationPage): the landing for someone mentioned in a conversation they may read and reply in, with no access to the task. The same search on 2026-11-24 found no Paper frame for a conversation read outside its task; the design source is design-ux's UX design comment on issue #73 (2026-11-24, slice 2), whose later ruling fixes the header and the notice copy.",
+      "frames": []
+    },
+    {
       "routeId": "installation-usage",
       "path": "/installation/usage",
       "status": "no-mock",

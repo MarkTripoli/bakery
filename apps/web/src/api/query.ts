@@ -87,6 +87,7 @@ import type {
   NotificationCountResponse,
   NotificationCursorQuery,
   NotificationListResponse,
+  NotificationResponse,
   NotificationTargetResponse,
   OrganizationAccessPage,
   OrganizationInvitationPreview,
@@ -1141,6 +1142,29 @@ export function notificationTargetQueryOptions(
     retry: retryNetworkOnce,
     staleTime: 0,
     gcTime: 0,
+  });
+}
+
+export function notificationGetQueryOptions(
+  client: Pick<BakeryApiClient, "getNotification">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<NotificationResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "notifications.get", { id }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.getNotification({
+          organizationId: scope.organizationId,
+          id,
+          signal,
+        }),
+      );
+    },
+    retry: retryNetworkOnce,
   });
 }
 

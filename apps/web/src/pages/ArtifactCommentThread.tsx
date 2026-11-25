@@ -26,6 +26,7 @@ export function ArtifactCommentThread(
     artifact,
     viewVersionId,
     selected,
+    selectable = true,
     busy,
     onSelect,
     onReply,
@@ -38,6 +39,7 @@ export function ArtifactCommentThread(
     readonly artifact: ArtifactResponse;
     readonly viewVersionId: string;
     readonly selected: boolean;
+    readonly selectable?: boolean;
     readonly busy: boolean;
     readonly onSelect: (value: boolean) => void;
     readonly onReply: () => void;
@@ -176,7 +178,7 @@ export function ArtifactCommentThread(
           {t("artifact.comments.replies")}
         </UI.Button>
       </UI.Inline>
-      {!root.deletedAt
+      {!root.deletedAt && selectable
         ? (
           <UI.Checkbox
             checked={selected}

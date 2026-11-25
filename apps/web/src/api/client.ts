@@ -1894,6 +1894,11 @@ export type BakeryApiClient = {
     readonly organizationId: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<NotificationCountResponse>>;
+  readonly getNotification: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<NotificationResponse>>;
   readonly resolveNotificationTarget: (options: {
     readonly organizationId: string;
     readonly id: string;
@@ -6426,6 +6431,21 @@ export function createBakeryApiClient({
         const data = await client.actions["notifications.count"]({}, {
           signal: options.signal,
         });
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getNotification(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["notifications.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
         return { ok: true, data };
       } catch (error) {
         return failed(error);

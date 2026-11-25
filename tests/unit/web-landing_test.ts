@@ -13,6 +13,7 @@ Deno.test("an anchor is a kind and an id, or a version number", () => {
   assertEquals(parseLanding(`step:${ID}`), { kind: "step", id: ID });
   assertEquals(parseLanding("version:3"), { kind: "version", id: "3" });
   assertEquals(parseLanding(`comment:${ID}`), { kind: "comment", id: ID });
+  assertEquals(parseLanding(`message:${ID}`), { kind: "message", id: ID });
 });
 
 Deno.test("anything else is no landing", () => {
@@ -105,5 +106,93 @@ Deno.test("the document route is allowed, with its version anchor", () => {
       to: "/tasks/$taskId/artifacts/$artifactId",
       params: { taskId: TASK, artifactId: art },
     },
+  );
+});
+
+const DOC = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+const VERSION = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff";
+const COMMENT = "cccccccc-dddd-4eee-8fff-000000000000";
+const CONVERSATION = "dddddddd-eeee-4fff-8000-111111111111";
+const MESSAGE = "eeeeeeee-ffff-4000-8111-222222222222";
+
+Deno.test("a grant-only reader's document path opens the shared document, with its version and comment", () => {
+  assertEquals(
+    landingRoute(
+      `/shared/documents/${DOC}?version=${VERSION}&comment=${COMMENT}`,
+    ),
+    {
+      to: "/shared/documents/$artifactId",
+      params: { artifactId: DOC },
+      own: { version: VERSION, comment: COMMENT },
+    },
+  );
+  assertEquals(landingRoute(`/shared/documents/${DOC}`), {
+    to: "/shared/documents/$artifactId",
+    params: { artifactId: DOC },
+    own: { version: undefined, comment: undefined },
+  });
+});
+
+Deno.test("a grant-only reader's conversation path opens the shared conversation at its message", () => {
+  assertEquals(
+    landingRoute(`/shared/conversations/${CONVERSATION}?message=${MESSAGE}`),
+    {
+      to: "/shared/conversations/$conversationId",
+      params: { conversationId: CONVERSATION },
+      own: { message: MESSAGE },
+    },
+  );
+});
+
+Deno.test("a shared path with a bad id, a bad parameter or another prefix is not followed", () => {
+  assertEquals(landingRoute("/shared/documents/not-a-uuid"), null);
+  assertEquals(landingRoute(`/shared/documents/${DOC}/extra`), null);
+  assertEquals(landingRoute(`/shared/files/${DOC}`), null);
+  assertEquals(landingRoute(`/files/versions/${DOC}`), null);
+  assertEquals(
+    landingRoute(`/shared/documents/${DOC}?comment=nope&version=${VERSION}`),
+    {
+      to: "/shared/documents/$artifactId",
+      params: { artifactId: DOC },
+      own: { version: VERSION, comment: undefined },
+    },
+  );
+});
+
+Deno.test("a shared target opens its page with its own search, the anchor and the read marker", () => {
+  assertEquals(
+    landingDestination(
+      {
+        status: "available",
+        path: `/shared/documents/${DOC}?version=${VERSION}&comment=${COMMENT}`,
+        anchor: `comment:${COMMENT}`,
+      },
+      { id: ID, revision: 3 },
+    ),
+    {
+      route: {
+        to: "/shared/documents/$artifactId",
+        params: { artifactId: DOC },
+        own: { version: VERSION, comment: COMMENT },
+      },
+      search: {
+        version: VERSION,
+        comment: COMMENT,
+        at: `comment:${COMMENT}`,
+        n: ID,
+        r: 3,
+      },
+    },
+  );
+  assertEquals(
+    landingDestination(
+      {
+        status: "part_unavailable",
+        path: `/shared/documents/${DOC}?version=${VERSION}`,
+        anchor: null,
+      },
+      { id: ID, revision: null },
+    )?.search,
+    { version: VERSION, gone: true, n: ID },
   );
 });

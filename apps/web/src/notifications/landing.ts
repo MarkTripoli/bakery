@@ -64,7 +64,6 @@ export function landingSearch(search: Record<string, unknown>): LandingSearch {
   };
 }
 
-/** The two routes a notification can open, with their params. */
 export type LandingRoute =
   | Readonly<{ to: "/tasks/$taskId"; params: { taskId: string } }>
   | Readonly<
@@ -72,14 +71,61 @@ export type LandingRoute =
       to: "/tasks/$taskId/artifacts/$artifactId";
       params: { taskId: string; artifactId: string };
     }
+  >
+  | Readonly<
+    {
+      to: "/shared/documents/$artifactId";
+      params: { artifactId: string };
+      own: { version?: string; comment?: string };
+    }
+  >
+  | Readonly<
+    {
+      to: "/shared/conversations/$conversationId";
+      params: { conversationId: string };
+      own: { message?: string };
+    }
   >;
 
 const TASK_PATH =
   /^\/tasks\/([0-9a-f-]{36})(?:\/artifacts\/([0-9a-f-]{36}))?$/i;
+const SHARED_DOCUMENT_PATH = /^\/shared\/documents\/([0-9a-f-]{36})$/i;
+const SHARED_CONVERSATION_PATH = /^\/shared\/conversations\/([0-9a-f-]{36})$/i;
 
-/** Splits a resolved path into one of the two task routes, or null for anything else. */
+function uuidParam(params: URLSearchParams, name: string): string | undefined {
+  const value = params.get(name);
+  return value !== null && UUID.test(value) ? value : undefined;
+}
+
 export function landingRoute(path: string | null): LandingRoute | null {
-  const match = path === null ? null : TASK_PATH.exec(path);
+  if (path === null) return null;
+  const query = path.indexOf("?");
+  const pathname = query < 0 ? path : path.slice(0, query);
+  const params = new URLSearchParams(query < 0 ? "" : path.slice(query + 1));
+  const shared = SHARED_DOCUMENT_PATH.exec(pathname);
+  if (shared !== null) {
+    return UUID.test(shared[1]!)
+      ? {
+        to: "/shared/documents/$artifactId",
+        params: { artifactId: shared[1]! },
+        own: {
+          version: uuidParam(params, "version"),
+          comment: uuidParam(params, "comment"),
+        },
+      }
+      : null;
+  }
+  const conversation = SHARED_CONVERSATION_PATH.exec(pathname);
+  if (conversation !== null) {
+    return UUID.test(conversation[1]!)
+      ? {
+        to: "/shared/conversations/$conversationId",
+        params: { conversationId: conversation[1]! },
+        own: { message: uuidParam(params, "message") },
+      }
+      : null;
+  }
+  const match = TASK_PATH.exec(pathname);
   if (match === null || !UUID.test(match[1]!)) return null;
   if (match[2] === undefined) {
     return { to: "/tasks/$taskId", params: { taskId: match[1]! } };
@@ -97,10 +143,14 @@ export function landingRoute(path: string | null): LandingRoute | null {
  * The server already validates the path; this refuses anything that is not
  * one of the two task routes, so an unexpected value is never navigated to.
  */
+export type LandingDestinationSearch =
+  & LandingSearch
+  & Readonly<{ version?: string; comment?: string; message?: string }>;
+
 export function landingDestination(
   target: Pick<NotificationTargetResponse, "status" | "path" | "anchor">,
   notification: Readonly<{ id: string; revision: number | null }>,
-): { route: LandingRoute; search: LandingSearch } | null {
+): { route: LandingRoute; search: LandingDestinationSearch } | null {
   if (target.status === "unavailable") return null;
   const route = landingRoute(target.path);
   if (route === null) return null;
@@ -108,9 +158,15 @@ export function landingDestination(
     target.status === "available" && parseLanding(target.anchor) !== null
       ? (target.anchor as string)
       : undefined;
+  const own = "own" in route
+    ? Object.fromEntries(
+      Object.entries(route.own).filter(([, value]) => value !== undefined),
+    )
+    : {};
   return {
     route,
     search: {
+      ...own,
       ...(at === undefined ? {} : { at }),
       ...(target.status === "part_unavailable" ? { gone: true as const } : {}),
       n: notification.id,

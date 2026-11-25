@@ -36,12 +36,23 @@ import {
 } from "./ArtifactCommentAnchor.tsx";
 
 export function ArtifactComments(
-  { artifact, version, commentId, landed = false }: {
+  {
+    artifact,
+    version,
+    commentId,
+    landed = false,
+    agentRequest = true,
+    onRootCount,
+    onLandingSettled,
+  }: {
     readonly artifact: ArtifactResponse;
     readonly version: ArtifactVersionResponse;
     readonly commentId?: string;
     /** The comment is where a notification landed: centre it, outline it once. */
     readonly landed?: boolean;
+    readonly agentRequest?: boolean;
+    readonly onRootCount?: (count: number) => void;
+    readonly onLandingSettled?: () => void;
   },
 ) {
   const api = useBakeryApi();
@@ -96,11 +107,14 @@ export function ArtifactComments(
   });
   const task = useQuery({
     ...taskQueryOptions(api, scope, artifact.taskId),
-    enabled: scope.organizationId !== null,
+    enabled: agentRequest && scope.organizationId !== null,
   });
   const roots = comments.isError
     ? []
     : comments.data?.pages.flatMap((page) => page.items) ?? [];
+  useEffect(() => {
+    onRootCount?.(roots.length);
+  }, [onRootCount, roots.length]);
   const focusedComment = useRef<string | null>(null);
   const foundComment = roots.some((root) => root.id === commentId);
   const missingComment = commentId && comments.isSuccess && !foundComment &&
@@ -139,6 +153,15 @@ export function ArtifactComments(
     comments.isFetching,
     comments.fetchNextPage,
   ]);
+  const settledReported = useRef(false);
+  useEffect(() => {
+    if (onLandingSettled === undefined || settledReported.current) return;
+    const settled = commentId === undefined || Boolean(missingComment) ||
+      focusedComment.current === commentId;
+    if (!settled) return;
+    settledReported.current = true;
+    onLandingSettled();
+  }, [commentId, foundComment, missingComment, onLandingSettled]);
   const connectivity = useConnectivity();
   const mentionField = useMentionField({
     source: {
@@ -302,16 +325,18 @@ export function ArtifactComments(
           />
         ),
       },
-    agentAction: (
-      <ArtifactAgentRequest
-        conversationId={task.data?.conversationId ?? null}
-        selected={selected}
-        onReload={() => {
-          setSelected([]);
-          void comments.refetch();
-        }}
-      />
-    ),
+    agentAction: agentRequest
+      ? (
+        <ArtifactAgentRequest
+          conversationId={task.data?.conversationId ?? null}
+          selected={selected}
+          onReload={() => {
+            setSelected([]);
+            void comments.refetch();
+          }}
+        />
+      )
+      : null,
   };
   const lastReplyId = useRef<string | null>(null);
   useEffect(() => {
@@ -349,7 +374,9 @@ export function ArtifactComments(
           root={root}
           artifact={artifact}
           viewVersionId={version.id}
-          selected={selected.some((item) => item.id === root.id)}
+          selected={agentRequest &&
+            selected.some((item) => item.id === root.id)}
+          selectable={agentRequest}
           busy={busy}
           composer={reply?.id === root.id ? composer : undefined}
           onSelect={(checked) =>

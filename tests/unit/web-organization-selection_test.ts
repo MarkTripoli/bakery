@@ -314,6 +314,7 @@ function fakeApi(
     listNotifications: rejecting,
     notificationCount: rejecting,
     resolveNotificationTarget: rejecting,
+    getNotification: rejecting,
     setNotificationRead: rejecting,
     markAllNotificationsRead: rejecting,
     undoMarkAllNotificationsRead: rejecting,

@@ -8,6 +8,10 @@ import {
 } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import {
+  sharedKindOf,
+  sharedUnavailableCopy,
+} from "../pages/shared/SharedUnavailable.tsx";
 import { landingDestination } from "./landing.ts";
 
 type Destination = NonNullable<ReturnType<typeof landingDestination>>;
@@ -66,6 +70,21 @@ export function NotificationOpening(
   }, [destination, onLand]);
 
   const gone = !target.isPending && !target.isError && destination === null;
+  const sharedKind = target.data === undefined
+    ? null
+    : sharedKindOf(target.data.targetKind);
+  const reason = target.data?.reason ?? null;
+  const unavailable = sharedKind !== null && reason !== null
+    ? sharedUnavailableCopy(
+      translate,
+      sharedKind,
+      reason,
+      target.data?.sharedByName ?? null,
+    )
+    : {
+      title: translate("notifications.unavailable.title"),
+      description: translate("notifications.unavailable.sentence"),
+    };
   return (
     <UI.Stack gap="spacious">
       <UI.Heading level="page">{translate("notifications.title")}</UI.Heading>
@@ -85,9 +104,12 @@ export function NotificationOpening(
         : gone
         ? (
           <UI.EmptyState
-            title={translate("notifications.unavailable.title")}
-            description={translate("notifications.unavailable.sentence")}
+            title={unavailable.title}
+            description={unavailable.description}
             variant="filtered"
+            data-testid={reason === null
+              ? "notification-unavailable"
+              : `shared-unavailable-${reason}`}
             action={
               <UI.Inline gap="compact">
                 <UI.Button onClick={onBack} variant="primary">
