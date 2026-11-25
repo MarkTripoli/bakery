@@ -227,14 +227,15 @@ test("removing a chip keeps the name as words", async ({ page }) => {
   await expect(commentBox(page)).toHaveValue("Please look Samir Okafor ");
 });
 
-test("the comment box is a combobox that is expanded only while the picker shows", async ({ page }) => {
+test("the comment box points at its picker only while the picker shows", async ({ page }) => {
   await open(page);
-  const box = page.getByRole("combobox", { name: "Comment", exact: true });
-  await expect(box).toHaveAttribute("aria-expanded", "false");
+  const box = page.getByRole("textbox", { name: "Comment", exact: true });
+  await expect(box).toHaveAttribute("aria-autocomplete", "list");
+  await expect(box).not.toHaveAttribute("aria-controls", /.+/);
   await box.fill("@");
-  await expect(box).toHaveAttribute("aria-expanded", "true");
+  await expect(box).toHaveAttribute("aria-controls", /.+/);
   await box.press("Escape");
-  await expect(box).toHaveAttribute("aria-expanded", "false");
+  await expect(box).not.toHaveAttribute("aria-controls", /.+/);
 });
 
 test("the comment box grows with what is typed", async ({ page }) => {
