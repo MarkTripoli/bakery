@@ -5,39 +5,24 @@ import * as UI from "@bakery/ui";
 import type { WorkerAttemptResponse } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import { workerAttemptsQueryOptions } from "../api/query.ts";
-import {
-  asyncKindForError,
-  failureStatus,
-  isForbiddenFailure,
-} from "../app/async-state.ts";
+import { asyncKindForError, isForbiddenFailure } from "../app/async-state.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { formatMachineDate } from "./machine-state.ts";
 import {
   agentKey,
-  leaseKey,
   placeOf,
+  ROW_TONE,
+  rowState,
   slotsOf,
-  statusKey,
+  stateKey,
+  stateLineKey,
   stepHref,
   WORK_STATES,
   type WorkState,
   workState,
 } from "./machine-work.ts";
-
-type Tone = "neutral" | "success" | "warning" | "danger";
-
-const TONE: Readonly<Record<WorkerAttemptResponse["status"], Tone>> = {
-  leased: "neutral",
-  running: "success",
-  canceling: "warning",
-  completed: "success",
-  failed: "danger",
-  canceled: "neutral",
-  lost: "warning",
-  quarantined: "danger",
-};
 
 export function MachineWork(
   { machineId, slots, occupied, connectivity, lastHeartbeatAt }: {
@@ -69,54 +54,33 @@ export function MachineWork(
       timeZone,
       message("machines.work.notStarted"),
     );
-  const open = (href: string) => void navigate({ to: href });
+  const link = (href: string, label: string) => (
+    <UI.Link
+      href={href}
+      onClick={(event) => {
+        event.preventDefault();
+        void navigate({ to: href });
+      }}
+    >
+      {label}
+    </UI.Link>
+  );
 
-  const place = (attempt: WorkerAttemptResponse) => {
+  const task = (attempt: WorkerAttemptResponse) => {
     const where = placeOf(attempt);
-    const step = stepHref(attempt);
-    return (
-      <UI.Stack gap="none">
-        {where.kind === "task"
-          ? (
-            <UI.Link
-              href={`/tasks/${where.taskId}`}
-              onClick={(event) => {
-                event.preventDefault();
-                open(`/tasks/${where.taskId}`);
-              }}
-            >
-              {where.title === ""
-                ? message("machines.work.untitled")
-                : where.title}
-            </UI.Link>
-          )
-          : (
-            <UI.Text>
-              {message("machines.work.noTask")}{" "}
-              <UI.DataText>{where.action}</UI.DataText>
-            </UI.Text>
-          )}
-        {attempt.stepKey === null
-          ? null
-          : step === null
-          ? (
-            <UI.Text variant="caption">
-              {message("machines.work.step", { step: attempt.stepKey })}
-            </UI.Text>
-          )
-          : (
-            <UI.Link
-              href={step}
-              onClick={(event) => {
-                event.preventDefault();
-                open(step);
-              }}
-            >
-              {message("machines.work.step", { step: attempt.stepKey })}
-            </UI.Link>
-          )}
-      </UI.Stack>
+    if (where.kind === "taskless") {
+      return <UI.Text>{message(where.nameKey)}</UI.Text>;
+    }
+    return link(
+      `/tasks/${where.taskId}`,
+      where.title === "" ? message("machines.work.untitled") : where.title,
     );
+  };
+  const step = (attempt: WorkerAttemptResponse, label: string) => {
+    const href = stepHref(attempt);
+    return href === null
+      ? <UI.Text variant="caption">{label}</UI.Text>
+      : link(href, label);
   };
   const who = (attempt: WorkerAttemptResponse) => {
     const key = agentKey(attempt.codingAgent);
@@ -128,16 +92,37 @@ export function MachineWork(
       ? message("machines.work.noAgent")
       : parts.join(" · ");
   };
-  const badge = (attempt: WorkerAttemptResponse) => (
-    <UI.Badge tone={TONE[attempt.status]}>
-      {message(statusKey(attempt.status))}
-    </UI.Badge>
-  );
+  const badge = (attempt: WorkerAttemptResponse) => {
+    const shown = rowState(attempt);
+    return (
+      <UI.Badge tone={ROW_TONE[shown]}>{message(stateKey(shown))}</UI.Badge>
+    );
+  };
+  const stateLine = (attempt: WorkerAttemptResponse) => {
+    const silentSince = connectivity !== "online" && lastHeartbeatAt !== null;
+    const key = stateLineKey(rowState(attempt), {
+      hasTask: attempt.taskId !== null,
+      silentSince,
+    });
+    return key === null ? null : (
+      <UI.Text variant="caption">
+        {message(
+          key,
+          silentSince ? { time: when(lastHeartbeatAt) } : undefined,
+        )}
+      </UI.Text>
+    );
+  };
+  const started = (attempt: WorkerAttemptResponse) =>
+    attempt.startedAt === null
+      ? message("machines.work.notStarted")
+      : when(attempt.startedAt);
 
   const forbidden = attempts.isError && isForbiddenFailure(attempts.error);
-  const missing = attempts.isError && failureStatus(attempts.error) === 404;
   const offline = attempts.isError &&
     asyncKindForError(attempts.error) === "offline";
+  const moreFailed = attempts.isFetchNextPageError;
+  const refreshFailed = attempts.isError && !moreFailed && rows.length > 0;
   const filter = (
     <UI.SegmentedControl
       aria-label={message("machines.work.filter")}
@@ -153,19 +138,11 @@ export function MachineWork(
   );
 
   let body;
-  if (forbidden || missing) {
+  if (forbidden) {
     body = (
       <UI.EmptyState
-        title={message(
-          forbidden
-            ? "machines.work.forbidden.title"
-            : "machines.work.missing.title",
-        )}
-        description={message(
-          forbidden
-            ? "machines.work.forbidden.description"
-            : "machines.work.missing.description",
-        )}
+        title={message("machines.work.forbidden.title")}
+        description={message("machines.work.forbidden.description")}
         variant="filtered"
       />
     );
@@ -217,17 +194,24 @@ export function MachineWork(
       >
         {rows.map((attempt) => (
           <div key={attempt.id} role="listitem" data-attempt={attempt.id}>
-            <UI.StackedRow title={place(attempt)} status={badge(attempt)}>
+            <UI.StackedRow
+              title={task(attempt)}
+              titleLines="wrap"
+              status={badge(attempt)}
+            >
+              {attempt.stepKey === null ? null : step(
+                attempt,
+                message("machines.work.step", { step: attempt.stepKey }),
+              )}
               <UI.Text variant="caption">{who(attempt)}</UI.Text>
               <UI.Text variant="caption">
-                {message(leaseKey(attempt.leaseState))}
-                {" · "}
                 {attempt.startedAt === null
                   ? message("machines.work.notStarted")
                   : message("machines.work.startedAt", {
                     time: when(attempt.startedAt),
                   })}
               </UI.Text>
+              {stateLine(attempt)}
             </UI.StackedRow>
           </div>
         ))}
@@ -239,16 +223,21 @@ export function MachineWork(
         caption={message("machines.work.caption")}
         captionHidden
         variant="ruled"
-        inset="edge"
         rows={rows}
         emptyMessage={message(`machines.work.empty.${state}.title`)}
         getRowKey={(attempt) => attempt.id}
         getRowAttributes={(attempt) => ({ "data-attempt": attempt.id })}
         columns={[
           {
-            id: "work",
-            header: message("machines.work.column.work"),
-            cell: place,
+            id: "task",
+            header: message("machines.work.column.task"),
+            cell: task,
+          },
+          {
+            id: "step",
+            header: message("machines.work.column.step"),
+            cell: (attempt) =>
+              attempt.stepKey === null ? "—" : step(attempt, attempt.stepKey),
           },
           {
             id: "agent",
@@ -256,24 +245,20 @@ export function MachineWork(
             cell: who,
           },
           {
-            id: "status",
-            header: message("machines.work.column.status"),
-            cell: (attempt) => (
-              <UI.Stack gap="none">
-                {badge(attempt)}
-                <UI.Text variant="caption">
-                  {message(leaseKey(attempt.leaseState))}
-                </UI.Text>
-              </UI.Stack>
-            ),
-          },
-          {
             id: "started",
             header: message("machines.work.column.started"),
-            cell: (attempt) =>
-              attempt.startedAt === null
-                ? message("machines.work.notStarted")
-                : when(attempt.startedAt),
+            cell: started,
+          },
+          {
+            id: "status",
+            header: message("machines.work.column.state"),
+            width: "30%",
+            cell: (attempt) => (
+              <UI.Stack gap="tight">
+                <UI.Inline>{badge(attempt)}</UI.Inline>
+                {stateLine(attempt)}
+              </UI.Stack>
+            ),
           },
         ]}
       />
@@ -282,60 +267,57 @@ export function MachineWork(
 
   return (
     <UI.Stack gap="spacious" data-testid="machine-work">
-      <UI.SettingsSection
-        title={message("machines.work.slots.title")}
-        variant="stack"
+      <UI.Inline
+        gap="spacious"
+        data-controls="figures"
         data-testid="machine-slots"
       >
-        <UI.Text data-testid="machine-slot-line">
-          {message("machines.work.slots.line", {
-            total: capacity.slots,
-            occupied: capacity.occupied,
-            unoccupied: capacity.unoccupied,
-          })}
-        </UI.Text>
-        <UI.Text variant="caption">
-          {message("machines.work.slots.what")}
-        </UI.Text>
-        {connectivity === "online" ? null : (
-          <UI.InlineNotice tone="information">
-            {lastHeartbeatAt === null
-              ? message("machines.work.slots.lastKnownNever")
-              : message("machines.work.slots.lastKnown", {
-                time: when(lastHeartbeatAt),
-              })}
-          </UI.InlineNotice>
-        )}
-      </UI.SettingsSection>
-      <UI.SettingsSection
-        title={message("machines.work.title")}
-        variant="stack"
-        data-testid="machine-attempts"
-      >
-        {filter}
-        {rows.length > 0 && attempts.isError
+        <UI.StatTile
+          label={message("machines.work.slots.total")}
+          value={String(capacity.slots)}
+        />
+        <UI.StatTile
+          label={message("machines.work.slots.running")}
+          value={String(capacity.running)}
+        />
+        <UI.StatTile
+          label={message("machines.work.slots.free")}
+          value={String(capacity.free)}
+        />
+      </UI.Inline>
+      <UI.Stack gap="standard" data-testid="machine-attempts">
+        <UI.Inline gap="standard">{filter}</UI.Inline>
+        {refreshFailed || moreFailed
           ? (
             <UI.InlineNotice
               tone="error"
               action={
                 <UI.Button
                   variant="secondary"
-                  onClick={() => void attempts.fetchNextPage()}
+                  loading={attempts.isFetching}
+                  onClick={() =>
+                    void (moreFailed
+                      ? attempts.fetchNextPage()
+                      : attempts.refetch())}
                 >
                   {message("machines.retry")}
                 </UI.Button>
               }
             >
               {message(
-                offline
-                  ? "machines.work.moreOffline"
-                  : "machines.work.moreFailed",
+                moreFailed
+                  ? offline
+                    ? "machines.work.moreOffline"
+                    : "machines.work.moreFailed"
+                  : offline
+                  ? "machines.work.refreshOffline"
+                  : "machines.work.refreshFailed",
               )}
             </UI.InlineNotice>
           )
           : null}
         {body}
-        {attempts.hasNextPage && !forbidden && !missing
+        {attempts.hasNextPage && !forbidden
           ? (
             <UI.Button
               variant="secondary"
@@ -346,7 +328,7 @@ export function MachineWork(
             </UI.Button>
           )
           : null}
-      </UI.SettingsSection>
+      </UI.Stack>
     </UI.Stack>
   );
 }

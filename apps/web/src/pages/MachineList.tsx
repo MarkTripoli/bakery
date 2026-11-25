@@ -36,8 +36,28 @@ export function machineLine(
   return [
     translate(`machines.os.${row.os}` as never),
     ...(agents.length > 0 ? [agents.join(", ")] : []),
-    translate("machines.slotCount" as never, { count: row.slots }),
+    translate("machines.row.tasks" as never, {
+      running: row.activeAttemptCount,
+      slots: row.slots,
+    }),
   ].join(" · ");
+}
+
+export function tasksAtRisk(row: MachineRow): number {
+  const badge = machineBadge(row);
+  return badge === "offline" || badge === "notResponding"
+    ? row.unsettledAttemptCount ?? 0
+    : 0;
+}
+
+function atRiskLine(
+  row: MachineRow,
+  translate: Translator,
+): string | undefined {
+  const count = tasksAtRisk(row);
+  return count === 0
+    ? undefined
+    : translate("machines.row.mayBeLost" as never, { count });
 }
 
 function machineReasonLine(
@@ -167,7 +187,8 @@ export function MachineList(
               status={<MachineBadge row={row} translate={translate} />}
             >
               <UI.Text variant="caption">
-                {machineLine(row, translate)}
+                {[machineLine(row, translate), atRiskLine(row, translate)]
+                  .filter(Boolean).join(" ")}
               </UI.Text>
               <RowAction
                 row={row}
@@ -201,7 +222,10 @@ export function MachineList(
           cell: (row) => (
             <UI.CellStack
               title={row.name}
-              detail={machineReasonLine(row, translate)}
+              detail={[
+                machineReasonLine(row, translate),
+                atRiskLine(row, translate),
+              ].filter(Boolean).join(" ") || undefined}
             />
           ),
         },
@@ -226,7 +250,11 @@ export function MachineList(
           id: "slots",
           align: "end",
           header: translate("machines.column.slots" as never),
-          cell: (row) => String(row.slots),
+          cell: (row) =>
+            translate("machines.row.tasksShort" as never, {
+              running: row.activeAttemptCount,
+              slots: row.slots,
+            }),
         },
         {
           id: "lastSeen",

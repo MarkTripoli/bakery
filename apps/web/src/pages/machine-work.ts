@@ -10,26 +10,65 @@ export function workState(value: unknown): WorkState {
 
 export type Slots = {
   readonly slots: number;
-  readonly occupied: number;
-  readonly unoccupied: number;
+  readonly running: number;
+  readonly free: number;
 };
 
-export function slotsOf(slots: number, occupied: number): Slots {
-  return {
-    slots,
-    occupied,
-    unoccupied: Math.max(0, slots - occupied),
-  };
+export function slotsOf(slots: number, running: number): Slots {
+  return { slots, running, free: Math.max(0, slots - running) };
 }
 
-export function statusKey(status: WorkerAttemptResponse["status"]): MessageKey {
-  return `machines.work.status.${status}` as MessageKey;
+export type RowState =
+  | "running"
+  | "stopping"
+  | "lost"
+  | "unknown"
+  | "completed"
+  | "failed"
+  | "canceled";
+
+export function rowState(
+  attempt: Pick<WorkerAttemptResponse, "status" | "leaseState">,
+): RowState {
+  const { status, leaseState } = attempt;
+  if (
+    status === "completed" || status === "failed" || status === "canceled" ||
+    status === "lost"
+  ) {
+    return status;
+  }
+  if (status === "quarantined" || leaseState === "unknown") return "unknown";
+  if (leaseState === "expired" || leaseState === "lost") return "lost";
+  return status === "canceling" ? "stopping" : "running";
 }
 
-export function leaseKey(
-  lease: WorkerAttemptResponse["leaseState"],
-): MessageKey {
-  return `machines.work.lease.${lease}` as MessageKey;
+export const ROW_TONE: Readonly<
+  Record<RowState, "neutral" | "success" | "warning" | "danger">
+> = {
+  running: "success",
+  stopping: "neutral",
+  lost: "danger",
+  unknown: "warning",
+  completed: "success",
+  failed: "danger",
+  canceled: "neutral",
+};
+
+export function stateKey(state: RowState): MessageKey {
+  return `machines.work.status.${state}` as MessageKey;
+}
+
+export function stateLineKey(
+  state: RowState,
+  options: { readonly hasTask: boolean; readonly silentSince: boolean },
+): MessageKey | null {
+  if (state === "stopping" || state === "unknown") {
+    return `machines.work.line.${state}` as MessageKey;
+  }
+  if (state !== "lost") return null;
+  const since = options.silentSince ? "Since" : "";
+  const task = options.hasTask ? "Task" : "";
+  return `machines.work.line.lost${since}${task}` as MessageKey;
 }
 
 const AGENT_KEYS: Readonly<Record<string, MessageKey>> = {
@@ -47,7 +86,7 @@ export function agentKey(
 
 export type Place =
   | { readonly kind: "task"; readonly taskId: string; readonly title: string }
-  | { readonly kind: "taskless"; readonly action: string };
+  | { readonly kind: "taskless"; readonly nameKey: MessageKey };
 
 export function placeOf(attempt: WorkerAttemptResponse): Place {
   if (attempt.taskId !== null) {
@@ -57,7 +96,13 @@ export function placeOf(attempt: WorkerAttemptResponse): Place {
       title: attempt.taskTitle ?? "",
     };
   }
-  return { kind: "taskless", action: attempt.jobAction };
+  return {
+    kind: "taskless",
+    nameKey:
+      (attempt.jobAction === "repository.inspect"
+        ? "machines.work.taskless.repository"
+        : "machines.work.taskless.other") as MessageKey,
+  };
 }
 
 export function stepHref(attempt: WorkerAttemptResponse): string | null {

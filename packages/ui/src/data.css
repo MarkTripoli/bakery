@@ -1465,6 +1465,9 @@
 .ui-inline[data-controls="filters"] {
   align-items: flex-end;
 }
+.ui-inline[data-controls="figures"] > .ui-stat-tile {
+  flex: 0 0 auto;
+}
 /* A header with a long path wraps the path under the name and keeps its action
    at the end of the line, never dropped beneath the text. */
 @media (min-width: 744px) {

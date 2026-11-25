@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type { MessageArguments, MessageKey, Translator } from "@bakery/i18n";
@@ -7,6 +11,7 @@ import { useBakeryApi } from "../api/context.tsx";
 import {
   dispatchBlockersQueryOptions,
   effectiveAccessQueryOptions,
+  workerAttemptsQueryOptions,
   workerComponentsListQueryOptions,
   workerEnrollmentQueryOptions,
   workerProviderBindingsListQueryOptions,
@@ -15,6 +20,7 @@ import {
 import {
   asyncKindForConnectivity,
   asyncKindForError,
+  failureStatus,
   isForbiddenFailure,
 } from "../app/async-state.ts";
 import { useConnectivity } from "../app/connectivity.ts";
@@ -279,6 +285,19 @@ export function MachineDetailPage(
     : null;
   const machineTitle = workerData?.name ??
     message(translate, "machines.detail.title");
+  const attention = useInfiniteQuery(
+    workerAttemptsQueryOptions(api, scope, machineId, "needs_attention"),
+  );
+  const needsLook =
+    attention.data?.pages.flatMap((page) => page.items).length ??
+      0;
+  const needsLookHasMore = attention.hasNextPage;
+  const missing = worker.isError && failureStatus(worker.error) === 404;
+  const failedCheckIds = worker.data?.failedCheckIds;
+  const failedChecks =
+    worker.data?.status !== "revoked" && Array.isArray(failedCheckIds)
+      ? failedCheckIds.length
+      : 0;
   const [modeNote, setModeNote] = useState<
     | { kind: "saved"; mode: MachineMode }
     | { kind: "conflict" }
@@ -470,34 +489,36 @@ export function MachineDetailPage(
         />
       </ShellSlot>
       <UI.SettingsContent data-testid="machine-detail-page" variant="wide">
-        <UI.PageHeader
-          flush
-          variant="list"
-          title={machineTitle}
-          subtitle={workerData
-            ? message(
-              translate,
-              workerData.lastHeartbeatAt
-                ? "machines.page.subtitle"
-                : "machines.page.subtitleNever",
-              {
-                os: message(translate, `machines.os.${workerData.os}`),
-                architecture: processorLabel(
-                  workerData.os,
-                  workerData.architecture,
-                ),
-                time: formatDate(workerData.lastHeartbeatAt ?? ""),
-              },
-            )
-            : machineId}
-          summary={workerData && !reason && !bannerAgent
-            ? (
-              <UI.Badge tone={machineBadgeTone(headerBadge)}>
-                {message(translate, `machines.badge.${headerBadge}`)}
-              </UI.Badge>
-            )
-            : null}
-        />
+        {missing ? null : (
+          <UI.PageHeader
+            flush
+            variant="list"
+            title={machineTitle}
+            subtitle={workerData
+              ? message(
+                translate,
+                workerData.lastHeartbeatAt
+                  ? "machines.page.subtitle"
+                  : "machines.page.subtitleNever",
+                {
+                  os: message(translate, `machines.os.${workerData.os}`),
+                  architecture: processorLabel(
+                    workerData.os,
+                    workerData.architecture,
+                  ),
+                  time: formatDate(workerData.lastHeartbeatAt ?? ""),
+                },
+              )
+              : machineId}
+            summary={workerData && !reason && !bannerAgent
+              ? (
+                <UI.Badge tone={machineBadgeTone(headerBadge)}>
+                  {message(translate, `machines.badge.${headerBadge}`)}
+                </UI.Badge>
+              )
+              : null}
+          />
+        )}
         {asyncKindForConnectivity(connectivity)
           ? (
             <UI.AlertBanner
@@ -518,6 +539,21 @@ export function MachineDetailPage(
             <UI.EmptyState
               title={message(translate, "machines.forbidden.title")}
               description={message(translate, "machines.forbidden.description")}
+            />
+          )
+          : missing
+          ? (
+            <UI.ErrorState
+              title={message(translate, "machines.missing.title")}
+              description={message(translate, "machines.missing.description")}
+              action={
+                <UI.Button
+                  variant="secondary"
+                  onClick={() => void navigate({ to: "/machines" })}
+                >
+                  {message(translate, "machines.missing.back")}
+                </UI.Button>
+              }
             />
           )
           : worker.isError
@@ -1000,6 +1036,20 @@ export function MachineDetailPage(
                                         "machines.retire.dialogBody",
                                       )}
                                     </UI.Text>
+                                    {(workerData.unsettledAttemptCount ?? 0) > 0
+                                      ? (
+                                        <UI.Text>
+                                          {message(
+                                            translate,
+                                            "machines.retire.dialogRunning",
+                                            {
+                                              count: workerData
+                                                .unsettledAttemptCount ?? 0,
+                                            },
+                                          )}
+                                        </UI.Text>
+                                      )
+                                      : null}
                                     <UI.Text>
                                       {message(
                                         translate,
@@ -1034,39 +1084,6 @@ export function MachineDetailPage(
                       : null,
                   },
                   {
-                    id: "work",
-                    label: message(translate, "machines.tabs.work"),
-                    content: tab === "work"
-                      ? (
-                        <MachineWork
-                          machineId={machineId}
-                          slots={workerData.slots}
-                          occupied={workerData.activeAttemptCount}
-                          connectivity={workerData.connectivity ?? "stale"}
-                          lastHeartbeatAt={workerData.lastHeartbeatAt}
-                        />
-                      )
-                      : null,
-                  },
-                  {
-                    id: "checks",
-                    label: message(translate, "machines.tabs.checks"),
-                    content: tab === "checks"
-                      ? (
-                        <MachineChecks
-                          blockers={blockers}
-                          components={components}
-                          componentItems={componentItems}
-                          nextComponentCursor={nextComponentCursor}
-                          componentContinuation={componentContinuation}
-                          onLoadMore={setComponentCursor}
-                          isRetired={isRetired}
-                          focusChecks={focusChecks}
-                        />
-                      )
-                      : null,
-                  },
-                  {
                     id: "models",
                     label: message(translate, "machines.tabs.models"),
                     content: tab === "models"
@@ -1091,6 +1108,61 @@ export function MachineDetailPage(
                           retryBindings={() => void providers.refetch()}
                           justAdded={justAdded}
                           signInHref={`${MACHINES_HOME}/${machineId}`}
+                        />
+                      )
+                      : null,
+                  },
+                  {
+                    id: "work",
+                    label: message(translate, "machines.tabs.work"),
+                    badge: needsLook === 0
+                      ? undefined
+                      : (
+                        <UI.Badge tone="warning">
+                          {message(
+                            translate,
+                            needsLookHasMore
+                              ? "machines.tabs.workNeedsLookMore"
+                              : "machines.tabs.workNeedsLook",
+                            { count: needsLook },
+                          )}
+                        </UI.Badge>
+                      ),
+                    content: tab === "work"
+                      ? (
+                        <MachineWork
+                          machineId={machineId}
+                          slots={workerData.slots}
+                          occupied={workerData.activeAttemptCount}
+                          connectivity={workerData.connectivity ?? "stale"}
+                          lastHeartbeatAt={workerData.lastHeartbeatAt}
+                        />
+                      )
+                      : null,
+                  },
+                  {
+                    id: "checks",
+                    label: message(translate, "machines.tabs.checks"),
+                    badge: failedChecks === 0
+                      ? undefined
+                      : (
+                        <UI.Badge tone="danger">
+                          {message(translate, "machines.tabs.checksFailed", {
+                            count: failedChecks,
+                          })}
+                        </UI.Badge>
+                      ),
+                    content: tab === "checks"
+                      ? (
+                        <MachineChecks
+                          blockers={blockers}
+                          components={components}
+                          componentItems={componentItems}
+                          nextComponentCursor={nextComponentCursor}
+                          componentContinuation={componentContinuation}
+                          onLoadMore={setComponentCursor}
+                          isRetired={isRetired}
+                          focusChecks={focusChecks}
                         />
                       )
                       : null,

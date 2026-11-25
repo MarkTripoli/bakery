@@ -826,6 +826,7 @@ export function workerAttemptsQueryOptions(
     enabled: Boolean(scope.organizationId && workerId),
     retry: retryNetworkOnce,
     staleTime: 5_000,
+    refetchInterval: 15_000,
   });
 }
 
