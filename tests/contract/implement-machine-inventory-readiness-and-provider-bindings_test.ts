@@ -265,6 +265,8 @@ Deno.test("inventory report, components list and host projection match schemas",
       );
     const clientFormat = await patchBinding('"v2"');
     assertEquals(clientFormat.status, 200, await clientFormat.clone().text());
+    const bareBinding = await patchBinding('"3"');
+    assertEquals(bareBinding.status, 200, await bareBinding.clone().text());
     assertEquals((await patchBinding('"v9"')).status, 412);
 
     const hostPath = `/v1/workers/${worker.registration.workerHostId}`;
@@ -281,6 +283,8 @@ Deno.test("inventory report, components list and host projection match schemas",
     assertEquals((await patchHost(`"v${version + 7}"`)).status, 412);
     const hostUpdated = await patchHost(`"v${version}"`);
     assertEquals(hostUpdated.status, 200, await hostUpdated.clone().text());
+    const bareHost = await patchHost(`"${version + 1}"`);
+    assertEquals(bareHost.status, 200, await bareHost.clone().text());
   }));
 
 Deno.test("coding agents serve their payment methods; bindings keep to them (#68)", () =>
