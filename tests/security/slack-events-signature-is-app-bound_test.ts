@@ -8,12 +8,16 @@ import {
 } from "../../apps/server/src/modules/integrations/slack-receipts.ts";
 import type { SlackInstallation } from "../../apps/server/src/modules/integrations/slack-scope.ts";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
-import { linkSlackIdentity } from "../../apps/server/src/modules/integrations/slack-identity-links.ts";
+import {
+  linkSlackIdentity,
+  revokeSlackIdentityLink,
+} from "../../apps/server/src/modules/integrations/slack-identity-links.ts";
 import {
   sealInstallationSecret,
   writeInstallationSecretVersion,
 } from "../../apps/server/src/modules/secrets/installation-secrets.ts";
 import { openInstallationFixture } from "../helpers/installation-settings.ts";
+import { holdRow, raceClaim } from "../helpers/lock-race.ts";
 
 const encoder = new TextEncoder();
 type Fixture = Awaited<ReturnType<typeof openInstallationFixture>>;
@@ -518,6 +522,278 @@ Deno.test("Slack coordinator admission requires live human action authority", as
       "update bakery.principals set disabled_at = null where id = $1",
       [developerId],
     );
+  } finally {
+    try {
+      await fixture.pgDatabase.query(
+        "delete from bakery.slack_installations where organization_id = $1",
+        [fixture.organizationId],
+      );
+      if (signingSecretId !== null) {
+        await fixture.pgDatabase.query(
+          "update bakery.secrets set active_version_id = null where id = $1",
+          [signingSecretId],
+        );
+        await fixture.pgDatabase.query(
+          "delete from bakery.secret_versions where secret_id = $1",
+          [signingSecretId],
+        );
+        await fixture.pgDatabase.query(
+          "delete from bakery.secrets where id = $1",
+          [signingSecretId],
+        );
+      }
+      await fixture.finish();
+    } finally {
+      await Deno.remove(directory, { recursive: true });
+    }
+  }
+});
+
+type AdmissionRaceRows = {
+  receipts: number;
+  outcome: string | null;
+  messages: number;
+  turns: number;
+};
+
+async function admissionRaceRows(
+  fixture: Fixture,
+  appId: string,
+  eventId: string,
+): Promise<AdmissionRaceRows> {
+  const result = await fixture.pgDatabase.query<AdmissionRaceRows>(
+    `select
+       (select count(*)::int from bakery.slack_event_receipts
+         where app_id = $1 and event_id = $2) as receipts,
+       (select max(outcome) from bakery.slack_event_receipts
+         where app_id = $1 and event_id = $2) as outcome,
+       (select count(*)::int from bakery.messages
+         where organization_id = $3 and client_message_id = $4) as messages,
+       (select count(*)::int from bakery.conversation_turns turn
+          join bakery.messages message
+            on message.organization_id = turn.organization_id
+           and message.id = turn.trigger_message_id
+         where message.organization_id = $3
+           and message.client_message_id = $4) as turns`,
+    [
+      appId,
+      eventId,
+      fixture.organizationId,
+      `slack:${appId}:${eventId}`,
+    ],
+  );
+  const rows = result.rows[0];
+  if (!rows) throw new Error("SLACK_ADMISSION_RACE_ROWS_MISSING");
+  return rows;
+}
+
+function fulfilled<T>(outcome: PromiseSettledResult<T>): T {
+  if (outcome.status === "rejected") throw outcome.reason;
+  return outcome.value;
+}
+
+async function raceAdmission<C, O>(
+  fixture: Fixture,
+  hold: Awaited<ReturnType<typeof holdRow>>,
+  order: "claim-first" | "other-first",
+  claim: () => Promise<C>,
+  other: () => Promise<O>,
+): Promise<[PromiseSettledResult<C>, PromiseSettledResult<O>]> {
+  try {
+    return await raceClaim(fixture.pgDatabase, hold, order, claim, other);
+  } finally {
+    hold.release();
+    await hold.done;
+  }
+}
+
+Deno.test("Slack intake serializes identity revocation and principal disable", async () => {
+  const directory = await Deno.makeTempDir({ prefix: "bakery-slack-race-" });
+  const keyFile = `${directory}/key`;
+  await Deno.writeFile(keyFile, crypto.getRandomValues(new Uint8Array(32)), {
+    mode: 0o600,
+  });
+  const fixture = await openInstallationFixture(true, {
+    secretsKey: { file: keyFile, keyId: "slack-race-fixture-key-v1" },
+  });
+  const signingSecret = `race-${crypto.randomUUID()}`;
+  let signingSecretId: string | null = null;
+  try {
+    const value: SlackInstallation = {
+      kind: "workspace",
+      appId: `A${
+        crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()
+      }`,
+      teamId: `T${
+        crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()
+      }`,
+      botUserId: `U${
+        crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()
+      }`,
+      scopes: [],
+    };
+    const sealed = await sealInstallationSecret(
+      fixture.config.secretsKey,
+      null,
+      signingSecret,
+    );
+    signingSecretId = sealed.secretId;
+    const registered = await withPgTransaction(
+      fixture.runtimePgDatabase,
+      async (transaction) => {
+        await writeInstallationSecretVersion(transaction, sealed, {
+          name: `Slack ${value.appId}`,
+          provider: "slack",
+          principalId: fixture.adminId,
+        });
+        return await registerSlackInstallation(transaction, {
+          organizationId: fixture.organizationId,
+          installation: value,
+          signingSecretId: sealed.secretId,
+        });
+      },
+    );
+    assert(registered.ok);
+    const payload = (eventId: string, userId: string, channel: string) => ({
+      type: "event_callback",
+      event_id: eventId,
+      api_app_id: value.appId,
+      team_id: value.teamId,
+      authorizations: [{
+        team_id: value.teamId,
+        user_id: value.botUserId,
+      }],
+      event: {
+        type: "app_mention",
+        channel,
+        user: userId,
+        ts: `${eventId.length}.${channel.length}`,
+        text: "serialize authority",
+      },
+    });
+    const link = async (principalId: string, userId: string) => {
+      const result = await withPgTransaction(
+        fixture.runtimePgDatabase,
+        (transaction) =>
+          linkSlackIdentity(transaction, {
+            organizationId: fixture.organizationId,
+            principalId,
+            identity: {
+              appId: value.appId,
+              teamId: value.teamId,
+              userId,
+            },
+            verifiedAt: new Date(),
+          }),
+      );
+      assert(result.ok);
+      return result.link;
+    };
+
+    for (
+      const [order, expectedDisposition] of [
+        ["other-first", "rejected"],
+        ["claim-first", "accepted"],
+      ] as const
+    ) {
+      const eventId = order === "other-first"
+        ? "EvRevokeFirst"
+        : "EvIntakeFirst";
+      const userId = order === "other-first" ? "U0REVOKE" : "U0INTAKE";
+      const linked = await link(fixture.adminId, userId);
+      const event = payload(eventId, userId, `C${eventId.toUpperCase()}`);
+      const hold = await holdRow(
+        fixture.pgDatabase,
+        "select id from bakery.external_identity_links where id = $1 for update",
+        [linked.id],
+      );
+      const [intakeResult, revokeResult] = await raceAdmission(
+        fixture,
+        hold,
+        order,
+        () => postSlackEvent(fixture, signingSecret, event),
+        () =>
+          withPgTransaction(
+            fixture.runtimePgDatabase,
+            (transaction) =>
+              revokeSlackIdentityLink(transaction, {
+                organizationId: fixture.organizationId,
+                linkId: linked.id,
+                revokedBy: fixture.adminId,
+                reason: "revoked_by_admin",
+                at: new Date(),
+              }),
+          ),
+      );
+      const response = fulfilled(intakeResult);
+      const revoked = fulfilled(revokeResult);
+      assert(revoked.ok);
+      assertEquals(response.status, 200);
+      assertEquals(
+        (await response.json() as { disposition: string }).disposition,
+        expectedDisposition,
+      );
+      assertEquals(
+        await admissionRaceRows(fixture, value.appId, eventId),
+        expectedDisposition === "accepted"
+          ? { receipts: 1, outcome: "accepted", messages: 1, turns: 1 }
+          : { receipts: 1, outcome: "ignored", messages: 0, turns: 0 },
+      );
+    }
+
+    const developerId = fixture.developerId;
+    assert(typeof developerId === "string");
+    for (
+      const [order, expectedDisposition] of [
+        ["other-first", "rejected"],
+        ["claim-first", "accepted"],
+      ] as const
+    ) {
+      const eventId = order === "other-first"
+        ? "EvDisableFirst"
+        : "EvPrincipalFirst";
+      const userId = order === "other-first" ? "U0DISABLE" : "U0PRINCIPAL";
+      await link(developerId, userId);
+      const event = payload(eventId, userId, `C${eventId.toUpperCase()}`);
+      const hold = await holdRow(
+        fixture.pgDatabase,
+        "select id from bakery.principals where id = $1 for update",
+        [developerId],
+      );
+      const [intakeResult, disableResult] = await raceAdmission(
+        fixture,
+        hold,
+        order,
+        () => postSlackEvent(fixture, signingSecret, event),
+        () =>
+          withPgTransaction(
+            fixture.pgDatabase,
+            async (transaction) => {
+              await transaction.query(
+                "update bakery.principals set disabled_at = now() where id = $1",
+                [developerId],
+              );
+            },
+          ),
+      );
+      const response = fulfilled(intakeResult);
+      fulfilled(disableResult);
+      assertEquals(response.status, 200);
+      assertEquals(
+        (await response.json() as { disposition: string }).disposition,
+        expectedDisposition,
+      );
+      assertEquals(
+        await admissionRaceRows(fixture, value.appId, eventId),
+        expectedDisposition === "accepted"
+          ? { receipts: 1, outcome: "accepted", messages: 1, turns: 1 }
+          : { receipts: 1, outcome: "ignored", messages: 0, turns: 0 },
+      );
+      await fixture.pgDatabase.query(
+        "update bakery.principals set disabled_at = null where id = $1",
+        [developerId],
+      );
+    }
   } finally {
     try {
       await fixture.pgDatabase.query(

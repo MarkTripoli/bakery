@@ -25,7 +25,7 @@ import {
   isSlackUserId,
   type SlackInstallation,
 } from "./slack-scope.ts";
-import { findSlackIdentityLink } from "./slack-identity-links.ts";
+import { lockSlackIdentityLink } from "./slack-identity-links.ts";
 import { SLACK_IGNORE_REASONS } from "./slack-request.ts";
 
 export const SLACK_RECEIPT_RETENTION_DAYS = 7;
@@ -246,12 +246,16 @@ const PERMANENT_SLACK_ADMISSION_CODES = new Set([
   "AUTH_FORBIDDEN",
   "BODY_TOO_LARGE",
   "RESOURCE_NOT_FOUND",
-  "STATE_CONFLICT",
+]);
+const PERMANENT_SLACK_STATE_CONFLICT_REASONS = new Set([
+  "conversation_archived",
 ]);
 
 function isPermanentSlackAdmissionError(error: unknown): boolean {
-  return error instanceof StandardError &&
-    PERMANENT_SLACK_ADMISSION_CODES.has(error.code);
+  if (!(error instanceof StandardError)) return false;
+  if (PERMANENT_SLACK_ADMISSION_CODES.has(error.code)) return true;
+  return error.code === "STATE_CONFLICT" &&
+    PERMANENT_SLACK_STATE_CONFLICT_REASONS.has(String(error.params?.reason));
 }
 
 async function findOrCreateSlackConversation(
@@ -319,13 +323,20 @@ async function handoffSlackWork(
     readonly work: SlackReceiptWork;
   },
 ): Promise<boolean> {
-  const link = await findSlackIdentityLink(transaction, {
+  const link = await lockSlackIdentityLink(transaction, {
     organizationId: input.installation.organizationId,
     appId: input.appId,
     teamId: input.installation.teamId,
     userId: input.work.userId,
   });
   if (!link || link.state !== "active" || !link.memberCurrent) return false;
+  const principal = await transaction.query(
+    `select 1 from bakery.principals
+      where id = $1 and disabled_at is null
+      for share`,
+    [link.principalId],
+  );
+  if (principal.rows.length !== 1) return false;
   const action = ConversationImplementedAction.MessagesCreate;
   const actor = await resolveOrganizationActor(
     transaction,

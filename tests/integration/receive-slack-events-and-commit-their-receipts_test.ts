@@ -405,6 +405,101 @@ Deno.test("running Slack ingress uses canonical conversation admission", async (
       });
 
       await f.pgDatabase.query(
+        `with agent as (
+           select agent_version_id
+             from bakery.conversation_turns
+            where organization_id = $1 and conversation_id = $2
+            limit 1
+         ), inserted as (
+           insert into bakery.messages (
+             organization_id, conversation_id, author_id, message_type, body,
+             client_message_id, sequence, intent)
+           select $1, $2, $3, 'system', 'capacity',
+                  'capacity:' || seed::text, seed, 'agent_request'
+             from generate_series(2, 50) as seed
+           returning id, sequence
+         )
+         insert into bakery.conversation_turns (
+           organization_id, conversation_id, trigger_message_id, status,
+           context_through_sequence, agent_version_id)
+         select $1, $2, inserted.id, 'queued', inserted.sequence,
+                agent.agent_version_id
+           from inserted cross join agent`,
+        [f.organizationId, conversationId, f.adminId],
+      );
+      const queueFullPayload = replyPayload(
+        eventId(),
+        "retry after capacity",
+        "1.15",
+      );
+      const beforeQueueFull = await slackDurableCounts(f);
+      const queueFull = await postSlackEvent(
+        f,
+        signingSecret,
+        queueFullPayload,
+      );
+      assertEquals(queueFull.status, 503);
+      assertEquals(await slackDurableCounts(f), beforeQueueFull);
+
+      await f.pgDatabase.query(
+        `update bakery.conversation_turns
+            set status = 'completed'
+          where id = (
+            select id from bakery.conversation_turns
+             where organization_id = $1 and conversation_id = $2
+               and status = 'queued'
+             order by created_at desc, id desc
+             limit 1
+          )`,
+        [f.organizationId, conversationId],
+      );
+      const acceptedAfterCapacity = await postSlackEvent(
+        f,
+        signingSecret,
+        queueFullPayload,
+      );
+      assertEquals(acceptedAfterCapacity.status, 200);
+      assertEquals(
+        (await acceptedAfterCapacity.json() as { disposition: string })
+          .disposition,
+        "accepted",
+      );
+      const afterCapacity = {
+        ...beforeQueueFull,
+        receipts: beforeQueueFull.receipts + 1,
+        messages: beforeQueueFull.messages + 1,
+        turns: beforeQueueFull.turns + 1,
+        events: beforeQueueFull.events + 2,
+        outbox: beforeQueueFull.outbox + 1,
+        audits: beforeQueueFull.audits + 1,
+      };
+      assertEquals(await slackDurableCounts(f), afterCapacity);
+      const capacityDuplicate = await postSlackEvent(
+        f,
+        signingSecret,
+        queueFullPayload,
+      );
+      assertEquals(capacityDuplicate.status, 200);
+      assertEquals(
+        (await capacityDuplicate.json() as { disposition: string })
+          .disposition,
+        "duplicate",
+      );
+      assertEquals(await slackDurableCounts(f), afterCapacity);
+      await f.pgDatabase.query(
+        `update bakery.conversation_turns
+            set status = 'completed'
+          where id = (
+            select id from bakery.conversation_turns
+             where organization_id = $1 and conversation_id = $2
+               and status = 'queued'
+             order by created_at desc, id desc
+             limit 1
+          )`,
+        [f.organizationId, conversationId],
+      );
+
+      await f.pgDatabase.query(
         `update bakery.conversations set archived_at = now()
           where organization_id = $1 and id = $2`,
         [f.organizationId, conversationId],
