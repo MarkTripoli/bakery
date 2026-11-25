@@ -987,9 +987,17 @@
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0255_private_skills.sql"
       },
+      "slack_event_receipts": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0368_slack_installations_and_receipts.sql"
+      },
       "slack_identity_attempts": {
         "module": "integrations",
         "migration": "apps/server/src/modules/integrations/migrations/bakery/0153_slack_identity_attempts.sql"
+      },
+      "slack_installations": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0368_slack_installations_and_receipts.sql"
       },
       "ssoProvider": {
         "module": "auth",
