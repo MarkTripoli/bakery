@@ -364,6 +364,31 @@ async function agentSessionId(
   assert(typeof id === "string");
   return id;
 }
+async function postDiscussion(
+  fixture: WorkerFixture,
+  s: Session,
+  body: string,
+): Promise<void> {
+  const sessionId = await agentSessionId(fixture, s);
+  const conversation = await fixture.pgDatabase.query<
+    { conversation_id: string }
+  >(
+    `select conversation_id from bakery.agent_sessions
+      where organization_id = $1 and id = $2`,
+    [fixture.organizationId, sessionId],
+  );
+  const response = await adminRequest(
+    fixture,
+    `/v1/conversations/${conversation.rows[0]!.conversation_id}/messages`,
+    {
+      body,
+      clientMessageId: crypto.randomUUID(),
+      intent: "discussion",
+    },
+    { idempotencyKey: crypto.randomUUID() },
+  );
+  assertEquals(response.status, 201, await response.clone().text());
+}
 
 async function sessionFeed(
   fixture: WorkerFixture,
@@ -390,6 +415,23 @@ function withGateway(
     (fixture) => body(fixture, server),
     { mcpToolTransport: server.transport },
   );
+}
+function withGatewayMessages(
+  body: (
+    fixture: WorkerFixture,
+    server: ReturnType<typeof fakeServer>,
+  ) => Promise<void>,
+) {
+  return withGateway(async (fixture, server) => {
+    try {
+      await body(fixture, server);
+    } finally {
+      await fixture.pgDatabase.query(
+        "delete from bakery.messages where organization_id = $1",
+        [fixture.organizationId],
+      );
+    }
+  });
 }
 
 Deno.test("a session lists only the tools its step binds and calls one through tool-invocations (#436)", () =>
@@ -469,27 +511,26 @@ Deno.test("a session lists only the tools its step binds and calls one through t
   }));
 
 Deno.test("a remote tool call appends ordered lifecycle items once (#435)", () =>
-  withGateway(async (fixture, server) => {
+  withGatewayMessages(async (fixture, server) => {
     const s = await session(fixture);
     await bind(fixture, s, { stepKey: "worker" }, ["search"]);
+    await postDiscussion(fixture, s, "before tool");
 
     const key = crypto.randomUUID();
     const called = await invoke(fixture, s, "search", { query: "bakery" }, key);
     assertEquals(called.status, 200, await called.clone().text());
+    await postDiscussion(fixture, s, "after tool");
 
-    const first = await sessionFeed(fixture, s);
-    assertEquals(first.map((item) => item.kind), ["tool", "tool"]);
-    assertEquals(first.map((item) => item.sequence), ["1", "2"]);
+    const afterSuccess = await sessionFeed(fixture, s);
+    assertEquals(afterSuccess.map((item) => item.kind), [
+      "message",
+      "tool",
+      "tool",
+      "message",
+    ]);
     assertEquals(
-      first.filter((item) => item.tool !== null).map((item) => ({
-        name: item.tool!.name,
-        phase: item.tool!.phase,
-        ok: item.tool!.ok,
-      })),
-      [
-        { name: "search", phase: "started", ok: null },
-        { name: "search", phase: "completed", ok: true },
-      ],
+      afterSuccess.map((item) => item.sequence),
+      ["1", "2", "3", "4"],
     );
 
     const replay = await invoke(
@@ -500,8 +541,53 @@ Deno.test("a remote tool call appends ordered lifecycle items once (#435)", () =
       key,
     );
     assertEquals(replay.status, 200, await replay.clone().text());
-    assertEquals(await sessionFeed(fixture, s), first);
+    assertEquals(await sessionFeed(fixture, s), afterSuccess);
     assertEquals(server.calls.length, 1);
+
+    server.answerWith(() => null);
+    const failed = await invoke(
+      fixture,
+      s,
+      "search",
+      { query: "failure" },
+      crypto.randomUUID(),
+    );
+    assertEquals(failed.status, 200, await failed.clone().text());
+
+    server.answerWith(() => ({
+      content: [{ type: "text", text: "tool error" }],
+      isError: true,
+    }));
+    const toolError = await invoke(
+      fixture,
+      s,
+      "search",
+      { query: "tool error" },
+      crypto.randomUUID(),
+    );
+    assertEquals(toolError.status, 200, await toolError.clone().text());
+
+    const feed = await sessionFeed(fixture, s);
+    assertEquals(
+      feed.filter((item) => item.tool !== null).map((item) => ({
+        name: item.tool!.name,
+        phase: item.tool!.phase,
+        ok: item.tool!.ok,
+      })),
+      [
+        { name: "search", phase: "started", ok: null },
+        { name: "search", phase: "completed", ok: true },
+        { name: "search", phase: "started", ok: null },
+        { name: "search", phase: "failed", ok: false },
+        { name: "search", phase: "started", ok: null },
+        { name: "search", phase: "completed", ok: false },
+      ],
+    );
+    assertEquals(
+      feed.map((item) => item.sequence),
+      ["1", "2", "3", "4", "5", "6", "7", "8"],
+    );
+    assertEquals(server.calls.length, 3);
   }));
 
 Deno.test("two calls at once with one key send once; the other is a replay, never a 500 (#436)", () =>
@@ -660,6 +746,15 @@ Deno.test("an Admin settles a write whose outcome is unknown, once, and it is au
     );
     assertEquals(sent.rows.map((row) => row.status), ["sent"]);
     const callId = sent.rows[0]!.id;
+    assertEquals(
+      (await sessionFeed(fixture, s)).map((item) => item.tool),
+      [{
+        callId,
+        name: "create_note",
+        phase: "started",
+        ok: null,
+      }],
+    );
     const path = `/v1/tool-gateway-calls/${callId}/settlement`;
 
     // A completed settlement carries no failure code.
@@ -698,6 +793,23 @@ Deno.test("an Admin settles a write whose outcome is unknown, once, and it is au
       idempotencyKey: crypto.randomUUID(),
     });
     assertEquals(await problemCode(again), "STATE_CONFLICT");
+    assertEquals(
+      (await sessionFeed(fixture, s)).map((item) => item.tool),
+      [
+        {
+          callId,
+          name: "create_note",
+          phase: "started",
+          ok: null,
+        },
+        {
+          callId,
+          name: "create_note",
+          phase: "completed",
+          ok: true,
+        },
+      ],
+    );
 
     const audit = await fixture.pgDatabase.query<
       { details: { status: string } }

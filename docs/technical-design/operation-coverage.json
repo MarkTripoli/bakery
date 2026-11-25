@@ -583,6 +583,10 @@
         "module": "mcp",
         "migration": "apps/server/src/modules/mcp/migrations/bakery/0344_capability_binding_seats.sql"
       },
+      "conversation_feed_sequences": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0369_session_tool_feed.sql"
+      },
       "coordination_lanes": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0120_coordination_plans.sql"
@@ -970,6 +974,10 @@
       "session_output_streams": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0049_execution_output.sql"
+      },
+      "session_tool_feed_events": {
+        "module": "mcp",
+        "migration": "apps/server/src/modules/mcp/migrations/bakery/0369_session_tool_feed.sql"
       },
       "skill_draft_files": {
         "module": "work",

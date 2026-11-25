@@ -203,6 +203,7 @@ async function settle(
     { status: "completed"; result: unknown } | {
       status: "failed";
       code: string;
+      terminalPhase: "completed" | "failed";
     }
   >,
 ): Promise<void> {
@@ -231,7 +232,9 @@ async function settle(
       await appendSessionToolFeedEvent(transaction, {
         organizationId,
         callId,
-        phase: outcome.status,
+        phase: outcome.status === "completed"
+          ? "completed"
+          : outcome.terminalPhase,
         ok: outcome.status === "completed"
           ? completedToolOk(outcome.result)
           : false,
@@ -499,6 +502,10 @@ export function createToolInvocationRoute(deps: ToolGatewayDeps) {
       await settle(options, headers, opened.callId, {
         status: "failed",
         code,
+        terminalPhase: error instanceof McpToolCallError &&
+            error.reason === "tool_failed"
+          ? "completed"
+          : "failed",
       });
       if (error instanceof StandardError) throw error;
       if (error instanceof McpToolCallError) {
@@ -674,7 +681,11 @@ export function createLocalToolCallRoute(deps: ToolGatewayDeps) {
       const code = error instanceof StandardError
         ? String(error.params?.reason ?? error.code).toLowerCase()
         : "unknown";
-      await settle(options, headers, opened.callId, { status: "failed", code });
+      await settle(options, headers, opened.callId, {
+        status: "failed",
+        code,
+        terminalPhase: "failed",
+      });
       throw error;
     }
     return jsonResponse({

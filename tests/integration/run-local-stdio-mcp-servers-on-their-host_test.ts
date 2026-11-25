@@ -266,6 +266,51 @@ function settleCall(
     { ...lease(s), ...outcome },
   );
 }
+async function toolFeed(
+  fixture: WorkerFixture,
+  s: Local,
+): Promise<{ phase: string; ok: boolean | null }[]> {
+  const session = await fixture.pgDatabase.query<{ id: string }>(
+    `select session.id
+       from bakery.job_attempts attempt
+       join bakery.jobs job
+         on job.organization_id = attempt.organization_id
+        and job.id = attempt.job_id
+       join bakery.agent_sessions session
+         on session.organization_id = job.organization_id
+        and session.run_step_id = job.run_step_id
+      where attempt.organization_id = $1 and attempt.id = $2
+      order by session.created_at, session.id
+      limit 1`,
+    [fixture.organizationId, s.assignment.attemptId],
+  );
+  const response = await asAdmin(
+    fixture,
+    "GET",
+    `/v1/sessions/${session.rows[0]!.id}/feed`,
+    undefined,
+  );
+  const body = await json(response, 200);
+  const items = body.items;
+  assert(Array.isArray(items));
+  return items.flatMap((item) => {
+    if (
+      item === null ||
+      typeof item !== "object" ||
+      !("tool" in item) ||
+      item.tool === null
+    ) return [];
+    const tool = item.tool;
+    assert(
+      typeof tool === "object" &&
+        "phase" in tool &&
+        typeof tool.phase === "string" &&
+        "ok" in tool &&
+        (typeof tool.ok === "boolean" || tool.ok === null),
+    );
+    return [{ phase: tool.phase, ok: tool.ok }];
+  });
+}
 
 Deno.test("only the host a stdio connection is placed on discovers it and pins its snapshot (#441)", () =>
   withLocal(async (fixture) => {
@@ -369,14 +414,26 @@ Deno.test("a local tool is listed with its launch, checked and recorded by local
     assertEquals(opened.status, 200);
     const open = await opened.json() as { callId: string; status: string };
     assertEquals(open.status, "open");
+    assertEquals(await toolFeed(fixture, s), [
+      { phase: "started", ok: null },
+      { phase: "failed", ok: false },
+      { phase: "started", ok: null },
+    ]);
     assertEquals((await openCall(fixture, s, { text: "hi" }, key)).status, 409);
 
     const settled = await settleCall(fixture, s, open.callId, {
       status: "completed",
       content: [{ type: "text", text: "hi" }],
-      isError: false,
+      isError: true,
     });
     assertEquals(settled.status, 200);
+    const lifecycle = [
+      { phase: "started", ok: null },
+      { phase: "failed", ok: false },
+      { phase: "started", ok: null },
+      { phase: "completed", ok: false },
+    ];
+    assertEquals(await toolFeed(fixture, s), lifecycle);
     const again = await settleCall(fixture, s, open.callId, {
       status: "failed",
       failureCode: "late",
@@ -392,6 +449,7 @@ Deno.test("a local tool is listed with its launch, checked and recorded by local
     };
     assertEquals(answered.status, "completed");
     assertEquals(answered.result.content, [{ type: "text", text: "hi" }]);
+    assertEquals(await toolFeed(fixture, s), lifecycle);
     const otherTool = await openCall(fixture, s, { text: "hi" }, key, "probe");
     assertEquals(otherTool.status, 422);
     assertEquals(await problemCode(otherTool), "IDEMPOTENCY_PAYLOAD_MISMATCH");
