@@ -381,8 +381,11 @@ export function MachineDetailPage(
     await refreshMachine();
     return result.ok;
   };
+  const [focusBanner, setFocusBanner] = useState(false);
   const finishInstead = async () => {
-    if (await changeMode("draining")) setRetireOpen(false);
+    if (!(await changeMode("draining"))) return;
+    setRetireOpen(false);
+    setFocusBanner(true);
   };
   const retire = async () => {
     if (!organizationId || !workerData) return;
@@ -411,6 +414,17 @@ export function MachineDetailPage(
     : null;
   const bannerSaysMode = reason !== null && signInBanner === null &&
     (reason.kind === "paused" || reason.kind === "finishing");
+  useEffect(() => {
+    if (!focusBanner || !bannerSaysMode) return;
+    const problem = document.querySelector<HTMLElement>(
+      '[data-testid="machine-problem-banner"]',
+    );
+    if (problem === null) return;
+    problem.setAttribute("tabindex", "-1");
+    problem.scrollIntoView({ block: "start" });
+    problem.focus({ preventScroll: true });
+    setFocusBanner(false);
+  }, [focusBanner, bannerSaysMode]);
   // The agent the coding-agent banner names, if that banner is drawn.
   const agentBannerRow = (!reason && bannerAgent) || signInBanner
     ? (signInBanner ?? bannerAgent!)

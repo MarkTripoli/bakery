@@ -192,7 +192,6 @@ test.describe("machines list states", () => {
         } else {
           await expect(row, name).toContainText(line);
         }
-        // One control per row: a link on a wide screen, a button on a phone.
         const control = row.getByRole("link").or(row.getByRole("button"));
         await expect(control, name).toHaveCount(1);
         await expect(
@@ -201,12 +200,10 @@ test.describe("machines list states", () => {
           ),
           name,
         ).toBeVisible();
-        // One badge on the row, not three.
         await expect(row.locator("[data-ui-component=badge]"), name)
           .toHaveCount(
             1,
           );
-        // The control sits beside or under the row's text, never on it.
         const geometry = await rowActionGeometry(row);
         expect(
           geometry.overlaps,
@@ -215,7 +212,6 @@ test.describe("machines list states", () => {
           .toEqual([]);
         geometries.push(geometry);
       }
-      // Fix and Open are the same size: one fixed width across the list.
       expect(
         new Set(
           geometries.map((geometry) => `${geometry.width}x${geometry.height}`),
@@ -224,10 +220,8 @@ test.describe("machines list states", () => {
           geometries.map((g) => `${g.label} ${g.width}x${g.height}`).join(", ")
         }`,
       ).toBe(1);
-      // A fleet of nine machines is a list: no filter yet.
       await expect(page.getByRole("group", { name: "Show machines" }))
         .toHaveCount(0);
-      // Nothing of the old table's columns or words in the list itself.
       const list = page.getByRole("table", { name: "Machines" }).or(
         page.getByRole("list", { name: "Machines" }),
       );

@@ -624,6 +624,8 @@ test.describe("machine page: mode and Retire", () => {
     await expect(banner(page)).toContainText(
       "It takes no new work and stops once its current work is done.",
     );
+    await expect(banner(page)).toBeInViewport();
+    await expect(banner(page)).toBeFocused();
     await expect(page.getByTestId("machine-mode").getByRole("status"))
       .toHaveCount(0);
     expect(f.patches).toHaveLength(1);
