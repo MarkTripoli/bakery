@@ -7559,6 +7559,34 @@ export const clientManifest = {
     },
     {
       "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/tasks/{id}/pull-requests",
+      "action": "pullRequests.register",
+      "access": "Developer",
+      "permission": "pullRequest:register",
+      "input": "PullRequestRegistrationCreate",
+      "output": "PullRequest",
+      "event": "",
+      "mcp": "bakery_pullRequests_register",
+      "idempotency": "Idempotency-Key required; exact payload retries replay the committed response",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "PROVIDER_QUOTA_EXCEEDED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
       "method": "GET",
       "path": "/v1/pull-requests",
       "action": "pullRequests.list",
@@ -31232,6 +31260,36 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Freezes one exact committed draft revision and the chosen discussion threads into an immutable reference an agent turn or workflow can later name. Sending a draft to an agent records the reference only; it does not admit or start any work."
+    },
+    "PullRequestRegistrationCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Bakery repository that owns the provider pull request; it must be bound to the task and its enabled selected integration resource."
+        },
+        "providerNumber": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Provider-assigned pull request number to read from the task repository before Bakery stores any pull request state."
+        },
+        "runId": {
+          "description": "Workflow run of this task and repository that opened the pull request; omit only when no workflow run created it.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "repositoryId",
+        "providerNumber"
+      ],
+      "additionalProperties": false,
+      "description": "Registers one task-owned pull request from its Bakery repository identity and provider number; the server derives organization, installation, URL, commits, lifecycle and source evidence from live trusted state."
     },
     "PullRequestMerge": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -60606,6 +60664,145 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "PullRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the pull request record."
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this record to the related task entity."
+        },
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this record to the related repository entity."
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PullRequest.runId may be null in this transport value."
+        },
+        "providerNumber": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Provider-assigned pull request number."
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Canonical provider URL for the pull request."
+        },
+        "headSha": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Head commit SHA associated with the record."
+        },
+        "baseSha": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Base commit SHA associated with the record."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "merged",
+            "closed"
+          ],
+          "description": "Current lifecycle status of the record."
+        },
+        "mergedSha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Merge commit SHA created by the provider."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PullRequest.mergedSha may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used when updating the record."
+        },
+        "mayMerge": {
+          "type": "boolean",
+          "description": "Whether the caller holds the permission to merge this pull request from Bakery (the pullRequest:merge permission). It says nothing about whether the pull request is ready to merge; the checks and the dispatch still decide that."
+        },
+        "mergeMethod": {
+          "type": "string",
+          "enum": [
+            "merge",
+            "squash",
+            "rebase"
+          ],
+          "description": "The merge method Bakery uses for this pull request: squash, the repository practice. The page sends this value and does not choose one."
+        },
+        "targetBranch": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Branch this pull request merges into: its repository's default branch, the branch Bakery opens pull requests against and the one mergeEntries.create takes."
+        }
+      },
+      "required": [
+        "id",
+        "taskId",
+        "repositoryId",
+        "runId",
+        "providerNumber",
+        "url",
+        "headSha",
+        "baseSha",
+        "status",
+        "mergedSha",
+        "createdAt",
+        "updatedAt",
+        "version",
+        "mayMerge",
+        "mergeMethod",
+        "targetBranch"
+      ],
+      "additionalProperties": false,
+      "description": "Bakery's mirror of a provider pull request's identity and latest known SHAs for a task's repository; provider webhooks reconcile status, mergedSha and the head/base SHAs against the provider's current state, so this record can lag briefly behind Git history."
     },
     "ReviewCycle": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

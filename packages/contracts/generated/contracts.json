@@ -8117,7 +8117,7 @@
         "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Delivery",
@@ -15601,6 +15601,7 @@
     "runRepairAllowances.create",
     "runRepairTries.list",
     "pullRequests.list",
+    "pullRequests.register",
     "mergeEntries.list",
     "mergeEntries.create",
     "pullRequests.merge",
