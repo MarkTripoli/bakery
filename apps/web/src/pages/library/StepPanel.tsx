@@ -3,6 +3,11 @@ import { useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { ACTION_LINES } from "./workflow-state.ts";
 
+import {
+  ApprovalPanelBody,
+  type ApprovalPanelProps,
+} from "./ApprovalPanel.tsx";
+
 /**
  * The panel beside the diagram (#67, slice 1): what the person selected, and
  * the actions the design puts in the panel footer. Three things can be
@@ -117,6 +122,7 @@ export type PanelTarget =
     readonly code: string | undefined;
     readonly problem: string | undefined;
     readonly agentFromSetup?: boolean;
+    readonly approval?: ApprovalPanelProps | undefined;
     /** The skills the step names (#431). */
     readonly skills: StepSkills;
     /** The picker that attaches a skill; null when the page cannot edit. */
@@ -207,7 +213,9 @@ export function StepPanel(
     );
   }
 
-  const lineKey = ACTION_LINES[target.uses];
+  const lineKey = target.approval === undefined
+    ? ACTION_LINES[target.uses]
+    : "library.editor.ask.panelLine";
   const line = lineKey === undefined ? undefined : translate(lineKey as never);
 
   return (
@@ -267,6 +275,12 @@ export function StepPanel(
               code: target.code,
             })}
           </UI.Text>
+        )}
+        {target.approval === undefined ? null : (
+          <ApprovalPanelBody
+            key={target.approval.stepId}
+            {...target.approval}
+          />
         )}
         {target.skills.kind === "hidden"
           ? null

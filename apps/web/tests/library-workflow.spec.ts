@@ -814,7 +814,7 @@ for (
       await expect(picker).toBeVisible();
       // The picker says what each step does, and its search narrows the list:
       // a bare list of names told a person nothing (#67 UX ruling 6934081003).
-      await expect(picker.locator("[data-pick-step]")).toHaveCount(8);
+      await expect(picker.locator("[data-pick-step]")).toHaveCount(9);
       await expect(
         picker.locator("[data-pick-step='review.independent']"),
       ).toContainText(

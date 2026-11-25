@@ -83,6 +83,7 @@ export type DiagramProps = {
    * agent a step runs, and whether that could be read. The editor passes none.
    */
   readonly detail?: (uses: string, id: string) => ReactNode;
+  readonly lines?: ReadonlyMap<string, string>;
   readonly view?: "diagram" | "outline";
 };
 
@@ -109,6 +110,7 @@ export function WorkflowDiagram(
     canManage,
     detail,
     editable,
+    lines,
     onAdd,
     onPick,
     onPickClose,
@@ -335,7 +337,9 @@ export function WorkflowDiagram(
       problems.get(node.id) !== undefined;
     const codeOnly = node.codeOnly === true && !drawing;
     const glyph = drawing ? "info" : stepGlyph(node);
-    const summary = drawing ? undefined : stepLine(node, translate);
+    const summary = drawing
+      ? undefined
+      : lines?.get(node.id) ?? stepLine(node, translate);
     const extra = drawing ? undefined : detail?.(node.uses, node.id);
     return { codeOnly, drawing, extra, glyph, summary };
   };

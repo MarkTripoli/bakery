@@ -116,7 +116,8 @@ const SENTENCES: Readonly<Record<string, string>> = {
   step_skill_slot_open: SKILL_PROBLEM_SENTENCE,
   step_skill_stopped: SKILL_PROBLEM_SENTENCE,
   step_skill_unavailable: SKILL_PROBLEM_SENTENCE,
-  // A step's problems.
+  parallel_lanes_workspace_write:
+    "Only one lane of steps that run side by side may change the repository. Open View as code and narrow one of them.",
   action_unknown:
     "Bakery does not know this kind of step. Delete it and add a step from the list.",
   step_action_invalid:
