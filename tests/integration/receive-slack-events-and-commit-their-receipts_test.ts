@@ -410,13 +410,38 @@ Deno.test("running Slack ingress uses canonical conversation admission", async (
         [f.organizationId, conversationId],
       );
       const beforeArchived = await slackDurableCounts(f);
+      const archivedPayload = replyPayload(
+        eventId(),
+        "closed conversation",
+        "1.2",
+      );
       const archived = await postSlackEvent(
         f,
         signingSecret,
-        replyPayload(eventId(), "closed conversation", "1.2"),
+        archivedPayload,
       );
-      assertEquals(archived.status, 503);
-      assertEquals(await slackDurableCounts(f), beforeArchived);
+      assertEquals(archived.status, 200);
+      assertEquals(
+        (await archived.json() as { disposition: string }).disposition,
+        "rejected",
+      );
+      const afterArchived = {
+        ...beforeArchived,
+        receipts: beforeArchived.receipts + 1,
+      };
+      assertEquals(await slackDurableCounts(f), afterArchived);
+      const archivedDuplicate = await postSlackEvent(
+        f,
+        signingSecret,
+        archivedPayload,
+      );
+      assertEquals(archivedDuplicate.status, 200);
+      assertEquals(
+        (await archivedDuplicate.json() as { disposition: string })
+          .disposition,
+        "duplicate",
+      );
+      assertEquals(await slackDurableCounts(f), afterArchived);
 
       const archivedApplicationId = crypto.randomUUID();
       await f.pgDatabase.query(
@@ -440,13 +465,38 @@ Deno.test("running Slack ingress uses canonical conversation admission", async (
         [f.organizationId, archivedApplicationId],
       );
       const beforeArchivedResource = await slackDurableCounts(f);
+      const archivedResourcePayload = replyPayload(
+        eventId(),
+        "closed application",
+        "1.3",
+      );
       const archivedResource = await postSlackEvent(
         f,
         signingSecret,
-        replyPayload(eventId(), "closed application", "1.3"),
+        archivedResourcePayload,
       );
-      assertEquals(archivedResource.status, 503);
-      assertEquals(await slackDurableCounts(f), beforeArchivedResource);
+      assertEquals(archivedResource.status, 200);
+      assertEquals(
+        (await archivedResource.json() as { disposition: string }).disposition,
+        "rejected",
+      );
+      const afterArchivedResource = {
+        ...beforeArchivedResource,
+        receipts: beforeArchivedResource.receipts + 1,
+      };
+      assertEquals(await slackDurableCounts(f), afterArchivedResource);
+      const archivedResourceDuplicate = await postSlackEvent(
+        f,
+        signingSecret,
+        archivedResourcePayload,
+      );
+      assertEquals(archivedResourceDuplicate.status, 200);
+      assertEquals(
+        (await archivedResourceDuplicate.json() as { disposition: string })
+          .disposition,
+        "duplicate",
+      );
+      assertEquals(await slackDurableCounts(f), afterArchivedResource);
 
       await f.pgDatabase.query(
         `update bakery.applications set archived_at = null

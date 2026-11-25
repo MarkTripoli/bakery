@@ -246,6 +246,7 @@ const PERMANENT_SLACK_ADMISSION_CODES = new Set([
   "AUTH_FORBIDDEN",
   "BODY_TOO_LARGE",
   "RESOURCE_NOT_FOUND",
+  "STATE_CONFLICT",
 ]);
 
 function isPermanentSlackAdmissionError(error: unknown): boolean {
@@ -331,13 +332,8 @@ async function handoffSlackWork(
     toPrincipalId(link.principalId),
     toOrganizationId(input.installation.organizationId),
   );
-  try {
-    authorize(actor, permissionForAction(action), { action });
-    assertMessageBodySize(input.work.text);
-  } catch (error) {
-    if (!isPermanentSlackAdmissionError(error)) throw error;
-    return false;
-  }
+  authorize(actor, permissionForAction(action), { action });
+  assertMessageBodySize(input.work.text);
   if (!isOrganizationMember(actor)) return false;
   const requestId = crypto.randomUUID();
   const traceId = crypto.randomUUID();
@@ -446,12 +442,17 @@ export async function commitSlackReceipt(
       : { kind: "conflict" };
   }
   if (work === null) return { kind: "recorded", receiptId, outcome };
-  const handedOff = await handoffSlackWork(transaction, {
-    installation: { ...active, installationId: input.installationId },
-    appId: input.appId,
-    eventId: input.eventId,
-    work,
-  });
+  let handedOff = false;
+  try {
+    handedOff = await handoffSlackWork(transaction, {
+      installation: { ...active, installationId: input.installationId },
+      appId: input.appId,
+      eventId: input.eventId,
+      work,
+    });
+  } catch (error) {
+    if (!isPermanentSlackAdmissionError(error)) throw error;
+  }
   const settledOutcome: SlackReceiptOutcome = handedOff
     ? "accepted"
     : "ignored";

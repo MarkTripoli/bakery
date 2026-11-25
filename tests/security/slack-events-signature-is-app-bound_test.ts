@@ -466,6 +466,58 @@ Deno.test("Slack coordinator admission requires live human action authority", as
       "duplicate",
     );
     assertEquals(await authorityCounts(fixture), afterGrantOnly);
+    await fixture.pgDatabase.query(
+      "update bakery.principals set disabled_at = now() where id = $1",
+      [developerId],
+    );
+    const beforeDisabled = await authorityCounts(fixture);
+    const disabledPayload = {
+      type: "event_callback",
+      event_id: "EvAuthDisabled",
+      api_app_id: value.appId,
+      team_id: value.teamId,
+      authorizations: [{
+        team_id: value.teamId,
+        user_id: value.botUserId,
+      }],
+      event: {
+        type: "app_mention",
+        channel: "C0DISABLED",
+        user: "U0GUEST",
+        ts: "3.1",
+        text: "disabled",
+      },
+    };
+    const disabledDenied = await postSlackEvent(
+      fixture,
+      signingSecret,
+      disabledPayload,
+    );
+    assertEquals(disabledDenied.status, 200);
+    assertEquals(
+      (await disabledDenied.json() as { disposition: string }).disposition,
+      "rejected",
+    );
+    const afterDisabled = {
+      ...beforeDisabled,
+      receipts: beforeDisabled.receipts + 1,
+    };
+    assertEquals(await authorityCounts(fixture), afterDisabled);
+    const disabledDuplicate = await postSlackEvent(
+      fixture,
+      signingSecret,
+      disabledPayload,
+    );
+    assertEquals(disabledDuplicate.status, 200);
+    assertEquals(
+      (await disabledDuplicate.json() as { disposition: string }).disposition,
+      "duplicate",
+    );
+    assertEquals(await authorityCounts(fixture), afterDisabled);
+    await fixture.pgDatabase.query(
+      "update bakery.principals set disabled_at = null where id = $1",
+      [developerId],
+    );
   } finally {
     try {
       await fixture.pgDatabase.query(
