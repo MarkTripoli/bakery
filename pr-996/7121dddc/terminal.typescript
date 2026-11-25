@@ -1,0 +1,8 @@
+Script started on 2026-11-25 07:12:16-05:00 [COMMAND="/tmp/bakery-996-proof-transcript.sh" <not executed on terminal>]
+UTC proof timestamp: 2026-11-25T12:12:16Z
+Worker enrollment/Ready: {"enrollmentId":"76a37676-2750-45ab-8cc2-b76c087edd95","state":"consumed","worker":{"id":"48d46a9c-260b-4cc7-b0e5-0f34607ff6de","name":"proof996-real-host","status":"online","readiness":"ready"}}
+Task and linked repository: {"id":"71f66e0a-27e7-4595-b51a-7d905e9c0cfa","title":"Measure trusted pull request #73","repositoryId":"cc7eb438-8ca1-4d6b-977a-03252330715c","repositoryProfileId":"454b3030-ae28-437d-a9e7-470b72b7ee21","currentRunId":null}
+Production merged-PR metric: {"mergedCount":1,"nonzeroDays":[{"at":"2026-11-25T00:00:00.000Z","value":1}]}
+Production source PR: {"count":1,"pullRequestIds":["3870bf38-de6f-4462-a6c4-284006ababd7"]}
+
+Script done on 2026-11-25 07:12:16-05:00 [COMMAND_EXIT_CODE="0"]
