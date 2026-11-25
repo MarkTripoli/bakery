@@ -1,0 +1,5 @@
+READ {"id":"ca6ef40c-b58c-4e77-bbc6-aba5f0fe5fc5","status":200,"sent":"{\"id\":\"ca6ef40c-b58c-4e77-bbc6-aba5f0fe5fc5\",\"read\":true,\"expectedCasVersion\":1}","ifMatch":false,"revision":2}
+LANDED http://127.0.0.1:33827/tasks/c98a3e42-ec7c-46a5-9856-dbcb5e459275?at=message%3A5781c875-567c-4cd3-8e6f-e7672913dde0&n=7f55f73c-e838-4ed9-a357-4cf42e2dc1b0&r=1
+LANDING-READ 200
+READ {"id":"7f55f73c-e838-4ed9-a357-4cf42e2dc1b0","status":200,"sent":"{\"id\":\"7f55f73c-e838-4ed9-a357-4cf42e2dc1b0\",\"read\":true,\"expectedCasVersion\":1}","ifMatch":false,"revision":2}
+STALE 409 {"type":"http://localhost:8788/problems/version-conflict","title":"Version conflict","status":409,"detail":"This request was based on an outdated version.","instance":"urn:bakery:request:73f5982b-0dd2
