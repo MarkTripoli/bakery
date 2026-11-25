@@ -20,6 +20,7 @@ import { mayActOnQuestion } from "../auth/application/run-grants.ts";
 import { completeRequestsOnQuestion } from "../work/run-requests.ts";
 import type { CoordinatorEffect } from "./coordinator.ts";
 import {
+  appendMessageCreateAudit,
   hasQueuedTurnCapacity,
   lockConversationScope,
   resolveCoordinatorAgentVersion,
@@ -655,13 +656,6 @@ async function resumeAskingTurn(
   return true;
 }
 
-/**
- * Appends a system message with the `agent_request` intent and queues exactly
- * one coordinator turn for it, inside the caller's transaction. Used for
- * question answers, the expiry sweep and approval change requests; every
- * caller holds the conversation row lock (message sequence and queue cap).
- * A full queue refuses like `messages.create` does.
- */
 export async function queueAgentRequest(
   transaction: PgTransactionClient,
   facts: {
@@ -673,6 +667,10 @@ export async function queueAgentRequest(
     clientMessageId: string;
     scope: ScopeFacts;
     traceId: string;
+    audit?: {
+      readonly principalId: string;
+      readonly requestId: string;
+    };
   },
 ): Promise<void> {
   const { organizationId } = facts;
@@ -770,6 +768,18 @@ export async function queueAgentRequest(
     outboxDeliveryKey:
       `conversation:${facts.conversationId}:turn:${turnId}:version:1`,
   });
+  if (facts.audit) {
+    await appendMessageCreateAudit(transaction, {
+      organizationId,
+      principalId: facts.audit.principalId,
+      conversationId: facts.conversationId,
+      messageId,
+      requestId: facts.audit.requestId,
+      traceId: facts.traceId,
+      intent: "agent_request",
+      sequence,
+    });
+  }
 }
 
 /**

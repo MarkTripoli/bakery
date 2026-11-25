@@ -1,5 +1,22 @@
+import { ConversationImplementedAction } from "@bakery/contracts/implemented-actions";
+import {
+  organizationId as toOrganizationId,
+  principalId as toPrincipalId,
+} from "@bakery/contracts/contracts";
+import { StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { z } from "zod";
+import { resolveOrganizationActor } from "../auth/adapters/authority-postgres.ts";
+import {
+  authorize,
+  isOrganizationMember,
+  permissionForAction,
+} from "../auth/application/authorize.ts";
+import { createConversationWithEvents } from "../conversation/conversations.ts";
+import {
+  assertMessageBodySize,
+  lockConversationScope,
+} from "../conversation/postgres.ts";
 import { queueAgentRequest } from "../conversation/questions.ts";
 import {
   isSlackAppId,
@@ -231,6 +248,8 @@ async function findOrCreateSlackConversation(
   installation: ActiveSlackInstallation & { readonly installationId: string },
   principalId: string,
   work: SlackReceiptWork,
+  requestId: string,
+  traceId: string,
 ): Promise<string | null> {
   await transaction.query(
     `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
@@ -252,13 +271,14 @@ async function findOrCreateSlackConversation(
   );
   if (existing.rows[0]) return existing.rows[0].conversationId;
   if (work.kind === "thread_reply") return null;
-  const opened = await transaction.query<{ id: string }>(
-    `insert into bakery.conversations (organization_id, title, created_by)
-     values ($1, 'Slack thread', $2) returning id`,
-    [installation.organizationId, principalId],
-  );
-  const conversationId = opened.rows[0]?.id;
-  if (!conversationId) throw new Error("SLACK_CONVERSATION_INSERT_FAILED");
+  const opened = await createConversationWithEvents(transaction, {
+    organizationId: installation.organizationId,
+    principalId,
+    title: "Slack thread",
+    requestId,
+    traceId,
+  });
+  const conversationId = opened.id;
   await transaction.query(
     `insert into bakery.slack_thread_bindings (
        id, organization_id, installation_id, channel_id, thread_ts,
@@ -295,23 +315,34 @@ async function handoffSlackWork(
     userId: input.work.userId,
   });
   if (!link || link.state !== "active" || !link.memberCurrent) return false;
+  const action = ConversationImplementedAction.MessagesCreate;
+  const actor = await resolveOrganizationActor(
+    transaction,
+    toPrincipalId(link.principalId),
+    toOrganizationId(input.installation.organizationId),
+  );
+  authorize(actor, permissionForAction(action), { action });
+  if (!isOrganizationMember(actor)) {
+    throw new StandardError({ code: "AUTH_FORBIDDEN" });
+  }
+  assertMessageBodySize(input.work.text);
+  const requestId = crypto.randomUUID();
+  const traceId = crypto.randomUUID();
   const conversationId = await findOrCreateSlackConversation(
     transaction,
     input.installation,
     link.principalId,
     input.work,
+    requestId,
+    traceId,
   );
   if (conversationId === null) return false;
-  const scope = await transaction.query<{
-    application_id: string | null;
-    repository_id: string | null;
-  }>(
-    `select application_id, repository_id from bakery.conversations
-      where organization_id = $1 and id = $2 for update`,
-    [input.installation.organizationId, conversationId],
+  const conversationScope = await lockConversationScope(
+    transaction,
+    input.installation.organizationId,
+    conversationId,
+    "update",
   );
-  const conversationScope = scope.rows[0];
-  if (!conversationScope) throw new Error("SLACK_CONVERSATION_MISSING");
   await queueAgentRequest(transaction, {
     organizationId: input.installation.organizationId,
     conversationId,
@@ -319,8 +350,13 @@ async function handoffSlackWork(
     messageType: "human",
     body: input.work.text,
     clientMessageId: `slack:${input.appId}:${input.eventId}`,
-    scope: { ...conversationScope, task_id: null },
-    traceId: crypto.randomUUID(),
+    scope: {
+      application_id: conversationScope.applicationId,
+      repository_id: conversationScope.repositoryId,
+      task_id: null,
+    },
+    traceId,
+    audit: { principalId: link.principalId, requestId },
   });
   return true;
 }

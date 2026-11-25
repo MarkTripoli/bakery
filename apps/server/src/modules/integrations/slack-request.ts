@@ -227,5 +227,13 @@ export function readSlackEvent(
     };
   }
   if (threadTs === null) return { kind: "ignore", reason: "unsupported_event" };
-  return { kind: "ignore", reason: "unlinked_thread" };
+  return {
+    kind: "thread_reply",
+    eventId: body.event_id,
+    channelId,
+    userId,
+    ts,
+    threadTs,
+    text,
+  };
 }

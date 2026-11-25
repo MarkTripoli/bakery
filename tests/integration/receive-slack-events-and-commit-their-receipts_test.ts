@@ -14,6 +14,7 @@ import {
   writeInstallationSecretVersion,
 } from "../../apps/server/src/modules/secrets/installation-secrets.ts";
 import { createIntegrationIntakeRetention } from "../../apps/server/src/modules/integrations/intake-retention.ts";
+import { MAX_MESSAGE_BODY_BYTES } from "../../apps/server/src/modules/conversation/postgres.ts";
 
 import { linkSlackIdentity } from "../../apps/server/src/modules/integrations/slack-identity-links.ts";
 type Fixture = Awaited<ReturnType<typeof openInstallationFixture>>;
@@ -169,7 +170,69 @@ async function slackSignature(
   }`;
 }
 
-Deno.test("the running server ignores an unreadable unrelated app secret", async () => {
+async function postSlackEvent(
+  f: Fixture,
+  signingSecret: string,
+  payload: unknown,
+): Promise<Response> {
+  const body = JSON.stringify(payload);
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  return await f.app.fetch(
+    new Request(`${f.config.publicBaseUrl}/v1/webhooks/slack/events`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-slack-request-timestamp": timestamp,
+        "x-slack-signature": await slackSignature(
+          timestamp,
+          body,
+          signingSecret,
+        ),
+      },
+      body,
+    }),
+  );
+}
+
+type SlackDurableCounts = {
+  conversations: number;
+  bindings: number;
+  receipts: number;
+  messages: number;
+  turns: number;
+  events: number;
+  outbox: number;
+  audits: number;
+};
+
+async function slackDurableCounts(f: Fixture): Promise<SlackDurableCounts> {
+  const result = await f.pgDatabase.query<SlackDurableCounts>(
+    `select
+       (select count(*)::int from bakery.conversations
+         where organization_id = $1) as conversations,
+       (select count(*)::int from bakery.slack_thread_bindings
+         where organization_id = $1) as bindings,
+       (select count(*)::int from bakery.slack_event_receipts receipt
+          join bakery.slack_installations installation
+            on installation.id = receipt.installation_id
+         where installation.organization_id = $1) as receipts,
+       (select count(*)::int from bakery.messages
+         where organization_id = $1) as messages,
+       (select count(*)::int from bakery.conversation_turns
+         where organization_id = $1) as turns,
+       (select count(*)::int from bakery.domain_events
+         where organization_id = $1) as events,
+       (select count(*)::int from bakery.outbox
+         where organization_id = $1) as outbox,
+       (select count(*)::int from bakery.audit_events
+         where organization_id = $1) as audits`,
+    [f.organizationId],
+  );
+  const counts = result.rows[0];
+  if (!counts) throw new Error("SLACK_DURABLE_COUNTS_MISSING");
+  return counts;
+}
+Deno.test("running Slack ingress uses canonical conversation admission", async () => {
   await withIngressFixture(async (f) => {
     const value = installation();
     const signingSecret = `secret-${suffix()}`;
@@ -209,7 +272,7 @@ Deno.test("the running server ignores an unreadable unrelated app secret", async
         [unrelatedSecretId, new Uint8Array([0])],
       );
       const acceptedEventId = eventId();
-      const body = JSON.stringify({
+      const acceptedPayload = {
         type: "event_callback",
         event_id: acceptedEventId,
         api_app_id: value.appId,
@@ -225,22 +288,11 @@ Deno.test("the running server ignores an unreadable unrelated app secret", async
           ts: "1.1",
           text: "hello",
         },
-      });
-      const timestamp = String(Math.floor(Date.now() / 1000));
-      const response = await f.app.fetch(
-        new Request(`${f.config.publicBaseUrl}/v1/webhooks/slack/events`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-slack-request-timestamp": timestamp,
-            "x-slack-signature": await slackSignature(
-              timestamp,
-              body,
-              signingSecret,
-            ),
-          },
-          body,
-        }),
+      };
+      const response = await postSlackEvent(
+        f,
+        signingSecret,
+        acceptedPayload,
       );
       assertEquals(response.status, 200);
       const result = await response.json() as {
@@ -291,6 +343,148 @@ Deno.test("the running server ignores an unreadable unrelated app secret", async
       assertEquals(work.rows[0]?.body, "hello");
       assertEquals(work.rows[0]?.message_type, "human");
       assertEquals(work.rows[0]?.status, "queued");
+      const conversationId = work.rows[0]?.conversation_id;
+      assert(typeof conversationId === "string");
+      const creationFacts = await f.pgDatabase.query<{
+        conversation_events: number;
+        message_events: number;
+        conversation_audits: number;
+        message_audits: number;
+      }>(
+        `select
+           (select count(*)::int from bakery.domain_events
+             where organization_id = $1 and aggregate_id = $2::uuid
+               and event_type = 'conversations.created') as conversation_events,
+           (select count(*)::int from bakery.domain_events
+             where organization_id = $1 and conversation_id = $2::uuid
+               and event_type = 'conversation.message_created') as message_events,
+           (select count(*)::int from bakery.audit_events
+             where organization_id = $1 and resource_id = $2::text
+               and operation = 'conversations.create') as conversation_audits,
+           (select count(*)::int from bakery.audit_events
+             where organization_id = $1 and operation = 'messages.create'
+               and details->>'conversationId' = $2::text) as message_audits`,
+        [f.organizationId, conversationId],
+      );
+      assertEquals(creationFacts.rows[0], {
+        conversation_events: 1,
+        message_events: 1,
+        conversation_audits: 1,
+        message_audits: 1,
+      });
+      const afterAccepted = await slackDurableCounts(f);
+      const duplicate = await postSlackEvent(
+        f,
+        signingSecret,
+        acceptedPayload,
+      );
+      assertEquals(duplicate.status, 200);
+      assertEquals(
+        (await duplicate.json() as { disposition: string }).disposition,
+        "duplicate",
+      );
+      assertEquals(await slackDurableCounts(f), afterAccepted);
+
+      const replyPayload = (id: string, text: string, ts: string) => ({
+        type: "event_callback",
+        event_id: id,
+        api_app_id: value.appId,
+        team_id: value.teamId,
+        authorizations: [{
+          team_id: value.teamId,
+          user_id: value.botUserId,
+        }],
+        event: {
+          type: "message",
+          channel: "C1CHANNEL",
+          user: "U1AUTHOR",
+          ts,
+          thread_ts: "1.1",
+          text,
+        },
+      });
+
+      await f.pgDatabase.query(
+        `update bakery.conversations set archived_at = now()
+          where organization_id = $1 and id = $2`,
+        [f.organizationId, conversationId],
+      );
+      const beforeArchived = await slackDurableCounts(f);
+      const archived = await postSlackEvent(
+        f,
+        signingSecret,
+        replyPayload(eventId(), "closed conversation", "1.2"),
+      );
+      assertEquals(archived.status, 503);
+      assertEquals(await slackDurableCounts(f), beforeArchived);
+
+      const archivedApplicationId = crypto.randomUUID();
+      await f.pgDatabase.query(
+        `insert into bakery.applications (id, organization_id, slug, name)
+         values ($1, $2, $3, 'Archived Slack scope')`,
+        [
+          archivedApplicationId,
+          f.organizationId,
+          `slack-archived-${archivedApplicationId}`,
+        ],
+      );
+      await f.pgDatabase.query(
+        `update bakery.conversations
+            set archived_at = null, application_id = $3
+          where organization_id = $1 and id = $2`,
+        [f.organizationId, conversationId, archivedApplicationId],
+      );
+      await f.pgDatabase.query(
+        `update bakery.applications set archived_at = now()
+          where organization_id = $1 and id = $2`,
+        [f.organizationId, archivedApplicationId],
+      );
+      const beforeArchivedResource = await slackDurableCounts(f);
+      const archivedResource = await postSlackEvent(
+        f,
+        signingSecret,
+        replyPayload(eventId(), "closed application", "1.3"),
+      );
+      assertEquals(archivedResource.status, 503);
+      assertEquals(await slackDurableCounts(f), beforeArchivedResource);
+
+      await f.pgDatabase.query(
+        `update bakery.applications set archived_at = null
+          where organization_id = $1 and id = $2`,
+        [f.organizationId, archivedApplicationId],
+      );
+      await f.pgDatabase.query(
+        `update bakery.conversations set application_id = null
+          where organization_id = $1 and id = $2`,
+        [f.organizationId, conversationId],
+      );
+      const exactText = "é".repeat(MAX_MESSAGE_BODY_BYTES / 2);
+      const exactEventId = eventId();
+      const exact = await postSlackEvent(
+        f,
+        signingSecret,
+        replyPayload(exactEventId, exactText, "1.4"),
+      );
+      assertEquals(exact.status, 200);
+      assertEquals(
+        (await exact.json() as { disposition: string }).disposition,
+        "accepted",
+      );
+      const exactMessage = await f.pgDatabase.query<{ bytes: number }>(
+        `select octet_length(body)::int as bytes from bakery.messages
+          where organization_id = $1 and client_message_id = $2`,
+        [f.organizationId, `slack:${value.appId}:${exactEventId}`],
+      );
+      assertEquals(exactMessage.rows[0]?.bytes, MAX_MESSAGE_BODY_BYTES);
+
+      const beforeOversize = await slackDurableCounts(f);
+      const oversize = await postSlackEvent(
+        f,
+        signingSecret,
+        replyPayload(eventId(), `${exactText}a`, "1.5"),
+      );
+      assertEquals(oversize.status, 503);
+      assertEquals(await slackDurableCounts(f), beforeOversize);
     } finally {
       await cleanup(f, otherOrganizationId);
       if (unrelatedSecretId !== null) {

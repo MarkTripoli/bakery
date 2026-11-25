@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { sha256Hex } from "../../apps/server/src/modules/integrations/intake-signature.ts";
 import { receiveSlackEvent } from "../../apps/server/src/modules/integrations/slack-intake.ts";
 import type { SlackInstallationRecord } from "../../apps/server/src/modules/integrations/slack-receipts.ts";
@@ -8,6 +8,8 @@ import {
 } from "../../apps/server/src/modules/integrations/slack-receipts.ts";
 import type { SlackInstallation } from "../../apps/server/src/modules/integrations/slack-scope.ts";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
+import { StandardError } from "../../packages/contracts/src/http.ts";
+import { linkSlackIdentity } from "../../apps/server/src/modules/integrations/slack-identity-links.ts";
 import { openInstallationFixture } from "../helpers/installation-settings.ts";
 
 const encoder = new TextEncoder();
@@ -161,6 +163,225 @@ Deno.test("a Slack receipt cannot bind one app to another app's installation", a
     );
     assertEquals(receipts.rows[0]?.count, "0");
   } finally {
+    await fixture.finish();
+  }
+});
+
+type SlackAuthorityCounts = {
+  conversations: number;
+  bindings: number;
+  receipts: number;
+  messages: number;
+  turns: number;
+  events: number;
+  outbox: number;
+  audits: number;
+};
+
+async function authorityCounts(
+  fixture: Awaited<ReturnType<typeof openInstallationFixture>>,
+): Promise<SlackAuthorityCounts> {
+  const result = await fixture.pgDatabase.query<SlackAuthorityCounts>(
+    `select
+       (select count(*)::int from bakery.conversations
+         where organization_id = $1) as conversations,
+       (select count(*)::int from bakery.slack_thread_bindings
+         where organization_id = $1) as bindings,
+       (select count(*)::int from bakery.slack_event_receipts receipt
+          join bakery.slack_installations installation
+            on installation.id = receipt.installation_id
+         where installation.organization_id = $1) as receipts,
+       (select count(*)::int from bakery.messages
+         where organization_id = $1) as messages,
+       (select count(*)::int from bakery.conversation_turns
+         where organization_id = $1) as turns,
+       (select count(*)::int from bakery.domain_events
+         where organization_id = $1) as events,
+       (select count(*)::int from bakery.outbox
+         where organization_id = $1) as outbox,
+       (select count(*)::int from bakery.audit_events
+         where organization_id = $1) as audits`,
+    [fixture.organizationId],
+  );
+  const counts = result.rows[0];
+  if (!counts) throw new Error("SLACK_AUTHORITY_COUNTS_MISSING");
+  return counts;
+}
+
+Deno.test("Slack coordinator admission requires live human action authority", async () => {
+  const fixture = await openInstallationFixture(true);
+  try {
+    const developerId = fixture.developerId;
+    assert(typeof developerId === "string");
+    const value: SlackInstallation = {
+      kind: "workspace",
+      appId: `A${
+        crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()
+      }`,
+      teamId: `T${
+        crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()
+      }`,
+      botUserId: `U${
+        crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()
+      }`,
+      scopes: [],
+    };
+    const registered = await withPgTransaction(
+      fixture.runtimePgDatabase,
+      (transaction) =>
+        registerSlackInstallation(transaction, {
+          organizationId: fixture.organizationId,
+          installation: value,
+        }),
+    );
+    assert(registered.ok);
+    const adminLink = await withPgTransaction(
+      fixture.runtimePgDatabase,
+      (transaction) =>
+        linkSlackIdentity(transaction, {
+          organizationId: fixture.organizationId,
+          principalId: fixture.adminId,
+          identity: {
+            appId: value.appId,
+            teamId: value.teamId,
+            userId: "U0ADMIN",
+          },
+          verifiedAt: new Date(),
+        }),
+    );
+    assert(adminLink.ok);
+    const accepted = await withPgTransaction(
+      fixture.runtimePgDatabase,
+      (transaction) =>
+        commitSlackReceipt(transaction, {
+          installationId: registered.installation.installationId,
+          appId: value.appId,
+          eventId: "EvAuthAdmin",
+          payloadDigest: "b".repeat(64),
+          decision: {
+            kind: "mention",
+            eventId: "EvAuthAdmin",
+            channelId: "C0AUTH",
+            userId: "U0ADMIN",
+            ts: "1.1",
+            threadTs: "1.1",
+            text: "authorized",
+          },
+          now: new Date(),
+        }),
+    );
+    assertEquals(accepted.kind, "recorded");
+    assertEquals(
+      accepted.kind === "recorded" ? accepted.outcome : null,
+      "accepted",
+    );
+    const binding = await fixture.pgDatabase.query<{
+      conversation_id: string;
+    }>(
+      `select conversation_id from bakery.slack_thread_bindings
+        where organization_id = $1 and installation_id = $2
+          and channel_id = 'C0AUTH' and thread_ts = '1.1'`,
+      [fixture.organizationId, registered.installation.installationId],
+    );
+    const conversationId = binding.rows[0]?.conversation_id;
+    assert(typeof conversationId === "string");
+
+    await fixture.pgDatabase.query(
+      `update bakery.organization_memberships set role = 'guest'
+        where organization_id = $1 and principal_id = $2`,
+      [fixture.organizationId, developerId],
+    );
+    const guestLink = await withPgTransaction(
+      fixture.runtimePgDatabase,
+      (transaction) =>
+        linkSlackIdentity(transaction, {
+          organizationId: fixture.organizationId,
+          principalId: developerId,
+          identity: {
+            appId: value.appId,
+            teamId: value.teamId,
+            userId: "U0GUEST",
+          },
+          verifiedAt: new Date(),
+        }),
+    );
+    assert(guestLink.ok);
+    const beforeGuest = await authorityCounts(fixture);
+    const guestDenied = await assertRejects(
+      () =>
+        withPgTransaction(
+          fixture.runtimePgDatabase,
+          (transaction) =>
+            commitSlackReceipt(transaction, {
+              installationId: registered.installation.installationId,
+              appId: value.appId,
+              eventId: "EvAuthGuest",
+              payloadDigest: "c".repeat(64),
+              decision: {
+                kind: "mention",
+                eventId: "EvAuthGuest",
+                channelId: "C0GUEST",
+                userId: "U0GUEST",
+                ts: "2.1",
+                threadTs: "2.1",
+                text: "forbidden",
+              },
+              now: new Date(),
+            }),
+        ),
+      StandardError,
+    );
+    assertEquals(guestDenied.code, "RESOURCE_NOT_FOUND");
+    assertEquals(await authorityCounts(fixture), beforeGuest);
+
+    await fixture.pgDatabase.query(
+      `update bakery.organization_memberships set role = 'viewer'
+        where organization_id = $1 and principal_id = $2`,
+      [fixture.organizationId, developerId],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.conversation_access_grants (
+         organization_id, conversation_id, principal_id, granted_by)
+       values ($1, $2, $3, $4)`,
+      [
+        fixture.organizationId,
+        conversationId,
+        developerId,
+        fixture.adminId,
+      ],
+    );
+    const beforeGrantOnly = await authorityCounts(fixture);
+    const grantOnlyDenied = await assertRejects(
+      () =>
+        withPgTransaction(
+          fixture.runtimePgDatabase,
+          (transaction) =>
+            commitSlackReceipt(transaction, {
+              installationId: registered.installation.installationId,
+              appId: value.appId,
+              eventId: "EvAuthGrant",
+              payloadDigest: "d".repeat(64),
+              decision: {
+                kind: "thread_reply",
+                eventId: "EvAuthGrant",
+                channelId: "C0AUTH",
+                userId: "U0GUEST",
+                ts: "1.2",
+                threadTs: "1.1",
+                text: "grant only",
+              },
+              now: new Date(),
+            }),
+        ),
+      StandardError,
+    );
+    assertEquals(grantOnlyDenied.code, "AUTH_FORBIDDEN");
+    assertEquals(await authorityCounts(fixture), beforeGrantOnly);
+  } finally {
+    await fixture.pgDatabase.query(
+      "delete from bakery.slack_installations where organization_id = $1",
+      [fixture.organizationId],
+    );
     await fixture.finish();
   }
 });

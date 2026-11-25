@@ -999,6 +999,10 @@
         "module": "integrations",
         "migration": "apps/server/src/modules/integrations/migrations/bakery/0368_slack_installations_and_receipts.sql"
       },
+      "slack_thread_bindings": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0368_slack_installations_and_receipts.sql"
+      },
       "ssoProvider": {
         "module": "auth",
         "migration": "apps/server/src/modules/auth/migrations/provider/0012_sso_provider.sql"

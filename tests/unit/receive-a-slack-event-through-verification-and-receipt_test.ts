@@ -1,5 +1,10 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertThrows } from "@std/assert";
 import type { PgTransactionClient } from "@bakery/persistence";
+import { StandardError } from "../../packages/contracts/src/http.ts";
+import {
+  assertMessageBodySize,
+  MAX_MESSAGE_BODY_BYTES,
+} from "../../apps/server/src/modules/conversation/postgres.ts";
 import {
   receiveSlackEvent,
   type SlackIntakeDependencies,
@@ -243,8 +248,14 @@ Deno.test("an ignored event commits a receipt carrying no text, and is rejected,
   assert(!JSON.stringify(h.commits[0]).includes("secret"));
 });
 
-Deno.test("a human reply without a thread binding is rejected without storing its text", async () => {
-  const h = harness();
+Deno.test("an unbound human reply is rejected after durable admission ignores it", async () => {
+  const h = harness({
+    commitResult: {
+      kind: "recorded",
+      receiptId: "rcpt-1",
+      outcome: "ignored",
+    } as unknown as CommitSlackReceiptResult,
+  });
   const reply = mention({
     event: {
       type: "message",
@@ -260,8 +271,7 @@ Deno.test("a human reply without a thread binding is rejected without storing it
     disposition: "rejected",
     receiptId: "rcpt-1",
   });
-  assertEquals(h.commits[0]!.decision.kind, "ignore");
-  assert(!JSON.stringify(h.commits[0]).includes("unlinked secret"));
+  assertEquals(h.commits[0]!.decision.kind, "thread_reply");
 });
 
 Deno.test("a retry is a duplicate, and the same id with other bytes is a payload mismatch", async () => {
@@ -381,4 +391,15 @@ Deno.test("the untrusted app id only bounds signing-secret selection", async () 
   await deliver(h.deps, mention({ api_app_id: "A1OTHER" }));
   await deliver(h.deps, "[1,2]");
   assertEquals(h.requestedAppIds, [installation.appId, "A1OTHER"]);
+});
+
+Deno.test("Slack message size follows the canonical UTF-8 byte boundary", () => {
+  const exact = "é".repeat(MAX_MESSAGE_BODY_BYTES / 2);
+  assertEquals(encoder.encode(exact).byteLength, MAX_MESSAGE_BODY_BYTES);
+  assertMessageBodySize(exact);
+  const error = assertThrows(
+    () => assertMessageBodySize(`${exact}a`),
+    StandardError,
+  );
+  assertEquals(error.code, "BODY_TOO_LARGE");
 });
