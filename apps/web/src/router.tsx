@@ -1424,6 +1424,7 @@ const taskDetailRoute = createRoute({
           void navigate({
             search: (previous) => ({ ...previous, n: undefined, r: undefined }),
             replace: true,
+            resetScroll: false,
           })}
       />
     );
@@ -2401,6 +2402,7 @@ const artifactRetrievalRoute = createRoute({
           void navigate({
             search: (previous) => ({ ...previous, n: undefined, r: undefined }),
             replace: true,
+            resetScroll: false,
           })}
       />
     );
@@ -2438,6 +2440,7 @@ const sharedDocumentRoute = createRoute({
           void navigate({
             search: (previous) => ({ ...previous, n: undefined, r: undefined }),
             replace: true,
+            resetScroll: false,
           })}
       />
     );
@@ -2471,6 +2474,7 @@ const sharedConversationRoute = createRoute({
           void navigate({
             search: (previous) => ({ ...previous, n: undefined, r: undefined }),
             replace: true,
+            resetScroll: false,
           })}
       />
     );

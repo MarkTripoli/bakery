@@ -4,6 +4,7 @@ import {
   ARTIFACT_ID,
   COMMENT_ID,
   CONVERSATION_ID,
+  ROOT,
   stubArtifactPage,
   VERSION_ID,
 } from "./helpers/artifact-page-fixture.ts";
@@ -144,6 +145,41 @@ for (
       await expect(thread).toHaveAttribute("data-landed", "true");
       await expect.poll(() => reads.length).toBe(1);
       await still(page, "shared-document", undefined, { scrollTo: thread });
+    });
+
+    test("a comment far down the rail is still in view once the landing is stripped from the address", async ({ page }) => {
+      const fillers = Array.from({ length: 12 }, (_, index) => ({
+        ...ROOT,
+        id: `00000000-0000-4000-8000-0000000002${
+          String(index).padStart(2, "0")
+        }`,
+        body: `Earlier comment ${index + 1}`,
+      }));
+      await stubArtifactPage(page, {
+        roots: [...fillers, {
+          ...ROOT,
+          body: "The comment you were mentioned in",
+        }],
+      });
+      const { reads } = await stubNotification(
+        page,
+        {
+          status: "available",
+          targetKind: "comment",
+          path: `${DOCUMENT_PATH}?version=${VERSION_ID}&comment=${COMMENT_ID}`,
+          anchor: `comment:${COMMENT_ID}`,
+          sharedByName: GRANTER,
+          sharedAt: SHARED_AT,
+        },
+        { taskId: TASK_ID, targetId: COMMENT_ID },
+      );
+      await open(page);
+      await openSharedComments(page);
+      const thread = page.locator(`#comment-${COMMENT_ID}`);
+      await expect(thread).toHaveAttribute("data-landed", "true");
+      await expect.poll(() => reads.length).toBe(1);
+      await expect(page).not.toHaveURL(/[?&]n=/);
+      await expect(thread).toBeInViewport();
     });
 
     test("a conversation grant takes the notification's own title and replies in it", async ({ page }) => {
