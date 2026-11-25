@@ -42,7 +42,7 @@ export type ReconcileEffectInput = z.input<typeof ReconcileEffectInputSchema>;
 
 /** How a reconciliation call ended. `skipped` means no check ran because nobody could take the lease. */
 export type ReconcileResult = Readonly<{
-  outcome: "confirmed" | "uncertain" | "skipped";
+  outcome: "confirmed" | "failed" | "uncertain" | "skipped";
   effect: ExternalEffectRow;
 }>;
 
@@ -151,7 +151,9 @@ export async function reconcileEffect(
     );
     if (written) {
       return {
-        outcome: written.status === "confirmed" ? "confirmed" : "uncertain",
+        outcome: written.status === "confirmed" || written.status === "failed"
+          ? written.status
+          : "uncertain",
         effect: written,
       };
     }
@@ -183,6 +185,17 @@ export async function reconcileEffect(
       return await record(
         uncertainCheck(checked.requests, checked.outcome, checked.error),
       );
+    }
+    if (checked.kind === "failed") {
+      return await record({
+        confirmed: null,
+        failureCode: checked.failureCode,
+        evidence: evidenceOf({
+          attempt,
+          requests: checked.requests,
+          outcome: "failed",
+        }),
+      });
     }
     const bounded = confirmedOutcome(checked.result);
     return await record({

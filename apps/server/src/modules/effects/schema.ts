@@ -59,6 +59,9 @@ export const EFFECT_FAILURE_CODES = [
   "provider_rejected",
   "provider_not_sent",
   "environment_offline",
+  "async_poll_failed",
+  "async_poll_canceled",
+  "async_poll_invalid",
 ] as const;
 
 export const EffectFailureCodeSchema = z.enum(EFFECT_FAILURE_CODES).describe(
@@ -349,7 +352,12 @@ export const EffectOutcomeSchema = z.discriminatedUnion("kind", [
   }).describe("Outcome of a proven provider write."),
   z.strictObject({
     kind: z.literal("uncertain").describe(
-      "The write may or may not have reached the provider.",
+      "The write may or may not have reached the provider, or started a remote operation that has not ended.",
+    ),
+    remoteId: z.string().min(1).max(400).describe(
+      "Operation key of an asynchronous write the provider accepted, kept so its poll can find it.",
+    ).optional().describe(
+      "Operation key of an asynchronous write the provider accepted, kept so its poll can find it.",
     ),
   }).describe("Outcome that only a read-only reconciliation can settle."),
   z.strictObject({
@@ -393,6 +401,7 @@ export const ReconciliationEvidenceSchema = z.strictObject({
     "threw",
     "denied",
     "identity_drift",
+    "failed",
   ])
     .describe("How the check ended."),
   errorClass: z.string().max(100).describe(

@@ -41,6 +41,7 @@ function machine(name: string, over: Record<string, unknown> = {}) {
     readinessReason: null,
     failedCheckIds: [],
     lastHeartbeatAt: "2026-01-01T00:00:00.000Z",
+    activeAttemptCount: 0,
     credentialGeneration: 1,
     archivedAt: null,
     cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },

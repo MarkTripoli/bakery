@@ -33,6 +33,7 @@ function worker(id: string, name: string, readiness: string) {
     readinessReason: readiness === "ready" ? null : "check_failed",
     failedCheckIds: [],
     lastHeartbeatAt: "2026-01-01T00:00:00.000Z",
+    activeAttemptCount: 0,
     credentialGeneration: 1,
     archivedAt: null,
     cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },

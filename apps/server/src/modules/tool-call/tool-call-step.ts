@@ -11,6 +11,7 @@ import {
   createEffectExecutor,
   type EffectExecutorDeps,
 } from "../effects/index.ts";
+import { type McpAsyncForm, parseMcpAsyncForm } from "../mcp/async-form.ts";
 import { createMcpEffectPort } from "../mcp/effect-port.ts";
 import { invokeMcpTool, type McpInvokeDeps } from "../mcp/invoke.ts";
 import { McpToolCallError } from "../mcp/tool-transport.ts";
@@ -187,9 +188,12 @@ export function createToolCallStepRunner(
       const versionId = run.rows[0]?.workflow_version_id ?? null;
       if (versionId === null) return null;
       const environment = toRunEnvironment(run.rows[0]?.environment);
-      const pin = await tx.query<{ digest: string; allowed: unknown }>(
+      const pin = await tx.query<
+        { digest: string; allowed: unknown; async_form: unknown }
+      >(
         `select mcp_snapshot_digest as digest,
-                allowed_operations as allowed
+                allowed_operations as allowed,
+                mcp_async_form as async_form
            from bakery.capability_bindings
           where organization_id = $1 and workflow_version_id = $2
             and step_key = $3 and mcp_connection_id = $4
@@ -227,6 +231,7 @@ export function createToolCallStepRunner(
         allowed: Array.isArray(pin.rows[0].allowed)
           ? pin.rows[0].allowed as unknown[]
           : [],
+        asyncForm: parseMcpAsyncForm(pin.rows[0].async_form),
         effectClass: effect.rows[0]?.effect_class ?? null,
         keyArgument: effect.rows[0]?.effect_key_argument ?? null,
         pairedRead: effect.rows[0]?.paired_read_tool ?? null,
@@ -267,6 +272,7 @@ export function createToolCallStepRunner(
         pairedRead: facts.pairedRead,
         allowed: facts.allowed,
         runStepId: facts.runStepId,
+        asyncForm: facts.asyncForm,
       });
     }
     try {
@@ -323,6 +329,7 @@ export function createToolCallStepRunner(
       pairedRead: string | null;
       allowed: readonly unknown[];
       runStepId: string | null;
+      asyncForm: McpAsyncForm | null;
     }>,
   ): Promise<EngineStepResult> {
     if (mcpExecutor === undefined) {
@@ -348,13 +355,22 @@ export function createToolCallStepRunner(
         "The read paired with this write is not pinned to the step, so an unproven write could not be confirmed.",
       );
     }
+    if (
+      write.effectClass === "write_async" &&
+      (write.asyncForm === null ||
+        !write.allowed.includes(write.asyncForm.pollTool))
+    ) {
+      return failed(
+        "TOOL_CALL_MCP_ASYNC_UNPINNED",
+        "This step was published before its tool was an asynchronous write, so its poll is not pinned.",
+      );
+    }
     const key = toolCallEffectKey(request);
-    // A tool that takes an effect key gets the step's one key unless the
-    // workflow named a value itself: the same key on every look is what makes a
-    // second send safe.
-    const args = write.effectClass === "write_idempotent" &&
-        write.keyArgument !== null &&
-        write.arguments[write.keyArgument] === undefined
+    const args = write.asyncForm !== null
+      ? { ...write.arguments, [write.asyncForm.effectKeyArgument]: key }
+      : write.effectClass === "write_idempotent" &&
+          write.keyArgument !== null &&
+          write.arguments[write.keyArgument] === undefined
       ? { ...write.arguments, [write.keyArgument]: key }
       : write.arguments;
     try {
@@ -382,7 +398,7 @@ export function createToolCallStepRunner(
             output: actionResultSchema().parse({
               accepted: true,
               operation: tool,
-              externalEffectId: ran.effect.remoteId,
+              externalEffectId: ran.effect.id,
               result: ran.effect.safeResult ?? null,
             }),
           };

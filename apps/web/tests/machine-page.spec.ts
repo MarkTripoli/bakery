@@ -223,6 +223,7 @@ function worker(f: Fixture) {
     readinessReason: f.facts.readinessReason,
     failedCheckIds: f.facts.failedCheckIds,
     lastHeartbeatAt: "2026-01-01T00:00:00.000Z",
+    activeAttemptCount: 0,
     credentialGeneration: 1,
     archivedAt: null,
     cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },
