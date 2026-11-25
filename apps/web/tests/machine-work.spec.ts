@@ -329,6 +329,7 @@ test.describe("machine page: Work", () => {
           taskTitle: "Fix webhook retries",
           status: "canceling",
         }),
+        attempt({ status: "canceling" }),
       ],
     });
     await page.goto(WORK);
@@ -336,7 +337,12 @@ test.describe("machine page: Work", () => {
     await expect(rowsOf(page).first()).toContainText(
       "Someone stopped this task. The machine is finishing up.",
     );
+    await expect(rowsOf(page).nth(1)).toContainText(
+      "Someone stopped this work. The machine is finishing up.",
+    );
     await expect(page.getByRole("tab", { name: /^Work/ })).toHaveText("Work");
+    await page.mouse.move(700, 700);
+    await still(page, "machine-work-stopping");
   });
 
   test("Finished shows cancelled work as cancelled, not as success", async ({ page }) => {

@@ -54,7 +54,6 @@ export type DataTableProps<Row> = {
    * `data-selected="true"` from `getRowAttributes` is tinted.
    */
   inset?: "none" | "page" | "edge";
-  /** `ruled` + `edge`: `double` rows hold two text lines (60px), `single` one (52px), `auto` grows with its tallest cell. */
   rowSize?: "single" | "double" | "auto";
   /**
    * `ruled` only: makes the first cell of every row a button that calls this

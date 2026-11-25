@@ -7095,6 +7095,7 @@
   "machines.work.status.failed": "Failed",
   "machines.work.status.canceled": "Cancelled",
   "machines.work.line.stopping": "Someone stopped this task. The machine is finishing up.",
+  "machines.work.line.stoppingNoTask": "Someone stopped this work. The machine is finishing up.",
   "machines.work.line.lostSinceTask": "Bakery stopped hearing from this machine at {time}. The work was not finished here. Open the task to carry on.",
   "machines.work.line.lostSince": "Bakery stopped hearing from this machine at {time}. The work was not finished here.",
   "machines.work.line.lostTask": "Bakery stopped hearing from this machine about this work. The work was not finished here. Open the task to carry on.",

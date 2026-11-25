@@ -59,6 +59,11 @@ Deno.test("only stopping, lost contact and unknown carry a sentence (#70)", () =
     "machines.work.line.lost",
   );
   assertEquals(stateLineKey("unknown", known), "machines.work.line.unknown");
+  assertEquals(stateLineKey("stopping", known), "machines.work.line.stopping");
+  assertEquals(
+    stateLineKey("stopping", { hasTask: false, silentSince: false }),
+    "machines.work.line.stoppingNoTask",
+  );
 });
 
 Deno.test("an unknown work state falls back to now (#70)", () => {

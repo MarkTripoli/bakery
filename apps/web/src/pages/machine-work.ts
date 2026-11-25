@@ -62,8 +62,11 @@ export function stateLineKey(
   state: RowState,
   options: { readonly hasTask: boolean; readonly silentSince: boolean },
 ): MessageKey | null {
-  if (state === "stopping" || state === "unknown") {
-    return `machines.work.line.${state}` as MessageKey;
+  if (state === "unknown") return "machines.work.line.unknown" as MessageKey;
+  if (state === "stopping") {
+    return (options.hasTask
+      ? "machines.work.line.stopping"
+      : "machines.work.line.stoppingNoTask") as MessageKey;
   }
   if (state !== "lost") return null;
   const since = options.silentSince ? "Since" : "";

@@ -7294,5 +7294,6 @@
   "machines.work.empty.needs_attention.title": "⟦Ñôŧĥïñĝ ñëëðš à ļôôķ ŧëšŧ⟧",
   "machines.work.empty.needs_attention.description": "⟦Ŵôŕķ ŧĥàŧ ļôšŧ çôñŧàçŧ, ôŕ ŧĥàŧ Ɓàķëŕÿ çàññôŧ ŧëļļ ƒïñïšĥëð, ïš ļïšŧëð ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "machines.column.slots": "⟦Ŧàšķš⟧",
-  "machines.tabs.checksFailed": "⟦{count, plural, one {# failed} other {# failed}} ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "machines.tabs.checksFailed": "⟦{count, plural, one {# failed} other {# failed}} ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "machines.work.line.stoppingNoTask": "⟦Šôɱëôñë šŧôþþëð ŧĥïš ŵôŕķ. Ŧĥë ɱàçĥïñë ïš ƒïñïšĥïñĝ ûþ. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }
