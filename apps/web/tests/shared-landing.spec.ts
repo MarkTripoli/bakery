@@ -182,6 +182,125 @@ for (
       await expect(thread).toBeInViewport();
     });
 
+    test("a part that is gone is said once, folded into the page's own notice, on both shared pages", async ({ page }) => {
+      await stubArtifactPage(page);
+      await stubNotification(
+        page,
+        {
+          status: "part_unavailable",
+          targetKind: "comment",
+          path: `${DOCUMENT_PATH}?version=${VERSION_ID}&comment=${COMMENT_ID}`,
+          anchor: null,
+          sharedByName: GRANTER,
+          sharedAt: SHARED_AT,
+        },
+        { taskId: TASK_ID, targetId: COMMENT_ID },
+      );
+      await open(page);
+      const document = page.getByTestId("shared-document-page");
+      await expect(document).toContainText(
+        "The part this notification was about is no longer here. You can read this document and comment on it.",
+      );
+      await expect(document.getByText("The part this notification was about"))
+        .toHaveCount(1);
+      await expect(
+        page.getByText("This comment was not found in this artifact."),
+      ).toHaveCount(0);
+    });
+
+    test("a conversation whose message is gone says so once", async ({ page }) => {
+      await conversationWorld(page);
+      await stubNotification(
+        page,
+        {
+          status: "part_unavailable",
+          targetKind: "conversation_message",
+          path: `${CONVERSATION_PATH}?message=${MESSAGE_ID}`,
+          anchor: null,
+        },
+        { taskId: TASK_ID, targetId: MESSAGE_ID, title: MENTIONED },
+      );
+      await open(page);
+      const body = page.getByTestId("shared-conversation-page");
+      await expect(body).toContainText(
+        "The part this notification was about is no longer here. You can read and reply in this conversation.",
+      );
+      await expect(body.getByText("The part this notification was about"))
+        .toHaveCount(1);
+    });
+
+    test("Send stays on with nothing typed: pressing it says what is missing and focuses the box", async ({ page }) => {
+      await conversationWorld(page);
+      const sent: unknown[] = [];
+      await page.route(
+        `**/v1/conversations/${CONVERSATION_ID}/messages`,
+        (route) => {
+          if (route.request().method() === "POST") {
+            sent.push(route.request().postDataJSON());
+            return route.fulfill({ status: 500, json: {} });
+          }
+          return route.fallback();
+        },
+      );
+      await stubNotification(
+        page,
+        {
+          status: "available",
+          targetKind: "conversation_message",
+          path: `${CONVERSATION_PATH}?message=${MESSAGE_ID}`,
+          anchor: `message:${MESSAGE_ID}`,
+        },
+        { taskId: TASK_ID, targetId: MESSAGE_ID, title: MENTIONED },
+      );
+      await open(page);
+      const send = page.getByRole("button", { name: "Send" });
+      await expect(send).toBeEnabled();
+      await send.click();
+      await expect(page.getByText("Write a message first.")).toBeVisible();
+      await expect(page.getByRole("textbox", { name: /Reply/ })).toBeFocused();
+      expect(sent).toHaveLength(0);
+      await page.keyboard.type("Thanks");
+      await expect(page.getByText("Write a message first.")).toHaveCount(0);
+    });
+
+    test("Mark read that could not be saved says so", async ({ page }) => {
+      await mockAuthenticatedSession(page);
+      await page.route("**/v1/artifacts/**", (route) =>
+        route.fulfill({
+          status: 403,
+          json: { type: "about:blank", title: "Forbidden", status: 403 },
+        }));
+      await stubNotification(
+        page,
+        {
+          status: "unavailable",
+          targetKind: "comment",
+          path: null,
+          anchor: null,
+          reason: "no_longer_shared",
+          sharedByName: GRANTER,
+        },
+        { taskId: TASK_ID, targetId: COMMENT_ID },
+      );
+      await page.route(
+        (url) => url.pathname === `/v1/notifications/${NOTIFICATION_ID}`,
+        (route) =>
+          route.request().method() === "PATCH"
+            ? route.fulfill({
+              status: 500,
+              json: { type: "about:blank", title: "Failed", status: 500 },
+            })
+            : route.fallback(),
+      );
+      await page.goto(opened(DOCUMENT_PATH));
+      await page.getByRole("button", { name: "Mark read" }).click();
+      await expect(page.getByRole("alert")).toContainText(
+        "That could not be saved. Try again.",
+      );
+      await expect(page.getByRole("button", { name: "Mark read" }))
+        .toBeVisible();
+    });
+
     test("a conversation grant takes the notification's own title and replies in it", async ({ page }) => {
       await conversationWorld(page);
       await stubNotification(

@@ -7236,7 +7236,6 @@
   "machines.reason.finishing": "⟪It takes no new work and stops once its current work is done.⟫",
   "machines.retire.confirm": "⟪Retire now⟫",
   "machines.retire.dialogWork": "⟪Work running on it is not stopped or moved, and it can no longer report on that work. To let it finish first, choose Finish and stop instead, and retire the machine when it has no work.⟫",
-  "shared.backToInbox": "⟪Back to notifications⟫",
   "shared.document.notice": "⟪You can read this document and comment on it. The rest of the task is not shared with you.⟫",
   "shared.document.sharedBy": "⟪{name} shared this document with you on {date}.⟫",
   "shared.document.showComments": "⟪Show comments ({count})⟫",
@@ -7252,5 +7251,7 @@
   "shared.unavailable.noLongerShared.body": "⟪Ask {granter} if you still need it.⟫",
   "shared.unavailable.noLongerShared.bodyAnon": "⟪Ask the person who shared it if you still need it.⟫",
   "shared.unavailable.unknown.title": "⟪This is no longer available⟫",
-  "shared.unavailable.unknown.body": "⟪It was deleted, or it is no longer shared with you.⟫"
+  "shared.unavailable.unknown.body": "⟪It was deleted, or it is no longer shared with you.⟫",
+  "shared.backToInbox": "⟪Back to notifications⟫",
+  "shared.conversation.reply.empty": "⟪Write a message first.⟫"
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import * as UI from "@bakery/ui";
+import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation } from "../../shell/shell-slots.tsx";
 
 export function SharedFrame(
@@ -21,5 +22,20 @@ export function SharedFrame(
         {children}
       </UI.Stack>
     </>
+  );
+}
+
+export function SharedLoading() {
+  const { translate } = useI18n();
+  return (
+    <UI.Stack
+      aria-busy="true"
+      aria-label={translate("notifications.loading")}
+      gap="compact"
+    >
+      {Array.from({ length: 3 }).map((_, index) => (
+        <UI.Skeleton key={index} shape="text" />
+      ))}
+    </UI.Stack>
   );
 }

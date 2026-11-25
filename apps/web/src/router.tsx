@@ -1420,12 +1420,7 @@ const taskDetailRoute = createRoute({
       <TasksPage
         taskId={taskDetailRoute.useParams().taskId}
         landing={landing}
-        stripLanding={() =>
-          void navigate({
-            search: (previous) => ({ ...previous, n: undefined, r: undefined }),
-            replace: true,
-            resetScroll: false,
-          })}
+        stripLanding={() => void navigate(strippedLanding)}
       />
     );
   },
@@ -1717,6 +1712,16 @@ const agentRoute = createRoute({
   component: () => <AgentPage agentId={agentRoute.useParams().agentId} />,
   errorComponent: ProtectedRouteError,
 });
+
+const strippedLanding = {
+  search: (previous: Record<string, unknown>) => ({
+    ...previous,
+    n: undefined,
+    r: undefined,
+  }),
+  replace: true,
+  resetScroll: false,
+} as const;
 
 const skillRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -2398,12 +2403,7 @@ const artifactRetrievalRoute = createRoute({
         artifactId={artifactId}
         taskId={taskId}
         landing={landing}
-        stripLanding={() =>
-          void navigate({
-            search: (previous) => ({ ...previous, n: undefined, r: undefined }),
-            replace: true,
-            resetScroll: false,
-          })}
+        stripLanding={() => void navigate(strippedLanding)}
       />
     );
   },
@@ -2436,12 +2436,7 @@ const sharedDocumentRoute = createRoute({
         version={version}
         comment={comment}
         landing={landing}
-        stripLanding={() =>
-          void navigate({
-            search: (previous) => ({ ...previous, n: undefined, r: undefined }),
-            replace: true,
-            resetScroll: false,
-          })}
+        stripLanding={() => void navigate(strippedLanding)}
       />
     );
   },
@@ -2470,12 +2465,7 @@ const sharedConversationRoute = createRoute({
         conversationId={conversationId}
         message={message}
         landing={landing}
-        stripLanding={() =>
-          void navigate({
-            search: (previous) => ({ ...previous, n: undefined, r: undefined }),
-            replace: true,
-            resetScroll: false,
-          })}
+        stripLanding={() => void navigate(strippedLanding)}
       />
     );
   },

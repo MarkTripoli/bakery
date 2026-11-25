@@ -7,6 +7,7 @@ import {
   conversationParticipantsQueryOptions,
   notificationGetQueryOptions,
 } from "../../api/query.ts";
+import { focusAfterPaint } from "../../app/focus.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useSession } from "../../app/session-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
@@ -19,7 +20,7 @@ import { useLandingArrival } from "../../notifications/useLandingArrival.ts";
 import { useLandingMessageSearch } from "../../notifications/useLandingMessageSearch.ts";
 import { useTaskLanding } from "../../notifications/useTaskLanding.ts";
 import { chronological, participantsOf } from "../task-conversation/model.ts";
-import { SharedFrame } from "./SharedFrame.tsx";
+import { SharedFrame, SharedLoading } from "./SharedFrame.tsx";
 import { SharedUnavailable } from "./SharedUnavailable.tsx";
 
 const POLL_MS = 15_000;
@@ -84,10 +85,18 @@ export function SharedConversationPage(
 
   const [body, setBody] = useState("");
   const [phase, setPhase] = useState<"idle" | "sending" | "failed">("idle");
+  const [empty, setEmpty] = useState(false);
+  const field = useRef<HTMLTextAreaElement | null>(null);
   const sendId = useRef<string | null>(null);
   const send = async (event: FormEvent) => {
     event.preventDefault();
-    if (organizationId === null || body.trim() === "") return;
+    if (organizationId === null || phase === "sending") return;
+    if (body.trim() === "") {
+      setEmpty(true);
+      focusAfterPaint(() => field.current);
+      return;
+    }
+    if (body.length > MESSAGE_MAX) return;
     const id = sendId.current ?? crypto.randomUUID();
     sendId.current = id;
     setPhase("sending");
@@ -141,34 +150,22 @@ export function SharedConversationPage(
       timeStyle: "short",
     }).format(new Date(iso));
   const tooLong = body.length > MESSAGE_MAX;
+  const partGone = landing.gone === true || landed.missing;
   return (
     <SharedFrame
       testId="shared-conversation-page"
       title={heading}
-      notice={t("shared.conversation.notice" as never)}
+      notice={partGone
+        ? `${t("notifications.landing.partGone")} ${
+          t("shared.conversation.notice" as never)
+        }`
+        : t("shared.conversation.notice" as never)}
     >
       <UI.VisuallyHidden aria-live="polite" as="div" role="status">
         {arrival}
       </UI.VisuallyHidden>
-      {landing.gone === true || landed.missing
-        ? (
-          <UI.InlineNotice tone="information">
-            {t("notifications.landing.partGone")}
-          </UI.InlineNotice>
-        )
-        : null}
       {messages.data === undefined
-        ? (
-          <UI.Stack
-            aria-busy="true"
-            aria-label={t("notifications.loading")}
-            gap="compact"
-          >
-            {Array.from({ length: 3 }).map((_, index) => (
-              <UI.Skeleton key={index} shape="text" />
-            ))}
-          </UI.Stack>
-        )
+        ? <SharedLoading />
         : (
           <UI.Stack gap="standard">
             {messages.hasNextPage
@@ -209,6 +206,12 @@ export function SharedConversationPage(
               {t("tasks.conversation.composer.failed")}
             </UI.InlineNotice>
           )
+          : empty
+          ? (
+            <UI.InlineNotice layout="bar" role="alert" tone="error">
+              {t("shared.conversation.reply.empty" as never)}
+            </UI.InlineNotice>
+          )
           : tooLong
           ? (
             <UI.InlineNotice layout="bar" role="alert" tone="error">
@@ -220,15 +223,17 @@ export function SharedConversationPage(
           : undefined}
         field={
           <textarea
+            ref={field}
             name="message"
             aria-label={t("shared.conversation.reply.label" as never)}
             rows={1}
             placeholder={t("shared.conversation.reply.placeholder" as never)}
             value={body}
             readOnly={phase === "sending"}
-            aria-invalid={tooLong || undefined}
+            aria-invalid={tooLong || empty || undefined}
             onChange={(event) => {
               setBody(event.target.value);
+              setEmpty(false);
               if (phase === "failed") setPhase("idle");
             }}
           />
@@ -236,7 +241,7 @@ export function SharedConversationPage(
         send={
           <UI.Button
             type="submit"
-            disabled={phase === "sending" || body.trim() === "" || tooLong}
+            disabled={phase === "sending"}
             loading={phase === "sending"}
           >
             <UI.IconGlyph name="arrow" size="small" />

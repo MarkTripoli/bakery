@@ -15,6 +15,7 @@ import { useLandingArrival } from "../../notifications/useLandingArrival.ts";
 import { ArtifactComments } from "../ArtifactComments.tsx";
 import { ArtifactPreviewBody } from "../ArtifactContentPreview.tsx";
 import { ArtifactRetrievalView } from "../ArtifactRetrievalView.tsx";
+import { SharedLoading } from "./SharedFrame.tsx";
 import { SharedUnavailable } from "./SharedUnavailable.tsx";
 
 export function SharedDocumentPage(
@@ -56,7 +57,7 @@ export function SharedDocumentPage(
     items[0] ?? null;
   const failed = artifact.isError || versions.isError;
   const ready = artifact.data !== undefined && selected !== null &&
-    (comment === undefined || commentSettled);
+    (comment === undefined || landing.gone === true || commentSettled);
   const arrival = useLandingArrival({
     search: landing,
     ready,
@@ -65,19 +66,7 @@ export function SharedDocumentPage(
   if (failed) {
     return <SharedUnavailable kind="document" landing={landing} />;
   }
-  if (artifact.data === undefined) {
-    return (
-      <UI.Stack
-        aria-busy="true"
-        aria-label={t("notifications.loading")}
-        gap="compact"
-      >
-        {Array.from({ length: 3 }).map((_, index) => (
-          <UI.Skeleton key={index} shape="text" />
-        ))}
-      </UI.Stack>
-    );
-  }
+  if (artifact.data === undefined) return <SharedLoading />;
   const shown = artifact.data;
   const sharedBy = target.data?.sharedByName !== undefined &&
       target.data.sharedAt !== undefined
@@ -115,18 +104,13 @@ export function SharedDocumentPage(
             search: { version: next },
           })}
         banner={
-          <>
-            <UI.InlineNotice tone="information">
-              {t("shared.document.notice" as never)}
-            </UI.InlineNotice>
+          <UI.InlineNotice tone="information">
             {landing.gone === true
-              ? (
-                <UI.InlineNotice tone="information">
-                  {t("notifications.landing.partGone")}
-                </UI.InlineNotice>
-              )
-              : null}
-          </>
+              ? `${t("notifications.landing.partGone")} ${
+                t("shared.document.notice" as never)
+              }`
+              : t("shared.document.notice" as never)}
+          </UI.InlineNotice>
         }
         preview={selected
           ? (
@@ -147,7 +131,7 @@ export function SharedDocumentPage(
               key={`comments:${selected.id}`}
               artifact={shown}
               version={selected}
-              commentId={comment}
+              commentId={landing.gone === true ? undefined : comment}
               landed={comment !== undefined && landing.gone !== true}
               agentRequest={false}
               onRootCount={setRootCount}
@@ -160,7 +144,7 @@ export function SharedDocumentPage(
           openLabel: t("shared.document.showComments", {
             count: String(rootCount),
           }),
-          linkedCommentId: comment ?? null,
+          linkedCommentId: landing.gone === true ? null : comment ?? null,
         }}
       />
     </>

@@ -138,11 +138,6 @@ export function landingRoute(path: string | null): LandingRoute | null {
     : null;
 }
 
-/**
- * Where to go for a resolved target, or null when there is nowhere to go.
- * The server already validates the path; this refuses anything that is not
- * one of the two task routes, so an unexpected value is never navigated to.
- */
 export type LandingDestinationSearch =
   & LandingSearch
   & Readonly<{ version?: string; comment?: string; message?: string }>;

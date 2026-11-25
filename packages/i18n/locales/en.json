@@ -6080,6 +6080,7 @@
   "shared.document.showComments": "Show comments ({count})",
   "shared.document.gone.title": "This document was deleted",
   "shared.document.noLongerShared.title": "This document is no longer shared with you",
+  "shared.conversation.reply.empty": "Write a message first.",
   "shared.conversation.notice": "You can read and reply in this conversation. The rest of this task is not shared with you.",
   "shared.conversation.gone.title": "This conversation was deleted",
   "shared.conversation.noLongerShared.title": "This conversation is no longer shared with you",

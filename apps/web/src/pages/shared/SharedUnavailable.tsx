@@ -11,6 +11,7 @@ import {
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation } from "../../shell/shell-slots.tsx";
+import { SharedLoading } from "./SharedFrame.tsx";
 import type { LandingSearch } from "../../notifications/landing.ts";
 
 export type SharedKind = "document" | "conversation";
@@ -59,23 +60,12 @@ export function SharedUnavailable(
   const scope = useProtectedScope();
   const queryClient = useQueryClient();
   const [marked, setMarked] = useState(false);
+  const [markFailed, setMarkFailed] = useState(false);
   const target = useQuery({
     ...notificationTargetQueryOptions(api, scope, landing.n ?? ""),
     enabled: landing.n !== undefined && scope.organizationId !== null,
   });
-  if (landing.n !== undefined && target.isPending) {
-    return (
-      <UI.Stack
-        aria-busy="true"
-        aria-label={translate("notifications.loading")}
-        gap="compact"
-      >
-        {Array.from({ length: 3 }).map((_, index) => (
-          <UI.Skeleton key={index} shape="text" />
-        ))}
-      </UI.Stack>
-    );
-  }
+  if (landing.n !== undefined && target.isPending) return <SharedLoading />;
   const reason: SharedReason = target.data?.reason ?? "unknown";
   const copy = sharedUnavailableCopy(
     translate,
@@ -95,7 +85,11 @@ export function SharedUnavailable(
       expectedCasVersion: landing.r,
       idempotencyKey: `read-${landing.n}-${landing.r}-true`,
     });
-    if (!result.ok) return;
+    if (!result.ok) {
+      setMarkFailed(true);
+      return;
+    }
+    setMarkFailed(false);
     setMarked(true);
     await invalidateNotificationQueries(queryClient);
   };
@@ -126,6 +120,13 @@ export function SharedUnavailable(
           </UI.Inline>
         }
       />
+      {markFailed
+        ? (
+          <UI.InlineNotice tone="error" role="alert">
+            {translate("notifications.row.saveFailed")}
+          </UI.InlineNotice>
+        )
+        : null}
     </>
   );
 }
