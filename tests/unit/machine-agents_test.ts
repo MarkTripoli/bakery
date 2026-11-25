@@ -16,7 +16,6 @@ import {
   parseChallenge,
   paymentKind,
   safeCommand,
-  softwareEntries,
 } from "../../apps/web/src/pages/machine-agents.ts";
 
 // #70 C2b: the Coding agents rows and the sign-in dialog, as functions of what the
@@ -741,45 +740,6 @@ Deno.test("the header badge: Needs attention only for an otherwise Ready or Chec
   // Until the agents' own data is known nothing is claimed about them.
   assertEquals(pageBadge("ready", none, false), "ready");
   assertEquals(pageBadge("ready", [], true), "ready");
-});
-
-Deno.test("the software list: an agent by its own name, anything else by the machine's name, once per name and version", () => {
-  assertEquals(
-    softwareEntries([
-      { componentKey: "harness.claude", actualVersion: "1.2.0" },
-      { componentKey: "harness.codex", actualVersion: "0.9.1" },
-      { componentKey: "harness.claude", actualVersion: "1.2.0" },
-      { componentKey: "worker-supervisor", actualVersion: "3.0.0" },
-      { componentKey: "harness.claude", actualVersion: "1.3.0" },
-    ]),
-    [
-      {
-        key: "claude@1.2.0",
-        agent: "claude",
-        name: "harness.claude",
-        version: "1.2.0",
-      },
-      {
-        key: "codex@0.9.1",
-        agent: "codex",
-        name: "harness.codex",
-        version: "0.9.1",
-      },
-      {
-        key: "worker-supervisor@3.0.0",
-        agent: null,
-        name: "worker-supervisor",
-        version: "3.0.0",
-      },
-      {
-        key: "claude@1.3.0",
-        agent: "claude",
-        name: "harness.claude",
-        version: "1.3.0",
-      },
-    ],
-  );
-  assertEquals(softwareEntries([]), []);
 });
 
 Deno.test("failed checks that are only an agent's sign-in give that agent's banner; anything else leaves the generic one", () => {

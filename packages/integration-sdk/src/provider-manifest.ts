@@ -160,6 +160,25 @@ export const TicketTriggerSchema = z.enum(["label", "status"]).describe(
   "What can make a ticket ready on this provider: a label applied to it, or its status by stable id.",
 );
 
+export const TicketFamilyActionSchema = z.enum([
+  "comment.create",
+  "comment.update",
+  "status.set",
+]).describe(
+  "A tickets-family action Bakery performs on a ticket without naming a provider: post a comment, rewrite a comment, or set the ticket's status.",
+);
+
+export const TicketActionRefSchema = z.strictObject({
+  id: z.string().min(1).max(200).describe(
+    "Registered action id of this provider that performs the family action.",
+  ),
+  version: z.number().int().min(1).describe(
+    "Registered version of that action.",
+  ),
+}).describe(
+  "The provider's registered action that performs one tickets-family action.",
+);
+
 export const ProviderManifestSchema = z.strictObject({
   slug: ProviderSlugSchema,
   integrationId: IntegrationIdSchema,
@@ -186,6 +205,13 @@ export const ProviderManifestSchema = z.strictObject({
     .describe(
       "For a provider that serves tickets, what can make a ticket ready: label, status or both. A ticket source on this provider may name statuses only when it declares status.",
     ),
+  ticketActions: z.partialRecord(
+    TicketFamilyActionSchema,
+    TicketActionRefSchema,
+  )
+    .optional().describe(
+      "For a provider that serves tickets, the registered action that performs each tickets-family action it supports; a family action left out is not supported.",
+    ),
 }).describe(
   "Provider manifest: the data the host, the gate and the web bundle read without importing provider code.",
 );
@@ -193,6 +219,8 @@ export const ProviderManifestSchema = z.strictObject({
 export type ProviderManifest = z.infer<typeof ProviderManifestSchema>;
 export type ProviderFamily = z.infer<typeof ProviderFamilySchema>;
 export type TicketTrigger = z.infer<typeof TicketTriggerSchema>;
+export type TicketFamilyAction = z.infer<typeof TicketFamilyActionSchema>;
+export type TicketActionRef = z.infer<typeof TicketActionRefSchema>;
 export type ResourceKind = z.infer<typeof ResourceKindSchema>;
 export type AppRegistration = z.infer<typeof AppRegistrationSchema>;
 export type ConnectKind = z.infer<typeof ConnectKindSchema>;
@@ -242,6 +270,14 @@ export function manifestDefects(manifest: ProviderManifest): string[] {
   }
   if (new Set(triggers).size !== triggers.length) {
     defects.push("ticketTriggers lists the same trigger twice.");
+  }
+  const ticketActions = Object.keys(manifest.ticketActions ?? {});
+  if (ticketActions.length > 0 && !manifest.families.includes("tickets")) {
+    defects.push(
+      `ticketActions declares ${
+        ticketActions.join(", ")
+      } but the provider does not serve the tickets family.`,
+    );
   }
   return defects;
 }

@@ -9,7 +9,10 @@ import {
   createDeliveryActionRegistry,
   createDeliveryHandlers,
 } from "../../apps/server/src/modules/delivery/index.ts";
-import { mergeDispatchStub } from "../helpers/merge-dispatch-stub.ts";
+import {
+  mergeDispatchStub,
+  registrationStub,
+} from "../helpers/merge-dispatch-stub.ts";
 import {
   type ChecksFixture,
   openChecksFixture,
@@ -52,6 +55,7 @@ async function open(): Promise<Harness> {
   const registry = createDeliveryActionRegistry(
     checks.fixture.appPg,
     createDeliveryHandlers(SECRET, mergeDispatchStub("accept-review")),
+    registrationStub("accept-review", checks.fixture.appPg),
   );
   const context = (
     path: string,

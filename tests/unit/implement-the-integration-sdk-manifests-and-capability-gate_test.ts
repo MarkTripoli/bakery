@@ -1080,6 +1080,7 @@ Deno.test("real deployed registry activates and discovery lists bakery.github", 
     { id: "github.issue.create", version: 1, effect: "write" },
     { id: "github.issue.labels.add", version: 1, effect: "write" },
     { id: "github.issue.label.remove", version: 1, effect: "write" },
+    { id: "github.issue.state.update", version: 1, effect: "write" },
   ]);
   assert(Object.isFrozen(registry));
   assert(Object.isFrozen(found));
@@ -1324,6 +1325,7 @@ Deno.test("capability report: baseline is available, granted and schema-valid", 
       "github.issue.create",
       "github.issue.labels.add",
       "github.issue.label.remove",
+      "github.issue.state.update",
     ],
   );
   assert(report.actions.every((action) => action.available));
