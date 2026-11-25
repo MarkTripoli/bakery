@@ -11,6 +11,7 @@ import {
   TICKET_NOTE_UPDATE_ACTION,
   TICKET_STATUS_ACTION,
 } from "../catalog/integration-providers/github.ts";
+import type { TicketBlockerRule } from "../work/ticket-source-reader.ts";
 import { linearServerProvider } from "@bakery/integration-linear/server";
 import { slackServerProvider } from "@bakery/integration-slack/server";
 
@@ -323,4 +324,22 @@ export function ticketFamilyActionsOf(provider: string): TicketFamilyActions {
   return Object.hasOwn(TICKET_FAMILY_ACTIONS, provider)
     ? TICKET_FAMILY_ACTIONS[provider]!
     : {};
+}
+
+function blockerRuleOfFamilies(
+  families: readonly string[],
+): TicketBlockerRule {
+  return families.includes("code") || !families.includes("tickets")
+    ? "merged_change"
+    : "done_status";
+}
+
+export function ticketBlockerRuleOf(provider: string): TicketBlockerRule {
+  if (provider === GITHUB_PROVIDER_IDENTITY.slug) return "merged_change";
+  const manifest = PROVIDERS.providers.find((candidate) =>
+    candidate.manifest.slug === provider
+  )?.manifest;
+  return manifest === undefined
+    ? "merged_change"
+    : blockerRuleOfFamilies(manifest.families);
 }
