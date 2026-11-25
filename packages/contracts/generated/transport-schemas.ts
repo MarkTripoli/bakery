@@ -22101,6 +22101,7 @@ const transportSchemas = {
       "fields": [
         "id",
         "taskId",
+        "taskTitle",
         "artifactType",
         "name",
         "currentVersionId",
@@ -22112,6 +22113,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
+        "taskTitle": "string|null",
         "taskId": "uuid",
         "artifactType": "enum(research|plan|design|check|review|log|image|patch|other)",
         "name": "string",
@@ -22129,6 +22131,7 @@ const transportSchemas = {
       ],
       "description": "The stable, task-owned identity of one artifact: its type and display name, and a pointer to its current version, which is null before the first version is published.",
       "fieldDescriptions": {
+        "taskTitle": "Title of the artifact's task, shown to every reader who can open the artifact, including a reader with a grant to the document alone.",
         "id": "Stable UUID identifying the artifact record.",
         "taskId": "Stable UUID linking this record to the related task entity.",
         "artifactType": "Classification of artifact content.",
@@ -22141,6 +22144,7 @@ const transportSchemas = {
         "pinnedBy": "Principal who pinned the artifact, null when unpinned."
       },
       "optionalFields": [
+        "taskTitle",
         "pinnedAt",
         "pinnedBy"
       ]
@@ -22307,6 +22311,7 @@ const transportSchemas = {
         "revision",
         "runStepId",
         "authorId",
+        "authorName",
         "mediaType",
         "sizeBytes",
         "sha256",
@@ -22329,6 +22334,7 @@ const transportSchemas = {
         "artifactId": "uuid",
         "revision": "integer",
         "runStepId": "uuid|null",
+        "authorName": "string|null",
         "authorId": "uuid",
         "mediaType": "string",
         "sizeBytes": "integer",
@@ -22359,6 +22365,7 @@ const transportSchemas = {
       ],
       "description": "Metadata for one immutable artifact version published by a worker through its attempt lease: media type, size, server-computed digest, the run step that produced it, optional subject head/base commit SHAs, and validated metadata. Content bytes are not included.",
       "fieldDescriptions": {
+        "authorName": "Display name of the version's publisher, shown to every reader who can see the version, including a reader with a grant to the document alone; null when the publisher has no display name.",
         "id": "Stable UUID identifying the artifact version record.",
         "artifactId": "Stable UUID linking this record to the related artifact entity.",
         "revision": "Monotonic revision number used to order updates to the record.",
@@ -22382,6 +22389,7 @@ const transportSchemas = {
         "refusedReason": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
       },
       "optionalFields": [
+        "authorName",
         "retentionClass",
         "expiresAt",
         "purgedAt",

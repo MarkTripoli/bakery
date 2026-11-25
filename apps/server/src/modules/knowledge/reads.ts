@@ -75,6 +75,7 @@ const MAX_BLOB_RANGE_BYTES = 8 * 1024 * 1024;
 
 type ArtifactRow = {
   id: string;
+  task_title?: string | null;
   task_id: string;
   artifact_type: string;
   name: string;
@@ -89,6 +90,7 @@ type ArtifactCursorRow = ArtifactRow & {
   cursor_created_at: string;
 };
 type VersionRow = {
+  author_name?: string | null;
   retention_class: "transient" | "evidence";
   expires_at: Date | string | null;
   purged_at: Date | string | null;
@@ -180,6 +182,7 @@ function artifact(row: ArtifactRow) {
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: Number(row.version),
+    ...(row.task_title === undefined ? {} : { taskTitle: row.task_title }),
   };
 }
 
@@ -206,6 +209,7 @@ function version(row: VersionRow) {
     refusedKindVersionId: row.refused_kind_version_id,
     refusedRuleType: row.refused_rule_type,
     refusedReason: row.refused_reason,
+    ...(row.author_name === undefined ? {} : { authorName: row.author_name }),
   };
 }
 
@@ -526,7 +530,8 @@ export function createArtifactReadHandlers(
       const { transaction, organizationId } = requireWorkTransaction(context);
       const result = await transaction.query<ArtifactRow>(
         `select a.id,a.task_id,a.artifact_type,a.name,a.current_version_id,
-                a.created_at,a.updated_at,a.version,a.pinned_at,a.pinned_by
+                a.created_at,a.updated_at,a.version,a.pinned_at,a.pinned_by,
+                t.title as task_title
            from bakery.artifacts a
            join bakery.tasks t
              on t.organization_id=a.organization_id and t.id=a.task_id
@@ -566,6 +571,8 @@ export function createArtifactReadHandlers(
                 v.subject_head_sha,v.subject_base_sha,v.metadata,v.media_type,
                 v.size_bytes,v.sha256,v.created_at,v.retention_class,v.expires_at,v.purged_at,1 as version,
                 v.publication_status,v.refused_kind_version_id,v.refused_rule_type,v.refused_reason,
+                (select left(nullif(btrim(author.display_name), ''), 200) from bakery.principals author
+                  where author.id = v.author_id) as author_name,
                 to_char(
                   v.created_at at time zone 'UTC',
                   'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'

@@ -253,6 +253,30 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
       "the grant opens the document and its comments only",
       async () => {
         const read = await as(ana, `/v1/artifacts/${artifact}`);
+        const opened = await json<{ taskTitle?: string }>(read.clone(), 200);
+        const task = (await db.query<{ title: string }>(
+          "select title from bakery.tasks where id = $1",
+          [f.taskId],
+        )).rows[0];
+        assertEquals(opened.taskTitle, task?.title);
+        const versions = await json<
+          { items: { authorId: string; authorName?: string | null }[] }
+        >(
+          await as(ana, `/v1/artifacts/${artifact}/versions?limit=5`),
+          200,
+        );
+        const publishers =
+          (await db.query<{ id: string; display_name: string }>(
+            "select id, display_name from bakery.principals where id = any($1)",
+            [versions.items.map((item) => item.authorId)],
+          )).rows;
+        for (const item of versions.items) {
+          assertEquals(
+            item.authorName,
+            publishers.find((p: { id: string }) => p.id === item.authorId)
+              ?.display_name,
+          );
+        }
         assertEquals(read.status, 200, await read.text());
         assertEquals(
           await status(
