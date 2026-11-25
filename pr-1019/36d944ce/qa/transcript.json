@@ -1,0 +1,48 @@
+[
+  {
+    "at": "6.1",
+    "event": "list"
+  },
+  {
+    "at": "10.1",
+    "event": "now",
+    "rows": 3,
+    "text": "Tasks at once 4 Running now 3 Free 1 Now Needs a look Finished Work on this mach"
+  },
+  {
+    "at": "12.7",
+    "event": "needs a look",
+    "rows": 3
+  },
+  {
+    "at": "17.1",
+    "event": "finished after load more",
+    "rows": 30
+  },
+  {
+    "at": "19.4",
+    "event": "attempt completed in the database"
+  },
+  {
+    "at": "33.3",
+    "event": "row left Now",
+    "after": "13.9",
+    "rows": 2
+  },
+  {
+    "at": "35.8",
+    "event": "numbers",
+    "slots": "Tasks at once 4 Running now 2 Free 2"
+  },
+  {
+    "at": "40.6",
+    "event": "step link by keyboard",
+    "url": "/tasks/c0000000-0000-4000-8000-000000005133?at=step:c0000000-0000-4000-80",
+    "main": "Make the refund window configurable for every region and say so in the help text, the emai"
+  },
+  {
+    "at": "42.3",
+    "event": "back",
+    "url": "2/work"
+  }
+]
