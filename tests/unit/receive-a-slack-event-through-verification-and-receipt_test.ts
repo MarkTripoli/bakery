@@ -1,12 +1,16 @@
 import { assert, assertEquals } from "@std/assert";
+import type { PgTransactionClient } from "@bakery/persistence";
 import {
   receiveSlackEvent,
   type SlackIntakeDependencies,
   type SlackIntakeResult,
 } from "../../apps/server/src/modules/integrations/slack-intake.ts";
-import type {
-  CommitSlackReceiptResult,
-  SlackInstallationRecord,
+import {
+  commitSlackReceipt,
+  type CommitSlackReceiptResult,
+  type PersistedSlackDecision,
+  type SlackInstallationRecord,
+  sweepExpiredSlackReceipts,
 } from "../../apps/server/src/modules/integrations/slack-receipts.ts";
 import { sha256Hex } from "../../apps/server/src/modules/integrations/intake-signature.ts";
 
@@ -220,6 +224,27 @@ Deno.test("an ignored event commits a receipt carrying no text, and is rejected,
   assert(!JSON.stringify(h.commits[0]).includes("secret"));
 });
 
+Deno.test("a human reply without a thread binding is rejected without storing its text", async () => {
+  const h = harness();
+  const reply = mention({
+    event: {
+      type: "message",
+      thread_ts: "1.0",
+      channel: "C1",
+      user: "U9",
+      ts: "2.0",
+      text: "unlinked secret",
+    },
+  });
+  assertEquals(await deliver(h.deps, reply), {
+    kind: "acknowledged",
+    disposition: "rejected",
+    receiptId: "rcpt-1",
+  });
+  assertEquals(h.commits[0]!.decision.kind, "ignore");
+  assert(!JSON.stringify(h.commits[0]).includes("unlinked secret"));
+});
+
 Deno.test("a retry is a duplicate, and the same id with other bytes is a payload mismatch", async () => {
   const again = harness({
     commitResult: {
@@ -238,6 +263,78 @@ Deno.test("a retry is a duplicate, and the same id with other bytes is a payload
     kind: "refused",
     code: "IDEMPOTENCY_PAYLOAD_MISMATCH",
   });
+});
+
+Deno.test("an installation disabled before receipt commit is refused", async () => {
+  const h = harness({
+    commitResult: {
+      kind: "inactive",
+    } as unknown as CommitSlackReceiptResult,
+  });
+  assertEquals(await deliver(h.deps, mention()), {
+    kind: "refused",
+    code: "AUTH_INVALID",
+  });
+});
+
+Deno.test("receipt validation rejects incomplete accepted work before storage", async () => {
+  let queries = 0;
+  const transaction = {
+    query() {
+      queries += 1;
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    },
+  } as unknown as PgTransactionClient;
+  const result = await commitSlackReceipt(transaction, {
+    installationId: installation.installationId,
+    appId: installation.appId,
+    eventId: "Ev1",
+    payloadDigest: "a".repeat(64),
+    decision: {
+      kind: "mention",
+      eventId: "Ev1",
+    } as unknown as PersistedSlackDecision,
+    now: new Date(NOW_MS),
+  });
+  assertEquals(result, { kind: "malformed" });
+  assertEquals(queries, 0);
+});
+
+Deno.test("Slack retention drains multiple batches and obeys its run bound", async () => {
+  const sizes = [500, 1];
+  let queries = 0;
+  const draining = {
+    query() {
+      queries += 1;
+      return Promise.resolve({ rows: [], rowCount: sizes.shift() ?? 0 });
+    },
+  } as unknown as PgTransactionClient;
+  assertEquals(
+    await sweepExpiredSlackReceipts(draining, {
+      now: new Date(NOW_MS),
+      limit: 500,
+      maxBatches: 100,
+    }),
+    { deleted: 501, batches: 2 },
+  );
+  assertEquals(queries, 2);
+
+  const bounded = {
+    query() {
+      queries += 1;
+      return Promise.resolve({ rows: [], rowCount: 500 });
+    },
+  } as unknown as PgTransactionClient;
+  queries = 0;
+  assertEquals(
+    await sweepExpiredSlackReceipts(bounded, {
+      now: new Date(NOW_MS),
+      limit: 500,
+      maxBatches: 2,
+    }),
+    { deleted: 1_000, batches: 2 },
+  );
+  assertEquals(queries, 2);
 });
 
 Deno.test("a database failure is thrown, never answered as queued", async () => {

@@ -114,14 +114,18 @@ export type SlackAppIdentity = {
   readonly botUserId: string;
 };
 
-export type SlackIgnoreReason =
-  | "malformed"
-  | "wrong_app"
-  | "wrong_workspace"
-  | "not_authorized"
-  | "bot_echo"
-  | "unsupported_event"
-  | "edited_or_deleted";
+export const SLACK_IGNORE_REASONS = [
+  "malformed",
+  "wrong_app",
+  "wrong_workspace",
+  "not_authorized",
+  "bot_echo",
+  "unsupported_event",
+  "edited_or_deleted",
+  "unlinked_thread",
+] as const;
+
+export type SlackIgnoreReason = (typeof SLACK_IGNORE_REASONS)[number];
 
 export type SlackEventDecision =
   | { readonly kind: "challenge"; readonly challenge: string }
@@ -223,13 +227,5 @@ export function readSlackEvent(
     };
   }
   if (threadTs === null) return { kind: "ignore", reason: "unsupported_event" };
-  return {
-    kind: "thread_reply",
-    eventId: body.event_id,
-    channelId,
-    userId,
-    ts,
-    threadTs,
-    text,
-  };
+  return { kind: "ignore", reason: "unlinked_thread" };
 }

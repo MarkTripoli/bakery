@@ -1,4 +1,5 @@
 import type { PgTransactionClient } from "@bakery/persistence";
+import { z } from "zod";
 import {
   isSlackAppId,
   isSlackEnterpriseId,
@@ -6,7 +7,7 @@ import {
   isSlackUserId,
   type SlackInstallation,
 } from "./slack-scope.ts";
-import type { SlackEventDecision } from "./slack-request.ts";
+import { SLACK_IGNORE_REASONS } from "./slack-request.ts";
 
 export const SLACK_RECEIPT_RETENTION_DAYS = 7;
 
@@ -141,9 +142,61 @@ export async function findSlackInstallation(
 }
 
 export type SlackReceiptOutcome = "accepted" | "ignored";
-export type PersistedSlackDecision = Exclude<
-  SlackEventDecision,
-  { readonly kind: "challenge" }
+
+const SlackReceiptWorkFields = {
+  eventId: z.string().regex(EVENT_ID).describe(
+    "Slack event id shared by the verified envelope and durable receipt.",
+  ),
+  channelId: z.string().min(1).max(64).describe(
+    "Slack channel containing the admitted message.",
+  ),
+  userId: z.string().refine(isSlackUserId, "Invalid Slack user id.").describe(
+    "Slack user that authored the admitted message.",
+  ),
+  ts: z.string().min(1).max(64).describe(
+    "Slack timestamp identifying the admitted message.",
+  ),
+  threadTs: z.string().min(1).max(64).describe(
+    "Slack timestamp identifying the admitted message thread.",
+  ),
+  text: z.string().max(262_144).describe(
+    "Verified Slack message text retained for later admission processing.",
+  ),
+};
+
+const SlackIgnoredDecisionSchema = z.object({
+  kind: z.literal("ignore").describe(
+    "Marks a verified event that must not create work or retain message text.",
+  ),
+  reason: z.enum(SLACK_IGNORE_REASONS).describe(
+    "Stable reason the verified event was excluded from work.",
+  ),
+}).strict().describe("Verified Slack event excluded before work persistence.");
+
+const SlackMentionDecisionSchema = z.object({
+  kind: z.literal("mention").describe(
+    "Marks an app mention admitted for later processing.",
+  ),
+  ...SlackReceiptWorkFields,
+}).strict().describe("Verified Slack app mention admitted as durable work.");
+
+const SlackThreadReplyDecisionSchema = z.object({
+  kind: z.literal("thread_reply").describe(
+    "Marks a reply admitted only after a later binding-aware classifier proves its thread.",
+  ),
+  ...SlackReceiptWorkFields,
+}).strict().describe("Verified and binding-authorized Slack thread reply.");
+
+export const PersistedSlackDecisionSchema = z.discriminatedUnion("kind", [
+  SlackIgnoredDecisionSchema,
+  SlackMentionDecisionSchema,
+  SlackThreadReplyDecisionSchema,
+]).describe(
+  "Application-validated Slack receipt decision; ignored events carry no work fields.",
+);
+
+export type PersistedSlackDecision = z.output<
+  typeof PersistedSlackDecisionSchema
 >;
 
 export type CommitSlackReceiptResult =
@@ -154,6 +207,7 @@ export type CommitSlackReceiptResult =
     readonly outcome: SlackReceiptOutcome;
   }
   | { readonly kind: "conflict" }
+  | { readonly kind: "inactive" }
   | { readonly kind: "malformed" };
 
 export async function commitSlackReceipt(
@@ -167,13 +221,23 @@ export async function commitSlackReceipt(
     readonly now: Date;
   },
 ): Promise<CommitSlackReceiptResult> {
-  const work = input.decision.kind === "ignore" ? null : input.decision;
   if (
     !isUuid(input.installationId) || !isSlackAppId(input.appId) ||
     !EVENT_ID.test(input.eventId) || !DIGEST.test(input.payloadDigest) ||
     Number.isNaN(input.now.getTime()) ||
-    (work !== null && work.eventId !== input.eventId)
+    !PersistedSlackDecisionSchema.safeParse(input.decision).success
   ) return { kind: "malformed" };
+  const work = input.decision.kind === "ignore" ? null : input.decision;
+  if (work !== null && work.eventId !== input.eventId) {
+    return { kind: "malformed" };
+  }
+  const installation = await transaction.query(
+    `select 1 from bakery.slack_installations
+      where app_id = $1 and id = $2 and status = 'active'
+      for share`,
+    [input.appId, input.installationId],
+  );
+  if (installation.rows.length !== 1) return { kind: "inactive" };
   const expiresAt = new Date(
     input.now.getTime() + SLACK_RECEIPT_RETENTION_DAYS * 86_400_000,
   );
@@ -220,17 +284,43 @@ export async function commitSlackReceipt(
     : { kind: "conflict" };
 }
 
+export type SlackReceiptSweepResult = {
+  readonly deleted: number;
+  readonly batches: number;
+};
+
 export async function sweepExpiredSlackReceipts(
-  transaction: PgTransactionClient,
-  input: { readonly now: Date; readonly limit: number },
-): Promise<number> {
-  const limit = Math.min(Math.max(Math.trunc(input.limit), 1), 1000);
-  const result = await transaction.query(
-    `delete from bakery.slack_event_receipts
-      where id in (
-        select id from bakery.slack_event_receipts
-         where expires_at <= $1 order by expires_at limit $2)`,
-    [input.now, limit],
+  database: Pick<PgTransactionClient, "query">,
+  input: {
+    readonly now: Date;
+    readonly limit: number;
+    readonly maxBatches?: number;
+  },
+): Promise<SlackReceiptSweepResult> {
+  const limit = Math.min(Math.max(Math.trunc(input.limit), 1), 5000);
+  const maxBatches = Math.min(
+    Math.max(Math.trunc(input.maxBatches ?? 100), 1),
+    1000,
   );
-  return result.rowCount ?? 0;
+  const result = { deleted: 0, batches: 0 };
+  while (result.batches < maxBatches) {
+    const removed = await database.query(
+      `with doomed as materialized (
+         select id from bakery.slack_event_receipts
+          where expires_at <= $1 and outcome = 'ignored'
+          order by expires_at, id
+          limit $2
+          for update skip locked
+       )
+       delete from bakery.slack_event_receipts receipt
+        using doomed where receipt.id = doomed.id`,
+      [input.now, limit],
+    );
+    const count = removed.rowCount ?? 0;
+    if (count === 0) break;
+    result.deleted += count;
+    result.batches += 1;
+    if (count < limit) break;
+  }
+  return result;
 }

@@ -150,6 +150,8 @@ export async function receiveSlackEvent(
       };
     case "conflict":
       return refused("IDEMPOTENCY_PAYLOAD_MISMATCH");
+    case "inactive":
+      return refused("AUTH_INVALID");
     case "malformed":
       return refused("MALFORMED_REQUEST");
   }

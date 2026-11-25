@@ -37,23 +37,7 @@ create table bakery.slack_event_receipts (
   constraint slack_event_receipts_delivery_unique unique (app_id, event_id),
   constraint slack_event_receipts_installation_fk
     foreign key (app_id, installation_id)
-    references bakery.slack_installations (app_id, id) on delete cascade,
-  constraint slack_event_receipts_outcome_check
-    check (outcome in ('accepted', 'ignored')),
-  constraint slack_event_receipts_work_check
-    check (
-      (
-        outcome = 'accepted' and
-        processing_intent in ('mention', 'thread_reply') and
-        channel_id is not null and user_id is not null and
-        event_ts is not null and thread_ts is not null and
-        message_text is not null
-      ) or (
-        outcome = 'ignored' and processing_intent is null and
-        channel_id is null and user_id is null and event_ts is null and
-        thread_ts is null and message_text is null
-      )
-    )
+    references bakery.slack_installations (app_id, id) on delete cascade
 );
 create index slack_event_receipts_expiry
   on bakery.slack_event_receipts (expires_at);

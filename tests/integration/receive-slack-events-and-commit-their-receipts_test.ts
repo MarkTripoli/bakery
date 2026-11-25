@@ -5,7 +5,6 @@ import {
   commitSlackReceipt,
   findSlackInstallation,
   registerSlackInstallation,
-  SLACK_RECEIPT_RETENTION_DAYS,
   sweepExpiredSlackReceipts,
 } from "../../apps/server/src/modules/integrations/slack-receipts.ts";
 import type { SlackInstallation } from "../../apps/server/src/modules/integrations/slack-scope.ts";
@@ -376,6 +375,40 @@ Deno.test("a disabled installation, like an uninstalled workspace, admits nothin
   });
 });
 
+Deno.test("an installation disabled after lookup cannot commit plaintext work", async () => {
+  await withFixture(async (f) => {
+    const value = installation();
+    const made = await register(f, f.organizationId, value);
+    assert(made.ok);
+    const active = await withPgTransaction(
+      f.runtimePgDatabase,
+      (tx) => findSlackInstallation(tx, value),
+    );
+    assert(active !== null);
+    await f.pgDatabase.query(
+      "update bakery.slack_installations set status = 'disabled' where id = $1",
+      [made.installation.installationId],
+    );
+    const event = eventId();
+    assertEquals(
+      await commit(
+        f,
+        value,
+        made.installation.installationId,
+        event,
+        digest("9"),
+      ),
+      { kind: "inactive" },
+    );
+    const receipts = await f.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count
+         from bakery.slack_event_receipts where event_id = $1`,
+      [event],
+    );
+    assertEquals(receipts.rows[0]?.count, "0");
+  });
+});
+
 async function commit(
   f: Fixture,
   value: SlackInstallation,
@@ -496,39 +529,79 @@ Deno.test("an ignored event leaves a receipt with no text to read", async () => 
   });
 });
 
-Deno.test("receipts expire after the retention window, and only those are swept", async () => {
+Deno.test("retention drains multiple ignored batches without deleting accepted work", async () => {
   await withFixture(async (f) => {
     const value = installation();
     const made = await register(f, f.organizationId, value);
     assert(made.ok);
-    const id = made.installation.installationId;
-    const old = eventId();
-    const fresh = eventId();
-    await commit(f, value, id, old, digest("e"));
-    await commit(f, value, id, fresh, digest("f"));
-    const later = new Date(
-      Date.now() + (SLACK_RECEIPT_RETENTION_DAYS * 86_400_000) / 2,
+    const installationId = made.installation.installationId;
+    const expiredIds = Array.from(
+      { length: 501 },
+      () => crypto.randomUUID(),
     );
-    const none = await withPgTransaction(
-      f.runtimePgDatabase,
-      (tx) => sweepExpiredSlackReceipts(tx, { now: later, limit: 100 }),
-    );
-    assertEquals(none, 0);
+    const expiredEvents = expiredIds.map((_, index) => `EvExpired${index}`);
     await f.pgDatabase.query(
-      "update bakery.slack_event_receipts set expires_at = now() - interval '1 minute' where event_id = $1",
-      [old],
+      `insert into bakery.slack_event_receipts (
+         id, app_id, event_id, installation_id, payload_digest, outcome,
+         received_at, expires_at)
+       select expired.id, $1, expired.event_id, $2, $3, 'ignored',
+              now() - interval '8 days', now() - interval '1 minute'
+         from unnest($4::uuid[], $5::text[])
+           as expired(id, event_id)`,
+      [
+        value.appId,
+        installationId,
+        digest("e"),
+        expiredIds,
+        expiredEvents,
+      ],
     );
-    const swept = await withPgTransaction(
-      f.runtimePgDatabase,
-      (tx) => sweepExpiredSlackReceipts(tx, { now: new Date(), limit: 100 }),
+    const accepted = eventId();
+    const freshIgnored = eventId();
+    await commit(f, value, installationId, accepted, digest("f"));
+    await commit(
+      f,
+      value,
+      installationId,
+      freshIgnored,
+      digest("0"),
+      "ignored",
     );
-    assertEquals(swept >= 1, true);
+    await f.pgDatabase.query(
+      `update bakery.slack_event_receipts
+          set expires_at = now() - interval '1 minute'
+        where event_id = $1`,
+      [accepted],
+    );
     assertEquals(
-      (await commit(f, value, id, old, digest("e"))).kind,
-      "recorded",
+      await sweepExpiredSlackReceipts(f.runtimePgDatabase, {
+        now: new Date(),
+        limit: 500,
+        maxBatches: 100,
+      }),
+      { deleted: 501, batches: 2 },
     );
-    const again = await commit(f, value, id, fresh, digest("f"));
-    assert(again.kind === "duplicate" && again.outcome === "accepted");
+    const remaining = await f.pgDatabase.query<{
+      event_id: string;
+      message_text: string | null;
+      outcome: string;
+    }>(
+      `select event_id, message_text, outcome
+         from bakery.slack_event_receipts
+        where installation_id = $1 order by event_id`,
+      [installationId],
+    );
+    assertEquals(
+      remaining.rows,
+      [
+        {
+          event_id: accepted,
+          message_text: "test message",
+          outcome: "accepted",
+        },
+        { event_id: freshIgnored, message_text: null, outcome: "ignored" },
+      ].sort((left, right) => left.event_id.localeCompare(right.event_id)),
+    );
   });
 });
 Deno.test("the production retention function sweeps expired Slack receipts", async () => {
@@ -539,7 +612,14 @@ Deno.test("the production retention function sweeps expired Slack receipts", asy
     const installationId = made.installation.installationId;
     const old = eventId();
     const fresh = eventId();
-    await commit(f, value, installationId, old, digest("7"));
+    await commit(
+      f,
+      value,
+      installationId,
+      old,
+      digest("7"),
+      "ignored",
+    );
     await commit(f, value, installationId, fresh, digest("8"));
     await f.pgDatabase.query(
       "update bakery.slack_event_receipts set expires_at = now() - interval '1 minute' where event_id = $1",
@@ -569,7 +649,7 @@ Deno.test("the production retention function sweeps expired Slack receipts", asy
     });
     assertEquals(outcome, {
       inbound: { deleted: 0, batches: 0 },
-      slackDeleted: 1,
+      slack: { deleted: 1, batches: 1 },
     });
     assertEquals(steps, ["sweep-expired-intake-receipts"]);
     const remaining = await f.pgDatabase.query<{ event_id: string }>(
