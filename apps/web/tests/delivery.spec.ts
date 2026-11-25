@@ -37,6 +37,33 @@ test("selected merged chart and table use the merge-count samples, not line coun
     ]);
   }
 });
+test("Show offers all six series and displays opened and changed lines", async ({ page }) => {
+  await deliveryFixture(page);
+  await page.goto("/delivery");
+  const show = page.getByRole("combobox", { name: "Show" });
+  await expect(show.locator("option")).toHaveText([
+    "Pull requests merged",
+    "Pull requests opened",
+    "Still open",
+    "Closed without merging",
+    "Lines changed",
+    "Time a task took (typical)",
+  ]);
+  await show.selectOption("opened");
+  await expect(
+    page.getByRole("img", { name: "Pull requests opened" }),
+  ).toBeVisible();
+  await show.selectOption("lines");
+  await expect(page.getByRole("img", { name: "Lines changed" }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "Show as table" }).click();
+  await expect(
+    page.getByRole("table", { name: "Lines changed" }).getByRole(
+      "columnheader",
+      { name: "Lines changed" },
+    ),
+  ).toBeVisible();
+});
 
 /** Answers the effective-access read with a role and the given capabilities. */
 const access = (route: Route, capabilities: string[]) => {
@@ -262,7 +289,7 @@ for (
           page.getByText("No data for 1 day. A gap is not zero."),
         ).toBeVisible();
       }
-      await expect(chart.locator("[data-chart-tick='max']")).toHaveText("40");
+      await expect(chart.locator("[data-chart-tick='max']")).toHaveText("40 h");
       const chartBox = await chart.boundingBox();
       expect(chartBox!.height).toBe(200);
       await expect(chart.locator("[data-chart-point]")).toHaveCount(1);
@@ -270,15 +297,19 @@ for (
       const lastCaption = await page.getByText(/^Nov 4, 2026$/).boundingBox();
       expect(Math.abs(firstCaption!.y - lastCaption!.y)).toBeLessThan(2);
       expect(lastCaption!.x).toBeGreaterThan(firstCaption!.x);
-      const table2 = page.getByRole("table", { name: "Tasks delivered" });
+      const table2 = page.getByRole("table", {
+        name: "Time a task took (typical)",
+      });
       await page.getByRole("button", { name: "Show as table" }).click();
       await expect(table2).toBeVisible();
       await expect(table2.getByRole("columnheader", { name: "Date" }))
         .toBeVisible();
       await expect(
-        table2.getByRole("columnheader", { name: "Tasks delivered" }),
-      )
-        .toBeVisible();
+        table2.getByRole("columnheader", {
+          name: "Time a task took (typical)",
+        }),
+      ).toBeVisible();
+      await expect(table2.getByText("40 h")).toBeVisible();
       await expect(table2.getByText("No data")).toHaveCount(1);
       await page.getByRole("button", { name: "Show as chart" }).click();
       await expect(page.getByTestId("delivery-chart")).toBeVisible();
@@ -286,14 +317,25 @@ for (
       await page.mouse.move(700, 700);
       await still(page, "delivery-over-time");
     });
-    test("a period over 90 days asks for weekly chart points", async ({ page }) => {
-      const seen = await deliveryFixture(page);
+    test("a period over 90 days labels complete weekly samples as weeks", async ({ page }) => {
+      const samples = Array.from({ length: 13 }, (_, index) => ({
+        at: new Date(Date.UTC(2026, 0, 1 + index * 7)).toISOString(),
+        value: 1,
+        unknownReason: null,
+      }));
+      const seen = await deliveryFixture(page, {
+        metricPoints: { "prs.merged": samples },
+      });
       await page.goto(
-        "/delivery?period=custom&from=2026-01-01&to=2026-06-01",
+        "/delivery?period=custom&from=2026-01-01&to=2026-04-01",
       );
-      await expect(page.getByRole("heading", { name: "Over time" }))
-        .toBeVisible();
+      await expect(page.getByTestId("delivery-chart")).toBeVisible();
       await expect.poll(() => seen.metricResolutions).toContain("week");
+      await expect(
+        page.locator("[data-section='delivery-over-time']").getByText(
+          "Every week has a measurement for Pull requests merged in this period.",
+        ),
+      ).toBeVisible();
     });
 
     test("a failed chart stays inside Over time and retries without replacing the page", async ({ page }) => {

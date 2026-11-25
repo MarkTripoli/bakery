@@ -8,6 +8,7 @@ import {
   chartMissingDays,
   type ChartPoint,
   chartSegments,
+  durationWords,
 } from "./delivery-display.ts";
 
 const HEIGHT = 200;
@@ -17,6 +18,8 @@ const LABEL_WIDTH = 118;
 export function DeliveryChart(
   {
     points,
+    hours,
+    resolution,
     label,
     showMenu,
     table,
@@ -25,7 +28,9 @@ export function DeliveryChart(
     onRetry,
   }: {
     readonly points: readonly ChartPoint[];
+    readonly hours: boolean;
     readonly label: string;
+    readonly resolution: "day" | "week";
     readonly table: ReactNode;
     readonly showMenu: ReactNode;
     readonly status: "loading" | "error" | "ready";
@@ -42,6 +47,7 @@ export function DeliveryChart(
   const gaps = chartGaps(points);
   const measured = points.filter((point) => point.value !== null).length;
   const maximum = Math.max(1, chartMaximum(points));
+  const maximumWords = hours ? durationWords(maximum) : null;
   const times = points.map((point) => Date.parse(point.at));
   const first = times.length === 0 ? 0 : Math.min(...times);
   const last = times.length === 0 ? 1 : Math.max(...times);
@@ -205,7 +211,9 @@ export function DeliveryChart(
                 x={PAD.left - 8}
                 y={up(maximum) + 4}
               >
-                {maximum}
+                {maximumWords === null
+                  ? maximum
+                  : translate(maximumWords.key, maximumWords.params)}
               </text>
             </svg>
             <UI.Inline gap="standard">
@@ -222,7 +230,12 @@ export function DeliveryChart(
             </UI.Inline>
             <UI.Text id={descriptionId} variant="muted">
               {gaps.length === 0
-                ? translate("delivery.chart.noGap", { series: label })
+                ? translate(
+                  resolution === "week"
+                    ? "delivery.chart.noGapWeek"
+                    : "delivery.chart.noGap",
+                  { series: label },
+                )
                 : hiddenGapLabels.length === 0
                 ? translate("delivery.chart.gapCountLabeled", {
                   count: gapCount,

@@ -7193,5 +7193,11 @@
   "delivery.chart.column.day": "⟪Date⟫",
   "delivery.chart.error": "⟪The chart could not be loaded.⟫",
   "delivery.chart.retry": "⟪Try again⟫",
-  "delivery.chart.noGap": "⟪Every day has a measurement for {series} in this period.⟫"
+  "delivery.chart.noGap": "⟪Every day has a measurement for {series} in this period.⟫",
+  "delivery.chart.noGapWeek": "⟪Every week has a measurement for {series} in this period.⟫",
+  "delivery.chart.opened": "⟪Pull requests opened⟫",
+  "delivery.chart.lines": "⟪Lines changed⟫",
+  "delivery.chart.tasks": "⟪Time a task took (typical)⟫",
+  "delivery.records.rule.opened": "⟪Counted by when each was opened, in your time zone ({zone}). Definitions, version {version}.⟫",
+  "delivery.records.rule.opened.noVersion": "⟪Counted by when each was opened, in your time zone ({zone}).⟫"
 }

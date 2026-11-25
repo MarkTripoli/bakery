@@ -193,6 +193,7 @@ export function DeliveryPage() {
             ? "loading"
             : "ready",
           points: chart.data?.points ?? [],
+          resolution: chartResolution,
           to: chart.data?.to ?? base.to,
         }}
         figures={{
@@ -251,6 +252,8 @@ export function DeliveryPage() {
           loadingMore: sources.isFetchingNextPage,
           revision: {
             merged: lines.data,
+            opened: chart.data,
+            lines: lines.data,
             tasks: tasks.data,
             open: open.data,
             closed: closed.data,

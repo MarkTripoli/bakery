@@ -52,7 +52,7 @@ export type DeliveryScreenProps = {
     | "noRepository"
     | "emptyPeriod"
     | "notFound";
-  readonly figures: Readonly<Record<DeliveryShow, Figure>>;
+  readonly figures: Readonly<Record<(typeof FIGURES)[number]["show"], Figure>>;
   readonly freshness: Freshness | null;
   /** Records the reader may not open; the line shows only above zero. */
   readonly hiddenCount: number;
@@ -72,6 +72,7 @@ export type DeliveryScreenProps = {
   readonly chart: {
     readonly status: "loading" | "error" | "ready";
     readonly points: readonly ChartPoint[];
+    readonly resolution: "day" | "week";
     readonly to: string;
   };
   /** Admins are sent to reconnect; everyone else is told who can. */
@@ -125,6 +126,15 @@ const FIGURES = [
     detail: "delivery.figure.closed.detail",
     help: "delivery.figure.closed.help",
   },
+] as const;
+
+const CHART_SERIES = [
+  { show: "merged", label: "delivery.figure.merged.label" },
+  { show: "opened", label: "delivery.chart.opened" },
+  { show: "open", label: "delivery.figure.open.label" },
+  { show: "closed", label: "delivery.figure.closed.label" },
+  { show: "lines", label: "delivery.chart.lines" },
+  { show: "tasks", label: "delivery.chart.tasks" },
 ] as const;
 
 function showRecordsHeading() {
@@ -415,18 +425,24 @@ function Ready(props: DeliveryScreenProps) {
 function OverTime(props: DeliveryScreenProps) {
   const { translate, locale } = useI18n();
   const shown: DeliveryShow = props.show ?? "merged";
-  const figure = FIGURES.find((entry) => entry.show === shown)!;
+  const figure = CHART_SERIES.find((entry) => entry.show === shown)!;
   const series = props.chart;
   const day = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeZone: "UTC",
   });
   const numberFormat = new Intl.NumberFormat(locale);
+  const formatHours = (value: number) => {
+    const words = durationWords(value);
+    return translate(words.key, words.params);
+  };
   return (
     <DeliveryChart
+      hours={shown === "tasks"}
       label={translate(figure.label)}
       onRetry={props.onRetryChart}
       points={series.points}
+      resolution={series.resolution}
       to={series.to}
       status={series.status}
       showMenu={
@@ -438,7 +454,7 @@ function OverTime(props: DeliveryScreenProps) {
             props.onShow(
               isDeliveryShow(event.target.value) ? event.target.value : null,
             )}
-          options={FIGURES.map((entry) => ({
+          options={CHART_SERIES.map((entry) => ({
             label: translate(entry.label),
             value: entry.show,
           }))}
@@ -462,6 +478,8 @@ function OverTime(props: DeliveryScreenProps) {
               cell: (point: ChartPoint) =>
                 point.value === null
                   ? translate("delivery.chart.noData")
+                  : shown === "tasks"
+                  ? formatHours(point.value)
                   : numberFormat.format(point.value),
             },
           ]}
@@ -738,8 +756,8 @@ function RecordsSection(
   const { records } = props;
   const missing = records.rows.filter((row) => row.missing !== null);
   const rows = props.missingOnly ? missing : records.rows;
-  const figure = FIGURES.find((entry) => entry.show === shown)!;
-  const figureValue = props.figures[shown];
+  const figure = FIGURES.find((entry) => entry.show === shown);
+  const figureValue = figure === undefined ? null : props.figures[figure.show];
   const dayAndTime = (iso: string | null) =>
     iso === null ? "\u2014" : formatDate(new Date(iso), locale, {
       dateStyle: "medium",
@@ -755,14 +773,15 @@ function RecordsSection(
     props.repositories.find((r) => r.id === id)?.name ??
       translate("delivery.figure.unknown");
   const isTask = shown === "tasks";
-  const heading = chosen && figureValue.kind === "value"
-    ? translate(
-      isTask
-        ? "delivery.records.heading.tasks"
-        : "delivery.records.heading.pullRequests",
-      { count: figureValue.value, figure: translate(figure.label) },
-    )
-    : translate("delivery.records.heading");
+  const heading =
+    chosen && figureValue?.kind === "value" && figure !== undefined
+      ? translate(
+        isTask
+          ? "delivery.records.heading.tasks"
+          : "delivery.records.heading.pullRequests",
+        { count: figureValue.value, figure: translate(figure.label) },
+      )
+      : translate("delivery.records.heading");
   const reason = (row: RecordRow) =>
     row.missing === null ? null : translate(row.missing);
 

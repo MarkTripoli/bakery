@@ -203,7 +203,8 @@ Deno.test("a pull request row opens the task it delivers; a task row opens itsel
 
 Deno.test("each figure opens the metric that lists exactly what it counts", () => {
   assertEquals(isDeliveryShow("merged"), true);
-  assertEquals(isDeliveryShow("lines"), false);
+  assertEquals(isDeliveryShow("opened"), true);
+  assertEquals(isDeliveryShow("lines"), true);
   assertEquals(SHOW_METRIC.tasks, "tasks.leadTimeHours");
   assertEquals(SHOW_METRIC.merged, "prs.changedLines");
 });

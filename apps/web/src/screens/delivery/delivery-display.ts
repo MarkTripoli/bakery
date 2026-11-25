@@ -14,7 +14,14 @@ import type {
 } from "../../api/client.ts";
 
 /** What a reader can open from the page: each figure names the records it counts. */
-export const DELIVERY_SHOWS = ["merged", "tasks", "open", "closed"] as const;
+export const DELIVERY_SHOWS = [
+  "merged",
+  "opened",
+  "open",
+  "closed",
+  "lines",
+  "tasks",
+] as const;
 export type DeliveryShow = typeof DELIVERY_SHOWS[number];
 
 export function isDeliveryShow(value: unknown): value is DeliveryShow {
@@ -33,9 +40,11 @@ type MetricKey = MetricsQuery["metric"];
  */
 export const SHOW_METRIC: Readonly<Record<DeliveryShow, MetricKey>> = {
   merged: "prs.changedLines",
+  opened: "prs.opened",
   tasks: "tasks.leadTimeHours",
   open: "prs.openAtCutoff",
   closed: "prs.closedUnmerged",
+  lines: "prs.changedLines",
 };
 
 /** A number the page can show, or the fact that nobody can say. */
@@ -387,6 +396,8 @@ const RULE_KEYS = {
   merged: "delivery.records.rule.merged",
   tasks: "delivery.records.rule.tasks",
   open: "delivery.records.rule.open",
+  opened: "delivery.records.rule.opened",
+  lines: "delivery.records.rule.merged",
   closed: "delivery.records.rule.closed",
 } as const satisfies Record<DeliveryShow, MessageKey>;
 
@@ -394,6 +405,8 @@ const RULE_KEYS_NO_VERSION = {
   merged: "delivery.records.rule.merged.noVersion",
   tasks: "delivery.records.rule.tasks.noVersion",
   open: "delivery.records.rule.open.noVersion",
+  opened: "delivery.records.rule.opened.noVersion",
+  lines: "delivery.records.rule.merged.noVersion",
   closed: "delivery.records.rule.closed.noVersion",
 } as const satisfies Record<DeliveryShow, MessageKey>;
 

@@ -7193,5 +7193,11 @@
   "delivery.chart.column.day": "⟦Ðàŧë⟧",
   "delivery.chart.error": "⟦Ŧĥë çĥàŕŧ çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþ⟧",
   "delivery.chart.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
-  "delivery.chart.noGap": "⟦Ëṽëŕÿ ðàÿ ĥàš à ɱëàšûŕëɱëñŧ ƒôŕ {series} ïñ ŧĥïš þëŕïôð. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "delivery.chart.noGap": "⟦Ëṽëŕÿ ðàÿ ĥàš à ɱëàšûŕëɱëñŧ ƒôŕ {series} ïñ ŧĥïš þëŕïôð. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "delivery.chart.noGapWeek": "⟦Ëṽëŕÿ ŵëëķ ĥàš à ɱëàšûŕëɱëñŧ ƒôŕ {series} ïñ ŧĥïš þëŕïôð. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "delivery.chart.opened": "⟦Þûļļ ŕëǫûëšŧš ôþëñëð ŧëšŧ⟧",
+  "delivery.chart.lines": "⟦Ļïñëš çĥàñĝëð ŧë⟧",
+  "delivery.chart.tasks": "⟦Ŧïɱë à ŧàšķ ŧôôķ (ŧÿþïçàļ) ŧëšŧ çô⟧",
+  "delivery.records.rule.opened": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ôþëñëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). Ðëƒïñïŧïôñš, ṽëŕšïôñ {version}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "delivery.records.rule.opened.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ôþëñëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }
