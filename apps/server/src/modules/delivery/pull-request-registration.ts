@@ -43,6 +43,7 @@ import {
 } from "../integrations/pull-requests.ts";
 import type { ReconcileDependencies } from "../integrations/reconcile.ts";
 import { type RemoteFact, upsertFact } from "../integrations/remote-facts.ts";
+import { storeLineCount } from "../integrations/line-count-store.ts";
 import { PULL_REQUEST_MERGE_METHOD } from "./postgres.ts";
 
 type RegistrationInput = {
@@ -615,28 +616,12 @@ export function createPullRequestRegistrationHandler() {
       await upsertFact(work.transaction, fact);
     }
     if (prepared.lineCount !== null) {
-      const count = prepared.lineCount;
-      await work.transaction.query(
-        `insert into bakery.pull_request_line_counts
-           (organization_id, pull_request_id, head_sha, counter_version,
-            coverage, added, deleted, counted_files, excluded_files,
-            binary_files, categories)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
-         on conflict (pull_request_id, head_sha, counter_version) do nothing`,
-        [
-          work.organizationId,
-          registered.pullRequest.id,
-          read.headSha,
-          count.counterVersion,
-          count.coverage,
-          count.added,
-          count.deleted,
-          count.countedFiles,
-          count.excludedFiles,
-          count.binaryFiles,
-          JSON.stringify(count.categories),
-        ],
-      );
+      await storeLineCount(work.transaction, {
+        organizationId: work.organizationId,
+        pullRequestId: registered.pullRequest.id,
+        headSha: read.headSha,
+        count: prepared.lineCount,
+      });
     }
     const stored = await work.transaction.query<{
       id: string;

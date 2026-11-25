@@ -927,6 +927,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.lineChart.contract.desktop-light-fine",
+      "catalogId": "ui.lineChart",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-linechart--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.segmentedBar.contract.desktop-light-fine",
       "catalogId": "ui.segmentedBar",
       "requiredCaseId": "contract",

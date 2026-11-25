@@ -438,7 +438,7 @@ for (
         ).toBeVisible();
       }
       await expect(chart.locator("[data-chart-tick='max']")).toHaveText("40 h");
-      const chartBox = await chart.boundingBox();
+      const chartBox = await chart.locator("svg").boundingBox();
       expect(chartBox!.height).toBe(200);
       await expect(chart.locator("[data-chart-point]")).toHaveCount(1);
       const firstCaption = await page.getByText(/^Nov 1, 2026$/).boundingBox();

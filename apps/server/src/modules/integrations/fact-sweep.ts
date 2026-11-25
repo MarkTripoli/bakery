@@ -25,6 +25,7 @@ import {
   type DiffFile,
   MAX_LINE_COUNT_PAGES,
 } from "./line-counter.ts";
+import { storeLineCount } from "./line-count-store.ts";
 import {
   observePullRequest,
   PullRequestStatus,
@@ -910,33 +911,13 @@ async function lineCountsStep(
     try {
       await withPgTransaction(dependencies.database, async (transaction) => {
         await guardWrite(step, transaction);
-        const stored = await transaction.query(
-          `insert into bakery.pull_request_line_counts
-             (organization_id, pull_request_id, head_sha, counter_version,
-              coverage, added, deleted, counted_files, excluded_files,
-              binary_files, categories)
-           select pr.organization_id, pr.id, $3, $4, $5, $6, $7, $8, $9, $10,
-                  $11::jsonb
-             from bakery.pull_requests as pr
-            where pr.organization_id = $1 and pr.id = $2 and pr.head_sha = $3
-           on conflict (pull_request_id, head_sha, counter_version) do nothing`,
-          [
-            checkpoint.organizationId,
-            row.id,
-            row.headSha,
-            count.counterVersion,
-            count.coverage,
-            count.added,
-            count.deleted,
-            count.countedFiles,
-            count.excludedFiles,
-            count.binaryFiles,
-            JSON.stringify(count.categories),
-          ],
-        );
-        // A head that moved since the batch was read, or a count another
-        // step stored first, keeps what is there.
-        if ((stored.rowCount ?? 0) > 0) step.tally.written += 1;
+        const stored = await storeLineCount(transaction, {
+          organizationId: checkpoint.organizationId,
+          pullRequestId: row.id,
+          headSha: row.headSha,
+          count,
+        });
+        if (stored) step.tally.written += 1;
         else step.tally.unchanged += 1;
         await commit(step, transaction, write);
       });

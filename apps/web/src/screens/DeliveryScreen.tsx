@@ -472,6 +472,7 @@ function SizeAndQualitySection(props: DeliveryScreenProps) {
       </UI.Heading>
       <UI.DescriptionList>
         <UI.DetailRow
+          stackOnPhone
           label={
             <UI.Inline gap="compact">
               {translate("delivery.quality.lines.label")}
@@ -494,6 +495,7 @@ function SizeAndQualitySection(props: DeliveryScreenProps) {
         {uncounted > 0
           ? (
             <UI.DetailRow
+              stackOnPhone
               label={translate("delivery.quality.uncounted.label")}
               labelWidth="wide"
             >
@@ -515,6 +517,7 @@ function SizeAndQualitySection(props: DeliveryScreenProps) {
           )
           : null}
         <UI.DetailRow
+          stackOnPhone
           label={translate("delivery.quality.openToMerge.label")}
           labelWidth="wide"
         >
