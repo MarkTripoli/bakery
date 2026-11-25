@@ -124,6 +124,9 @@ Deno.test("a skill's draft starts from its active version, is edited and checked
     const emptyOpen = await owner.call("POST", draftPath);
     assertEquals(emptyOpen.status, 200, await emptyOpen.clone().text());
     const empty = await emptyOpen.json() as Draft;
+    const reopened = await owner.call("POST", draftPath);
+    assertEquals(reopened.status, 200, await reopened.clone().text());
+    assertEquals((await reopened.json() as Draft).id, empty.id);
     assertEquals([empty.baseVersionId, empty.files.length, empty.license], [
       null,
       0,
