@@ -270,14 +270,16 @@ for (
         hasText: "Tidy the settings copy",
       });
       if (viewport.name === "phone") {
-        await expect(known).toContainText("Lines: 51");
-        await expect(missing).toContainText(/Lines: Not line-counted/);
+        await expect(missing).toContainText(
+          "Lines: Not line-counted · diff totals unavailable",
+        );
       } else {
         await expect(records.getByRole("columnheader", { name: "Lines" }))
           .toBeVisible();
         await expect(known.getByRole("cell", { name: "51" })).toBeVisible();
-        await expect(missing.getByRole("cell", { name: /Not line-counted/ }))
-          .toBeVisible();
+        await expect(missing.getByRole("cell", {
+          name: "Not line-counted · diff totals unavailable",
+        })).toBeVisible();
       }
       await show.selectOption("merged");
       const merged = records.getByRole(rowRole).filter({
