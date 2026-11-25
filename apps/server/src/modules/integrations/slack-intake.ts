@@ -1,5 +1,10 @@
-import { verifySlackRequest } from "./slack-request.ts";
-import { readSlackEvent, type SlackEventDecision } from "./slack-request.ts";
+import {
+  readSlackEvent,
+  readSlackRequestHeaders,
+  type SlackEventDecision,
+  verifySlackRequestSignature,
+} from "./slack-request.ts";
+import { isSlackAppId } from "./slack-scope.ts";
 import type {
   CommitSlackReceiptResult,
   SlackInstallationRecord,
@@ -31,7 +36,9 @@ export type SlackSigningSecret = {
 };
 
 export type SlackIntakeDependencies = {
-  readonly signingSecrets: () => Promise<readonly SlackSigningSecret[]>;
+  readonly signingSecrets: (
+    appId: string,
+  ) => Promise<readonly SlackSigningSecret[]>;
 
   readonly findInstallation: (
     appId: string,
@@ -60,24 +67,13 @@ export async function receiveSlackEvent(
   },
   dependencies: SlackIntakeDependencies,
 ): Promise<SlackIntakeResult> {
-  const candidates = await dependencies.signingSecrets();
-  const verifiedAppIds = new Set<string>();
   const nowMs = dependencies.now();
-  try {
-    for (const candidate of candidates) {
-      const result = await verifySlackRequest({
-        secret: candidate.secret,
-        signatureHeader: input.signatureHeader,
-        timestampHeader: input.timestampHeader,
-        raw: input.raw,
-        nowMs,
-      });
-      if (result.ok) verifiedAppIds.add(candidate.appId);
-    }
-  } finally {
-    for (const candidate of candidates) candidate.secret.fill(0);
-  }
-  if (verifiedAppIds.size === 0) return refused("AUTH_INVALID");
+  const headers = readSlackRequestHeaders({
+    signatureHeader: input.signatureHeader,
+    timestampHeader: input.timestampHeader,
+    nowMs,
+  });
+  if (!headers.ok) return refused("AUTH_INVALID");
 
   let body: unknown;
   try {
@@ -89,9 +85,28 @@ export async function receiveSlackEvent(
     ? body as Record<string, unknown>
     : {};
   const appId = record.api_app_id;
-  if (typeof appId !== "string" || !verifiedAppIds.has(appId)) {
-    return refused("AUTH_INVALID");
+  if (!isSlackAppId(appId)) return refused("AUTH_INVALID");
+
+  const candidates = await dependencies.signingSecrets(appId);
+  let verified = false;
+  try {
+    for (const candidate of candidates) {
+      if (
+        candidate.appId === appId &&
+        await verifySlackRequestSignature({
+          secret: candidate.secret,
+          headers,
+          raw: input.raw,
+        })
+      ) {
+        verified = true;
+        break;
+      }
+    }
+  } finally {
+    for (const candidate of candidates) candidate.secret.fill(0);
   }
+  if (!verified) return refused("AUTH_INVALID");
   if (record.type === "url_verification") {
     return typeof record.challenge === "string" && record.challenge.length > 0
       ? { kind: "challenge", challenge: record.challenge }

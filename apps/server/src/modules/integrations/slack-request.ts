@@ -10,6 +10,17 @@ export type SlackVerification =
     readonly ok: false;
     readonly reason: "missing" | "malformed" | "stale" | "mismatch";
   };
+export type SlackRequestHeaders =
+  | {
+    readonly ok: true;
+    readonly signature: Uint8Array<ArrayBuffer>;
+    readonly timestampHeader: string;
+    readonly timestampSeconds: number;
+  }
+  | {
+    readonly ok: false;
+    readonly reason: "missing" | "malformed" | "stale";
+  };
 
 export function parseSlackSignature(
   value: string | null,
@@ -24,14 +35,11 @@ export function parseSlackSignature(
   }
   return bytes;
 }
-
-export async function verifySlackRequest(input: {
-  readonly secret: Uint8Array<ArrayBuffer>;
+export function readSlackRequestHeaders(input: {
   readonly signatureHeader: string | null;
   readonly timestampHeader: string | null;
-  readonly raw: Uint8Array<ArrayBuffer>;
   readonly nowMs: number;
-}): Promise<SlackVerification> {
+}): SlackRequestHeaders {
   if (input.signatureHeader === null || input.timestampHeader === null) {
     return { ok: false, reason: "missing" };
   }
@@ -45,8 +53,23 @@ export async function verifySlackRequest(input: {
     Math.abs(Math.floor(input.nowMs / 1000) - timestampSeconds) >
       SLACK_MAX_SKEW_SECONDS
   ) return { ok: false, reason: "stale" };
-  if (input.secret.byteLength === 0) return { ok: false, reason: "mismatch" };
-  const prefix = new TextEncoder().encode(`v0:${input.timestampHeader}:`);
+  return {
+    ok: true,
+    signature,
+    timestampHeader: input.timestampHeader,
+    timestampSeconds,
+  };
+}
+
+export async function verifySlackRequestSignature(input: {
+  readonly secret: Uint8Array<ArrayBuffer>;
+  readonly headers: Extract<SlackRequestHeaders, { readonly ok: true }>;
+  readonly raw: Uint8Array<ArrayBuffer>;
+}): Promise<boolean> {
+  if (input.secret.byteLength === 0) return false;
+  const prefix = new TextEncoder().encode(
+    `v0:${input.headers.timestampHeader}:`,
+  );
   const signed = new Uint8Array(prefix.byteLength + input.raw.byteLength);
   signed.set(prefix, 0);
   signed.set(input.raw, prefix.byteLength);
@@ -57,11 +80,30 @@ export async function verifySlackRequest(input: {
     false,
     ["verify"],
   );
-  const valid = await crypto.subtle.verify("HMAC", key, signature, signed);
-  return valid ? { ok: true, timestampSeconds } : {
-    ok: false,
-    reason: "mismatch",
-  };
+  return await crypto.subtle.verify(
+    "HMAC",
+    key,
+    input.headers.signature,
+    signed,
+  );
+}
+
+export async function verifySlackRequest(input: {
+  readonly secret: Uint8Array<ArrayBuffer>;
+  readonly signatureHeader: string | null;
+  readonly timestampHeader: string | null;
+  readonly raw: Uint8Array<ArrayBuffer>;
+  readonly nowMs: number;
+}): Promise<SlackVerification> {
+  const headers = readSlackRequestHeaders(input);
+  if (!headers.ok) return headers;
+  return await verifySlackRequestSignature({
+      secret: input.secret,
+      headers,
+      raw: input.raw,
+    })
+    ? { ok: true, timestampSeconds: headers.timestampSeconds }
+    : { ok: false, reason: "mismatch" };
 }
 
 export type SlackAppIdentity = {

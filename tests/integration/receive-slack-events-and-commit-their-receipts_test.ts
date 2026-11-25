@@ -122,6 +122,7 @@ async function registerWithSecret(
   f: Fixture,
   value: SlackInstallation,
   signingSecret: string,
+  organizationId = f.organizationId,
 ) {
   const sealed = await sealInstallationSecret(
     f.config.secretsKey,
@@ -135,7 +136,7 @@ async function registerWithSecret(
       principalId: f.adminId,
     });
     return await registerSlackInstallation(transaction, {
-      organizationId: f.organizationId,
+      organizationId,
       installation: value,
       signingSecretId: sealed.secretId,
     });
@@ -166,57 +167,92 @@ async function slackSignature(
   }`;
 }
 
-Deno.test("the running server receives and commits a signed Slack event", async () => {
+Deno.test("the running server ignores an unreadable unrelated app secret", async () => {
   await withIngressFixture(async (f) => {
     const value = installation();
     const signingSecret = `secret-${suffix()}`;
     const registered = await registerWithSecret(f, value, signingSecret);
     assert(registered.ok);
-    const body = JSON.stringify({
-      type: "event_callback",
-      event_id: eventId(),
-      api_app_id: value.appId,
-      team_id: value.teamId,
-      authorizations: [{
+    const otherOrganizationId = await anotherOrganization(f);
+    let unrelatedSecretId: string | null = null;
+    try {
+      const unrelated = await registerWithSecret(
+        f,
+        installation(),
+        `unreadable-${suffix()}`,
+        otherOrganizationId,
+      );
+      assert(unrelated.ok);
+      unrelatedSecretId = unrelated.installation.signingSecretId;
+      assert(unrelatedSecretId !== null);
+      await f.pgDatabase.query(
+        `update bakery.secret_versions
+            set ciphertext = $2
+          where secret_id = $1`,
+        [unrelatedSecretId, new Uint8Array([0])],
+      );
+      const body = JSON.stringify({
+        type: "event_callback",
+        event_id: eventId(),
+        api_app_id: value.appId,
         team_id: value.teamId,
-        user_id: value.botUserId,
-      }],
-      event: {
-        type: "app_mention",
-        channel: "C1CHANNEL",
-        user: "U1AUTHOR",
-        ts: "1.1",
-        text: "hello",
-      },
-    });
-    const timestamp = String(Math.floor(Date.now() / 1000));
-    const response = await f.app.fetch(
-      new Request(`${f.config.publicBaseUrl}/v1/webhooks/slack/events`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-slack-request-timestamp": timestamp,
-          "x-slack-signature": await slackSignature(
-            timestamp,
-            body,
-            signingSecret,
-          ),
+        authorizations: [{
+          team_id: value.teamId,
+          user_id: value.botUserId,
+        }],
+        event: {
+          type: "app_mention",
+          channel: "C1CHANNEL",
+          user: "U1AUTHOR",
+          ts: "1.1",
+          text: "hello",
         },
-        body,
-      }),
-    );
-    assertEquals(response.status, 200);
-    const result = await response.json() as {
-      disposition: string;
-      receiptId: string | null;
-    };
-    assertEquals(result.disposition, "accepted");
-    assert(typeof result.receiptId === "string");
-    const receipts = await f.pgDatabase.query<{ id: string }>(
-      "select id from bakery.slack_event_receipts where id = $1",
-      [result.receiptId],
-    );
-    assertEquals(receipts.rows, [{ id: result.receiptId }]);
+      });
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const response = await f.app.fetch(
+        new Request(`${f.config.publicBaseUrl}/v1/webhooks/slack/events`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-slack-request-timestamp": timestamp,
+            "x-slack-signature": await slackSignature(
+              timestamp,
+              body,
+              signingSecret,
+            ),
+          },
+          body,
+        }),
+      );
+      assertEquals(response.status, 200);
+      const result = await response.json() as {
+        disposition: string;
+        receiptId: string | null;
+      };
+      assertEquals(result.disposition, "accepted");
+      assert(typeof result.receiptId === "string");
+      const receipts = await f.pgDatabase.query<{ id: string }>(
+        "select id from bakery.slack_event_receipts where id = $1",
+        [result.receiptId],
+      );
+      assertEquals(receipts.rows, [{ id: result.receiptId }]);
+    } finally {
+      await cleanup(f, otherOrganizationId);
+      if (unrelatedSecretId !== null) {
+        await f.pgDatabase.query(
+          "update bakery.secrets set active_version_id = null where id = $1",
+          [unrelatedSecretId],
+        );
+        await f.pgDatabase.query(
+          "delete from bakery.secret_versions where secret_id = $1",
+          [unrelatedSecretId],
+        );
+        await f.pgDatabase.query(
+          "delete from bakery.secrets where id = $1",
+          [unrelatedSecretId],
+        );
+      }
+    }
   });
 });
 

@@ -49,6 +49,7 @@ type Harness = {
   readonly commits: Parameters<SlackIntakeDependencies["commit"]>[0][];
   readonly secrets: Uint8Array<ArrayBuffer>[];
   readonly secretLoads: number[];
+  readonly requestedAppIds: string[];
 };
 
 function harness(
@@ -61,12 +62,15 @@ function harness(
   const commits: Harness["commits"] = [];
   const secrets: Uint8Array<ArrayBuffer>[] = [];
   const secretLoads: number[] = [];
+  const requestedAppIds: string[] = [];
   return {
     commits,
     secrets,
     secretLoads,
+    requestedAppIds,
     deps: {
-      signingSecrets: () => {
+      signingSecrets: (appId) => {
+        requestedAppIds.push(appId);
         secretLoads.push(secretLoads.length + 1);
         const secret = encoder.encode("signing-secret");
         secrets.push(secret);
@@ -154,6 +158,7 @@ Deno.test("an unsigned, badly signed or stale delivery is one AUTH_INVALID and t
   );
   assertEquals(await deliver(h.deps, body, { timestamp: "1" }), refusedAuth);
   assertEquals(h.commits.length, 0);
+  assertEquals(h.secretLoads, [1]);
 });
 
 Deno.test("the body is read as an event only after it verifies", async () => {
@@ -246,17 +251,18 @@ Deno.test("a database failure is thrown, never answered as queued", async () => 
   assert(thrown instanceof Error && thrown.message === "db down");
 });
 
-Deno.test("every signing secret handed over is zeroed afterwards", async () => {
+Deno.test("only selected signing secrets are loaded and zeroed", async () => {
   const h = harness();
   await deliver(h.deps, mention());
   await deliver(h.deps, mention(), { signature: null });
-  assert(h.secrets.length === 2);
+  assertEquals(h.secrets.length, 1);
   for (const secret of h.secrets) assert(secret.every((byte) => byte === 0));
 });
 
-Deno.test("raw bytes verify before any body field can select authority", async () => {
+Deno.test("the untrusted app id only bounds signing-secret selection", async () => {
   const h = harness();
   await deliver(h.deps, mention());
+  await deliver(h.deps, mention({ api_app_id: "A1OTHER" }));
   await deliver(h.deps, "[1,2]");
-  assertEquals(h.secretLoads, [1, 2]);
+  assertEquals(h.requestedAppIds, [installation.appId, "A1OTHER"]);
 });

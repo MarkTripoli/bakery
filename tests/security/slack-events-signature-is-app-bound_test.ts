@@ -61,13 +61,16 @@ Deno.test("a Slack app signature cannot authorize another app", async () => {
   const timestamp = String(Math.floor(nowMs / 1000));
   const signingSecret = encoder.encode("app-a-secret");
   let commitCount = 0;
+  const requestedAppIds: string[] = [];
   const result = await receiveSlackEvent({
     raw: encoder.encode(body),
     signatureHeader: await sign(timestamp, body, signingSecret),
     timestampHeader: timestamp,
   }, {
-    signingSecrets: () =>
-      Promise.resolve([{ appId: signedAppId, secret: signingSecret }]),
+    signingSecrets: (appId) => {
+      requestedAppIds.push(appId);
+      return Promise.resolve([{ appId: signedAppId, secret: signingSecret }]);
+    },
     findInstallation: () => Promise.resolve(namedAppInstallation),
     commit: () => {
       commitCount += 1;
@@ -82,4 +85,5 @@ Deno.test("a Slack app signature cannot authorize another app", async () => {
 
   assertEquals(result, { kind: "refused", code: "AUTH_INVALID" });
   assertEquals(commitCount, 0);
+  assertEquals(requestedAppIds, [namedAppInstallation.appId]);
 });

@@ -11,6 +11,7 @@ import { sha256Hex } from "./intake-signature.ts";
 
 export const SLACK_EVENTS_PATH = "/v1/webhooks/slack/events";
 const SLACK_INTAKE_DEADLINE_MS = 2_500;
+const MAX_SLACK_SIGNING_SECRET_CANDIDATES = 4;
 
 type SlackIntakeRouteOptions = {
   readonly database: PgDatabase;
@@ -23,9 +24,29 @@ type SlackSecretRow = {
   readonly appId: string;
   readonly signingSecretId: string;
 };
+async function readSlackSigningSecret(
+  transaction: Parameters<typeof openInstallationSecret>[0],
+  options: SlackIntakeRouteOptions,
+  row: SlackSecretRow,
+): Promise<SlackSigningSecret | null> {
+  try {
+    const plaintext = await openInstallationSecret(
+      transaction,
+      options.secretsKey,
+      row.signingSecretId,
+    );
+    return {
+      appId: row.appId,
+      secret: new TextEncoder().encode(plaintext),
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function readSlackSigningSecrets(
   options: SlackIntakeRouteOptions,
+  appId: string,
   signal: AbortSignal,
 ): Promise<readonly SlackSigningSecret[]> {
   return await withPgTransaction(options.database, async (transaction) => {
@@ -33,28 +54,22 @@ async function readSlackSigningSecrets(
       `select distinct app_id as "appId",
          signing_secret_id as "signingSecretId"
          from bakery.slack_installations
-        where status = 'active' and signing_secret_id is not null
-        order by app_id, signing_secret_id`,
+        where app_id = $1 and status = 'active'
+          and signing_secret_id is not null
+        order by signing_secret_id
+        limit $2`,
+      [appId, MAX_SLACK_SIGNING_SECRET_CANDIDATES],
     );
-    const encoder = new TextEncoder();
     const candidates: SlackSigningSecret[] = [];
-    try {
-      for (const row of result.rows) {
-        const plaintext = await openInstallationSecret(
-          transaction,
-          options.secretsKey,
-          row.signingSecretId,
-        );
-        candidates.push({
-          appId: row.appId,
-          secret: encoder.encode(plaintext),
-        });
-      }
-      return candidates;
-    } catch (error) {
-      for (const candidate of candidates) candidate.secret.fill(0);
-      throw error;
+    for (const row of result.rows) {
+      const candidate = await readSlackSigningSecret(
+        transaction,
+        options,
+        row,
+      );
+      if (candidate !== null) candidates.push(candidate);
     }
+    return candidates;
   }, signal);
 }
 
@@ -83,7 +98,8 @@ async function handleSlackEvent(
       signatureHeader: request.headers.get("x-slack-signature"),
       timestampHeader: request.headers.get("x-slack-request-timestamp"),
     }, {
-      signingSecrets: () => readSlackSigningSecrets(options, controller.signal),
+      signingSecrets: (appId) =>
+        readSlackSigningSecrets(options, appId, controller.signal),
       findInstallation: (appId, teamId) =>
         withPgTransaction(
           options.database,
