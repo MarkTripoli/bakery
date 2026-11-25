@@ -2365,7 +2365,6 @@
 .ui-line-chart__tick {
   fill: currentColor;
   font: var(--type-caption);
-  letter-spacing: 0;
 }
 .ui-line-chart__point {
   fill: currentColor;
@@ -2373,7 +2372,7 @@
 .ui-line-chart__line {
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
+  stroke-width: var(--border-emphasis);
 }
 .ui-line-chart__ends {
   color: var(--color-fg-muted);

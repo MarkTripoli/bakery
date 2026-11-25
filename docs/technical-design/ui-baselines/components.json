@@ -1,5 +1,5 @@
 {
-  "revision": "0bb0cd6302e3e68346e497a392404a85af6a2bdb4aa790b0101860c4eaa30a5e",
+  "revision": "280ddb1ddce9c8a1d526b6bcccbc4e489305d22fefaafca4d72a8b9510007620",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -20626,6 +20626,7 @@
         "notes": "The chart is a picture named by the caller; its description and the table the caller offers are the content."
       },
       "tokens": [
+        "--border-emphasis",
         "--color-fg",
         "--color-fg-muted",
         "--space-2",
