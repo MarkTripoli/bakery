@@ -11,7 +11,7 @@ import {
   createDeliveryHandlers,
 } from "../../../apps/server/src/modules/delivery/index.ts";
 import { withPgTransaction } from "../../../apps/server/src/platform/database.ts";
-import { mergeDispatchStub } from "../merge-dispatch-stub.ts";
+import { mergeDispatchStub, registrationStub } from "../merge-dispatch-stub.ts";
 import { allowMoreRepairTries } from "../../../apps/server/src/modules/delivery/repair-allowance.ts";
 import { apiCall, expectJson } from "../fixed-coding-preset.ts";
 import { finding, fingerprintOf } from "./fixtures.ts";
@@ -122,6 +122,7 @@ function allowAs(
       "allowance-cursor-secret",
       mergeDispatchStub("allow"),
     ),
+    registrationStub("allow", world.fixture.runtimePgDatabase),
   );
   const path = `/v1/runs/${world.runId}/repair-allowances`;
   const context: ActionContext = {

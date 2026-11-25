@@ -131,9 +131,12 @@ export type PredecessorProof =
     mergedAt: string;
   }
   | { kind: "open" }
+  | { kind: "done"; statusId: string }
   | { kind: "closed_unmerged"; stateReason: string | null }
   | { kind: "inaccessible" }
   | { kind: "proof_unavailable"; detail: string };
+
+export type TicketBlockerRule = "merged_change" | "done_status";
 
 /** Answer of `readLabelProvenance`: who applied a label, from issue events. */
 export type TicketLabelProvenance =
