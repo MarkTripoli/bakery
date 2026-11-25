@@ -55,7 +55,7 @@ export const Contract: StoryObj = {
       <NotificationPopover
         {...base}
         markAllReadLabel={undefined}
-        state="empty"
+        state="nothing-unread"
         footerNote="You're all caught up."
       />
 

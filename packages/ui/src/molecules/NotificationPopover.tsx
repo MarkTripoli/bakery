@@ -18,7 +18,13 @@ export type NotificationPopoverProps = {
    * under the block cap; the caller names it because the panel cannot tell
    * from its children alone.
    */
-  readonly state?: "ready" | "loading" | "empty" | "failed" | "scrolling";
+  readonly state?:
+    | "ready"
+    | "loading"
+    | "empty"
+    | "nothing-unread"
+    | "failed"
+    | "scrolling";
   readonly onRetry?: () => void;
   readonly retryLabel?: string;
   readonly failedLabel?: string;
@@ -97,7 +103,7 @@ export function NotificationPopover(
                 )}
             </div>
           )
-          : state === "empty"
+          : state === "empty" || state === "nothing-unread"
           ? <p className="ui-notification-popover__message">{footerNote}</p>
           : (
             <>

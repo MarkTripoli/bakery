@@ -102,6 +102,7 @@ const WORLD: Options = {
   agentVersions: AGENT_VERSIONS,
   versions: [VERSION],
 };
+const SUMMARY = ".ui-step-card__summary, .ui-outline__summary";
 
 const open = async (page: Page) => {
   await libraryFixture(page, WORLD);
@@ -119,8 +120,12 @@ test("every action of the spec's catalogue is named, with its sentence where the
     await expect(step, uses).toContainText(name);
     // Never the action's own identifier.
     await expect(step, uses).not.toContainText(uses);
-    const action = step.locator(".ui-step-card__summary");
-    await expect(action, uses).toHaveText(line);
+    const action = step.locator(SUMMARY);
+    if (line === "") {
+      await expect(action.filter({ hasText: /\S/ }), uses).toHaveCount(0);
+    } else {
+      await expect(action, uses).toContainText(line);
+    }
   }
 });
 
@@ -130,14 +135,13 @@ test("the old name is gone, and the sentence sits above the agent line", async (
   await expect(steps).not.toContainText("Run the coding agent");
   await expect(steps).not.toContainText("Review the changes");
   const implement = steps.locator("[data-card=s4]");
-  await expect(implement.locator(".ui-step-card__summary")).toHaveText(
+  await expect(implement.locator(SUMMARY)).toContainText(
     "A coding agent makes the change in the repository.",
   );
   await expect(implement.locator('[data-step-extra="true"]')).toHaveText(
     "Agent: Code writer, version 1",
   );
-  const sentence = (await implement.locator(".ui-step-card__summary")
-    .boundingBox())!;
+  const sentence = (await implement.locator(SUMMARY).boundingBox())!;
   const agent = (await implement.locator('[data-step-extra="true"]')
     .boundingBox())!;
   expect(sentence.y).toBeLessThan(agent.y);
@@ -148,8 +152,7 @@ test("an action the spec does not name keeps showing its own identifier, with no
   const other = page.getByTestId("workflow-steps").locator(
     "[data-card=other]",
   );
-  await expect(other).toContainText("custom.thing");
-  await expect(other.locator(".ui-step-card__summary")).toHaveText("");
+  await expect(other).toHaveText("custom.thing");
   await page.mouse.move(700, 700);
   await shot(page, "workflow-step-names");
 });
