@@ -509,6 +509,19 @@ const policyLabelsShape = {
   hold: policyLabelName.describe(
     "Label that holds a ticket. It wins over every other label: an issue carrying it is never admitted and its request suspends.",
   ),
+  ids: z.object({
+    execute: providerLabelId.nullable().describe(
+      "Provider's stable id of the execute label, or null to match it by name.",
+    ),
+    planOnly: providerLabelId.nullable().describe(
+      "Provider's stable id of the planning-only label, or null to match it by name.",
+    ),
+    hold: providerLabelId.nullable().describe(
+      "Provider's stable id of the hold label, or null to match it by name.",
+    ),
+  }).strict().optional().describe(
+    "Stable provider ids of the three labels. A label with an id is matched by that id whenever the read names label ids, so renaming it on the provider keeps its meaning; without an id, or from a read that names no ids, it is matched by its exact name.",
+  ),
 };
 
 const policyApprovalShape = {
@@ -545,9 +558,15 @@ const policyLabelsSchema = z.object(policyLabelsShape).strict().refine(
   (labels) => {
     const names = [labels.execute, labels.hold];
     if (labels.planOnly !== null) names.push(labels.planOnly);
-    return new Set(names).size === names.length;
+    const ids = [labels.ids?.execute, labels.ids?.planOnly, labels.ids?.hold]
+      .filter((id): id is string => id !== null && id !== undefined);
+    return new Set(names).size === names.length &&
+      new Set(ids).size === ids.length;
   },
-  { message: "The execute, planning-only and hold labels must differ." },
+  {
+    message:
+      "The execute, planning-only and hold labels must differ, by name and by id.",
+  },
 ).describe(
   "Label display names that drive admission intent and hold; all must differ.",
 );

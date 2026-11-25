@@ -12,7 +12,7 @@ Deno.test("the deployment actions are registered exactly as the catalog declares
   const unused = () => Promise.reject(new Error("not called by this test"));
   const handlers = new Proxy({}, { get: () => unused }) as never;
   // Building the registry runs assertRegisteredActions against the catalog.
-  createDeliveryActionRegistry({} as never, handlers);
+  createDeliveryActionRegistry({} as never, handlers, {} as never);
   for (
     const name of [
       "deployments.list",

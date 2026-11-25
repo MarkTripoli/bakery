@@ -473,9 +473,9 @@ Deno.test("issue 71 provider reads: a pull request read maps its SHAs and keeps 
     openedAt: "2026-10-01T00:00:00Z",
     closedAt: null,
     mergedAt: null,
-    additions: null,
-    deletions: null,
-    changedFiles: null,
+    additions: 0,
+    deletions: 0,
+    changedFiles: 0,
   });
   // GitHub does send a merge_commit_sha for an open pull request.
   const raw = await github.fetch(

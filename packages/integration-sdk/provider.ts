@@ -34,6 +34,7 @@ export {
   RESERVED_PROVIDER_SLUGS,
   ResourceKindSchema,
   servesFamily,
+  TicketTriggerSchema,
 } from "./src/provider-manifest.ts";
 export type {
   AppRegistration,
@@ -41,6 +42,7 @@ export type {
   ProviderFamily,
   ProviderManifest,
   ResourceKind,
+  TicketTrigger,
 } from "./src/provider-manifest.ts";
 export {
   credentialFieldAccepts,

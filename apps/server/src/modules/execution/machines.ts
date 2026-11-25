@@ -1,6 +1,6 @@
 import { type Context } from "hono";
 import { paymentMethodsOf } from "./coding-agent-payment.ts";
-import { StandardError } from "@bakery/contracts/http";
+import { parseStrongIfMatch, StandardError } from "@bakery/contracts/http";
 import {
   connectivityState,
   createMachineReadinessWorkflows,
@@ -906,8 +906,10 @@ export async function updateWorker(
       );
       const host = hosts.rows[0];
       if (!host) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-      const ifMatch = context.req.header("If-Match");
-      if (ifMatch !== undefined && ifMatch !== `"${host.version}"`) {
+      const expectedVersion = parseStrongIfMatch(
+        context.req.header("If-Match"),
+      );
+      if (expectedVersion !== undefined && expectedVersion !== host.version) {
         throw new StandardError({ code: "PRECONDITION_FAILED" });
       }
       if (input.status !== undefined) {

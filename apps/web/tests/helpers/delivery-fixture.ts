@@ -23,6 +23,16 @@ export type DeliveryOptions = {
   runs?: number;
   /** Every task's recorded intervals cover all of its time: nothing is unaccounted for. */
   allAccountedFor?: boolean;
+  revision?: string | null;
+  nothingMeasured?: boolean;
+  chartFailsUntilRetry?: boolean;
+  uncounted?: number;
+  metricPoints?: Partial<
+    Record<
+      "prs.merged" | "prs.changedLines",
+      readonly { at: string; value: number; unknownReason: null }[]
+    >
+  >;
 };
 
 const point = (day: number, value: number | null) => ({
@@ -32,21 +42,25 @@ const point = (day: number, value: number | null) => ({
 });
 
 const series = (
+  revision: string | null | undefined,
   name: string,
   unit: "count" | "hours" | "lines",
   values: (number | null)[],
   extra: Record<string, unknown> = {},
+  blank = false,
 ) => ({
   name,
-  points: values.map((value, index) => point(index + 1, value)),
+  points: values.map((value, index) => point(index + 1, blank ? null : value)),
   from: "2026-11-01T00:00:00.000Z",
   to: "2026-11-21T00:00:00.000Z",
   resolution: "day",
   unit,
   cohort: "Pull requests merged in the window.",
-  sampleCount: values.reduce<number>((sum, value) => sum + (value ?? 0), 0),
+  sampleCount: blank
+    ? 0
+    : values.reduce<number>((sum, value) => sum + (value ?? 0), 0),
   missingCount: 0,
-  measurementRevision: "metrics@3",
+  measurementRevision: revision === undefined ? "metrics@3" : revision,
   lastSyncAt: STAMP,
   completeness: "complete",
   missingReasons: [],
@@ -65,6 +79,7 @@ export async function deliveryFixture(
   page: Page,
   options: DeliveryOptions = {},
 ) {
+  const blank = options.nothingMeasured === true;
   await projectsFixture(page, { repositories: [REPO], role: "admin" });
   const merged = options.merged ?? 6;
   const runs = options.runs ?? 2;
@@ -210,17 +225,34 @@ export async function deliveryFixture(
   ];
   // The organization each metrics read was made for, as the API sees it.
   const organizationHeaders: (string | undefined)[] = [];
+  let metricReads = 0;
+  const metricResolutions: string[] = [];
+  let chartUnavailable = options.chartFailsUntilRetry === true;
   await page.route(
     (url) => url.pathname === "/v1/metrics",
     (route) => {
       organizationHeaders.push(
         route.request().headers()["bakery-organization-id"],
       );
-      const metric = new URL(route.request().url()).searchParams.get("metric")!;
+      metricReads += 1;
+      const requestUrl = new URL(route.request().url());
+      const metric = requestUrl.searchParams.get("metric")!;
+      const resolution = requestUrl.searchParams.get("resolution") ?? "day";
+      metricResolutions.push(resolution);
+      if (
+        chartUnavailable && metric === "prs.merged" &&
+        resolution === "week"
+      ) {
+        return json(route, {
+          code: "INTERNAL",
+          message: "chart unavailable",
+          requestId: uuid(900),
+        }, 500);
+      }
       if (metric === "tasks.leadTimeHours") {
         return json(
           route,
-          series(metric, "hours", [28, 40, null, 31], {
+          series(options.revision, metric, "hours", [28, 40, null, 31], {
             sampleCount: merged + runs,
             missingCount: options.leftOut ?? 0,
             summary: {
@@ -235,20 +267,43 @@ export async function deliveryFixture(
                 { deliveryPoint: "completed_run", count: runs },
               ],
             },
-          }),
+          }, blank),
         );
       }
       if (metric === "prs.openAtCutoff") {
-        return json(route, series(metric, "count", [3, 4, 5, 4]));
+        return json(
+          route,
+          series(options.revision, metric, "count", [3, 4, 5, 4], {}, blank),
+        );
       }
+      const points = metric === "prs.merged" || metric === "prs.changedLines"
+        ? options.metricPoints?.[metric]
+        : undefined;
       return json(
         route,
-        series(metric, metric === "prs.changedLines" ? "lines" : "count", [
-          2,
-          4,
-          0,
-          5,
-        ]),
+        series(
+          options.revision,
+          metric,
+          metric === "prs.changedLines" ? "lines" : "count",
+          points?.map((point) => point.value) ??
+            (metric === "prs.changedLines" ? [91, 62, 0, 84] : [2, 4, 0, 5]),
+          {
+            ...(points === undefined ? {} : { points }),
+            ...(metric === "prs.changedLines" && !blank
+              ? {
+                sampleCount: 4,
+                missingCount: options.uncounted ?? 1,
+                missingReasons: (options.uncounted ?? 1) > 0
+                  ? [{
+                    reason: "no_diff_totals",
+                    count: options.uncounted ?? 1,
+                  }]
+                  : [],
+              }
+              : {}),
+          },
+          blank,
+        ),
       );
     },
   );
@@ -262,5 +317,16 @@ export async function deliveryFixture(
       });
     },
   );
-  return { records, pullRequests, organizationHeaders };
+  return {
+    records,
+    pullRequests,
+    organizationHeaders,
+    metricResolutions,
+    restoreChart() {
+      chartUnavailable = false;
+    },
+    get metricReads() {
+      return metricReads;
+    },
+  };
 }

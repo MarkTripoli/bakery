@@ -1,5 +1,5 @@
 {
-  "revision": "0bb0cd6302e3e68346e497a392404a85af6a2bdb4aa790b0101860c4eaa30a5e",
+  "revision": "280ddb1ddce9c8a1d526b6bcccbc4e489305d22fefaafca4d72a8b9510007620",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -20581,6 +20581,120 @@
           ],
           "pointer:fine": [
             "runtime:ui.segmentedBar.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the UX design comment on issue 75, not in Paper; the Paper manifests have no segmented or stacked bar."
+    },
+    {
+      "id": "ui.lineChart",
+      "name": "LineChart",
+      "description": "A line over time with named gaps where nothing was measured, so a gap is never drawn as zero.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/LineChart",
+      "usage": {
+        "whenToUse": "A single measure over time where missing stretches must stay visible as named gaps.",
+        "whenNotToUse": "Keep content verification, authorization, and mutation orchestration in the caller.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [],
+        "replacesElements": [],
+        "allowedLevels": [
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "img",
+        "accessibleName": "aria-label",
+        "keyboard": [],
+        "notes": "The chart is a picture named by the caller; its description and the table the caller offers are the content."
+      },
+      "tokens": [
+        "--border-emphasis",
+        "--color-fg",
+        "--color-fg-muted",
+        "--space-2",
+        "--type-body",
+        "--type-caption"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "A line over time with named gaps where nothing was measured, so a gap is never drawn as zero.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.lineChart.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.lineChart.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.lineChart.contract.desktop-light-fine"
           ],
           "pointer:coarse": [
             "suite:storybook.coarse-targets"

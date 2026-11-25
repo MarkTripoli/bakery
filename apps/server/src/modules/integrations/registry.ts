@@ -2,6 +2,7 @@ import {
   type ActivatedProviders,
   activateProviders,
   type ProviderManifest,
+  type TicketTrigger,
 } from "@bakery/integration-sdk/provider";
 import { linearServerProvider } from "@bakery/integration-linear/server";
 import { slackServerProvider } from "@bakery/integration-slack/server";
@@ -269,4 +270,16 @@ export function providerManifestForId(
   return PROVIDERS.providers.find((provider) =>
     provider.manifest.providerUuid === providerId
   )?.manifest;
+}
+
+const TICKET_TRIGGERS: Readonly<Record<string, readonly TicketTrigger[]>> = {
+  [GITHUB_PROVIDER_IDENTITY.slug]: ["label", "status"],
+  [LINEAR_PROVIDER_IDENTITY.slug]: linearServerProvider.manifest
+    .ticketTriggers ?? ["label"],
+};
+
+export function ticketTriggersOf(provider: string): readonly TicketTrigger[] {
+  return Object.hasOwn(TICKET_TRIGGERS, provider)
+    ? TICKET_TRIGGERS[provider]!
+    : ["label"];
 }
