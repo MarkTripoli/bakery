@@ -6,6 +6,7 @@
  * can be tested without a browser. They return catalogue keys and plain data,
  * never sentences: the screen owns the words.
  */
+import type { MessageKey } from "@bakery/i18n";
 import type {
   MetricSeries,
   MetricSource,
@@ -13,7 +14,14 @@ import type {
 } from "../../api/client.ts";
 
 /** What a reader can open from the page: each figure names the records it counts. */
-export const DELIVERY_SHOWS = ["merged", "tasks", "open", "closed"] as const;
+export const DELIVERY_SHOWS = [
+  "merged",
+  "opened",
+  "open",
+  "closed",
+  "lines",
+  "tasks",
+] as const;
 export type DeliveryShow = typeof DELIVERY_SHOWS[number];
 
 export function isDeliveryShow(value: unknown): value is DeliveryShow {
@@ -32,9 +40,11 @@ type MetricKey = MetricsQuery["metric"];
  */
 export const SHOW_METRIC: Readonly<Record<DeliveryShow, MetricKey>> = {
   merged: "prs.changedLines",
+  opened: "prs.opened",
   tasks: "tasks.leadTimeHours",
   open: "prs.openAtCutoff",
   closed: "prs.closedUnmerged",
+  lines: "prs.changedLines",
 };
 
 /** A number the page can show, or the fact that nobody can say. */
@@ -72,16 +82,35 @@ export function openFigure(series: MetricSeries | undefined): Figure {
     : { kind: "value", value: last.value };
 }
 
+export type SizeAndQuality = {
+  readonly lines: {
+    readonly total: number;
+    readonly pullRequests: number;
+  } | null;
+  readonly uncounted: number;
+};
+
+export function sizeAndQualityOf(
+  series: MetricSeries | undefined,
+): SizeAndQuality {
+  if (series === undefined || series.completeness === "unknown") {
+    return { lines: null, uncounted: 0 };
+  }
+  return {
+    lines: {
+      total: series.points.reduce((sum, point) => sum + (point.value ?? 0), 0),
+      pullRequests: series.sampleCount,
+    },
+    uncounted: series.missingCount,
+  };
+}
+
 /** The line above the figures. Disconnected outranks stale outranks missing. */
 export type Freshness =
   | { readonly kind: "complete"; readonly asOf: string | null }
   | {
     readonly kind: "missing";
     readonly asOf: string | null;
-    /** Merged pull requests that could not be line-counted. */
-    readonly unmeasured: number;
-    /** Merged pull requests in the window, the denominator of the above. */
-    readonly merged: number;
     /** Tasks whose time is missing. */
     readonly tasksMissing: number;
   }
@@ -93,10 +122,8 @@ export type Freshness =
   }
   | { readonly kind: "stale"; readonly lastRead: string | null };
 
-/** What the server said about the three series the line is read from. */
 export type FreshnessInput = {
   readonly merged: MetricSeries | undefined;
-  readonly lines: MetricSeries | undefined;
   readonly tasks: MetricSeries | undefined;
 };
 
@@ -118,23 +145,9 @@ export function freshnessOf(input: FreshnessInput): Freshness {
   if (repositories.some((r) => r.state === "stale")) {
     return { kind: "stale", lastRead: asOf };
   }
-  const unmeasured = missingOf(input.lines, "no_diff_totals");
   const tasksMissing = input.tasks?.missingCount ?? 0;
-  if (unmeasured > 0 || tasksMissing > 0) {
-    return {
-      kind: "missing",
-      asOf,
-      unmeasured,
-      merged: (input.lines?.sampleCount ?? 0) + unmeasured,
-      tasksMissing,
-    };
-  }
+  if (tasksMissing > 0) return { kind: "missing", asOf, tasksMissing };
   return { kind: "complete", asOf };
-}
-
-function missingOf(series: MetricSeries | undefined, reason: string): number {
-  return series?.missingReasons.find((entry) => entry.reason === reason)
-    ?.count ?? 0;
 }
 
 /** The catalogue keys for why a record has a hole in it. */
@@ -143,6 +156,9 @@ export type MissingKey =
   | "delivery.missing.noMergedTime"
   | "delivery.missing.noClosedTime"
   | "delivery.missing.noDiffTotals"
+  | "delivery.missing.noLineCount"
+  | "delivery.missing.lineCountBinary"
+  | "delivery.missing.lineCountTruncated"
   | "delivery.missing.stillOpen"
   | "delivery.missing.other";
 
@@ -151,6 +167,9 @@ const MISSING_KEYS: Readonly<Record<string, MissingKey>> = {
   no_merged_time: "delivery.missing.noMergedTime",
   no_closed_time: "delivery.missing.noClosedTime",
   no_diff_totals: "delivery.missing.noDiffTotals",
+  no_line_count: "delivery.missing.noLineCount",
+  line_count_binary: "delivery.missing.lineCountBinary",
+  line_count_truncated: "delivery.missing.lineCountTruncated",
   still_open: "delivery.missing.stillOpen",
 };
 
@@ -374,4 +393,96 @@ export function leadTimeOf(series: MetricSeries | undefined): LeadTime | null {
     runCount: runs,
     leftOut: series?.missingCount ?? 0,
   };
+}
+
+const RULE_KEYS = {
+  merged: "delivery.records.rule.merged",
+  tasks: "delivery.records.rule.tasks",
+  open: "delivery.records.rule.open",
+  opened: "delivery.records.rule.opened",
+  lines: "delivery.records.rule.merged",
+  closed: "delivery.records.rule.closed",
+} as const satisfies Record<DeliveryShow, MessageKey>;
+
+const RULE_KEYS_NO_VERSION = {
+  merged: "delivery.records.rule.merged.noVersion",
+  tasks: "delivery.records.rule.tasks.noVersion",
+  open: "delivery.records.rule.open.noVersion",
+  opened: "delivery.records.rule.opened.noVersion",
+  lines: "delivery.records.rule.merged.noVersion",
+  closed: "delivery.records.rule.closed.noVersion",
+} as const satisfies Record<DeliveryShow, MessageKey>;
+
+export function ruleKey(
+  show: DeliveryShow,
+  version: string | null,
+): MessageKey {
+  const keys = version === null ? RULE_KEYS_NO_VERSION : RULE_KEYS;
+  return keys[show];
+}
+
+export type ChartPoint = Readonly<{ at: string; value: number | null }>;
+
+export type ChartSegment = readonly Readonly<{ at: string; value: number }>[];
+
+export type ChartGap = Readonly<{ from: string; to: string; points: number }>;
+
+export function chartSegments(
+  points: readonly ChartPoint[],
+): readonly ChartSegment[] {
+  const segments: { at: string; value: number }[][] = [];
+  let run: { at: string; value: number }[] = [];
+  for (const point of points) {
+    if (point.value === null) {
+      if (run.length > 0) segments.push(run);
+      run = [];
+      continue;
+    }
+    run.push({ at: point.at, value: point.value });
+  }
+  if (run.length > 0) segments.push(run);
+  return segments;
+}
+
+export function chartGaps(points: readonly ChartPoint[]): readonly ChartGap[] {
+  const gaps: { from: string; to: string; points: number }[] = [];
+  let open: { from: string; to: string; points: number } | null = null;
+  for (const point of points) {
+    if (point.value === null) {
+      open = open === null
+        ? { from: point.at, to: point.at, points: 1 }
+        : { from: open.from, to: point.at, points: open.points + 1 };
+      continue;
+    }
+    if (open !== null) gaps.push(open);
+    open = null;
+  }
+  if (open !== null) gaps.push(open);
+  return gaps;
+}
+
+export function chartMissingDays(
+  points: readonly ChartPoint[],
+  to: string,
+): number {
+  const upper = Date.parse(to);
+  let missingMilliseconds = 0;
+  for (const [index, point] of points.entries()) {
+    if (point.value !== null) continue;
+    const next = points[index + 1];
+    const end = Math.min(
+      next === undefined ? upper : Date.parse(next.at),
+      upper,
+    );
+    missingMilliseconds += Math.max(0, end - Date.parse(point.at));
+  }
+  return Math.ceil(missingMilliseconds / 86_400_000);
+}
+
+export function chartMaximum(points: readonly ChartPoint[]): number {
+  let maximum = 0;
+  for (const point of points) {
+    if (point.value !== null && point.value > maximum) maximum = point.value;
+  }
+  return maximum;
 }

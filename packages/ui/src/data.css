@@ -1620,6 +1620,19 @@
 .ui-detail-row[data-label-width="wide"] {
   min-block-size: var(--target-min);
 }
+@media (max-width: 743px) {
+  .ui-detail-row[data-stack="phone"] {
+    align-items: start;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .ui-detail-row[data-stack="phone"] .ui-detail-row__label {
+    flex: none;
+  }
+  .ui-detail-row[data-stack="phone"] + .ui-detail-row[data-stack="phone"] {
+    margin-block-start: var(--space-3);
+  }
+}
 .ui-detail-row__value {
   color: var(--color-fg);
   font: var(--type-caption);
@@ -2332,6 +2345,44 @@
   color: var(--color-fg-muted);
   font: var(--type-caption);
   font-variant-numeric: tabular-nums;
+}
+
+.ui-line-chart {
+  color: var(--color-fg);
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+.ui-line-chart__plot {
+  display: block;
+  inline-size: 100%;
+}
+.ui-line-chart__band {
+  fill: currentColor;
+  fill-opacity: 0.12;
+}
+.ui-line-chart__band-label,
+.ui-line-chart__tick {
+  fill: currentColor;
+  font: var(--type-caption);
+}
+.ui-line-chart__point {
+  fill: currentColor;
+}
+.ui-line-chart__line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--border-emphasis);
+}
+.ui-line-chart__ends {
+  color: var(--color-fg-muted);
+  display: flex;
+  font: var(--type-caption);
+  justify-content: space-between;
+}
+.ui-line-chart__description {
+  color: var(--color-fg-muted);
+  font: var(--type-body);
 }
 
 /* A combobox with a help tip: the tip sits one small gap after the label's word,

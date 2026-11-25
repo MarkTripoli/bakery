@@ -14,6 +14,9 @@ export const Contract: StoryObj = {
       <DetailRow label="Alias" tone="code">contract, ledger</DetailRow>
       <DetailRow label="Mapping status" tone="positive">Active</DetailRow>
       <DetailRow label="Branch">main</DetailRow>
+      <DetailRow label="Typical time" stackOnPhone>
+        22 h
+      </DetailRow>
       {/* A long label with its help button: the wide column keeps them on one line. */}
       <DetailRow
         label={
