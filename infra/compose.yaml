@@ -37,7 +37,7 @@ services:
     restart: "no"
 
   postgres:
-    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
     # Local and test stacks only (production Postgres is configured elsewhere):
     # commits are acknowledged before their WAL flush. On a shared developer
     # disk a durable flush can take seconds (#275: fdatasync ~2 s/op measured
@@ -51,6 +51,7 @@ services:
       - -c
       - synchronous_commit=${BAKERY_LOCAL_POSTGRES_SYNCHRONOUS_COMMIT:-off}
     environment:
+      PGDATA: /var/lib/postgresql/data
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${BAKERY_LOCAL_POSTGRES_PASSWORD:-bakery-local-postgres}
       POSTGRES_DB: postgres

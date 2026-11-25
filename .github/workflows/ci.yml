@@ -365,7 +365,7 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -400,13 +400,7 @@ jobs:
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Ensure psql client
         shell: bash
-        run: |
-          # Hosted runners ship the PostgreSQL client, so this normally does
-          # nothing; it installs the client only when it is missing.
-          command -v psql >/dev/null 2>&1 || {
-            sudo apt-get update -qq
-            sudo apt-get install -y --no-install-recommends postgresql-client
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Configure PostgreSQL connection
         env:
           POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
@@ -473,7 +467,7 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -508,13 +502,7 @@ jobs:
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Ensure psql client
         shell: bash
-        run: |
-          # Hosted runners ship the PostgreSQL client, so this normally does
-          # nothing; it installs the client only when it is missing.
-          command -v psql >/dev/null 2>&1 || {
-            sudo apt-get update -qq
-            sudo apt-get install -y --no-install-recommends postgresql-client
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Configure PostgreSQL connection
         env:
           POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
@@ -563,7 +551,7 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -598,13 +586,7 @@ jobs:
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - name: Ensure psql client
         shell: bash
-        run: |
-          # Hosted runners ship the PostgreSQL client, so this normally does
-          # nothing; it installs the client only when it is missing.
-          command -v psql >/dev/null 2>&1 || {
-            sudo apt-get update -qq
-            sudo apt-get install -y --no-install-recommends postgresql-client
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Configure PostgreSQL connection
         env:
           POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
@@ -802,7 +784,7 @@ jobs:
       BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET: "1"
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -851,16 +833,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
         shell: bash
-        run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
-          command -v psql >/dev/null 2>&1 || {
-            # Runners that share a host share its apt lock: take one lock for
-            # the whole install so a second job waits instead of failing.
-            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
-              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
         env:
           PGPASSWORD: bakery-ci-postgres
@@ -896,7 +869,7 @@ jobs:
       BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET: "1"
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -939,14 +912,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
         shell: bash
-        run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
-          command -v psql >/dev/null 2>&1 || {
-            sudo apt-get update -qq
-            sudo apt-get install -y --no-install-recommends postgresql-client
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
         env:
           PGPASSWORD: bakery-ci-postgres
@@ -986,7 +952,7 @@ jobs:
       BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET: "1"
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -1029,14 +995,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
         shell: bash
-        run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
-          command -v psql >/dev/null 2>&1 || {
-            sudo apt-get update -qq
-            sudo apt-get install -y --no-install-recommends postgresql-client
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
         env:
           PGPASSWORD: bakery-ci-postgres
@@ -1077,7 +1036,7 @@ jobs:
     runs-on: [self-hosted, hetzner, linux, x64]
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -1119,14 +1078,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
         shell: bash
-        run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
-          command -v psql >/dev/null 2>&1 || {
-            sudo apt-get update -qq
-            sudo apt-get install -y --no-install-recommends postgresql-client
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision browser test roles and database
         env:
           PGPASSWORD: bakery-ci-postgres
@@ -1436,7 +1388,7 @@ jobs:
       BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -1508,18 +1460,8 @@ jobs:
             echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
-        if: ${{ steps.plan.outputs.work == 'true' }}
         shell: bash
-        run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
-          command -v psql >/dev/null 2>&1 || {
-            # Runners that share a host share its apt lock: take one lock for
-            # the whole install so a second job waits instead of failing.
-            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
-              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
         if: ${{ steps.plan.outputs.work == 'true' }}
         env:
@@ -1596,7 +1538,7 @@ jobs:
       BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -1668,18 +1610,8 @@ jobs:
             echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
-        if: ${{ steps.plan.outputs.work == 'true' }}
         shell: bash
-        run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
-          command -v psql >/dev/null 2>&1 || {
-            # Runners that share a host share its apt lock: take one lock for
-            # the whole install so a second job waits instead of failing.
-            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
-              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
         if: ${{ steps.plan.outputs.work == 'true' }}
         env:
@@ -1756,7 +1688,7 @@ jobs:
       BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -1828,18 +1760,8 @@ jobs:
             echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
-        if: ${{ steps.plan.outputs.work == 'true' }}
         shell: bash
-        run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
-          command -v psql >/dev/null 2>&1 || {
-            # Runners that share a host share its apt lock: take one lock for
-            # the whole install so a second job waits instead of failing.
-            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
-              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
         if: ${{ steps.plan.outputs.work == 'true' }}
         env:
@@ -1916,7 +1838,7 @@ jobs:
       BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -1988,18 +1910,8 @@ jobs:
             echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
-        if: ${{ steps.plan.outputs.work == 'true' }}
         shell: bash
-        run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
-          command -v psql >/dev/null 2>&1 || {
-            # Runners that share a host share its apt lock: take one lock for
-            # the whole install so a second job waits instead of failing.
-            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
-              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
         if: ${{ steps.plan.outputs.work == 'true' }}
         env:
@@ -2073,7 +1985,7 @@ jobs:
       BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -2152,11 +2064,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
         shell: bash
-        run: |
-          command -v psql >/dev/null 2>&1 || {
-            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
-              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
         env:
           PGPASSWORD: bakery-ci-postgres
@@ -2268,7 +2176,7 @@ jobs:
       BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -2349,11 +2257,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
         shell: bash
-        run: |
-          command -v psql >/dev/null 2>&1 || {
-            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
-              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
         env:
           PGPASSWORD: bakery-ci-postgres
@@ -2471,7 +2375,7 @@ jobs:
       BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -2560,11 +2464,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
         shell: bash
-        run: |
-          command -v psql >/dev/null 2>&1 || {
-            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
-              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
         env:
           PGPASSWORD: bakery-ci-postgres
@@ -2773,7 +2673,7 @@ jobs:
       BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET: "1"
     services:
       postgres:
-        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        image: postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: bakery-ci-postgres
@@ -2822,16 +2722,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
         shell: bash
-        run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
-          command -v psql >/dev/null 2>&1 || {
-            # Runners that share a host share its apt lock: take one lock for
-            # the whole install so a second job waits instead of failing.
-            sudo flock /var/lock/bakery-ci-apt.lock sh -c \
-              'apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client'
-          }
+        run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
         env:
           PGPASSWORD: bakery-ci-postgres

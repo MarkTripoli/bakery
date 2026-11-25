@@ -65,7 +65,7 @@ networks:
 
 services:
   postgres:
-    image: ghcr.io/railwayapp-templates/postgres-ssl:17@sha256:87184beace8ec657a760401a466a13c5b689066b31b77993103b4771933a9d31
+    image: ghcr.io/railwayapp-templates/postgres-ssl:18@sha256:0abac5c0e29ac4fb1633aa644b4f3beaef29a05b4dc05f93190b5a7fbb0e7089
     environment:
       POSTGRES_PASSWORD: ${PROOF_POSTGRES_PASSWORD:?}
       POSTGRES_DB: railway
