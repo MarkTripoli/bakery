@@ -1048,7 +1048,7 @@ async function assertImportScopeAuthority(
        from bakery.organization_memberships
       where organization_id = $1
         and principal_id = $2
-      ${lockRows ? "for update" : ""}`,
+      ${lockRows ? "for share" : ""}`,
     [
       context.organizationId.toLowerCase(),
       context.principalId.toLowerCase(),
