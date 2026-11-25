@@ -687,6 +687,38 @@ Deno.test("an async submit whose answer is lost is polled by its key and never s
     polled([{ state: "not_found" }, { state: "succeeded" }], () => null),
   ));
 
+Deno.test("an async submit cut off by a crash before its answer was recorded is polled after restart, not sent again (#439)", () =>
+  withRunner(
+    async (fixture, runner, server, w) => {
+      const req = request(
+        fixture,
+        w,
+        { text: "hello" },
+        "lookup@2",
+        "create_note",
+      );
+      assertEquals((await runner.run(req)).kind, "pending");
+      await fixture.pgDatabase.query(
+        `update bakery.external_effects
+            set status = 'submitted', remote_id = null,
+                lease_expires_at = now() - interval '1 second'
+          where organization_id = $1`,
+        [fixture.organizationId],
+      );
+      assertEquals((await runner.run(req)).kind, "completed");
+      assertEquals(noteCalls(server, "create_note").length, 1);
+      assertEquals(
+        noteCalls(server, "note_status").map((call) => call.params.arguments),
+        [{ requestKey: effectKeyOf(w) }],
+      );
+    },
+    ASYNC,
+    polled(
+      [{ state: "succeeded" }],
+      () => ({ structuredContent: { accepted: true } }),
+    ),
+  ));
+
 Deno.test("an async poll that ends badly fails the step with a fixed code (#439)", async () => {
   const endings: [Record<string, unknown>, string][] = [
     [{ state: "failed" }, "async_poll_failed"],
