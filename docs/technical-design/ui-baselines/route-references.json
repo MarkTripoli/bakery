@@ -5194,6 +5194,20 @@
       "frames": []
     },
     {
+      "routeId": "machine-checks",
+      "path": "/machines/$machineId/checks",
+      "status": "no-mock",
+      "rationale": "The Checks and software tab shows the failed checks and the software inventory served for one machine. It was designed in the #70 slice 3 to 6 comment (design-70/fleet images), not as a Paper frame, and stays real-API only; it is not scored against synthetic records.",
+      "frames": []
+    },
+    {
+      "routeId": "machine-work",
+      "path": "/machines/$machineId/work",
+      "status": "no-mock",
+      "rationale": "The Work tab shows the attempts a machine holds, has lost or has finished, and its slot count, as the server serves them (#70 slice 6). The slot and work wording is mine, since design-ux is parked and its older words (a slot per task) are false; the tab stays real-API only and is not scored against synthetic records.",
+      "frames": []
+    },
+    {
       "routeId": "machine-models",
       "path": "/machines/$machineId/models",
       "status": "no-mock",

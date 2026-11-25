@@ -1,8 +1,10 @@
 import type { Translator } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import type { WorkerResponse } from "../api/client.ts";
+import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
   codingAgents,
+  formatMachineDate,
   machineBadge,
   machineBadgeTone,
   machineReason,
@@ -34,8 +36,41 @@ export function machineLine(
   return [
     translate(`machines.os.${row.os}` as never),
     ...(agents.length > 0 ? [agents.join(", ")] : []),
-    translate("machines.slotCount" as never, { count: row.slots }),
+    translate("machines.row.tasks" as never, {
+      running: row.activeAttemptCount,
+      slots: row.slots,
+    }),
   ].join(" · ");
+}
+
+export function tasksAtRisk(row: MachineRow): number {
+  const badge = machineBadge(row);
+  return badge === "offline" || badge === "notResponding"
+    ? row.unsettledAttemptCount ?? 0
+    : 0;
+}
+
+function atRiskLine(
+  row: MachineRow,
+  translate: Translator,
+): string | undefined {
+  const count = tasksAtRisk(row);
+  return count === 0
+    ? undefined
+    : translate("machines.row.mayBeLost" as never, { count });
+}
+
+function machineReasonLine(
+  row: MachineRow,
+  translate: Translator,
+): string | undefined {
+  const reason = machineReason(row);
+  if (reason === null) return undefined;
+  return reason.kind === "checkFailed"
+    ? translate("machines.reason.checkFailed" as never, {
+      count: reason.count,
+    })
+    : translate(`machines.reason.${reason.kind}` as never);
 }
 
 function MachineBadge(
@@ -113,6 +148,7 @@ export function MachineList(
     translate: Translator;
   },
 ) {
+  const { locale, timeZone } = useI18n();
   if (loading && rows.length === 0) {
     // No headings until there is data: three rows' worth of placeholder.
     return (
@@ -151,7 +187,8 @@ export function MachineList(
               status={<MachineBadge row={row} translate={translate} />}
             >
               <UI.Text variant="caption">
-                {machineLine(row, translate)}
+                {[machineLine(row, translate), atRiskLine(row, translate)]
+                  .filter(Boolean).join(" ")}
               </UI.Text>
               <RowAction
                 row={row}
@@ -180,18 +217,58 @@ export function MachineList(
       columns={[
         {
           id: "machine",
-          width: "52%",
+          width: "28%",
           header: translate("machines.column.machine" as never),
           cell: (row) => (
             <UI.CellStack
               title={row.name}
-              detail={machineLine(row, translate)}
+              detail={[
+                machineReasonLine(row, translate),
+                atRiskLine(row, translate),
+              ].filter(Boolean).join(" ") || undefined}
             />
           ),
         },
         {
+          id: "system",
+          header: translate("machines.column.system" as never),
+          cell: (row) => translate(`machines.os.${row.os}` as never),
+        },
+        {
+          id: "agents",
+          header: translate("machines.column.agents" as never),
+          cell: (row) => {
+            const agents = codingAgents(row.capabilities).map((agent) =>
+              translate(`machines.agent.${agent}` as never)
+            );
+            return agents.length > 0
+              ? agents.join(", ")
+              : translate("machines.agents.none" as never);
+          },
+        },
+        {
+          id: "slots",
+          align: "end",
+          header: translate("machines.column.slots" as never),
+          cell: (row) =>
+            translate("machines.row.tasksShort" as never, {
+              running: row.activeAttemptCount,
+              slots: row.slots,
+            }),
+        },
+        {
+          id: "lastSeen",
+          header: translate("machines.column.lastSeen" as never),
+          cell: (row) =>
+            formatMachineDate(
+              row.lastHeartbeatAt,
+              locale,
+              timeZone,
+              translate("machines.never" as never),
+            ),
+        },
+        {
           id: "status",
-          width: "24%",
           header: translate("machines.column.status" as never),
           cell: (row) => <MachineBadge row={row} translate={translate} />,
         },

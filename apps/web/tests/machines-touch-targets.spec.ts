@@ -129,10 +129,20 @@ test.describe("machines touch targets on a coarse phone", () => {
   test("every /machines/$machineId target is at least 44 by 44", async ({ page }) => {
     await page.goto(`/machines/${MACHINE_ID}`);
     await expect(page.getByTestId("machine-detail-page")).toBeVisible();
-    await expect(page.getByText("No failed checks reported.")).toBeVisible();
+    await expect(page.getByTestId("machine-about")).toBeVisible();
     await expect(page.getByRole("button", { name: "Open navigation" }))
       .toBeVisible();
 
+    const targets = await measureTargets(page);
+    expect(targets.length).toBeGreaterThan(3);
+    expect(undersized(targets)).toEqual([]);
+  });
+
+  test("every /machines/$machineId/checks target is at least 44 by 44", async ({ page }) => {
+    await page.goto(`/machines/${MACHINE_ID}/checks`);
+    await expect(page.getByText("No failed checks reported.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open navigation" }))
+      .toBeVisible();
     const targets = await measureTargets(page);
     expect(targets.length).toBeGreaterThan(3);
     expect(undersized(targets)).toEqual([]);
