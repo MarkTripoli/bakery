@@ -1,25 +1,9 @@
-/**
- * What a Slack delivery has to prove before Bakery will look at it, decided as
- * plain functions so each rule can be tested without a database or a workspace.
- *
- * Two questions, in order. First, did Slack send these exact bytes just now?
- * That is the v0 HMAC over `v0:<timestamp>:<raw body>` plus a freshness bound,
- * and it is checked before any form or JSON is decoded. Second, is this event
- * about us and worth keeping? A bot's own echo, an edit, a delete, a message
- * from another app's installation and a delivery for another workspace are all
- * ignored here, before anything is stored or shown to a model.
- *
- * Nothing in this file reads a secret from storage or returns one. A signature
- * secret comes in as bytes and goes no further.
- */
-/** Slack's documented replay window: a request older than five minutes is refused. */
 export const SLACK_MAX_SKEW_SECONDS = 300;
 
 const SIGNATURE_HEADER = /^v0=([0-9a-f]{64})$/;
 const TIMESTAMP_HEADER = /^[0-9]{1,12}$/;
 const SHA256_BYTES = 32;
 
-/** Why a delivery was refused. A code only: it never echoes a header or a body. */
 export type SlackVerification =
   | { readonly ok: true; readonly timestampSeconds: number }
   | {
@@ -27,7 +11,6 @@ export type SlackVerification =
     readonly reason: "missing" | "malformed" | "stale" | "mismatch";
   };
 
-/** Decodes `v0=<64 lowercase hex>` to its 32 bytes; anything else is null. */
 export function parseSlackSignature(
   value: string | null,
 ): Uint8Array<ArrayBuffer> | null {
@@ -42,13 +25,6 @@ export function parseSlackSignature(
   return bytes;
 }
 
-/**
- * Checks signature and freshness of one Slack request. The timestamp is read
- * as plain digits and compared against `nowMs` in both directions, so a
- * request dated in the future is as stale as one dated in the past. The HMAC is
- * verified by `crypto.subtle.verify`, which compares in constant time; an empty
- * secret never verifies because Web Crypto cannot import a zero-length key.
- */
 export async function verifySlackRequest(input: {
   readonly secret: Uint8Array<ArrayBuffer>;
   readonly signatureHeader: string | null;
@@ -88,12 +64,11 @@ export async function verifySlackRequest(input: {
   };
 }
 
-/** What this deployment is: the facts an event must match before it is ours. */
 export type SlackAppIdentity = {
   readonly appId: string;
-  /** The verified workspace this connection serves. */
+
   readonly teamId: string;
-  /** The bot's own user id, so its echoes are recognised. */
+
   readonly botUserId: string;
 };
 
@@ -106,7 +81,6 @@ export type SlackIgnoreReason =
   | "unsupported_event"
   | "edited_or_deleted";
 
-/** The outcome of reading one verified event body. */
 export type SlackEventDecision =
   | { readonly kind: "challenge"; readonly challenge: string }
   | { readonly kind: "ignore"; readonly reason: SlackIgnoreReason }
@@ -116,12 +90,11 @@ export type SlackEventDecision =
     readonly channelId: string;
     readonly userId: string;
     readonly ts: string;
-    /** The thread the mention sits in; its own `ts` when it starts one. */
+
     readonly threadTs: string;
     readonly text: string;
   }
   | {
-    /** A reply inside a thread. Kept only if the host finds it linked. */
     readonly kind: "thread_reply";
     readonly eventId: string;
     readonly channelId: string;
@@ -137,14 +110,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const nonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
 
-/**
- * Reads a verified, already-parsed event body. The order is the point: the
- * challenge answers without admitting work; every other event must name our
- * app and workspace and carry an `authorizations` entry for this installation;
- * only then are echoes, edits and unsupported types dropped. Nothing about a
- * dropped message other than the reason leaves this function, so the caller has
- * no content to store.
- */
 export function readSlackEvent(
   body: unknown,
   app: SlackAppIdentity,
@@ -184,14 +149,10 @@ export function readSlackEvent(
   if (
     event.type !== "app_mention" && event.type !== "message"
   ) return { kind: "ignore", reason: "unsupported_event" };
-  // A bot message names its bot or app; the bot's own user id is an echo even
-  // when Slack omits `bot_id`.
   if (
     event.bot_id !== undefined || event.app_id !== undefined ||
     event.bot_profile !== undefined || userId === app.botUserId
   ) return { kind: "ignore", reason: "bot_echo" };
-  // `subtype` marks edits, deletes, joins and bot posts. Only an ordinary
-  // message (no subtype) or one shared back to its channel is a person talking.
   if (
     event.subtype !== undefined && event.subtype !== "thread_broadcast"
   ) {
@@ -219,7 +180,6 @@ export function readSlackEvent(
       text,
     };
   }
-  // A plain channel message outside any thread cannot be a linked reply.
   if (threadTs === null) return { kind: "ignore", reason: "unsupported_event" };
   return {
     kind: "thread_reply",

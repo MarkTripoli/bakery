@@ -1,20 +1,3 @@
--- Slack workspace installations and the events they deliver (issue #27).
--- * slack_installations: one Slack app installed in one workspace for one Bakery
---   organization. (app_id, team_id) is the key a verified delivery is resolved
---   by, so it is unique across organizations: a workspace cannot serve two
---   organizations through the same app. enterprise_id and bot_user_id are the
---   facts the installation response proved. signing_secret_id names the
---   app-level signing secret in bakery.secrets; the secret itself is never in
---   this table. A row with no signing secret refuses every delivery.
--- * slack_event_receipts: one committed receipt per delivered event. The
---   identity is (app_id, event_id); the same identity with a different digest
---   is refused in TypeScript. Only the digest and the outcome are kept: an
---   ignored event (a bot echo, an unlinked message) leaves a receipt with no
---   text, so a retry is recognised without its content ever being stored.
--- Structure only: the receipt and installation lifecycles and the retention
--- sweep are enforced in TypeScript. The application role may insert and
--- select, and may change only the lifecycle columns; nothing an installation or
--- a receipt was bound to can be rewritten, and installations are never deleted.
 create table bakery.slack_installations (
   id uuid primary key,
   organization_id uuid not null,

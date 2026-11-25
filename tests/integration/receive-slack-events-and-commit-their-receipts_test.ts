@@ -10,11 +10,6 @@ import {
 import type { SlackInstallation } from "../../apps/server/src/modules/integrations/slack-scope.ts";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
 
-// Slice 2 of #27: the persistence behind "a verified Slack delivery belongs to
-// one organization, and is acknowledged only once its receipt is committed".
-// The module's calls go through `runtimePgDatabase`, the application role, so
-// the privileges under test are the ones production has.
-
 type Fixture = Awaited<ReturnType<typeof openInstallationFixture>>;
 
 async function withFixture(run: (f: Fixture) => Promise<void>) {
@@ -192,7 +187,6 @@ Deno.test("a receipt is recorded once; the same bytes again are a duplicate, dif
       receiptId,
       outcome: "accepted",
     });
-    // The first outcome stands, whatever a retry would have decided.
     assertEquals(
       await commit(f, value, id, event, digest("a"), "ignored"),
       { kind: "duplicate", receiptId, outcome: "accepted" },

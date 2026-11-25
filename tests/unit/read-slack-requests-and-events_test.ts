@@ -71,7 +71,6 @@ Deno.test("a changed body, secret or timestamp does not verify", async () => {
     signatureHeader: header,
     raw: encoder.encode(body),
   });
-  // Signed for one timestamp, presented with another still inside the window.
   const otherTimestamp = await verifySlackRequest({
     secret,
     signatureHeader: header,
