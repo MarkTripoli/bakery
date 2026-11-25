@@ -532,7 +532,9 @@ function taskTarget(
     status: "available",
     targetKind,
     path: taskPath(row.taskId as string),
-    anchor: row.targetAnchor,
+    anchor: targetKind === "conversation_message"
+      ? `message:${row.targetId}`
+      : row.targetAnchor,
   };
 }
 
