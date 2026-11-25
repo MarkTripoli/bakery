@@ -1543,7 +1543,7 @@ export async function listRunAccess(
               access_grant.created_at at time zone 'UTC',
               'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
             ) as cursor_created_at,
-            case when request.status = 'open' and request.expires_at > now()
+            case when current_open_request.present is not null
               then 1 else 0 end as cursor_position,
             access_grant.source_request_id, request.audience_name,
             access_grant.version
@@ -1559,6 +1559,16 @@ export async function listRunAccess(
        left join bakery.person_requests as request
          on request.organization_id = access_grant.organization_id
         and request.id = access_grant.source_request_id
+       left join lateral (
+         select 1 as present
+           from bakery.person_requests as current_request
+          where current_request.organization_id = access_grant.organization_id
+            and current_request.run_id = access_grant.run_id
+            and current_request.recipient_id = access_grant.principal_id
+            and current_request.status = 'open'
+            and current_request.expires_at > now()
+          limit 1
+       ) as current_open_request on true
       where access_grant.organization_id = $1 and access_grant.run_id = $2
         and access_grant.revoked_at is null
         and principal.principal_type = 'human' and principal.disabled_at is null
@@ -1569,15 +1579,14 @@ export async function listRunAccess(
         and (
           $8::timestamptz is null or
           (
-            case when request.status = 'open' and request.expires_at > now()
+            case when current_open_request.present is not null
               then 1 else 0 end,
             access_grant.created_at,
             access_grant.id
           ) < ($10::integer, $8, $9::uuid)
         )
-      order by (
-        request.status = 'open' and request.expires_at > now()
-      ) desc, access_grant.created_at desc, access_grant.id desc
+      order by (current_open_request.present is not null) desc,
+               access_grant.created_at desc, access_grant.id desc
       limit $11`,
     [
       ...projectParameters,

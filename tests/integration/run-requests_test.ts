@@ -321,6 +321,107 @@ Deno.test("run access pages every direct person beyond the first twenty", async 
   }
 });
 
+Deno.test("a reopened request stays in the open group across access pages", async () => {
+  const o = await open();
+  const fillers = [];
+  for (let index = 0; index < 20; index += 1) {
+    fillers.push(await addMember(o.fixture, `Closed ${index}`, "guest"));
+  }
+  const fillerPrincipalIds = fillers.map((member) => member.principalId);
+  try {
+    const first = await body<Request>(
+      await o.ask(o.dev.cookie, {
+        recipientId: o.guest.principalId,
+        intent: "fyi",
+      }),
+      201,
+    );
+    await body<Request>(
+      await api(
+        o.fixture,
+        o.dev.cookie,
+        "POST",
+        `/v1/run-requests/${first.id}/withdraw`,
+        {},
+        first.version,
+      ),
+      200,
+    );
+    await body<Request>(
+      await o.ask(o.dev.cookie, {
+        recipientId: o.guest.principalId,
+        intent: "fyi",
+      }),
+      201,
+    );
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.run_access_grants (
+         organization_id, run_id, task_id, principal_id, via, granted_by,
+         granted_by_kind
+       )
+       select $1, $2, $3, principal_id, 'request', $4, 'person'
+         from unnest($5::uuid[]) as seed(principal_id)`,
+      [
+        o.fixture.organizationId,
+        o.run.runId,
+        o.run.taskId,
+        o.dev.principalId,
+        fillerPrincipalIds,
+      ],
+    );
+    await o.fixture.pgDatabase.query(
+      `update bakery.run_access_grants
+          set created_at = case when principal_id = $3
+            then now() - interval '2 days'
+            else now() - interval '1 day'
+          end
+        where organization_id = $1 and run_id = $2
+          and principal_id = any($4::uuid[])`,
+      [
+        o.fixture.organizationId,
+        o.run.runId,
+        o.guest.principalId,
+        [o.guest.principalId, ...fillerPrincipalIds],
+      ],
+    );
+    const path = `/v1/runs/${o.run.runId}/access?limit=20`;
+    const firstPage = await body<RunAccess>(
+      await api(o.fixture, o.dev.cookie, "GET", path),
+      200,
+    );
+    const secondPage = await body<RunAccess>(
+      await api(
+        o.fixture,
+        o.dev.cookie,
+        "GET",
+        `${path}&cursor=${encodeURIComponent(firstPage.nextCursor!)}`,
+      ),
+      200,
+    );
+    assertEquals(
+      firstPage.items[0]?.principal.principalId,
+      o.guest.principalId,
+    );
+    assertEquals(
+      secondPage.items.some((item) =>
+        item.principal.principalId === o.guest.principalId
+      ),
+      false,
+    );
+  } finally {
+    await o.fixture.pgDatabase.query(
+      `delete from bakery.run_access_grants
+        where organization_id = $1 and principal_id = any($2::uuid[])`,
+      [o.fixture.organizationId, fillerPrincipalIds],
+    );
+    await cleanupAuthFixture(
+      o.fixture.pgDatabase,
+      fillers.map((member) => member.email),
+    );
+    await o.finish();
+  }
+});
+
 Deno.test("removing direct access withdraws every open request atomically", async () => {
   const o = await open();
   try {
