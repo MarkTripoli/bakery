@@ -103,7 +103,7 @@ export function DeliveryChart(
       variant="stack"
     >
       <UI.Inline gap="compact" variant="between">
-        {showMenu}
+        <UI.Inline gap="compact">{showMenu}</UI.Inline>
         <UI.Button
           aria-pressed={asTable}
           onClick={() => setAsTable(!asTable)}

@@ -111,10 +111,6 @@ export type Freshness =
   | {
     readonly kind: "missing";
     readonly asOf: string | null;
-    /** Merged pull requests that could not be line-counted. */
-    readonly unmeasured: number;
-    /** Merged pull requests in the window, the denominator of the above. */
-    readonly merged: number;
     /** Tasks whose time is missing. */
     readonly tasksMissing: number;
   }
@@ -126,10 +122,9 @@ export type Freshness =
   }
   | { readonly kind: "stale"; readonly lastRead: string | null };
 
-/** What the server said about the three series the line is read from. */
+/** What the server said about the two series the line is read from. */
 export type FreshnessInput = {
   readonly merged: MetricSeries | undefined;
-  readonly lines: MetricSeries | undefined;
   readonly tasks: MetricSeries | undefined;
 };
 
@@ -151,23 +146,9 @@ export function freshnessOf(input: FreshnessInput): Freshness {
   if (repositories.some((r) => r.state === "stale")) {
     return { kind: "stale", lastRead: asOf };
   }
-  const unmeasured = missingOf(input.lines, "no_diff_totals");
   const tasksMissing = input.tasks?.missingCount ?? 0;
-  if (unmeasured > 0 || tasksMissing > 0) {
-    return {
-      kind: "missing",
-      asOf,
-      unmeasured,
-      merged: (input.lines?.sampleCount ?? 0) + unmeasured,
-      tasksMissing,
-    };
-  }
+  if (tasksMissing > 0) return { kind: "missing", asOf, tasksMissing };
   return { kind: "complete", asOf };
-}
-
-function missingOf(series: MetricSeries | undefined, reason: string): number {
-  return series?.missingReasons.find((entry) => entry.reason === reason)
-    ?.count ?? 0;
 }
 
 /** The catalogue keys for why a record has a hole in it. */

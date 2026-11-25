@@ -209,11 +209,7 @@ export function DeliveryPage() {
           closed: countFigure(closed.data),
         }}
         freshness={state === "ready" || state === "emptyPeriod"
-          ? freshnessOf({
-            merged: merged.data,
-            lines: lines.data,
-            tasks: tasks.data,
-          })
+          ? freshnessOf({ merged: merged.data, tasks: tasks.data })
           : null}
         hiddenCount={hiddenCount}
         lastUpdated={merged.dataUpdatedAt > 0

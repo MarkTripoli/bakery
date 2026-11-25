@@ -5057,7 +5057,6 @@
   "delivery.fresh.complete": "⟪Up to date as of {time}.⟫",
   "delivery.fresh.asOf": "⟪Up to date as of {time}.⟫",
   "delivery.fresh.asOfUnknown": "⟪Up to date as of the last read.⟫",
-  "delivery.fresh.lines": "⟪{unmeasured} of {merged, plural, one {# merged pull request} other {# merged pull requests}} could not be line-counted.⟫",
   "delivery.fresh.tasks": "⟪{tasks, plural, one {# task has} other {# tasks have}} a missing time.⟫",
   "delivery.fresh.neverZero": "⟪{count, plural, one {It is listed} other {They are listed}}, never counted as zero.⟫",
   "delivery.fresh.missing.action": "⟪What is missing⟫",
@@ -7201,7 +7200,6 @@
   "delivery.chart.tasks": "⟪Time a task took (typical)⟫",
   "delivery.records.rule.opened": "⟪Counted by when each was opened, in your time zone ({zone}). Definitions, version {version}.⟫",
   "delivery.records.rule.opened.noVersion": "⟪Counted by when each was opened, in your time zone ({zone}).⟫",
-  "delivery.lastUpdated": "⟪Last updated {time}⟫",
   "delivery.quality.heading": "⟪Size and quality⟫",
   "delivery.quality.lines.label": "⟪Lines changed⟫",
   "delivery.quality.lines.helpLabel": "⟪About lines changed⟫",
@@ -7210,5 +7208,7 @@
   "delivery.quality.uncounted.label": "⟪Could not be line-counted⟫",
   "delivery.quality.uncounted.value": "⟪{count, plural, one {# pull request} other {# pull requests}}⟫",
   "delivery.quality.openToMerge.label": "⟪Open to merge⟫",
-  "delivery.quality.openToMerge.unknown": "⟪Unknown. Not counted for the whole period yet.⟫"
+  "delivery.quality.openToMerge.unknown": "⟪Unknown. Not counted for the whole period yet.⟫",
+  "delivery.lastUpdated": "⟪You are offline. These figures were loaded at {time}.⟫",
+  "delivery.quality.uncounted.action": "⟪Show the {count, plural, one {# pull request} other {# pull requests}} that could not be line-counted⟫"
 }

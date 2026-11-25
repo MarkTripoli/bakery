@@ -2648,7 +2648,6 @@
   "delivery.fresh.complete": "Up to date as of {time}.",
   "delivery.fresh.asOf": "Up to date as of {time}.",
   "delivery.fresh.asOfUnknown": "Up to date as of the last read.",
-  "delivery.fresh.lines": "{unmeasured} of {merged, plural, one {# merged pull request} other {# merged pull requests}} could not be line-counted.",
   "delivery.fresh.tasks": "{tasks, plural, one {# task has} other {# tasks have}} a missing time.",
   "delivery.fresh.neverZero": "{count, plural, one {It is listed} other {They are listed}}, never counted as zero.",
   "delivery.fresh.missing.action": "What is missing",
@@ -7201,7 +7200,7 @@
   "integrations.slack.credentials.stale": "These details changed since this page loaded. Nothing was saved. Check the current details, then enter yours again.",
   "integrations.slack.credentials.loading": "Loading the Slack details.",
   "integrations.slack.credentials.loadError": "The Slack details could not be loaded.",
-  "delivery.lastUpdated": "Last updated {time}",
+  "delivery.lastUpdated": "You are offline. These figures were loaded at {time}.",
   "delivery.quality.heading": "Size and quality",
   "delivery.quality.lines.label": "Lines changed",
   "delivery.quality.lines.helpLabel": "About lines changed",
@@ -7209,6 +7208,7 @@
   "delivery.quality.lines.value": "{lines, plural, one {# line} other {# lines}} in {count, plural, one {# pull request} other {# pull requests}}",
   "delivery.quality.uncounted.label": "Could not be line-counted",
   "delivery.quality.uncounted.value": "{count, plural, one {# pull request} other {# pull requests}}",
+  "delivery.quality.uncounted.action": "Show the {count, plural, one {# pull request} other {# pull requests}} that could not be line-counted",
   "delivery.quality.openToMerge.label": "Open to merge",
   "delivery.quality.openToMerge.unknown": "Unknown. Not counted for the whole period yet."
 }

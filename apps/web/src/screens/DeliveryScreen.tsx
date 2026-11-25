@@ -245,7 +245,8 @@ export function DeliveryScreen(props: DeliveryScreenProps) {
 }
 
 function MenuPicker(
-  { items, label, onSelect, word }: {
+  { align = "end", items, label, onSelect, word }: {
+    readonly align?: "start" | "end";
     readonly items: UI.MenuItem[];
     readonly label: string;
     readonly onSelect: (id: string) => void;
@@ -255,7 +256,7 @@ function MenuPicker(
   const [open, setOpen] = useState(false);
   return (
     <UI.Popover
-      align="end"
+      align={align}
       label={word}
       onOpenChange={setOpen}
       open={open}
@@ -481,12 +482,14 @@ function SizeAndQualitySection(props: DeliveryScreenProps) {
           }
           labelWidth="wide"
         >
-          {lines === null
-            ? translate("delivery.figure.unknown")
-            : translate("delivery.quality.lines.value", {
-              lines: lines.total,
-              count: lines.pullRequests,
-            })}
+          <UI.Text>
+            {lines === null
+              ? translate("delivery.figure.unknown")
+              : translate("delivery.quality.lines.value", {
+                lines: lines.total,
+                count: lines.pullRequests,
+              })}
+          </UI.Text>
         </UI.DetailRow>
         {uncounted > 0
           ? (
@@ -495,6 +498,9 @@ function SizeAndQualitySection(props: DeliveryScreenProps) {
               labelWidth="wide"
             >
               <UI.Button
+                aria-label={translate("delivery.quality.uncounted.action", {
+                  count: uncounted,
+                })}
                 onClick={() => {
                   props.onShowUncounted();
                   showRecordsHeading();
@@ -512,7 +518,9 @@ function SizeAndQualitySection(props: DeliveryScreenProps) {
           label={translate("delivery.quality.openToMerge.label")}
           labelWidth="wide"
         >
-          {translate("delivery.quality.openToMerge.unknown")}
+          <UI.Text>
+            {translate("delivery.quality.openToMerge.unknown")}
+          </UI.Text>
         </UI.DetailRow>
       </UI.DescriptionList>
     </UI.Stack>
@@ -544,6 +552,7 @@ function OverTime(props: DeliveryScreenProps) {
       status={series.status}
       showMenu={
         <MenuPicker
+          align="start"
           items={CHART_SERIES.map((entry) => ({
             id: entry.show,
             label: translate(entry.label),
@@ -808,7 +817,7 @@ function FreshnessNotice(props: DeliveryScreenProps) {
       action={
         <UI.Button
           onClick={() => {
-            props.onShow(freshness.unmeasured > 0 ? "merged" : "tasks");
+            props.onShow("tasks");
             props.onMissingOnly(true);
           }}
           variant="outline"
@@ -822,17 +831,9 @@ function FreshnessNotice(props: DeliveryScreenProps) {
         when === null
           ? translate("delivery.fresh.asOfUnknown")
           : translate("delivery.fresh.asOf", { time: when }),
-        freshness.unmeasured > 0
-          ? translate("delivery.fresh.lines", {
-            unmeasured: formatNumber(freshness.unmeasured, locale),
-            merged: freshness.merged,
-          })
-          : null,
-        freshness.tasksMissing > 0
-          ? translate("delivery.fresh.tasks", { tasks: freshness.tasksMissing })
-          : null,
+        translate("delivery.fresh.tasks", { tasks: freshness.tasksMissing }),
         translate("delivery.fresh.neverZero", {
-          count: freshness.unmeasured + freshness.tasksMissing,
+          count: freshness.tasksMissing,
         }),
       ].filter((part) => part !== null).join(" ")}
     </UI.InlineNotice>

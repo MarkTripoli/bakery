@@ -61,6 +61,10 @@ test("Show is a menu of all six series and displays opened and changed lines", a
   await expect(page.getByRole("combobox", { name: "Show" })).toHaveCount(0);
   await page.getByRole("button", { name: /^Show:/ }).click();
   const menu = page.getByRole("navigation", { name: "Show" });
+  const triggerBox = await page.getByRole("button", { name: /^Show:/ })
+    .boundingBox();
+  const menuBox = await menu.boundingBox();
+  expect(menuBox!.x).toBeGreaterThanOrEqual(triggerBox!.x - 1);
   for (const choice of SHOW_CHOICES) {
     await expect(menu.getByRole("button", { name: choice, exact: true }))
       .toBeVisible();
@@ -314,13 +318,31 @@ for (
     });
 
     test("Size and quality: lines, what could not be counted as a link to those records, and an honest Unknown", async ({ page }) => {
-      await deliveryFixture(page, { uncounted: 1 });
+      await deliveryFixture(page);
       await page.goto("/delivery");
       const section = page.getByTestId("delivery-quality");
       await expect(section.getByRole("heading", { name: "Size and quality" }))
         .toBeVisible();
-      await expect(section.getByText("11 lines in 11 pull requests"))
+      await expect(section.getByText("237 lines in 4 pull requests"))
         .toBeVisible();
+      await expect(
+        page.getByText(/merged pull requests? could not be line-counted/),
+      ).toHaveCount(0);
+      const sizes = await section.evaluate((root) => {
+        const fontSize = (text: string) =>
+          parseFloat(
+            getComputedStyle(
+              Array.from(root.querySelectorAll("*")).find((element) =>
+                element.children.length === 0 && element.textContent === text
+              )!,
+            ).fontSize,
+          );
+        return {
+          label: fontSize("Could not be line-counted"),
+          value: fontSize("237 lines in 4 pull requests"),
+        };
+      });
+      expect(sizes.value).toBeGreaterThanOrEqual(sizes.label);
       await expect(
         section.getByText("Counted once for each merged pull request."),
       ).toBeHidden();
@@ -334,7 +356,9 @@ for (
         section.getByText("Unknown. Not counted for the whole period yet."),
       )
         .toBeVisible();
-      await section.getByRole("button", { name: "1 pull request" }).click();
+      await section.getByRole("button", {
+        name: "Show the 1 pull request that could not be line-counted",
+      }).click();
       expect(
         await page.evaluate(() => document.activeElement?.id),
       ).toBe("delivery-records-heading");
@@ -354,10 +378,10 @@ for (
     });
 
     test("Size and quality hides the uncounted row when every pull request was counted", async ({ page }) => {
-      await deliveryFixture(page);
+      await deliveryFixture(page, { uncounted: 0 });
       await page.goto("/delivery");
       const section = page.getByTestId("delivery-quality");
-      await expect(section.getByText("11 lines in 11 pull requests"))
+      await expect(section.getByText("237 lines in 4 pull requests"))
         .toBeVisible();
       await expect(section.getByText("Could not be line-counted"))
         .toHaveCount(0);
@@ -367,15 +391,17 @@ for (
       await deliveryFixture(page);
       await page.goto("/delivery");
       await expect(page.getByTestId("delivery-quality")).toBeVisible();
-      await expect(page.getByText(/^Last updated /)).toHaveCount(0);
+      await expect(page.getByText(/^You are offline\./)).toHaveCount(0);
       await context.setOffline(true);
       await page.evaluate(() => globalThis.dispatchEvent(new Event("offline")));
-      await expect(page.getByText(/^Last updated \d/)).toHaveCount(1);
+      await expect(
+        page.getByText(/^You are offline\. These figures were loaded at \d/),
+      ).toHaveCount(1);
       await page.mouse.move(700, 700);
       await still(page, "delivery-offline");
       await context.setOffline(false);
       await page.evaluate(() => globalThis.dispatchEvent(new Event("online")));
-      await expect(page.getByText(/^Last updated /)).toHaveCount(0);
+      await expect(page.getByText(/^You are offline\./)).toHaveCount(0);
     });
 
     test("a reversed custom range names the end to fix, and asks for nothing", async ({ page }) => {

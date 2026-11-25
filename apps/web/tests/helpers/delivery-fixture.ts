@@ -285,16 +285,20 @@ export async function deliveryFixture(
           options.revision,
           metric,
           metric === "prs.changedLines" ? "lines" : "count",
-          points?.map((point) => point.value) ?? [2, 4, 0, 5],
+          points?.map((point) => point.value) ??
+            (metric === "prs.changedLines" ? [91, 62, 0, 84] : [2, 4, 0, 5]),
           {
             ...(points === undefined ? {} : { points }),
-            ...(metric === "prs.changedLines" && options.uncounted
+            ...(metric === "prs.changedLines" && !blank
               ? {
-                missingCount: options.uncounted,
-                missingReasons: [{
-                  reason: "no_diff_totals",
-                  count: options.uncounted,
-                }],
+                sampleCount: 4,
+                missingCount: options.uncounted ?? 1,
+                missingReasons: (options.uncounted ?? 1) > 0
+                  ? [{
+                    reason: "no_diff_totals",
+                    count: options.uncounted ?? 1,
+                  }]
+                  : [],
               }
               : {}),
           },

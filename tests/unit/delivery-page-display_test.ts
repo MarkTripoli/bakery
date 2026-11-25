@@ -92,15 +92,9 @@ Deno.test("freshness: disconnected outranks stale outranks missing", () => {
     state: "disconnected" as const,
     since: "2026-11-10T00:00:00.000Z",
   };
-  const lines = series({
-    sampleCount: 31,
-    missingReasons: [{ reason: "no_diff_totals", count: 11 }],
-    missingCount: 11,
-  });
   assertEquals(
     freshnessOf({
       merged: series({ repositories: [connected, stale, gone] }),
-      lines,
       tasks: undefined,
     }),
     {
@@ -112,7 +106,6 @@ Deno.test("freshness: disconnected outranks stale outranks missing", () => {
   assertEquals(
     freshnessOf({
       merged: series({ repositories: [connected, stale] }),
-      lines,
       tasks: undefined,
     }).kind,
     "stale",
@@ -120,19 +113,16 @@ Deno.test("freshness: disconnected outranks stale outranks missing", () => {
   assertEquals(
     freshnessOf({
       merged: series({ repositories: [connected] }),
-      lines,
       tasks: series({ missingCount: 2 }),
     }),
     {
       kind: "missing",
       asOf: "2026-11-20T09:00:00.000Z",
-      unmeasured: 11,
-      merged: 42,
       tasksMissing: 2,
     },
   );
   assertEquals(
-    freshnessOf({ merged: series(), lines: series(), tasks: series() }),
+    freshnessOf({ merged: series(), tasks: series() }),
     { kind: "complete", asOf: "2026-11-20T09:00:00.000Z" },
   );
 });

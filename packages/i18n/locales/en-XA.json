@@ -5058,7 +5058,6 @@
   "delivery.fresh.complete": "⟦Ûþ ŧô ðàŧë àš ôƒ {time}. ŧëšŧ ç⟧",
   "delivery.fresh.asOf": "⟦Ûþ ŧô ðàŧë àš ôƒ {time}. ŧëšŧ ç⟧",
   "delivery.fresh.asOfUnknown": "⟦Ûþ ŧô ðàŧë àš ôƒ ŧĥë ļàšŧ ŕëàð. ŧëšŧ çôþ⟧",
-  "delivery.fresh.lines": "⟦{unmeasured} ôƒ {merged, plural, one {# merged pull request} other {# merged pull requests}} çôûļð ñôŧ ƀë ļïñë-çôûñŧëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "delivery.fresh.tasks": "⟦{tasks, plural, one {# task has} other {# tasks have}} à ɱïššïñĝ ŧïɱë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "delivery.fresh.neverZero": "⟦{count, plural, one {It is listed} other {They are listed}}, ñëṽëŕ çôûñŧëð àš žëŕô. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "delivery.fresh.missing.action": "⟦Ŵĥàŧ ïš ɱïššïñĝ ŧëš⟧",
@@ -7201,7 +7200,6 @@
   "delivery.chart.tasks": "⟦Ŧïɱë à ŧàšķ ŧôôķ (ŧÿþïçàļ) ŧëšŧ çô⟧",
   "delivery.records.rule.opened": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ôþëñëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). Ðëƒïñïŧïôñš, ṽëŕšïôñ {version}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "delivery.records.rule.opened.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ôþëñëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "delivery.lastUpdated": "⟦Ļàšŧ ûþðàŧëð {time} ŧëšŧ⟧",
   "delivery.quality.heading": "⟦Šïžë àñð ǫûàļïŧÿ ŧëš⟧",
   "delivery.quality.lines.label": "⟦Ļïñëš çĥàñĝëð ŧë⟧",
   "delivery.quality.lines.helpLabel": "⟦Àƀôûŧ ļïñëš çĥàñĝëð ŧëšŧ⟧",
@@ -7210,5 +7208,7 @@
   "delivery.quality.uncounted.label": "⟦Çôûļð ñôŧ ƀë ļïñë-çôûñŧëð ŧëšŧ ç⟧",
   "delivery.quality.uncounted.value": "⟦{count, plural, one {# pull request} other {# pull requests}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "delivery.quality.openToMerge.label": "⟦Ôþëñ ŧô ɱëŕĝë ŧë⟧",
-  "delivery.quality.openToMerge.unknown": "⟦Ûñķñôŵñ. Ñôŧ çôûñŧëð ƒôŕ ŧĥë ŵĥôļë þëŕïôð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "delivery.quality.openToMerge.unknown": "⟦Ûñķñôŵñ. Ñôŧ çôûñŧëð ƒôŕ ŧĥë ŵĥôļë þëŕïôð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "delivery.lastUpdated": "⟦Ÿôû àŕë ôƒƒļïñë. Ŧĥëšë ƒïĝûŕëš ŵëŕë ļôàðëð àŧ {time}. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "delivery.quality.uncounted.action": "⟦Šĥôŵ ŧĥë {count, plural, one {# pull request} other {# pull requests}} ŧĥàŧ çôûļð ñôŧ ƀë ļïñë-çôûñŧëð ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
 }
