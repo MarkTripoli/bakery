@@ -90,10 +90,10 @@ async function conversationWorld(page: Page, delayMessagesMs = 0) {
     }));
 }
 
-async function openSharedComments(page: Page) {
+async function openSharedComments(page: Page, count: number) {
   const panel = page.getByRole("button", { name: /^Show comments/ });
   if (await panel.isVisible()) {
-    await expect(panel).not.toContainText("(0)");
+    await expect(panel).toHaveText(`Show comments (${count})`);
     await panel.click();
   }
   await expect(page.getByLabel("Comment", { exact: true })).toBeVisible();
@@ -147,11 +147,22 @@ for (
       );
       await expect(page.getByRole("link", { name: "View details" }))
         .toHaveCount(0);
-      await openSharedComments(page);
+      await openSharedComments(page, 1);
       const thread = page.locator(`#comment-${COMMENT_ID}`);
       await expect(thread).toHaveAttribute("data-landed", "true");
       await expect.poll(() => reads.length).toBe(1);
       await still(page, "shared-document", undefined, { scrollTo: thread });
+    });
+
+    test("on a phone the comments button says how many comments there are before it is pressed", async ({ page }) => {
+      test.skip(viewport.name !== "phone");
+      await stubArtifactPage(page, {
+        roots: [ROOT, { ...ROOT, id: "00000000-0000-4000-8000-0000000002f1" }],
+      });
+      await page.goto(DOCUMENT_PATH);
+      await expect(page.getByRole("button", { name: /^Show comments/ }))
+        .toHaveText("Show comments (2)");
+      await expect(page.getByLabel("Comment", { exact: true })).toHaveCount(0);
     });
 
     test("a comment far down the rail is still in view once the landing is stripped from the address", async ({ page }) => {
@@ -181,7 +192,7 @@ for (
         { taskId: TASK_ID, targetId: COMMENT_ID },
       );
       await open(page);
-      await openSharedComments(page);
+      await openSharedComments(page, 13);
       const thread = page.locator(`#comment-${COMMENT_ID}`);
       await expect(thread).toHaveAttribute("data-landed", "true");
       await expect.poll(() => reads.length).toBe(1);
@@ -340,6 +351,61 @@ for (
       expect(sent).toHaveLength(0);
       await page.keyboard.type("Thanks");
       await expect(page.getByText("Write a message first.")).toHaveCount(0);
+    });
+
+    test("Send with text keeps the focus in the reply box and the box in view", async ({ page }) => {
+      await conversationWorld(page);
+      const sent: unknown[] = [];
+      await page.route(
+        `**/v1/conversations/${CONVERSATION_ID}/messages`,
+        (route) => {
+          if (route.request().method() !== "POST") return route.fallback();
+          sent.push(route.request().postDataJSON());
+          return new Promise((resolve) =>
+            setTimeout(() =>
+              resolve(route.fulfill({
+                status: 201,
+                json: {
+                  id: "00000000-0000-4000-8000-0000000007aa",
+                  conversationId: CONVERSATION_ID,
+                  authorId: ANA_ID,
+                  agentSessionId: null,
+                  messageType: "user",
+                  body: "Thanks",
+                  clientMessageId: "client-2",
+                  replyToId: null,
+                  createdAt: SHARED_AT,
+                  updatedAt: SHARED_AT,
+                  version: 1,
+                  sequence: "2",
+                  intent: "discussion",
+                  commentContext: null,
+                },
+              })), 400)
+          );
+        },
+      );
+      await stubNotification(
+        page,
+        {
+          status: "available",
+          targetKind: "conversation_message",
+          path: `${CONVERSATION_PATH}?message=${MESSAGE_ID}`,
+          anchor: `message:${MESSAGE_ID}`,
+        },
+        { taskId: TASK_ID, targetId: MESSAGE_ID, title: MENTIONED },
+      );
+      await open(page);
+      await expect(page).not.toHaveURL(/[?&]n=/);
+      const box = page.getByRole("textbox", { name: /Reply/ });
+      await box.fill("Thanks");
+      await page.getByRole("button", { name: "Send" }).click();
+      await expect.poll(() => sent.length).toBe(1);
+      await expect(box).toHaveValue("");
+      await expect(box).toBeFocused();
+      await page.waitForTimeout(1500);
+      await expect(box).toBeFocused();
+      await expect(box).toBeInViewport();
     });
 
     test("Mark read that could not be saved says so", async ({ page }) => {
@@ -565,7 +631,7 @@ for (
         { taskId: TASK_ID, targetId: COMMENT_ID },
       );
       await open(page);
-      await openSharedComments(page);
+      await openSharedComments(page, 1);
       await expect(
         page.getByText("This comment was not found in this artifact."),
       ).toBeVisible();

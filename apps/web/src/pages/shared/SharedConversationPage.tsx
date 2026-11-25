@@ -99,6 +99,7 @@ export function SharedConversationPage(
     if (body.length > MESSAGE_MAX) return;
     const id = sendId.current ?? crypto.randomUUID();
     sendId.current = id;
+    field.current?.focus();
     setPhase("sending");
     const result = await api.createMessage({
       organizationId,
@@ -118,6 +119,7 @@ export function SharedConversationPage(
     } else {
       setPhase("failed");
     }
+    focusAfterPaint(() => field.current);
   };
 
   if (messages.isError && messages.data === undefined) {

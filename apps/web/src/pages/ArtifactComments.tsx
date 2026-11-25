@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { landOn } from "../notifications/landed.ts";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { contractSchemas } from "@bakery/contracts/contracts";
 import {
@@ -12,7 +12,6 @@ import {
 import { useBakeryApi } from "../api/context.tsx";
 import {
   artifactAccessQueryOptions,
-  artifactCommentsAcrossVersionsQueryOptions,
   effectiveAccessQueryOptions,
   taskQueryOptions,
 } from "../api/query.ts";
@@ -28,6 +27,7 @@ import {
   type ArtifactCommentComposerModel,
   ArtifactCommentComposerView,
 } from "./ArtifactDiscussionView.tsx";
+import { useArtifactRootComments } from "./artifact-root-comments.ts";
 import { ArtifactCommentThread } from "./ArtifactCommentThread.tsx";
 import { ArtifactAgentRequest } from "./ArtifactAgentRequest.tsx";
 import {
@@ -42,7 +42,6 @@ export function ArtifactComments(
     commentId,
     landed = false,
     agentRequest = true,
-    onRootCount,
     onLandingSettled,
   }: {
     readonly artifact: ArtifactResponse;
@@ -51,7 +50,6 @@ export function ArtifactComments(
     /** The comment is where a notification landed: centre it, outline it once. */
     readonly landed?: boolean;
     readonly agentRequest?: boolean;
-    readonly onRootCount?: (count: number) => void;
     readonly onLandingSettled?: () => void;
   },
 ) {
@@ -80,31 +78,7 @@ export function ArtifactComments(
   const controller = useRef<AbortController | null>(null);
   const pending = useRef<{ payload: string; id: string } | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
-  const options = artifactCommentsAcrossVersionsQueryOptions(
-    api,
-    scope,
-    artifact.id,
-    { viewVersionId: version.id },
-  );
-  const comments = useInfiniteQuery({
-    queryKey: [...options.queryKey, "pages"],
-    initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam, signal }) => {
-      if (!scope.organizationId) throw new Error("ORGANIZATION_REQUIRED");
-      const result = await api.listArtifactCommentsAcrossVersions({
-        organizationId: scope.organizationId,
-        artifactId: artifact.id,
-        viewVersionId: version.id,
-        cursor: pageParam,
-        signal,
-      });
-      if (!result.ok) throw result.error;
-      return result.data;
-    },
-    getNextPageParam: (page) => page.nextCursor ?? undefined,
-    enabled: scope.organizationId !== null,
-    retry: false,
-  });
+  const comments = useArtifactRootComments(artifact, version);
   const task = useQuery({
     ...taskQueryOptions(api, scope, artifact.taskId),
     enabled: agentRequest && scope.organizationId !== null,
@@ -112,9 +86,6 @@ export function ArtifactComments(
   const roots = comments.isError
     ? []
     : comments.data?.pages.flatMap((page) => page.items) ?? [];
-  useEffect(() => {
-    onRootCount?.(roots.length);
-  }, [onRootCount, roots.length]);
   const focusedComment = useRef<string | null>(null);
   const foundComment = roots.some((root) => root.id === commentId);
   const missingComment = commentId && comments.isSuccess && !foundComment &&

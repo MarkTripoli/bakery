@@ -13,6 +13,7 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import type { LandingSearch } from "../../notifications/landing.ts";
 import { useLandingArrival } from "../../notifications/useLandingArrival.ts";
 import { ArtifactComments } from "../ArtifactComments.tsx";
+import { useArtifactRootComments } from "../artifact-root-comments.ts";
 import { ArtifactPreviewBody } from "../ArtifactContentPreview.tsx";
 import { ArtifactRetrievalView } from "../ArtifactRetrievalView.tsx";
 import { SharedLoading } from "./SharedFrame.tsx";
@@ -32,7 +33,6 @@ export function SharedDocumentPage(
   const { translate: t, locale } = useI18n();
   const navigate = useNavigate();
   const landing = useRef(current).current;
-  const [rootCount, setRootCount] = useState<number | null>(null);
   const [commentSettled, setCommentSettled] = useState(false);
   const settleComment = useCallback(() => setCommentSettled(true), []);
   const scoped = scope.organizationId !== null;
@@ -55,6 +55,13 @@ export function SharedDocumentPage(
       candidate.id === artifact.data?.currentVersionId
     ) ??
     items[0] ?? null;
+  const rootComments = useArtifactRootComments(artifact.data, selected);
+  const rootCount = rootComments.isSuccess && !rootComments.hasNextPage
+    ? rootComments.data.pages.reduce(
+      (total, page) => total + page.items.length,
+      0,
+    )
+    : null;
   const failed = artifact.isError || versions.isError;
   const ready = artifact.data !== undefined && selected !== null &&
     (comment === undefined || landing.gone === true || commentSettled);
@@ -134,7 +141,6 @@ export function SharedDocumentPage(
               commentId={landing.gone === true ? undefined : comment}
               landed={comment !== undefined && landing.gone !== true}
               agentRequest={false}
-              onRootCount={setRootCount}
               onLandingSettled={settleComment}
             />
           )
