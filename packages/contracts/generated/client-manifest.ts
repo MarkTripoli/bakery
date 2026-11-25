@@ -33420,9 +33420,10 @@ export const clientManifest = {
             "read",
             "write_idempotent",
             "write_reconcilable",
+            "write_async",
             "write_opaque"
           ],
-          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_async starts a remote operation under a Bakery-owned operation key that a paired read tool polls until it ends; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
         },
         "effectKeyArgument": {
           "description": "McpToolClassificationPut.effectKeyArgument may be null in this transport value.",
@@ -33430,7 +33431,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 128,
-              "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares. McpToolClassificationPut.effectKeyArgument must contain at most 128 characters."
+              "description": "For write_idempotent and write_async only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares; for write_async the paired read tool must declare it too. McpToolClassificationPut.effectKeyArgument must contain at most 128 characters."
             },
             {
               "type": "null",
@@ -33444,7 +33445,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 128,
-              "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened. McpToolClassificationPut.pairedReadTool must contain at most 128 characters."
+              "description": "For write_reconcilable and write_async only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened or, for write_async, polls the operation it started. McpToolClassificationPut.pairedReadTool must contain at most 128 characters."
             },
             {
               "type": "null",
@@ -113043,6 +113044,7 @@ export const clientManifest = {
             "read",
             "write_idempotent",
             "write_reconcilable",
+            "write_async",
             "write_opaque"
           ],
           "description": "The class in force: the Admin's, or write_opaque when unclassified."
@@ -113056,7 +113058,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
+              "description": "For write_idempotent and write_async, the argument that carries the effect key; otherwise null."
             },
             {
               "type": "null",
@@ -113070,7 +113072,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
+              "description": "For write_reconcilable, the read tool that confirms the write; for write_async, the read tool that polls the operation; otherwise null."
             },
             {
               "type": "null",
@@ -113138,6 +113140,7 @@ export const clientManifest = {
                   "read",
                   "write_idempotent",
                   "write_reconcilable",
+                  "write_async",
                   "write_opaque"
                 ],
                 "description": "The class in force: the Admin's, or write_opaque when unclassified."
@@ -113151,7 +113154,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "For write_idempotent, the argument that carries the effect key; otherwise null."
+                    "description": "For write_idempotent and write_async, the argument that carries the effect key; otherwise null."
                   },
                   {
                     "type": "null",
@@ -113165,7 +113168,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "For write_reconcilable, the read tool that confirms the write; otherwise null."
+                    "description": "For write_reconcilable, the read tool that confirms the write; for write_async, the read tool that polls the operation; otherwise null."
                   },
                   {
                     "type": "null",
