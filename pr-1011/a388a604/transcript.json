@@ -1,0 +1,42 @@
+[
+  {
+    "at": "6.6",
+    "event": "fleet list",
+    "badges": [
+      "Checking"
+    ]
+  },
+  {
+    "at": "10.3",
+    "event": "retire dialog",
+    "buttons": [
+      "Cancel",
+      "Finish and stop instead",
+      "Retire now"
+    ]
+  },
+  {
+    "at": "12.9",
+    "event": "mode change",
+    "status": 200,
+    "sent": "{\"status\":\"draining\"}"
+  },
+  {
+    "at": "13.0",
+    "event": "finishing",
+    "banner": "It takes no new work and stops once its current work is done. Take work again",
+    "segment": true
+  },
+  {
+    "at": "17.2",
+    "event": "retired",
+    "banner": "It no longer takes work. Set it up again to use it. Set up again"
+  },
+  {
+    "at": "22.3",
+    "event": "fleet list after",
+    "badges": [
+      "Retired"
+    ]
+  }
+]
