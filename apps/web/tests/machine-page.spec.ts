@@ -44,6 +44,7 @@ type Fixture = {
   refuseWith: number | null;
   /** The machine's system and processor. */
   system: { os: string; architecture: string };
+  components?: Record<string, unknown>[];
 };
 
 function fixture(
@@ -113,6 +114,11 @@ async function open(
         credentialGeneration: 1,
         inventoryRevision: 1,
       }));
+    }
+    if (path.endsWith("/components")) {
+      return route.fulfill(
+        json({ items: f.components ?? [], nextCursor: null }),
+      );
     }
     return route.fulfill(json({ items: [], nextCursor: null }));
   });
@@ -227,6 +233,10 @@ function worker(f: Fixture) {
 }
 
 const banner = (page: Page) => page.getByTestId("machine-problem-banner");
+const openChecks = async (page: Page) => {
+  await page.getByRole("tab", { name: "Checks and software" }).click();
+  await expect(page).toHaveURL(/\/machines\/[^/]+\/checks/);
+};
 
 test.describe("machine page: the one banner", () => {
   const cases: readonly {
@@ -309,8 +319,10 @@ test.describe("machine page: the one banner", () => {
   test("a machine with nothing wrong has no banner and says so about its checks", async ({ page }) => {
     await open(page, fixture());
     const detail = page.getByTestId("machine-detail-page");
+    await openChecks(page);
     await expect(detail.getByText("No failed checks reported.")).toBeVisible();
     await expect(banner(page)).toHaveCount(0);
+    await page.getByRole("tab", { name: "Overview" }).click();
     // One section about the machine, one line each: no section per fact.
     const about = page.getByTestId("machine-about");
     await expect(about.getByRole("heading", { name: "About this machine" }))
@@ -353,6 +365,69 @@ test.describe("machine page: the one banner", () => {
     expect(axe.violations.map((v) => v.id)).toEqual([]);
   });
 
+  test("Checks and software lists what is installed and whether an update is available", async ({ page }) => {
+    const component = (
+      componentKey: string,
+      kind: string,
+      actualVersion: string,
+      installOwner: string,
+      availableVersion: string | null = null,
+    ) => ({
+      id: crypto.randomUUID(),
+      componentKey,
+      paymentMethods: ["subscription"],
+      kind,
+      actualVersion,
+      actualDigest: null,
+      installOwner,
+      adapterVersion: "1",
+      availableVersion,
+      channel: null,
+      observedAt: "2026-01-01T00:00:00.000Z",
+      maintenanceSupport: null,
+    });
+    await open(
+      page,
+      fixture({}, {
+        components: [
+          component("harness.claude", "harness", "1.2.0", "external", "1.3.0"),
+          component("worker-supervisor", "worker", "3.0.0", "bakery", "3.0.0"),
+          component("git", "toolchain", "2.40.0", "external"),
+        ],
+      }),
+    );
+    await openChecks(page);
+    const software = page.getByTestId("machine-software");
+    await expect(software.getByRole("heading", { name: "Software" }))
+      .toBeVisible();
+    await expect(software).toContainText(
+      "This page does not install updates.",
+    );
+    const table = software.getByRole("table");
+    await expect(table.getByRole("columnheader")).toHaveText([
+      "Software",
+      "Kind",
+      "Version",
+      "Installed by",
+      "Update",
+    ]);
+    const claude = table.getByRole("row").filter({ hasText: "Claude Code" });
+    await expect(claude).toContainText("Coding agent");
+    await expect(claude).toContainText("Already on the machine");
+    await expect(claude).toContainText("1.3.0 is available");
+    await expect(
+      table.getByRole("row").filter({ hasText: "worker-supervisor" }),
+    )
+      .toContainText("Up to date");
+    await expect(table.getByRole("row").filter({ hasText: "git" }))
+      .toContainText(
+        "Not reported",
+      );
+    await expect(software.getByRole("button")).toHaveCount(0);
+    await expect(page.getByTestId("machine-about")).toHaveCount(0);
+    await shot(page, "machine-page-software");
+  });
+
   test("failed checks: what stops the machine, what stops only some work, and the machine's own reason", async ({ page }) => {
     await open(
       page,
@@ -382,9 +457,13 @@ test.describe("machine page: the one banner", () => {
       "This machine cannot take any work until this is fixed.",
     );
     await expect(banner(page).getByRole("button")).toHaveText("See the checks");
-    // The button says it: the banner does not also say "see the checks".
     await expect(banner(page)).not.toContainText("See the checks below.");
+    await banner(page).getByRole("button").click();
+    await expect(page).toHaveURL(/\/machines\/[^/]+\/checks/);
     const checks = page.getByTestId("machine-checks");
+    await expect(
+      checks.getByRole("heading", { name: "Checks", exact: true }),
+    ).toBeFocused();
     // Each failed check is marked on its own row.
     await expect(checks.getByText("Failed", { exact: true })).toHaveCount(3);
     await expect(checks.getByRole("heading", { name: "This machine" }))
@@ -433,6 +512,7 @@ test.describe("machine page: the one banner", () => {
     await expect(banner(page)).toContainText(
       "Only work that needs git is affected. Other work continues.",
     );
+    await openChecks(page);
     await expect(page.getByTestId("machine-checks")).toContainText(
       "The coding agent cannot make a working copy of a repository.",
     );
@@ -497,16 +577,22 @@ test.describe("machine page: mode and Retire", () => {
     );
     // The one thing a person fears: what happens to what is running on it.
     await expect(dialog).toContainText(
-      "Tasks running on it are not stopped or moved, and it can no longer report on them. To let them finish first, choose Finish and stop, and retire the machine when it has no work.",
+      "Work running on it is not stopped or moved, and it can no longer report on that work. To let it finish first, choose Finish and stop instead, and retire the machine when it has no work.",
     );
+    await expect(dialog.getByRole("button")).toHaveText([
+      "Cancel",
+      "Finish and stop instead",
+      "Retire now",
+    ]);
     await shot(page, "machine-page-retire");
     // Cancelling retires nothing.
     await dialog.getByRole("button", { name: "Cancel" }).click();
     expect(f.revokes).toHaveLength(0);
     await page.getByRole("button", { name: "Retire this machine" }).first()
       .click();
-    await page.getByRole("alertdialog").getByRole("button", { name: "Retire" })
-      .click();
+    await page.getByRole("alertdialog").getByRole("button", {
+      name: "Retire now",
+    }).click();
     await expect(banner(page)).toContainText(
       "Retired. It no longer takes work.",
     );
@@ -514,6 +600,26 @@ test.describe("machine page: mode and Retire", () => {
     expect(f.revokes[0]!.headers()["idempotency-key"]).toBeTruthy();
     await expect(page.getByTestId("machine-mode")).toHaveCount(0);
     await expect(page.getByTestId("machine-retire")).toHaveCount(0);
+  });
+
+  test("Finish and stop instead sets the mode, closes the dialog and retires nothing", async ({ page }) => {
+    const f = fixture();
+    await open(page, f);
+    await page.getByRole("button", { name: "Retire this machine" }).first()
+      .click();
+    await page.getByRole("alertdialog").getByRole("button", {
+      name: "Finish and stop instead",
+    }).click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(
+      page.getByTestId("machine-mode").getByText(
+        "Finishing up. It takes no new work.",
+      ),
+    ).toBeVisible();
+    expect(f.patches).toHaveLength(1);
+    expect(f.patches[0]!.postDataJSON()).toEqual({ status: "draining" });
+    expect(f.revokes).toHaveLength(0);
+    await shot(page, "machine-page-finish-instead");
   });
 
   test("a retired machine has one action, Set up again, which re-pairs the same machine in the wizard's words", async ({ page }) => {

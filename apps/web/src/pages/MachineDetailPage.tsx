@@ -22,7 +22,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { MACHINES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
-import { boundedReason, formatMachineDate } from "./MachinesPage.tsx";
+import { formatMachineDate } from "./MachinesPage.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { machineLine } from "./MachineList.tsx";
 import { SetupInstructions } from "./SetupInstructions.tsx";
@@ -32,19 +32,17 @@ import {
   useAgentSignIn,
 } from "./CodingAgents.tsx";
 import { MachineModels } from "./MachineModels.tsx";
+import { MachineChecks } from "./MachineChecks.tsx";
 import {
   agentNeedingSignIn,
   agentOfFailedChecks,
   agentRows,
   pageBadge,
-  softwareEntries,
 } from "./machine-agents.ts";
 import {
   type BannerFix,
   bannerFix,
-  checkInfo,
   controlMode,
-  groupChecks,
   MACHINE_MODES,
   type MachineMode,
   modeStatus,
@@ -123,9 +121,15 @@ function dateLabel(
 }
 
 export function MachineDetailPage(
-  { machineId, signInAgent, tab = "overview", justAdded = false }: {
-    /** Which tab shows: the overview, or the models this machine may use. */
-    readonly tab?: "overview" | "models";
+  {
+    machineId,
+    signInAgent,
+    tab = "overview",
+    justAdded = false,
+    focusChecks = false,
+  }: {
+    readonly tab?: "overview" | "models" | "checks";
+    readonly focusChecks?: boolean;
     /** True when the Models tab was reached by saving a new model, which it says once. */
     readonly justAdded?: boolean;
     readonly machineId: string;
@@ -354,8 +358,8 @@ export function MachineDetailPage(
   const headerBadge = workerData
     ? pageBadge(machineBadge(workerData), agents, agentsKnown)
     : "checking";
-  const changeMode = async (mode: MachineMode) => {
-    if (!organizationId || !workerData) return;
+  const changeMode = async (mode: MachineMode): Promise<boolean> => {
+    if (!organizationId || !workerData) return false;
     setModeBusy(true);
     setModeNote(null);
     const result = await api.workers.update({
@@ -375,6 +379,10 @@ export function MachineDetailPage(
       setModeNote({ kind: conflict ? "conflict" : "failed" });
     }
     await refreshMachine();
+    return result.ok;
+  };
+  const finishInstead = async () => {
+    if (await changeMode("draining")) setRetireOpen(false);
   };
   const retire = async () => {
     if (!organizationId || !workerData) return;
@@ -418,8 +426,10 @@ export function MachineDetailPage(
     if (kind === "takeWork") void changeMode("accepting");
     else if (kind === "setUpAgain") void repair();
     else {
-      document.querySelector('[data-testid="machine-checks"]')?.scrollIntoView({
-        block: "start",
+      void navigate({
+        to: "/machines/$machineId/checks",
+        params: { machineId },
+        search: { focus: "checks" },
       });
     }
   };
@@ -745,6 +755,12 @@ export function MachineDetailPage(
                         params: { machineId },
                         search: {},
                       }
+                      : id === "checks"
+                      ? {
+                        to: "/machines/$machineId/checks",
+                        params: { machineId },
+                        search: {},
+                      }
                       : {
                         to: "/machines/$machineId",
                         params: { machineId },
@@ -758,163 +774,11 @@ export function MachineDetailPage(
                     content: tab === "overview"
                       ? (
                         <>
-                          {!isRetired
-                            ? (
-                              <UI.SettingsSection
-                                title={message(
-                                  translate,
-                                  "machines.checks.title",
-                                )}
-                                variant="stack"
-                                data-testid="machine-checks"
-                              >
-                                {blockers.isPending
-                                  ? (
-                                    <UI.AlertBanner tone="information">
-                                      {message(translate, "machines.loading")}
-                                    </UI.AlertBanner>
-                                  )
-                                  : blockers.isError
-                                  ? (
-                                    <UI.ErrorState
-                                      title={message(
-                                        translate,
-                                        "machines.error.title",
-                                      )}
-                                      description={message(
-                                        translate,
-                                        "machines.error.description",
-                                      )}
-                                      action={
-                                        <UI.Button
-                                          variant="secondary"
-                                          onClick={() =>
-                                            void blockers.refetch()}
-                                        >
-                                          {message(translate, "machines.retry")}
-                                        </UI.Button>
-                                      }
-                                    />
-                                  )
-                                  : blockers.data?.failedChecks.length
-                                  ? (
-                                    <UI.Stack gap="standard">
-                                      {groupChecks(
-                                        blockers.data.failedChecks.map((
-                                          check,
-                                        ) => check.checkId),
-                                      ).map(({ group, ids }) => (
-                                        <UI.Stack key={group} gap="compact">
-                                          <UI.Heading
-                                            level="subsection-compact"
-                                            rank={3}
-                                          >
-                                            {message(
-                                              translate,
-                                              `machines.checks.group.${group}`,
-                                            )}
-                                          </UI.Heading>
-                                          <UI.DescriptionList>
-                                            {ids.map((id) => {
-                                              const info = checkInfo(id);
-                                              const failed = blockers.data!
-                                                .failedChecks
-                                                .find((
-                                                  check,
-                                                ) =>
-                                                  check.checkId === id
-                                                )!;
-                                              const agentName = info.agent
-                                                ? message(
-                                                  translate,
-                                                  `machines.agent.${info.agent}`,
-                                                )
-                                                : null;
-                                              return (
-                                                <UI.DescriptionItem
-                                                  key={id}
-                                                  action={
-                                                    <UI.Badge tone="danger">
-                                                      {message(
-                                                        translate,
-                                                        "machines.checks.failed",
-                                                      )}
-                                                    </UI.Badge>
-                                                  }
-                                                  title={info.nameKey
-                                                    ? message(
-                                                      translate,
-                                                      info.agent
-                                                        ? "machines.check.name.capability.modelAgent"
-                                                        : info.nameKey,
-                                                      {
-                                                        agent: agentName ?? "",
-                                                      },
-                                                    )
-                                                    : id}
-                                                  description={
-                                                    <UI.Stack gap="compact">
-                                                      {info.fixKey
-                                                        ? (
-                                                          <UI.Text>
-                                                            {message(
-                                                              translate,
-                                                              info.fixKey,
-                                                            )}
-                                                          </UI.Text>
-                                                        )
-                                                        : null}
-                                                      <UI.DataText
-                                                        variant="code"
-                                                        state="wrapped"
-                                                      >
-                                                        {boundedReason(
-                                                          failed.reason,
-                                                        ) ||
-                                                          message(
-                                                            translate,
-                                                            "machines.checks.noReason",
-                                                          )}
-                                                      </UI.DataText>
-                                                    </UI.Stack>
-                                                  }
-                                                />
-                                              );
-                                            })}
-                                          </UI.DescriptionList>
-                                        </UI.Stack>
-                                      ))}
-                                    </UI.Stack>
-                                  )
-                                  : (
-                                    <UI.Text>
-                                      {message(
-                                        translate,
-                                        "machines.checks.none",
-                                      )}
-                                    </UI.Text>
-                                  )}
-                              </UI.SettingsSection>
-                            )
-                            : null}
                           <UI.SettingsSection
                             title={message(translate, "machines.about.title")}
                             variant="stack"
                             data-testid="machine-about"
                           >
-                            {nextComponentCursor
-                              ? (
-                                <UI.AlertBanner tone="information">
-                                  {message(
-                                    translate,
-                                    "machines.pagination.truncated.components",
-                                    {
-                                      count: componentItems.length,
-                                    },
-                                  )}
-                                </UI.AlertBanner>
-                              )
-                              : null}
                             <UI.DescriptionList>
                               <UI.DescriptionItem
                                 title={message(
@@ -943,99 +807,7 @@ export function MachineDetailPage(
                                 )}
                                 description={String(workerData.slots)}
                               />
-                              {components.isError
-                                ? (
-                                  <UI.DescriptionItem
-                                    title={message(
-                                      translate,
-                                      "machines.software.title",
-                                    )}
-                                    description={message(
-                                      translate,
-                                      "machines.error.description",
-                                    )}
-                                  />
-                                )
-                                : componentItems.length
-                                ? (
-                                  <UI.DescriptionItem
-                                    data-testid="machine-software"
-                                    title={message(
-                                      translate,
-                                      "machines.software.title",
-                                    )}
-                                    description={
-                                      <UI.Stack gap="compact">
-                                        {softwareEntries(componentItems).map((
-                                          entry,
-                                        ) => (
-                                          <span key={entry.key}>
-                                            {message(
-                                              translate,
-                                              "machines.software.entry",
-                                              {
-                                                name: entry.agent
-                                                  ? message(
-                                                    translate,
-                                                    `machines.agent.${entry.agent}`,
-                                                  )
-                                                  : entry.name,
-                                                version: entry.version,
-                                              },
-                                            )}
-                                          </span>
-                                        ))}
-                                      </UI.Stack>
-                                    }
-                                  />
-                                )
-                                : components.isSuccess
-                                ? null
-                                : (
-                                  <UI.DescriptionItem
-                                    title={message(
-                                      translate,
-                                      "machines.software.title",
-                                    )}
-                                    description={message(
-                                      translate,
-                                      "machines.software.empty",
-                                    )}
-                                  />
-                                )}
                             </UI.DescriptionList>
-                            {componentContinuation.isError
-                              ? (
-                                <UI.AlertBanner tone="error">
-                                  {message(
-                                    translate,
-                                    "machines.pagination.error.components",
-                                  )}
-                                </UI.AlertBanner>
-                              )
-                              : null}
-                            {nextComponentCursor
-                              ? (
-                                <UI.Button
-                                  variant="secondary"
-                                  disabled={componentContinuation.isFetching}
-                                  onClick={() =>
-                                    componentContinuation.isError
-                                      ? void componentContinuation.refetch()
-                                      : setComponentCursor(nextComponentCursor)}
-                                >
-                                  {componentContinuation.isFetching
-                                    ? message(
-                                      translate,
-                                      "machines.pagination.loadingMore",
-                                    )
-                                    : message(
-                                      translate,
-                                      "machines.pagination.loadMore",
-                                    )}
-                                </UI.Button>
-                              )
-                              : null}
                           </UI.SettingsSection>
                           {!isRetired
                             ? (
@@ -1163,15 +935,27 @@ export function MachineDetailPage(
                                     },
                                   )}
                                   cancelAction={
-                                    <UI.Button
-                                      variant="secondary"
-                                      onClick={() => setRetireOpen(false)}
-                                    >
-                                      {message(
-                                        translate,
-                                        "machines.retire.cancel",
-                                      )}
-                                    </UI.Button>
+                                    <UI.Inline gap="compact">
+                                      <UI.Button
+                                        variant="secondary"
+                                        onClick={() => setRetireOpen(false)}
+                                      >
+                                        {message(
+                                          translate,
+                                          "machines.retire.cancel",
+                                        )}
+                                      </UI.Button>
+                                      <UI.Button
+                                        variant="secondary"
+                                        loading={modeBusy}
+                                        onClick={() => void finishInstead()}
+                                      >
+                                        {message(
+                                          translate,
+                                          "machines.retire.finishInstead",
+                                        )}
+                                      </UI.Button>
+                                    </UI.Inline>
                                   }
                                   confirmAction={
                                     <UI.Button
@@ -1222,6 +1006,24 @@ export function MachineDetailPage(
                             )
                             : null}
                         </>
+                      )
+                      : null,
+                  },
+                  {
+                    id: "checks",
+                    label: message(translate, "machines.tabs.checks"),
+                    content: tab === "checks"
+                      ? (
+                        <MachineChecks
+                          blockers={blockers}
+                          components={components}
+                          componentItems={componentItems}
+                          nextComponentCursor={nextComponentCursor}
+                          componentContinuation={componentContinuation}
+                          onLoadMore={setComponentCursor}
+                          isRetired={isRetired}
+                          focusChecks={focusChecks}
+                        />
                       )
                       : null,
                   },

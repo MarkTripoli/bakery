@@ -195,9 +195,12 @@ test.describe("machines list layout", () => {
     await expect(
       table.getByRole("link", { name: "Fix linux-builder-x86-02" }),
     ).toBeVisible();
-    // Three columns: the machine and its line, one badge, one button.
     await expect(table.getByRole("columnheader")).toHaveText([
       "Machine",
+      "System",
+      "Coding agents",
+      "Tasks at once",
+      "Last seen",
       "Status",
       "Action",
     ]);
