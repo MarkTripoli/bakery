@@ -13765,7 +13765,7 @@ export const clientManifest = {
       "path": "/v1/runs/{id}/access",
       "action": "runAccess.list",
       "access": "Developer",
-      "permission": "runRequest:read",
+      "permission": "run:read",
       "input": "Empty",
       "output": "RunAccessList",
       "event": "",
