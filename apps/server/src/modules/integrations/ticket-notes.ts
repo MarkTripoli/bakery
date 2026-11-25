@@ -12,37 +12,23 @@ import {
   type TicketNoteResult,
   type TicketNoteWriter,
 } from "../work/ticket-notes.ts";
+import { ticketFamilyActionsOf } from "../work/ticket-family-actions.ts";
 import { connectionInvokeDeps } from "./invoke.ts";
 
-/** An exact registered action reference. */
 export type NoteActionRef = Readonly<{ id: string; version: number }>;
 
-/**
- * The status-note writer of the ticket module (#69) over the integration
- * gate: the source provider's registered comment action, sent as the asking
- * principal through `invokeIntegration`, so the gate checks that
- * principal's grant and the ledger records the write as an effect. Which
- * action writes a note is the composition root's to say, per provider: this
- * file names none. A provider with no note action, a refusal by the gate, and
- * an effect that is not confirmed are all failures with a fixed code; a
- * confirmed effect answers the provider's comment id.
- */
 export function createGateTicketNoteWriter(deps: {
   database: PgDatabase;
   registry: ActiveIntegrationRegistry;
   providerRequests: ProviderRequestPort;
-  /** The comment actions of each provider that can carry a note: post one, and rewrite one by id. */
-  noteActions: Readonly<
-    Record<string, Readonly<{ create: NoteActionRef; update: NoteActionRef }>>
-  >;
 }): TicketNoteWriter {
   const invoke = connectionInvokeDeps(deps.registry, deps.providerRequests);
   return {
     async post(request: TicketNoteRequest): Promise<TicketNoteResult> {
-      const refs = Object.hasOwn(deps.noteActions, request.provider)
-        ? deps.noteActions[request.provider]
-        : undefined;
-      if (refs === undefined) {
+      const declared = ticketFamilyActionsOf(request.provider);
+      const createRef = declared["comment.create"];
+      const updateRef = declared["comment.update"];
+      if (createRef === undefined || updateRef === undefined) {
         return { kind: "failed", problemCode: "provider_capability_missing" };
       }
       const send = async (
@@ -107,7 +93,7 @@ export function createGateTicketNoteWriter(deps: {
       return await writeTicketNote(
         request,
         (which, args, key) =>
-          send(which === "create" ? refs.create : refs.update, args, key),
+          send(which === "create" ? createRef : updateRef, args, key),
       );
     },
   };

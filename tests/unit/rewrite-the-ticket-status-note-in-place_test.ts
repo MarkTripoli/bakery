@@ -1,7 +1,9 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { githubIntegration } from "../../apps/server/src/modules/catalog/integration-providers/github.ts";
+import { ticketFamilyActionsOf } from "../../apps/server/src/modules/work/ticket-family-actions.ts";
 import { ticketNoteBody } from "../../apps/server/src/modules/work/ticket-notes.ts";
 import {
+  createGateTicketNoteWriter,
   type NoteSendResult,
   writeTicketNote,
 } from "../../apps/server/src/modules/integrations/ticket-notes.ts";
@@ -192,4 +194,27 @@ Deno.test("a lost rewrite is settled by reading the comment: same text confirms,
   assertEquals(await reconcile(Array.from({ length: 20 }, () => full)), {
     status: "uncertain",
   });
+});
+
+Deno.test("github declares its two comment actions and an unknown provider declares none", () => {
+  assertEquals(ticketFamilyActionsOf("github"), {
+    "comment.create": { id: "github.issue.comment.create", version: 1 },
+    "comment.update": { id: "github.issue.comment.update", version: 1 },
+  });
+  assertEquals(ticketFamilyActionsOf("linear"), {});
+  assertEquals(ticketFamilyActionsOf("toString"), {});
+});
+
+Deno.test("a provider with no declared comment actions answers provider_capability_missing", async () => {
+  const writer = createGateTicketNoteWriter(
+    {
+      database: {},
+      registry: {},
+      providerRequests: {},
+    } as unknown as Parameters<typeof createGateTicketNoteWriter>[0],
+  );
+  assertEquals(
+    await writer.post({ ...request(null), provider: "linear" }),
+    { kind: "failed", problemCode: "provider_capability_missing" },
+  );
 });

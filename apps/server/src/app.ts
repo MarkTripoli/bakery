@@ -54,8 +54,6 @@ import {
   TICKET_CREATE_ACTION,
   TICKET_LABEL_REMOVE_ACTION,
   TICKET_LABELS_ADD_ACTION,
-  TICKET_NOTE_ACTION,
-  TICKET_NOTE_UPDATE_ACTION,
 } from "./modules/catalog/integration-providers/github.ts";
 import { createGateRemoteTicketCreator } from "./modules/integrations/ticket-create.ts";
 import { createGateSender } from "./modules/integrations/ticket-gate.ts";
@@ -383,20 +381,11 @@ export function createApp(options: {
         ),
     },
   });
-  // The composition root names the provider whose comment action writes
-  // the note, as it names the webhook ingress below. The ticket routes and the
-  // background poll share the one writer.
   const ticketNoteWriter = options.ticketNoteWriter ??
     createGateTicketNoteWriter({
       database: options.pgDatabase,
       registry: integrationRegistry,
       providerRequests,
-      noteActions: {
-        github: {
-          create: TICKET_NOTE_ACTION,
-          update: TICKET_NOTE_UPDATE_ACTION,
-        },
-      },
     });
   const ticketGateSend = createGateSender({
     database: options.pgDatabase,
