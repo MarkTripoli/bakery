@@ -1,6 +1,7 @@
 import type { DataMigration } from "./platform/data-migrate.ts";
 import { authDataMigrations } from "./modules/auth/migrations.ts";
 import { knowledgeDataMigrations } from "./modules/knowledge/migrations.ts";
+import { mcpDataMigrations } from "./modules/mcp/migrations.ts";
 import { workDataMigrations } from "./modules/work/migrations.ts";
 
 /**
@@ -14,5 +15,6 @@ export const bakeryDataMigrations: readonly DataMigration[] = Object.freeze(
     ...workDataMigrations,
     ...authDataMigrations,
     ...knowledgeDataMigrations,
+    ...mcpDataMigrations,
   ].sort((left, right) => left.version.localeCompare(right.version)),
 );

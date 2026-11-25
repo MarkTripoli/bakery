@@ -380,12 +380,12 @@ in the loop's panel.
   maximum. A loop may start with a smaller allowance (`repeat.allow`). When it
   uses that allowance without meeting its exit condition, the engine stops the
   run with the stable code `limit_reached`. A person then allows more rounds
-  through `POST /v1/runs/:id/repair-allowances`, which records a
-  `limit_change` decision and reopens the run; asking again for the same stop
-  returns that decision and reopens nothing. Accepting as is and stopping are
-  not built for a repeat limit yet. More rounds can never go past `max`. When `max` is reached, the loop ends as exhausted and the
-  run ends `needs_human` with `limit_reached`. Raising the cap of 8 is not part
-  of this decision.
+  through `POST /v1/runs/:id/repair-allowances`, which records a `limit_change`
+  decision and reopens the run; asking again for the same stop returns that
+  decision and reopens nothing. Accepting as is and stopping are not built for a
+  repeat limit yet. More rounds can never go past `max`. When `max` is reached,
+  the loop ends as exhausted and the run ends `needs_human` with
+  `limit_reached`. Raising the cap of 8 is not part of this decision.
 
 ## 11. Workflow editor decisions
 
@@ -742,11 +742,20 @@ step has its design tool exactly when its session's gateway lists a bound tool,
 so a Paper connection bound to the step, its seat or its agent is the design
 tool. A Pi or Codex host without `paper` never claims the step.
 
+**Session feed.** The gateway routes remain the owners of invocation and
+settlement. Before dispatch the worker persists a `started` lifecycle item in
+`session_tool_feed_events`; every settlement path persists its terminal item.
+`sessions.feed` projects those items alongside session output under the shared
+conversation sequence and keyset cursor, preserving one stable order across item
+kinds without taking ownership of dispatch. The projection exposes only bounded
+action, tool, target and result metadata. Request and response payloads,
+credentials and secrets stay behind the gateway boundary.
+
 Not yet served: native integration actions through the gateway (the route
 refuses `integrationConnectionId` with
 `tool_invocation_integration_unsupported`), local stdio servers (slice H), the
-Pi and Codex harnesses (they still use the worker's `paper` capability), a feed
-item per gateway call and per-call cost.
+Pi and Codex harnesses (they still use the worker's `paper` capability), and
+per-call cost.
 
 ### 15.6 Example: a video-production factory
 

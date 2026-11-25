@@ -12,6 +12,7 @@ import {
   type PgTransactionClient,
 } from "@bakery/persistence";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
+import { allocateConversationFeedSequence } from "./feed-sequence.ts";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import {
   commitMessageMentions,
@@ -383,14 +384,11 @@ export async function createMessage(
     conversationId,
   }, input.mentions);
 
-  const next = await transaction.query<{ sequence: string }>(
-    `select (coalesce(max(sequence), 0) + 1)::text as sequence
-       from bakery.messages
-      where organization_id = $1 and conversation_id = $2`,
-    [organizationId, conversationId],
+  const sequence = await allocateConversationFeedSequence(
+    transaction,
+    organizationId,
+    conversationId,
   );
-  const sequence = next.rows[0]?.sequence;
-  if (!sequence) throw new Error("MESSAGE_SEQUENCE_UNAVAILABLE");
 
   const inserted = await transaction.query<MessageRow>(
     `insert into bakery.messages (
