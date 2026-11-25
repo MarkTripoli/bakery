@@ -223,6 +223,8 @@ export function MachineWork(
         caption={message("machines.work.caption")}
         captionHidden
         variant="ruled"
+        inset="edge"
+        rowSize="auto"
         rows={rows}
         emptyMessage={message(`machines.work.empty.${state}.title`)}
         getRowKey={(attempt) => attempt.id}
