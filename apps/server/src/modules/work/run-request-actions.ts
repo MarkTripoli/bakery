@@ -20,8 +20,10 @@ import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts"
 import { requireHumanMember } from "../auth/transport/http/v1/handlers.ts";
 import {
   createRunRequest,
+  listRunAccess,
   listRunRequests,
   myRunRequests,
+  removeRunAccess,
   withdrawRunRequest,
 } from "./run-requests.ts";
 
@@ -33,6 +35,7 @@ import {
  */
 export function createRunRequestActionRegistry(
   database: PgDatabase,
+  cursorSecret: string,
 ): ActionRegistry {
   const registry = new ActionRegistry(
     new PostgresAuthorityRunner(database),
@@ -79,6 +82,24 @@ export function createRunRequestActionRegistry(
     output: contractSchemas.RunRequests,
     policy: read,
     handler: (context) => listRunRequests(context),
+  }).register({
+    name: RunRequestImplementedAction.RunAccessList,
+    method: HttpMethod.Get,
+    path: "/v1/runs/:id/access",
+    input: contractSchemas.RunAccessQuery,
+    output: contractSchemas.RunAccessList,
+    policy: read,
+    handler: (context, input) => listRunAccess(context, input, cursorSecret),
+  }).register({
+    name: RunRequestImplementedAction.RunAccessRemove,
+    method: HttpMethod.Post,
+    path: "/v1/runs/:id/access/:principalId/remove",
+    input: contractSchemas.Empty,
+    output: contractSchemas.RunAccessRemoval,
+    policy: write,
+    successStatus: 200,
+    explicitIdempotency: "key-and-if-match",
+    handler: (context) => removeRunAccess(context),
   }).register({
     name: RunRequestImplementedAction.RunRequestsWithdraw,
     method: HttpMethod.Post,

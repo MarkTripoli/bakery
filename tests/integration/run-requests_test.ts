@@ -21,6 +21,26 @@ type Request = {
   askedBy: { principalId: string } | null;
 };
 
+type RunAccess = {
+  projectCount: number;
+  totalCount: number;
+  items: {
+    id: string;
+    principal: { principalId: string; displayName: string };
+    via: string;
+    grantedBy: { principalId: string; displayName: string } | null;
+    powers: { intent: string; stepKey: string | null }[];
+    version: number;
+  }[];
+  nextCursor: string | null;
+};
+
+type RunAccessRemoval = {
+  principalId: string;
+  version: number;
+  withdrawnRequestCount: number;
+};
+
 async function body<T>(response: Response, status: number): Promise<T> {
   const text = await response.text();
   assertEquals(response.status, status, text);
@@ -107,6 +127,389 @@ Deno.test("asking someone gives them the run to see, and nothing else", async ()
       200,
     );
     assertEquals(list.requests.length, 1);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("run access lists direct people separately from project access", async () => {
+  const o = await open();
+  try {
+    assertEquals(
+      (await api(o.fixture, o.fixture.cookie, "POST", "/v1/access-bindings", {
+        principalId: o.other.principalId,
+        roleKey: "viewer",
+        scopeType: "application",
+        scopeId: o.fixture.applicationId,
+      })).status,
+      201,
+    );
+    await body<Request>(
+      await o.ask(o.dev.cookie, {
+        recipientId: o.other.principalId,
+        intent: "fyi",
+      }),
+      201,
+    );
+    await body<Request>(
+      await o.ask(o.dev.cookie, {
+        recipientId: o.guest.principalId,
+        intent: "take_over",
+        stepKey: o.run.stepKey,
+      }),
+      201,
+    );
+    const path = `/v1/runs/${o.run.runId}/access`;
+    const access = await body<RunAccess>(
+      await api(o.fixture, o.dev.cookie, "GET", path),
+      200,
+    );
+    assertEquals(access.projectCount, 3);
+    assertEquals(access.totalCount, 4);
+    assertEquals(access.items.length, 1);
+    assertEquals(access.items[0]?.principal, {
+      principalId: o.guest.principalId,
+      displayName: "Gus",
+    });
+    assertEquals(access.items[0]?.via, "request");
+    assertEquals(access.items[0]?.grantedBy?.principalId, o.dev.principalId);
+    assertEquals(
+      access.items[0]?.powers.map(({ intent, stepKey }) => ({
+        intent,
+        stepKey,
+      })),
+      [{ intent: "take_over", stepKey: o.run.stepKey }],
+    );
+    assertEquals(access.nextCursor, null);
+    assertEquals(
+      (await api(o.fixture, o.other.cookie, "GET", path)).status,
+      200,
+    );
+    assertEquals(
+      (await api(o.fixture, o.guest.cookie, "GET", path)).status,
+      200,
+    );
+    await o.fixture.pgDatabase.query(
+      `update bakery.organization_memberships
+          set status = 'inactive', updated_at = now(), version = version + 1
+        where organization_id = $1 and principal_id = $2`,
+      [o.fixture.organizationId, o.guest.principalId],
+    );
+    const inactiveAccess = await body<RunAccess>(
+      await api(o.fixture, o.dev.cookie, "GET", path),
+      200,
+    );
+    assertEquals(inactiveAccess.projectCount, 3);
+    assertEquals(inactiveAccess.totalCount, 3);
+    assertEquals(inactiveAccess.items, []);
+    assertEquals(inactiveAccess.nextCursor, null);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("run access pages every direct person beyond the first twenty", async () => {
+  const o = await open();
+  const userIds = Array.from({ length: 51 }, () => crypto.randomUUID());
+  const principalIds = Array.from({ length: 51 }, () => crypto.randomUUID());
+  const membershipIds = Array.from({ length: 51 }, () => crypto.randomUUID());
+  try {
+    await o.fixture.pgDatabase.query(
+      `insert into public."user" (
+         id, name, email, "emailVerified", "createdAt", "updatedAt"
+       )
+       select user_id, 'Page person ' || ordinality,
+              'page-' || user_id || '@example.test', true, now(), now()
+         from unnest($1::uuid[]) with ordinality as seed(user_id, ordinality)`,
+      [userIds],
+    );
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.principals (
+         id, provider_user_id, display_name, principal_type
+       )
+       select principal_id, user_id, 'Page person ' || ordinality, 'human'
+         from unnest($1::uuid[], $2::uuid[]) with ordinality
+              as seed(principal_id, user_id, ordinality)`,
+      [principalIds, userIds],
+    );
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.organization_memberships (
+         id, organization_id, principal_id, role, status, joined_at,
+         created_at, updated_at, version
+       )
+       select membership_id, $3, principal_id, 'guest', 'active', now(),
+              now(), now(), 1
+         from unnest($1::uuid[], $2::uuid[]) as seed(membership_id, principal_id)`,
+      [membershipIds, principalIds, o.fixture.organizationId],
+    );
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.run_access_grants (
+         organization_id, run_id, task_id, principal_id, via, granted_by,
+         granted_by_kind
+       )
+       select $1, $2, $3, principal_id, 'request', $4, 'person'
+         from unnest($5::uuid[]) as seed(principal_id)`,
+      [
+        o.fixture.organizationId,
+        o.run.runId,
+        o.run.taskId,
+        o.dev.principalId,
+        principalIds,
+      ],
+    );
+    const path = `/v1/runs/${o.run.runId}/access?limit=20`;
+    const first = await body<RunAccess>(
+      await api(o.fixture, o.dev.cookie, "GET", path),
+      200,
+    );
+    assertEquals(first.projectCount, 2);
+    assertEquals(first.totalCount, 53);
+    assertEquals(first.items.length, 20);
+    assertNotEquals(first.nextCursor, null);
+    const second = await body<RunAccess>(
+      await api(
+        o.fixture,
+        o.dev.cookie,
+        "GET",
+        `${path}&cursor=${encodeURIComponent(first.nextCursor!)}`,
+      ),
+      200,
+    );
+    assertEquals(second.totalCount, 53);
+    assertEquals(second.items.length, 20);
+    assertNotEquals(second.nextCursor, null);
+    const third = await body<RunAccess>(
+      await api(
+        o.fixture,
+        o.dev.cookie,
+        "GET",
+        `${path}&cursor=${encodeURIComponent(second.nextCursor!)}`,
+      ),
+      200,
+    );
+    assertEquals(third.totalCount, 53);
+    assertEquals(third.items.length, 11);
+    assertEquals(third.nextCursor, null);
+    assertEquals(
+      new Set(
+        [...first.items, ...second.items, ...third.items].map(
+          (item) => item.principal.principalId,
+        ),
+      ).size,
+      51,
+    );
+  } finally {
+    await o.fixture.pgDatabase.query(
+      `delete from bakery.run_access_grants
+        where organization_id = $1 and principal_id = any($2::uuid[])`,
+      [o.fixture.organizationId, principalIds],
+    );
+    await o.fixture.pgDatabase.query(
+      `delete from bakery.organization_memberships
+        where organization_id = $1 and principal_id = any($2::uuid[])`,
+      [o.fixture.organizationId, principalIds],
+    );
+    await o.fixture.pgDatabase.query(
+      "delete from bakery.principals where id = any($1::uuid[])",
+      [principalIds],
+    );
+    await o.fixture.pgDatabase.query(
+      `delete from public."user" where id = any($1::uuid[])`,
+      [userIds],
+    );
+    await o.finish();
+  }
+});
+
+Deno.test("a reopened request stays in the open group across access pages", async () => {
+  const o = await open();
+  const fillers = [];
+  for (let index = 0; index < 20; index += 1) {
+    fillers.push(await addMember(o.fixture, `Closed ${index}`, "guest"));
+  }
+  const fillerPrincipalIds = fillers.map((member) => member.principalId);
+  try {
+    const first = await body<Request>(
+      await o.ask(o.dev.cookie, {
+        recipientId: o.guest.principalId,
+        intent: "fyi",
+      }),
+      201,
+    );
+    await body<Request>(
+      await api(
+        o.fixture,
+        o.dev.cookie,
+        "POST",
+        `/v1/run-requests/${first.id}/withdraw`,
+        {},
+        first.version,
+      ),
+      200,
+    );
+    await body<Request>(
+      await o.ask(o.dev.cookie, {
+        recipientId: o.guest.principalId,
+        intent: "fyi",
+      }),
+      201,
+    );
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.run_access_grants (
+         organization_id, run_id, task_id, principal_id, via, granted_by,
+         granted_by_kind
+       )
+       select $1, $2, $3, principal_id, 'request', $4, 'person'
+         from unnest($5::uuid[]) as seed(principal_id)`,
+      [
+        o.fixture.organizationId,
+        o.run.runId,
+        o.run.taskId,
+        o.dev.principalId,
+        fillerPrincipalIds,
+      ],
+    );
+    await o.fixture.pgDatabase.query(
+      `update bakery.run_access_grants
+          set created_at = case when principal_id = $3
+            then now() - interval '2 days'
+            else now() - interval '1 day'
+          end
+        where organization_id = $1 and run_id = $2
+          and principal_id = any($4::uuid[])`,
+      [
+        o.fixture.organizationId,
+        o.run.runId,
+        o.guest.principalId,
+        [o.guest.principalId, ...fillerPrincipalIds],
+      ],
+    );
+    const path = `/v1/runs/${o.run.runId}/access?limit=20`;
+    const firstPage = await body<RunAccess>(
+      await api(o.fixture, o.dev.cookie, "GET", path),
+      200,
+    );
+    const secondPage = await body<RunAccess>(
+      await api(
+        o.fixture,
+        o.dev.cookie,
+        "GET",
+        `${path}&cursor=${encodeURIComponent(firstPage.nextCursor!)}`,
+      ),
+      200,
+    );
+    assertEquals(
+      firstPage.items[0]?.principal.principalId,
+      o.guest.principalId,
+    );
+    assertEquals(
+      secondPage.items.some((item) =>
+        item.principal.principalId === o.guest.principalId
+      ),
+      false,
+    );
+  } finally {
+    await o.fixture.pgDatabase.query(
+      `delete from bakery.run_access_grants
+        where organization_id = $1 and principal_id = any($2::uuid[])`,
+      [o.fixture.organizationId, fillerPrincipalIds],
+    );
+    await cleanupAuthFixture(
+      o.fixture.pgDatabase,
+      fillers.map((member) => member.email),
+    );
+    await o.finish();
+  }
+});
+
+Deno.test("removing direct access withdraws every open request atomically", async () => {
+  const o = await open();
+  try {
+    const made = await body<Request>(
+      await o.ask(o.dev.cookie, {
+        recipientId: o.guest.principalId,
+        intent: "take_over",
+        stepKey: o.run.stepKey,
+      }),
+      201,
+    );
+    const accessPath = `/v1/runs/${o.run.runId}/access`;
+    const access = await body<RunAccess>(
+      await api(o.fixture, o.dev.cookie, "GET", accessPath),
+      200,
+    );
+    const grant = access.items[0]!;
+    const removePath = `${accessPath}/${o.guest.principalId}/remove`;
+    assertEquals(
+      (await api(
+        o.fixture,
+        o.guest.cookie,
+        "POST",
+        removePath,
+        {},
+        grant.version,
+      )).status,
+      404,
+    );
+    const removed = await body<RunAccessRemoval>(
+      await api(
+        o.fixture,
+        o.dev.cookie,
+        "POST",
+        removePath,
+        {},
+        grant.version,
+      ),
+      200,
+    );
+    assertEquals(removed, {
+      principalId: o.guest.principalId,
+      version: grant.version + 1,
+      withdrawnRequestCount: 1,
+    });
+    assertEquals(
+      (await api(
+        o.fixture,
+        o.dev.cookie,
+        "POST",
+        removePath,
+        {},
+        grant.version,
+      )).status,
+      412,
+    );
+    assertEquals(
+      (await api(o.fixture, o.guest.cookie, "GET", `/v1/runs/${o.run.runId}`))
+        .status,
+      404,
+    );
+    const requests = await body<{ requests: Request[] }>(
+      await api(
+        o.fixture,
+        o.dev.cookie,
+        "GET",
+        `/v1/runs/${o.run.runId}/requests`,
+      ),
+      200,
+    );
+    assertEquals(
+      requests.requests.find((item) => item.id === made.id)?.status,
+      "withdrawn",
+    );
+    const powers = await o.fixture.pgDatabase.query(
+      `select 1 from bakery.run_power_grants
+        where organization_id = $1 and run_id = $2 and principal_id = $3
+          and revoked_at is null`,
+      [o.fixture.organizationId, o.run.runId, o.guest.principalId],
+    );
+    assertEquals(powers.rows, []);
+    const ledger = await o.fixture.pgDatabase.query<{ kind: string }>(
+      `select kind from bakery.decisions_ledger
+        where organization_id = $1 and run_id = $2
+          and kind = 'run_access_removed'`,
+      [o.fixture.organizationId, o.run.runId],
+    );
+    assertEquals(ledger.rows.map((row) => row.kind), ["run_access_removed"]);
   } finally {
     await o.finish();
   }

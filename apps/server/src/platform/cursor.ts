@@ -151,9 +151,10 @@ function bindingRowCursorKind(binding: CursorBinding): RowCursorKind {
   // One row of a parent can expand into several list items (the pages one
   // plugin install adds), so the key is the parent's (time, id) plus the
   // item's position within it.
-  if (binding.ordering === "createdAt:asc,id:asc,position:asc") {
-    return "timestamp-position";
-  }
+  if (
+    binding.ordering === "createdAt:asc,id:asc,position:asc" ||
+    binding.ordering === "openRequest:desc,createdAt:desc,id:desc"
+  ) return "timestamp-position";
   throw new Error("CURSOR_BINDING_INVALID");
 }
 

@@ -491,6 +491,8 @@ export const notificationImplementedActions = Object.freeze(
 
 export const RunRequestImplementedAction = Object.freeze(
   {
+    RunAccessList: "runAccess.list",
+    RunAccessRemove: "runAccess.remove",
     RunRequestsCreate: "runRequests.create",
     RunRequestsList: "runRequests.list",
     RunRequestsMine: "runRequests.mine",

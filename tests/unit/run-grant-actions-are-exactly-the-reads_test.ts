@@ -17,6 +17,7 @@ Deno.test("a run grant reaches exactly the run, its steps, its task, its deliver
       ["artifactVersions.content", "artifactVersion"],
       ["checks.list", "run"],
       ["outputStreams.transcript", "outputStream"],
+      ["runAccess.list", "run"],
       ["runDeliveryDecisions.list", "run"],
       ["runRepairTries.list", "run"],
       ["runReviews.list", "run"],
