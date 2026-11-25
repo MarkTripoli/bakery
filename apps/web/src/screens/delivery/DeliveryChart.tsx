@@ -1,6 +1,5 @@
 import { type ReactNode, useState } from "react";
 import * as UI from "@bakery/ui";
-import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import {
   chartGaps,
@@ -35,9 +34,7 @@ export function DeliveryChart(
   },
 ) {
   const { translate, locale } = useI18n();
-  const phone = useShellViewport() === "phone";
   const [asTable, setAsTable] = useState(false);
-  const width = phone ? 360 : 900;
   const segments = chartSegments(points).map((segment) =>
     segment.map((point) => ({ at: Date.parse(point.at), value: point.value }))
   );
@@ -146,7 +143,6 @@ export function DeliveryChart(
             pointCount={points.length}
             segments={segments}
             startLabel={day.format(new Date(points[0]!.at))}
-            width={width}
           />
         )}
     </UI.SettingsSection>

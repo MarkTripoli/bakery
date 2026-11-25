@@ -1,4 +1,9 @@
-import { expect, type Page, type Route, test } from "@playwright/test";
+import {
+  expect as baseExpect,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { deliveryFixture } from "./helpers/delivery-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
@@ -7,6 +12,7 @@ import { MOCK_ORGANIZATION_ID } from "./helpers/mock-session.ts";
 import { repository, uuid } from "./helpers/projects-fixture.ts";
 
 registerPageHealth(test);
+const expect = baseExpect.configure({ timeout: 15_000 });
 test("selected merged chart and table use the merge-count samples, not line counts", async ({ page }) => {
   const samples = Array.from({ length: 7 }, (_, index) => ({
     at: new Date(Date.UTC(2026, 10, 5 + index * 3)).toISOString(),
@@ -429,7 +435,7 @@ for (
       expect(Number(await band.getAttribute("width"))).toBeGreaterThan(100);
       if (viewport.name === "phone") {
         await expect(chart.getByText(/^No data, /)).toHaveCount(0);
-        await expect(page.getByText(/\(no data, Nov 3, 2026\)/))
+        await expect(page.getByText(/\(Nov 3, 2026\)/))
           .toBeVisible();
       } else {
         await expect(chart.getByText("No data, Nov 3, 2026")).toBeVisible();

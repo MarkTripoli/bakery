@@ -1,5 +1,5 @@
 import type { HTMLAttributes, ReactNode } from "react";
-import { useId } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { SemanticNativeProps } from "../foundations/semantic-native-props.ts";
 import "../data.css";
 
@@ -17,7 +17,7 @@ export type LineChartProps =
   & SemanticNativeProps<Omit<HTMLAttributes<HTMLElement>, "title">>
   & {
     label: string;
-    width: number;
+    width?: number;
     domain: readonly [number, number];
     pointCount: number;
     segments: readonly (readonly LineChartPoint[])[];
@@ -60,7 +60,7 @@ export function lineChartBands(
 export function LineChart(
   {
     label,
-    width,
+    width = 900,
     domain,
     pointCount,
     segments,
@@ -74,14 +74,29 @@ export function LineChart(
   }: LineChartProps,
 ) {
   const descriptionId = useId();
-  const plotWidth = width - PAD.left - PAD.right;
+  const plot = useRef<SVGSVGElement>(null);
+  const [measured, setMeasured] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const element = plot.current;
+    if (element === null) return;
+    const measure = () => {
+      const next = Math.round(element.getBoundingClientRect().width);
+      if (next > 0) setMeasured(next);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const drawn = measured ?? width;
+  const plotWidth = drawn - PAD.left - PAD.right;
   const plotHeight = HEIGHT - PAD.top - PAD.bottom;
   const across = (time: number) =>
     PAD.left +
     ((time - domain[0]) / Math.max(1, domain[1] - domain[0])) * plotWidth;
   const up = (value: number) =>
     PAD.top + plotHeight - (value / maximum) * plotHeight;
-  const bands = lineChartBands(gaps, domain, width, pointCount);
+  const bands = lineChartBands(gaps, domain, drawn, pointCount);
   const hidden = bands.flatMap((band) =>
     band.labelVisible ? [] : [band.gap.description]
   );
@@ -98,9 +113,9 @@ export function LineChart(
         aria-label={label}
         className="ui-line-chart__plot"
         height={HEIGHT}
-        preserveAspectRatio="none"
+        ref={plot}
         role="img"
-        viewBox={`0 0 ${width} ${HEIGHT}`}
+        viewBox={`0 0 ${drawn} ${HEIGHT}`}
         width="100%"
       >
         {bands.map((band) => (

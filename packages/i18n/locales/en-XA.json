@@ -7187,8 +7187,6 @@
   "delivery.chart.band": "⟦Ñô ðàŧà, {from} ŧô {to} ŧëšŧ ç⟧",
   "delivery.chart.bandDay": "⟦Ñô ðàŧà, {date} ŧëš⟧",
   "delivery.chart.noDataPeriod": "⟦Ñô ðàŧà ƒôŕ ŧĥïš þëŕïôð. À ĝàþ ïš ñôŧ žëŕô. ŧëšŧ çôþÿ ŧëš⟧",
-  "delivery.chart.gap": "⟦ñô ðàŧà, {from} ŧô {to} ŧëšŧ ç⟧",
-  "delivery.chart.gapDay": "⟦ñô ðàŧà, {date} ŧëš⟧",
   "delivery.chart.column.day": "⟦Ðàŧë⟧",
   "delivery.chart.noData": "⟦Ñô ðàŧà…⟧",
   "delivery.records.rule.merged.noVersion": "⟦Çôûñŧëð ƀÿ ŵĥëñ ëàçĥ ŵàš ɱëŕĝëð, ïñ ÿôûŕ ŧïɱë žôñë ({zone}). À þûļļ ŕëǫûëšŧ ŕëôþëñëð àñð ɱëŕĝëð àĝàïñ ïš ôñë ŕôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
@@ -7212,5 +7210,7 @@
   "delivery.quality.uncounted.value": "⟦{count, plural, one {# pull request} other {# pull requests}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "delivery.quality.uncounted.action": "⟦Šĥôŵ ŧĥë {count, plural, one {# pull request} other {# pull requests}} ŧĥàŧ çôûļð ñôŧ ƀë ļïñë-çôûñŧëð ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "delivery.quality.openToMerge.label": "⟦Ôþëñ ŧô ɱëŕĝë ŧë⟧",
-  "delivery.quality.openToMerge.unknown": "⟦Ûñķñôŵñ. Ñôŧ çôûñŧëð ƒôŕ ŧĥë ŵĥôļë þëŕïôð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "delivery.quality.openToMerge.unknown": "⟦Ûñķñôŵñ. Ñôŧ çôûñŧëð ƒôŕ ŧĥë ŵĥôļë þëŕïôð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "delivery.chart.gap": "⟦{from} ŧô {to} ŧë⟧",
+  "delivery.chart.gapDay": "⟦{date}…⟧"
 }
