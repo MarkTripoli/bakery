@@ -25,10 +25,13 @@ export type SlackAdmission = {
   readonly outcome: SlackReceiptOutcome;
 };
 
+export type SlackSigningSecret = {
+  readonly appId: string;
+  readonly secret: Uint8Array<ArrayBuffer>;
+};
+
 export type SlackIntakeDependencies = {
-  readonly signingSecrets: (
-    appId: string | null,
-  ) => Promise<readonly Uint8Array<ArrayBuffer>[]>;
+  readonly signingSecrets: () => Promise<readonly SlackSigningSecret[]>;
 
   readonly findInstallation: (
     appId: string,
@@ -57,26 +60,24 @@ export async function receiveSlackEvent(
   },
   dependencies: SlackIntakeDependencies,
 ): Promise<SlackIntakeResult> {
-  const secrets = await dependencies.signingSecrets(null);
-  let verified = false;
+  const candidates = await dependencies.signingSecrets();
+  const verifiedAppIds = new Set<string>();
+  const nowMs = dependencies.now();
   try {
-    for (const secret of secrets) {
+    for (const candidate of candidates) {
       const result = await verifySlackRequest({
-        secret,
+        secret: candidate.secret,
         signatureHeader: input.signatureHeader,
         timestampHeader: input.timestampHeader,
         raw: input.raw,
-        nowMs: dependencies.now(),
+        nowMs,
       });
-      if (result.ok) {
-        verified = true;
-        break;
-      }
+      if (result.ok) verifiedAppIds.add(candidate.appId);
     }
   } finally {
-    for (const secret of secrets) secret.fill(0);
+    for (const candidate of candidates) candidate.secret.fill(0);
   }
-  if (!verified) return refused("AUTH_INVALID");
+  if (verifiedAppIds.size === 0) return refused("AUTH_INVALID");
 
   let body: unknown;
   try {
@@ -87,18 +88,20 @@ export async function receiveSlackEvent(
   const record = typeof body === "object" && body !== null
     ? body as Record<string, unknown>
     : {};
+  const appId = record.api_app_id;
+  if (typeof appId !== "string" || !verifiedAppIds.has(appId)) {
+    return refused("AUTH_INVALID");
+  }
   if (record.type === "url_verification") {
     return typeof record.challenge === "string" && record.challenge.length > 0
       ? { kind: "challenge", challenge: record.challenge }
       : refused("MALFORMED_REQUEST");
   }
-  const appId = record.api_app_id;
   const teamId = record.team_id;
   const eventId = record.event_id;
-  if (
-    typeof appId !== "string" || typeof teamId !== "string" ||
-    typeof eventId !== "string"
-  ) return refused("MALFORMED_REQUEST");
+  if (typeof teamId !== "string" || typeof eventId !== "string") {
+    return refused("MALFORMED_REQUEST");
+  }
 
   const installation = await dependencies.findInstallation(appId, teamId);
   if (installation === null) return refused("AUTH_INVALID");

@@ -9,6 +9,10 @@ import {
 } from "../../apps/server/src/modules/integrations/slack-receipts.ts";
 import type { SlackInstallation } from "../../apps/server/src/modules/integrations/slack-scope.ts";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
+import {
+  sealInstallationSecret,
+  writeInstallationSecretVersion,
+} from "../../apps/server/src/modules/secrets/installation-secrets.ts";
 
 type Fixture = Awaited<ReturnType<typeof openInstallationFixture>>;
 
@@ -18,6 +22,55 @@ async function withFixture(run: (f: Fixture) => Promise<void>) {
     await run(f);
   } finally {
     await f.finish();
+  }
+}
+
+async function withIngressFixture(run: (f: Fixture) => Promise<void>) {
+  const directory = await Deno.makeTempDir({ prefix: "bakery-slack-intake-" });
+  const file = `${directory}/key`;
+  await Deno.writeFile(file, crypto.getRandomValues(new Uint8Array(32)), {
+    mode: 0o600,
+  });
+  const f = await openInstallationFixture(true, {
+    secretsKey: { file, keyId: "slack-intake-fixture-key-v1" },
+  });
+  try {
+    await run(f);
+  } finally {
+    try {
+      const signingSecrets = await f.pgDatabase.query<{
+        signing_secret_id: string | null;
+      }>(
+        `select signing_secret_id
+           from bakery.slack_installations
+          where organization_id = $1`,
+        [f.organizationId],
+      );
+      await f.pgDatabase.query(
+        "delete from bakery.slack_installations where organization_id = $1",
+        [f.organizationId],
+      );
+      const secretIds = signingSecrets.rows.flatMap(({ signing_secret_id }) =>
+        signing_secret_id === null ? [] : [signing_secret_id]
+      );
+      if (secretIds.length > 0) {
+        await f.pgDatabase.query(
+          "update bakery.secrets set active_version_id = null where id = any($1::uuid[])",
+          [secretIds],
+        );
+        await f.pgDatabase.query(
+          "delete from bakery.secret_versions where secret_id = any($1::uuid[])",
+          [secretIds],
+        );
+        await f.pgDatabase.query(
+          "delete from bakery.secrets where id = any($1::uuid[])",
+          [secretIds],
+        );
+      }
+      await f.finish();
+    } finally {
+      await Deno.remove(directory, { recursive: true });
+    }
   }
 }
 
@@ -64,6 +117,121 @@ async function cleanup(f: Fixture, organizationId: string) {
     [organizationId],
   );
 }
+
+async function registerWithSecret(
+  f: Fixture,
+  value: SlackInstallation,
+  signingSecret: string,
+) {
+  const sealed = await sealInstallationSecret(
+    f.config.secretsKey,
+    null,
+    signingSecret,
+  );
+  return await withPgTransaction(f.runtimePgDatabase, async (transaction) => {
+    await writeInstallationSecretVersion(transaction, sealed, {
+      name: `Slack ${value.appId}`,
+      provider: "slack",
+      principalId: f.adminId,
+    });
+    return await registerSlackInstallation(transaction, {
+      organizationId: f.organizationId,
+      installation: value,
+      signingSecretId: sealed.secretId,
+    });
+  });
+}
+
+async function slackSignature(
+  timestamp: string,
+  body: string,
+  secret: string,
+): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const digest = new Uint8Array(
+    await crypto.subtle.sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(`v0:${timestamp}:${body}`),
+    ),
+  );
+  return `v0=${
+    [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+  }`;
+}
+
+Deno.test("the running server receives and commits a signed Slack event", async () => {
+  await withIngressFixture(async (f) => {
+    const value = installation();
+    const signingSecret = `secret-${suffix()}`;
+    const registered = await registerWithSecret(f, value, signingSecret);
+    assert(registered.ok);
+    const body = JSON.stringify({
+      type: "event_callback",
+      event_id: eventId(),
+      api_app_id: value.appId,
+      team_id: value.teamId,
+      authorizations: [{
+        team_id: value.teamId,
+        user_id: value.botUserId,
+      }],
+      event: {
+        type: "app_mention",
+        channel: "C1CHANNEL",
+        user: "U1AUTHOR",
+        ts: "1.1",
+        text: "hello",
+      },
+    });
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const response = await f.app.fetch(
+      new Request(`${f.config.publicBaseUrl}/v1/webhooks/slack/events`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-slack-request-timestamp": timestamp,
+          "x-slack-signature": await slackSignature(
+            timestamp,
+            body,
+            signingSecret,
+          ),
+        },
+        body,
+      }),
+    );
+    assertEquals(response.status, 200);
+    const result = await response.json() as {
+      disposition: string;
+      receiptId: string | null;
+    };
+    assertEquals(result.disposition, "accepted");
+    assert(typeof result.receiptId === "string");
+    const receipts = await f.pgDatabase.query<{ id: string }>(
+      "select id from bakery.slack_event_receipts where id = $1",
+      [result.receiptId],
+    );
+    assertEquals(receipts.rows, [{ id: result.receiptId }]);
+  });
+});
+
+Deno.test("the Slack events ingress refuses a body over 256 KiB", async () => {
+  await withIngressFixture(async (f) => {
+    const response = await f.app.fetch(
+      new Request(`${f.config.publicBaseUrl}/v1/webhooks/slack/events`, {
+        method: "POST",
+        headers: { "content-length": "262145" },
+        body: "x",
+      }),
+    );
+    assertEquals(response.status, 413);
+  });
+});
 
 Deno.test("an installation belongs to one organization, and registering it again changes nothing", async () => {
   await withFixture(async (f) => {

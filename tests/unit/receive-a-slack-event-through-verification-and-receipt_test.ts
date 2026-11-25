@@ -48,7 +48,7 @@ type Harness = {
   readonly deps: SlackIntakeDependencies;
   readonly commits: Parameters<SlackIntakeDependencies["commit"]>[0][];
   readonly secrets: Uint8Array<ArrayBuffer>[];
-  readonly peeked: (string | null)[];
+  readonly secretLoads: number[];
 };
 
 function harness(
@@ -60,17 +60,17 @@ function harness(
 ): Harness {
   const commits: Harness["commits"] = [];
   const secrets: Uint8Array<ArrayBuffer>[] = [];
-  const peeked: (string | null)[] = [];
+  const secretLoads: number[] = [];
   return {
     commits,
     secrets,
-    peeked,
+    secretLoads,
     deps: {
-      signingSecrets: (appId) => {
-        peeked.push(appId);
+      signingSecrets: () => {
+        secretLoads.push(secretLoads.length + 1);
         const secret = encoder.encode("signing-secret");
         secrets.push(secret);
-        return Promise.resolve([secret]);
+        return Promise.resolve([{ appId: installation.appId, secret }]);
       },
       findInstallation: (appId, teamId) =>
         Promise.resolve(
@@ -133,11 +133,11 @@ Deno.test("the handshake answers its challenge and commits nothing", async () =>
   const h = harness();
   const result = await deliver(h.deps, {
     type: "url_verification",
+    api_app_id: installation.appId,
     challenge: "abc",
   });
   assertEquals(result, { kind: "challenge", challenge: "abc" });
   assertEquals(h.commits.length, 0);
-  assertEquals(h.peeked, [null]);
 });
 
 Deno.test("an unsigned, badly signed or stale delivery is one AUTH_INVALID and touches nothing", async () => {
@@ -258,5 +258,5 @@ Deno.test("raw bytes verify before any body field can select authority", async (
   const h = harness();
   await deliver(h.deps, mention());
   await deliver(h.deps, "[1,2]");
-  assertEquals(h.peeked, [null, null]);
+  assertEquals(h.secretLoads, [1, 2]);
 });
