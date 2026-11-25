@@ -3037,6 +3037,7 @@
   "settings.roles.thing.batch": "batches of issues",
   "settings.roles.verb.share": "Give and remove other people's access to {things}",
   "settings.roles.verb.author": "Create, change and publish {things}",
+  "settings.roles.verb.register": "Register {things}",
   "settings.roles.thing.task": "tasks",
   "settings.roles.thing.taskDependency": "task dependencies",
   "settings.roles.thing.taskRepository": "task repositories",

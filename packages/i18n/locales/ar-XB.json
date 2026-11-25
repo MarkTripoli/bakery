@@ -4670,6 +4670,7 @@
   "files.version.viewing": "⟪Viewing⟫",
   "files.madeBy.openItem": "⟪Open {item}⟫",
   "settings.roles.verb.author": "⟪Create, change and publish {things}⟫",
+  "settings.roles.verb.register": "⟪Register {things}⟫",
   "library.tab.memory": "⟪Memory⟫",
   "library.memory.title": "⟪Remembered facts⟫",
   "library.memory.intro": "⟪Facts agents are given before they start work.⟫",
