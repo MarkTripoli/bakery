@@ -1,0 +1,99 @@
+[
+  {
+    "at": "8.2",
+    "event": "list",
+    "row": "build-host-01 Linux Claude Code, Codex 3 of 4 Nov 25, 2026, 6:10 PM Checking Open"
+  },
+  {
+    "at": "8.3",
+    "event": "attempts read",
+    "state": "needs_attention",
+    "cursor": null,
+    "status": 200
+  },
+  {
+    "at": "9.9",
+    "event": "attempts read",
+    "state": "now",
+    "cursor": null,
+    "status": 200
+  },
+  {
+    "at": "12.5",
+    "event": "now",
+    "rows": 3,
+    "slots": "Tasks at once 4 Running now 3 Free 1",
+    "tab": "Work2 need a look"
+  },
+  {
+    "at": "16.0",
+    "event": "needs a look",
+    "rows": 2,
+    "text": [
+      "Export invoices as CSV — Claude Code · claude-sonnet-5-5 Nov 25, 2026, 5:22 PM Lost contact Bakery stopped hearing from this machine about this work. The work was not finished here. Open the task to carry on.",
+      "Rename billing plans — Codex · gpt-5-5 Nov 25, 2026, 4:52 PM Unknown Bakery cannot tell whether this finished. It is waiting for the machine to report. Nothing is run again until it is known."
+    ]
+  },
+  {
+    "at": "16.1",
+    "event": "attempts read",
+    "state": "finished",
+    "cursor": null,
+    "status": 200
+  },
+  {
+    "at": "17.9",
+    "event": "finished",
+    "rows": 25
+  },
+  {
+    "at": "18.8",
+    "event": "attempts read",
+    "state": "finished",
+    "cursor": "eyJ2IjoyLCJhIjoid29ya2VyQXR0ZW1wdHMubGlzdCIsInAiOiJjMDAzMDY1OS03YTIzLTQ2MzAtODQ0MS05MzRlOWE4N2I4ZjgiLCJvIjoiNTU0NDY5MjUtMTcwMi00ZTFkLWI1MTctMGI0YWEwNGRlZTM0IiwiciI6ImNyZWF0ZWRBdDpkZXNjLGlkOmRlc2MiLCJmIjoie1wid29ya2VySG9zdElkXCI6XCI3MGE2MDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMDJcIixcInN0YXRlXCI6XCJmaW5pc2hlZFwifSIsInMiOjEsImsiOiJyb3ciLCJjIjoiMjAyNi0xMS0yNVQyMDowODozMC4yNzM0NDVaIiwiaSI6IjcwYTgwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDA0MCJ9.gCrOJhO0PbZxMHOKQrMnL2JjweC4NSdcpdSz4OGw2jI",
+    "status": 200
+  },
+  {
+    "at": "20.3",
+    "event": "finished after load more",
+    "rows": 27,
+    "loadMore": 0
+  },
+  {
+    "at": "20.4",
+    "event": "attempts read",
+    "state": "now",
+    "cursor": null,
+    "status": 200
+  },
+  {
+    "at": "22.9",
+    "event": "one running attempt completed, no reload",
+    "rows": 3
+  },
+  {
+    "at": "24.9",
+    "event": "attempts read",
+    "state": "needs_attention",
+    "cursor": null,
+    "status": 200
+  },
+  {
+    "at": "35.4",
+    "event": "attempts read",
+    "state": "now",
+    "cursor": null,
+    "status": 200
+  },
+  {
+    "at": "38.8",
+    "event": "after",
+    "rows": 2,
+    "slots": "Tasks at once 4 Running now 2 Free 2"
+  },
+  {
+    "at": "41.8",
+    "event": "opened task",
+    "path": "/tasks/70a30000-0000-4000-8000-000000000012"
+  }
+]
