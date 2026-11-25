@@ -5,6 +5,13 @@
  * what this decides, and the publish dialog sends its `steps`.
  */
 
+import {
+  type ApprovalFields,
+  approvalInput,
+  approvalOfNode,
+  sameApproval,
+} from "./approval-step.ts";
+
 /** One step as the editor holds it: what it runs, and the agent bound to it. */
 export type EditorStep = {
   readonly id: string;
@@ -12,6 +19,7 @@ export type EditorStep = {
   readonly agentVersionId: string | null;
   /** The skill versions the step names, in order (#431); none for most steps. */
   readonly skills: readonly string[];
+  readonly approval?: ApprovalFields;
 };
 
 export type LoopEdit = {
@@ -51,6 +59,11 @@ export type EditorAction =
     readonly min: number | null;
     readonly max: number;
     readonly allow: number | null;
+  }
+  | {
+    readonly kind: "approval";
+    readonly id: string;
+    readonly approval: ApprovalFields;
   }
   | { readonly kind: "reset"; readonly steps: readonly EditorStep[] }
   | { readonly kind: "undo" }
@@ -103,13 +116,19 @@ export function definitionOf(
           (typeof node.uses !== "string" && step.uses === ""));
       if (
         node !== undefined && sameAction &&
-        agent === step.agentVersionId && sameList(skills, step.skills)
+        agent === step.agentVersionId && sameList(skills, step.skills) &&
+        keepsApproval(node, step)
       ) {
         return node;
       }
       const { agentVersionId: _dropped, skills: _skills, ...rest } = node ?? {};
+      if (step.approval !== undefined) delete rest.with;
+      const input = step.approval === undefined
+        ? null
+        : approvalInput(step.approval);
       return {
         ...rest,
+        ...(input === null ? {} : { with: input }),
         id: step.id,
         uses: step.uses,
         ...(step.agentVersionId === null
@@ -168,6 +187,15 @@ export function skillsOfNode(
   return Array.isArray(node?.skills)
     ? node.skills.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+function keepsApproval(
+  node: Readonly<Record<string, unknown>>,
+  step: EditorStep,
+): boolean {
+  if (step.approval === undefined) return true;
+  const held = approvalOfNode(node);
+  return held !== null && sameApproval(held, step.approval);
 }
 
 const sameList = (left: readonly string[], right: readonly string[]) =>
@@ -268,6 +296,19 @@ export function editorReducer(
         state,
         state.steps.map((step, index) =>
           index === at ? { ...step, skills: [...action.skills] } : step
+        ),
+      );
+    }
+    case "approval": {
+      const at = state.steps.findIndex((step) => step.id === action.id);
+      const held = state.steps[at]?.approval;
+      if (held === undefined || sameApproval(held, action.approval)) {
+        return state;
+      }
+      return changed(
+        state,
+        state.steps.map((step, index) =>
+          index === at ? { ...step, approval: action.approval } : step
         ),
       );
     }
