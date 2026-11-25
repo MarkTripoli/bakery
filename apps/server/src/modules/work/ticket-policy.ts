@@ -110,46 +110,65 @@ export function parsePreviewFilters(value: unknown): TicketPreviewFilters {
   return parsed.data;
 }
 
-/**
- * Intent the request labels ask for, ignoring the hold label: the execute
- * label covers planning and execution (`start`), the planning-only label asks
- * for a plan (`plan`). Names are matched exactly and case-sensitively.
- */
+export type TicketLabelSet = Readonly<{
+  names: readonly string[];
+  ids: readonly string[] | null;
+}>;
+
+export type TicketLabels = readonly string[] | TicketLabelSet;
+
+type LabelRole = "execute" | "planOnly" | "hold";
+
+export function labelSetOf(
+  snapshot: Readonly<
+    { labels: readonly string[]; labelIds?: readonly string[] }
+  >,
+): TicketLabelSet {
+  return { names: snapshot.labels, ids: snapshot.labelIds ?? null };
+}
+
+function asLabelSet(labels: TicketLabels): TicketLabelSet {
+  return "names" in labels ? labels : { names: labels, ids: null };
+}
+
+export function carriedLabelName(
+  labels: TicketLabels,
+  policy: Pick<TicketSourcePolicy, "labels">,
+  role: LabelRole,
+): string | null {
+  const name = policy.labels[role];
+  if (name === null) return null;
+  const set = asLabelSet(labels);
+  const id = policy.labels.ids?.[role] ?? null;
+  if (id !== null && set.ids !== null) {
+    const at = set.ids.indexOf(id);
+    return at < 0 ? null : set.names[at] ?? null;
+  }
+  return set.names.includes(name) ? name : null;
+}
+
 export function requestedIntentFromLabels(
-  labels: readonly string[],
+  labels: TicketLabels,
   policy: Pick<TicketSourcePolicy, "labels">,
 ): TicketRequestIntent | null {
-  if (labels.includes(policy.labels.execute)) return "start";
-  if (
-    policy.labels.planOnly !== null && labels.includes(policy.labels.planOnly)
-  ) {
-    return "plan";
-  }
+  if (carriedLabelName(labels, policy, "execute") !== null) return "start";
+  if (carriedLabelName(labels, policy, "planOnly") !== null) return "plan";
   return null;
 }
 
-/**
- * Intent and hold state read from issue labels. The hold label wins: while it
- * is set no intent is granted, whatever other labels say.
- */
 export function intentFromLabels(
-  labels: readonly string[],
+  labels: TicketLabels,
   policy: Pick<TicketSourcePolicy, "labels">,
 ): TicketLabelIntent {
-  const hold = labels.includes(policy.labels.hold);
+  const hold = carriedLabelName(labels, policy, "hold") !== null;
   return {
     intent: hold ? null : requestedIntentFromLabels(labels, policy),
     hold,
   };
 }
 
-/**
- * Whether the labels carry a request label that covers `intent`. A `start`
- * intent needs the execute label; a `plan` intent is covered by the execute or
- * the planning-only label. The hold label is a separate check.
- */
 export function labelsCoverIntent(
-  labels: readonly string[],
+  labels: TicketLabels,
   policy: Pick<TicketSourcePolicy, "labels">,
   intent: TicketRequestIntent,
 ): boolean {

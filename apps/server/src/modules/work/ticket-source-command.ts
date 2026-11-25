@@ -34,10 +34,15 @@ import {
 import { loadTicketSource } from "./ticket-query.ts";
 import {
   intentFromLabels,
+  labelSetOf,
   parsePreviewFilters,
   storedTicketSourcePolicy,
 } from "./ticket-policy.ts";
 import { lockSource, lockSourceForUpdate } from "./ticket-store.ts";
+import {
+  assertPolicyTriggersDeclared,
+  sourceProvider,
+} from "./ticket-triggers.ts";
 import {
   inSavepoint,
   runTicketSourceStep,
@@ -167,6 +172,7 @@ export async function createTicketSource(
   );
   const resource = scope.rows[0];
   if (!resource) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  assertPolicyTriggersDeclared(resource.provider, policy);
   const locked = await lockAuthority(transaction, {
     organizationId,
     connectionId: input.connectionId,
@@ -306,6 +312,10 @@ export async function updateTicketSource(
     );
   const policyChanged = canonicalJson(policy) !== canonicalJson(current.policy);
   if (policyChanged) {
+    assertPolicyTriggersDeclared(
+      await sourceProvider(transaction, organizationId, id),
+      policy,
+    );
     await requireDelegationPrincipal(transaction, organizationId, policy);
   }
   await transaction.query(
@@ -718,7 +728,7 @@ function previewEntry(
   policy: TicketSourcePolicy,
 ): PreviewResult["issues"][number] {
   const labels = prefetch.issue.kind === "present"
-    ? prefetch.issue.snapshot.labels
+    ? labelSetOf(prefetch.issue.snapshot)
     : [];
   const { intent, hold } = intentFromLabels(labels, policy);
   const outcome = hold

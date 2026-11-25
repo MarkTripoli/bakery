@@ -14,7 +14,7 @@ import {
 } from "./ticket-admission.ts";
 import type { TicketLabelWriter } from "./ticket-labels.ts";
 import type { TicketNoteWriter } from "./ticket-notes.ts";
-import { requestedIntentFromLabels } from "./ticket-policy.ts";
+import { labelSetOf, requestedIntentFromLabels } from "./ticket-policy.ts";
 import {
   type ProgressSyncResult,
   syncSourceProgress,
@@ -211,7 +211,7 @@ async function intakeSource(
     }
     const asked = prefetch.issue.kind === "present" &&
       requestedIntentFromLabels(
-          prefetch.issue.snapshot.labels,
+          labelSetOf(prefetch.issue.snapshot),
           source.policy,
         ) !==
         null;
