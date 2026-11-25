@@ -180,6 +180,56 @@ Deno.test("publishing pins an MCP tool.call step to the connection, its snapshot
   }
 });
 
+Deno.test("publishing freezes an async write's operation key and poll into its pin, which later classification edits leave alone (#439)", async () => {
+  const f = await openInstallationFixture();
+  try {
+    const mcp = await connection(f, ["submit", "status"], ["submit", "status"]);
+    const classify = (name: string, effectClass: string, more: unknown[]) =>
+      f.pgDatabase.query(
+        `insert into bakery.mcp_tool_classifications
+           (organization_id, connection_id, tool_name, effect_class,
+            effect_key_argument, paired_read_tool, snapshot_digest, classified_by)
+         values ($1, $2, $3, $4, $5, $6, 'digest-1', $7)`,
+        [f.organizationId, mcp.id, name, effectClass, ...more, f.adminId],
+      );
+    await classify("status", "read", [null, null]);
+    await classify("submit", "write_async", ["query", "status"]);
+    const { published, versionId } = await publish(
+      f,
+      definition(mcp.id, "submit"),
+    );
+    assertEquals(published.status, 200, JSON.stringify(published.json));
+    const frozen = async () =>
+      (await f.pgDatabase.query<
+        { allowed_operations: string[]; mcp_async_form: unknown }
+      >(
+        `select allowed_operations, mcp_async_form
+           from bakery.capability_bindings where workflow_version_id = $1`,
+        [versionId],
+      )).rows;
+    const expected = [{
+      allowed_operations: ["submit", "status"],
+      mcp_async_form: {
+        kind: "submit_poll_v1",
+        effectKeyArgument: "query",
+        pollTool: "status",
+      },
+    }];
+    assertEquals(await frozen(), expected);
+    await f.pgDatabase.query(
+      `update bakery.mcp_tool_classifications
+          set effect_class = 'write_opaque', effect_key_argument = null,
+              paired_read_tool = null
+        where organization_id = $1 and connection_id = $2
+          and tool_name = 'submit'`,
+      [f.organizationId, mcp.id],
+    );
+    assertEquals(await frozen(), expected);
+  } finally {
+    await f.finish();
+  }
+});
+
 Deno.test("a tool the connection does not offer, or has not enabled, refuses publication and leaves no version or pin (#435)", async () => {
   const f = await openInstallationFixture();
   try {

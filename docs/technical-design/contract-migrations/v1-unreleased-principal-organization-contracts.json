@@ -1,14 +1,34 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "237679781fba4bf622a1a5aa66e9eee1c956e9c6",
-    "b2d43f5341ad9fa9fcc71d64202440231fb97c4f"
+    "f12807319179f32b96bb509a4b61cfa2beb76eb1"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:e892eef376c870b79b8210829a682fe4e86b972d76769e2235fc5611823953f9",
-  "reason": "#60 W2 plan approval by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 237679781fba4bf622a1a5aa66e9eee1c956e9c6: Approval gains a required mayDecide (true when the person may decide that approval now: a human with approval:decide in the approval's audience while it is open, or after it expired while its plan revision or run stage is still current), so the web shows decision buttons only to people who can use them. A person who decides an expired approval whose plan or run stage is still current is served a new approval, and the old one stays expired. No client has been released that builds an Approval, so no caller sends the old shape.",
+  "targetCompatibilityDigest": "sha256:923ae300943dcf274794156ecb4f89223c16bbaf682f0b7703ec72b480450558",
+  "reason": "#70 slice 6 machine work read by dev-server on 2026-11-25 under the owner's standing breaking-change authorization (2026-10-09), main f12807319179f32b96bb509a4b61cfa2beb76eb1: WorkerHost gains a required activeAttemptCount, the live-lease slot occupancy the scheduler admits against, and workerAttempts.list returns one machine's attempts by state. No client has been released that builds a WorkerHost, and the web test mocks in this PR carry the field.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "6598ad95761856f0520b656e4abc1dc4ba4ae4d6"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a3e493119604f361c23da81f325627e5828c3db4aeda7a041762f8261063242d",
+      "reason": "#70 slice 6 machine work read by dev-server on 2026-11-25 under the owner's standing breaking-change authorization (2026-10-09), main 6598ad95761856f0520b656e4abc1dc4ba4ae4d6: WorkerHost gains a required activeAttemptCount, the live-lease slot occupancy the scheduler admits against, and workerAttempts.list returns one machine's attempts by state. No client has been released that builds a WorkerHost, and the web test mocks in this PR carry the field."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "237679781fba4bf622a1a5aa66e9eee1c956e9c6",
+        "b2d43f5341ad9fa9fcc71d64202440231fb97c4f"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:e892eef376c870b79b8210829a682fe4e86b972d76769e2235fc5611823953f9",
+      "reason": "#60 W2 plan approval by dev-workflows on 2026-11-24 under the owner's standing breaking-change authorization (2026-10-09), main 237679781fba4bf622a1a5aa66e9eee1c956e9c6: Approval gains a required mayDecide (true when the person may decide that approval now: a human with approval:decide in the approval's audience while it is open, or after it expired while its plan revision or run stage is still current), so the web shows decision buttons only to people who can use them. A person who decides an expired approval whose plan or run stage is still current is served a new approval, and the old one stays expired. No client has been released that builds an Approval, so no caller sends the old shape."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

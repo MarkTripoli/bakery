@@ -704,6 +704,43 @@
       ],
       "description": "Task-bound paginated attempt identity read. Rechecks current organization grants and active task, application, repository ownership."
     },
+    "WorkerAttemptListQuery": {
+      "fields": [
+        {
+          "name": "state",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "now",
+            "needs_attention",
+            "finished"
+          ],
+          "description": "Which of the machine's attempts to list, as the server classifies them: now is a current attempt with a live lease, which holds a slot; needs_attention is lost, quarantined, superseded or expired-lease work whose outcome needs a look; finished is completed, failed or canceled work."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior page of this list for the same machine and state; rejected if replayed for another machine, state, principal or organization."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum attempts returned per page; defaults to 25 and cannot exceed 100."
+        }
+      ],
+      "pagination": "pagination",
+      "description": "Query for one machine's attempts in one server-owned state, newest first."
+    },
     "AgentVersionCreate": {
       "fields": [
         {
@@ -13564,9 +13601,10 @@
             "read",
             "write_idempotent",
             "write_reconcilable",
+            "write_async",
             "write_opaque"
           ],
-          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
+          "description": "What the tool does to the outside world, as an Admin classifies it: read changes nothing; write_idempotent repeats safely when given the same effect key; write_reconcilable can be confirmed afterwards by a paired read tool; write_async starts a remote operation under a Bakery-owned operation key that a paired read tool polls until it ends; write_opaque is a write Bakery runs at most once and, if the outcome is unknown, leaves for a person."
         },
         {
           "name": "effectKeyArgument",
@@ -13576,7 +13614,7 @@
           "bounds": {
             "maxLength": 128
           },
-          "description": "For write_idempotent only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares."
+          "description": "For write_idempotent and write_async only: the name of the tool argument whose value is the effect key, so a repeated call with the same value is the same effect. It must be an argument the tool's input schema declares; for write_async the paired read tool must declare it too."
         },
         {
           "name": "pairedReadTool",
@@ -13586,12 +13624,13 @@
           "bounds": {
             "maxLength": 128
           },
-          "description": "For write_reconcilable only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened."
+          "description": "For write_reconcilable and write_async only: the name of another tool in the same snapshot, already classified read, that confirms whether the write happened or, for write_async, polls the operation it started."
         }
       ],
       "rules": [
-        "effectKeyArgument is required for write_idempotent and refused for any other class",
-        "pairedReadTool is required for write_reconcilable and refused for any other class",
+        "effectKeyArgument is required for write_idempotent and write_async and refused for any other class",
+        "pairedReadTool is required for write_reconcilable and write_async and refused for any other class",
+        "for write_async the paired read tool's input schema declares effectKeyArgument",
         "the tool must be in the connection's current snapshot"
       ],
       "description": "Classifies one tool's side effects (O26). Server hints are suggestions only: this is the Admin's statement and the only one Bakery acts on. An unclassified tool is a write that runs at most once."
@@ -21367,6 +21406,58 @@
       "pageOf": "JobAttemptRead",
       "description": "Current-authority checked job attempt keyset page; null nextCursor marks completion."
     },
+    "WorkerAttemptRead": {
+      "fields": [
+        "id",
+        "jobId",
+        "taskId",
+        "taskTitle",
+        "runStepId",
+        "stepKey",
+        "jobAction",
+        "codingAgent",
+        "model",
+        "status",
+        "leaseState",
+        "startedAt",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "jobId": "uuid",
+        "taskId": "uuid|null",
+        "taskTitle": "string|null",
+        "runStepId": "uuid|null",
+        "stepKey": "string|null",
+        "jobAction": "string",
+        "codingAgent": "enum(pi|claude_code|codex|mastra)|null",
+        "model": "string|null",
+        "status": "enum(leased|running|canceling|completed|failed|canceled|lost|quarantined)",
+        "leaseState": "enum(active|expired|lost|closed|unknown)",
+        "startedAt": "timestamp|null",
+        "createdAt": "timestamp"
+      },
+      "fieldDescriptions": {
+        "id": "Stable attempt identity.",
+        "jobId": "Execution job the attempt ran.",
+        "taskId": "Task the job belongs to, through its workflow run or its coordinator conversation; null for work with no task, such as a repository inspection.",
+        "taskTitle": "Current title of that task, bounded to 200 characters; null when the job has no task.",
+        "runStepId": "Workflow run step the job executes; null for a standalone job.",
+        "stepKey": "Key of that run step; null for a standalone job.",
+        "jobAction": "Action the job performs, such as a coordinator turn or a repository inspection; shown when there is no step.",
+        "codingAgent": "Coding agent frozen on the job when it was created; null for work that runs no agent.",
+        "model": "Model pinned on the job's billing when it was created; null for work that calls no model.",
+        "status": "Persisted attempt lifecycle.",
+        "leaseState": "Server-evaluated lease state at read time; superseded or quarantined attempts are unknown.",
+        "startedAt": "When the worker started the attempt; null before it started.",
+        "createdAt": "When the attempt was assigned to the machine; stable keyset position."
+      },
+      "description": "One attempt a machine was assigned, with the work it ran and no credentials, lease tokens, fences, raw configuration, inputs or results."
+    },
+    "Page<WorkerAttemptRead>": {
+      "pageOf": "WorkerAttemptRead",
+      "description": "Keyset page of one machine's attempts in one state, newest first; null nextCursor marks the last page."
+    },
     "JobAttemptRead": {
       "fields": [
         "id",
@@ -25750,6 +25841,7 @@
         "readinessReason",
         "failedCheckIds",
         "unsettledAttemptCount",
+        "activeAttemptCount",
         "lastHeartbeatAt",
         "credentialGeneration",
         "archivedAt",
@@ -25774,6 +25866,7 @@
         "readinessReason": "string|null",
         "failedCheckIds": "json",
         "unsettledAttemptCount": "integer",
+        "activeAttemptCount": "integer",
         "lastHeartbeatAt": "timestamp|null",
         "credentialGeneration": "integer",
         "archivedAt": "timestamp|null",
@@ -25804,6 +25897,7 @@
         "readinessReason": "Safe bounded explanation when readiness is needs_attention; null otherwise.",
         "failedCheckIds": "Check identifiers with a fresh failing result, sorted; empty when none.",
         "unsettledAttemptCount": "Attempts on this machine that are not finished: leased, running, canceling, or quarantined with an unknown outcome. A machine in draining mode has nothing left when this is 0.",
+        "activeAttemptCount": "Attempts holding one of this machine's slots right now: leased, running or canceling with a lease that has not expired, the same count the scheduler admits new work against. It counts slot occupancy, not tasks or past work; slots minus this is free capacity.",
         "lastHeartbeatAt": "UTC timestamp when the worker last reported health.",
         "credentialGeneration": "Credential generation loaded by the worker host.",
         "archivedAt": "UTC timestamp when an Admin archived this revoked host; null while it is listed by default. Archived hosts keep every historical reference and stay readable by ID.",
@@ -35911,7 +36005,7 @@
       ],
       "fieldTypes": {
         "toolName": "string",
-        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_opaque)",
+        "effectClass": "enum(read|write_idempotent|write_reconcilable|write_async|write_opaque)",
         "classified": "boolean",
         "effectKeyArgument": "string",
         "pairedReadTool": "string",
@@ -35924,8 +36018,8 @@
         "toolName": "The tool's name in the pinned snapshot.",
         "effectClass": "The class in force: the Admin's, or write_opaque when unclassified.",
         "classified": "True once an Admin has classified this tool.",
-        "effectKeyArgument": "For write_idempotent, the argument that carries the effect key; otherwise null.",
-        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; otherwise null.",
+        "effectKeyArgument": "For write_idempotent and write_async, the argument that carries the effect key; otherwise null.",
+        "pairedReadTool": "For write_reconcilable, the read tool that confirms the write; for write_async, the read tool that polls the operation; otherwise null.",
         "classifiedAgainstCurrentSnapshot": "False when the connection has been rediscovered since this classification was made, so the Admin should check that it still describes the tool. True for an unclassified tool.",
         "classifiedAt": "UTC timestamp of the classification, or null when unclassified.",
         "version": "Classification version: 0 when unclassified, then the If-Match value for the next change."

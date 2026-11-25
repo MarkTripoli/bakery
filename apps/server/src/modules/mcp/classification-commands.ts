@@ -40,6 +40,7 @@ const CLASSES = [
   "read",
   "write_idempotent",
   "write_reconcilable",
+  "write_async",
   "write_opaque",
 ] as const;
 const TOOL_NAME = /^[A-Za-z0-9_.-]{1,128}$/;
@@ -103,6 +104,13 @@ function toItem(
     classifiedAt: row.updated_at.toISOString(),
     version: row.version,
   } as Classification;
+}
+
+function declaresArgument(inputSchema: unknown, argument: string): boolean {
+  const properties = (inputSchema as { properties?: unknown } | null)
+    ?.properties;
+  return properties !== null && typeof properties === "object" &&
+    Object.hasOwn(properties, argument);
 }
 
 function toolName(context: ActionContext): string {
@@ -177,22 +185,21 @@ export async function putMcpToolClassification(
 
   const keyArgument = input.effectKeyArgument ?? null;
   const pairedRead = input.pairedReadTool ?? null;
-  if (input.effectClass === "write_idempotent") {
+  const takesKey = input.effectClass === "write_idempotent" ||
+    input.effectClass === "write_async";
+  const takesPairedRead = input.effectClass === "write_reconcilable" ||
+    input.effectClass === "write_async";
+  if (takesKey) {
     if (keyArgument === null) {
       throw unprocessable(["effectKeyArgument"], "effect_key_required");
     }
-    const properties = (tool.inputSchema as { properties?: unknown })
-      .properties;
-    if (
-      !properties || typeof properties !== "object" ||
-      !Object.hasOwn(properties, keyArgument)
-    ) {
+    if (!declaresArgument(tool.inputSchema, keyArgument)) {
       throw unprocessable(["effectKeyArgument"], "effect_key_unknown_argument");
     }
   } else if (keyArgument !== null) {
     throw unprocessable(["effectKeyArgument"], "effect_key_not_allowed");
   }
-  if (input.effectClass === "write_reconcilable") {
+  if (takesPairedRead) {
     if (pairedRead === null) {
       throw unprocessable(["pairedReadTool"], "paired_read_required");
     }
@@ -209,6 +216,14 @@ export async function putMcpToolClassification(
     );
     if (paired.rows[0]?.effect_class !== "read") {
       throw unprocessable(["pairedReadTool"], "paired_read_not_read");
+    }
+    const pollSchema = snapshot.tools.find((entry) => entry.name === pairedRead)
+      ?.inputSchema;
+    if (
+      input.effectClass === "write_async" &&
+      !declaresArgument(pollSchema, keyArgument!)
+    ) {
+      throw unprocessable(["pairedReadTool"], "async_poll_lacks_effect_key");
     }
   } else if (pairedRead !== null) {
     throw unprocessable(["pairedReadTool"], "paired_read_not_allowed");
