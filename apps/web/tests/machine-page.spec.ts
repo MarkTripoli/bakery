@@ -540,7 +540,7 @@ test.describe("machine page: mode and Retire", () => {
     await expect(mode.getByRole("status")).toHaveCount(0);
     expect(f.patches).toHaveLength(1);
     expect(f.patches[0]!.postDataJSON()).toEqual({ status: "offline" });
-    expect(f.patches[0]!.headers()["if-match"]).toBe('"1"');
+    expect(f.patches[0]!.headers()["if-match"]).toBe('"v1"');
     expect(f.patches[0]!.headers()["idempotency-key"]).toBeTruthy();
     await expect(banner(page)).toContainText(
       "It takes no new work until someone resumes it.",
