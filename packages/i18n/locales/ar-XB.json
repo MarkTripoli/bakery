@@ -7213,7 +7213,6 @@
   "delivery.quality.openToMerge.unknown": "⟪Unknown. Not counted for the whole period yet.⟫",
   "delivery.chart.gap": "⟪{from} to {to}⟫",
   "delivery.chart.gapDay": "⟪{date}⟫",
-  "shared.backToInbox": "⟪Back to inbox⟫",
   "shared.document.notice": "⟪You can read this document and comment on it. The rest of the task is not shared with you.⟫",
   "shared.document.sharedBy": "⟪{name} shared this document with you on {date}.⟫",
   "shared.document.showComments": "⟪Show comments ({count})⟫",
@@ -7229,5 +7228,6 @@
   "shared.unavailable.noLongerShared.body": "⟪Ask {granter} if you still need it.⟫",
   "shared.unavailable.noLongerShared.bodyAnon": "⟪Ask the person who shared it if you still need it.⟫",
   "shared.unavailable.unknown.title": "⟪This is no longer available⟫",
-  "shared.unavailable.unknown.body": "⟪It was deleted, or it is no longer shared with you.⟫"
+  "shared.unavailable.unknown.body": "⟪It was deleted, or it is no longer shared with you.⟫",
+  "shared.backToInbox": "⟪Back to notifications⟫"
 }

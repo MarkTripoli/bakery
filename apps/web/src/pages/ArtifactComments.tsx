@@ -377,6 +377,7 @@ export function ArtifactComments(
           selected={agentRequest &&
             selected.some((item) => item.id === root.id)}
           selectable={agentRequest}
+          shared={!agentRequest}
           busy={busy}
           composer={reply?.id === root.id ? composer : undefined}
           onSelect={(checked) =>

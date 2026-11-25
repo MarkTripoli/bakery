@@ -6074,7 +6074,7 @@
   "notifications.empty.mentions.sentence": "When someone mentions you, it appears here.",
   "notifications.unavailable.title": "This item is no longer available",
   "notifications.unavailable.sentence": "It was deleted or moved, or you no longer have access to it.",
-  "shared.backToInbox": "Back to inbox",
+  "shared.backToInbox": "Back to notifications",
   "shared.document.notice": "You can read this document and comment on it. The rest of the task is not shared with you.",
   "shared.document.sharedBy": "{name} shared this document with you on {date}.",
   "shared.document.showComments": "Show comments ({count})",

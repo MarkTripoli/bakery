@@ -27,6 +27,7 @@ export function ArtifactCommentThread(
     viewVersionId,
     selected,
     selectable = true,
+    shared = false,
     busy,
     onSelect,
     onReply,
@@ -40,6 +41,7 @@ export function ArtifactCommentThread(
     readonly viewVersionId: string;
     readonly selected: boolean;
     readonly selectable?: boolean;
+    readonly shared?: boolean;
     readonly busy: boolean;
     readonly onSelect: (value: boolean) => void;
     readonly onReply: () => void;
@@ -49,13 +51,23 @@ export function ArtifactCommentThread(
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
-  const { translate: t } = useI18n();
+  const { translate: t, locale, timeZone } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const profile = useQuery(userProfileQueryOptions(api, scope));
   const access = useQuery({
     ...effectiveAccessQueryOptions(api, scope),
     enabled: scope.organizationId !== null,
   });
+  const authorOf = (id: string) =>
+    profile.data?.principalId === id
+      ? t("tasks.conversation.author.you")
+      : t("tasks.conversation.author.member");
+  const when = (iso: string) =>
+    new Intl.DateTimeFormat(locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone,
+    }).format(new Date(iso));
   const canEdit = (comment: ArtifactCommentResponse) =>
     !comment.deletedAt &&
     ((!profile.isError && profile.data?.principalId === comment.authorId) ||
@@ -94,9 +106,9 @@ export function ArtifactCommentThread(
       <ArtifactDiscussionView
         composer={composer}
         title={t("artifact.comments.discussion")}
-        author={root.authorId}
-        initials={root.authorId.slice(0, 2).toUpperCase()}
-        timestamp={root.createdAt}
+        author={authorOf(root.authorId)}
+        initials={authorOf(root.authorId).slice(0, 1).toUpperCase()}
+        timestamp={when(root.createdAt)}
         body={root.deletedAt ? t("artifact.comments.deleted") : root.body}
         location={root.artifactVersionId !== viewVersionId
           ? t("artifact.comments.fromRevision")
@@ -120,7 +132,7 @@ export function ArtifactCommentThread(
             item,
           ) => ({
             id: item.id,
-            author: item.authorId,
+            author: authorOf(item.authorId),
             body: (
               <>
                 <UI.Text>
@@ -147,7 +159,7 @@ export function ArtifactCommentThread(
           disabled: busy,
           pressed: composer !== undefined,
         }}
-        resolveAction={root.deletedAt ? undefined : {
+        resolveAction={root.deletedAt || shared ? undefined : {
           label: t(
             root.status === "resolved"
               ? "artifact.comments.reopen"
@@ -163,16 +175,15 @@ export function ArtifactCommentThread(
       {canEdit(root)
         ? <ArtifactCommentEditor comment={root} onUpdated={onUpdated} />
         : null}
-      {root.placement?.status === "outdated"
-        ? <UI.Text>{t("artifact.comments.outdated")}</UI.Text>
-        : null}
-      <UI.Link
-        href={`/tasks/${artifact.taskId}/artifacts/${artifact.id}?version=${
-          encodeURIComponent(root.artifactVersionId)
-        }&comment=${encodeURIComponent(root.id)}`}
-      >
-        {t("artifact.comments.original")}
-      </UI.Link>
+      {shared ? null : (
+        <UI.Link
+          href={`/tasks/${artifact.taskId}/artifacts/${artifact.id}?version=${
+            encodeURIComponent(root.artifactVersionId)
+          }&comment=${encodeURIComponent(root.id)}`}
+        >
+          {t("artifact.comments.original")}
+        </UI.Link>
+      )}
       <UI.Inline gap="compact">
         <UI.Button variant="secondary" onClick={() => setExpanded(!expanded)}>
           {t("artifact.comments.replies")}

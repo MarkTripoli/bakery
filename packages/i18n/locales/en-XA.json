@@ -7213,7 +7213,6 @@
   "delivery.quality.openToMerge.unknown": "⟦Ûñķñôŵñ. Ñôŧ çôûñŧëð ƒôŕ ŧĥë ŵĥôļë þëŕïôð ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "delivery.chart.gap": "⟦{from} ŧô {to} ŧë⟧",
   "delivery.chart.gapDay": "⟦{date}…⟧",
-  "shared.backToInbox": "⟦Ɓàçķ ŧô ïñƀôẋ ŧë⟧",
   "shared.document.notice": "⟦Ÿôû çàñ ŕëàð ŧĥïš ðôçûɱëñŧ àñð çôɱɱëñŧ ôñ ïŧ. Ŧĥë ŕëšŧ ôƒ ŧĥë ŧàšķ ïš ñôŧ šĥàŕëð ŵïŧĥ ÿôû. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "shared.document.sharedBy": "⟦{name} šĥàŕëð ŧĥïš ðôçûɱëñŧ ŵïŧĥ ÿôû ôñ {date}. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "shared.document.showComments": "⟦Šĥôŵ çôɱɱëñŧš ({count}) ŧëšŧ ç⟧",
@@ -7229,5 +7228,6 @@
   "shared.unavailable.noLongerShared.body": "⟦Àšķ {granter} ïƒ ÿôû šŧïļļ ñëëð ïŧ. ŧëšŧ çôþÿŧ⟧",
   "shared.unavailable.noLongerShared.bodyAnon": "⟦Àšķ ŧĥë þëŕšôñ ŵĥô šĥàŕëð ïŧ ïƒ ÿôû šŧïļļ ñëëð ïŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "shared.unavailable.unknown.title": "⟦Ŧĥïš ïš ñô ļôñĝëŕ àṽàïļàƀļë ŧëšŧ çô⟧",
-  "shared.unavailable.unknown.body": "⟦Ïŧ ŵàš ðëļëŧëð, ôŕ ïŧ ïš ñô ļôñĝëŕ šĥàŕëð ŵïŧĥ ÿôû. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "shared.unavailable.unknown.body": "⟦Ïŧ ŵàš ðëļëŧëð, ôŕ ïŧ ïš ñô ļôñĝëŕ šĥàŕëð ŵïŧĥ ÿôû. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "shared.backToInbox": "⟦Ɓàçķ ŧô ñôŧïƒïçàŧïôñš ŧëšŧŧ⟧"
 }

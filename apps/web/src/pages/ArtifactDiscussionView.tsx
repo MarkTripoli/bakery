@@ -102,20 +102,23 @@ export function ArtifactCommentComposerView(
         )
         : null}
       {composer.mentionField?.picker ?? null}
+      <UI.Label htmlFor={composer.id}>{composer.label}</UI.Label>
       <textarea
         {...(composer.mentionField?.fieldProps ?? {})}
         id={composer.id}
         ref={(node) => {
-          if (typeof composer.inputRef === "function") composer.inputRef(node);
-          else if (composer.inputRef) {
-            (composer.inputRef as MutableRefObject<HTMLTextAreaElement | null>)
+          if (typeof composer.inputRef === "function") {
+            composer.inputRef(node);
+          } else if (composer.inputRef) {
+            (composer.inputRef as MutableRefObject<
+              HTMLTextAreaElement | null
+            >)
               .current = node;
           }
           if (composer.mentionField) {
             composer.mentionField.fieldProps.ref.current = node;
           }
         }}
-        aria-label={composer.label}
         placeholder={composer.placeholder}
         rows={1}
         readOnly={composer.posting}

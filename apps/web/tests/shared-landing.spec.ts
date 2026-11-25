@@ -27,6 +27,7 @@ const DOCUMENT_PATH = `/shared/documents/${ARTIFACT_ID}`;
 const CONVERSATION_PATH = `/shared/conversations/${CONVERSATION_ID}`;
 const MENTIONED = "Ana Duarte mentioned you";
 const MESSAGE_ID = "00000000-0000-4000-8000-0000000001a1";
+const ANA_ID = "00000000-0000-4000-8000-0000000000b2";
 
 const opened = (path: string) =>
   `${path}?n=${NOTIFICATION_ID}&r=${NOTIFICATION_REVISION}`;
@@ -41,7 +42,7 @@ async function conversationWorld(page: Page) {
           items: [{
             id: MESSAGE_ID,
             conversationId: CONVERSATION_ID,
-            authorId: "00000000-0000-4000-8000-000000000001",
+            authorId: ANA_ID,
             agentSessionId: null,
             messageType: "user",
             body: "Refund policy: the draft is in the task.",
@@ -60,7 +61,17 @@ async function conversationWorld(page: Page) {
   );
   await page.route(
     `**/v1/conversations/${CONVERSATION_ID}/participants*`,
-    (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [{
+            principalId: ANA_ID,
+            principalType: "human",
+            displayName: GRANTER,
+          }],
+          nextCursor: null,
+        },
+      }),
   );
   await page.route("**/v1/sync*", (route) =>
     route.fulfill({
@@ -115,6 +126,14 @@ for (
       await expect(body).toContainText(
         "You can read this document and comment on it. The rest of the task is not shared with you.",
       );
+      await expect(body).not.toContainText("00000000-0000-4000");
+      await expect(body).not.toContainText("2026-01-01T");
+      await expect(body.getByText("Outdated")).toHaveCount(1);
+      await expect(body.getByRole("button", { name: "Resolve" })).toHaveCount(
+        0,
+      );
+      await expect(body.getByRole("link", { name: "Open original version" }))
+        .toHaveCount(0);
       await expect(page.getByRole("link", { name: "Open task" })).toHaveCount(
         0,
       );
@@ -152,6 +171,8 @@ for (
         "Refund policy: the draft is in the task.",
       );
       await expect(body).not.toContainText("A conversation");
+      await expect(body.locator("[data-message-id]")).toContainText(GRANTER);
+      await expect(body.locator("[data-message-id]")).not.toContainText("You");
       await expect(page.getByRole("link", { name: "Open task" })).toHaveCount(
         0,
       );
@@ -183,7 +204,7 @@ for (
       await expect(body).toContainText(
         "Ana Duarte or someone on the task removed it. Nothing here can be opened.",
       );
-      await expect(page.getByRole("button", { name: "Back to inbox" }))
+      await expect(page.getByRole("button", { name: "Back to notifications" }))
         .toBeVisible();
       await expect(page.getByRole("button", { name: "Mark read" }))
         .toBeVisible();
@@ -215,7 +236,7 @@ for (
         "This document is no longer shared with you",
       );
       await expect(body).toContainText("Ask Ana Duarte if you still need it.");
-      await expect(page.getByRole("button", { name: "Back to inbox" }))
+      await expect(page.getByRole("button", { name: "Back to notifications" }))
         .toBeVisible();
       await expect(page.getByRole("button", { name: "Mark read" }))
         .toBeVisible();
