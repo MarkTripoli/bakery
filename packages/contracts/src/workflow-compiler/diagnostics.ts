@@ -109,6 +109,7 @@ export const WORKFLOW_COMPILER_DIAGNOSTIC_CODES = Object.freeze(
     "for_each_max_invalid",
     "for_each_as_invalid",
     "for_each_items_invalid",
+    "for_each_parallel_workspace_write",
     // Calls and declared workflow outputs.
     "call_shape_invalid",
     "call_version_unavailable",
@@ -259,6 +260,8 @@ export const WORKFLOW_COMPILER_MESSAGES: Readonly<
   for_each_as_invalid:
     "The forEach item name is invalid or repeats an enclosing forEach's name.",
   for_each_items_invalid: "The forEach items must be a list.",
+  for_each_parallel_workspace_write:
+    "A parallel forEach step cannot write to the workspace. Set maxConcurrency to 1 or narrow the step's files.write paths.",
   call_shape_invalid:
     "A call needs a `call` object with a published `workflow` version id and, when the child declares inputs, a `with` object.",
   call_version_unavailable:

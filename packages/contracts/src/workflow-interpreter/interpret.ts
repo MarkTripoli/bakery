@@ -155,6 +155,7 @@ type Scope = Readonly<
 type ForEachResult = {
   iterations: number;
   outcome: "completed" | "canceled" | "failed" | "timed_out";
+  collected: Readonly<Record<string, readonly JsonValue[]>>;
 };
 
 type RepeatResult = {
@@ -214,11 +215,10 @@ class Run {
   constructor(
     private readonly document: WorkflowSemanticDocument,
     private readonly state: RunState,
-    /** Revision 2: parallel groups run. Revision 1 refuses them by name. */
     private readonly groups: boolean = false,
-    /** Revision 3: forEach loops run. Revisions 1 and 2 refuse them by name. */
     private readonly loops: boolean = false,
     private readonly loopBounds: boolean = false,
+    private readonly collectedLoops: boolean = false,
   ) {}
 
   next(): NextStep {
@@ -368,12 +368,18 @@ class Run {
             throw new WorkflowInterpreterError("for_each_unsupported");
           }
           const name = rest[0];
-          if (name === "iterations" || name === "outcome") {
+          if (
+            name === "iterations" || name === "outcome" ||
+            (name !== undefined && Object.hasOwn(node.collect ?? {}, name))
+          ) {
             const result = this.forEachResults.get(keyOf(segments, node.id));
             if (!result) {
               throw new WorkflowInterpreterError("reference_unresolved");
             }
-            return readFields(result[name], rest.slice(1));
+            const value = name === "iterations" || name === "outcome"
+              ? result[name]
+              : result.collected[name!] ?? [];
+            return readFields(value, rest.slice(1));
           }
           // A step of the loop: only a reader inside it may name one, and it
           // names the iteration the reader is in.
@@ -770,18 +776,6 @@ class Run {
     return { t: "done" };
   }
 
-  /**
-   * A bounded sequential forEach (revision 3). `items` is read when the loop
-   * is reached, from the same recorded state every call sees, so the answer
-   * stays a function of that state. `null` runs no iteration. A list longer
-   * than `max` halts the run as failed at the loop's own key before any
-   * iteration runs: the bound the worst case was computed from is never
-   * exceeded and never silently cut. Iterations run one at a time in list
-   * order, keyed `<id>@n` for n = 1..length. As in a repeat, an iteration
-   * that fails, is canceled or times out stops the loop and becomes its
-   * outcome rather than the run's, and `iterations` counts the iterations
-   * that completed.
-   */
   private walkForEach(node: WorkflowForEachNode, scope: Scope): Walk {
     const key = keyOf(scope.segments, node.id);
     const items = evaluateValue(node.items, this.reader(scope));
@@ -792,27 +786,110 @@ class Run {
     if (list.length > node.max) {
       return { t: "halt", outcome: "failed", key };
     }
-    let iterations = 0;
-    let outcome: ForEachResult["outcome"] = "completed";
-    for (let at = 0; at < list.length; at += 1) {
-      const number = at + 1;
-      const body: Scope = {
-        segments: [...scope.segments, { id: node.id, iteration: number }],
-        frames: scope.frames,
-        each: [...scope.each, { node, iteration: number, item: list[at]! }],
-      };
-      const walk = this.walkList(node.steps, body);
-      if (
-        walk.t === "pending" || walk.t === "pending_many" ||
-        walk.t === "pause"
-      ) return walk;
-      if (walk.t === "halt") {
-        outcome = walk.outcome;
-        break;
+    const concurrency = this.collectedLoops ? node.maxConcurrency ?? 1 : 1;
+    const collect = this.collectedLoops ? node.collect ?? {} : {};
+    const scopes = list.map((item, at): Scope => ({
+      segments: [...scope.segments, { id: node.id, iteration: at + 1 }],
+      frames: scope.frames,
+      each: [...scope.each, { node, iteration: at + 1, item }],
+    }));
+    const started = (body: Scope): boolean => {
+      const prefix = `${keyOf(body.segments.slice(0, -1), node.id)}@${
+        body.segments.at(-1)!.iteration
+      }.`;
+      for (const stepKey of this.state.steps.keys()) {
+        if (stepKey.startsWith(prefix)) return true;
       }
-      iterations = number;
+      for (const stepKey of this.state.inFlight ?? []) {
+        if (stepKey.startsWith(prefix)) return true;
+      }
+      return false;
+    };
+    const statuses: (
+      | { kind: "done"; collected: Record<string, JsonValue> }
+      | { kind: "failed"; halt: Extract<Walk, { t: "halt" }> }
+      | { kind: "paused"; pause: Extract<Walk, { t: "pause" }> }
+      | {
+        kind: "active";
+        steps: readonly (ActionDispatch | WaitDispatch)[];
+      }
+    )[] = [];
+    for (const body of scopes) {
+      const walk = this.walkList(node.steps, body);
+      if (walk.t === "done") {
+        const collected: Record<string, JsonValue> = Object.create(null);
+        for (const [name, value] of Object.entries(collect)) {
+          collected[name] = evaluateValue(value, this.reader(body));
+        }
+        statuses.push({ kind: "done", collected });
+      } else if (walk.t === "halt") {
+        statuses.push({ kind: "failed", halt: walk });
+      } else if (walk.t === "pause") {
+        statuses.push({ kind: "paused", pause: walk });
+      } else {
+        statuses.push({
+          kind: "active",
+          steps: walk.t === "pending" ? [walk.step] : walk.steps,
+        });
+      }
     }
-    this.forEachResults.set(key, { iterations, outcome });
+    const failureAt = statuses.findIndex((status) => status.kind === "failed");
+    const pauseAt = statuses.findIndex((status) => status.kind === "paused");
+    const active = statuses.flatMap((status, at) =>
+      status.kind === "active" ? [at] : []
+    );
+    const running = active.filter((at) => started(scopes[at]!));
+    const stopFresh = failureAt >= 0 || pauseAt >= 0;
+    const room = Math.max(0, concurrency - running.length);
+    const fresh = stopFresh
+      ? []
+      : active.filter((at) => !started(scopes[at]!)).slice(0, room);
+    const chosen = new Set([...running, ...fresh]);
+    const pending = active.filter((at) => chosen.has(at)).flatMap((at) =>
+      (statuses[at] as Extract<
+        (typeof statuses)[number],
+        { kind: "active" }
+      >).steps
+    );
+    if (pending.length > 0) {
+      return concurrency === 1
+        ? { t: "pending", step: pending[0]! }
+        : { t: "pending_many", steps: pending };
+    }
+    if (failureAt >= 0) {
+      const failed = statuses[failureAt] as Extract<
+        (typeof statuses)[number],
+        { kind: "failed" }
+      >;
+      const collected: Record<string, JsonValue[]> = Object.create(null);
+      for (const name of Object.keys(collect)) collected[name] = [];
+      this.forEachResults.set(key, {
+        iterations: statuses.filter((status) => status.kind === "done").length,
+        outcome: failed.halt.outcome,
+        collected,
+      });
+      return { t: "done" };
+    }
+    if (pauseAt >= 0) {
+      return (statuses[pauseAt] as Extract<
+        (typeof statuses)[number],
+        { kind: "paused" }
+      >).pause;
+    }
+    const collected: Record<string, JsonValue[]> = Object.create(null);
+    for (const name of Object.keys(collect)) {
+      collected[name] = statuses.map((status) =>
+        (status as Extract<
+          (typeof statuses)[number],
+          { kind: "done" }
+        >).collected[name] ?? null
+      );
+    }
+    this.forEachResults.set(key, {
+      iterations: list.length,
+      outcome: "completed",
+      collected,
+    });
     return { t: "done" };
   }
 }
@@ -881,5 +958,14 @@ export function nextStepWithLoopBounds(
 ): NextStep {
   return cloneJson(
     new Run(document, state, true, true, true).next(),
+  ) as NextStep;
+}
+
+export function nextStepWithCollectedLoops(
+  document: WorkflowSemanticDocument,
+  state: RunState,
+): NextStep {
+  return cloneJson(
+    new Run(document, state, true, true, true, true).next(),
   ) as NextStep;
 }

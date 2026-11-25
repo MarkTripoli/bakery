@@ -181,7 +181,7 @@ Deno.test("AC3: a mid-run resume asks the pinned revision and gets the same next
 Deno.test("a pin to a revision that is no longer deployed is refused, never run on the current one", async () => {
   const document = await sample();
   const pin = await pinWorkflowRuntime(document);
-  const retired = { "5": () => ({ kind: "finished" }) as NextStep };
+  const retired = {};
   const error = await assertRejects(() =>
     resolveWorkflowRuntime(pin, document, retired)
   );
@@ -199,7 +199,7 @@ Deno.test("the deployed revision registry cannot be changed at run time (#212)",
   const revisionOne = registry["1"];
   assert(Object.isFrozen(INTERPRETER_REVISIONS));
   assertThrows(() => {
-    registry["5"] = nextStep;
+    registry["not-deployed"] = nextStep;
   }, TypeError);
   assertThrows(() => {
     registry["1"] = nextStep;
@@ -209,7 +209,7 @@ Deno.test("the deployed revision registry cannot be changed at run time (#212)",
   }, TypeError);
   assertEquals(Object.keys(registry), before);
   assert(registry["1"] === revisionOne, "revision 1 was replaced");
-  assertEquals("5" in registry, false);
+  assertEquals("not-deployed" in registry, false);
 });
 
 Deno.test("inherited names are not revisions", async () => {

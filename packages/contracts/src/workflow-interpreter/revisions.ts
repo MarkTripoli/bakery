@@ -4,6 +4,7 @@ import { WorkflowInterpreterError } from "./errors.ts";
 import {
   type NextStep,
   nextStep,
+  nextStepWithCollectedLoops,
   nextStepWithGroups,
   nextStepWithLoopBounds,
   nextStepWithLoops,
@@ -23,9 +24,10 @@ export const INTERPRETER_REVISIONS: Readonly<
   "2": nextStepWithGroups,
   "3": nextStepWithLoops,
   "4": nextStepWithLoopBounds,
+  "5": nextStepWithCollectedLoops,
 });
 
-export const CURRENT_INTERPRETER_REVISION = "4";
+export const CURRENT_INTERPRETER_REVISION = "5";
 
 /**
  * What a run freezes at admission so a later deploy cannot change how it runs:
