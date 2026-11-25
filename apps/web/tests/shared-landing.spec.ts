@@ -253,6 +253,9 @@ for (
         { taskId: TASK_ID, targetId: MESSAGE_ID, title: MENTIONED },
       );
       await open(page);
+      await expect(page.locator("[data-message-id][data-landed='true']"))
+        .toBeVisible();
+      await expect(page).not.toHaveURL(/[?&]n=/);
       const send = page.getByRole("button", { name: "Send" });
       await expect(send).toBeEnabled();
       await send.click();
