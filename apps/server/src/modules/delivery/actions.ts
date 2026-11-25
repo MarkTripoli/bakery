@@ -17,9 +17,15 @@ import {
   contractSchemas,
   OrganizationContextPolicy,
 } from "@bakery/contracts/contracts";
+import type { CatalogActionName } from "@bakery/contracts/contracts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import type { PgDatabase } from "../../platform/database.ts";
+import type { ReconcileDependencies } from "../integrations/reconcile.ts";
+import {
+  createPullRequestRegistrationAuthorityRunner,
+  createPullRequestRegistrationHandler,
+} from "./pull-request-registration.ts";
 
 type CursorQuery = z.output<typeof contractSchemas.CursorQuery>;
 type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
@@ -118,9 +124,13 @@ export type DeliveryActionHandlers = {
 export function createDeliveryActionRegistry(
   database: PgDatabase,
   handlers: DeliveryActionHandlers,
+  registration: ReconcileDependencies,
 ): ActionRegistry {
   const registry = new ActionRegistry(
-    new PostgresAuthorityRunner(database),
+    createPullRequestRegistrationAuthorityRunner(
+      new PostgresAuthorityRunner(database),
+      registration,
+    ),
     createPostgresCommandRunner(),
   );
   const queryPolicy = {
@@ -235,6 +245,19 @@ export function createDeliveryActionRegistry(
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.pullRequestsList,
+  });
+  registry.register({
+    name: "pullRequests.register" as CatalogActionName,
+    method: HttpMethod.Post,
+    path: "/v1/tasks/:id/pull-requests",
+    input: (
+      contractSchemas as unknown as Record<string, z.ZodType>
+    ).PullRequestRegistrationCreate,
+    output: contractSchemas.PullRequest,
+    policy: commandPolicy,
+    transactionIsolation: TransactionIsolation.ReadCommitted,
+    explicitIdempotency: "key",
+    handler: createPullRequestRegistrationHandler(),
   });
 
   registry.register({

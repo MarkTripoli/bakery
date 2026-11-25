@@ -11965,6 +11965,29 @@ const transportSchemas = {
       ],
       "description": "One draft comment frozen into a send-to-agent reference: a chosen root or one of its retained replies, exactly as it was at capture."
     },
+    "PullRequestRegistrationCreate": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "Bakery repository that owns the provider pull request; it must be bound to the task and its enabled selected integration resource."
+        },
+        {
+          "name": "providerNumber",
+          "type": "positiveInteger",
+          "required": true,
+          "description": "Provider-assigned pull request number to read from the task repository before Bakery stores any pull request state."
+        },
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Workflow run of this task and repository that opened the pull request; omit only when no workflow run created it."
+        }
+      ],
+      "description": "Registers one task-owned pull request from its Bakery repository identity and provider number; the server derives organization, installation, URL, commits, lifecycle and source evidence from live trusted state."
+    },
     "PullRequestMerge": {
       "fields": [
         {

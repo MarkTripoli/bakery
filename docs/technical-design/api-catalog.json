@@ -7781,6 +7781,33 @@
     },
     {
       "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/tasks/{id}/pull-requests",
+      "action": "pullRequests.register",
+      "access": "Developer",
+      "permission": "pullRequest:register",
+      "input": "PullRequestRegistrationCreate",
+      "output": "PullRequest",
+      "event": "",
+      "mcp": "bakery_pullRequests_register",
+      "idempotency": "Idempotency-Key required; exact payload retries replay the committed response",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "PROVIDER_QUOTA_EXCEEDED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Delivery",
       "method": "GET",
       "path": "/v1/pull-requests",
       "action": "pullRequests.list",

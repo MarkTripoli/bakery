@@ -1060,6 +1060,7 @@ export function createApp(options: {
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
       merge: { github: githubAppClient, broker: installationTokenBroker },
+      registration: integrations,
       environmentAddress: (environment) => {
         const target = options.config.deliveryTarget;
         return target !== undefined && target.environment === environment

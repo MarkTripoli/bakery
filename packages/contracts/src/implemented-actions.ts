@@ -401,6 +401,7 @@ export const DeliveryImplementedAction = Object.freeze(
     RunRepairAllowancesCreate: "runRepairAllowances.create",
     RunRepairTriesList: "runRepairTries.list",
     PullRequestsList: "pullRequests.list",
+    PullRequestsRegister: "pullRequests.register",
     MergeEntriesList: "mergeEntries.list",
     MergeEntriesCreate: "mergeEntries.create",
     PullRequestsMerge: "pullRequests.merge",

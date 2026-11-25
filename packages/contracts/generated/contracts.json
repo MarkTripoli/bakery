@@ -8093,6 +8093,34 @@
     },
     {
       "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/tasks/{id}/pull-requests",
+      "action": "pullRequests.register",
+      "access": "Developer",
+      "permission": "pullRequest:register",
+      "input": "PullRequestRegistrationCreate",
+      "output": "PullRequest",
+      "event": "",
+      "mcp": "bakery_pullRequests_register",
+      "idempotency": "Idempotency-Key required; exact payload retries replay the committed response",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "PROVIDER_QUOTA_EXCEEDED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": false
+    },
+    {
+      "group": "Delivery",
       "method": "GET",
       "path": "/v1/pull-requests",
       "action": "pullRequests.list",
@@ -38858,6 +38886,88 @@
           }
         }
       },
+      "/v1/tasks/{id}/pull-requests": {
+        "post": {
+          "operationId": "pullRequests.register",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PullRequest"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT)."
+            },
+            "422": {
+              "description": "Unprocessable request (UNPROCESSABLE, IDEMPOTENCY_PAYLOAD_MISMATCH)."
+            },
+            "429": {
+              "description": "Too many requests (PROVIDER_QUOTA_EXCEEDED)."
+            },
+            "500": {
+              "description": "Internal server error."
+            },
+            "503": {
+              "description": "Service unavailable (DEPENDENCY_UNAVAILABLE)."
+            },
+            "504": {
+              "description": "Gateway timeout (DEPENDENCY_TIMEOUT)."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PullRequestRegistrationCreate"
+                }
+              }
+            }
+          }
+        }
+      },
       "/v1/pull-requests": {
         "get": {
           "operationId": "pullRequests.list",
@@ -66392,6 +66502,7 @@
                 "memories.update",
                 "memoryRevisions.create",
                 "memoryRevisions.list",
+                "pullRequests.register",
                 "pullRequests.list",
                 "reviews.list",
                 "reviewFindings.list",
@@ -87241,6 +87352,36 @@
           ],
           "additionalProperties": false,
           "description": "One draft comment frozen into a send-to-agent reference: a chosen root or one of its retained replies, exactly as it was at capture."
+        },
+        "PullRequestRegistrationCreate": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "repositoryId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Bakery repository that owns the provider pull request; it must be bound to the task and its enabled selected integration resource."
+            },
+            "providerNumber": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Provider-assigned pull request number to read from the task repository before Bakery stores any pull request state."
+            },
+            "runId": {
+              "description": "Workflow run of this task and repository that opened the pull request; omit only when no workflow run created it.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "required": [
+            "repositoryId",
+            "providerNumber"
+          ],
+          "additionalProperties": false,
+          "description": "Registers one task-owned pull request from its Bakery repository identity and provider number; the server derives organization, installation, URL, commits, lifecycle and source evidence from live trusted state."
         },
         "PullRequestMerge": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -119719,6 +119860,7 @@
                 "memories.update",
                 "memoryRevisions.create",
                 "memoryRevisions.list",
+                "pullRequests.register",
                 "pullRequests.list",
                 "reviews.list",
                 "reviewFindings.list",
@@ -120437,6 +120579,7 @@
                 "memories.update",
                 "memoryRevisions.create",
                 "memoryRevisions.list",
+                "pullRequests.register",
                 "pullRequests.list",
                 "reviews.list",
                 "reviewFindings.list",
@@ -121155,6 +121298,7 @@
                 "memories.update",
                 "memoryRevisions.create",
                 "memoryRevisions.list",
+                "pullRequests.register",
                 "pullRequests.list",
                 "reviews.list",
                 "reviewFindings.list",
@@ -167830,6 +167974,7 @@
                       "memories.update",
                       "memoryRevisions.create",
                       "memoryRevisions.list",
+                      "pullRequests.register",
                       "pullRequests.list",
                       "reviews.list",
                       "reviewFindings.list",
@@ -246692,6 +246837,7 @@
                   "memory:write",
                   "memoryRevision:write",
                   "memoryRevision:read",
+                  "pullRequest:register",
                   "pullRequest:read",
                   "review:read",
                   "reviewFinding:read",
@@ -308673,6 +308819,7 @@
             "memories.update",
             "memoryRevisions.create",
             "memoryRevisions.list",
+            "pullRequests.register",
             "pullRequests.list",
             "reviews.list",
             "reviewFindings.list",
@@ -329590,6 +329737,36 @@
       ],
       "additionalProperties": false,
       "description": "One draft comment frozen into a send-to-agent reference: a chosen root or one of its retained replies, exactly as it was at capture."
+    },
+    "PullRequestRegistrationCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Bakery repository that owns the provider pull request; it must be bound to the task and its enabled selected integration resource."
+        },
+        "providerNumber": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Provider-assigned pull request number to read from the task repository before Bakery stores any pull request state."
+        },
+        "runId": {
+          "description": "Workflow run of this task and repository that opened the pull request; omit only when no workflow run created it.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "repositoryId",
+        "providerNumber"
+      ],
+      "additionalProperties": false,
+      "description": "Registers one task-owned pull request from its Bakery repository identity and provider number; the server derives organization, installation, URL, commits, lifecycle and source evidence from live trusted state."
     },
     "PullRequestMerge": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -362184,6 +362361,7 @@
             "memories.update",
             "memoryRevisions.create",
             "memoryRevisions.list",
+            "pullRequests.register",
             "pullRequests.list",
             "reviews.list",
             "reviewFindings.list",
@@ -362902,6 +363080,7 @@
             "memories.update",
             "memoryRevisions.create",
             "memoryRevisions.list",
+            "pullRequests.register",
             "pullRequests.list",
             "reviews.list",
             "reviewFindings.list",
@@ -363620,6 +363799,7 @@
             "memories.update",
             "memoryRevisions.create",
             "memoryRevisions.list",
+            "pullRequests.register",
             "pullRequests.list",
             "reviews.list",
             "reviewFindings.list",
@@ -410445,6 +410625,7 @@
                   "memories.update",
                   "memoryRevisions.create",
                   "memoryRevisions.list",
+                  "pullRequests.register",
                   "pullRequests.list",
                   "reviews.list",
                   "reviewFindings.list",
@@ -489393,6 +489574,7 @@
               "memory:write",
               "memoryRevision:write",
               "memoryRevision:read",
+              "pullRequest:register",
               "pullRequest:read",
               "review:read",
               "reviewFinding:read",
