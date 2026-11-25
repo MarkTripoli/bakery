@@ -1,4 +1,3 @@
-import { POSTGRES_FOREIGN_KEY_REFUSALS } from "../../apps/server/src/platform/postgres-errors.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
   ActionKind,
@@ -58,6 +57,8 @@ import {
   withPgTransaction,
 } from "../../apps/server/src/platform/database.ts";
 import { readTestDatabaseConfig } from "../../packages/config/src/env.ts";
+
+const FOREIGN_KEY_REFUSED_CODES: readonly string[] = ["23503", "23001"];
 
 type Page = {
   items: Array<Record<string, unknown>>;
@@ -2186,7 +2187,7 @@ Deno.test("non-owner transactions isolate grants, clean one pooled connection, a
            where "organizationId" = $1 and id = $2`,
           [organizationA, adminMembershipA],
         ),
-      POSTGRES_FOREIGN_KEY_REFUSALS,
+      FOREIGN_KEY_REFUSED_CODES,
     );
     assertEquals(
       (await fixture.pgDatabase.query<{
