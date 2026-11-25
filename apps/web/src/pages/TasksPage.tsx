@@ -1,11 +1,12 @@
 import { type MouseEvent, type ReactNode, useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createLink, useNavigate } from "@tanstack/react-router";
 import { isUuid } from "@bakery/contracts/contracts";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import {
   artifactsListQueryOptions,
+  conversationMessagesQueryOptions,
   questionsQueryOptions,
   taskQueryOptions,
   tasksListQueryOptions,
@@ -556,9 +557,51 @@ function Detail(
   // mark the notification read once the part is on screen.
   const landingStep = parseLanding(landing.at);
   const landingStepId = landingStep?.kind === "step" ? landingStep.id : null;
+  const landingMessageId =
+    landing.gone === true || landingStep?.kind !== "message"
+      ? null
+      : landingStep.id;
+  const {
+    data: earlierMessages,
+    fetchNextPage,
+    hasNextPage,
+    isError: earlierFailed,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    ...conversationMessagesQueryOptions(
+      api,
+      scope,
+      query.data?.conversationId ?? "",
+    ),
+    enabled: landingMessageId !== null && query.data !== undefined &&
+      scope.organizationId !== null,
+  });
+  const messageLoaded =
+    earlierMessages?.pages.some((page) =>
+      page.items.some((message) => message.id === landingMessageId)
+    ) ?? false;
+  const everyPageRead = earlierMessages !== undefined && !hasNextPage &&
+    !earlierFailed;
+  const searchingEarlier = landingMessageId !== null && !messageLoaded &&
+    !everyPageRead;
+  useEffect(() => {
+    if (
+      landingMessageId === null || messageLoaded || !hasNextPage ||
+      isFetchingNextPage || earlierFailed
+    ) return;
+    void fetchNextPage();
+  }, [
+    earlierFailed,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    landingMessageId,
+    messageLoaded,
+  ]);
   const landed = useTaskLanding(
     landing,
     valid && !query.isPending && query.data !== undefined,
+    searchingEarlier,
   );
   const partGone = landing.gone === true || landed.missing;
   const arrival = useLandingArrival({
