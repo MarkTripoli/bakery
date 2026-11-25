@@ -13,6 +13,12 @@ import {
   union,
   waitShares,
 } from "../../apps/server/src/modules/delivery/task-times.ts";
+import {
+  aggregate,
+  MetricKey,
+  metricWindow,
+  taskPlacements,
+} from "../../apps/server/src/modules/delivery/metrics.ts";
 
 const H = 3_600_000;
 const t0 = Date.parse("2026-06-01T00:00:00Z");
@@ -117,4 +123,25 @@ Deno.test("median, 9-in-10 and mean are computed on the server", () => {
   ]);
   const empty = cohortSummary([]);
   assertEquals([empty.median, empty.p90, empty.mean], [null, null, null]);
+});
+
+Deno.test("task lead-time series uses the nearest-rank median in each bucket", () => {
+  const deliveredAt = new Date(t0 + H);
+  const tasks = [1, 2, 100].map((hours) => ({
+    ...task(hours, {}),
+    requestedAt: new Date(deliveredAt.getTime() - hours * H),
+    deliveredAt,
+  }));
+  const window = metricWindow({
+    from: new Date(t0),
+    to: new Date(t0 + 24 * H),
+    resolution: "day",
+  }, deliveredAt);
+  const series = aggregate(
+    MetricKey.TaskLeadTime,
+    taskPlacements(tasks, window),
+    window,
+    true,
+  );
+  assertEquals(series.points[0]?.value, 2);
 });
