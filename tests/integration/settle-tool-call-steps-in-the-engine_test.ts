@@ -202,6 +202,35 @@ Deno.test("a tool.call write whose outcome is not known leaves the step pending,
     ]);
   }));
 
+Deno.test("canceling a pending tool.call settles both cost reservations before the plan halts", () =>
+  withWorkerFixture(async (fixture) => {
+    const github = fakeGithub();
+    github.post = "hang";
+    const { seeded, repository } = await atTheToolCall(fixture, github, {
+      deadlineMs: 50,
+    });
+    const key = await repository.findNext(seeded.job.runId, seeded.owner);
+    assert(key !== undefined);
+    assertEquals(await repository.admit(key, seeded.owner), {
+      key,
+      terminal: false,
+    });
+    assertEquals(await reservationsOf(fixture, seeded.job.runId), [
+      { status: "held", reserved: "0.100000", settled: null },
+      { status: "held", reserved: "0.100000", settled: null },
+    ]);
+
+    await setRow(fixture, seeded, "comment", "canceled");
+    assertEquals(
+      await repository.findNext(seeded.job.runId, seeded.owner),
+      undefined,
+    );
+    assertEquals(await reservationsOf(fixture, seeded.job.runId), [
+      { status: "settled", reserved: "0.100000", settled: "0.100000" },
+      { status: "settled", reserved: "0.100000", settled: "0.100000" },
+    ]);
+  }));
+
 Deno.test("a tool.call write the provider refuses fails the step with a fixed code (#435)", () =>
   withWorkerFixture(async (fixture) => {
     const github = fakeGithub();

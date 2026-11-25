@@ -51,6 +51,7 @@ import {
   reserveToolCallCost,
   reserveWorkflowAction,
   settleExistingToolCallCost,
+  settleRunToolCallCosts,
   settleToolCallCost,
   type ToolCallCostReservation,
 } from "../work/budget.ts";
@@ -900,6 +901,10 @@ async function finishPlanRunIn(
   if (!carriesPlanRuntime(context.runSnapshot)) {
     throw new Error("WORKFLOW_PLAN_RUN_REQUIRED");
   }
+  await settleRunToolCallCosts(transaction, {
+    organizationId: context.organizationId,
+    runId: context.runId,
+  });
   await projectRunEnd(
     transaction,
     context,

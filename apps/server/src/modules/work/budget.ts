@@ -1201,6 +1201,28 @@ export async function settleExistingToolCallCost(
   if (intent) await settleToolCallCostIntent(transaction, intent);
 }
 
+export async function settleRunToolCallCosts(
+  transaction: PgTransactionClient,
+  options: Readonly<{ organizationId: string; runId: string }>,
+): Promise<void> {
+  const result = await transaction.query<ToolCallCostIntentRow>(
+    `select id, organization_id as "organizationId", run_id as "runId",
+            run_step_id as "runStepId", action,
+            reserved_usd as "reservedUsd", content_digest as "contentDigest",
+            dedupe_key as "dedupeKey", status,
+            installation_reservation_id as "installationReservationId",
+            run_reservation_id as "runReservationId"
+       from bakery.tool_call_cost_intents
+      where organization_id = $1 and run_id = $2 and status = 'held'
+      order by id
+      for update`,
+    [options.organizationId, options.runId],
+  );
+  for (const intent of result.rows) {
+    await settleToolCallCostIntent(transaction, intent);
+  }
+}
+
 export const COORDINATOR_TURN_DEDUPE_PREFIX = "coordinator-turn:";
 
 export function coordinatorTurnDedupeKey(turnId: string): string {
