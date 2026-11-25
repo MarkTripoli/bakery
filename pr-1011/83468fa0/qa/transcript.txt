@@ -1,0 +1,4 @@
+MODE 200 if-match "v1" {"status":"draining"}
+BANNER "It takes no new work and stops once its current work is done.\n\nTake work again"
+FLEET ["qa-host-01","It takes no new work and stops once its current work is done.","\tLinux\tClaude Code\t2\tNov 25, 2026, 1:17 PM\tFinishing up\t"]
+MODE 200 if-match "v2" {"status":"online"}
