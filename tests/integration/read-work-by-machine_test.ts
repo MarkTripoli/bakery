@@ -138,6 +138,98 @@ Deno.test("a machine's attempts split into now, needs attention and finished, an
         [other.attemptId],
       );
 
+      const conversation = (await fx.owner.query<{ conversation_id: string }>(
+        `select task.conversation_id from bakery.jobs job
+           join bakery.run_steps step on step.id = job.run_step_id
+           join bakery.workflow_runs run on run.id = step.run_id
+           join bakery.tasks task on task.id = run.task_id
+          where job.id = $1`,
+        [now.jobId],
+      )).rows[0].conversation_id;
+      const sibling = crypto.randomUUID();
+      await fx.owner.query(
+        `insert into bakery.tasks (id, organization_id, application_id,
+           conversation_id, title, task_type, status, priority, created_by,
+           created_at)
+         values ($1, $2, $3, $4, 'Later task on the same conversation',
+           'feature', 'draft', 50, $5, clock_timestamp() + interval '1 hour')`,
+        [
+          sibling,
+          fx.organizationId,
+          fx.applicationId,
+          conversation,
+          fx.adminId,
+        ],
+      );
+      const message = crypto.randomUUID();
+      await fx.owner.query(
+        `insert into bakery.messages (id, organization_id, conversation_id,
+           message_type, body, client_message_id, sequence, intent)
+         values ($1, $2, $3, 'human', 'go', $4,
+           (select coalesce(max(sequence), 0) + 1 from bakery.messages
+             where conversation_id = $3), 'agent_request')`,
+        [message, fx.organizationId, conversation, `proof-${message}`],
+      );
+      const turn = crypto.randomUUID();
+      await fx.owner.query(
+        `insert into bakery.conversation_turns (id, organization_id,
+           conversation_id, trigger_message_id, status)
+         values ($1, $2, $3, $4, 'completed')`,
+        [turn, fx.organizationId, conversation, message],
+      );
+      const originalStep = (await fx.owner.query<{ run_step_id: string }>(
+        "select run_step_id from bakery.jobs where id = $1",
+        [now.jobId],
+      )).rows[0].run_step_id;
+      await fx.owner.query(
+        `update bakery.jobs set run_step_id = null, conversation_turn_id = $2,
+           action = 'coordinator.turn' where id = $1`,
+        [now.jobId, turn],
+      );
+      const turnRows = (await list("finished")).items;
+      assertEquals(
+        turnRows.length,
+        1,
+        "one row though two tasks share the conversation",
+      );
+      assertEquals(
+        [
+          turnRows[0].taskId,
+          turnRows[0].taskTitle,
+          turnRows[0].stepKey,
+          turnRows[0].jobAction,
+        ],
+        [job.task_id, job.title, null, "coordinator.turn"],
+      );
+      await fx.owner.query(
+        `update bakery.jobs set conversation_turn_id = null,
+           action = 'repository.inspect' where id = $1`,
+        [now.jobId],
+      );
+      const [taskless] = (await list("finished")).items;
+      assertEquals(
+        [
+          taskless.id,
+          taskless.taskId,
+          taskless.taskTitle,
+          taskless.stepKey,
+          taskless.jobAction,
+        ],
+        [attempt.attemptId, null, null, null, "repository.inspect"],
+      );
+      await fx.owner.query(
+        `update bakery.jobs set run_step_id = $2, action = $3 where id = $1`,
+        [now.jobId, originalStep, job.action],
+      );
+      await fx.owner.query(
+        "delete from bakery.conversation_turns where id = $1",
+        [turn],
+      );
+      await fx.owner.query("delete from bakery.messages where id = $1", [
+        message,
+      ]);
+      await fx.owner.query("delete from bakery.tasks where id = $1", [sibling]);
+
       const stale = crypto.randomUUID();
       extra.push(stale);
       await fx.owner.query(

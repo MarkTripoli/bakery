@@ -94,9 +94,13 @@ async function readMachineAttempts(
        on job.run_step_id is null
       and turn.organization_id = job.organization_id
       and turn.id = job.conversation_turn_id
-     left join bakery.tasks turn_task
-       on turn_task.organization_id = turn.organization_id
-      and turn_task.conversation_id = turn.conversation_id
+     left join lateral (
+       select candidate.id, candidate.title from bakery.tasks candidate
+        where candidate.organization_id = turn.organization_id
+          and candidate.conversation_id = turn.conversation_id
+        order by candidate.created_at, candidate.id
+        limit 1
+     ) turn_task on true
      where a.organization_id = $1 and a.worker_host_id = $2
        and ${ATTEMPT_STATE_SQL} = $3
        and ($4::timestamptz is null or (a.created_at, a.id) < ($4::timestamptz, $5::uuid))

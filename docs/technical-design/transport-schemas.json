@@ -703,7 +703,8 @@
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
       "description": "Task-bound paginated attempt identity read. Rechecks current organization grants and active task, application, repository ownership."
-    },    "WorkerAttemptListQuery": {
+    },
+    "WorkerAttemptListQuery": {
       "fields": [
         {
           "name": "state",
@@ -740,8 +741,6 @@
       "pagination": "pagination",
       "description": "Query for one machine's attempts in one server-owned state, newest first."
     },
-
-
     "AgentVersionCreate": {
       "fields": [
         {
@@ -21404,7 +21403,8 @@
     "Page<JobAttemptRead>": {
       "pageOf": "JobAttemptRead",
       "description": "Current-authority checked job attempt keyset page; null nextCursor marks completion."
-    },    "WorkerAttemptRead": {
+    },
+    "WorkerAttemptRead": {
       "fields": [
         "id",
         "jobId",
