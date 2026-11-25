@@ -162,46 +162,6 @@ export function agentOfFailedChecks(
   return named[0] ?? agentNeedingSignIn(rows);
 }
 
-export type SoftwareEntry = Readonly<{
-  /** Stable key for a list. */
-  key: string;
-  /** The coding agent the component is, if it is one. */
-  agent: CodingAgent | null;
-  /** The machine's own name for it when it is not an agent. */
-  name: string;
-  version: string;
-}>;
-
-/**
- * What the machine reports it has installed, one entry per distinct name and
- * version, in the machine's order: a coding agent by its own name, anything
- * else by the name the machine gave it. No kind and no install owner: they are
- * the machine's words for itself, not the person's.
- */
-export function softwareEntries(
-  components: readonly Readonly<{
-    componentKey: string;
-    actualVersion: string;
-  }>[],
-): SoftwareEntry[] {
-  const seen = new Set<string>();
-  const entries: SoftwareEntry[] = [];
-  for (const component of components) {
-    const agent = agentOfKey(component.componentKey);
-    const name = agent ?? component.componentKey;
-    const key = `${name}@${component.actualVersion}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    entries.push({
-      key,
-      agent,
-      name: component.componentKey,
-      version: component.actualVersion,
-    });
-  }
-  return entries;
-}
-
 /**
  * The badge in the machine page's header. A machine that would read Ready (or
  * Checking) reads Needs attention while an agent on it is signed out or not

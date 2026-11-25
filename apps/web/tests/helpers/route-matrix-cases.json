@@ -108,6 +108,10 @@
     "path": "/machines/$machineId"
   },
   {
+    "id": "machine-checks",
+    "path": "/machines/$machineId/checks"
+  },
+  {
     "id": "machine-models",
     "path": "/machines/$machineId/models"
   },

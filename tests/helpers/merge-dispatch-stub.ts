@@ -3,6 +3,8 @@ import type {
   GitHubAppClient,
 } from "../../apps/server/src/modules/integrations/github-app.ts";
 import type { InstallationTokenBroker } from "../../apps/server/src/modules/integrations/token-broker.ts";
+import type { ReconcileDependencies } from "../../apps/server/src/modules/integrations/reconcile.ts";
+import type { PgDatabase } from "../../apps/server/src/platform/database.ts";
 
 /**
  * Merge dispatch dependencies for fixtures that only read delivery state.
@@ -39,4 +41,11 @@ export function mergeDispatchStub(owner: string): MergeDispatchDependencies {
     serialize: () => refuse("broker.serialize"),
   };
   return { github, broker };
+}
+
+export function registrationStub(
+  owner: string,
+  database: PgDatabase,
+): ReconcileDependencies {
+  return { database, ...mergeDispatchStub(owner) };
 }

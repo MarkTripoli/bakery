@@ -131,6 +131,7 @@ test.describe("alignment", () => {
       level: 1,
       name: "touch-target-host",
     });
+    await page.getByRole("tab", { name: "Checks and software" }).click();
     const checks = page.getByRole("heading", { level: 2, name: "Checks" });
     await expect(checks).toBeVisible();
     expect((await checks.boundingBox())!.x).toBeCloseTo(
