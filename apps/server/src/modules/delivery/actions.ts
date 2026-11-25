@@ -17,7 +17,6 @@ import {
   contractSchemas,
   OrganizationContextPolicy,
 } from "@bakery/contracts/contracts";
-import type { CatalogActionName } from "@bakery/contracts/contracts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import type { PgDatabase } from "../../platform/database.ts";
@@ -247,12 +246,10 @@ export function createDeliveryActionRegistry(
     handler: handlers.pullRequestsList,
   });
   registry.register({
-    name: "pullRequests.register" as CatalogActionName,
+    name: DeliveryImplementedAction.PullRequestsRegister,
     method: HttpMethod.Post,
     path: "/v1/tasks/:id/pull-requests",
-    input: (
-      contractSchemas as unknown as Record<string, z.ZodType>
-    ).PullRequestRegistrationCreate,
+    input: contractSchemas.PullRequestRegistrationCreate,
     output: contractSchemas.PullRequest,
     policy: commandPolicy,
     transactionIsolation: TransactionIsolation.ReadCommitted,

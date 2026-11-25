@@ -5,6 +5,7 @@ import {
   validateEncodedSuccessResponse,
 } from "@bakery/contracts/action-registry";
 import { contractSchemas } from "@bakery/contracts/contracts";
+import { DeliveryImplementedAction } from "@bakery/contracts/implemented-actions";
 import {
   createNormalizedCommandMetadata,
   StandardError,
@@ -46,13 +47,9 @@ import { type RemoteFact, upsertFact } from "../integrations/remote-facts.ts";
 import { storeLineCount } from "../integrations/line-count-store.ts";
 import { PULL_REQUEST_MERGE_METHOD } from "./postgres.ts";
 
-type RegistrationInput = {
-  repositoryId: string;
-  providerNumber: number;
-  runId?: string;
-};
-const PullRequestRegistrationCreateSchema = contractSchemas
-  .PullRequestRegistrationCreate as z.ZodType<RegistrationInput>;
+type RegistrationInput = z.output<
+  typeof contractSchemas.PullRequestRegistrationCreate
+>;
 type PullRequestOutput = z.output<typeof contractSchemas.PullRequest>;
 
 type RegistrationAuthority = {
@@ -459,10 +456,10 @@ export function createPullRequestRegistrationAuthorityRunner(
 ): ActionAuthorityRunner {
   return {
     async run(action, context, input, next) {
-      if ((action.name as string) !== "pullRequests.register") {
+      if (action.name !== DeliveryImplementedAction.PullRequestsRegister) {
         return await authority.run(action, context, input, next);
       }
-      const parsed = PullRequestRegistrationCreateSchema.parse(input);
+      const parsed = contractSchemas.PullRequestRegistrationCreate.parse(input);
       const taskId = taskIdOf(context);
       const metadata = createNormalizedCommandMetadata(
         action,
@@ -558,7 +555,7 @@ export function createPullRequestRegistrationHandler() {
     context: ActionContext,
     input: unknown,
   ): Promise<PullRequestOutput> => {
-    const parsed = PullRequestRegistrationCreateSchema.parse(input);
+    const parsed = contractSchemas.PullRequestRegistrationCreate.parse(input);
     const work = requireWorkTransaction(context);
     const prepared = preparedRegistration(context);
     const denied = await authorityDeniedAtWrite(work.transaction, {
