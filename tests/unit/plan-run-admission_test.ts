@@ -474,7 +474,7 @@ Deno.test("an event wait or a group with lanes of several repository aliases is 
   const sameAlias = {
     id: "fan",
     parallel: {
-      maxConcurrency: 2,
+      maxConcurrency: 1,
       join: "all-required",
       failurePolicy: "stop-dependent",
       branches: [

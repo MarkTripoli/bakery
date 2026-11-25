@@ -571,7 +571,7 @@ const NESTED_CONTAINERS: [string, unknown][] = [
   ["parallel", {
     id: "fan",
     parallel: {
-      maxConcurrency: 2,
+      maxConcurrency: 1,
       join: "all-required",
       failurePolicy: "stop-dependent",
       branches: [

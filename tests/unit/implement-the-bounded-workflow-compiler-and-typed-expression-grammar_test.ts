@@ -724,6 +724,8 @@ function repeatNode(extra: Def = {}, body: Def = {}): Def {
   };
 }
 
+const READ_ONLY_FILES = { read: ["inputs"], write: ["outputs"] };
+
 function parallelNode(extra: Def = {}, body: Def = {}): Def {
   return {
     id: "fan",
@@ -733,7 +735,11 @@ function parallelNode(extra: Def = {}, body: Def = {}): Def {
       failurePolicy: "stop-dependent",
       branches: [
         { id: "lane_a", repository: "main", steps: [noop("work_a")] },
-        { id: "lane_b", repository: "main", steps: [noop("work_b")] },
+        {
+          id: "lane_b",
+          repository: "main",
+          steps: [{ ...noop("work_b"), files: READ_ONLY_FILES }],
+        },
       ],
       ...body,
     },
@@ -941,6 +947,7 @@ Deno.test("identifier diagnostics cover invalid, duplicate, reserved, depth and 
       "duplicate lane ids",
       workflow([
         parallelNode({}, {
+          maxConcurrency: 1,
           branches: [
             { id: "lane_a", repository: "main", steps: [noop("work_a")] },
             { id: "lane_a", repository: "main", steps: [noop("work_b")] },
@@ -975,6 +982,7 @@ Deno.test("identifier diagnostics cover invalid, duplicate, reserved, depth and 
   ]);
   await accepted(workflow([
     parallelNode({}, {
+      maxConcurrency: 1,
       branches: [
         { id: "lane_a", repository: "main", steps: [noop("work")] },
         { id: "lane_b", repository: "main", steps: [noop("work")] },
@@ -1747,7 +1755,11 @@ Deno.test("branch outputs and export-name conflicts", async () => {
         parallelNode({}, {
           branches: [
             { id: "lane_a", repository: "main", steps: [noop("result")] },
-            { id: "lane_b", repository: "main", steps: [noop("work_b")] },
+            {
+              id: "lane_b",
+              repository: "main",
+              steps: [{ ...noop("work_b"), files: READ_ONLY_FILES }],
+            },
           ],
           outputs: { lane_a: { result: "$step.fan.lane_a.result.x" } },
         }),
@@ -2022,7 +2034,11 @@ Deno.test("presentation keys are stripped only at the root, node and lane levels
             steps: [{ ...noop("work_a"), ...presentation }],
             ...presentation,
           },
-          { id: "lane_b", repository: "main", steps: [noop("work_b")] },
+          {
+            id: "lane_b",
+            repository: "main",
+            steps: [{ ...noop("work_b"), files: READ_ONLY_FILES }],
+          },
         ],
       }),
     ]),
@@ -3244,7 +3260,7 @@ Deno.test("parallel exports, lane scope and prerequisite lanes", async () => {
   ): Def => ({
     id: "fan",
     parallel: {
-      maxConcurrency: 2,
+      maxConcurrency: 1,
       join: "all-required",
       failurePolicy: "stop-dependent",
       branches: [
@@ -3412,7 +3428,7 @@ Deno.test("needs: unknown, forward, self and lane cycles", async () => {
   const lanes = (a: string[], b: string[], c: string[] = []): Def => ({
     id: "fan",
     parallel: {
-      maxConcurrency: 2,
+      maxConcurrency: 1,
       join: "all-required",
       failurePolicy: "stop-dependent",
       branches: [
@@ -3889,6 +3905,7 @@ Deno.test("worst case follows the documented formulas", async () => {
   // Parallel sums every lane.
   assertEquals(
     await worstOf([parallelNode({}, {
+      maxConcurrency: 1,
       branches: [
         { id: "lane_a", repository: "main", steps: [fast("work_a")] },
         {
@@ -4019,7 +4036,7 @@ Deno.test("nested repeat, parallel and repeat steps get unique round-trip keys",
     },
     steps: [
       parallelNode({ id: "fan" }, {
-        maxConcurrency: 3,
+        maxConcurrency: 1,
         branches: ["lane_a", "lane_b", "lane_c"].map((id) => ({
           id,
           repository: "main",
@@ -4650,6 +4667,43 @@ Deno.test("a forEach's worst case is max times its body and counts against the l
       forEachNode({}, { max: 12, steps: [fast("one")] }),
     ], { limits: { maxAttempts: 12 } })),
     [{ path: "/limits", code: "expansion_attempts_exceeded" }],
+  );
+});
+
+Deno.test("two parallel lanes that can run at once cannot both write the workspace (#430)", async () => {
+  await runCases([[
+    "a step with no files section writes the workspace",
+    workflow([parallelNode({}, {
+      branches: [
+        { id: "lane_a", repository: "main", steps: [noop("work_a")] },
+        { id: "lane_b", repository: "main", steps: [noop("work_b")] },
+      ],
+    })]),
+    [{
+      path: "/steps/0/parallel/branches/1/steps/0/files",
+      code: "parallel_lanes_workspace_write",
+    }],
+  ]]);
+  await accepted(workflow([parallelNode()]));
+  await accepted(workflow([parallelNode({}, {
+    branches: [
+      { id: "lane_a", repository: "main", steps: [noop("work_a")] },
+      {
+        id: "lane_b",
+        repository: "main",
+        needs: ["lane_a"],
+        steps: [noop("work_b")],
+      },
+    ],
+  })]));
+  await accepted(
+    workflow([parallelNode({}, {
+      maxConcurrency: 1,
+      branches: [
+        { id: "lane_a", repository: "main", steps: [noop("work_a")] },
+        { id: "lane_b", repository: "main", steps: [noop("work_b")] },
+      ],
+    })]),
   );
 });
 

@@ -26,6 +26,7 @@ const check = (id: string): Step => ({
   uses: "quality.check",
   with: { repositoryId: "$input.repo", revision: "abc" },
   checks: ["fmt"],
+  files: { read: ["inputs"], write: ["outputs"] },
 });
 const inputs = { repo: { type: "uuid", required: true } } as const;
 

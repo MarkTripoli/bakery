@@ -58,7 +58,7 @@ const nested = workflow([
     steps: [{
       id: "fan",
       parallel: {
-        maxConcurrency: 3,
+        maxConcurrency: 1,
         join: "all-required",
         failurePolicy: "stop-dependent",
         branches: ["lane_a", "lane_b", "lane_c"].map((id) => ({

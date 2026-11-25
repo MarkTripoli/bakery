@@ -1,6 +1,11 @@
 import { type DiagnosticCollector, pointerOf } from "../diagnostics.ts";
 import { WORKFLOW_COMPILER_LIMITS } from "../limits.ts";
-import type { WorkflowNode, WorkflowSemanticDocument } from "../schema.ts";
+import type {
+  WorkflowLane,
+  WorkflowNode,
+  WorkflowParallelNode,
+  WorkflowSemanticDocument,
+} from "../schema.ts";
 import { resolveStepFiles } from "../step-files.ts";
 import type { NodeLocations } from "./shape.ts";
 
@@ -124,6 +129,72 @@ export function workflowWorstCase(
   return sum(document.steps, 1);
 }
 
+function laneWaitsOn(
+  lanes: readonly WorkflowLane[],
+): (later: string, earlier: string) => boolean {
+  const needs = new Map(lanes.map((lane) => [lane.id, lane.needs]));
+  return (later, earlier) => {
+    const seen = new Set<string>();
+    const pending = [...(needs.get(later) ?? [])];
+    while (pending.length > 0) {
+      const next = pending.pop()!;
+      if (next === earlier) return true;
+      if (seen.has(next)) continue;
+      seen.add(next);
+      pending.push(...(needs.get(next) ?? []));
+    }
+    return false;
+  };
+}
+
+function concurrentWorkspaceWriters(
+  node: WorkflowParallelNode,
+): WorkflowNode[] {
+  if (node.maxConcurrency <= 1) return [];
+  const waitsOn = laneWaitsOn(node.lanes);
+  const writing = node.lanes
+    .map((lane) => ({ lane, writers: workspaceWriters(lane.steps) }))
+    .filter(({ writers }) => writers.length > 0);
+  return writing.flatMap(({ lane, writers }, index) =>
+    writing.slice(0, index).some(({ lane: earlier }) =>
+        earlier.repository === lane.repository &&
+        !waitsOn(lane.id, earlier.id) &&
+        !waitsOn(earlier.id, lane.id)
+      )
+      ? writers
+      : []
+  );
+}
+
+function workspaceWriters(
+  nodes: readonly WorkflowNode[],
+): WorkflowNode[] {
+  return nodes.flatMap((node): WorkflowNode[] => {
+    switch (node.kind) {
+      case "action":
+        return resolveStepFiles(node.files).write.includes("workspace")
+          ? [node]
+          : [];
+      case "wait":
+        return [];
+      case "sequence":
+      case "forEach":
+        return workspaceWriters(node.steps);
+      case "branch":
+        return [...workspaceWriters(node.then), ...workspaceWriters(node.else)];
+      case "repeat":
+        return [
+          ...(node.seed.form === "sequence"
+            ? workspaceWriters(node.seed.steps)
+            : []),
+          ...workspaceWriters(node.steps),
+        ];
+      case "parallel":
+        return node.lanes.flatMap((lane) => workspaceWriters(lane.steps));
+    }
+  });
+}
+
 function checkParallelForEachPolicy(
   nodes: readonly WorkflowNode[],
   parallel: boolean,
@@ -173,7 +244,13 @@ function checkParallelForEachPolicy(
           collector,
         );
         break;
-      case "parallel":
+      case "parallel": {
+        for (const writer of concurrentWorkspaceWriters(node)) {
+          collector.add(
+            pointerOf([...(locations.get(writer) ?? []), "files"]),
+            "parallel_lanes_workspace_write",
+          );
+        }
         for (const lane of node.lanes) {
           checkParallelForEachPolicy(
             lane.steps,
@@ -183,6 +260,7 @@ function checkParallelForEachPolicy(
           );
         }
         break;
+      }
       case "forEach":
         checkParallelForEachPolicy(
           node.steps,

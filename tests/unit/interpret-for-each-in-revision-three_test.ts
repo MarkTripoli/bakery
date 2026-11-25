@@ -97,7 +97,7 @@ Deno.test("without a forEach revision 3 answers exactly as revision 2", async ()
     {
       id: "fan",
       parallel: {
-        maxConcurrency: 2,
+        maxConcurrency: 1,
         join: "all-required",
         failurePolicy: "stop-dependent",
         branches: [
