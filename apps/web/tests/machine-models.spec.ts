@@ -179,6 +179,7 @@ function machine() {
     readinessReason: null,
     failedCheckIds: [],
     lastHeartbeatAt: new Date().toISOString(),
+    activeAttemptCount: 0,
     credentialGeneration: 1,
     archivedAt: null,
     cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },

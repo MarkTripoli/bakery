@@ -67,6 +67,7 @@ const worker = (f: Fixture) => ({
   readinessReason: f.readiness === "needs_attention" ? "check_failed" : null,
   failedCheckIds: f.readiness === "needs_attention" ? ["c1"] : [],
   lastHeartbeatAt: new Date().toISOString(),
+  activeAttemptCount: 0,
   credentialGeneration: 1,
   archivedAt: null,
   cleanup: { state: "not_requested", requestedAt: null, confirmedAt: null },
