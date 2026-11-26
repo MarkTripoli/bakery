@@ -6061,7 +6061,6 @@
   "library.skill.notFound.back": "⟪Back to Skills⟫",
   "library.skill.more": "⟪Show more⟫",
   "library.skill.files.title": "⟪Files⟫",
-  "library.skill.files.of": "⟪The files of version {number}, the one in use.⟫",
   "library.skill.files.none": "⟪No version is in use yet, so there are no files to list.⟫",
   "library.skill.files.missing": "⟪The version in use could not be found.⟫",
   "library.skill.files.error": "⟪The files did not load.⟫",
@@ -7547,9 +7546,10 @@
   "library.skills.add.failure.removed": "⟪This source was removed or turned off.⟫",
   "library.skills.add.failure.saved": "⟪This repository is already saved. Choose it under A source added before.⟫",
   "library.skills.add.failure.other": "⟪Something went wrong on our side. Nothing was added.⟫",
-  "library.skills.add.done": "⟪Added {name}. Version {version} is in use.⟫",
-  "library.skills.add.already": "⟪{name} was already added from this. Version {version} is in use.⟫",
-  "library.skills.add.unchanged": "⟪{name} already had these files. Version {version} is in use.⟫",
   "library.skills.add.happens.inUse": "⟪Version 1 is in use straight away. Adding the same folder again adds the next version when its files changed.⟫",
-  "library.skills.add.failure.unavailable": "⟪Bakery could not read {revision} from {address}. Check the address, the branch, tag or commit, and that this installation can read it.⟫"
+  "library.skills.add.failure.unavailable": "⟪Bakery could not read {revision} from {address}. Check the address, the branch, tag or commit, and that this installation can read it.⟫",
+  "library.skills.add.unchanged": "⟪{name} already had these files.⟫",
+  "library.skills.add.done": "⟪Added {name}.⟫",
+  "library.skills.add.already": "⟪{name} was already added from this.⟫",
+  "library.skill.files.of": "⟪The files of version {number}.⟫"
 }

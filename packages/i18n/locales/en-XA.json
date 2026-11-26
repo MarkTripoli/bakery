@@ -6062,7 +6062,6 @@
   "library.skill.notFound.back": "⟦Ɓàçķ ŧô Šķïļļš ŧë⟧",
   "library.skill.more": "⟦Šĥôŵ ɱôŕë ŧ⟧",
   "library.skill.files.title": "⟦Ƒïļëš⟧",
-  "library.skill.files.of": "⟦Ŧĥë ƒïļëš ôƒ ṽëŕšïôñ {number}, ŧĥë ôñë ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "library.skill.files.none": "⟦Ñô ṽëŕšïôñ ïš ïñ ûšë ÿëŧ, šô ŧĥëŕë àŕë ñô ƒïļëš ŧô ļïšŧ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "library.skill.files.missing": "⟦Ŧĥë ṽëŕšïôñ ïñ ûšë çôûļð ñôŧ ƀë ƒôûñð. ŧëšŧ çôþÿ ŧ⟧",
   "library.skill.files.error": "⟦Ŧĥë ƒïļëš ðïð ñôŧ ļôàð. ŧëšŧ ç⟧",
@@ -7547,9 +7546,10 @@
   "library.skills.add.failure.removed": "⟦Ŧĥïš šôûŕçë ŵàš ŕëɱôṽëð ôŕ ŧûŕñëð ôƒƒ. ŧëšŧ çôþÿ ŧ⟧",
   "library.skills.add.failure.saved": "⟦Ŧĥïš ŕëþôšïŧôŕÿ ïš àļŕëàðÿ šàṽëð. Çĥôôšë ïŧ ûñðëŕ À šôûŕçë àððëð ƀëƒôŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "library.skills.add.failure.other": "⟦Šôɱëŧĥïñĝ ŵëñŧ ŵŕôñĝ ôñ ôûŕ šïðë. Ñôŧĥïñĝ ŵàš àððëð. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
-  "library.skills.add.done": "⟦Àððëð {name}. Ṽëŕšïôñ {version} ïš ïñ ûšë. ŧëšŧ çôþÿ ŧë⟧",
-  "library.skills.add.already": "⟦{name} ŵàš àļŕëàðÿ àððëð ƒŕôɱ ŧĥïš. Ṽëŕšïôñ {version} ïš ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
-  "library.skills.add.unchanged": "⟦{name} àļŕëàðÿ ĥàð ŧĥëšë ƒïļëš. Ṽëŕšïôñ {version} ïš ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "library.skills.add.happens.inUse": "⟦Ṽëŕšïôñ 1 ïš ïñ ûšë šŧŕàïĝĥŧ àŵàÿ. Àððïñĝ ŧĥë šàɱë ƒôļðëŕ àĝàïñ àððš ŧĥë ñëẋŧ ṽëŕšïôñ ŵĥëñ ïŧš ƒïļëš çĥàñĝëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
-  "library.skills.add.failure.unavailable": "⟦Ɓàķëŕÿ çôûļð ñôŧ ŕëàð {revision} ƒŕôɱ {address}. Çĥëçķ ŧĥë àððŕëšš, ŧĥë ƀŕàñçĥ, ŧàĝ ôŕ çôɱɱïŧ, àñð ŧĥàŧ ŧĥïš ïñšŧàļļàŧïôñ çàñ ŕëàð ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "library.skills.add.failure.unavailable": "⟦Ɓàķëŕÿ çôûļð ñôŧ ŕëàð {revision} ƒŕôɱ {address}. Çĥëçķ ŧĥë àððŕëšš, ŧĥë ƀŕàñçĥ, ŧàĝ ôŕ çôɱɱïŧ, àñð ŧĥàŧ ŧĥïš ïñšŧàļļàŧïôñ çàñ ŕëàð ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "library.skills.add.unchanged": "⟦{name} àļŕëàðÿ ĥàð ŧĥëšë ƒïļëš. ŧëšŧ çôþ⟧",
+  "library.skills.add.done": "⟦Àððëð {name}. ŧë⟧",
+  "library.skills.add.already": "⟦{name} ŵàš àļŕëàðÿ àððëð ƒŕôɱ ŧĥïš. ŧëšŧ çôþÿŧ⟧",
+  "library.skill.files.of": "⟦Ŧĥë ƒïļëš ôƒ ṽëŕšïôñ {number}. ŧëšŧ çôþ⟧"
 }

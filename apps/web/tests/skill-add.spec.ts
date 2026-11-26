@@ -269,7 +269,7 @@ test.describe("add a skill from a source", () => {
     state.held = false;
     await expect(page).toHaveURL(new RegExp(`/skills/${IDS.releaseNotes}$`));
     await expect(page.getByTestId("skill-toast")).toContainText(
-      "Added Release notes. Version 1 is in use.",
+      "Added Release notes.",
     );
     expect(sent.map((one) => [one.path, one.body])).toEqual([
       ["/v1/skill-sources", {
@@ -292,6 +292,9 @@ test.describe("add a skill from a source", () => {
     await expect(page.getByText("1 source. Its address")).toBeVisible();
     await page.getByRole("combobox", { name: "Source" }).selectOption(ACME.id);
     await expect(page.getByText(ACME.locator, { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "Source" }).locator("option:checked"),
+    ).toHaveText("Acme skills");
     await box(page, /Branch, tag or commit/).fill("main");
     await expect(page.getByRole("radio", { name: "Private" })).toHaveCount(0);
     await expect(page.getByText("The skill is added for Fixture Org."))
@@ -357,7 +360,7 @@ test.describe("add a skill from a source", () => {
     await box(page, /Branch, tag or commit/).fill("v2.2.0");
     await submit(page).click();
     await expect(page.getByTestId("skill-toast")).toContainText(
-      "Release notes already had these files. Version 1 is in use.",
+      "Release notes already had these files.",
     );
   });
 

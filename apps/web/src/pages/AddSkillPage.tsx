@@ -219,7 +219,6 @@ export function AddSkillPage() {
             attempt.alreadyAdded ? "already" : unchanged ? "unchanged" : "done",
             {
               name: skill.data.name,
-              version: skill.data.activeRevision ?? 1,
             },
           ),
         );
@@ -439,19 +438,19 @@ export function AddSkillPage() {
                         { value: "", label: copy("chooseSource") },
                         ...saved.map((source) => ({
                           value: source.id,
-                          label: `${
-                            source.name ?? source.locator
-                          } · ${source.locator}`,
+                          label: source.name ?? source.locator,
                         })),
                       ]}
                       value={form.sourceId}
                     />
                     {chosen === undefined ? null : (
                       <UI.DescriptionList>
-                        <UI.DescriptionItem
-                          title={copy("field.address")}
-                          description={chosen.locator}
-                        />
+                        {chosen.name === null ? null : (
+                          <UI.DescriptionItem
+                            title={copy("field.address")}
+                            description={chosen.locator}
+                          />
+                        )}
                         {chosen.license
                           ? (
                             <UI.DescriptionItem
