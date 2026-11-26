@@ -66,6 +66,7 @@ export type SourceWorkflow = NonNullable<TicketSourcePolicy["workflow"]>;
 
 export type SourceWorkflowResolver = (
   requested: SourceWorkflowRequest,
+  automatic: boolean,
 ) => Promise<SourceWorkflow>;
 
 export async function storedTicketSourcePolicy(
@@ -92,7 +93,7 @@ export async function storedTicketSourcePolicy(
   }
   const workflow = requested === undefined
     ? undefined
-    : await resolveWorkflow(requested);
+    : await resolveWorkflow(requested, enabled);
   const since = !enabled
     ? null
     : previous?.automatic.enabled === true

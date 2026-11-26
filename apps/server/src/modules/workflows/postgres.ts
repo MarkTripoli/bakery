@@ -1,5 +1,9 @@
 import { boundedPostgresMutation } from "../../platform/bounded-mutation.ts";
 import { needsInputs } from "../workflow-adapter/plan-admission.ts";
+import {
+  assertNoAutomaticSourceAdmits,
+  startsOverlapAdmission,
+} from "./ticket-source-overlap.ts";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { WorkflowStartsSchema } from "@bakery/contracts/workflow-starts";
 import type { JsonValue } from "@bakery/contracts/contracts";
@@ -74,7 +78,7 @@ import {
 const DEFINITIONS_ORDERING = "createdAt:desc,id:desc";
 const VERSIONS_ORDERING = "revision:desc,id:desc";
 const DEFINITION_COLUMNS =
-  "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version, origin_kind, origin_catalog_key, origin_catalog_version, origin_source_workflow_id, origin_source_version_id, origin_source_digest, visibility, origin_conversation_id, origin_turn_id, (select active.normalized_spec from bakery.workflow_versions active where active.organization_id = workflow_definitions.organization_id and active.id = workflow_definitions.active_version_id) as active_spec";
+  "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version, origin_kind, origin_catalog_key, origin_catalog_version, origin_source_workflow_id, origin_source_version_id, origin_source_digest, visibility, origin_conversation_id, origin_turn_id, (select active.normalized_spec from bakery.workflow_versions active where active.organization_id = workflow_definitions.organization_id and active.id = workflow_definitions.active_version_id) as active_spec, (select active.starts from bakery.workflow_versions active where active.organization_id = workflow_definitions.organization_id and active.id = workflow_definitions.active_version_id) as active_starts";
 
 export type WorkflowDefinitionRow = {
   id: string;
@@ -96,6 +100,7 @@ export type WorkflowDefinitionRow = {
   origin_conversation_id: string | null;
   origin_turn_id: string | null;
   active_spec: unknown;
+  active_starts?: unknown;
 };
 
 /** Library visibility of a definition (chapter 25 primitive 2). */
@@ -175,6 +180,7 @@ export function toWorkflowDefinition(row: WorkflowDefinitionRow) {
     description: row.description,
     activeVersionId: row.active_version_id,
     needsInputs: needsInputs(row.active_spec),
+    startsOverlapAdmission: startsOverlapAdmission(row.active_starts),
     enabled: row.enabled,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
@@ -635,6 +641,23 @@ export async function insertWorkflowCopy(
   return row;
 }
 
+async function activeStartsOf(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  workflowId: string,
+): Promise<unknown> {
+  const active = await transaction.query<{ starts: unknown }>(
+    `select version.starts
+       from bakery.workflow_definitions definition
+       join bakery.workflow_versions version
+         on version.organization_id = definition.organization_id
+        and version.id = definition.active_version_id
+      where definition.organization_id = $1 and definition.id = $2`,
+    [organizationId, workflowId],
+  );
+  return active.rows[0]?.starts ?? null;
+}
+
 export async function updateWorkflowDefinition(
   context: ActionContext,
   input: unknown,
@@ -658,6 +681,14 @@ export async function updateWorkflowDefinition(
   const target = locked.rows[0];
   if (!target) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   requireOrganizationMayEdit(target.origin_kind);
+  if (value.enabled === true) {
+    await assertNoAutomaticSourceAdmits(
+      transaction,
+      organizationId,
+      workflowId,
+      await activeStartsOf(transaction, organizationId, workflowId),
+    );
+  }
   // Switching a workflow on or off is an off-by-default power for an agent
   // (O52), granted with publishing; renaming and describing are authoring.
   const attribution = value.enabled === undefined
@@ -1441,9 +1472,9 @@ export async function activateWorkflowVersion(
     });
   }
   const published = await transaction.query<
-    { status: string; normalized_spec: JsonValue }
+    { status: string; normalized_spec: JsonValue; starts: unknown }
   >(
-    `select status, normalized_spec from bakery.workflow_versions
+    `select status, normalized_spec, starts from bakery.workflow_versions
       where organization_id = $1 and workflow_id = $2 and id = $3`,
     [organizationId, workflowId, versionId],
   );
@@ -1471,6 +1502,12 @@ export async function activateWorkflowVersion(
     transaction,
     organizationId,
     target.normalized_spec,
+  );
+  await assertNoAutomaticSourceAdmits(
+    transaction,
+    organizationId,
+    workflowId,
+    target.starts,
   );
   const updated = await boundedMutation(() =>
     transaction.query<WorkflowDefinitionRow>(

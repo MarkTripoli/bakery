@@ -122,10 +122,7 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
     projectRepositoriesQueryOptions(api, scope),
   );
   const workflowsRead = useQuery(libraryWorkflowsQueryOptions(api, scope));
-  const writtenWorkflows = useMemo(
-    () => writtenWorkflowsOf(workflowsRead.data?.items ?? []),
-    [workflowsRead.data],
-  );
+  const writtenWorkflowItems = workflowsRead.data?.items;
   const savedRows = useMemo(() => rowsOf(rulesRead.data), [rulesRead.data]);
   const [rulesDraft, setRulesDraft] = useState<RuleRow[] | null>(null);
   const [rulesNotice, setRulesNotice] = useState<
@@ -180,6 +177,11 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
   const [showingIssues, setShowingIssues] = useState(false);
 
   const shown = draft ?? (saved === null ? null : formOf(saved));
+  const automaticShown = shown?.automatic === true;
+  const writtenWorkflows = useMemo(
+    () => writtenWorkflowsOf(writtenWorkflowItems ?? [], automaticShown),
+    [writtenWorkflowItems, automaticShown],
+  );
   const keptListed = shown?.keptWorkflowId == null ||
     writtenWorkflows.some((workflow) => workflow.id === shown.keptWorkflowId);
   const keptWorkflow = useWorkflowName(

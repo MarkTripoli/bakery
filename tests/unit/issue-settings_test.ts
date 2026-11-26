@@ -286,6 +286,7 @@ Deno.test("issue 407: the workflow choice lists written workflows, selects the s
         origin: { kind: "authored" },
       },
     ] as unknown as Parameters<typeof writtenWorkflowsOf>[0],
+    false,
   );
   assertEquals(written, [{
     id: "w-1",
@@ -336,6 +337,7 @@ Deno.test("issue 407: a written workflow that needs an input is not offered, and
         origin: { kind: "authored" },
       },
     ] as unknown as Parameters<typeof writtenWorkflowsOf>[0],
+    false,
   );
   assertEquals(written.map((workflow) => workflow.id), ["w-1"]);
   const saved = "2f4c8a1e-0b7d-4e55-9c3a-6d1f0e2b7a90";
@@ -345,4 +347,36 @@ Deno.test("issue 407: a written workflow that needs an input is not offered, and
     value: `workflow:${saved}`,
   });
   assertEquals(options.some((option) => option.label === saved), false);
+});
+
+Deno.test("issue 407: with automatic admission on, a written workflow whose starts overlap admission is not offered", () => {
+  const items = [
+    {
+      id: "w-1",
+      name: "Triage",
+      description: null,
+      enabled: true,
+      activeVersionId: "v-1",
+      needsInputs: false,
+      startsOverlapAdmission: false,
+      origin: { kind: "authored" },
+    },
+    {
+      id: "w-3",
+      name: "Fires on label",
+      description: null,
+      enabled: true,
+      activeVersionId: "v-3",
+      needsInputs: false,
+      startsOverlapAdmission: true,
+      origin: { kind: "authored" },
+    },
+  ] as unknown as Parameters<typeof writtenWorkflowsOf>[0];
+  assertEquals(writtenWorkflowsOf(items, true).map((workflow) => workflow.id), [
+    "w-1",
+  ]);
+  assertEquals(
+    writtenWorkflowsOf(items, false).map((workflow) => workflow.id),
+    ["w-3", "w-1"],
+  );
 });

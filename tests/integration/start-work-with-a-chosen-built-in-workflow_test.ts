@@ -3,8 +3,15 @@ import {
   type TicketPin,
 } from "../../packages/contracts/src/ticket-admission.ts";
 import { assert, assertEquals } from "@std/assert";
-import { publishWrittenWorkflow } from "../helpers/ticket-admission/written-workflow.ts";
-import { withAutomation } from "../helpers/ticket-admission/automation-fixtures.ts";
+import {
+  activateVersion,
+  publishVersion,
+  publishWrittenWorkflow,
+} from "../helpers/ticket-admission/written-workflow.ts";
+import {
+  seedFact,
+  withAutomation,
+} from "../helpers/ticket-admission/automation-fixtures.ts";
 import {
   automaticPolicy,
   EXECUTE_LABEL,
@@ -220,81 +227,196 @@ Deno.test("issue 61: a ready reviewed workflow is admitted and its run is that w
     assertEquals(await runPreset(fx, runId), "preset:fixed-coding-reviewed");
   }, { budget: true, reviewed: true }));
 
-Deno.test("issue 407: starts on the source's workflow are left to the ticket source, which fires them only for an issue it did not admit", () =>
+Deno.test("issue 407: a source with automatic admission cannot name a workflow whose starts answer the events admission acts on", () =>
+  withTicketFixture(async (fx) => {
+    const labeled = await publishWrittenWorkflow(fx, "fires-on-label", {
+      startsOn: ["labeled"],
+    });
+    const closing = await publishWrittenWorkflow(fx, "fires-on-close", {
+      startsOn: ["closed"],
+    });
+    const listed = await read<
+      { items: { id: string; startsOverlapAdmission: boolean }[] }
+    >(await ticketCall(fx, "GET", "/v1/workflows?limit=100"), 200);
+    const flag = (id: string) =>
+      listed.items.find((item) => item.id === id)?.startsOverlapAdmission;
+    assertEquals([flag(labeled.workflowId), flag(closing.workflowId)], [
+      true,
+      false,
+    ]);
+    const sourceId = await fx.insertSource();
+    const save = (workflowId: string, automatic: boolean, ifMatch: number) =>
+      ticketCall(fx, "PATCH", `/v1/ticket-sources/${sourceId}`, {
+        ifMatch,
+        body: {
+          policy: {
+            ...(automatic ? automaticPolicy(fx) : fx.policy()),
+            workflow: { workflowId },
+          },
+        },
+      });
+    const refused = await save(labeled.workflowId, true, 1);
+    const text = await refused.text();
+    assertEquals(refused.status, 422, text);
+    assert(text.includes("ticket_source_workflow_starts_overlap"), text);
+    await read(await save(labeled.workflowId, false, 1), 200);
+    await read(await save(closing.workflowId, true, 2), 200);
+  }, { budget: true }));
+
+Deno.test("issue 407: using an older version that starts on a label is refused while an automatic source names the workflow", () =>
+  withTicketFixture(async (fx) => {
+    const written = await publishWrittenWorkflow(fx, "older-label", {
+      startsOn: ["opened", "labeled"],
+    });
+    const plain = await publishVersion(fx, written.workflowId);
+    await read(await activateVersion(fx, written.workflowId, plain), 200);
+    const sourceId = await fx.insertSource();
+    await read(
+      await ticketCall(fx, "PATCH", `/v1/ticket-sources/${sourceId}`, {
+        ifMatch: 1,
+        body: {
+          policy: {
+            ...automaticPolicy(fx),
+            workflow: { workflowId: written.workflowId },
+          },
+        },
+      }),
+      200,
+    );
+    const refused = await activateVersion(
+      fx,
+      written.workflowId,
+      written.versionId,
+    );
+    const text = await refused.text();
+    assertEquals(refused.status, 422, text);
+    assert(text.includes("ticket_source_workflow_starts_overlap"), text);
+    const still = await read<{ activeVersionId: string }>(
+      await ticketCall(fx, "GET", `/v1/workflows/${written.workflowId}`),
+      200,
+    );
+    assertEquals(still.activeVersionId, plain);
+  }, { budget: true }));
+
+Deno.test("issue 407: enabling a workflow whose version in use starts on a label is refused while an automatic source names it", () =>
+  withTicketFixture(async (fx) => {
+    const written = await publishWrittenWorkflow(fx, "enable-label", {
+      startsOn: ["labeled"],
+    });
+    const current = await read<{ version: number }>(
+      await ticketCall(fx, "PATCH", `/v1/workflows/${written.workflowId}`, {
+        ifMatch: (await read<{ version: number }>(
+          await ticketCall(fx, "GET", `/v1/workflows/${written.workflowId}`),
+          200,
+        )).version,
+        body: { enabled: false },
+      }),
+      200,
+    );
+    await fx.insertSource({
+      policy: {
+        ...automaticPolicy(fx),
+        workflow: { workflowId: written.workflowId },
+      },
+    });
+    const refused = await ticketCall(
+      fx,
+      "PATCH",
+      `/v1/workflows/${written.workflowId}`,
+      { ifMatch: current.version, body: { enabled: true } },
+    );
+    const text = await refused.text();
+    assertEquals(refused.status, 422, text);
+    assert(text.includes("ticket_source_workflow_starts_overlap"), text);
+  }, { budget: true }));
+
+Deno.test("issue 407: closing an issue the source admitted fires the workflow's closed start once", () =>
   withAutomation(async (a) => {
     const { fx } = a;
-    const workflow = fx.builtInWorkflow("fixed-coding");
-    const active = await fx.owner.query<{ active_version_id: string }>(
-      `select active_version_id from bakery.workflow_definitions
-        where organization_id = $1 and id = $2`,
-      [fx.organizationId, workflow.workflowId],
-    );
-    const versionId = active.rows[0].active_version_id;
-    await fx.owner.query(
-      `update bakery.workflow_versions set starts = $3::jsonb
-        where organization_id = $1 and id = $2`,
-      [
-        fx.organizationId,
-        versionId,
-        JSON.stringify(["labeled", "opened"].map((action) => ({
-          id: `on-${action}`,
-          budgetUsd: 5,
-          inputs: {},
-          on: { kind: "event", eventKind: `work_item.${action}`, filter: {} },
-        }))),
-      ],
-    );
-    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    const written = await publishWrittenWorkflow(fx, "fires-on-close", {
+      startsOn: ["closed"],
+    });
+    const sourceId = await fx.insertSource({
+      policy: {
+        ...automaticPolicy(fx),
+        workflow: { workflowId: written.workflowId },
+      },
+    });
     a.seedLabeler();
-    const automationSide = async (routes: Record<string, string>) => {
-      const settled = await processAutomationRoute(
-        fx.runtime,
-        routes.automation,
-      );
-      assert(settled.kind === "settled", JSON.stringify(settled));
-      return settled.starts;
-    };
-    const before = await runsOfOrganization(fx);
-
     a.issue(617);
-    const admittedRoutes = await a.deliverRoutes(617);
-    assertEquals(
-      (await automationSide(admittedRoutes)).map((
-        outcome,
-      ) => [outcome.startId, outcome.result]),
-      [["on-labeled", "left_to_ticket_source"]],
-    );
-    const admitted = await a.intake(admittedRoutes.fact_refresh);
+    const labelled = await a.deliverRoutes(617);
+    await processAutomationRoute(fx.runtime, labelled.automation);
+    const admitted = await a.intake(labelled.fact_refresh);
     assert(admitted.kind === "processed", JSON.stringify(admitted));
     assertEquals(admitted.sources[0].admission, "admitted");
     assertEquals(await firingsOfOrganization(fx), 0);
-    assertEquals(await runsOfOrganization(fx), before + 1, "one run for 617");
-
-    a.issue(620);
-    const openedRoutes = await a.deliverRoutes(620, "opened");
-    assertEquals(
-      (await automationSide(openedRoutes)).map((outcome) => outcome.result),
-      ["left_to_ticket_source"],
-    );
-    const opened = await a.intake(openedRoutes.fact_refresh);
-    assert(opened.kind === "processed", JSON.stringify(opened));
-    assertEquals(opened.sources[0].admission, "admitted");
-    assertEquals(await firingsOfOrganization(fx), 0);
-    assertEquals(await runsOfOrganization(fx), before + 2, "one run for 620");
-
-    a.issue(999, ["triage"]);
-    const unrelatedRoutes = await a.deliverRoutes(999);
-    assertEquals(
-      (await automationSide(unrelatedRoutes)).map((outcome) => outcome.result),
-      ["left_to_ticket_source"],
-    );
-    const unrelated = await a.intake(unrelatedRoutes.fact_refresh);
-    assert(unrelated.kind === "processed", JSON.stringify(unrelated));
-    assertEquals(unrelated.sources[0].action, "none");
-    assertEquals(await firingsOfOrganization(fx), 1, "999's start fired");
-    await a.intake(unrelatedRoutes.fact_refresh);
+    a.edit(617, { state: "closed" });
+    const closed = await a.deliverRoutes(617, "closed");
+    const side = await processAutomationRoute(fx.runtime, closed.automation);
+    assert(side.kind === "settled", JSON.stringify(side));
+    assertEquals(side.starts.map((outcome) => outcome.result), ["started"]);
+    await a.intake(closed.fact_refresh);
+    assertEquals(await firingsOfOrganization(fx), 1);
+    await processAutomationRoute(fx.runtime, closed.automation);
     assertEquals(await firingsOfOrganization(fx), 1, "a replay fires nothing");
-    assertEquals((await fx.counts(sourceId)).requests, 2);
+    assertEquals((await fx.counts(sourceId)).requests, 1);
+  }));
+
+Deno.test("issue 407: a failed issue read on delivery, then a poll, starts exactly one run", () =>
+  withAutomation(async (a) => {
+    const { fx } = a;
+    const overlapping = await publishWrittenWorkflow(fx, "probe-label", {
+      startsOn: ["labeled"],
+    });
+    const written = await publishWrittenWorkflow(fx, "probe-plain");
+    const sourceId = await fx.insertSource();
+    const save = (workflowId: string) =>
+      ticketCall(fx, "PATCH", `/v1/ticket-sources/${sourceId}`, {
+        ifMatch: 1,
+        body: { policy: { ...automaticPolicy(fx), workflow: { workflowId } } },
+      });
+    const refused = await save(overlapping.workflowId);
+    const text = await refused.text();
+    assertEquals(refused.status, 422, text);
+    assert(text.includes("ticket_source_workflow_starts_overlap"), text);
+    await fx.owner.query(
+      `update bakery.ticket_sources set policy = $2::jsonb where id = $1`,
+      [
+        sourceId,
+        JSON.stringify({
+          ...automaticPolicy(fx),
+          workflow: { workflowId: written.workflowId },
+        }),
+      ],
+    );
+    a.seedLabeler();
+    a.issue(621);
+    const routes = await a.deliverRoutes(621);
+    await processAutomationRoute(fx.runtime, routes.automation);
+    const failing = new Proxy(a.live, {
+      get(target, key, receiver) {
+        if (key === "readIssue") {
+          return () =>
+            Promise.resolve({ kind: "unavailable", reason: "rate_limited" });
+        }
+        const value = Reflect.get(target, key, receiver);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const before = await runsOfOrganization(fx);
+    await a.intake(routes.fact_refresh, { reader: failing });
+    assertEquals(await runsOfOrganization(fx), before);
+    await seedFact(a, 621, "2026-11-01T00:00:00.000Z", [EXECUTE_LABEL]);
+    a.index.set(621, new Date().toISOString(), [EXECUTE_LABEL]);
+    await a.poll();
+    assertEquals(await runsOfOrganization(fx), before + 1, "one run for 621");
+    const ofWritten = await fx.owner.query<{ count: string }>(
+      `select count(*)::text as count from bakery.workflow_runs
+        where organization_id = $1 and workflow_version_id = $2`,
+      [fx.organizationId, written.versionId],
+    );
+    assertEquals(ofWritten.rows[0]?.count, "1");
+    assertEquals((await fx.counts(sourceId)).requests, 1);
   }));
 
 Deno.test("issue 407: a request pinned before policy v2 keeps its old pin and starts one run of that built-in", () =>

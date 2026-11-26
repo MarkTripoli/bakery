@@ -11,11 +11,13 @@ const WRITTEN_PREFIX = "workflow:";
 
 export function writtenWorkflowsOf(
   items: readonly WorkflowDefinitionResponse[],
+  automatic: boolean,
 ): WrittenWorkflow[] {
   return items
     .filter((item) =>
       item.origin.kind !== "catalog" && item.enabled &&
-      item.activeVersionId !== null && !item.needsInputs
+      item.activeVersionId !== null && !item.needsInputs &&
+      !(automatic && item.startsOverlapAdmission)
     )
     .map((item) => ({
       id: item.id,

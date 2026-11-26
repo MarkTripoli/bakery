@@ -45154,6 +45154,10 @@ export const clientManifest = {
                 "type": "boolean",
                 "description": "Whether the version in use declares a required input. A start that supplies no inputs, as a ticket source starting work on an issue does, cannot run it, so issue settings do not offer it and a source policy naming it is refused with workflow_needs_inputs. False when no version is in use."
               },
+              "startsOverlapAdmission": {
+                "type": "boolean",
+                "description": "Whether the version in use has an event start on an issue being opened, edited, reopened, labeled or unlabeled: the events on which a ticket source with automatic admission starts work itself. Both would start a run for the same issue, so issue settings do not offer it while automatic admission is on, saving such a source is refused with ticket_source_workflow_starts_overlap, and publishing or using a version with such a start is refused with the same code while an automatic source names the workflow. False when no version is in use."
+              },
               "enabled": {
                 "type": "boolean",
                 "description": "Whether new runs may start from this workflow definition. Disabling rejects only new starts; runs already pinned to a published revision keep executing."
@@ -45319,6 +45323,7 @@ export const clientManifest = {
               "name",
               "activeVersionId",
               "needsInputs",
+              "startsOverlapAdmission",
               "enabled",
               "createdAt",
               "updatedAt",
@@ -65550,6 +65555,10 @@ export const clientManifest = {
           "type": "boolean",
           "description": "Whether the version in use declares a required input. A start that supplies no inputs, as a ticket source starting work on an issue does, cannot run it, so issue settings do not offer it and a source policy naming it is refused with workflow_needs_inputs. False when no version is in use."
         },
+        "startsOverlapAdmission": {
+          "type": "boolean",
+          "description": "Whether the version in use has an event start on an issue being opened, edited, reopened, labeled or unlabeled: the events on which a ticket source with automatic admission starts work itself. Both would start a run for the same issue, so issue settings do not offer it while automatic admission is on, saving such a source is refused with ticket_source_workflow_starts_overlap, and publishing or using a version with such a start is refused with the same code while an automatic source names the workflow. False when no version is in use."
+        },
         "enabled": {
           "type": "boolean",
           "description": "Whether new runs may start from this workflow definition. Disabling rejects only new starts; runs already pinned to a published revision keep executing."
@@ -65715,6 +65724,7 @@ export const clientManifest = {
         "name",
         "activeVersionId",
         "needsInputs",
+        "startsOverlapAdmission",
         "enabled",
         "createdAt",
         "updatedAt",

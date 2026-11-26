@@ -120,3 +120,26 @@ Deno.test("issue 407: needsInputs says whether the version in use declares a req
   const parsed = contractSchemas.Workflow.safeParse(needs);
   assertEquals(parsed.success, true, JSON.stringify(parsed.error?.issues));
 });
+
+Deno.test("issue 407: startsOverlapAdmission says whether the version in use starts on an event ticket admission acts on", () => {
+  const start = (action: string) => [{
+    id: `on-${action}`,
+    budgetUsd: 5,
+    inputs: {},
+    on: { kind: "event", eventKind: `work_item.${action}`, filter: {} },
+  }];
+  const flagged = ["opened", "edited", "reopened", "labeled", "unlabeled"]
+    .map((action) =>
+      toWorkflowDefinition({ ...row, active_starts: start(action) })
+        .startsOverlapAdmission
+    );
+  assertEquals(flagged, [true, true, true, true, true]);
+  for (const action of ["closed", "ready"]) {
+    assertEquals(
+      toWorkflowDefinition({ ...row, active_starts: start(action) })
+        .startsOverlapAdmission,
+      false,
+    );
+  }
+  assertEquals(toWorkflowDefinition(row).startsOverlapAdmission, false);
+});

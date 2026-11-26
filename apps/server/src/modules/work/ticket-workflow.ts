@@ -19,6 +19,7 @@ import type {
 } from "./ticket-policy.ts";
 import { ensurePresetWorkflowVersion } from "./workflow-presets.ts";
 import { needsInputs } from "../workflow-adapter/plan-admission.ts";
+import { assertStartsLeaveAdmission } from "../workflows/ticket-source-overlap.ts";
 
 export type TicketWorkflow =
   | Readonly<{
@@ -113,6 +114,29 @@ export async function sourceWorkflowOf(
   organizationId: string,
   principalId: string,
   requested: SourceWorkflowRequest,
+  automatic: boolean,
+): Promise<SourceWorkflow> {
+  const chosen = await chosenSourceWorkflow(
+    transaction,
+    organizationId,
+    principalId,
+    requested,
+  );
+  if (automatic) {
+    await assertStartsLeaveAdmission(
+      transaction,
+      organizationId,
+      chosen.workflowId,
+    );
+  }
+  return chosen;
+}
+
+async function chosenSourceWorkflow(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  requested: SourceWorkflowRequest,
 ): Promise<SourceWorkflow> {
   if (requested.workflowId === undefined) {
     const builtIn = requested.builtIn;
@@ -172,8 +196,14 @@ export function sourceWorkflowResolver(
   organizationId: string,
   principalId: string,
 ): SourceWorkflowResolver {
-  return (requested) =>
-    sourceWorkflowOf(transaction, organizationId, principalId, requested);
+  return (requested, automatic) =>
+    sourceWorkflowOf(
+      transaction,
+      organizationId,
+      principalId,
+      requested,
+      automatic,
+    );
 }
 
 async function versionRow(

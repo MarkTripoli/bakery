@@ -133,6 +133,7 @@ type SettingsOptions = {
     name: string;
     description: string;
     needsInputs?: boolean;
+    startsOverlapAdmission?: boolean;
   }[];
 };
 
@@ -142,9 +143,11 @@ const writtenWorkflow = (
     name: string;
     description: string;
     needsInputs?: boolean;
+    startsOverlapAdmission?: boolean;
   },
 ) => ({
   needsInputs: false,
+  startsOverlapAdmission: false,
   ...workflow,
   slug: workflow.name.toLowerCase().replaceAll(" ", "-"),
   activeVersionId: uuid(960),
@@ -712,6 +715,39 @@ for (
       await still(page, "issue-settings-workflow-unlisted", undefined, {
         scrollTo: workflowBox(page),
       });
+    });
+
+    test("with Start automatically on, a workflow that starts on its own when an issue is labeled is not offered", async ({ page }) => {
+      const triage = {
+        id: uuid(974),
+        name: "Triage and fix",
+        description: "Reads the issue, fixes it and opens a pull request.",
+      };
+      const onLabel = {
+        id: uuid(975),
+        name: "Runs on every label",
+        description: "Starts by itself when an issue is labeled.",
+        startsOverlapAdmission: true,
+      };
+      await settingsFixture(page, {
+        saved: {
+          policy: policy({
+            automatic: { enabled: true, since: "2026-11-16T12:00:00.000Z" },
+            workflow: { workflowId: triage.id },
+          }),
+        },
+        workflows: [triage, onLabel],
+      });
+      await openSettings(page);
+      const choice = workflowBox(page).getByLabel("Workflow");
+      await expect(choice).toHaveValue(`workflow:${triage.id}`);
+      await expect(choice.getByRole("option", { name: triage.name }))
+        .toHaveCount(1);
+      await expect(choice.getByRole("option", { name: onLabel.name }))
+        .toHaveCount(0);
+      await automaticSwitch(page).click();
+      await expect(choice.getByRole("option", { name: onLabel.name }))
+        .toHaveCount(1);
     });
 
     test("a saved workflow that cannot be read is said to be unavailable, never shown by its id", async ({ page }) => {

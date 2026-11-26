@@ -262,6 +262,7 @@ export async function batchesFixture(page: Page, options: Options = {}) {
             slug: "written",
             activeVersionId: uuid(960),
             needsInputs: false,
+            startsOverlapAdmission: false,
             enabled: true,
             createdAt: STAMP,
             updatedAt: STAMP,
