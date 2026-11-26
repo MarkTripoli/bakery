@@ -63,6 +63,7 @@ export type DiagramProps = {
   readonly canManage: boolean;
   /** Whether slice 1 can add, move and remove steps here. */
   readonly editable: boolean;
+  readonly addAfter?: ReadonlySet<string | null>;
   /**
    * Whether this is a read-only page (the workflow page or a built-in), where
    * nothing can be edited at all. "Edited in code" tells a person where to go
@@ -110,6 +111,7 @@ const GROUP_ICON: Readonly<Partial<Record<GroupLabel, string>>> = {
 
 export function WorkflowDiagram(
   {
+    addAfter,
     canManage,
     detail,
     editable,
@@ -280,6 +282,7 @@ export function WorkflowDiagram(
 
   const addControl = (afterId: string | null): ReactNode => {
     if (!editable || !canManage) return null;
+    if (addAfter !== undefined && !addAfter.has(afterId)) return null;
     const open = pickerAt !== undefined && pickerAt === afterId;
     const addLabel = translate("library.editor.addHere" as never, {
       after: afterId === null

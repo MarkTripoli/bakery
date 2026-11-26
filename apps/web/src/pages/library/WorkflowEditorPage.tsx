@@ -58,7 +58,9 @@ import {
   editorStateOf,
   type EditorStep,
   freeStepId,
+  isPlainGroup,
   type LoopEdit,
+  nodeIds,
   skillsOfNode,
 } from "./editor-state.ts";
 import { LeaveGuard } from "../repository-rules/leave-guard.tsx";
@@ -221,12 +223,13 @@ export function WorkflowEditorPage(
   const versionSteps = useMemo<readonly EditorStep[]>(() => {
     const spec = record(draft?.normalizedSpec);
     const steps = Array.isArray(spec.steps) ? spec.steps : [];
-    return steps.flatMap((raw) => {
+    const entry = (raw: unknown, list?: string): EditorStep[] => {
       const step = record(raw);
       const id = typeof step.id === "string" ? step.id : "";
       const uses = typeof step.uses === "string" ? step.uses : "";
       if (id === "") return [];
       return [{
+        ...(list === undefined ? {} : { list }),
         id,
         uses,
         agentVersionId: typeof step.agentVersionId === "string"
@@ -235,7 +238,12 @@ export function WorkflowEditorPage(
         skills: skillsOfNode(step),
         ...approvalPart(uses, step),
       }];
-    });
+    };
+    return steps.flatMap((raw) =>
+      isPlainGroup(raw)
+        ? raw.steps.flatMap((inner) => entry(inner, raw.id))
+        : entry(raw)
+    );
   }, [draft]);
 
   const versionStarts = useMemo(
@@ -554,8 +562,10 @@ export function WorkflowEditorPage(
     return Array.isArray(rawSpec.steps) ? rawSpec.steps : null;
   }, [rawSpec]);
   const plainList = rawSteps !== null && rawSteps.every(isActionNode);
+  const grouped = !plainList && (rawSteps?.some(isPlainGroup) ?? false);
   const tree = useMemo(() => {
     if (rawSteps === null) return treeOf({});
+    if (grouped) return treeOf(definitionOf(rawSpec, steps));
     if (!plainList) return treeOf(rawSpec);
     const rawById = new Map<string, Record<string, unknown>>();
     for (const node of rawSteps) {
@@ -573,10 +583,21 @@ export function WorkflowEditorPage(
           : { agentVersionId: step.agentVersionId }),
       })),
     });
-  }, [rawSpec, rawSteps, plainList, steps]);
+  }, [rawSpec, rawSteps, plainList, grouped, steps]);
   // Slice 1 adds, moves and removes only the actions of a straight line; a
   // definition that holds groups is drawn and read, never rewritten.
-  const editable = canManage && plainList;
+  const editable = canManage && (plainList || grouped);
+  const canChange = (step: EditorStep | undefined) =>
+    editable && step !== undefined && (plainList || step.list !== undefined);
+  const firstGroup = grouped && isPlainGroup(rawSteps?.[0])
+    ? rawSteps[0].id
+    : undefined;
+  const addAfter = grouped
+    ? new Set<string | null>([
+      ...(firstGroup === undefined ? [] : [null]),
+      ...steps.filter((step) => step.list !== undefined).map((step) => step.id),
+    ])
+    : undefined;
 
   // Checking is continuous: the draft is checked against the server as it
   // changes, and each problem lands on the step its pointer names. A problem
@@ -1160,7 +1181,7 @@ export function WorkflowEditorPage(
           : null,
         resolving,
       ),
-      attach: editable && live?.agentVersionId != null
+      attach: canChange(live) && live?.agentVersionId != null
         ? {
           state: catalog.isError
             ? "failed"
@@ -1229,7 +1250,7 @@ export function WorkflowEditorPage(
     const approval = live?.approval === undefined ? undefined : {
       stepId: live.id,
       fields: live.approval,
-      onChange: editable
+      onChange: canChange(live)
         ? (fields: NonNullable<EditorStep["approval"]>, typing?: string) =>
           dispatch({
             kind: "approval",
@@ -1258,7 +1279,8 @@ export function WorkflowEditorPage(
     return {
       kind: "step",
       name: stepName(step, translate),
-      deletable: editable,
+      deletable: canChange(live) &&
+        (!grouped || steps.filter((one) => one.list === live?.list).length > 1),
       uses: step.uses,
       approval,
       agentFromSetup: checker.unboundActions.has(step.uses),
@@ -1269,9 +1291,10 @@ export function WorkflowEditorPage(
         ? translate("library.editor.problem.unknown" as never)
         : translate("library.editor.problem.unreadable" as never),
       ...skillsFor(live, step),
-      canMoveUp: index > 0,
-      canMoveDown: index >= 0 && index < steps.length - 1,
-      disabled: !editable || index < 0,
+      canMoveUp: index > 0 && steps[index - 1].list === live?.list,
+      canMoveDown: index >= 0 && index < steps.length - 1 &&
+        steps[index + 1].list === live?.list,
+      disabled: !canChange(live) || index < 0,
       onMoveUp: () => {
         if (live === undefined) return;
         dispatch({ kind: "move", id: live.id, index: index - 1 });
@@ -1448,25 +1471,34 @@ export function WorkflowEditorPage(
             {...(startCard === undefined ? {} : { start: startCard })}
             canManage={canManage}
             editable={editable}
+            {...(addAfter === undefined ? {} : { addAfter })}
             onAdd={(afterId) => setPickerAfter(afterId)}
             onSelect={setSelectedId}
             onViewAsCode={() => setCodeOpen(true)}
             pickerAt={pickerAfter}
             onPick={(uses) => {
               const afterId = pickerAfter ?? null;
-              const id = freeStepId(editor, uses);
+              const id = freeStepId(editor, uses, nodeIds(rawSteps));
+              const list = grouped
+                ? afterId === null
+                  ? firstGroup
+                  : steps.find((one) => one.id === afterId)?.list
+                : undefined;
               const step = {
                 id,
                 uses,
                 agentVersionId: null,
                 skills: [],
                 ...(uses === APPROVAL_ACTION ? { approval: NEW_APPROVAL } : {}),
+                ...(list === undefined ? {} : { list }),
               };
               dispatch({ kind: "add", step });
-              // Put the new step where the "+" was pressed.
               if (afterId !== null) {
                 const at = steps.findIndex((one) => one.id === afterId);
                 dispatch({ kind: "move", id, index: at + 1 });
+              } else if (grouped) {
+                const first = steps.findIndex((one) => one.list === list);
+                dispatch({ kind: "move", id, index: first });
               }
               setPickerAfter(undefined);
               setSelectedId(id);
