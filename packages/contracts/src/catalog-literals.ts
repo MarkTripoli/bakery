@@ -1817,6 +1817,7 @@ export type ContractOutputName =
   | "RunControlCapability"
   | "RunRequest"
   | "RunRequestAudience"
+  | "RunRequestNextAsk"
   | "RunRequestPerson"
   | "RunRequests"
   | "RunStep"

@@ -116262,6 +116262,66 @@ export const clientManifest = {
               "description": "Null indicates that the value is unavailable."
             }
           ]
+        },
+        "nextAsk": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dueAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC time the next ask is made if nobody has answered by then: the first ask plus the step's waiting hours."
+                },
+                "askedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC time the next ask was made, or null while it is still to come."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "RunRequestNextAsk.askedAt may be null in this transport value."
+                },
+                "who": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The person, group or role asked next, by its current name, or null when it can no longer be found."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "RunRequestNextAsk.who may be null in this transport value."
+                }
+              },
+              "required": [
+                "dueAt",
+                "askedAt",
+                "who"
+              ],
+              "additionalProperties": false,
+              "description": "Who the step asks next if nobody answers this first request, and when; null when the step names nobody to ask next or this request was itself the next ask."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunRequest.nextAsk may be null in this transport value."
+        },
+        "passedOn": {
+          "type": "boolean",
+          "description": "True when this request is the step's next ask, made because nobody answered the first one in time."
         }
       },
       "required": [
@@ -116280,7 +116340,9 @@ export const clientManifest = {
         "fallbackForName",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "nextAsk",
+        "passedOn"
       ],
       "additionalProperties": false,
       "description": "A request: one person asked for one thing on one run, with how it stands."
@@ -116559,6 +116621,66 @@ export const clientManifest = {
                     "description": "Null indicates that the value is unavailable."
                   }
                 ]
+              },
+              "nextAsk": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "dueAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC time the next ask is made if nobody has answered by then: the first ask plus the step's waiting hours."
+                      },
+                      "askedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "description": "UTC time the next ask was made, or null while it is still to come."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "RunRequestNextAsk.askedAt may be null in this transport value."
+                      },
+                      "who": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "The person, group or role asked next, by its current name, or null when it can no longer be found."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "RunRequestNextAsk.who may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "dueAt",
+                      "askedAt",
+                      "who"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Who the step asks next if nobody answers this first request, and when; null when the step names nobody to ask next or this request was itself the next ask."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunRequest.nextAsk may be null in this transport value."
+              },
+              "passedOn": {
+                "type": "boolean",
+                "description": "True when this request is the step's next ask, made because nobody answered the first one in time."
               }
             },
             "required": [
@@ -116577,7 +116699,9 @@ export const clientManifest = {
               "fallbackForName",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "nextAsk",
+              "passedOn"
             ],
             "additionalProperties": false,
             "description": "Requests in newest-first order; bounded to the most recent fifty. Each array item follows this format."

@@ -36622,6 +36622,28 @@
         "displayName": "The person's saved display name."
       }
     },
+    "RunRequestNextAsk": {
+      "fields": [
+        "dueAt",
+        "askedAt",
+        "who"
+      ],
+      "fieldTypes": {
+        "dueAt": "timestamp",
+        "askedAt": "timestamp|null",
+        "who": "string|null"
+      },
+      "nullableFields": [
+        "askedAt",
+        "who"
+      ],
+      "description": "The one next ask a waiting step makes when nobody answers in time.",
+      "fieldDescriptions": {
+        "dueAt": "UTC time the next ask is made if nobody has answered by then: the first ask plus the step's waiting hours.",
+        "askedAt": "UTC time the next ask was made, or null while it is still to come.",
+        "who": "The person, group or role asked next, by its current name, or null when it can no longer be found."
+      }
+    },
     "RunRequestAudience": {
       "fields": [
         "roleKey",
@@ -36665,7 +36687,9 @@
         "version",
         "questionId",
         "audience",
-        "artifactVersionId"
+        "artifactVersionId",
+        "nextAsk",
+        "passedOn"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -36686,7 +36710,9 @@
         "version": "integer",
         "questionId": "uuid|null",
         "audience": "RunRequestAudience|null",
-        "artifactVersionId": "uuid|null"
+        "artifactVersionId": "uuid|null",
+        "nextAsk": "RunRequestNextAsk|null",
+        "passedOn": "boolean"
       },
       "nullableFields": [
         "stepKey",
@@ -36696,7 +36722,8 @@
         "fallbackForName",
         "questionId",
         "audience",
-        "artifactVersionId"
+        "artifactVersionId",
+        "nextAsk"
       ],
       "description": "A request: one person asked for one thing on one run, with how it stands.",
       "fieldDescriptions": {
@@ -36718,7 +36745,9 @@
         "version": "Optimistic-concurrency version used as If-Match.",
         "questionId": "The approval or question the request asks about, or null when it asks for none.",
         "audience": "The role or group this request was asked of, or null when one person was asked.",
-        "artifactVersionId": "The artifact version the request asks someone to review, or null when it asks for none."
+        "artifactVersionId": "The artifact version the request asks someone to review, or null when it asks for none.",
+        "nextAsk": "Who the step asks next if nobody answers this first request, and when; null when the step names nobody to ask next or this request was itself the next ask.",
+        "passedOn": "True when this request is the step's next ask, made because nobody answered the first one in time."
       },
       "optionalFields": [
         "questionId",
