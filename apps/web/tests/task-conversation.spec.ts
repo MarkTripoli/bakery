@@ -4414,6 +4414,7 @@ async function openRequests(
   page: Page,
   requests: Record<string, unknown>[],
   overrides: Partial<World> = {},
+  setup: { readonly runListStatus?: number } = {},
 ) {
   const restarts: unknown[] = [];
   const state = world({
@@ -4434,7 +4435,14 @@ async function openRequests(
   );
   await page.route(
     (url) => url.pathname === `/v1/tasks/${taskId}/runs`,
-    (route) => route.fulfill({ json: page_([runFixture("running")]) }),
+    (route) =>
+      setup.runListStatus === undefined
+        ? route.fulfill({ json: page_([runFixture("running")]) })
+        : route.fulfill({
+          status: setup.runListStatus,
+          contentType: "application/problem+json",
+          json: problem(setup.runListStatus, "AUTH_FORBIDDEN"),
+        }),
   );
   await page.route(
     `**/v1/runs/${runId}/requests/mine`,
@@ -4512,6 +4520,15 @@ test.describe("what someone was asked, on the task page", () => {
     await expect.poll(() => restarts).toEqual([
       { mode: "restart", note: "Use the new key." },
     ]);
+  });
+
+  test("someone who cannot list runs still sees what they were asked", async ({ page }) => {
+    const { asked } = await openRequests(page, [requestFixture()], {}, {
+      runListStatus: 403,
+    });
+    await expect(asked).toContainText("Dana Teammate wants you to see this");
+    await expect(page.getByText("What you were asked did not load."))
+      .toHaveCount(0);
   });
 
   test("an FYI and the closed states say where things stand", async ({ page }) => {

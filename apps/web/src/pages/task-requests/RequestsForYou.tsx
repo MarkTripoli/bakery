@@ -45,15 +45,21 @@ export function RequestsForYou(props: Props) {
   const runs = useQuery(
     runsListQueryOptions(api, scope, props.taskId, { limit: RUNS_READ }),
   );
+  const runIds = [
+    ...new Set([
+      ...(props.currentRunId === null ? [] : [props.currentRunId]),
+      ...(runs.data?.items ?? []).map((run) => run.id),
+    ]),
+  ];
   const reads = useQueries({
-    queries: (runs.data?.items ?? []).map((run) =>
-      myRunRequestsQueryOptions(api, scope, run.id)
+    queries: runIds.map((runId) =>
+      myRunRequestsQueryOptions(api, scope, runId)
     ),
   });
   const requests = orderedRequests(
     reads.flatMap((read) => read.data?.requests ?? []),
   );
-  if (reads.some((read) => read.isError) || runs.isError) {
+  if (reads.some((read) => read.isError)) {
     return (
       <UI.InlineNotice tone="warning">
         <UI.Stack gap="compact">
@@ -61,10 +67,7 @@ export function RequestsForYou(props: Props) {
           <UI.Inline gap="compact">
             <UI.Button
               variant="outline"
-              onClick={() => {
-                void runs.refetch();
-                reads.forEach((read) => void read.refetch());
-              }}
+              onClick={() => reads.forEach((read) => void read.refetch())}
             >
               {translate("tasks.conversation.retry")}
             </UI.Button>
@@ -198,6 +201,9 @@ function ReviewLink(
   const at = versions.findIndex((read) =>
     read.data?.items.some((version) => version.id === versionId)
   );
+  if (artifacts.isError || (at < 0 && versions.some((read) => read.isError))) {
+    return <UI.Text variant="hint">{copy("documentUnread")}</UI.Text>;
+  }
   if (at < 0) {
     const pending = artifacts.isPending ||
       versions.some((read) => read.isPending);
