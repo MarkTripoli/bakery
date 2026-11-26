@@ -3,15 +3,15 @@ import { sendDueRequestEmails } from "../../apps/server/src/modules/work/request
 import { cleanupAuthFixture } from "../helpers/auth.ts";
 import { openSocketFixture } from "../helpers/events-socket.ts";
 import { addMember, seedRun } from "../helpers/run-requests.ts";
-import { serveSmtp } from "../helpers/smtp-loopback.ts";
+import { serveSmtp, type SmtpScript } from "../helpers/smtp-loopback.ts";
 
 const NOTE = "Please check the migration numbers in the plan";
 
-async function open() {
+async function open(script: SmtpScript = {}) {
   const fixture = await openSocketFixture();
   const asked = await addMember(fixture, "Asked", "developer");
   const run = await seedRun(fixture);
-  const smtp = serveSmtp();
+  const smtp = serveSmtp(script);
   await fixture.pgDatabase.query(
     "delete from bakery.installation_email_settings where id = 'installation'",
   );
@@ -141,10 +141,9 @@ Deno.test("an answered request, or email that is not working, sends nothing", as
 });
 
 Deno.test("a send that fails is tried again, at most three times in all", async () => {
-  const o = await open();
+  const o = await open({ mailFrom: "550 refused" });
   try {
     const id = await o.request(new Date("2026-11-26T09:00:00Z"));
-    await o.smtp.close();
     for (let minute = 16; minute < 21; minute++) {
       await o.sweep(new Date(`2026-11-26T09:${minute}:00Z`));
     }
