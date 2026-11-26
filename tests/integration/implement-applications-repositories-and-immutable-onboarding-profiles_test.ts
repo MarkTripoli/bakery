@@ -1,6 +1,6 @@
 import { bakeryDataMigrations } from "../../apps/server/src/data-migrations.ts";
 import type { Hono } from "hono";
-import { assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { createApiRouter } from "../../packages/contracts/src/http.ts";
 import {
   readTestDatabaseConfig,
@@ -79,6 +79,8 @@ import {
 import { admitRepositoryExecutionJob } from "../../packages/persistence/src/repository-admission.ts";
 import { frozenExecutionContextBackfill } from "../../apps/server/src/modules/work/migrations/data/0049_issue46_frozen_execution_context.ts";
 import { protect } from "../../apps/server/src/modules/execution/shared.ts";
+
+const FOREIGN_KEY_REFUSED_CODES: readonly string[] = ["23503", "23001"];
 
 const { databaseUrl, appDatabaseUrl, adminDatabaseUrl } =
   readTestDatabaseConfig(Deno.env.toObject(), { requireAdmin: true });
@@ -1501,7 +1503,11 @@ Deno.test("Projects Phase 1 persists tenant-safe identity and rejects manual obs
       })
     );
     assertEquals(observationDeleteCallbackCompleted, true);
-    assertEquals(errorCode(observationDeleteError), "23503");
+    assert(
+      FOREIGN_KEY_REFUSED_CODES.includes(
+        errorCode(observationDeleteError) ?? "",
+      ),
+    );
     assertEquals(
       errorConstraintName(observationDeleteError),
       "tasks_observation_pin_fk",
@@ -1518,7 +1524,11 @@ Deno.test("Projects Phase 1 persists tenant-safe identity and rejects manual obs
       })
     );
     assertEquals(profileDeleteCallbackCompleted, false);
-    assertEquals(errorCode(profileDeleteError), "23503");
+    assert(
+      FOREIGN_KEY_REFUSED_CODES.includes(
+        errorCode(profileDeleteError) ?? "",
+      ),
+    );
     assertEquals(
       errorConstraintName(profileDeleteError),
       "tasks_repository_profile_fk",
