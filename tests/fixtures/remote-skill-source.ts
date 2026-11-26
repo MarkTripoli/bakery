@@ -328,9 +328,9 @@ async function fixtureControl(authority: string, path: string): Promise<void> {
 }
 
 /** Starts an owned loopback archive and Git smart-HTTP fixture process. */
-export async function startRemoteSkillSourceFixture(): Promise<
-  RunningRemoteSkillSourceFixture
-> {
+export async function startRemoteSkillSourceFixture(
+  options: Readonly<{ allowBlobFilter?: boolean }> = {},
+): Promise<RunningRemoteSkillSourceFixture> {
   const root = await Deno.makeTempDir({ prefix: "bakery-remote-source-" });
   const nonce = crypto.randomUUID();
   const work = `${root}/work`;
@@ -400,6 +400,22 @@ export async function startRemoteSkillSourceFixture(): Promise<
       "refs/tags/v1",
       initialCommit,
     ]);
+    if (options.allowBlobFilter) {
+      for (
+        const setting of [
+          "uploadpack.allowFilter",
+          "uploadpack.allowAnySHA1InWant",
+        ]
+      ) {
+        await runFixtureGit(root, [
+          "--git-dir",
+          `${root}/repository.git`,
+          "config",
+          setting,
+          "true",
+        ]);
+      }
+    }
 
     const processPath =
       new URL("./remote-skill-source-process.ts", import.meta.url)
