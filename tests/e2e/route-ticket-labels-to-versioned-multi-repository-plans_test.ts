@@ -78,7 +78,7 @@ Deno.test(
         "/v1/ticket-sources",
         sourceBody(authority, {
           ...defaultTicketSourcePolicy(),
-          preset: "fixed-coding",
+          workflow: { builtIn: "fixed-coding" },
         }),
       );
       assertEquals(created.status, 201, await created.clone().text());

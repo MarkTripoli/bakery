@@ -34,7 +34,7 @@ Deno.test("issue 407: a source with no workflow records readiness, previews, syn
     const sourceId = await fx.insertSource({
       policy: defaultTicketSourcePolicy(),
     });
-    assertEquals(defaultTicketSourcePolicy().preset, undefined);
+    assertEquals(defaultTicketSourcePolicy().workflow, undefined);
     fx.reader.setIssue({ number: 1, labels: [] });
     fx.reader.setIssue({ number: 2, labels: [EXECUTE_LABEL] });
     for (const number of [1, 2]) {

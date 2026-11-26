@@ -24,7 +24,10 @@ import {
   type PinnedRepositoryRules,
   STEP_OUTPUT_ALLOWANCE_BYTES,
 } from "@bakery/contracts/repository-rules";
-import { workflowPresetById } from "@bakery/contracts/workflow-presets";
+import {
+  workflowPresetById,
+  type WorkflowPresetDefinition,
+} from "@bakery/contracts/workflow-presets";
 import type { FrozenActionBinding } from "@bakery/persistence";
 import type { ReviewLoopLimits } from "@bakery/persistence/repository-admission";
 import { planReviewLoopLimits } from "../review-loop/limits.ts";
@@ -748,6 +751,26 @@ async function loadWorkflowVersion(
  * person's own definition whose slug merely starts with "preset:" is theirs to
  * run, and a catalog definition under an ordinary slug is not.
  */
+async function catalogPresetOfVersion(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  workflowVersionId: string,
+): Promise<WorkflowPresetDefinition | undefined> {
+  const result = await transaction.query<{ origin_catalog_key: string | null }>(
+    `select workflow_definition.origin_catalog_key
+       from bakery.workflow_versions workflow_version
+       join bakery.workflow_definitions workflow_definition
+         on workflow_definition.organization_id = workflow_version.organization_id
+        and workflow_definition.id = workflow_version.workflow_id
+      where workflow_version.organization_id = $1
+        and workflow_version.id = $2
+        and workflow_definition.origin_kind = 'catalog'`,
+    [organizationId, workflowVersionId],
+  );
+  const key = result.rows[0]?.origin_catalog_key;
+  return key == null ? undefined : workflowPresetById(key);
+}
+
 export async function loadActiveWorkflowVersionId(
   transaction: PgTransactionClient,
   organizationId: string,
@@ -1017,12 +1040,20 @@ export async function createRunCommand(
     });
   }
 
-  const preset = input.presetId === undefined
+  const namedPreset = input.presetId === undefined
     ? undefined
     : workflowPresetById(input.presetId);
-  if (input.presetId !== undefined && !preset) {
+  if (input.presetId !== undefined && !namedPreset) {
     throw unprocessable(["presetId"], "preset_unknown");
   }
+  const preset = namedPreset ??
+    (input.workflowVersionId === undefined
+      ? undefined
+      : await catalogPresetOfVersion(
+        transaction,
+        organizationId,
+        input.workflowVersionId,
+      ));
   if (preset && input.inputs !== undefined) {
     throw unprocessable(["inputs"], "inputs_not_allowed_with_preset");
   }
@@ -1031,12 +1062,12 @@ export async function createRunCommand(
   ) {
     throw unprocessable(["gates"], "gates_not_accepted");
   }
-  const workflowVersionId = preset
+  const workflowVersionId = namedPreset
     ? await ensurePresetWorkflowVersion(
       transaction,
       organizationId,
       principalId,
-      preset,
+      namedPreset,
     )
     : input.workflowId !== undefined
     ? await loadActiveWorkflowVersionId(

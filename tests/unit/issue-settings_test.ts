@@ -31,13 +31,16 @@ const source = (
   }) as TicketSourceResponse;
 
 const policy = (over: Record<string, unknown> = {}) => ({
-  version: 1,
+  version: 2,
   labels: { execute: "bakery", planOnly: null, hold: "hold" },
   delegation: null,
   automatic: { enabled: false, since: null },
   readiness: { requireAcceptanceCriteria: true },
   approval: { plan: "human_approval" },
-  preset: "fixed-coding",
+  workflow: {
+    workflowId: "55555555-5555-4555-8555-555555555555",
+    builtIn: "fixed-coding",
+  },
   ...over,
 });
 
@@ -85,6 +88,29 @@ Deno.test("a saved policy fills the form, and a missing one gives the defaults",
   assertEquals(fresh.approval, "human_approval");
   assertEquals(fresh.automatic, false);
   assertEquals(fresh.people, []);
+});
+
+Deno.test("issue 407: a built-in workflow is sent by name, and a workflow the page cannot show is kept", () => {
+  const builtIn = formOf(source(policy()));
+  assertEquals(builtIn.preset, "fixed-coding");
+  assertEquals(builtIn.keptWorkflowId, null);
+  assertEquals(policyOfForm(builtIn).workflow, { builtIn: "fixed-coding" });
+  const authored = formOf(source(policy({
+    workflow: { workflowId: "55555555-5555-4555-8555-555555555555" },
+  })));
+  assertEquals(authored.preset, null);
+  assertEquals(authored.keptWorkflowId, "55555555-5555-4555-8555-555555555555");
+  assertEquals(policyOfForm(authored).workflow, {
+    workflowId: "55555555-5555-4555-8555-555555555555",
+  });
+  assertEquals(
+    problemsOf({ ...authored, automatic: true }).workflow,
+    undefined,
+  );
+  const none = formOf(source(policy({ workflow: undefined })));
+  assertEquals(none.keptWorkflowId, null);
+  assertEquals("workflow" in policyOfForm(none), false);
+  assertEquals(policyOfForm(none).version, 2);
 });
 
 Deno.test("the automatic window is read from the server, never from the form", () => {

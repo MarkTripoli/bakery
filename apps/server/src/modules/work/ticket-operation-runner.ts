@@ -49,6 +49,7 @@ import type {
   TicketSourceReader,
 } from "./ticket-source-reader.ts";
 import { ticketRef } from "./ticket-source-reader.ts";
+import { sourceWorkflowResolver } from "./ticket-workflow.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 import {
   type CursorBinding,
@@ -182,7 +183,9 @@ async function probe(
   input: unknown,
   dependencies: TicketRunnerDependencies,
 ): Promise<ReadPlan> {
-  const { transaction, organizationId } = requireWorkTransaction(context);
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
   const id = context.params.id;
   if (!id) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   const fields = (input ?? {}) as Record<string, unknown>;
@@ -222,7 +225,12 @@ async function probe(
     );
     const policy = fields.policy === undefined || fields.policy === null
       ? source.policy
-      : storedTicketSourcePolicy(fields.policy, source.policy, new Date());
+      : await storedTicketSourcePolicy(
+        fields.policy,
+        source.policy,
+        new Date(),
+        sourceWorkflowResolver(transaction, organizationId, principalId),
+      );
     return {
       kind: "preview",
       handle,

@@ -436,7 +436,11 @@ function manualStartInput(
     },
     policy: defaultTicketSourcePolicy(),
     policyRevision: 1,
-    preset: { id: "fixed-coding", revision: 1, digest: "c".repeat(64) },
+    preset: {
+      workflowId: "22222222-2222-4222-8222-222222222222",
+      versionId: "33333333-3333-4333-8333-333333333333",
+      digest: "c".repeat(64),
+    },
     issue,
     links,
     statuses: null,

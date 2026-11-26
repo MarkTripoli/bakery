@@ -556,8 +556,8 @@ Deno.test("issue 82 unit snapshot: issue references sort by repository, number, 
 
 Deno.test("issue 82 unit snapshot: the basis digest is stable and moves with each part", async () => {
   const preset = {
-    id: "fixed-coding" as const,
-    revision: 1,
+    workflowId: "22222222-2222-4222-8222-222222222222",
+    versionId: "33333333-3333-4333-8333-333333333333",
     digest: "c".repeat(64),
   };
   const parts = {
@@ -578,7 +578,13 @@ Deno.test("issue 82 unit snapshot: the basis digest is stable and moves with eac
     { ...parts, dependencyDigest: "d".repeat(64) },
     { ...parts, dependencyDigest: null },
     { ...parts, sourcePolicyRevision: 4 },
-    { ...parts, preset: { ...preset, revision: 2 } },
+    {
+      ...parts,
+      preset: {
+        ...preset,
+        versionId: "44444444-4444-4444-8444-444444444444",
+      },
+    },
     { ...parts, preset: { ...preset, digest: "d".repeat(64) } },
     { ...parts, intent: "plan" as const },
     { ...parts, labelBasis: "manual" as const },

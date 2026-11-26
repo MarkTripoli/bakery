@@ -2,7 +2,6 @@ import {
   ACTOR_ROLE_RANK_ACT,
   TICKET_CHECK_MAX_EVIDENCE,
   type TicketIssueRef,
-  type TicketPresetPin,
   type TicketReadinessCheck,
   type TicketReadinessReport,
   type TicketReasonCode,
@@ -10,6 +9,7 @@ import {
   type TicketRequestOrigin,
   type TicketSourcePolicy,
   ticketVerdictFromChecks,
+  type TicketWorkflowPin,
 } from "@bakery/contracts/ticket-admission";
 import {
   automaticAdmissionAllowed,
@@ -113,7 +113,8 @@ export type ReadinessInput = {
   policy: TicketSourcePolicy;
   /** `ticket_sources.policy_revision` the policy was read at. */
   policyRevision: number;
-  preset: TicketPresetPin | null;
+  preset: TicketWorkflowPin | null;
+  unavailableWorkflowId?: string | null;
   /** Answer of the issue read. */
   issue: TicketIssueRead;
   /** Answer of the links read; null when it was not made (treated as unavailable). */
@@ -636,26 +637,30 @@ function repositoryReady({ source, route }: ReadinessInput): Outcome {
 }
 
 function presetReady(
-  { source, preset, route }: ReadinessInput,
+  { source, preset, route, unavailableWorkflowId }: ReadinessInput,
 ): Outcome | null {
-  if (preset === null) return null;
-  // The policy and the pin both name the one fixed preset by literal type, so
-  // there is no identity to compare; only the repository's setup can fail.
+  if (preset === null) {
+    return unavailableWorkflowId == null ? null : waiting(
+      "preset_setup_required",
+      evidenceRef(`workflow:${unavailableWorkflowId}`),
+    );
+  }
+  const ref = evidenceRef(`workflow:${preset.workflowId}`);
   if (!source.presetReady) {
-    return waiting("preset_setup_required", evidenceRef(`preset:${preset.id}`));
+    return waiting("preset_setup_required", ref);
   }
   // A routed target whose repository cannot run the preset waits too.
   const unready = route?.kind === "routed" ? route.unready?.preset ?? [] : [];
   if (unready.length > 0) {
     return waiting(
       "preset_setup_required",
-      evidenceRef(`preset:${preset.id}`),
+      ref,
       ...unready.slice(0, TICKET_CHECK_MAX_EVIDENCE - 1).map((ref) =>
         evidenceRef(`route:${ref}`)
       ),
     );
   }
-  return passed(evidenceRef(`preset:${preset.id}`));
+  return passed(ref);
 }
 
 /**

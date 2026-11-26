@@ -58,8 +58,8 @@ const ACTOR_ID = "1001";
 const CRITERIA_BODY = "Summary\n\n### Acceptance criteria\n- exports a file\n";
 
 const PRESET = {
-  id: "fixed-coding" as const,
-  revision: 1,
+  workflowId: "22222222-2222-4222-8222-222222222222",
+  versionId: "33333333-3333-4333-8333-333333333333",
   digest: "c".repeat(64),
 };
 
@@ -1521,6 +1521,22 @@ Deno.test("issue 407 unit readiness: a source with no workflow is judged ready, 
   assert(none.basisDigest !== pinned.basisDigest);
 });
 
+Deno.test("issue 407 unit readiness: a named workflow that cannot be resolved waits on the workflow check", async () => {
+  const unavailable = await evaluate(
+    readyInput({ preset: null, unavailableWorkflowId: PRESET.workflowId }),
+  );
+  assertEquals(unavailable.verdict, "waiting");
+  assertEquals(outcome(unavailable, "preset_ready"), [
+    "wait",
+    "preset_setup_required",
+  ]);
+  assertEquals(
+    unavailable.checks.find((check) => check.id === "preset_ready")?.evidence
+      .map((entry) => entry.ref),
+    [`workflow:${PRESET.workflowId}`],
+  );
+});
+
 Deno.test("issue 82 unit readiness: authority_live for a manual caller", async () => {
   const live = await evaluate(readyInput());
   assertEquals(outcome(live, "authority_live"), ["pass", "ok"]);
@@ -1921,7 +1937,15 @@ Deno.test("issue 82 unit readiness: the basis digest follows the verdict inputs 
     ],
     ["closed", readyInput({ issue: presentIssue({ state: "closed" }) })],
     ["policy revision", readyInput({ policyRevision: 4 })],
-    ["preset", readyInput({ preset: { ...PRESET, revision: 2 } })],
+    [
+      "preset",
+      readyInput({
+        preset: {
+          ...PRESET,
+          versionId: "44444444-4444-4444-8444-444444444444",
+        },
+      }),
+    ],
     ["intent", readyInput({ intent: "plan" })],
     [
       "label basis",

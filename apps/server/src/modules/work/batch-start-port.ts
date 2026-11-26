@@ -8,7 +8,7 @@ import {
 } from "../../platform/database.ts";
 import { type AdmissionResult, admitTicket } from "./ticket-admission.ts";
 import { StandardError } from "@bakery/contracts/http";
-import type { TicketPresetPin } from "@bakery/contracts/ticket-admission";
+import type { TicketPresetId } from "@bakery/contracts/ticket-admission";
 import type { TicketSourceReader } from "./ticket-source-reader.ts";
 import type { StartResult } from "./batch-tick.ts";
 
@@ -177,7 +177,7 @@ export function createBatchStartPort(deps: BatchStartPortDeps) {
             origin: "manual",
             caller,
             prefetch: null,
-            preset: input.presetId as TicketPresetPin["id"] | null,
+            preset: input.presetId as TicketPresetId | null,
             signal: AbortSignal.timeout(deps.admissionTimeoutMs ?? 30_000),
             trace: {
               requestId: `batch:${input.batchId}`,

@@ -6,8 +6,6 @@ import {
   isTicketRequestOrigin,
   type TicketAuthorityEvidence,
   TicketAuthorityEvidenceSchema,
-  type TicketPresetPin,
-  TicketPresetPinSchema,
   type TicketReadinessReport,
   TicketReadinessReportSchema,
   type TicketRequestDisposition,
@@ -17,6 +15,8 @@ import {
   type TicketSourcePolicy,
   type TicketStoredReport,
   TicketStoredReportSchema,
+  type TicketWorkflowPin,
+  TicketWorkflowPinSchema,
 } from "@bakery/contracts/ticket-admission";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { repositoryContainer } from "./ticket-container.ts";
@@ -867,7 +867,7 @@ export type TicketRequest = {
   sourcePolicyRevision: number;
   requirementsDigest: string;
   readinessReportId: string | null;
-  pinnedPreset: TicketPresetPin;
+  pinnedPreset: TicketWorkflowPin;
   disposition: TicketRequestDisposition;
   dispositionReason: string | null;
   workflowRunId: string | null;
@@ -935,7 +935,7 @@ function toRequest(row: RequestRowRaw): TicketRequest {
     sourcePolicyRevision: row.source_policy_revision,
     requirementsDigest: row.requirements_digest,
     readinessReportId: row.readiness_report_id,
-    pinnedPreset: TicketPresetPinSchema.parse(row.pinned_preset),
+    pinnedPreset: TicketWorkflowPinSchema.parse(row.pinned_preset),
     disposition: row.disposition,
     dispositionReason: row.disposition_reason,
     workflowRunId: row.workflow_run_id,
@@ -1063,7 +1063,7 @@ export type TicketRequestInsert = {
   sourcePolicyRevision: number;
   requirementsDigest: string;
   readinessReportId: string;
-  pinnedPreset: TicketPresetPin;
+  pinnedPreset: TicketWorkflowPin;
 };
 
 function violatedConstraint(error: unknown): string | null {
@@ -1136,7 +1136,7 @@ export type TicketRequestTarget = {
   routingRuleId: string | null;
   routingRuleVersion: number | null;
   sourcePolicyRevision: number;
-  pinnedPreset: TicketPresetPin;
+  pinnedPreset: TicketWorkflowPin;
   coordinationPlanId: string | null;
   childTaskId: string | null;
 };
@@ -1154,7 +1154,7 @@ export async function insertRequestTargets(
     organizationId: string;
     requestId: string;
     sourcePolicyRevision: number;
-    pinnedPreset: TicketPresetPin;
+    pinnedPreset: TicketWorkflowPin;
     targets: readonly {
       repositoryId: string;
       role: string;
@@ -1240,7 +1240,7 @@ export async function requestTargets(
     routingRuleId: row.routing_rule_id,
     routingRuleVersion: row.routing_rule_version,
     sourcePolicyRevision: row.source_policy_revision,
-    pinnedPreset: TicketPresetPinSchema.parse(row.pinned_preset),
+    pinnedPreset: TicketWorkflowPinSchema.parse(row.pinned_preset),
     coordinationPlanId: row.coordination_plan_id,
     childTaskId: row.child_task_id,
   }));

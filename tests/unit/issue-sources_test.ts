@@ -51,13 +51,16 @@ const source = (
     enabled: true,
     version: 2,
     policy: {
-      version: 1,
+      version: 2,
       labels: { execute: "go", planOnly: "plan", hold: "wait" },
       delegation: null,
       automatic: { enabled: true, since: "2026-01-01T00:00:00Z" },
       readiness: { requireAcceptanceCriteria: false },
       approval: { plan: "none" },
-      preset: "fixed-coding",
+      workflow: {
+        workflowId: "55555555-5555-4555-8555-555555555555",
+        builtIn: "fixed-coding",
+      },
     },
     ...extra,
   }) as TicketSourceResponse;
@@ -165,12 +168,16 @@ Deno.test("a policy keeps everything the source had except the two labels, and a
   assertEquals(kept.readiness, { requireAcceptanceCriteria: false });
   assertEquals(kept.approval, { plan: "none" });
   assertEquals(kept.automatic, { enabled: true });
+  assertEquals(kept.workflow, {
+    workflowId: "55555555-5555-4555-8555-555555555555",
+    builtIn: "fixed-coding",
+  });
   const fresh = policyOf(
     { enabled: true, start: "bakery", hold: "hold" },
     null,
   );
   assertEquals(fresh, {
-    version: 1,
+    version: 2,
     labels: { execute: "bakery", planOnly: null, hold: "hold" },
     delegation: null,
     automatic: { enabled: false },

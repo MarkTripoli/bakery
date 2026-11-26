@@ -69,7 +69,7 @@ Deno.test(
         async () => {
           const body = sourceBody(authority, {
             ...defaultTicketSourcePolicy(),
-            preset: "fixed-coding",
+            workflow: { builtIn: "fixed-coding" },
           });
           const created = await send(admin, "POST", "/v1/ticket-sources", body);
           assertEquals(created.status, 201, await created.clone().text());

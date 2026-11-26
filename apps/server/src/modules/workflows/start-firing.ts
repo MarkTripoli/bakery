@@ -73,11 +73,47 @@ export async function fireStartsFor(
   event: NeutralEvent,
 ): Promise<StartFiringOutcome[]> {
   const live = await liveStartsFor(transaction, route.organizationId, event);
+  const admitted = await ticketAdmittedWorkflows(
+    transaction,
+    route.organizationId,
+    repository,
+    event,
+  );
   const outcomes: StartFiringOutcome[] = [];
   for (const start of live) {
-    outcomes.push(await fireLiveStart(transaction, route, repository, start));
+    outcomes.push(
+      admitted.has(start.workflowId)
+        ? {
+          workflowId: start.workflowId,
+          versionId: start.versionId,
+          startId: start.startId,
+          result: "duplicate",
+          code: "ticket_source_admits",
+        }
+        : await fireLiveStart(transaction, route, repository, start),
+    );
   }
   return outcomes;
+}
+
+const TICKET_EVENT_PREFIX = "work_item.";
+
+async function ticketAdmittedWorkflows(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  repository: { id: string },
+  event: NeutralEvent,
+): Promise<ReadonlySet<string>> {
+  if (!event.kind.startsWith(TICKET_EVENT_PREFIX)) return new Set();
+  const result = await transaction.query<{ workflow_id: string }>(
+    `select distinct policy -> 'workflow' ->> 'workflowId' as workflow_id
+       from bakery.ticket_sources
+      where organization_id = $1 and repository_id = $2 and enabled
+        and (policy -> 'automatic' ->> 'enabled')::boolean
+        and policy -> 'workflow' ->> 'workflowId' is not null`,
+    [organizationId, repository.id],
+  );
+  return new Set(result.rows.map((row) => row.workflow_id));
 }
 
 /**

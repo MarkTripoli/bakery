@@ -28,6 +28,11 @@ const TABLES = [
 ] as const;
 
 const SHA = "b".repeat(64);
+const PIN = {
+  workflowId: "22222222-2222-4222-8222-222222222222",
+  versionId: "33333333-3333-4333-8333-333333333333",
+  digest: SHA,
+};
 const PG_UNIQUE_VIOLATION = "23505";
 const PG_FOREIGN_KEY_VIOLATION = "23503";
 const PG_INSUFFICIENT_PRIVILEGE = "42501";
@@ -103,7 +108,10 @@ async function withTicketRows(
           resource.external_id,
           JSON.stringify({
             ...defaultTicketSourcePolicy(),
-            preset: "fixed-coding",
+            workflow: {
+              workflowId: crypto.randomUUID(),
+              builtIn: "fixed-coding",
+            },
           }),
         ],
       );
@@ -195,7 +203,7 @@ async function withTicketRows(
               ticketId,
               version,
               SHA,
-              JSON.stringify({ id: "fixed-coding", revision: 1, digest: SHA }),
+              JSON.stringify(PIN),
             ],
           );
           return id;
@@ -220,7 +228,7 @@ async function withTicketRows(
               f.adminId,
               SHA,
               reportId ?? null,
-              JSON.stringify({ id: "fixed-coding", revision: 1, digest: SHA }),
+              JSON.stringify(PIN),
               disposition,
             ],
           );
@@ -855,7 +863,7 @@ Deno.test("issue 82 schema: bakery_app cannot rewrite identity or admission-time
     assertEquals(stored.rows[0], {
       authority_principal_id: rows.adminId,
       authority_evidence: {},
-      pinned_preset: { id: "fixed-coding", revision: 1, digest: SHA },
+      pinned_preset: PIN,
       generation: 1,
       origin: "manual",
       disposition: "suspended",

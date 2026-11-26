@@ -50,6 +50,7 @@ export type SettingsForm = {
   readonly people: readonly TriggerPerson[];
   /** The built-in workflow the repository runs; the Workflow section changes it, and Save sends it with the rest of the policy. */
   readonly preset: TicketPresetId | null;
+  readonly keptWorkflowId: string | null;
 };
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -106,6 +107,9 @@ export function formOf(source: TicketSourceResponse | null): SettingsForm {
       )
       : [],
     preset: presetOfPolicy(policy),
+    keptWorkflowId: presetOfPolicy(policy) === null
+      ? text(record(policy.workflow).workflowId) || null
+      : null,
   };
 }
 
@@ -158,7 +162,7 @@ export function problemsOf(form: SettingsForm): SettingsProblems {
     ...(form.automatic && form.people.length === 0
       ? { people: "missing" as const }
       : {}),
-    ...(form.automatic && form.preset === null
+    ...(form.automatic && form.preset === null && form.keptWorkflowId === null
       ? { workflow: "missing" as const }
       : {}),
   };
@@ -183,6 +187,7 @@ export function isDirty(
     form.requireAcceptanceCriteria !== saved.requireAcceptanceCriteria ||
     form.approval !== saved.approval ||
     form.preset !== saved.preset ||
+    form.keptWorkflowId !== saved.keptWorkflowId ||
     form.automatic !== saved.automatic ||
     (form.automatic &&
       (form.principalId !== saved.principalId ||
@@ -195,7 +200,7 @@ export function isDirty(
  * stamps it when automatic admission is turned on, and ignores anything sent.
  */
 export function policyOfForm(form: SettingsForm): {
-  readonly version: 1;
+  readonly version: 2;
   readonly labels: {
     readonly execute: string;
     readonly planOnly: string | null;
@@ -208,7 +213,9 @@ export function policyOfForm(form: SettingsForm): {
   readonly automatic: { readonly enabled: boolean };
   readonly readiness: { readonly requireAcceptanceCriteria: boolean };
   readonly approval: { readonly plan: "human_approval" | "automatic" };
-  readonly preset?: TicketPresetId;
+  readonly workflow?:
+    | { readonly builtIn: TicketPresetId }
+    | { readonly workflowId: string };
 } {
   const delegation = form.automatic && form.principalId !== null &&
       form.people.length > 0
@@ -218,7 +225,7 @@ export function policyOfForm(form: SettingsForm): {
     }
     : null;
   return {
-    version: 1,
+    version: 2,
     labels: {
       execute: form.start.trim(),
       planOnly: form.planOnly ? form.planOnlyLabel.trim() : null,
@@ -228,7 +235,9 @@ export function policyOfForm(form: SettingsForm): {
     automatic: { enabled: form.automatic },
     readiness: { requireAcceptanceCriteria: form.requireAcceptanceCriteria },
     approval: { plan: form.approval },
-    ...presetField(form.preset),
+    ...(form.preset === null && form.keptWorkflowId !== null
+      ? { workflow: { workflowId: form.keptWorkflowId } }
+      : presetField(form.preset)),
   };
 }
 

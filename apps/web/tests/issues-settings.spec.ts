@@ -36,13 +36,13 @@ const API_REPOSITORY = uuid(905);
 const STAMP = "2026-01-01T00:00:00.000Z";
 
 const policy = (over: Record<string, unknown> = {}) => ({
-  version: 1,
+  version: 2,
   labels: { execute: "bakery", planOnly: null, hold: "hold" },
   delegation: null,
   automatic: { enabled: false, since: null },
   readiness: { requireAcceptanceCriteria: true },
   approval: { plan: "human_approval" },
-  preset: "fixed-coding",
+  workflow: { workflowId: uuid(950), builtIn: "fixed-coding" },
   ...over,
 });
 
@@ -608,12 +608,19 @@ for (
       await expect(page.getByText("Settings saved.")).toBeVisible();
       expect(seen.patches).toHaveLength(1);
       const sent = seen.patches[0].policy as Record<string, unknown>;
-      expect(sent.preset).toBe("fixed-coding-reviewed");
+      expect(sent.workflow).toEqual({ builtIn: "fixed-coding-reviewed" });
     });
 
     test("a repository set to the reviewed workflow shows it chosen", async ({ page }) => {
       await settingsFixture(page, {
-        saved: { policy: policy({ preset: "fixed-coding-reviewed" }) },
+        saved: {
+          policy: policy({
+            workflow: {
+              workflowId: uuid(951),
+              builtIn: "fixed-coding-reviewed",
+            },
+          }),
+        },
       });
       await openSettings(page);
       await expect(workflowBox(page).getByLabel("Workflow")).toHaveValue(
@@ -623,7 +630,7 @@ for (
 
     test("a repository with no workflow shows No workflow and what that means, and saves labels without inventing one", async ({ page }) => {
       const seen = await settingsFixture(page, {
-        saved: { policy: policy({ preset: undefined }) },
+        saved: { policy: policy({ workflow: undefined }) },
       });
       await openSettings(page);
       await expect(workflowBox(page).getByLabel("Workflow")).toHaveValue("");
@@ -637,12 +644,12 @@ for (
       await page.getByRole("button", { name: "Save" }).click();
       await expect(page.getByText("Settings saved.")).toBeVisible();
       const sent = seen.patches[0].policy as Record<string, unknown>;
-      expect("preset" in sent).toBe(false);
+      expect("workflow" in sent).toBe(false);
     });
 
     test("Start automatically cannot be turned on without a workflow, and says what to do", async ({ page }) => {
       await settingsFixture(page, {
-        saved: { policy: policy({ preset: undefined }) },
+        saved: { policy: policy({ workflow: undefined }) },
       });
       await openSettings(page);
       await automaticSwitch(page).click();
@@ -709,7 +716,7 @@ for (
     test("someone who is not an administrator is told when no workflow is set", async ({ page }) => {
       await settingsFixture(page, {
         role: "developer",
-        saved: { policy: policy({ preset: undefined }) },
+        saved: { policy: policy({ workflow: undefined }) },
       });
       await openSettings(page);
       await expect(page.getByText(
@@ -996,14 +1003,21 @@ for (
 
     test("saving labels keeps the built-in workflow the repository was set to", async ({ page }) => {
       const seen = await settingsFixture(page, {
-        saved: { policy: policy({ preset: "fixed-coding-reviewed" }) },
+        saved: {
+          policy: policy({
+            workflow: {
+              workflowId: uuid(951),
+              builtIn: "fixed-coding-reviewed",
+            },
+          }),
+        },
       });
       await openSettings(page);
       await page.getByLabel("Start work").fill("ready");
       await page.getByRole("button", { name: "Save" }).click();
       await expect(page.getByText("Settings saved.")).toBeVisible();
       const sent = seen.patches[0].policy as Record<string, unknown>;
-      expect(sent.preset).toBe("fixed-coding-reviewed");
+      expect(sent.workflow).toEqual({ builtIn: "fixed-coding-reviewed" });
     });
 
     test("a preview that cannot be made says so and leaves Save alone", async ({ page }) => {

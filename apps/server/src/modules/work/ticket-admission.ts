@@ -8,18 +8,14 @@ import {
 import { StandardError, unprocessable } from "@bakery/contracts/http";
 import {
   type TicketAuthorityEvidence,
-  type TicketPresetPin,
+  type TicketPresetId,
   type TicketReadinessReport,
   type TicketRequestIntent,
   type TicketRequestOrigin,
   type TicketSourcePolicy,
   type TicketStoredReport,
 } from "@bakery/contracts/ticket-admission";
-import {
-  FIXED_CODING_PRESET,
-  workflowPresetById,
-  type WorkflowPresetDefinition,
-} from "@bakery/contracts/workflow-presets";
+import { FIXED_CODING_PRESET } from "@bakery/contracts/workflow-presets";
 import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import type {
   PgDatabase,
@@ -51,7 +47,6 @@ import {
   updateTaskCommand,
 } from "./postgres.ts";
 import {
-  chosenWorkflowId,
   intentFromLabels,
   labelSetOf,
   requestedIntentFromLabels,
@@ -125,6 +120,12 @@ import {
   type TicketRouteResolution,
 } from "./ticket-routing.ts";
 import { presetAvailability, repositoryFacts } from "./workflow-presets.ts";
+import {
+  builtInWorkflowId,
+  pinnedTicketWorkflow,
+  type TicketWorkflow,
+  ticketWorkflowOf,
+} from "./ticket-workflow.ts";
 
 /**
  * Admission: the one function that turns a GitHub issue into at most one
@@ -194,7 +195,7 @@ export type AdmissionCall = {
    * null or omitted runs the source policy's preset. Only a new admission
    * reads it: a request that exists keeps the workflow it was pinned with.
    */
-  preset?: TicketPresetPin["id"] | null;
+  preset?: TicketPresetId | null;
   requirePlanApproval?: boolean;
   /** Request and trace ids of the calling request; fresh ones are made when absent. */
   trace?: { requestId: string; traceId: string };
@@ -220,56 +221,89 @@ export type AdmissionResult = {
   ticketId: string | null;
 };
 
-/**
- * Whether the pinned preset can run in one repository now. The source's
- * repository and every routed target are judged by this one call path, with
- * the preset's default budget limit and the server budget policy.
- */
-function repositoryAvailability(
+async function repositoryAvailability(
   frame: Frame,
   repositoryId: string,
-  preset: WorkflowPresetDefinition,
-) {
-  return presetAvailability(
+  workflow: ReadyWorkflow,
+): Promise<{ status: string; reasons: readonly string[] }> {
+  if (workflow.builtIn !== null) {
+    return await presetAvailability(
+      frame.transaction,
+      frame.source.organizationId,
+      repositoryId,
+      workflow.builtIn,
+      workflow.builtIn.defaultBudgetLimitUsd,
+      frame.deps.budget,
+    );
+  }
+  const facts = await repositoryFacts(
     frame.transaction,
     frame.source.organizationId,
     repositoryId,
-    preset,
-    preset.defaultBudgetLimitUsd,
-    frame.deps.budget,
   );
+  const reasons = [
+    ...(facts.archived ? ["repository_archived"] : []),
+    ...(facts.hasActiveProfile ? [] : ["no_active_profile"]),
+  ];
+  return { status: reasons.length === 0 ? "ready" : "setup_required", reasons };
 }
 
-/** The code-owned definition of a built-in workflow id the policy or a pin names. */
-function presetDefinition(id: string): WorkflowPresetDefinition {
-  const preset = workflowPresetById(id);
-  if (preset === undefined) throw new Error("TICKET_PRESET_UNKNOWN");
-  return preset;
-}
+type ReadyWorkflow = Extract<TicketWorkflow, { kind: "ready" }>;
 
-/**
- * The workflow a frame judges and runs (#61): an existing request's pin, else
- * the one a person chose for this Start work, else the source policy's.
- */
-function framePreset(
+const frameWorkflows = new WeakMap<
+  Frame,
+  Map<string, Promise<TicketWorkflow | null>>
+>();
+
+function frameWorkflow(
   frame: Frame,
   request: TicketRequest | null,
-): WorkflowPresetDefinition | null {
-  const id = chosenWorkflowId(
-    request?.pinnedPreset.id,
-    frame.call.preset,
-    frame.source.policy.preset,
-  );
-  return id === null ? null : presetDefinition(id);
+): Promise<TicketWorkflow | null> {
+  let byRequest = frameWorkflows.get(frame);
+  if (byRequest === undefined) {
+    byRequest = new Map();
+    frameWorkflows.set(frame, byRequest);
+  }
+  const key = request?.id ?? "";
+  let workflow = byRequest.get(key);
+  if (workflow === undefined) {
+    workflow = resolveFrameWorkflow(frame, request);
+    byRequest.set(key, workflow);
+  }
+  return workflow;
 }
 
-/** The identity a report and a new request pin for a workflow. */
-function presetPin(preset: WorkflowPresetDefinition): TicketPresetPin {
-  return {
-    id: preset.id as TicketPresetPin["id"],
-    revision: preset.revision,
-    digest: preset.digest,
-  };
+async function resolveFrameWorkflow(
+  frame: Frame,
+  request: TicketRequest | null,
+): Promise<TicketWorkflow | null> {
+  const { transaction, source, call } = frame;
+  if (request !== null) {
+    return await pinnedTicketWorkflow(
+      transaction,
+      source.organizationId,
+      request.pinnedPreset,
+    );
+  }
+  const chosen = call.preset ?? null;
+  const workflowId = chosen === null
+    ? source.policy.workflow?.workflowId ?? null
+    : await builtInWorkflowId(
+      transaction,
+      source.organizationId,
+      chosen,
+      call.caller?.subject.principalId as string | undefined ?? null,
+    );
+  if (workflowId === null) {
+    return chosen === null
+      ? null
+      : { kind: "unavailable", workflowId: `built-in:${chosen}` };
+  }
+  return await ticketWorkflowOf(transaction, source.organizationId, workflowId);
+}
+
+function readyWorkflow(workflow: TicketWorkflow | null): ReadyWorkflow | null {
+  return workflow?.kind === "ready" ? workflow : null;
 }
 
 /**
@@ -418,7 +452,7 @@ async function sourceAuthority(
  */
 async function sourceFacts(
   frame: Frame,
-  preset: WorkflowPresetDefinition | null,
+  workflow: ReadyWorkflow | null,
 ): Promise<ReadinessSourceFacts> {
   const { source } = frame;
   const base = {
@@ -437,7 +471,7 @@ async function sourceFacts(
       presetReady: false,
     };
   }
-  if (preset === null) {
+  if (workflow === null) {
     const facts = await repositoryFacts(
       frame.transaction,
       source.organizationId,
@@ -453,7 +487,7 @@ async function sourceFacts(
   const availability = await repositoryAvailability(
     frame,
     source.repositoryId,
-    preset,
+    workflow,
   );
   return {
     ...base,
@@ -503,7 +537,7 @@ async function resolveFrameRoute(
   // Each routed target runs the preset in its own repository, so each needs
   // a ready profile and preset, not only the source's repository.
   const unready = { profile: [] as string[], preset: [] as string[] };
-  const preset = framePreset(frame, null);
+  const preset = readyWorkflow(await frameWorkflow(frame, null));
   for (const target of route.targets) {
     if (target.ruleId === null) continue;
     if (preset === null) {
@@ -543,12 +577,16 @@ async function evaluate(
   context: EvaluationContext,
 ): Promise<TicketReadinessReport> {
   const { prefetch, source } = frame;
-  const preset = framePreset(frame, context.activeRequest);
+  const workflow = await frameWorkflow(frame, context.activeRequest);
+  const ready = readyWorkflow(workflow);
   const input: ReadinessInput = {
-    source: await sourceFacts(frame, preset),
+    source: await sourceFacts(frame, ready),
     policy: source.policy,
     policyRevision: source.policyRevision,
-    preset: preset === null ? null : presetPin(preset),
+    preset: ready === null ? null : ready.pin,
+    unavailableWorkflowId: workflow?.kind === "unavailable"
+      ? workflow.workflowId
+      : null,
     issue: prefetch.issue,
     links: prefetch.links,
     statuses: prefetch.statuses,
@@ -1461,7 +1499,7 @@ async function startRun(
 ): Promise<string> {
   const input = contractSchemas.RunCreate.safeParse({
     // The request's pinned workflow, for every run it starts (#61).
-    presetId: request.pinnedPreset.id,
+    workflowVersionId: request.pinnedPreset.versionId,
     executionMode: "repository",
     ...(task.repositoryProfileId === null
       ? {}
@@ -1469,7 +1507,11 @@ async function startRun(
     ...(approvalId === undefined ? {} : { approvalId }),
   });
   if (!input.success) {
-    throw unprocessable(["presetId"], "ticket_run_input_invalid", input.error);
+    throw unprocessable(
+      ["workflowVersionId"],
+      "ticket_run_input_invalid",
+      input.error,
+    );
   }
   const run = await createRunCommand(
     internalContext(frame, actor, { id: task.id }, {

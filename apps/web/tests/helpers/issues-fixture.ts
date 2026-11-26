@@ -355,9 +355,12 @@ export async function issuesFixture(page: Page, options: Options = {}) {
               repositoryId: uuid(903),
               externalContainerId: "acme/web",
               enabled: true,
-              policy: options.sourcePreset === null
-                ? {}
-                : { preset: options.sourcePreset ?? "fixed-coding" },
+              policy: options.sourcePreset === null ? {} : {
+                workflow: {
+                  workflowId: uuid(950),
+                  builtIn: options.sourcePreset ?? "fixed-coding",
+                },
+              },
               policyRevision: 1,
               syncHealth: sourcesMode === "degraded"
                 ? "degraded"

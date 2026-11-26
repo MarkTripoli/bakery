@@ -24,6 +24,9 @@ import {
   withPgTransaction,
 } from "../../../apps/server/src/platform/database.ts";
 import { resolveOrganizationActor } from "../../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
+import { installBuiltInWorkflow } from "../../../apps/server/src/modules/work/ticket-workflow.ts";
+import type { TicketPresetId } from "../../../packages/contracts/src/ticket-admission.ts";
+import { TICKET_PRESET_IDS } from "../../../packages/contracts/src/workflow-presets.ts";
 import type { OrganizationActor } from "../../../apps/server/src/modules/auth/application/authority.ts";
 import {
   organizationId as toOrganizationId,
@@ -818,10 +821,30 @@ export async function openTicketFixture(
     const runtime = f.runtimePgDatabase!;
     const sourceIds: string[] = [];
 
+    const builtIns = new Map<TicketPresetId, string>();
+    for (const id of TICKET_PRESET_IDS) {
+      builtIns.set(
+        id,
+        await withPgTransaction(
+          f.pgDatabase,
+          (transaction) =>
+            installBuiltInWorkflow(
+              transaction,
+              f.organizationId,
+              f.adminId,
+              id,
+            ),
+        ),
+      );
+    }
+    const builtInWorkflow = (id: TicketPresetId) => ({
+      workflowId: builtIns.get(id)!,
+      builtIn: id,
+    });
     const policy = (overrides: PolicyOverrides = {}): TicketSourcePolicy => {
       const base: TicketSourcePolicy = {
         ...defaultTicketSourcePolicy(),
-        preset: "fixed-coding",
+        workflow: builtInWorkflow("fixed-coding"),
       };
       const delegation = overrides.delegation === undefined ||
           overrides.delegation === false
@@ -865,6 +888,7 @@ export async function openTicketFixture(
       runtime,
       owner: f.pgDatabase,
       policy,
+      builtInWorkflow,
 
       /** Inserts a source for the fixture repository as the owner role; returns its id. */
       async insertSource(

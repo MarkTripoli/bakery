@@ -592,12 +592,38 @@ const policyReadinessSchema = z.object(policyReadinessShape).strict().describe(
   "Readiness options evaluated for every ticket of this source.",
 );
 
-const policyPresetSchema = z.enum(TICKET_PRESET_IDS).optional().describe(
-  "Built-in workflow every admission of this source runs unless a person's Start work names another for that one issue: fixed-coding (plan, write the code, run the checks, open a pull request) or fixed-coding-reviewed (the same with a review step). Absent means no workflow is set: people choose one each time they start work, and automatic admission cannot be on. A request keeps the workflow, revision and digest it was admitted with; changing this applies to work started afterwards.",
+const policyBuiltInSchema = z.enum(TICKET_PRESET_IDS).describe(
+  "Built-in workflow the reference names: fixed-coding (plan, write the code, run the checks, open a pull request) or fixed-coding-reviewed (the same with a review step).",
 );
 
-const policyVersionSchema = z.literal(1).describe(
-  "Version of the ticket source policy document; always 1.",
+const policyWorkflowSchema = z.object({
+  workflowId: z.uuid().describe(
+    "Id of the organization workflow every admission of this source runs.",
+  ),
+  builtIn: policyBuiltInSchema.optional().describe(
+    "Built-in workflow this id was installed from; absent for a workflow the organization wrote.",
+  ),
+}).strict().optional().describe(
+  "Workflow every admission of this source runs unless a person's Start work names another for that one issue. Absent means no workflow is set: people choose one each time they start work, and automatic admission cannot be on. Admission pins the version in use then; changing this applies to work started afterwards.",
+);
+
+const policyWorkflowInputSchema = z.object({
+  workflowId: z.uuid().optional().describe(
+    "Id of an organization workflow to run; omit it to name a built-in instead.",
+  ),
+  builtIn: policyBuiltInSchema.optional().describe(
+    "Built-in workflow to run; the server resolves it to the organization's copy. When sent with workflowId the two must agree.",
+  ),
+}).strict().refine(
+  (workflow) =>
+    workflow.workflowId !== undefined || workflow.builtIn !== undefined,
+  { message: "Name a workflow id or a built-in workflow." },
+).optional().describe(
+  "Workflow every admission of this source runs, by id or by built-in name. Absent means no workflow is set: people choose one each time they start work, and automatic admission cannot be on.",
+);
+
+const policyVersionSchema = z.literal(2).describe(
+  "Version of the ticket source policy document; always 2, the version that names a workflow.",
 );
 
 const automaticSinceSchema = z.iso.datetime({ offset: true }).describe(
@@ -634,10 +660,10 @@ export const TicketSourcePolicySchema = z.object({
   readiness: policyReadinessSchema,
   approval: policyApprovalSchema,
   completion: policyCompletionSchema,
-  preset: policyPresetSchema,
+  workflow: policyWorkflowSchema,
   outcomeStatuses: policyOutcomeStatusesSchema,
 }).strict().describe(
-  "Strict, versioned ticket source policy as stored: label names, optional delegation, automatic admission window, readiness options, plan approval and preset. Data only; it holds no expression or URL.",
+  "Strict, versioned ticket source policy as stored: label names, optional delegation, automatic admission window, readiness options, plan approval and workflow. Data only; it holds no expression or URL.",
 );
 export type TicketSourcePolicy = z.output<typeof TicketSourcePolicySchema>;
 
@@ -666,10 +692,10 @@ export const TicketSourcePolicyInputSchema = z.object({
   readiness: policyReadinessSchema,
   approval: policyApprovalSchema,
   completion: policyCompletionSchema,
-  preset: policyPresetSchema,
+  workflow: policyWorkflowInputSchema,
   outcomeStatuses: policyOutcomeStatusesSchema,
 }).strict().describe(
-  "Ticket source policy as a client submits it; identical to the stored policy except that automatic.since is optional, nullable and ignored.",
+  "Ticket source policy as a client submits it; like the stored policy except that automatic.since is optional, nullable and ignored, and the workflow may be named by its built-in name.",
 );
 export type TicketSourcePolicyInput = z.input<
   typeof TicketSourcePolicyInputSchema
@@ -702,7 +728,7 @@ export type TicketPreviewFilters = z.output<typeof TicketPreviewFiltersSchema>;
 
 export function defaultTicketSourcePolicy(): TicketSourcePolicy {
   return TicketSourcePolicySchema.parse({
-    version: 1,
+    version: 2,
     labels: {
       execute: "ready for agent",
       planOnly: "ready for planning",
@@ -843,21 +869,22 @@ export const TicketSnapshotSchema = z.object({
 );
 export type TicketSnapshot = z.output<typeof TicketSnapshotSchema>;
 
-/** Identity of the preset an admission or a report was bound to. */
-export const TicketPresetPinSchema = z.object({
-  id: z.enum(TICKET_PRESET_IDS).describe(
-    "Id of the built-in workflow the admission or report was bound to: the source policy's preset, or the one a person chose for one Start work.",
+export const TicketWorkflowPinSchema = z.object({
+  workflowId: z.uuid().describe(
+    "Id of the workflow the admission or report was bound to: the source policy's workflow, or the built-in a person chose for one Start work.",
   ),
-  revision: z.number().int().min(1).describe(
-    "Revision of the preset definition at the observation, at least 1.",
+  versionId: z.uuid().describe(
+    "Id of the workflow version that was in use at the observation; every run of the request starts this version.",
   ),
   digest: sha256Hex.describe(
-    "SHA-256 digest of the canonical preset specification, so a changed preset is detectable.",
+    "SHA-256 digest of that version's canonical specification, so a changed workflow is detectable.",
   ),
 }).strict().describe(
-  "Built-in workflow identity (id, revision, digest) bound to a report or an admitted request; a request's runs use this workflow for its whole life.",
+  "Workflow identity (workflow, version, digest) bound to a report or an admitted request; a request's runs use this version for its whole life.",
 );
-export type TicketPresetPin = z.output<typeof TicketPresetPinSchema>;
+export type TicketWorkflowPin = z.output<typeof TicketWorkflowPinSchema>;
+
+export type TicketPresetId = typeof TICKET_PRESET_IDS[number];
 
 const evidenceRef = z.string().min(1).max(200).describe(
   "Short stable reference to what a check read, such as label:ready for agent or blocker:owner/repo#12. Never a URL or a body excerpt.",
@@ -925,8 +952,8 @@ export const TicketReadinessReportSchema = z.object({
   sourcePolicyRevision: z.number().int().min(1).describe(
     "Revision of the ticket source policy the report was evaluated against, at least 1.",
   ),
-  preset: TicketPresetPinSchema.nullable().describe(
-    "Built-in workflow the report was judged with, or null when none was chosen: no request pin, no Start work choice and no source workflow.",
+  preset: TicketWorkflowPinSchema.nullable().describe(
+    "Workflow version the report was judged with, or null when none was chosen: no request pin, no Start work choice and no source workflow.",
   ),
 }).strict().superRefine((report, context) => {
   const seen = new Set<string>();

@@ -1,4 +1,4 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { StandardError } from "../../../packages/contracts/src/http.ts";
 import { defaultTicketSourcePolicy } from "../../../packages/contracts/src/ticket-admission.ts";
 import {
@@ -81,8 +81,12 @@ Deno.test("issue 82 unit policy: unknown keys are refused at every level", () =>
       x: 1,
     },
   });
-  refused({ ...policyDocument(), preset: "other-preset" });
-  refused({ ...policyDocument(), version: 2 });
+  refused({ ...policyDocument(), preset: "fixed-coding" });
+  refused({
+    ...policyDocument(),
+    workflow: { workflowId: crypto.randomUUID(), extra: true },
+  });
+  refused({ ...policyDocument(), version: 1 });
 });
 
 Deno.test("issue 82 unit policy: delegation holds 1 to 25 unique opaque actor ids", () => {
@@ -462,34 +466,47 @@ Deno.test("issue 82 unit policy: offset timestamps are compared by instant down 
   );
 });
 
-Deno.test("issue 407 unit policy: a new source has no workflow and automatic admission cannot be saved on without one", () => {
+Deno.test("issue 407 unit policy: a new source has no workflow and automatic admission cannot be saved on without one", async () => {
   const now = new Date("2026-11-23T12:00:00.000Z");
+  const workflowId = "22222222-2222-4222-8222-222222222222";
+  const asked: unknown[] = [];
+  const resolve = (requested: unknown) => {
+    asked.push(requested);
+    return Promise.resolve({ workflowId, builtIn: "fixed-coding" as const });
+  };
   const unset = defaultTicketSourcePolicy();
-  assertEquals(unset.preset, undefined);
+  assertEquals(unset.workflow, undefined);
   assertEquals(
-    storedTicketSourcePolicy(policyDocument(), null, now).preset,
+    (await storedTicketSourcePolicy(policyDocument(), null, now, resolve))
+      .workflow,
     undefined,
   );
-  const error = assertThrows(() =>
+  assertEquals(asked, [], "no workflow sent asks for none");
+  const error = await assertRejects(() =>
     storedTicketSourcePolicy(
       { ...policyDocument(), automatic: { enabled: true } },
       null,
       now,
+      resolve,
     )
   );
   if (!(error instanceof StandardError)) {
     throw new Error("a refused policy raises a StandardError");
   }
   assertEquals(error.code, "UNPROCESSABLE");
-  const withWorkflow = storedTicketSourcePolicy(
+  const withWorkflow = await storedTicketSourcePolicy(
     {
       ...policyDocument(),
-      preset: "fixed-coding",
+      workflow: { builtIn: "fixed-coding" },
       automatic: { enabled: true },
     },
     null,
     now,
+    resolve,
   );
+  assertEquals(asked, [{ builtIn: "fixed-coding" }]);
+  assertEquals(withWorkflow.workflow, { workflowId, builtIn: "fixed-coding" });
+  assertEquals(withWorkflow.version, 2);
   assertEquals(withWorkflow.automatic, {
     enabled: true,
     since: now.toISOString(),

@@ -615,11 +615,15 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                           setWorkflowError(false);
                           if (chosen === null && shown.automatic) {
                             setTurnedOff(true);
-                            edit({ preset: null, automatic: false });
+                            edit({
+                              preset: null,
+                              keptWorkflowId: null,
+                              automatic: false,
+                            });
                             return;
                           }
                           setTurnedOff(false);
-                          edit({ preset: chosen });
+                          edit({ preset: chosen, keptWorkflowId: null });
                         }}
                         options={[
                           {

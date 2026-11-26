@@ -36,8 +36,8 @@ import {
 const DIGEST_A = "a".repeat(64);
 const DIGEST_B = "b".repeat(64);
 const PRESET = {
-  id: "fixed-coding" as const,
-  revision: FIXED_CODING_PRESET.revision,
+  workflowId: "22222222-2222-4222-8222-222222222222",
+  versionId: "33333333-3333-4333-8333-333333333333",
   digest: FIXED_CODING_PRESET.digest,
 };
 

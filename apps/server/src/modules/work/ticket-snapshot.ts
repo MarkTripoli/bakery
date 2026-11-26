@@ -6,10 +6,10 @@ import {
   TICKET_SNAPSHOT_TITLE_MAX_LENGTH,
   type TicketIssueRef,
   type TicketLinks,
-  type TicketPresetPin,
   type TicketRequestIntent,
   type TicketSnapshot,
   type TicketSnapshotInput,
+  type TicketWorkflowPin,
 } from "@bakery/contracts/ticket-admission";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import type { TicketLabelBasis } from "./ticket-policy.ts";
@@ -210,7 +210,7 @@ export type BasisParts = {
   requirementsDigest: string | null;
   dependencyDigest: string | null;
   sourcePolicyRevision: number;
-  preset: TicketPresetPin | null;
+  preset: TicketWorkflowPin | null;
   intent: TicketRequestIntent | null;
   labelBasis: TicketLabelBasis;
   hold: boolean;

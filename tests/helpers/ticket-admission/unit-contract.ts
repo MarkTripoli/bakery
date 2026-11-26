@@ -1,7 +1,6 @@
 import { issueNumberFromRef } from "../../../apps/server/src/modules/integrations/ticket-reads.ts";
 import { ticketRef } from "../../../apps/server/src/modules/work/ticket-source-reader.ts";
 import { assert, assertEquals, assertFalse } from "@std/assert";
-import { z } from "zod";
 import {
   defaultTicketSourcePolicy,
   isNonterminalTicketDisposition,
@@ -36,7 +35,6 @@ import {
   TICKET_SNAPSHOT_MAX_LABELS,
   TICKET_SNAPSHOT_TITLE_MAX_LENGTH,
   TicketAuthorityEvidenceSchema,
-  TicketPresetPinSchema,
   TicketReadinessReportSchema,
   TicketSnapshotInputSchema,
   TicketSnapshotSchema,
@@ -44,6 +42,7 @@ import {
   TicketSourcePolicySchema,
   TicketStoredReportSchema,
   ticketVerdictFromChecks,
+  TicketWorkflowPinSchema,
 } from "../../../packages/contracts/src/ticket-admission.ts";
 import type {
   TicketFactIndex,
@@ -373,39 +372,40 @@ Deno.test("issue 82 contract: the ticket_requests projection names the migration
   );
 });
 
-Deno.test("issue 61 contract: the policy and the preset pin accept exactly the built-in workflows", () => {
-  for (
-    const schema of [TicketSourcePolicySchema, TicketSourcePolicyInputSchema]
-  ) {
-    const preset =
-      (z.toJSONSchema(schema) as { properties: Record<string, object> })
-        .properties.preset as { enum?: string[] };
-    assertEquals(preset.enum, ["fixed-coding", "fixed-coding-reviewed"]);
-    for (const id of ["fixed-coding", "fixed-coding-reviewed"]) {
-      assertEquals(
-        schema.safeParse({ ...validPolicy(), preset: id }).success,
-        true,
-        id,
-      );
-    }
-    // A name outside the code-owned set, or a workflow id, is refused.
-    for (const id of ["other-preset", crypto.randomUUID(), ""]) {
-      assertEquals(
-        schema.safeParse({ ...validPolicy(), preset: id }).success,
-        false,
-        id,
-      );
-    }
-  }
-  const pin = (id: string) =>
-    TicketPresetPinSchema.safeParse({ id, revision: 1, digest: SHA }).success;
-  assertEquals(pin("fixed-coding"), true);
-  assertEquals(pin("fixed-coding-reviewed"), true);
-  assertEquals(pin("other-preset"), false);
-  const pinId = (z.toJSONSchema(TicketPresetPinSchema) as {
-    properties: Record<string, { enum?: string[] } & object>;
-  }).properties.id;
-  assertEquals(pinId.enum, ["fixed-coding", "fixed-coding-reviewed"]);
+Deno.test("issue 407 contract: policy v2 names a workflow by id, input may name a built-in, and the pin names a version", () => {
+  const workflowId = crypto.randomUUID();
+  const stored = (workflow: unknown) =>
+    TicketSourcePolicySchema.safeParse({ ...validPolicy(), workflow }).success;
+  const input = (workflow: unknown) =>
+    TicketSourcePolicyInputSchema.safeParse({ ...validPolicy(), workflow })
+      .success;
+  assertEquals(stored({ workflowId }), true);
+  assertEquals(stored({ workflowId, builtIn: "fixed-coding-reviewed" }), true);
+  assertEquals(stored({ builtIn: "fixed-coding" }), false);
+  assertEquals(stored({ workflowId: "fixed-coding" }), false);
+  assertEquals(stored({ workflowId, builtIn: "other-preset" }), false);
+  assertEquals(input({ builtIn: "fixed-coding" }), true);
+  assertEquals(input({ workflowId }), true);
+  assertEquals(input({}), false);
+  assertEquals(
+    TicketSourcePolicySchema.safeParse({
+      ...validPolicy(),
+      preset: "fixed-coding",
+    }).success,
+    false,
+  );
+  assertEquals(
+    TicketSourcePolicySchema.safeParse({ ...validPolicy(), version: 1 })
+      .success,
+    false,
+  );
+  const pin = (value: unknown) =>
+    TicketWorkflowPinSchema.safeParse(value).success;
+  assertEquals(
+    pin({ workflowId, versionId: crypto.randomUUID(), digest: SHA }),
+    true,
+  );
+  assertEquals(pin({ id: "fixed-coding", revision: 1, digest: SHA }), false);
 });
 
 Deno.test("issue 82 contract: the migration's one-nonterminal predicate lists exactly the nonterminal dispositions", async () => {
@@ -433,7 +433,7 @@ Deno.test("issue 82 contract: the default policy is valid, strict and carries th
     planOnly: "ready for planning",
     hold: "bakery:hold",
   });
-  assertEquals(policy.version, 1);
+  assertEquals(policy.version, 2);
   assertEquals(policy.delegation, null);
   assertEquals(policy.automatic, { enabled: false, since: null });
   assertEquals(
@@ -446,7 +446,7 @@ Deno.test("issue 82 contract: the default policy is valid, strict and carries th
     { requireAcceptanceCriteria: true },
     "acceptance criteria are required by default",
   );
-  assertEquals(policy.preset, undefined, "no workflow is chosen for anyone");
+  assertEquals(policy.workflow, undefined, "no workflow is chosen for anyone");
   // A fresh object each call: a caller cannot change another caller's default.
   policy.labels.execute = "changed";
   assertEquals(defaultTicketSourcePolicy().labels.execute, "ready for agent");
@@ -457,7 +457,7 @@ Deno.test("issue 82 contract: the default policy is valid, strict and carries th
     "an unknown key is refused",
   );
   assertEquals(
-    TicketSourcePolicySchema.safeParse({ ...validPolicy(), version: 2 })
+    TicketSourcePolicySchema.safeParse({ ...validPolicy(), version: 3 })
       .success,
     false,
   );
@@ -688,7 +688,11 @@ function report(
     dependencyDigest: null,
     basisDigest: SHA,
     sourcePolicyRevision: 1,
-    preset: { id: "fixed-coding", revision: 1, digest: SHA },
+    preset: {
+      workflowId: "22222222-2222-4222-8222-222222222222",
+      versionId: "33333333-3333-4333-8333-333333333333",
+      digest: SHA,
+    },
   };
 }
 
@@ -814,7 +818,11 @@ function storedReport(overrides: Record<string, unknown> = {}) {
       dependencyDigest: null,
       basisDigest: SHA_B,
       sourcePolicyRevision: 1,
-      preset: { id: "fixed-coding", revision: 1, digest: SHA_A },
+      preset: {
+        workflowId: "22222222-2222-4222-8222-222222222222",
+        versionId: "33333333-3333-4333-8333-333333333333",
+        digest: SHA_A,
+      },
     },
     origin: "poll",
     evaluatedAt: "2026-07-01T00:00:00.000Z",

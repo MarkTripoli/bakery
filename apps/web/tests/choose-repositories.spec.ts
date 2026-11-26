@@ -55,13 +55,13 @@ const sourceBody = (source: Source) => ({
   externalContainerId: "acme/ledger",
   enabled: source.enabled,
   policy: {
-    version: 1,
+    version: 2,
     labels: source.labels,
     delegation: null,
     automatic: { enabled: false, since: null },
     readiness: { requireAcceptanceCriteria: false },
     approval: { plan: "human_approval" },
-    preset: "fixed-coding",
+    workflow: { workflowId: issueUuid(950), builtIn: "fixed-coding" },
   },
   policyRevision: 1,
   syncHealth: "healthy",
@@ -282,7 +282,7 @@ for (
         repositoryId: repository(2, PAYMENTS.id, "billing").id,
         externalContainerId: "acme/billing",
         policy: {
-          version: 1,
+          version: 2,
           labels: { execute: "bakery", planOnly: null, hold: "hold" },
           delegation: null,
           automatic: { enabled: false },
@@ -290,7 +290,7 @@ for (
           approval: { plan: "human_approval" },
         },
       });
-      expect(seen.created[0]?.policy).not.toHaveProperty("preset");
+      expect(seen.created[0]?.policy).not.toHaveProperty("workflow");
       await expect(page.getByRole("dialog")).toHaveCount(0);
     });
 

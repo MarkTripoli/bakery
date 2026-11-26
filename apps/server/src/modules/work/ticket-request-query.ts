@@ -5,8 +5,9 @@ import { StandardError } from "@bakery/contracts/http";
 import {
   isTicketRequestDisposition,
   TicketAuthorityEvidenceSchema,
-  TicketPresetPinSchema,
+  TicketWorkflowPinSchema,
 } from "@bakery/contracts/ticket-admission";
+import { TICKET_PRESET_IDS } from "@bakery/contracts/workflow-presets";
 import {
   type CursorBinding,
   decodeCursor,
@@ -52,6 +53,9 @@ type ViewRow = {
   pause_requested_at: Date | null;
   workflow_run_id: string | null;
   pinned_preset: unknown;
+  pinned_origin_kind: string | null;
+  pinned_catalog_key: string | null;
+  pinned_revision: number | null;
   run_status: string | null;
   stopped_by: string | null;
   stopped_by_name: string | null;
@@ -66,12 +70,21 @@ const VIEW_SELECT = `select request.id, request.external_ticket_id,
     request.authority_principal_id, request.authority_evidence,
     request.disposition, request.disposition_reason,
     request.pause_requested_at, request.workflow_run_id, request.pinned_preset,
+    pinned_workflow.origin_kind as pinned_origin_kind,
+    pinned_workflow.origin_catalog_key as pinned_catalog_key,
+    pinned_version.revision as pinned_revision,
     run.status as run_status, stop.principal_id as stopped_by,
     stop.display_name as stopped_by_name, request.created_at, request.updated_at,
     request.version,
     to_char(request.created_at at time zone 'UTC', ${CURSOR_TIME})
       as cursor_created_at
    from bakery.ticket_requests as request
+   left join bakery.workflow_versions as pinned_version
+     on pinned_version.organization_id = request.organization_id
+    and pinned_version.id = (request.pinned_preset ->> 'versionId')::uuid
+   left join bakery.workflow_definitions as pinned_workflow
+     on pinned_workflow.organization_id = pinned_version.organization_id
+    and pinned_workflow.id = pinned_version.workflow_id
    left join bakery.workflow_runs as run
      on run.organization_id = request.organization_id
     and run.id = request.workflow_run_id
@@ -149,7 +162,10 @@ function toView(
     throw new Error("TICKET_REQUEST_ROW_INVALID");
   }
   const manual = row.origin === "manual" || row.origin === "adoption";
-  const preset = TicketPresetPinSchema.parse(row.pinned_preset);
+  TicketWorkflowPinSchema.parse(row.pinned_preset);
+  const builtIn = row.pinned_origin_kind === "catalog"
+    ? TICKET_PRESET_IDS.find((id) => id === row.pinned_catalog_key)
+    : undefined;
   const progress = ticketRequestProgress(
     row.disposition,
     row.run_status,
@@ -174,8 +190,9 @@ function toView(
     workflowRunId: row.workflow_run_id,
     stoppedByPrincipalId: stopped ? row.stopped_by : null,
     stoppedByName: stopped ? row.stopped_by_name : null,
-    presetId: preset.id,
-    presetRevision: preset.revision,
+    ...(builtIn === undefined || row.pinned_revision === null
+      ? {}
+      : { presetId: builtIn, presetRevision: row.pinned_revision }),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
     version: row.version,

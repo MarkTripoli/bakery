@@ -48,6 +48,7 @@ import {
   runTicketSourceStep,
   SYNC_OPERATION_LIMIT,
 } from "./ticket-sync.ts";
+import { sourceWorkflowResolver } from "./ticket-workflow.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 /**
@@ -147,7 +148,12 @@ export async function createTicketSource(
   const { transaction, organizationId, principalId } = requireWorkTransaction(
     context,
   );
-  const policy = storedTicketSourcePolicy(input.policy, null, new Date());
+  const policy = await storedTicketSourcePolicy(
+    input.policy,
+    null,
+    new Date(),
+    sourceWorkflowResolver(transaction, organizationId, principalId),
+  );
   const scope = await transaction.query<
     {
       installationId: string;
@@ -305,10 +311,11 @@ export async function updateTicketSource(
   const reenabled = !current.enabled && input.enabled === true;
   const policy = input.policy === undefined && !reenabled
     ? current.policy
-    : storedTicketSourcePolicy(
+    : await storedTicketSourcePolicy(
       input.policy ?? current.policy,
       reenabled ? null : current.policy,
       new Date(),
+      sourceWorkflowResolver(transaction, organizationId, principalId),
     );
   const policyChanged = canonicalJson(policy) !== canonicalJson(current.policy);
   if (policyChanged) {
@@ -614,7 +621,12 @@ export function createTicketSourcePreviewHandler(
     const filters = parsePreviewFilters(input.filters);
     const draft = input.policy === undefined || input.policy === null
       ? null
-      : storedTicketSourcePolicy(input.policy, saved.policy, new Date());
+      : await storedTicketSourcePolicy(
+        input.policy,
+        saved.policy,
+        new Date(),
+        sourceWorkflowResolver(transaction, organizationId, principalId),
+      );
     if (draft !== null) {
       await requireDelegationPrincipal(transaction, organizationId, draft);
     }

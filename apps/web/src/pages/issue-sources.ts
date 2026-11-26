@@ -29,7 +29,7 @@ export const TICKET_PRESETS = [
 ] as const satisfies readonly TicketPresetId[];
 
 export function presetOfPolicy(policy: unknown): TicketPresetId | null {
-  const preset = record(policy).preset;
+  const preset = record(record(policy).workflow).builtIn;
   return TICKET_PRESETS.find((id) => id === preset) ?? null;
 }
 
@@ -158,7 +158,7 @@ export function changesOf(
  */
 /** The policy document as it is sent: the labels from the sheet and the rest kept. */
 export type SourcePolicy = {
-  readonly version: 1;
+  readonly version: 2;
   readonly labels: {
     readonly execute: string;
     readonly planOnly: string | null;
@@ -168,12 +168,13 @@ export type SourcePolicy = {
   readonly automatic: { readonly enabled: boolean };
   readonly readiness: unknown;
   readonly approval: unknown;
-  readonly preset?: TicketPresetId;
+  readonly workflow?: unknown;
 };
 
 export const presetField = (
   preset: TicketPresetId | null,
-): { readonly preset?: TicketPresetId } => preset === null ? {} : { preset };
+): { readonly workflow?: { readonly builtIn: TicketPresetId } } =>
+  preset === null ? {} : { workflow: { builtIn: preset } };
 
 export function policyOf(draft: SourceDraft, existing: unknown): SourcePolicy {
   const current = record(existing);
@@ -181,7 +182,7 @@ export function policyOf(draft: SourceDraft, existing: unknown): SourcePolicy {
   const readiness = record(current.readiness);
   const approval = record(current.approval);
   return {
-    version: 1 as const,
+    version: 2 as const,
     labels: {
       execute: draft.start.trim(),
       planOnly: typeof labels.planOnly === "string" ? labels.planOnly : null,
@@ -195,6 +196,6 @@ export function policyOf(draft: SourceDraft, existing: unknown): SourcePolicy {
     approval: Object.keys(approval).length > 0
       ? approval
       : { plan: "human_approval" as const },
-    ...presetField(presetOfPolicy(existing)),
+    ...(current.workflow === undefined ? {} : { workflow: current.workflow }),
   };
 }

@@ -4,6 +4,7 @@ import {
   TicketPreviewFiltersSchema,
   type TicketRequestIntent,
   type TicketSourcePolicy,
+  type TicketSourcePolicyInput,
   TicketSourcePolicyInputSchema,
   TicketSourcePolicySchema,
 } from "@bakery/contracts/ticket-admission";
@@ -57,11 +58,22 @@ export function parseTicketSourcePolicy(value: unknown): TicketSourcePolicy {
  * (#69) stamps it the same way, so the draft is judged by the window saving
  * would give it.
  */
-export function storedTicketSourcePolicy(
+export type SourceWorkflowRequest = NonNullable<
+  TicketSourcePolicyInput["workflow"]
+>;
+
+export type SourceWorkflow = NonNullable<TicketSourcePolicy["workflow"]>;
+
+export type SourceWorkflowResolver = (
+  requested: SourceWorkflowRequest,
+) => Promise<SourceWorkflow>;
+
+export async function storedTicketSourcePolicy(
   value: unknown,
   previous: TicketSourcePolicy | null,
   now: Date,
-): TicketSourcePolicy {
+  resolveWorkflow: SourceWorkflowResolver,
+): Promise<TicketSourcePolicy> {
   const parsed = TicketSourcePolicyInputSchema.safeParse(value);
   if (!parsed.success) {
     throw unprocessable(
@@ -70,21 +82,26 @@ export function storedTicketSourcePolicy(
       parsed.error,
     );
   }
-  const enabled = parsed.data.automatic.enabled;
-  if (enabled && parsed.data.preset === undefined) {
+  const { workflow: requested, ...rest } = parsed.data;
+  const enabled = rest.automatic.enabled;
+  if (enabled && requested === undefined) {
     throw unprocessable(
-      ["policy", "preset"],
+      ["policy", "workflow"],
       "ticket_source_workflow_required",
     );
   }
+  const workflow = requested === undefined
+    ? undefined
+    : await resolveWorkflow(requested);
   const since = !enabled
     ? null
     : previous?.automatic.enabled === true
     ? previous.automatic.since
     : now.toISOString();
   return parseTicketSourcePolicy({
-    ...parsed.data,
+    ...rest,
     automatic: { enabled, since },
+    ...(workflow === undefined ? {} : { workflow }),
   });
 }
 
