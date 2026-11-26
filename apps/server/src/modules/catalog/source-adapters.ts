@@ -997,6 +997,17 @@ async function sourceManifest(
   }
 }
 
+function wellFormedStrings(value: unknown): boolean {
+  if (typeof value === "string") return value.isWellFormed();
+  if (Array.isArray(value)) return value.every(wellFormedStrings);
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).every(([key, entry]) =>
+      key.isWellFormed() && wellFormedStrings(entry)
+    );
+  }
+  return true;
+}
+
 /** Reconciles a proved source inventory through the unchanged catalog validator. */
 export async function validatePinnedSkillSource(
   options: Readonly<{
@@ -1059,5 +1070,6 @@ export async function validatePinnedSkillSource(
   if (version.manifest.license !== options.registeredLicense) {
     fail("SOURCE_INVALID");
   }
+  if (!wellFormedStrings(version.manifest)) fail("SOURCE_INVALID");
   return Object.freeze({ proof, version });
 }

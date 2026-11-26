@@ -1,6 +1,9 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { createSuperuser } from "../../apps/server/src/modules/auth/index.ts";
 import { executeSkillImport } from "../../apps/server/src/modules/catalog/import-workflow.ts";
+import {
+  SkillSourceAdapterError,
+} from "../../apps/server/src/modules/catalog/source-adapters.ts";
 import type {
   SkillSourceAdapter,
   SkillSourceFetchRequest,
@@ -17,6 +20,7 @@ import {
 import {
   createRemoteSkillFixture,
   fixtureSha256,
+  type RemoteSkillFixture,
 } from "../fixtures/remote-skill-source.ts";
 
 async function openImport() {
@@ -325,6 +329,86 @@ Deno.test("a SKILL.md folder with scripts and no manifest.json imports through P
     ]);
   } finally {
     await close();
+  }
+});
+
+Deno.test("every refused import leaves no skill behind", async () => {
+  const encoder = new TextEncoder();
+  const file = (path: string, text: string) =>
+    Object.freeze({ path, content: encoder.encode(text), isExecutable: false });
+  const skillMd = "---\nname: s\ndescription: d\n---\n# S\n";
+  const otherLicense = await createRemoteSkillFixture(undefined, {
+    license: "Apache-2.0",
+  });
+  const stale = await createRemoteSkillFixture();
+  const withManifest = (fixture: RemoteSkillFixture, content?: string) =>
+    Object.freeze({
+      manifest: fixture.manifest,
+      manifestBytes: fixture.manifestBytes,
+      files: Object.freeze(fixture.files.map((entry) =>
+        Object.freeze({
+          path: entry.path,
+          content: content === undefined
+            ? entry.content
+            : encoder.encode(content),
+          isExecutable: entry.isExecutable ?? false,
+        })
+      )),
+    });
+  const withoutManifest = (files: ReturnType<typeof file>[]) =>
+    Object.freeze({
+      manifest: Object.freeze({}),
+      manifestBytes: new Uint8Array(),
+      files: Object.freeze(files),
+    });
+  const refusals = {
+    "missing folder": withoutManifest([]),
+    "no SKILL.md": withoutManifest([file("README.md", "# Not a skill\n")]),
+    "SKILL.md without front matter": withoutManifest([
+      file("SKILL.md", "# No front matter\n"),
+    ]),
+    "two paths differing only by case": withoutManifest([
+      file("SKILL.md", skillMd),
+      file("Notes.md", "a\n"),
+      file("notes.md", "b\n"),
+    ]),
+    "a licence other than the source's": withManifest(otherLicense),
+    "a stale file hash": withManifest(stale, "# Changed after hashing\n"),
+    "a lone surrogate in the description": withoutManifest([
+      file("SKILL.md", '---\nname: s\ndescription: "\\ud800"\n---\n# S\n'),
+    ]),
+  };
+  for (const [name, inventory] of Object.entries(refusals)) {
+    const { store, fixture, organizationId, run, etag, locator, close } =
+      await openImport();
+    try {
+      const { sourceAdapter } = adapterFor(Object.freeze({
+        sourceType: "url",
+        normalizedLocator: locator,
+        requestedRevision: etag,
+        sourceRevision: etag,
+        sourceProofDigest: "d".repeat(64),
+        normalizedPath: "",
+        inventory,
+      }));
+      const error = await assertRejects(
+        () =>
+          executeSkillImport(run.id, {
+            database: fixture.runtimePgDatabase,
+            sourceAdapter,
+            skillFileStore: store,
+          }),
+        SkillSourceAdapterError,
+      );
+      assertEquals(error.code, "SOURCE_INVALID", name);
+      const skills = await fixture.pgDatabase.query(
+        "select 1 from bakery.skills where organization_id = $1 and source_id is not null",
+        [organizationId],
+      );
+      assertEquals(skills.rows.length, 0, name);
+    } finally {
+      await close();
+    }
   }
 });
 
