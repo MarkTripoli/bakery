@@ -24,7 +24,7 @@ import {
 } from "@bakery/integration-sdk";
 import {
   assertHostProfile,
-  getHostProfile,
+  HOST_AUTH_PROFILES,
   type HostAuthProfile,
 } from "./integration-gate-profiles.ts";
 import { markProviderFailure } from "./integration-provider-outcome.ts";
@@ -168,8 +168,28 @@ export function activateDeployedIntegrations(
    * imports would also have to be exercised in a test that only wants the gate.
    */
   providerManifests: readonly ProviderManifest[] = [],
+  providerGates: readonly unknown[] = [],
+  profiles: Readonly<Record<string, HostAuthProfile>> = HOST_AUTH_PROFILES,
 ): ActiveIntegrationRegistry {
   const defects: IntegrationDefect[] = [];
+  const providerGateIds = new Set<string>();
+  for (const [index, gate] of providerGates.entries()) {
+    const owner = isDefinedIntegration(gate)
+      ? providerManifests.find((manifest) =>
+        manifest.integrationId === gate.manifest.id
+      )
+      : undefined;
+    if (owner === undefined) {
+      defects.push({
+        code: "provider-gate-unowned",
+        path: `providerGates[${index}]`,
+        message:
+          "Gate actions must belong to a deployed provider package with the same gate id.",
+      });
+      continue;
+    }
+    providerGateIds.add(owner.integrationId);
+  }
   const add = (code: string, path: string, message: string) =>
     defects.push({ code, path, message });
   const knownOperations = new Set(catalog.map((entry) => entry.action));
@@ -177,7 +197,7 @@ export function activateDeployedIntegrations(
   const providerIds = new Set<string>();
   const actionRefs = new Set<string>();
 
-  for (const [index, candidate] of list.entries()) {
+  for (const [index, candidate] of [...list, ...providerGates].entries()) {
     const at = `deployed[${index}]`;
     if (!isDefinedIntegration(candidate)) {
       add("integration-unbranded", at, "not created by defineIntegration");
@@ -201,7 +221,9 @@ export function activateDeployedIntegrations(
     }
     providerIds.add(manifest.id);
 
-    const profile = getHostProfile(manifest.authenticationProfile);
+    const profile = Object.hasOwn(profiles, manifest.authenticationProfile)
+      ? profiles[manifest.authenticationProfile]
+      : undefined;
     if (!profile) {
       add(
         "unknown-profile",
@@ -334,7 +356,10 @@ export function activateDeployedIntegrations(
   // read first, which is the silent shadow the provider registry already refuses.
   const integrationIds = new Set(integrations.map((i) => i.providerId));
   for (const manifest of providerManifests) {
-    if (integrationIds.has(manifest.integrationId)) {
+    if (
+      integrationIds.has(manifest.integrationId) &&
+      !providerGateIds.has(manifest.integrationId)
+    ) {
       defects.push({
         code: "integration-duplicate-provider",
         path: `providers.${manifest.slug}`,

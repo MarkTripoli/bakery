@@ -6,6 +6,7 @@ import {
 } from "./provider-manifest.ts";
 import type { ProviderManifest } from "./provider-manifest.ts";
 import { IntegrationActivationError } from "./errors.ts";
+import { type DefinedIntegration, isDefinedIntegration } from "./activation.ts";
 import type {
   DiscoveredResource,
   HealthProbe,
@@ -129,6 +130,7 @@ export type ServerImpl<M extends ProviderManifest> =
      * credential: the host owns secrets.
      */
     hostProfile: string;
+    gate?: DefinedIntegration;
   }
   & (ExcludesFamilies<M, "tickets"> extends true ? {
       /** Forbidden: the manifest excludes the ticket family. */ tickets?:
@@ -244,6 +246,30 @@ export function serverProviderDefects<M extends ProviderManifest>(
         message:
           `The credential strategy mints from the secret slot ${slot}, but no connect or app-registration field collects it.`,
       });
+    }
+  }
+
+  if (impl.gate !== undefined) {
+    if (!isDefinedIntegration(impl.gate)) {
+      defects.push({
+        path: "impl.gate",
+        message: "A provider's gate actions must be made by defineIntegration.",
+      });
+    } else {
+      if (impl.gate.manifest.id !== manifest.integrationId) {
+        defects.push({
+          path: "impl.gate.manifest.id",
+          message:
+            `The gate actions answer ${impl.gate.manifest.id}, but the provider is ${manifest.integrationId}; the gate would route them to another provider.`,
+        });
+      }
+      if (impl.gate.manifest.authenticationProfile !== impl.hostProfile) {
+        defects.push({
+          path: "impl.gate.manifest.authenticationProfile",
+          message:
+            `The gate actions broker through ${impl.gate.manifest.authenticationProfile}, but the provider names ${impl.hostProfile}.`,
+        });
+      }
     }
   }
 
