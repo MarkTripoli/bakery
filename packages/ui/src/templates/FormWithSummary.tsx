@@ -14,6 +14,7 @@ export type FormWithSummaryProps =
      * Leave it out for a page with nothing to end: no row and no rule are drawn.
      */
     actions?: ReactNode;
+    asideAt?: "start" | "end";
   };
 
 /**
@@ -28,13 +29,14 @@ export type FormWithSummaryProps =
  * there is no buttons row and no rule under the form.
  */
 export function FormWithSummary(
-  { children, aside, actions, ...props }: FormWithSummaryProps,
+  { children, aside, actions, asideAt = "end", ...props }: FormWithSummaryProps,
 ) {
   return (
     <div
       className="ui-form-with-summary"
       {...props}
       data-actions={actions === undefined ? "absent" : undefined}
+      data-aside={asideAt === "start" ? "start" : undefined}
       data-state="default"
       data-ui-component="formWithSummary"
       data-variant="default"
