@@ -1460,6 +1460,7 @@ jobs:
             echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
+        if: ${{ steps.plan.outputs.work == 'true' }}
         shell: bash
         run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
@@ -1610,6 +1611,7 @@ jobs:
             echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
+        if: ${{ steps.plan.outputs.work == 'true' }}
         shell: bash
         run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
@@ -1760,6 +1762,7 @@ jobs:
             echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
+        if: ${{ steps.plan.outputs.work == 'true' }}
         shell: bash
         run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
@@ -1910,6 +1913,7 @@ jobs:
             echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
           } >> "$GITHUB_ENV"
       - name: Ensure psql client
+        if: ${{ steps.plan.outputs.work == 'true' }}
         shell: bash
         run: bash scripts/ci/ensure-postgres-client.sh
       - name: Provision migration test roles and database
