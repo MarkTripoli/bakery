@@ -1,5 +1,6 @@
 import {
   gitLauncherArgs,
+  MAX_FETCH_BLOB_OBJECTS,
   SERVER_GIT_LAUNCHER,
 } from "../../platform/server-exec.ts";
 import type { JsonValue } from "@bakery/contracts/contracts";
@@ -602,6 +603,74 @@ async function loadGitInventory(
   });
 }
 
+async function isObjectPresent(
+  dependencies: SkillSourceAdapterDependencies,
+  directory: string,
+  objectId: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  try {
+    await runGit(
+      dependencies,
+      directory,
+      ["cat-file", "-t", objectId],
+      16,
+      signal,
+    );
+    return true;
+  } catch (error) {
+    if (
+      error instanceof SkillSourceAdapterError &&
+      error.code === "SOURCE_UNAVAILABLE"
+    ) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function fetchMissingBlobs(
+  dependencies: SkillSourceAdapterDependencies,
+  directory: string,
+  normalizedLocator: string,
+  entries: readonly GitTreeEntry[],
+  signal?: AbortSignal,
+): Promise<void> {
+  const missing: string[] = [];
+  for (const objectId of new Set(entries.map((entry) => entry.objectId))) {
+    if (!await isObjectPresent(dependencies, directory, objectId, signal)) {
+      missing.push(objectId);
+    }
+  }
+  if (missing.length === 0) return;
+  if (missing.length > MAX_FETCH_BLOB_OBJECTS) fail("SOURCE_LIMIT_EXCEEDED");
+  await runGit(
+    dependencies,
+    directory,
+    [
+      "-c",
+      "credential.helper=",
+      "-c",
+      "core.askPass=",
+      "-c",
+      "http.followRedirects=false",
+      "-c",
+      "protocol.version=2",
+      "-c",
+      "fetch.negotiationAlgorithm=noop",
+      "fetch",
+      "--no-tags",
+      "--no-write-fetch-head",
+      "--filter=blob:none",
+      "--",
+      normalizedLocator,
+      ...missing,
+    ],
+    64 * 1024,
+    signal,
+  );
+}
+
 async function fetchGitSource(
   dependencies: SkillSourceAdapterDependencies,
   request: SkillSourceFetchRequest,
@@ -680,6 +749,13 @@ async function fetchGitSource(
         request.signal,
       ),
       normalizedPath,
+    );
+    await fetchMissingBlobs(
+      dependencies,
+      directory,
+      normalizedLocator,
+      entries,
+      request.signal,
     );
     const inventory = await loadGitInventory(
       dependencies,

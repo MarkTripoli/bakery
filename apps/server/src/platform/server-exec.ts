@@ -39,6 +39,17 @@ const FETCH_CONFIG = [
   "protocol.version=2",
 ];
 const FETCH_FLAGS = ["fetch", "--no-tags", "--depth=1", "--filter=blob:none"];
+const FETCH_BLOBS_FLAGS = [
+  "-c",
+  "fetch.negotiationAlgorithm=noop",
+  "fetch",
+  "--no-tags",
+  "--no-write-fetch-head",
+  "--filter=blob:none",
+  "--",
+];
+const OBJECT_ID = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+export const MAX_FETCH_BLOB_OBJECTS = 257;
 const LS_TREE = ["ls-tree", "-r", "-z", "--full-tree", "FETCH_HEAD", "--"];
 
 function same(
@@ -108,6 +119,21 @@ export function gitLauncherArgs(
   ) {
     const [url, revision] = args.slice(-2) as [string, string];
     return ["fetch", gitDirectory, url, revision];
+  }
+  if (
+    same(args, 0, FETCH_CONFIG) &&
+    same(args, FETCH_CONFIG.length, FETCH_BLOBS_FLAGS)
+  ) {
+    const [url, ...objects] = args.slice(
+      FETCH_CONFIG.length + FETCH_BLOBS_FLAGS.length,
+    );
+    if (
+      url !== undefined && objects.length >= 1 &&
+      objects.length <= MAX_FETCH_BLOB_OBJECTS &&
+      objects.every((object) => OBJECT_ID.test(object))
+    ) {
+      return ["fetch-blobs", gitDirectory, url, ...objects];
+    }
   }
   throw new UnsupportedGitInvocationError();
 }

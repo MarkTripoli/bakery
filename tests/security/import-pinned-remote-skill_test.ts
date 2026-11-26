@@ -256,6 +256,37 @@ Deno.test("real smart HTTP Git pins the first commit across tag mutation", async
   }
 });
 
+Deno.test("real smart HTTP Git that honours the blob filter still imports every file", async () => {
+  const fixture = await startRemoteSkillSourceFixture({
+    allowBlobFilter: true,
+  });
+  try {
+    const adapter = createSkillSourceAdapterForTest({
+      allowInsecureLoopback: true,
+      timeoutMs: 5_000,
+    });
+    const proof = await adapter.fetchPinnedSource({
+      sourceType: "git",
+      locator: fixture.gitUrl,
+      requestedRevision: "v1",
+    });
+    assertEquals(proof.sourceRevision, fixture.initialCommit);
+    assertEquals(
+      new TextDecoder().decode(proof.inventory.files[0]?.content),
+      "# Remote skill\n",
+    );
+    const validated = await validatePinnedSkillSource({
+      proof,
+      skillId: "22222222-2222-4222-8222-222222222222",
+      revision: 1,
+      registeredLicense: "MIT",
+    });
+    assertEquals(validated.version.files[0].path, "SKILL.md");
+  } finally {
+    await stopRemoteSkillSourceFixture(fixture);
+  }
+});
+
 Deno.test("production source policy rejects credentials, mutable URL parts, and insecure origins", async () => {
   const adapter = createSkillSourceAdapterForTest({
     httpFetch: () => {
