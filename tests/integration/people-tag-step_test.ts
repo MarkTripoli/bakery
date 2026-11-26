@@ -470,6 +470,16 @@ Deno.test("asking someone next needs a waiting step and exactly one person", asy
           },
         },
         { ...base, wait: true, ifNobodyAnswers: {} },
+        {
+          ...base,
+          wait: true,
+          ifNobodyAnswers: { afterHours: 73, recipientId: o.next.principalId },
+        },
+        {
+          ...base,
+          wait: true,
+          ifNobodyAnswers: { afterHours: 0, recipientId: o.next.principalId },
+        },
       ]
     ) {
       const result = await o.runner.run(o.step(input));

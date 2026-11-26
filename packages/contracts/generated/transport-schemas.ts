@@ -7564,7 +7564,8 @@ const transportSchemas = {
           "type": "positiveInteger",
           "required": false,
           "bounds": {
-            "maximum": 72
+            "min": 1,
+            "max": 72
           },
           "description": "Hours to wait after the first ask before asking the next person; 24 when left out, at most 72."
         },

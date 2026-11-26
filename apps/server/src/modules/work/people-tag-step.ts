@@ -115,7 +115,9 @@ function recipientCount(escalation: Escalation): number {
   ].filter((recipient) => recipient !== undefined).length;
 }
 
-function firstArtifactVersion(request: EngineStepRequest): string | undefined {
+function reviewedArtifactVersion(
+  request: EngineStepRequest,
+): string | undefined {
   const input = request.input as { artifactVersionId?: unknown };
   return typeof input.artifactVersionId === "string"
     ? input.artifactVersionId
@@ -334,6 +336,7 @@ export function createPeopleTagStepRunner(
         const tags = await ownTags(tx, request);
         if (!escalationDue(tags, escalation, Date.now())) return null;
         if (!await claimNextAsk(tx, request)) return null;
+        const reviewedVersion = reviewedArtifactVersion(request);
         const actor = await liveActor(
           tx,
           request.organizationId,
@@ -366,9 +369,9 @@ export function createPeopleTagStepRunner(
             ...(escalation.recipientGroupId === undefined
               ? {}
               : { recipientGroupId: escalation.recipientGroupId }),
-            ...(firstArtifactVersion(request) === undefined
+            ...(reviewedVersion === undefined
               ? {}
-              : { artifactVersionId: firstArtifactVersion(request) }),
+              : { artifactVersionId: reviewedVersion }),
           },
         );
         return null;
