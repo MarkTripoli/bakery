@@ -129,6 +129,7 @@ export async function openAuthFixture(options: {
   secretsFetch?: typeof fetch;
   /** GitHub App API port; tests pass the fake from fake-github-app.ts. */
   githubAppClient?: Parameters<typeof createApp>[0]["githubAppClient"];
+  oauth2Fetch?: Parameters<typeof createApp>[0]["oauth2Fetch"];
   /** Telemetry the execution routes tell about renewals, completions and settlements. */
   telemetry?: Parameters<typeof createApp>[0]["telemetry"];
   /** Token broker the app's API and a test's reconcile share. */
@@ -279,6 +280,7 @@ export async function openAuthFixture(options: {
       collaborationSocket: options.collaborationSocket,
       secretsFetch: options.secretsFetch,
       githubAppClient: options.githubAppClient,
+      oauth2Fetch: options.oauth2Fetch,
       telemetry: options.telemetry,
       installationTokenBroker: options.installationTokenBroker,
       ticketReader: options.ticketReader,

@@ -63,6 +63,11 @@ import {
   createGitHubCallbackRunner,
 } from "./callbacks.ts";
 import { checkConnection, createConnectionCheckRunner } from "./checks.ts";
+import {
+  bindOAuth2Connection,
+  createOAuth2CallbackRunner,
+  type OAuth2Fetch,
+} from "./oauth2-connect.ts";
 import { createDiscovery } from "./discoveries.ts";
 import {
   DeliveryIdentitySchema,
@@ -130,6 +135,7 @@ export type IntegrationsRegistryDependencies = IntegrationsDependencies & {
   integrationRegistry: ActiveIntegrationRegistry;
   /** The provider request port the invoke door sends through. */
   providerRequests?: ProviderRequestPort;
+  oauth2Fetch?: OAuth2Fetch;
 };
 
 const preparationSlot = Symbol("private GitHub App registration preparation");
@@ -423,6 +429,7 @@ export function createIntegrationsAuthorityRunner(
     }
   };
   const callbacks = createGitHubCallbackRunner(database, dependencies);
+  const oauth2Callback = createOAuth2CallbackRunner(database, dependencies);
   const resourceUpdate = createResourceUpdateRunner(authority, dependencies);
   const check = createConnectionCheckRunner(authority, dependencies, broker);
   /**
@@ -489,6 +496,12 @@ export function createIntegrationsAuthorityRunner(
           IntegrationsImplementedAction.IntegrationAuthorizationCallback
       ) {
         return await callbacks.callback(action, context, input, next);
+      }
+      if (
+        action.name ===
+          IntegrationsImplementedAction.IntegrationProviderAuthorizationCallback
+      ) {
+        return await oauth2Callback(action, context, input, next);
       }
       if (
         action.name ===
@@ -731,6 +744,20 @@ export function createIntegrationsActionRegistry(
         context,
         IntegrationsImplementedAction.IntegrationAuthorizationCallback,
         bindingPreparation(context),
+      ),
+  }).register({
+    name:
+      IntegrationsImplementedAction.IntegrationProviderAuthorizationCallback,
+    method: HttpMethod.Get,
+    path: "/v1/integration-auth/:provider/callback",
+    input: contractSchemas.OAuthCallback,
+    output: contractSchemas.AuthRedirect,
+    policy: boundAttempt,
+    handler: (context) =>
+      bindOAuth2Connection(
+        context,
+        IntegrationsImplementedAction.IntegrationProviderAuthorizationCallback,
+        dependencies,
       ),
   }).register({
     name: IntegrationsImplementedAction.IntegrationConnectionsGet,
