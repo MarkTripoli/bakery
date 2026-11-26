@@ -89,9 +89,15 @@
       "reason": "Slack command intake arrives with the shared coordinator."
     },
     "intake.slack.events": {
-      "state": "unbuilt",
-      "owner": "#27",
-      "reason": "Slack event intake arrives with the shared coordinator."
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/integrations/slack-intake-routes.ts",
+        "literal": "/v1/webhooks/slack/events"
+      },
+      "test": {
+        "file": "tests/integration/receive-slack-events-and-commit-their-receipts_test.ts",
+        "contains": "/v1/webhooks/slack/events"
+      }
     },
     "intake.slack.interactions": {
       "state": "unbuilt",
