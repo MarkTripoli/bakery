@@ -406,6 +406,102 @@ Deno.test("the run's requests say who is asked next and when, and mark the next 
   }
 });
 
+Deno.test("who is asked next is named only from this organization, as the ask itself names it", async () => {
+  const o = await openWithNextPerson();
+  try {
+    assertEquals(await o.runner.run(o.request), { kind: "pending" });
+    const whoWith = async (next: Record<string, unknown>) => {
+      await o.fixture.pgDatabase.query(
+        `update bakery.run_steps set input = $3::jsonb
+          where organization_id = $1 and run_id = $2 and step_key = 'notify'`,
+        [
+          o.fixture.organizationId,
+          o.run.runId,
+          JSON.stringify({
+            ...o.request.input as object,
+            ifNobodyAnswers: next,
+          }),
+        ],
+      );
+      const response = await api(
+        o.fixture,
+        o.fixture.cookie,
+        "GET",
+        `/v1/runs/${o.run.runId}/requests`,
+      );
+      const body = await response.json() as {
+        requests: {
+          nextAsk: { who: string | null; askedAt: string | null } | null;
+        }[];
+      };
+      return body.requests[0]!.nextAsk;
+    };
+    assertEquals(
+      (await whoWith({ recipientId: o.next.principalId }))?.who,
+      "Next",
+    );
+    assertEquals(
+      (await whoWith({ recipientRoleKey: "admin" }))?.who,
+      "Administrators",
+    );
+    assertEquals(
+      (await whoWith({ recipientRoleKey: "release-managers" }))?.who,
+      null,
+    );
+    await o.fixture.pgDatabase.query(
+      `update bakery.organization_memberships set status = 'inactive'
+        where organization_id = $1 and principal_id = $2`,
+      [o.fixture.organizationId, o.next.principalId],
+    );
+    assertEquals(
+      (await whoWith({ recipientId: o.next.principalId }))?.who,
+      null,
+    );
+    await o.fixture.pgDatabase.query(
+      `delete from bakery.organization_memberships
+        where organization_id = $1 and principal_id = $2`,
+      [o.fixture.organizationId, o.next.principalId],
+    );
+    assertEquals(
+      (await whoWith({ recipientId: o.next.principalId }))?.who,
+      null,
+    );
+  } finally {
+    await o.finishAll();
+  }
+});
+
+Deno.test("a next ask that reaches nobody new is not read as asked", async () => {
+  const o = await openWithNextPerson();
+  try {
+    const again = o.step({
+      ...o.request.input as Record<string, unknown>,
+      ifNobodyAnswers: { afterHours: 24, recipientId: o.guest.principalId },
+    });
+    await o.fixture.pgDatabase.query(
+      `update bakery.run_steps set input = $3::jsonb
+        where organization_id = $1 and run_id = $2 and step_key = 'notify'`,
+      [o.fixture.organizationId, o.run.runId, JSON.stringify(again.input)],
+    );
+    assertEquals(await o.runner.run(again), { kind: "pending" });
+    await o.askedAgo(25);
+    assertEquals(await o.runner.run(again), { kind: "pending" });
+    assertEquals((await o.tags()).length, 1);
+    const response = await api(
+      o.fixture,
+      o.fixture.cookie,
+      "GET",
+      `/v1/runs/${o.run.runId}/requests`,
+    );
+    const body = await response.json() as {
+      requests: { nextAsk: { askedAt: string | null } | null }[];
+    };
+    assertEquals(body.requests[0]!.nextAsk?.askedAt, null);
+  } finally {
+    await o.finishAll();
+  }
+});
+
 Deno.test("a step whose first and next asks both run out completes expired and records every request expired", async () => {
   const o = await openWithNextPerson();
   try {

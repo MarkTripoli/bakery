@@ -160,7 +160,9 @@ type RequestRow = {
   first_asked_at: Date | string | null;
   next_ask_hours: number | null;
   next_asked_at: Date | string | null;
-  next_ask_name: string | null;
+  next_asked_name: string | null;
+  next_role_key: string | null;
+  next_planned_name: string | null;
 };
 
 const DEFAULT_NEXT_ASK_HOURS = 24;
@@ -181,10 +183,11 @@ const REQUEST_SELECT = `
               then coalesce((step.input #>> '{ifNobodyAnswers,afterHours}')::int,
                             ${DEFAULT_NEXT_ASK_HOURS})
          end as next_ask_hours,
-         next_ask.asked_at as next_asked_at,
+         next_request.created_at as next_asked_at,
+         next_request.name as next_asked_name,
+         step.input #>> '{ifNobodyAnswers,recipientRoleKey}' as next_role_key,
          coalesce(next_person.display_name, next_group.name, next_role.name,
-                  step.input #>> '{ifNobodyAnswers,recipientRoleKey}',
-                  next_run_person.display_name) as next_ask_name
+                  next_run_person.display_name) as next_planned_name
     from bakery.person_requests as request
     join bakery.principals as recipient on recipient.id = request.recipient_id
     left join bakery.principals as asker on asker.id = request.asked_by
@@ -202,14 +205,31 @@ const REQUEST_SELECT = `
          and sibling.step_key = request.step_key
          and sibling.step_iteration = request.step_iteration
     ) as first_ask on true
-    left join bakery.person_request_next_asks as next_ask
-      on step.id is not null
-     and next_ask.organization_id = request.organization_id
-     and next_ask.run_id = request.run_id
-     and next_ask.step_key = request.step_key
-     and next_ask.step_iteration = request.step_iteration
-    left join bakery.principals as next_person
-      on next_person.id::text = step.input #>> '{ifNobodyAnswers,recipientId}'
+    left join lateral (
+      select later.created_at,
+             coalesce(later.audience_name, later_recipient.display_name) as name
+        from bakery.person_requests as later
+        join bakery.principals as later_recipient
+          on later_recipient.id = later.recipient_id
+       where step.id is not null
+         and later.organization_id = request.organization_id
+         and later.run_id = request.run_id
+         and later.step_key = request.step_key
+         and later.step_iteration = request.step_iteration
+         and later.created_at > first_ask.first_asked_at
+       order by later.created_at, later.id
+       limit 1
+    ) as next_request on true
+    left join lateral (
+      select principal.display_name
+        from bakery.principals as principal
+        join bakery.organization_memberships as membership
+          on membership.principal_id = principal.id
+         and membership.organization_id = request.organization_id
+         and membership.status = 'active'
+       where principal.id::text = step.input #>> '{ifNobodyAnswers,recipientId}'
+         and principal.disabled_at is null
+    ) as next_person on true
     left join bakery.organization_groups as next_group
       on next_group.organization_id = request.organization_id
      and next_group.id::text = step.input #>> '{ifNobodyAnswers,recipientGroupId}'
@@ -223,11 +243,19 @@ const REQUEST_SELECT = `
     left join bakery.tasks as next_task
       on next_task.organization_id = next_run.organization_id
      and next_task.id = next_run.task_id
-    left join bakery.principals as next_run_person
-      on next_run_person.id = case step.input #>> '{ifNobodyAnswers,recipientRunRole}'
+    left join lateral (
+      select principal.display_name
+        from bakery.principals as principal
+        join bakery.organization_memberships as membership
+          on membership.principal_id = principal.id
+         and membership.organization_id = request.organization_id
+         and membership.status = 'active'
+       where principal.disabled_at is null
+         and principal.id = case step.input #>> '{ifNobodyAnswers,recipientRunRole}'
            when 'starter' then next_run.requested_by
            when 'task_owner' then next_task.created_by
-         end`;
+         end
+    ) as next_run_person on true`;
 
 function iso(value: Date | string): string {
   return (value instanceof Date ? value : new Date(value)).toISOString();
@@ -276,6 +304,13 @@ function toRunRequest(row: RequestRow) {
   };
 }
 
+function plannedNextName(row: RequestRow): string | null {
+  const systemRole = row.next_role_key === null
+    ? undefined
+    : SYSTEM_ROLE_NAMES[row.next_role_key];
+  return systemRole ?? row.next_planned_name;
+}
+
 function nextAskOf(row: RequestRow) {
   if (row.next_ask_hours === null || row.first_asked_at === null) {
     return { nextAsk: null, passedOn: false };
@@ -289,7 +324,9 @@ function nextAskOf(row: RequestRow) {
       dueAt: new Date(firstAskedAt + row.next_ask_hours * 3_600_000)
         .toISOString(),
       askedAt: row.next_asked_at === null ? null : iso(row.next_asked_at),
-      who: row.next_ask_name,
+      who: row.next_asked_at === null
+        ? plannedNextName(row)
+        : row.next_asked_name,
     },
     passedOn: false,
   };
@@ -760,8 +797,12 @@ async function requestOnRun(
       const meant = meantId === null
         ? unresolvedName
         : (await transaction.query<{ display_name: string }>(
-          "select display_name from bakery.principals where id = $1",
-          [meantId],
+          `select principal.display_name from bakery.principals as principal
+             join bakery.organization_memberships as membership
+               on membership.principal_id = principal.id
+              and membership.organization_id = $2
+            where principal.id = $1`,
+          [meantId, organizationId],
         )).rows[0]?.display_name ?? null;
       const owner = await fallbackOwner(
         transaction,
