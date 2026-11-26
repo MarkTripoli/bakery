@@ -60,6 +60,7 @@ export type GroupLabel =
   | "repeat"
   | "fix"
   | "each"
+  | "call"
   | "wait";
 
 export type TreeNode = TreeStep | TreeGroup;
@@ -110,8 +111,18 @@ function withKind(node: Record<string, unknown>): Record<string, unknown> {
     };
   }
   if (node.parallel !== undefined) {
-    return { ...node, kind: "parallel", lanes: record(node.parallel).lanes };
+    const parallel = record(node.parallel);
+    return {
+      ...node,
+      kind: "parallel",
+      lanes: parallel.branches ?? parallel.lanes,
+    };
   }
+  if (node.forEach !== undefined) {
+    const each = record(node.forEach);
+    return { ...node, kind: "forEach", max: each.max, steps: each.steps };
+  }
+  if (node.call !== undefined) return { ...node, kind: "call" };
   if (node.wait !== undefined) return { ...node, kind: "wait" };
   if (Array.isArray(node.steps)) return { ...node, kind: "sequence" };
   return node;
@@ -420,11 +431,11 @@ function drawNode(
       editedInCode: true,
     }];
   }
-  if (kind === "wait") {
+  if (kind === "call" || kind === "wait") {
     return [{
       kind: "group",
       id: anonymousId(counter, "group"),
-      label: "wait",
+      label: kind,
       children: [],
       editedInCode: true,
     }];

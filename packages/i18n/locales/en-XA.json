@@ -7433,5 +7433,7 @@
   "library.editor.ask.card.line": "⟦Àšķš {who} ŧô àþþŕôṽë ŧëšŧŧ⟧",
   "library.editor.ask.card.owner": "⟦ŧĥë ŵôŕķƒļôŵ'š ôŵñëŕ ŧëšŧ⟧",
   "library.editor.ask.card.count": "⟦{count, plural, one {# person} other {# people}} ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "library.editor.ask.card.many": "⟦{first} àñð {others, plural, one {# other} other {# others}} ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
+  "library.editor.ask.card.many": "⟦{first} àñð {others, plural, one {# other} other {# others}} ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "library.editor.group.call": "⟦Ŕûñ àñôŧĥëŕ ŵôŕķƒļôŵ ŧëšŧ⟧",
+  "library.editor.group.callEmpty": "⟦Ïŧš šŧëþš àŕë ïñ ŧĥàŧ ŵôŕķƒļôŵ ŧëšŧ çôþ⟧"
 }

@@ -5961,6 +5961,8 @@
   "library.editor.group.together": "At the same time",
   "library.editor.group.repeat": "Repeat",
   "library.editor.group.wait": "Wait",
+  "library.editor.group.call": "Run another workflow",
+  "library.editor.group.callEmpty": "Its steps are in that workflow",
   "library.editor.group.codeOnly": "Edited in code",
   "library.editor.view.label": "Workflow view",
   "library.editor.view.diagram": "Diagram",

@@ -139,6 +139,7 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   repeat: "library.editor.group.repeat",
   fix: "library.editor.group.fixUntilPasses",
   each: "library.editor.group.each",
+  call: "library.editor.group.call",
   wait: "library.editor.group.wait",
 };
 
@@ -281,6 +282,7 @@ export function WorkflowEditorPage(
   // The slots the last write sent, so only those are cleared when it lands.
   const sentSlots = useRef<string[]>([]);
   const sentLoops = useRef<readonly LoopEdit[]>([]);
+  const [loopPending, setLoopPending] = useState(false);
   // Slots the person settled (by choosing a skill or removing the placeholder) and the
   // draft has not saved yet: the save tells the server, and the row is gone at once.
   const [resolving, setResolving] = useState<ReadonlySet<string>>(new Set());
@@ -597,16 +599,17 @@ export function WorkflowEditorPage(
 
   // Leaving while the latest change is not saved asks first.
   useEffect(() => {
-    if (saveState.kind === "saved" && !changed) return;
+    if (saveState.kind === "saved" && !changed && !loopPending) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     globalThis.addEventListener("beforeunload", warn);
     return () => globalThis.removeEventListener("beforeunload", warn);
-  }, [saveState.kind, changed]);
+  }, [saveState.kind, changed, loopPending]);
 
-  const unsaved = changed || save.isPending || saveState.kind !== "saved"
+  const unsaved = changed || loopPending || save.isPending ||
+      saveState.kind !== "saved"
     ? 1
     : 0;
 
@@ -896,6 +899,7 @@ export function WorkflowEditorPage(
           onCommit: (values) => {
             dispatch({ kind: "loop", path: loop.path, ...values });
           },
+          onPending: setLoopPending,
         };
       }
       return {

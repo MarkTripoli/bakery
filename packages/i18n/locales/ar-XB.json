@@ -7433,5 +7433,7 @@
   "library.editor.ask.card.line": "⟪Asks {who} to approve⟫",
   "library.editor.ask.card.owner": "⟪the workflow's owner⟫",
   "library.editor.ask.card.count": "⟪{count, plural, one {# person} other {# people}}⟫",
-  "library.editor.ask.card.many": "⟪{first} and {others, plural, one {# other} other {# others}}⟫"
+  "library.editor.ask.card.many": "⟪{first} and {others, plural, one {# other} other {# others}}⟫",
+  "library.editor.group.call": "⟪Run another workflow⟫",
+  "library.editor.group.callEmpty": "⟪Its steps are in that workflow⟫"
 }

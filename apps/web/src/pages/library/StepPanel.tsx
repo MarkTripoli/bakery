@@ -99,6 +99,7 @@ export type PanelTarget =
     readonly cap: number;
     readonly help?: string | undefined;
     readonly onCommit: (values: LoopValues) => void;
+    readonly onPending: (pending: boolean) => void;
   }
   | {
     readonly kind: "codeOnly";
@@ -371,8 +372,15 @@ function LoopPanel(
     if (loopProblem(draft, target.cap, t) !== null) return;
     const next = typed();
     if (`${next.min}/${next.max}/${next.allow}` === committed) return;
-    const timer = setTimeout(() => target.onCommit(next), LOOP_PAUSE_MS);
-    return () => clearTimeout(timer);
+    target.onPending(true);
+    const timer = setTimeout(() => {
+      target.onPending(false);
+      target.onCommit(next);
+    }, LOOP_PAUSE_MS);
+    return () => {
+      clearTimeout(timer);
+      target.onPending(false);
+    };
   }, [draft]);
   const hintFor = (field: LoopField): string => {
     if (field === "min") {

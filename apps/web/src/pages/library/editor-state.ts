@@ -167,7 +167,12 @@ export function applyLoops(
   return copy;
 }
 
-const AUTHORED_WRAPPERS = ["repeat", "branch", "parallel"] as const;
+const AUTHORED_WRAPPERS = [
+  "repeat",
+  "branch",
+  "parallel",
+  "forEach",
+] as const;
 
 function objectOf(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -182,7 +187,8 @@ function loopBodyOf(node: Record<string, unknown>): Record<string, unknown> {
 function childOf(node: Record<string, unknown>, key: string): unknown {
   if (node[key] !== undefined) return node[key];
   for (const wrapper of AUTHORED_WRAPPERS) {
-    const inner = objectOf(node[wrapper])?.[key];
+    const held = objectOf(node[wrapper]);
+    const inner = held?.[key] ?? (key === "lanes" ? held?.branches : undefined);
     if (inner !== undefined) return inner;
   }
   return undefined;
