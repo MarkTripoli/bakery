@@ -1,0 +1,105 @@
+[
+  {
+    "at": "8.2",
+    "event": "POST /v1/skills",
+    "status": 201
+  },
+  {
+    "at": "8.3",
+    "event": "POST /v1/skills/:id/draft",
+    "status": 200
+  },
+  {
+    "at": "9.3",
+    "event": "POST /v1/skills/:id/draft/files",
+    "status": 200
+  },
+  {
+    "at": "11.3",
+    "event": "leave asked",
+    "text": "Leave the editor? What you just typed may not be saved yet. Stay Leave anyway"
+  },
+  {
+    "at": "12.1",
+    "event": "POST /v1/skills/:id/draft/files",
+    "status": 200
+  },
+  {
+    "at": "13.0",
+    "event": "POST /v1/skills/:id/draft/check",
+    "status": 200
+  },
+  {
+    "at": "14.5",
+    "event": "checked",
+    "text": "Fix 2 problems to publish Licence: add one before publishing, up to 200 plain characters. SKILL.md · line 8: The instructions mention \"examples/good.md\", which is not in this skill."
+  },
+  {
+    "at": "16.1",
+    "event": "went to line",
+    "focused": "Text of SKILL.md"
+  },
+  {
+    "at": "16.2",
+    "event": "POST /v1/skills/:id/draft/files",
+    "status": 200
+  },
+  {
+    "at": "17.2",
+    "event": "POST /v1/skills/:id/draft/files/rename",
+    "status": 200
+  },
+  {
+    "at": "18.8",
+    "event": "renamed",
+    "focused": "Text of examples/example.md"
+  },
+  {
+    "at": "19.0",
+    "event": "POST /v1/skills/:id/draft/files",
+    "status": 200
+  },
+  {
+    "at": "20.0",
+    "event": "uploaded",
+    "focused": "Open screenshot-of-the-release-notes-page.png"
+  },
+  {
+    "at": "21.6",
+    "event": "opened png",
+    "editors": 0,
+    "text": "screenshot-of-the-release-notes-page.png This file cannot be edited here. Replace Remove Saved 9:45 PM"
+  },
+  {
+    "at": "23.5",
+    "event": "POST /v1/skills/:id/draft/files",
+    "status": 200
+  },
+  {
+    "at": "23.5",
+    "event": "PATCH /v1/skills/:id/draft",
+    "status": 200
+  },
+  {
+    "at": "25.0",
+    "event": "licence changed",
+    "stale": 1
+  },
+  {
+    "at": "25.0",
+    "event": "POST /v1/skills/:id/draft/check",
+    "status": 200
+  },
+  {
+    "at": "26.3",
+    "event": "POST /v1/skills/:id/draft/publish",
+    "status": 201
+  },
+  {
+    "at": "29.3",
+    "event": "after publish",
+    "text": "Published version 1. It is now the one in use. × Quarterly release notes Organization Files The files of version 1, the one in use. Instructions file SKILL.md 127 bytes · text/markdown Other files examples/example.md 0 bytes · text/markdown screenshot-of-the-release-notes-page.png 70 bytes · application/octet-stream Versions Version 1 In use Published · Nov 25, 2026 · Fingerprint 9a4791ae5487 Used by Nothing uses this skill yet. Where it came from Written here Licence MIT",
+    "edit": 1,
+    "cont": 0
+  }
+]
