@@ -1,5 +1,8 @@
 import { StandardError } from "@bakery/contracts/http";
-import type { WorkflowStart } from "@bakery/contracts/workflow-starts";
+import type {
+  WorkflowStart,
+  WorkflowStartRefusalReason,
+} from "@bakery/contracts/workflow-starts";
 import { neutralFieldsOf } from "../integrations/neutral-events.ts";
 import { readStartSchedules } from "./start-schedules.ts";
 
@@ -12,11 +15,14 @@ import { readStartSchedules } from "./start-schedules.ts";
  * of the declared type, so a start that nothing could ever fire is refused
  * where the author can fix it and not frozen into an immutable version.
  */
-export function readStarts(
-  starts: readonly WorkflowStart[],
-): WorkflowStart[] {
+export function readStarts(starts: readonly WorkflowStart[]): WorkflowStart[] {
   for (const start of starts) {
-    if (start.on.kind !== "event") continue;
+    if (start.on.kind === "schedule") {
+      if (!namesRepository(start.inputs)) {
+        throw refused("start_schedule_repository_missing", start.id);
+      }
+      continue;
+    }
     const declared = neutralFieldsOf(start.on.eventKind);
     if (declared === undefined) {
       throw refused("start_event_kind_unknown", start.id);
@@ -35,7 +41,17 @@ export function readStarts(
   return readStartSchedules(starts);
 }
 
-function refused(reason: string, startId: string): StandardError {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function namesRepository(inputs: WorkflowStart["inputs"]): boolean {
+  const repositoryId = inputs?.repositoryId;
+  return typeof repositoryId === "string" && UUID.test(repositoryId);
+}
+
+function refused(
+  reason: WorkflowStartRefusalReason,
+  startId: string,
+): StandardError {
   return new StandardError({
     code: "VALIDATION_FAILED",
     params: { reason, startId },

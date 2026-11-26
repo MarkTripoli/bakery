@@ -10,7 +10,12 @@ import {
   automationVersionInputs,
   setUpAutomation,
 } from "../helpers/automation-fixtures.ts";
-import { apiCall, expectJson } from "../helpers/fixed-coding-preset.ts";
+import {
+  apiCall,
+  expectJson,
+  seedPresetRepository,
+} from "../helpers/fixed-coding-preset.ts";
+import { fireDueScheduleStarts } from "../../apps/server/src/modules/workflows/start-clock.ts";
 
 // #406 slice 3. A start answers an event by starting a run of the version in
 // use, as the principal who used that version. That principal is not trusted
@@ -151,6 +156,43 @@ const activatedBy = (
       where organization_id = $1 and id = $2`,
     [fixture.organizationId, s.workflowId, principalId],
   );
+
+const usedAt = (
+  fixture: Parameters<Parameters<typeof withWorkerFixture>[0]>[0],
+  s: Setup,
+  at: string,
+) =>
+  fixture.pgDatabase.query(
+    `update bakery.workflow_definitions set active_version_set_at = $3
+      where organization_id = $1 and id = $2`,
+    [fixture.organizationId, s.workflowId, at],
+  );
+
+async function useCopyOfVersion(
+  fixture: Parameters<Parameters<typeof withWorkerFixture>[0]>[0],
+  s: Setup,
+  at: string,
+): Promise<string> {
+  const copyId = crypto.randomUUID();
+  await fixture.pgDatabase.query(
+    `insert into bakery.workflow_versions
+     select (jsonb_populate_record(
+       null::bakery.workflow_versions,
+       to_jsonb(original) ||
+         jsonb_build_object('id', $2::uuid, 'revision', original.revision + 1)
+     )).*
+       from bakery.workflow_versions original
+      where original.id = $1`,
+    [s.published.id, copyId],
+  );
+  await fixture.pgDatabase.query(
+    `update bakery.workflow_definitions
+        set active_version_id = $3, active_version_set_at = $4
+      where organization_id = $1 and id = $2`,
+    [fixture.organizationId, s.workflowId, copyId, at],
+  );
+  return copyId;
+}
 
 Deno.test("a live start runs the version in use as the principal who used it, once per event", () =>
   withWorkerFixture(async (fixture) => {
@@ -520,4 +562,210 @@ Deno.test("two events racing at the hourly limit start one run and skip the othe
       "started",
     ]);
     assertEquals(Number((await s.counts()).runs), Number(before.runs) + 1);
+  }));
+
+Deno.test("an event start runs on the repository the event arrived on when it takes the repository from the event", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      on: {
+        kind: "event",
+        eventKind: "change_request.opened",
+        filter: {},
+        inputsFromEvent: { repositoryId: "repositoryId" },
+      },
+    });
+    const other = await seedPresetRepository(fixture.pgDatabase, fixture, {
+      agentVersionId: s.agent,
+    });
+    const [outcome] = await withPgTransaction(
+      fixture.runtimePgDatabase,
+      async (transaction) =>
+        await fireStartsFor(
+          transaction,
+          {
+            organizationId: fixture.organizationId,
+            inboundEventId: await s.receive(),
+          },
+          { id: other.repositoryId },
+          EVENT,
+        ),
+    );
+    assertEquals(outcome.result, "started", JSON.stringify(outcome));
+    const run = (await fixture.pgDatabase.query<{ repositoryId: string }>(
+      `select task.repository_id as "repositoryId"
+         from bakery.workflow_start_firings firing
+         join bakery.workflow_runs run on run.id = firing.run_id
+         join bakery.tasks task on task.id = run.task_id
+        where firing.organization_id = $1`,
+      [fixture.organizationId],
+    )).rows;
+    assertEquals(run, [{ repositoryId: other.repositoryId }]);
+  }));
+
+Deno.test("a schedule start fires the version in use once per tick, however often the clock wakes", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      id: "hourly",
+      on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
+    });
+    await usedAt(fixture, s, "2026-11-25T09:00:00Z");
+    const before = await s.counts();
+    const tick = async (at: string) =>
+      (await fireDueScheduleStarts({
+        database: fixture.runtimePgDatabase,
+        now: new Date(at),
+      })).filter((outcome) => outcome.workflowId === s.workflowId)
+        .map((outcome) => [outcome.startId, outcome.result, outcome.code]);
+
+    assertEquals(await tick("2026-11-25T09:30:00Z"), []);
+    assertEquals(await tick("2026-11-25T10:00:20Z"), [
+      ["hourly", "started", undefined],
+    ]);
+    const [firing] = await s.firings();
+    assertEquals(
+      [firing.status, firing.triggerEventId, firing.actorId],
+      ["started", null, fixture.principalId],
+    );
+    assertEquals(await tick("2026-11-25T10:01:00Z"), [
+      ["hourly", "duplicate", undefined],
+    ]);
+    assertEquals(Number((await s.counts()).runs), Number(before.runs) + 1);
+  }));
+
+Deno.test("two clocks waking on one tick start exactly one run", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      id: "hourly",
+      on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
+    });
+    await usedAt(fixture, s, "2026-11-25T09:00:00Z");
+    const before = await s.counts();
+    const now = new Date("2026-11-25T10:00:20Z");
+    const results = await Promise.all([
+      fireDueScheduleStarts({ database: fixture.runtimePgDatabase, now }),
+      fireDueScheduleStarts({ database: fixture.runtimePgDatabase, now }),
+    ]);
+    assertEquals(
+      results.flat().filter((outcome) => outcome.workflowId === s.workflowId)
+        .map((outcome) => outcome.result).sort(),
+      ["duplicate", "started"],
+    );
+    assertEquals(Number((await s.counts()).runs), Number(before.runs) + 1);
+    assertEquals((await s.firings()).length, 1);
+  }));
+
+const hourlyTick = (
+  fixture: Parameters<Parameters<typeof withWorkerFixture>[0]>[0],
+  s: Setup,
+) =>
+async (at: string) =>
+  (await fireDueScheduleStarts({
+    database: fixture.runtimePgDatabase,
+    now: new Date(at),
+  })).filter((outcome) => outcome.workflowId === s.workflowId)
+    .map((outcome) => [outcome.startId, outcome.result, outcome.code]);
+
+Deno.test("a tick that came before the version was put in use does not fire it", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      id: "hourly",
+      on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
+    });
+    await usedAt(fixture, s, "2026-11-25T10:02:00Z");
+    const before = await s.counts();
+    assertEquals(await hourlyTick(fixture, s)("2026-11-25T10:03:00Z"), [
+      ["hourly", "superseded", undefined],
+    ]);
+    assertEquals(await s.firings(), []);
+    assertEquals(Number((await s.counts()).runs), Number(before.runs));
+  }));
+
+Deno.test("using a newer version right after a tick fired does not fire that tick again", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      id: "hourly",
+      on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
+    });
+    await usedAt(fixture, s, "2026-11-25T09:00:00Z");
+    const before = await s.counts();
+    const tick = hourlyTick(fixture, s);
+    assertEquals(await tick("2026-11-25T10:00:20Z"), [
+      ["hourly", "started", undefined],
+    ]);
+    await useCopyOfVersion(fixture, s, "2026-11-25T10:01:00Z");
+    assertEquals(await tick("2026-11-25T10:02:00Z"), [
+      ["hourly", "superseded", undefined],
+    ]);
+    assertEquals(Number((await s.counts()).runs), Number(before.runs) + 1);
+    assertEquals((await s.firings()).length, 1);
+  }));
+
+Deno.test("one tick of one start makes one firing row, whichever version records it", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      id: "hourly",
+      on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
+    });
+    await usedAt(fixture, s, "2026-11-25T09:00:00Z");
+    const tick = hourlyTick(fixture, s);
+    assertEquals(await tick("2026-11-25T10:00:20Z"), [
+      ["hourly", "started", undefined],
+    ]);
+    await useCopyOfVersion(fixture, s, "2026-11-25T09:30:00Z");
+    assertEquals(await tick("2026-11-25T10:01:00Z"), [
+      ["hourly", "duplicate", undefined],
+    ]);
+    assertEquals((await s.firings()).length, 1);
+  }));
+
+Deno.test("a workflow turned back on after a tick does not run that tick, and runs the next one", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      id: "hourly",
+      on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
+    });
+    await usedAt(fixture, s, "2026-11-25T09:00:00Z");
+    const enabledAt = async () =>
+      (await fixture.pgDatabase.query<{ enabledAt: Date | null }>(
+        `select enabled_at as "enabledAt" from bakery.workflow_definitions
+          where organization_id = $1 and id = $2`,
+        [fixture.organizationId, s.workflowId],
+      )).rows[0]?.enabledAt;
+    const turn = async (enabled: boolean) => {
+      const definition = await expectJson<{ version: number }>(
+        await apiCall(fixture, fixture, "GET", `/v1/workflows/${s.workflowId}`),
+        200,
+      );
+      await expectJson(
+        await apiCall(
+          fixture,
+          fixture,
+          "PATCH",
+          `/v1/workflows/${s.workflowId}`,
+          {
+            body: { enabled },
+            headers: { "If-Match": `"${definition.version}"` },
+          },
+        ),
+        200,
+      );
+    };
+    await turn(false);
+    assertEquals(await enabledAt(), null);
+    await turn(true);
+    const recorded = await enabledAt();
+    assert(recorded instanceof Date);
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_definitions set enabled_at = $3
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, s.workflowId, "2026-11-25T10:02:00Z"],
+    );
+    const tick = hourlyTick(fixture, s);
+    assertEquals(await tick("2026-11-25T10:03:00Z"), [
+      ["hourly", "superseded", undefined],
+    ]);
+    assertEquals(await s.firings(), []);
+    assertEquals(await tick("2026-11-25T11:00:20Z"), [
+      ["hourly", "started", undefined],
+    ]);
   }));

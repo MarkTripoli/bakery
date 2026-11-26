@@ -60,6 +60,7 @@ import { createAuditRetentionFunction } from "../auth/audit/mod.ts";
 import { createAutomationIntakeFunction } from "../workflows/automations/event-intake.ts";
 import { createAutomationPromoteFunction } from "../workflows/automations/promote.ts";
 import { createAutomationTickFunction } from "../workflows/automations/tick.ts";
+import { createStartClockFunction } from "../workflows/start-clock.ts";
 
 import { createOutputArchiveWorkflow } from "./output-archive.ts";
 import {
@@ -304,6 +305,10 @@ export function createDefaultInngestFunctions(options: {
       database: options.database,
     }),
     createLaneDispatchWorkflow({
+      client: options.client,
+      database: options.database,
+    }),
+    createStartClockFunction({
       client: options.client,
       database: options.database,
     }),

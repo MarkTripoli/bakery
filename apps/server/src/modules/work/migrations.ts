@@ -8,6 +8,7 @@ import { frozenExecutionContextBackfill } from "./migrations/data/0049_issue46_f
 
 import { artifactRetentionBackfill } from "./migrations/data/0074_artifact_retention.ts";
 import { workflowOriginProvenanceBackfill } from "./migrations/data/0175_workflow_origin_provenance.ts";
+import { workflowActiveVersionSetAtBackfill } from "./migrations/data/0374_workflow_active_version_set_at.ts";
 
 export const workBakeryMigrationSource: MigrationSource = {
   owner: MigrationOwner.Bakery,
@@ -23,4 +24,5 @@ export const workDataMigrations = Object.freeze([
   eventClockSeed,
   frozenExecutionContextBackfill,
   workflowOriginProvenanceBackfill,
+  workflowActiveVersionSetAtBackfill,
 ]);
