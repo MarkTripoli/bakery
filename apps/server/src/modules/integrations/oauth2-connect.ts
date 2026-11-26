@@ -55,6 +55,7 @@ export type OAuth2Provider = Readonly<{
 }>;
 
 const PROVIDER_DEADLINE_MS = 10_000;
+const CALLBACK_DEADLINE_MS = 30_000;
 const TOKEN_RESPONSE_MAX_BYTES = 65_536;
 const IDENTIFY_ACCOUNT_TYPE = "account";
 const NO_REPOSITORY_SELECTION = "none";
@@ -396,7 +397,7 @@ export function createOAuth2CallbackRunner(
     if (client === null) {
       return await fail("exchange", ConnectionOutcome.ProviderUnregistered);
     }
-    const signal = new AbortController().signal;
+    const signal = AbortSignal.timeout(CALLBACK_DEADLINE_MS);
     let granted: GrantedTokens;
     try {
       const key = await loadSecretKey(dependencies.secretsKey);
@@ -424,7 +425,7 @@ export function createOAuth2CallbackRunner(
         ),
         origin: {
           apiBaseUrl: provider.profile.apiBaseUrl,
-          webBaseUrl: provider.profile.apiBaseUrl,
+          webBaseUrl: provider.profile.webBaseUrl,
         },
         signal,
         now: () => new Date(),

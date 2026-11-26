@@ -7246,7 +7246,7 @@ const transportSchemas = {
           "name": "reconnectConnectionId",
           "type": "uuid",
           "required": false,
-          "description": "When reconnecting an existing connection of the caller's organization, identifies it; completion for the same verified GitHub account refreshes that connection, and a different account creates a new pending connection and leaves this one unchanged. An unknown, archived or other organization's connection is refused as not found and no attempt is created."
+          "description": "When reconnecting an existing connection of the caller's organization, identifies it; completion for the same verified account (the GitHub account, or the Slack workspace) refreshes that connection, and a different account creates a new connection (pending for GitHub until repositories are chosen, enabled for Slack) and leaves this one unchanged. An unknown, archived or other organization's connection is refused as not found and no attempt is created."
         },
         {
           "name": "returnPath",

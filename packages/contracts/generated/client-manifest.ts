@@ -26463,7 +26463,7 @@ export const clientManifest = {
           "description": "Integration provider to authorize against: github through its registered App, or slack through the OAuth2 client credentials saved for this Bakery installation. The server builds the authorization URL from that registration, never from request data."
         },
         "reconnectConnectionId": {
-          "description": "When reconnecting an existing connection of the caller's organization, identifies it; completion for the same verified GitHub account refreshes that connection, and a different account creates a new pending connection and leaves this one unchanged. An unknown, archived or other organization's connection is refused as not found and no attempt is created.",
+          "description": "When reconnecting an existing connection of the caller's organization, identifies it; completion for the same verified account (the GitHub account, or the Slack workspace) refreshes that connection, and a different account creates a new connection (pending for GitHub until repositories are chosen, enabled for Slack) and leaves this one unchanged. An unknown, archived or other organization's connection is refused as not found and no attempt is created.",
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"

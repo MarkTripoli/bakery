@@ -66,6 +66,7 @@ export type OAuth2Profile = {
   scopes: readonly string[];
   scopeDelimiter: " " | ",";
   apiBaseUrl: URL;
+  webBaseUrl: URL;
   /** Validates the token endpoint's response, because its shape is the provider's. */
   tokenResponse: unknown;
   /** Reads the connected account out of the provider's API. */
