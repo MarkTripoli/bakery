@@ -28,7 +28,7 @@ async function open(script: SmtpScript = {}) {
       `insert into bakery.person_requests
          (organization_id, run_id, task_id, intent, recipient_id, asked_by,
           asked_by_kind, note, status, expires_at, created_at)
-       values ($1, $2, $3, 'fyi', $4, $5, 'person', $6, $7,
+       values ($1, $2, $3, 'review', $4, $5, 'person', $6, $7,
          $8::timestamptz + interval '7 days', $8)
        returning id`,
       [
@@ -103,7 +103,7 @@ Deno.test("a request still open after 15 minutes is emailed once, as a link only
       { channel: "email", state: "delivered", attempts: 1 },
     ]);
     const data = o.smtp.received.filter((line) => line.startsWith("DATA:"));
-    const mail = data.find((line) => line.includes(id));
+    const mail = data.find((line) => line.includes(o.run.taskId));
     assert(mail !== undefined, "the email names the request in its link");
     assert(
       mail.includes(
@@ -152,4 +152,48 @@ Deno.test("a send that fails is tried again, at most three times in all", async 
   } finally {
     await o.finish();
   }
+});
+
+Deno.test("nobody whose membership is inactive, or whose account is disabled, is emailed", async () => {
+  const o = await open();
+  try {
+    const askedAt = new Date("2026-11-26T09:00:00Z");
+    await o.fixture.pgDatabase.query(
+      `update bakery.organization_memberships set status = 'inactive'
+        where organization_id = $1 and principal_id = $2`,
+      [o.fixture.organizationId, o.asked.principalId],
+    );
+    const suspended = await o.request(askedAt);
+    assertEquals(
+      mine(await o.sweep(new Date("2026-11-26T09:30:00Z")), suspended),
+      [],
+    );
+    await o.fixture.pgDatabase.query(
+      `update bakery.organization_memberships set status = 'active'
+        where organization_id = $1 and principal_id = $2`,
+      [o.fixture.organizationId, o.asked.principalId],
+    );
+    await o.fixture.pgDatabase.query(
+      "update bakery.principals set disabled_at = now() where id = $1",
+      [o.asked.principalId],
+    );
+    assertEquals(
+      mine(await o.sweep(new Date("2026-11-26T09:31:00Z")), suspended),
+      [],
+    );
+    assertEquals(await o.deliveries(suspended), []);
+  } finally {
+    await o.fixture.pgDatabase.query(
+      "update bakery.principals set disabled_at = null where id = $1",
+      [o.asked.principalId],
+    );
+    await o.finish();
+  }
+});
+
+Deno.test("the emailed link is a page the web app serves", async () => {
+  const router = await Deno.readTextFile(
+    new URL("../../apps/web/src/router.tsx", import.meta.url),
+  );
+  assert(router.includes('path: "/tasks/$taskId"'));
 });

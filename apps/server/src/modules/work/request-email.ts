@@ -43,28 +43,63 @@ export type RequestEmailOutcome = Readonly<{
 type DueRequest = {
   id: string;
   organization_id: string;
-  run_id: string;
+  task_id: string;
+  intent: string;
+  asker_name: string | null;
+  group_name: string | null;
+  work_item: string;
   email: string;
 };
 
+const INTENT_VERB: Readonly<Record<string, string>> = {
+  approve: "approve",
+  review: "review",
+  answer: "answer a question",
+  take_over: "take over a step",
+};
+
+const INTENT_ASK: Readonly<Record<string, string>> = {
+  approve: "approve a step of",
+  review: "review work in",
+  answer: "answer a question about",
+  take_over: "take over a step of",
+};
+
+export type RequestEmailFacts = Readonly<{
+  taskId: string;
+  intent: string;
+  askerName: string | null;
+  groupName: string | null;
+  workItem: string;
+}>;
+
 export function requestEmailMessage(
   publicBaseUrl: string,
-  request: Readonly<{ runId: string; requestId: string }>,
+  facts: RequestEmailFacts,
   from: Readonly<{ fromAddress: string; fromName: string; to: string }>,
 ): SmtpMessage {
-  const link = new URL(
-    `/runs/${request.runId}?request=${request.requestId}`,
-    publicBaseUrl,
-  ).toString();
+  const link = new URL(`/tasks/${facts.taskId}`, publicBaseUrl).toString();
+  const asker = facts.askerName ?? "A workflow";
+  const audience = facts.groupName ?? "you";
+  const verb = INTENT_VERB[facts.intent];
+  const subject = verb === undefined
+    ? `${asker} wants ${audience} to see this in Bakery`
+    : `${asker} asked ${audience} to ${verb} in Bakery`;
+  const ask = INTENT_ASK[facts.intent];
+  const opening = ask === undefined
+    ? `${asker} wants ${audience} to see ${facts.workItem}.`
+    : `${asker} asked ${audience} to ${ask} ${facts.workItem}.`;
   return {
     ...from,
-    subject: "Someone in Bakery is waiting for you",
+    subject,
     text: [
-      "Someone in Bakery asked you to look at something, and nobody has answered yet.",
+      opening,
       "",
-      `Open it in Bakery: ${link}`,
+      `Open in Bakery: ${link}`,
       "",
-      "This email carries only the link. What was asked is in Bakery.",
+      "You will need to sign in. This email has no details on purpose: they stay in Bakery.",
+      "",
+      "You are getting this because the request has not been opened in Bakery.",
     ].join("\n"),
   };
 }
@@ -74,12 +109,26 @@ async function dueRequests(
   now: Date,
 ): Promise<readonly DueRequest[]> {
   const found = await database.query<DueRequest>(
-    `select request.id, request.organization_id, request.run_id,
+    `select request.id, request.organization_id, request.task_id,
+            request.intent, asker.display_name as asker_name,
+            audience_group.name as group_name, task.title as work_item,
             provider_user.email
        from bakery.person_requests request
-       join bakery.principals principal on principal.id = request.recipient_id
+       join bakery.principals principal
+         on principal.id = request.recipient_id and principal.disabled_at is null
+       join bakery.organization_memberships membership
+         on membership.organization_id = request.organization_id
+        and membership.principal_id = request.recipient_id
+        and membership.status = 'active'
        join public."user" provider_user
          on provider_user.id = principal.provider_user_id
+       join bakery.tasks task
+         on task.organization_id = request.organization_id
+        and task.id = request.task_id
+       left join bakery.principals asker on asker.id = request.asked_by
+       left join bakery.organization_groups audience_group
+         on audience_group.organization_id = request.organization_id
+        and audience_group.id = request.audience_group_id
        left join bakery.person_request_deliveries delivery
          on delivery.request_id = request.id and delivery.channel = $3
       where request.status = 'open'
@@ -176,7 +225,13 @@ export async function sendDueRequestEmails(
       connection,
       requestEmailMessage(
         options.publicBaseUrl,
-        { runId: request.run_id, requestId: request.id },
+        {
+          taskId: request.task_id,
+          intent: request.intent,
+          askerName: request.asker_name,
+          groupName: request.group_name,
+          workItem: request.work_item,
+        },
         {
           fromAddress: settings.fromAddress,
           fromName: settings.fromName,
