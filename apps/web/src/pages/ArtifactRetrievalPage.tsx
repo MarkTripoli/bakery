@@ -20,6 +20,7 @@ import {
   artifactStorageQueryOptions,
   artifactVersionsQueryOptions,
   effectiveAccessQueryOptions,
+  organizationQueryOptions,
 } from "../api/query.ts";
 import {
   ORGANIZATIONS_PATH,
@@ -347,6 +348,7 @@ export function ArtifactRetrievalPage(
     ...artifactsListQueryOptions(api, scope, { taskId }),
     enabled: scoped,
   });
+  const organization = useQuery(organizationQueryOptions(api, scope));
   const artifact = useQuery({
     ...artifactQueryOptions(api, scope, artifactId),
     enabled: scoped,
@@ -858,7 +860,7 @@ export function ArtifactRetrievalPage(
         : (
           <ArtifactRevisionDetailsView
             artifact={view.artifact}
-            organizationId={scope.organizationId}
+            organizationName={organization.data?.name ?? null}
             artifactCount={artifactList.data?.nextCursor === null
               ? artifactList.data.items.length
               : undefined}
@@ -908,6 +910,41 @@ export function ArtifactRetrievalPage(
     // The newest revision may have moved since this one was opened. Keep the
     // reader on the immutable revision they chose and offer the newest one.
     const newestId = view.artifact.currentVersionId;
+    const versionMissing = Boolean(linkedVersionId) &&
+      selectedVersion === null && versionItems.length > 0 &&
+      !versionPages.hasNext;
+    const versionPending = Boolean(linkedVersionId) &&
+      selectedVersion === null && versionPages.hasNext;
+    const versionUnshown = versionMissing || versionPending;
+    const unshown = versionMissing
+      ? {
+        title: "artifact.retrieval.versionNotFound" as const,
+        description: "artifact.retrieval.versionNotFoundDescription" as const,
+        action: newestId === null ? null : {
+          label: "artifact.retrieval.showNewest" as const,
+          onClick: () => {
+            void navigate({
+              to: "/tasks/$taskId/artifacts/$artifactId",
+              params: { taskId, artifactId },
+              search: { version: newestId },
+            });
+          },
+        },
+      }
+      : versionPages.moreError
+      ? {
+        title: "artifact.retrieval.versionLoadFailed" as const,
+        description: "artifact.retrieval.versionLoadFailedDescription" as const,
+        action: {
+          label: "artifact.retrieval.tryAgain" as const,
+          onClick: () => versionPages.loadMore(),
+        },
+      }
+      : {
+        title: "artifact.retrieval.versionLoading" as const,
+        description: "artifact.retrieval.versionLoadingDescription" as const,
+        action: null,
+      };
     const newest = newestId === null
       ? undefined
       : versionItems.find((item) => item.id === newestId);
@@ -1003,25 +1040,38 @@ export function ArtifactRetrievalPage(
             ? translate("artifact.version.label", {
               revision: selectedVersion.revision,
             })
+            : versionUnshown
+            ? ""
             : translate("artifact.retrieval.noCurrentVersion")}
           description={selectedVersion
             ? translate("artifact.view.description", {
-              author: selectedVersion.authorId,
-              step: selectedVersion.runStepId ??
-                translate("artifact.retrieval.notAvailable"),
+              author: selectedVersion.authorName ??
+                translate("artifact.author.unknown"),
               // One formatter for every size on the page: the sentence must not
               // say "317705 bytes" above a facts line saying "310.3 KB" (#437).
               size: formatFileSize(selectedVersion.sizeBytes, locale, sizeText),
             })
+            : versionUnshown
+            ? ""
             : translate("artifact.retrieval.emptyNotice")}
           versionLabel={translate("artifact.retrieval.versionsTitle")}
           versionId={selectedVersion?.id ?? ""}
-          versions={versionItems.map((version) => ({
-            id: version.id,
-            label: translate("artifact.version.label", {
-              revision: version.revision,
-            }),
-          }))}
+          versions={[
+            ...(versionUnshown
+              ? [{
+                id: "",
+                label: translate(
+                  "artifact.retrieval.chooseVersion",
+                ),
+              }]
+              : []),
+            ...versionItems.map((version) => ({
+              id: version.id,
+              label: translate("artifact.version.label", {
+                revision: version.revision,
+              }),
+            })),
+          ]}
           onVersionChange={(version) => {
             void navigate({
               to: "/tasks/$taskId/artifacts/$artifactId",
@@ -1102,23 +1152,22 @@ export function ArtifactRetrievalPage(
             title: translate("artifact.view.evidence"),
             baseLabel: translate("artifact.view.base"),
             headLabel: translate("artifact.view.head"),
-            context: translate("artifact.view.context", {
-              task: taskId,
-              step: selectedVersion?.runStepId ??
-                translate("artifact.retrieval.notAvailable"),
-            }),
-            base: selectedVersion?.subjectBaseSha ??
-              translate("artifact.retrieval.notAvailable"),
-            head: selectedVersion?.subjectHeadSha ??
-              translate("artifact.retrieval.notAvailable"),
-            digest: selectedVersion?.sha256 ??
-              translate("artifact.retrieval.notAvailable"),
-            taskAction: {
-              label: translate("artifact.view.openTask"),
-              onClick: () => {
-                void navigate({ to: "/tasks/$taskId", params: { taskId } });
-              },
-            },
+            context: view.artifact.taskTitle
+              ? translate("artifact.view.context", {
+                task: view.artifact.taskTitle,
+              })
+              : "",
+            base: selectedVersion?.subjectBaseSha ?? "",
+            head: selectedVersion?.subjectHeadSha ?? "",
+            digest: selectedVersion?.sha256 ?? "",
+            taskAction: view.artifact.taskTitle
+              ? {
+                label: translate("artifact.view.openTask"),
+                onClick: () => {
+                  void navigate({ to: "/tasks/$taskId", params: { taskId } });
+                },
+              }
+              : undefined,
             details: {
               label: translate("artifact.view.details"),
               open: detailsOpen,
@@ -1171,6 +1220,23 @@ export function ArtifactRetrievalPage(
                 onMismatch={setDigestMismatch}
               />
             )
+            : versionUnshown
+            ? (
+              <ArtifactPreviewView
+                label={translate("artifact.preview.title")}
+                state="unavailable"
+                unavailable={{
+                  title: translate(unshown.title),
+                  description: translate(unshown.description),
+                  ...(unshown.action === null ? {} : {
+                    action: {
+                      label: translate(unshown.action.label),
+                      onClick: unshown.action.onClick,
+                    },
+                  }),
+                }}
+              />
+            )
             : (
               <ArtifactPreviewView
                 label={translate("artifact.preview.title")}
@@ -1186,15 +1252,19 @@ export function ArtifactRetrievalPage(
                       ? "artifact.retrieval.description"
                       : "artifact.retrieval.missingVersionDescription",
                   ),
-                  action: {
-                    label: translate("artifact.view.openTask"),
-                    onClick: () => {
-                      void navigate({
-                        to: "/tasks/$taskId",
-                        params: { taskId },
-                      });
-                    },
-                  },
+                  ...(view.artifact.taskTitle
+                    ? {
+                      action: {
+                        label: translate("artifact.view.openTask"),
+                        onClick: () => {
+                          void navigate({
+                            to: "/tasks/$taskId",
+                            params: { taskId },
+                          });
+                        },
+                      },
+                    }
+                    : {}),
                 }}
               />
             )}

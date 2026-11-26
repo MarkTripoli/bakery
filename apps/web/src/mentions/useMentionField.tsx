@@ -61,8 +61,7 @@ export type MentionField = {
     readonly onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
     readonly onKeyUp: () => void;
     readonly onClick: () => void;
-    readonly role: "combobox";
-    readonly "aria-expanded": boolean;
+    readonly "aria-haspopup": "listbox";
     readonly "aria-autocomplete": "list";
     readonly "aria-controls": string | undefined;
     readonly "aria-activedescendant": string | undefined;
@@ -710,8 +709,7 @@ export function useMentionField(
       },
       onKeyUp: () => setCaret(ref.current?.selectionStart ?? value.length),
       onClick: () => setCaret(ref.current?.selectionStart ?? value.length),
-      role: "combobox",
-      "aria-expanded": showing,
+      "aria-haspopup": "listbox",
       "aria-autocomplete": "list",
       "aria-controls": showing ? listId : undefined,
       "aria-activedescendant": showing && activeId !== null

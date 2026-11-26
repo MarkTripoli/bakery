@@ -302,16 +302,18 @@ export function ArtifactComments(
           />
         ),
       },
-    agentAction: (
-      <ArtifactAgentRequest
-        conversationId={task.data?.conversationId ?? null}
-        selected={selected}
-        onReload={() => {
-          setSelected([]);
-          void comments.refetch();
-        }}
-      />
-    ),
+    agentAction: artifact.taskTitle
+      ? (
+        <ArtifactAgentRequest
+          conversationId={task.data?.conversationId ?? null}
+          selected={selected}
+          onReload={() => {
+            setSelected([]);
+            void comments.refetch();
+          }}
+        />
+      )
+      : null,
   };
   const lastReplyId = useRef<string | null>(null);
   useEffect(() => {
