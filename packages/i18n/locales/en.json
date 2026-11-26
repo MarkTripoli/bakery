@@ -6103,6 +6103,7 @@
   "library.editor.loop.askRange": "Enter a number from {low} to {high}, or leave it empty. Not saved.",
   "library.editor.group.each": "For each item",
   "library.editor.group.eachLimit": "At most {max, plural, one {# item} other {# items}}",
+  "library.editor.group.lane": "Lane {n}",
   "library.editor.group.eachHelp": "Runs these steps once for each item in a list, one item at a time. A list with more items than the limit fails the run before any step starts.",
   "library.editor.group.fixHelp": "Fixes what the checks and the review found, then checks and reviews again. If the first review is already clean, this block is skipped.",
   "library.editor.group.fixHelpShort": "Fixes what the checks and the review found, then checks and reviews again.",

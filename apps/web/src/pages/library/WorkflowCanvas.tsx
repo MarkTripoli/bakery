@@ -58,7 +58,8 @@ const PAD = 16;
 const PAGE_MIN_ZOOM = 0.6;
 
 const isContainer = (block: CanvasBlock) =>
-  block.kind === "box" || block.kind === "if" || block.kind === "arm";
+  block.kind === "box" || block.kind === "if" || block.kind === "arm" ||
+  block.kind === "lane";
 
 const LAYOUT_PATIENCE_MS = 6000;
 

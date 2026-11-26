@@ -159,3 +159,43 @@ Deno.test("the arms of an If hang from the same top, whichever one is taller", (
   assertEquals(at(otherwise.id).x, 400);
   assertEquals(at(otherwise.id).height, 88);
 });
+
+Deno.test("parallel lanes are columns in one box, each chained on its own", () => {
+  const graph = canvasGraph(treeOf({
+    steps: [{
+      kind: "parallel",
+      lanes: [
+        { steps: [step("a"), step("b")] },
+        { steps: [step("c")] },
+        { steps: [] },
+      ],
+    }, step("after")],
+  }));
+  const box = graph.blocks.find((block) => block.label === "together")!;
+  assertEquals(box.row, true);
+  const lanes = graph.blocks.filter((block) => block.parent === box.id);
+  assertEquals(lanes.map((lane) => lane.kind), ["lane", "lane", "lane"]);
+  assertEquals(lanes.map((lane) => lane.empty === true), [false, false, true]);
+  assertEquals(
+    lanes.map((lane) =>
+      graph.blocks.filter((block) => block.parent === lane.id).map((block) =>
+        block.id
+      )
+    ),
+    [["a", "b"], ["c"], []],
+  );
+  const edges = graph.edges.map((edge) => edge.id);
+  assertEquals(edges.includes("a->b"), true);
+  assertEquals(edges.includes("b->c"), false);
+  assertEquals(edges.includes(`${box.id}->after`), true);
+  const laid = elkGraph(graph).children!.find((node) => node.id === box.id)!;
+  assertEquals(laid.layoutOptions!["elk.direction"], "RIGHT");
+});
+
+Deno.test("a single lane stays a plain box", () => {
+  const graph = canvasGraph(treeOf({
+    steps: [{ kind: "parallel", lanes: [{ steps: [step("a"), step("b")] }] }],
+  }));
+  assertEquals(graph.blocks.some((block) => block.kind === "lane"), false);
+  assertEquals(graph.edges.map((edge) => edge.id).includes("a->b"), true);
+});

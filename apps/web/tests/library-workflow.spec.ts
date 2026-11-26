@@ -208,6 +208,78 @@ for (
       await shot(page, "workflow-groups", [], { windowOnly: true });
     });
 
+    test("steps that run at the same time are drawn lane by lane", async ({ page }) => {
+      await libraryFixture(page, {
+        ...GROUPED,
+        versions: [
+          ...VERSIONS,
+          {
+            ...version(6, 6, "published", [{
+              id: "brief",
+              uses: "task.brief",
+            }]),
+            spec: [
+              { kind: "action", id: "brief", uses: "task.brief" },
+              {
+                kind: "parallel",
+                lanes: [
+                  {
+                    steps: [
+                      {
+                        kind: "action",
+                        id: "implement",
+                        uses: "harness.implement",
+                      },
+                      { kind: "action", id: "checks", uses: "quality.check" },
+                    ],
+                  },
+                  {
+                    steps: [
+                      { kind: "action", id: "review", uses: "agent.review" },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1006)}`,
+      );
+      const together = page.getByTestId("workflow-steps")
+        .locator("[data-group=together]");
+      await expect(together).toContainText("At the same time");
+      const box = async (id: string) =>
+        (await page.getByTestId("workflow-steps")
+          .locator(`[data-card='${id}']`).boundingBox())!;
+      await expect(
+        page.getByTestId("workflow-steps").locator("[data-card='review']"),
+      )
+        .toBeVisible();
+      if (viewport.name === "desktop") {
+        await expect.poll(async () =>
+          Math.abs((await box("implement")).y - (await box("review")).y)
+        ).toBeLessThanOrEqual(1);
+        const [first, second, other] = [
+          await box("implement"),
+          await box("checks"),
+          await box("review"),
+        ];
+        expect(second.y).toBeGreaterThan(first.y + first.height);
+        expect(other.x).toBeGreaterThan(first.x + first.width);
+      } else {
+        expect((await box("review")).y).toBeGreaterThan(
+          (await box("checks")).y,
+        );
+        await expect(together.locator(".ui-outline")).toHaveCount(2);
+        await expect(together).toContainText("Lane 1");
+        await expect(together).toContainText("Lane 2");
+      }
+      await page.mouse.move(700, 700);
+      await still(page, "workflow-lanes");
+    });
+
     test("opens from the list and shows the version in use: its steps, agents, and every version with its state", async ({ page }) => {
       await libraryFixture(page, WORLD);
       await page.goto("/library");

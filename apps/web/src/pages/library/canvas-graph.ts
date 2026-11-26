@@ -7,7 +7,14 @@ import type {
   TreeStep,
 } from "./workflow-tree.ts";
 
-export type BlockKind = "start" | "step" | "box" | "if" | "arm" | "end";
+export type BlockKind =
+  | "start"
+  | "step"
+  | "box"
+  | "if"
+  | "arm"
+  | "lane"
+  | "end";
 
 export type CanvasBlock = Readonly<{
   id: string;
@@ -18,6 +25,7 @@ export type CanvasBlock = Readonly<{
   label?: GroupLabel | "if";
   max?: number;
   empty?: boolean;
+  row?: boolean;
 }>;
 
 export type CanvasEdge = Readonly<
@@ -91,8 +99,22 @@ export function canvasGraph(tree: Tree): CanvasGraph {
         label: node.label,
         ...(node.max === undefined ? {} : { max: node.max }),
         ...(node.children.length === 0 ? { empty: true } : {}),
+        ...(node.lanes === undefined ? {} : { row: true }),
       });
-      chain(level(node.children, node.id));
+      if (node.lanes === undefined) {
+        chain(level(node.children, node.id));
+      } else {
+        node.lanes.forEach((lane, position) => {
+          const id = `${node.id}-lane-${position}`;
+          blocks.push({
+            id,
+            kind: "lane",
+            parent: node.id,
+            ...(lane.length === 0 ? { empty: true } : {}),
+          });
+          chain(level(lane, id));
+        });
+      }
       sequence.push(node.id);
     }
     return sequence;
@@ -140,9 +162,11 @@ export function elkGraph(
 
   const node = (block: CanvasBlock): ElkNode => {
     const held = childrenOf.get(block.id) ?? [];
+    const row = block.kind === "if" || block.row === true;
+    const lane = block.kind === "lane";
     if (
       held.length === 0 && block.kind !== "box" && block.kind !== "arm" &&
-      block.kind !== "if"
+      block.kind !== "if" && !lane
     ) {
       const size = sizeOf(block, measured);
       return { id: block.id, width: size.width, height: size.height };
@@ -151,13 +175,12 @@ export function elkGraph(
     return {
       id: block.id,
       layoutOptions: {
-        "elk.padding":
-          `[top=${BOX_PADDING.top},left=${BOX_PADDING.side},bottom=${BOX_PADDING.bottom},right=${BOX_PADDING.side}]`,
-        "elk.direction": block.kind === "if" ? "RIGHT" : "DOWN",
-        "elk.spacing.nodeNode": String(
-          block.kind === "if" ? SIDE_GAP : BOX_GAP,
-        ),
-        ...(block.kind === "if"
+        "elk.padding": lane
+          ? `[top=0,left=0,bottom=${BOX_PADDING.bottom},right=0]`
+          : `[top=${BOX_PADDING.top},left=${BOX_PADDING.side},bottom=${BOX_PADDING.bottom},right=${BOX_PADDING.side}]`,
+        "elk.direction": row ? "RIGHT" : "DOWN",
+        "elk.spacing.nodeNode": String(row ? SIDE_GAP : BOX_GAP),
+        ...(row
           ? {}
           : { "elk.layered.spacing.nodeNodeBetweenLayers": String(BOX_GAP) }),
       },

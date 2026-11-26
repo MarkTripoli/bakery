@@ -7623,5 +7623,6 @@
   "tasks.requests.noteHint": "⟦Ŧĥë àĝëñŧ ŕëàðš ïŧ ŵĥëñ ŧĥë šŧëþ šŧàŕŧš àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.requests.restart": "⟦Šŧàŕŧ ŧĥë šŧëþ àĝàïñ ŧëšŧ⟧",
   "tasks.requests.restartFailed": "⟦Ŧĥë šŧëþ çôûļð ñôŧ ƀë šŧàŕŧëð àĝàïñ. Ïŧ ɱàÿ ĥàṽë ɱôṽëð ôñ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "tasks.requests.nothingToDo": "⟦Ñôŧĥïñĝ ŧô ðô. Ŧĥïš ïš ƒôŕ ÿôûŕ ïñƒôŕɱàŧïôñ. ŧëšŧ çôþÿ ŧëš⟧"
+  "tasks.requests.nothingToDo": "⟦Ñôŧĥïñĝ ŧô ðô. Ŧĥïš ïš ƒôŕ ÿôûŕ ïñƒôŕɱàŧïôñ. ŧëšŧ çôþÿ ŧëš⟧",
+  "library.editor.group.lane": "⟦Ļàñë {n}…⟧"
 }

@@ -7623,5 +7623,6 @@
   "tasks.requests.noteHint": "⟪The agent reads it when the step starts again.⟫",
   "tasks.requests.restart": "⟪Start the step again⟫",
   "tasks.requests.restartFailed": "⟪The step could not be started again. It may have moved on.⟫",
-  "tasks.requests.nothingToDo": "⟪Nothing to do. This is for your information.⟫"
+  "tasks.requests.nothingToDo": "⟪Nothing to do. This is for your information.⟫",
+  "library.editor.group.lane": "⟪Lane {n}⟫"
 }
