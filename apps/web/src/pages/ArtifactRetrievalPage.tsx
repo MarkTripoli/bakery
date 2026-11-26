@@ -20,6 +20,7 @@ import {
   artifactStorageQueryOptions,
   artifactVersionsQueryOptions,
   effectiveAccessQueryOptions,
+  organizationQueryOptions,
 } from "../api/query.ts";
 import {
   ORGANIZATIONS_PATH,
@@ -347,6 +348,7 @@ export function ArtifactRetrievalPage(
     ...artifactsListQueryOptions(api, scope, { taskId }),
     enabled: scoped,
   });
+  const organization = useQuery(organizationQueryOptions(api, scope));
   const artifact = useQuery({
     ...artifactQueryOptions(api, scope, artifactId),
     enabled: scoped,
@@ -858,7 +860,7 @@ export function ArtifactRetrievalPage(
         : (
           <ArtifactRevisionDetailsView
             artifact={view.artifact}
-            organizationId={scope.organizationId}
+            organizationName={organization.data?.name ?? null}
             artifactCount={artifactList.data?.nextCursor === null
               ? artifactList.data.items.length
               : undefined}

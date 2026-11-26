@@ -77,7 +77,7 @@ function LabelledCode({
 
 export type ArtifactRevisionDetailsProps = {
   readonly artifact: ArtifactResponse;
-  readonly organizationId: string | null;
+  readonly organizationName: string | null;
   readonly artifactCount?: number;
   readonly retrying: boolean;
   readonly selectedVersion: ArtifactVersionResponse | null;
@@ -100,7 +100,7 @@ export type ArtifactRevisionDetailsProps = {
 export function ArtifactRevisionDetailsView(
   {
     artifact,
-    organizationId,
+    organizationName,
     artifactCount,
     retrying,
     selectedVersion,
@@ -119,7 +119,6 @@ export function ArtifactRevisionDetailsView(
       key,
       values,
     );
-  const taskId = artifact.taskId;
   const metadata = selectedVersion === null
     ? null
     : JSON.stringify(selectedVersion.metadata, null, 2) ?? "null";
@@ -131,14 +130,24 @@ export function ArtifactRevisionDetailsView(
       <UI.Stack gap="compact">
         <UI.Text>{translate("artifact.retrieval.description")}</UI.Text>
         <UI.Inline gap="compact">
-          <UI.Text variant="caption">
-            {translate("artifact.retrieval.organization", {
-              organization: organizationId ?? "",
-            })}
-          </UI.Text>
-          <UI.Text variant="caption">
-            {translate("artifact.retrieval.task", { task: taskId })}
-          </UI.Text>
+          {organizationName
+            ? (
+              <UI.Text variant="caption">
+                {translate("artifact.retrieval.organization", {
+                  organization: organizationName,
+                })}
+              </UI.Text>
+            )
+            : null}
+          {artifact.taskTitle
+            ? (
+              <UI.Text variant="caption">
+                {translate("artifact.retrieval.task", {
+                  task: artifact.taskTitle,
+                })}
+              </UI.Text>
+            )
+            : null}
           {
             /* Only a complete first page is a total; a cursor means more
                     rows exist, so no count is asserted at all. */

@@ -319,7 +319,7 @@ export function ArtifactFixture(
           content: (
             <ArtifactRevisionDetailsView
               artifact={fixtureDetails.artifact}
-              organizationId="bakery"
+              organizationName="bakery"
               artifactCount={1}
               retrying={false}
               selectedVersion={fixtureDetails.selectedVersion}

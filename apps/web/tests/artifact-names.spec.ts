@@ -45,7 +45,8 @@ test("the artifact page names the publisher, the commenter and the task", async 
   await expect(
     page.getByText("Task Write the release notes / Step", { exact: false }),
   ).toBeVisible();
-  await expect(page.getByText(`Task ${TASK_ID}`)).toHaveCount(0);
+  await expect(page.getByText("Task: Write the release notes")).toBeVisible();
+  await expect(page.getByText(TASK_ID)).toHaveCount(0);
   await still(page, "artifact-names-details");
 });
 
@@ -56,7 +57,7 @@ test("a reader who may not see the task gets no task line and no ids", async ({ 
   await expect(view).toContainText("Published by Someone");
   await page.getByTestId("artifact-retrieval-details-toggle").click();
   await expect(page.getByText(/^Step /)).toBeVisible();
-  await expect(page.getByText(`Task ${TASK_ID}`)).toHaveCount(0);
+  await expect(page.getByText(TASK_ID)).toHaveCount(0);
   await expect(page.getByText(MOCK_PRINCIPAL_ID)).toHaveCount(0);
   await still(page, "artifact-names-no-task");
 });
