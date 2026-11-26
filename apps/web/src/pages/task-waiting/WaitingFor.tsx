@@ -99,17 +99,20 @@ export function WaitingFor(
           {lines.length > 1
             ? <UI.Text variant="caption">{stepName(line.stepKey)}</UI.Text>
             : null}
-          <UI.Inline gap="compact">
-            <UI.Text>{words(line)}</UI.Text>
+          <UI.Text>
+            {words(line)}
             {line.kind === "expired" ? null : (
-              <UI.HelpTip
-                closeLabel={translate("core.actions.close")}
-                label={translate("tasks.waitingFor.expiryHelpLabel")}
-              >
-                {translate("tasks.waitingFor.expiryHelp")}
-              </UI.HelpTip>
+              <>
+                {" "}
+                <UI.HelpTip
+                  closeLabel={translate("core.actions.close")}
+                  label={translate("tasks.waitingFor.expiryHelpLabel")}
+                >
+                  {translate("tasks.waitingFor.expiryHelp")}
+                </UI.HelpTip>
+              </>
             )}
-          </UI.Inline>
+          </UI.Text>
         </UI.Stack>
       ))}
       {fallbacks.map((line) => (

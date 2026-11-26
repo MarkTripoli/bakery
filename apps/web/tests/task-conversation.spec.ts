@@ -4719,6 +4719,10 @@ async function openWaiting(page: Page, requests: unknown[], status = 200) {
         json: problem(status, "INTERNAL_ERROR"),
       }),
   );
+  await page.route(
+    (url) => url.pathname === `/v1/tasks/${taskId}/runs`,
+    (route) => route.fulfill({ json: page_([runFixture("running")]) }),
+  );
   await openRun(page, "running");
   return page.locator('[data-ui-region="waiting-for"]');
 }

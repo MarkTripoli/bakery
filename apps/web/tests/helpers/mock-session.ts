@@ -142,7 +142,7 @@ export async function mockUserPreferences(
  */
 export async function mockAuthenticatedSession(page: Page): Promise<void> {
   await page.route(
-    (url) => /^\/v1\/runs\/[^/]+\/requests$/.test(url.pathname),
+    (url) => /^\/v1\/runs\/[^/]+\/requests(\/mine)?$/.test(url.pathname),
     (route) => route.fulfill({ json: { requests: [] } }),
   );
   // A run step's sessions: none by default, so the run section shows the step's
