@@ -3,6 +3,8 @@ import {
   createSkillSourceAdapter,
   createSkillSourceAdapterForTest,
   type GitCommandInvocation,
+  MAX_GIT_ERROR_BYTES,
+  readBoundedText,
   SkillSourceAdapterError,
   type SkillSourceProof,
   validatePinnedSkillSource,
@@ -28,6 +30,8 @@ import {
   stopRemoteSkillSourceFixture,
   type UstarFixtureEntry,
 } from "../fixtures/remote-skill-source.ts";
+import { serveRefusingGit } from "../helpers/git-refusing-server.ts";
+import { SERVER_GIT_LAUNCHER } from "../../apps/server/src/platform/server-exec.ts";
 
 const encoder = new TextEncoder();
 const locator = "http://127.0.0.1:43127/source";
@@ -112,6 +116,77 @@ async function expectSourceError(
   const error = await assertRejects(work, SkillSourceAdapterError, code);
   assertEquals(error.code, code);
 }
+
+async function processesNaming(text: string): Promise<string> {
+  const found = await new Deno.Command("/usr/bin/pgrep", {
+    args: ["-af", text],
+    stdout: "piped",
+    stderr: "null",
+  }).output();
+  return new TextDecoder().decode(found.stdout).trim();
+}
+
+Deno.test("a git fetch that times out leaves no git process behind, under the server's own run grant", async () => {
+  const held: Promise<void>[] = [];
+  let release: () => void = () => undefined;
+  const hold = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const server = Deno.serve(
+    { hostname: "127.0.0.1", port: 0, onListen: () => undefined },
+    async () => {
+      held.push(hold);
+      await hold;
+      return new Response(null, { status: 503 });
+    },
+  );
+  const url =
+    `http://127.0.0.1:${server.addr.port}/hung-${crypto.randomUUID()}.git`;
+  try {
+    const child = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        `--allow-run=${SERVER_GIT_LAUNCHER}`,
+        "--allow-net",
+        "--allow-read",
+        "--allow-env",
+        "--allow-sys",
+        "--allow-write",
+        new URL("../helpers/git-timeout-restricted.child.ts", import.meta.url)
+          .pathname,
+        url,
+      ],
+      stdout: "piped",
+      stderr: "piped",
+      signal: AbortSignal.timeout(20_000),
+    }).output();
+    assertEquals(
+      new TextDecoder().decode(child.stdout).trim(),
+      "SOURCE_TIMEOUT",
+      new TextDecoder().decode(child.stderr),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    assertEquals(await processesNaming(url), "");
+  } finally {
+    release();
+    await server.shutdown();
+  }
+});
+
+Deno.test("what is kept of git's error output is capped, however much it writes", async () => {
+  const chunk = new Uint8Array(64 * 1024).fill(0x61);
+  let sent = 0;
+  const flood = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (sent >= 64 * 1024 * 1024) return controller.close();
+      sent += chunk.byteLength;
+      controller.enqueue(chunk);
+    },
+  });
+  const kept = await readBoundedText(flood, MAX_GIT_ERROR_BYTES);
+  assertEquals(sent, 64 * 1024 * 1024);
+  assertEquals(kept.length, MAX_GIT_ERROR_BYTES);
+});
 
 Deno.test("real loopback HTTP proves strong ETag, mutation, validation, and bounds", async () => {
   const fixture = await startRemoteSkillSourceFixture();
@@ -390,6 +465,41 @@ Deno.test("a branch or tag the Git server does not have fails at once as not fou
       requestedRevision: "v1",
     });
     assertEquals(proof.sourceRevision, fixture.initialCommit);
+    await expectSourceError(
+      () =>
+        adapter.fetchPinnedSource({
+          sourceType: "git",
+          locator: fixture.gitUrl,
+          requestedRevision: "0123456789abcdef0123456789abcdef01234567",
+        }),
+      "SOURCE_UNAVAILABLE",
+    );
+    const refusing = serveRefusingGit();
+    try {
+      await expectSourceError(
+        () =>
+          adapter.fetchPinnedSource({
+            sourceType: "git",
+            locator: refusing.url,
+            requestedRevision: "0123456789abcdef0123456789abcdef01234567",
+          }),
+        "SOURCE_REVISION_NOT_FOUND",
+      );
+    } finally {
+      await refusing.close();
+    }
+    const closed = Deno.listen({ hostname: "127.0.0.1", port: 0 });
+    const deadPort = (closed.addr as Deno.NetAddr).port;
+    closed.close();
+    await expectSourceError(
+      () =>
+        adapter.fetchPinnedSource({
+          sourceType: "git",
+          locator: `http://127.0.0.1:${deadPort}/repository.git`,
+          requestedRevision: "0123456789abcdef0123456789abcdef01234567",
+        }),
+      "SOURCE_UNAVAILABLE",
+    );
     const byUpperCaseCommit = await adapter.fetchPinnedSource({
       sourceType: "git",
       locator: fixture.gitUrl,
