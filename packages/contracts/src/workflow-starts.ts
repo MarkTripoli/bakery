@@ -15,6 +15,23 @@ import { z } from "zod";
  * start on a version that is not the one in use.
  */
 
+export const WORKFLOW_START_EVENT_KINDS = Object.freeze(
+  [
+    "work_item.opened",
+    "work_item.edited",
+    "work_item.closed",
+    "work_item.reopened",
+    "work_item.labeled",
+    "work_item.unlabeled",
+    "change_request.opened",
+    "change_request.updated",
+    "change_request.closed",
+    "change_request.reopened",
+    "change_request.ready",
+    "check.completed",
+  ] as const,
+);
+
 /** A filter value: equality on a named field of the event's neutral projection. */
 export const WorkflowStartFilterValueSchema = z.union([
   z.string().max(512).describe("Text a field must equal."),

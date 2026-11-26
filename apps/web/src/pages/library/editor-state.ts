@@ -5,6 +5,7 @@
  * what this decides, and the publish dialog sends its `steps`.
  */
 
+import type { WorkflowStart } from "@bakery/contracts/workflow-starts";
 import {
   type ApprovalFields,
   approvalInput,
@@ -32,6 +33,7 @@ export type LoopEdit = {
 export type EditorSnapshot = {
   readonly steps: readonly EditorStep[];
   readonly loops: readonly LoopEdit[];
+  readonly starts: readonly WorkflowStart[];
 };
 
 export type EditorState = EditorSnapshot & {
@@ -65,7 +67,12 @@ export type EditorAction =
     readonly id: string;
     readonly approval: ApprovalFields;
   }
-  | { readonly kind: "reset"; readonly steps: readonly EditorStep[] }
+  | { readonly kind: "starts"; readonly starts: readonly WorkflowStart[] }
+  | {
+    readonly kind: "reset";
+    readonly steps: readonly EditorStep[];
+    readonly starts?: readonly WorkflowStart[];
+  }
   | { readonly kind: "undo" }
   | { readonly kind: "redo" };
 
@@ -204,8 +211,15 @@ const sameList = (left: readonly string[], right: readonly string[]) =>
 /** The editor's state for a version's steps: nothing to undo yet. */
 export function editorStateOf(
   steps: readonly EditorStep[],
+  starts: readonly WorkflowStart[] = [],
 ): EditorState {
-  return { steps: [...steps], loops: [], past: [], future: [] };
+  return {
+    steps: [...steps],
+    loops: [],
+    starts: [...starts],
+    past: [],
+    future: [],
+  };
 }
 
 /** Whether the steps differ from the state the editor started from. */
@@ -239,6 +253,7 @@ export function freeStepId(
 const snapshot = (state: EditorState): EditorSnapshot => ({
   steps: state.steps,
   loops: state.loops,
+  starts: state.starts,
 });
 
 const changed = (
@@ -247,6 +262,7 @@ const changed = (
 ): EditorState => ({
   steps,
   loops: state.loops,
+  starts: state.starts,
   past: [...state.past, snapshot(state)],
   future: [],
 });
@@ -335,23 +351,29 @@ export function editorReducer(
       return {
         steps: state.steps,
         loops,
+        starts: state.starts,
+        past: [...state.past, snapshot(state)],
+        future: [],
+      };
+    }
+    case "starts": {
+      if (JSON.stringify(state.starts) === JSON.stringify(action.starts)) {
+        return state;
+      }
+      return {
+        ...snapshot(state),
+        starts: [...action.starts],
         past: [...state.past, snapshot(state)],
         future: [],
       };
     }
     case "reset":
-      return {
-        steps: [...action.steps],
-        loops: [],
-        past: [],
-        future: [],
-      };
+      return editorStateOf(action.steps, action.starts);
     case "undo": {
       if (state.past.length === 0) return state;
       const previous = state.past[state.past.length - 1];
       return {
-        steps: previous.steps,
-        loops: previous.loops,
+        ...previous,
         past: state.past.slice(0, -1),
         future: [snapshot(state), ...state.future],
       };
@@ -360,8 +382,7 @@ export function editorReducer(
       if (state.future.length === 0) return state;
       const next = state.future[0];
       return {
-        steps: next.steps,
-        loops: next.loops,
+        ...next,
         past: [...state.past, snapshot(state)],
         future: state.future.slice(1),
       };

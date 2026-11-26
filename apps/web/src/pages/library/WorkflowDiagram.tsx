@@ -56,6 +56,7 @@ export type DiagramProps = {
   readonly tree: Tree;
   /** The step or group whose panel is open, by id; `start` for the start card. */
   readonly selectedId: string | null;
+  readonly start?: { readonly title: string; readonly line: string };
   /** The problems the last check reported, by step id. */
   readonly problems: ReadonlyMap<string, string>;
   /** Whether the person may change the workflow at all. */
@@ -120,6 +121,7 @@ export function WorkflowDiagram(
     problems,
     readOnlyPage = false,
     selectedId,
+    start,
     tree,
     view = "diagram",
   }: DiagramProps,
@@ -392,8 +394,12 @@ export function WorkflowDiagram(
     <div data-card="start">
       <UI.StepCard
         icon={<UI.IconGlyph name="lightning" size="small" />}
-        title={translate("library.editor.howItStarts" as never)}
-        summary={translate("library.editor.howItStartsLine" as never)}
+        title={start?.title ??
+          translate("library.editor.howItStarts" as never)}
+        summary={start?.line ??
+          translate("library.editor.howItStartsLine" as never)}
+        needsSetup={problems.get("start") !== undefined}
+        needsSetupLabel={translate("library.editor.card.needsSetup" as never)}
         selected={selectedId === "start"}
         controls="editor-step-panel"
         onClick={() => onSelect("start")}
@@ -673,8 +679,12 @@ export function WorkflowDiagram(
         icon={<UI.IconGlyph name="lightning" size="small" />}
         onSelect={() => onSelect("start")}
         selected={selectedId === "start"}
-        summary={translate("library.editor.howItStartsLine" as never)}
-        title={translate("library.editor.howItStarts" as never)}
+        summary={problems.get("start") === undefined
+          ? start?.line ??
+            translate("library.editor.howItStartsLine" as never)
+          : translate("library.editor.card.needsSetup" as never)}
+        title={start?.title ??
+          translate("library.editor.howItStarts" as never)}
       />
       {tree.unreadable ? null : outlineRows(drawn.nodes, false)}
     </UI.OutlineList>

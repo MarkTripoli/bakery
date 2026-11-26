@@ -6,10 +6,20 @@ import {
   attachableSkillsQueryOptions,
   effectiveAccessQueryOptions,
   organizationQueryOptions,
+  repositoriesAllQueryOptions,
   workflowQueryOptions,
   workflowVersionSkillsQueryOptions,
   workflowVersionsQueryOptions,
 } from "../../api/query.ts";
+import type { WorkflowStart } from "@bakery/contracts/workflow-starts";
+import {
+  automaticStarts,
+  eventRepositoryId,
+  startNeeds,
+  startProblems,
+  startsOfVersion,
+} from "./start-list.ts";
+import { sameJson } from "./same-json.ts";
 import { useBakeryApi } from "../../api/context.tsx";
 import { asyncKindForError, failureStatus } from "../../app/async-state.ts";
 
@@ -59,7 +69,6 @@ import {
   askedWho,
   NEW_APPROVAL,
 } from "./approval-step.ts";
-import type { ApprovalFocus } from "./ApprovalPanel.tsx";
 import { stepName } from "./workflow-state.ts";
 import {
   type GroupLabel,
@@ -108,7 +117,7 @@ type SaveState =
  */
 type ProblemRow = {
   readonly key: string;
-  readonly field?: ApprovalProblem["field"];
+  readonly field?: ApprovalProblem["field"] | "start";
   readonly blocking?: boolean;
   /** The step or group's name; empty for a problem that has no place in the drawing. */
   readonly name: string;
@@ -152,6 +161,8 @@ function isActionNode(value: unknown): boolean {
   return (kind === undefined || kind === "action") &&
     typeof node.id === "string" && typeof node.uses === "string";
 }
+
+const START_ID = "start";
 
 export function WorkflowEditorPage(
   { workflowId }: { readonly workflowId: string },
@@ -205,6 +216,13 @@ export function WorkflowEditorPage(
       }];
     });
   }, [draft]);
+
+  const versionStarts = useMemo(
+    () => startsOfVersion(draft?.starts),
+    [draft],
+  );
+  const savedStarts = useRef<readonly WorkflowStart[]>([]);
+  const sentStarts = useRef<readonly WorkflowStart[]>([]);
 
   // The skills the steps of the draft name (#431), read for the saved draft: a
   // step is found by its place in the definition, so a saved change reads again.
@@ -288,11 +306,22 @@ export function WorkflowEditorPage(
     const unsavedHere = resetFor.current === draft?.id &&
       lastSaved.current !== null && editedRef.current !== lastSaved.current;
     if (unsavedHere) return;
+    const echoed = resetFor.current === draft?.id &&
+      sameJson(
+        { steps: versionSteps, starts: versionStarts },
+        { steps: editor.steps, starts: editor.starts },
+      );
+    if (echoed) return;
     resetFor.current = draft?.id;
-    dispatch({ kind: "reset", steps: versionSteps });
-    lastSaved.current = JSON.stringify({ steps: versionSteps, loops: [] });
+    dispatch({ kind: "reset", steps: versionSteps, starts: versionStarts });
+    savedStarts.current = versionStarts;
+    lastSaved.current = JSON.stringify({
+      steps: versionSteps,
+      loops: [],
+      starts: versionStarts,
+    });
     setSaveState({ kind: "saved" });
-  }, [draft?.id, versionSteps]);
+  }, [draft?.id, versionSteps, versionStarts]);
 
   const failure = workflow.error ?? versions.error;
   const status = failureStatus(failure);
@@ -322,6 +351,13 @@ export function WorkflowEditorPage(
             steps,
             editor.loops,
           ) as never,
+          ...(() => {
+            sentStarts.current = editor.starts;
+            return savedStarts.current.length === 0 &&
+                editor.starts.length === 0
+              ? {}
+              : { starts: editor.starts as never };
+          })(),
           // Slots the person settled, so the server drops their placeholders with this save.
           ...(() => {
             sentSlots.current = [...resolving];
@@ -353,9 +389,11 @@ export function WorkflowEditorPage(
     onMutate: () => setSaveState({ kind: "saving" }),
     onSuccess: (_saved, written) => {
       // What was written is what is saved: an edit made meanwhile is still to save.
+      savedStarts.current = sentStarts.current;
       lastSaved.current = JSON.stringify({
         steps: written,
         loops: editor.loops,
+        starts: sentStarts.current,
       });
       // The slots this save settled are done; one settled meanwhile is still to save.
       setResolving((previous) =>
@@ -421,8 +459,13 @@ export function WorkflowEditorPage(
       }];
     });
   }, [inUse]);
+  const inUseStarts = useMemo(
+    () => startsOfVersion(inUse?.starts),
+    [inUse],
+  );
   const draftDiffers = draft !== null &&
-    JSON.stringify(steps) !== JSON.stringify(inUseSteps);
+    (JSON.stringify(steps) !== JSON.stringify(inUseSteps) ||
+      JSON.stringify(editor.starts) !== JSON.stringify(inUseStarts));
 
   // The drawing comes from the definition itself, so nothing in it is left out:
   // groups, steps only changeable in code, and steps Bakery cannot read all keep
@@ -546,7 +589,11 @@ export function WorkflowEditorPage(
     return () => clearTimeout(timer);
   }, [steps, editor.loops]);
 
-  const edited = JSON.stringify({ steps, loops: editor.loops });
+  const edited = JSON.stringify({
+    steps,
+    loops: editor.loops,
+    starts: editor.starts,
+  });
   editedRef.current = edited;
   const changed = lastSaved.current !== null &&
     (edited !== lastSaved.current || resolving.size > 0);
@@ -693,6 +740,33 @@ export function WorkflowEditorPage(
     }
     return lines;
   }, [steps, people, members.data, translate]);
+  const needs = useMemo(
+    () => startNeeds(draft?.normalizedSpec),
+    [draft],
+  );
+  const repositories = useQuery({
+    ...repositoriesAllQueryOptions(api, scope),
+    enabled: scope.organizationId !== null && editor.starts.length > 0,
+  });
+  const startIssues = useMemo(
+    () =>
+      startProblems(editor.starts, needs).map((problem) => ({
+        ...problem,
+        sentence: translate(
+          `library.editor.start.problem.row.${problem.kind}` as never,
+          { number: problem.number, name: problem.name } as never,
+        ),
+      })),
+    [editor.starts, needs, translate],
+  );
+  const automatic = automaticStarts(editor.starts);
+  const startCard = editor.starts.length === 0 ? undefined : {
+    title: translate("library.editor.start.title" as never),
+    line: translate("library.editor.start.card" as never, {
+      events: automatic.events,
+      schedules: automatic.schedules,
+    } as never),
+  };
   const problemsByStep = useMemo<ReadonlyMap<string, string>>(() => {
     const merged = new Map(checker.byStep);
     for (const [id, issues] of approvalIssues) {
@@ -701,8 +775,9 @@ export function WorkflowEditorPage(
     for (const id of skillProblemSteps) {
       if (!merged.has(id)) merged.set(id, SKILL_PROBLEM_SENTENCE);
     }
+    if (startIssues.length > 0) merged.set(START_ID, startIssues[0].sentence);
     return merged;
-  }, [checker.byStep, approvalIssues, skillProblemSteps]);
+  }, [checker.byStep, approvalIssues, skillProblemSteps, startIssues]);
   // Steps whose only problem is a skill: the Skills section carries it, not a notice above it.
   const skillOnlySteps = useMemo<ReadonlySet<string>>(() => {
     const only = new Set(checker.skillOnly);
@@ -715,7 +790,14 @@ export function WorkflowEditorPage(
   // first (one problem each), then a definition whose steps cannot be read,
   // then whatever the checker found that those do not already count.
   const rows = useMemo<readonly ProblemRow[]>(() => {
-    const out: ProblemRow[] = [];
+    const out: ProblemRow[] = startIssues.map((issue) => ({
+      key: `start-${issue.startId}-${issue.name}`,
+      name: translate("library.editor.howItStarts" as never),
+      sentence: issue.sentence,
+      stepId: START_ID,
+      field: "start" as const,
+      blocking: true,
+    }));
     const drawn = stepsOfTree(tree);
     for (const step of drawn) {
       if (step.problem === undefined) continue;
@@ -786,10 +868,14 @@ export function WorkflowEditorPage(
       });
     });
     return out;
-  }, [tree, checker, problemsByStep, approvalIssues, translate]);
+  }, [tree, checker, problemsByStep, approvalIssues, startIssues, translate]);
   const blocked = rows.some((row) => row.blocking === true);
   const [focusRequest, setFocusRequest] = useState<
-    (ApprovalFocus & { readonly stepId: string }) | null
+    {
+      readonly stepId: string;
+      readonly field: NonNullable<ProblemRow["field"]>;
+      readonly request: number;
+    } | null
   >(null);
 
   const problemCount = rows.length;
@@ -867,7 +953,47 @@ export function WorkflowEditorPage(
   // in code (a group, or a step only changeable in code), or a step.
   const panelTarget = useMemo<PanelTarget | null>(() => {
     if (selectedId === null) return null;
-    if (selectedId === "start") return { kind: "start" };
+    if (selectedId === START_ID) {
+      return {
+        kind: "start",
+        starts: {
+          starts: editor.starts,
+          needs,
+          problems: startIssues,
+          repositories: {
+            state: repositories.data !== undefined
+              ? "ready"
+              : repositories.isError
+              ? "failed"
+              : "loading",
+            list: (repositories.data ?? []).map((one) => ({
+              id: one.id,
+              name: `${one.owner}/${one.name}`,
+              eventRepositoryId: eventRepositoryId(one.providerRepoId),
+            })),
+            onRetry: () => void repositories.refetch(),
+          },
+          onChange: canManage
+            ? (starts) => {
+              const removed = editor.starts.findIndex((one) =>
+                !starts.some((kept) => kept.id === one.id)
+              );
+              dispatch({ kind: "starts", starts });
+              if (removed >= 0) {
+                setDeleted(
+                  translate("library.editor.start.heading" as never, {
+                    number: removed + 1,
+                  } as never),
+                );
+              }
+            }
+            : undefined,
+          focus: focusRequest?.stepId === START_ID
+            ? focusRequest.request
+            : null,
+        },
+      };
+    }
     const group = groupsOfTree(tree).find((held) => held.id === selectedId);
     if (group !== undefined) {
       if (group.loop !== undefined) {
@@ -1027,7 +1153,10 @@ export function WorkflowEditorPage(
       promptProblem: issues.find((issue) => issue.field === "prompt")?.sentence,
       audienceProblems: issues.filter((issue) => issue.field === "audience")
         .map((issue) => issue.sentence),
-      focus: focusRequest?.stepId === live.id ? focusRequest : null,
+      focus: focusRequest?.stepId === live.id &&
+          focusRequest.field !== "start"
+        ? { field: focusRequest.field, request: focusRequest.request }
+        : null,
     };
     return {
       kind: "step",
@@ -1083,6 +1212,12 @@ export function WorkflowEditorPage(
     people,
     members.status,
     focusRequest,
+    editor.starts,
+    needs,
+    startIssues,
+    repositories.data,
+    repositories.isError,
+    canManage,
   ]);
 
   const breadcrumbs = (
@@ -1209,6 +1344,7 @@ export function WorkflowEditorPage(
             selectedId={selectedId}
             problems={problemsByStep}
             lines={cardLines}
+            {...(startCard === undefined ? {} : { start: startCard })}
             canManage={canManage}
             editable={editable}
             onAdd={(afterId) => setPickerAfter(afterId)}
@@ -1607,6 +1743,13 @@ export function WorkflowEditorPage(
                   <UI.Text variant="muted">
                     {translate("library.workflow.steps.never" as never)}
                   </UI.Text>
+                  {blocked || automatic.events === 0 ? null : (
+                    <UI.Text>
+                      {translate("library.editor.start.publishNote" as never, {
+                        count: automatic.events,
+                      } as never)}
+                    </UI.Text>
+                  )}
                   {publish.isError
                     ? (
                       <UI.InlineNotice tone="error" role="alert">
