@@ -5,4 +5,4 @@ description: QA fixture for version checks.
 
 # QA notes
 
-Second wording.
+First wording.
