@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "f12807319179f32b96bb509a4b61cfa2beb76eb1"
+    "63f3983ec442667228b9f2949863a3816013c54f"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:923ae300943dcf274794156ecb4f89223c16bbaf682f0b7703ec72b480450558",
-  "reason": "#70 slice 6 machine work read by dev-server on 2026-11-25 under the owner's standing breaking-change authorization (2026-10-09), main f12807319179f32b96bb509a4b61cfa2beb76eb1: WorkerHost gains a required activeAttemptCount, the live-lease slot occupancy the scheduler admits against, and workerAttempts.list returns one machine's attempts by state. No client has been released that builds a WorkerHost, and the web test mocks in this PR carry the field.",
+  "targetCompatibilityDigest": "sha256:ff8bb3fba773f7362d772d747749cd3533ddfbd6083dbb57099b8b119085a447",
+  "reason": "#407 PR 4a read by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main 63f3983ec442667228b9f2949863a3816013c54f: Workflow gains a required needsInputs, true when the version in use declares a required input a start with no inputs cannot fill, and BatchCreate.presetId becomes optional so a batch can run the issue source's own workflow. No released client builds a Workflow, and the web test mocks in this PR carry the field.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "f12807319179f32b96bb509a4b61cfa2beb76eb1"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:923ae300943dcf274794156ecb4f89223c16bbaf682f0b7703ec72b480450558",
+      "reason": "#70 slice 6 machine work read by dev-server on 2026-11-25 under the owner's standing breaking-change authorization (2026-10-09), main f12807319179f32b96bb509a4b61cfa2beb76eb1: WorkerHost gains a required activeAttemptCount, the live-lease slot occupancy the scheduler admits against, and workerAttempts.list returns one machine's attempts by state. No client has been released that builds a WorkerHost, and the web test mocks in this PR carry the field."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
