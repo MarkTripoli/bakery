@@ -1,0 +1,15 @@
+
+> bakery@ test:integration /home/marktripoli/Development/bakery-wt/_qa/qa1033b
+> deno run --allow-env --allow-read --allow-run scripts/run-tests.ts integration tests/integration/qa1033b-main_test.ts
+
+Check tests/integration/qa1033b-main_test.ts
+running 1 test from ./tests/integration/qa1033b-main_test.ts
+qa probe: new revision with the same skill files ...
+------- output -------
+PROBE S3 revision 1 healthy -> completed
+PROBE S3 revision 2, same files -> duplicate key value violates unique constraint "skill_versions_digest_unique"
+----- output end -----
+qa probe: new revision with the same skill files ... ok (8s)
+
+ok | 1 passed | 0 failed (9s)
+

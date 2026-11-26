@@ -1,0 +1,31 @@
+
+> bakery@ test:integration /home/marktripoli/Development/bakery-wt/_qa/qa1033b
+> deno run --allow-env --allow-read --allow-run scripts/run-tests.ts integration tests/integration/qa1033b-probe_test.ts
+
+Check tests/integration/qa1033b-probe_test.ts
+running 3 tests from ./tests/integration/qa1033b-probe_test.ts
+qa probe: A fails, B succeeds, retry A ...
+------- output -------
+PROBE S1 revision 1 faulted after reserve -> SOURCE_UNAVAILABLE
+PROBE S1 revision 2 healthy -> completed
+PROBE S1 retry revision 1 -> duplicate key value violates unique constraint "skill_versions_digest_unique"
+PROBE S1 retry revision 1 again -> duplicate key value violates unique constraint "skill_versions_digest_unique"
+----- output end -----
+qa probe: A fails, B succeeds, retry A ... ok (1s)
+qa probe: A fails, B fails, retry A ...
+------- output -------
+PROBE S2 revision 1 faulted after reserve -> SOURCE_UNAVAILABLE
+PROBE S2 revision 2 faulted after reserve -> SOURCE_UNAVAILABLE
+PROBE S2 retry revision 1 -> duplicate key value violates unique constraint "skill_versions_digest_unique"
+PROBE S2 retry revision 2 -> completed
+----- output end -----
+qa probe: A fails, B fails, retry A ... ok (1s)
+qa probe: new revision with the same skill files ...
+------- output -------
+PROBE S3 revision 1 healthy -> completed
+PROBE S3 revision 2, same files -> duplicate key value violates unique constraint "skill_versions_digest_unique"
+----- output end -----
+qa probe: new revision with the same skill files ... ok (944ms)
+
+ok | 3 passed | 0 failed (3s)
+
