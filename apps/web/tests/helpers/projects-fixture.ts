@@ -84,7 +84,7 @@ const applicationBody = (app: App) => ({
   updatedAt: STAMP,
   version: app.version,
 });
-const repositoryBody = (repo: Repo) => ({
+export const repositoryBody = (repo: Repo) => ({
   id: repo.id,
   applicationId: repo.applicationId,
   slug: repo.name.toLowerCase(),

@@ -7,6 +7,7 @@ import {
   ApprovalPanelBody,
   type ApprovalPanelProps,
 } from "./ApprovalPanel.tsx";
+import { StartPanelBody, type StartPanelProps } from "./StartPanel.tsx";
 
 /**
  * The panel beside the diagram (#67, slice 1): what the person selected, and
@@ -89,7 +90,7 @@ export type LoopValues = {
 
 /** What the panel is showing. */
 export type PanelTarget =
-  | { readonly kind: "start" }
+  | { readonly kind: "start"; readonly starts: StartPanelProps }
   | {
     readonly kind: "loop";
     readonly at: string;
@@ -154,13 +155,11 @@ export function StepPanel(
         variant="column"
         header={
           <UI.Text variant="strong">
-            {translate("library.editor.howItStarts" as never)}
+            {translate("library.editor.start.title")}
           </UI.Text>
         }
       >
-        <UI.Text>
-          {translate("library.editor.startsByHand" as never)}
-        </UI.Text>
+        <StartPanelBody {...target.starts} />
       </UI.InspectorPanel>
     );
   }
