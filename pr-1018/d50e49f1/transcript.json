@@ -1,0 +1,86 @@
+[
+  {
+    "at": "9.9",
+    "event": "POST /v1/skills",
+    "status": 201,
+    "ifMatch": null
+  },
+  {
+    "at": "9.9",
+    "event": "POST /v1/skills/:id/draft",
+    "status": 200,
+    "ifMatch": null
+  },
+  {
+    "at": "10.1",
+    "event": "editor opened",
+    "path": "/library/skills/:id/edit"
+  },
+  {
+    "at": "11.7",
+    "event": "POST /v1/skills/:id/draft/files",
+    "status": 200,
+    "ifMatch": "\"v1\""
+  },
+  {
+    "at": "15.8",
+    "event": "POST /v1/skills/:id/draft/files",
+    "status": 200,
+    "ifMatch": "\"v2\""
+  },
+  {
+    "at": "16.3",
+    "event": "saved",
+    "text": "Saved 7:05 PM"
+  },
+  {
+    "at": "17.9",
+    "event": "POST /v1/skills/:id/draft/check",
+    "status": 200,
+    "ifMatch": null
+  },
+  {
+    "at": "18.0",
+    "event": "checked",
+    "text": "Fix 1 problem to publish Licence: add one before publishing, up to 200 plain characters."
+  },
+  {
+    "at": "19.9",
+    "event": "PATCH /v1/skills/:id/draft",
+    "status": 200,
+    "ifMatch": "\"v3\""
+  },
+  {
+    "at": "21.3",
+    "event": "licence added"
+  },
+  {
+    "at": "21.4",
+    "event": "POST /v1/skills/:id/draft/check",
+    "status": 200,
+    "ifMatch": null
+  },
+  {
+    "at": "21.4",
+    "event": "checked clean"
+  },
+  {
+    "at": "23.0",
+    "event": "POST /v1/skills/:id/draft/check",
+    "status": 200,
+    "ifMatch": null
+  },
+  {
+    "at": "25.1",
+    "event": "POST /v1/skills/:id/draft/publish",
+    "status": 201,
+    "ifMatch": "\"v4\""
+  },
+  {
+    "at": "27.7",
+    "event": "after publish",
+    "path": "/library/skills/:id",
+    "toast": "Published version 1. It is now the one in use.\n×",
+    "alerts": []
+  }
+]
