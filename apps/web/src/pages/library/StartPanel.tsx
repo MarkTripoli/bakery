@@ -13,6 +13,7 @@ import {
   budgetText,
   chosenRepository,
   type DraftStart,
+  inputLabel,
   newStart,
   otherFilters,
   SCHEDULE_REPOSITORY,
@@ -511,7 +512,7 @@ function NeedField(
   const id = `${base}-input-${need.name}`;
   const error = problem === undefined
     ? undefined
-    : copy(`problem.${problem.kind}`, { name: need.name });
+    : copy(`problem.${problem.kind}`, { name: inputLabel(need.name) });
   if (need.kind === "unsupported") {
     return error === undefined ? null : (
       <UI.Stack id={id} tabIndex={-1}>
@@ -555,7 +556,7 @@ function NeedField(
     <CommittedText
       error={error}
       id={id}
-      label={need.name}
+      label={inputLabel(need.name)}
       maxLength={4000}
       onCommit={(value) =>
         onChange(withTextInput(start, need.name, value), need.name)}

@@ -7,6 +7,7 @@ import { neutralFieldsOf } from "../../apps/server/src/modules/integrations/neut
 import {
   chosenRepository,
   eventRepositoryId,
+  inputLabel,
   newStart,
   otherFilters,
   savedStart,
@@ -200,5 +201,12 @@ Deno.test("a refused amount typed into an empty field leaves it empty", () => {
   assertEquals(
     [refused.budgetUsd, refused.budgetTyped],
     [undefined, "20000"],
+  );
+});
+
+Deno.test("an input is labelled with words, not its raw name", () => {
+  assertEquals(
+    ["instructions", "release_notes", "targetBranch"].map(inputLabel),
+    ["Instructions", "Release notes", "Target branch"],
   );
 });

@@ -503,14 +503,14 @@ test.describe("workflow editor: a published workflow", () => {
         .getByRole("button", { name: "Show me" }).click();
       await expect(page.getByRole("alertdialog")).toHaveCount(0);
     };
-    await show("write a value for goal");
-    await expect(page.getByRole("textbox", { name: /^goal/ })).toBeFocused();
+    await show("write a value for Goal");
+    await expect(page.getByRole("textbox", { name: /^Goal/ })).toBeFocused();
     await show("write a task title");
     await expect(page.getByRole("textbox", { name: /Task title/ }))
       .toBeFocused();
-    await show("retries cannot be filled in here");
+    await show("Retries cannot be filled in here");
     await expect(page.locator(":focus")).toContainText(
-      "This workflow asks for retries",
+      "This workflow asks for Retries",
     );
     await show("choose a repository");
     await expect(field(page, "Repository")).toBeFocused();
@@ -584,5 +584,14 @@ test.describe("workflow editor: a published workflow", () => {
     await expect.poll(() => server.saves.length).toBeGreaterThan(before);
     await publish.click();
     await expect(dialog).toContainText("Publish version 3");
+  });
+
+  test("the workflow page says a version with a start also starts by itself", async ({ page }) => {
+    await editor(page, { starts: [SCHEDULE], inUse: "none" });
+    await page.goto(`/library/workflows/${WORKFLOW.id}`);
+    await expect(startCard(page)).toContainText("How it starts");
+    await expect(startCard(page)).toContainText("1 automatic start");
+    await expect(page.getByText("Started by hand")).toHaveCount(0);
+    await still(page, "starts-workflow-page");
   });
 });
