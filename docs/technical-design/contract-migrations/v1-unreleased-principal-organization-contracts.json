@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "f12807319179f32b96bb509a4b61cfa2beb76eb1"
+    "3b78d91be1112f11894eec624cc990b0bf94d344"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:923ae300943dcf274794156ecb4f89223c16bbaf682f0b7703ec72b480450558",
-  "reason": "#70 slice 6 machine work read by dev-server on 2026-11-25 under the owner's standing breaking-change authorization (2026-10-09), main f12807319179f32b96bb509a4b61cfa2beb76eb1: WorkerHost gains a required activeAttemptCount, the live-lease slot occupancy the scheduler admits against, and workerAttempts.list returns one machine's attempts by state. No client has been released that builds a WorkerHost, and the web test mocks in this PR carry the field.",
+  "targetCompatibilityDigest": "sha256:567a4691b20603a50c0e406ff141872602356bf57c79a44dfda848d43008c497",
+  "reason": "#458 contract bounds by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main 3b78d91be1112f11894eec624cc990b0bf94d344: the generator now honours bounds spelled minimum/maximum, so BlobUploadStart.sizeBytes is bounded 0..5368709120 and WorkerMaintenanceCreate.expectedInventoryRevision and WorkerMaintenanceReport.sequence are at least 1. Values outside them were never valid, and the server already refused oversized uploads.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "f12807319179f32b96bb509a4b61cfa2beb76eb1"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:923ae300943dcf274794156ecb4f89223c16bbaf682f0b7703ec72b480450558",
+      "reason": "#70 slice 6 machine work read by dev-server on 2026-11-25 under the owner's standing breaking-change authorization (2026-10-09), main f12807319179f32b96bb509a4b61cfa2beb76eb1: WorkerHost gains a required activeAttemptCount, the live-lease slot occupancy the scheduler admits against, and workerAttempts.list returns one machine's attempts by state. No client has been released that builds a WorkerHost, and the web test mocks in this PR carry the field."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
