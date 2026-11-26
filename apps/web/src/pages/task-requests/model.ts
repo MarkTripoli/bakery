@@ -25,10 +25,12 @@ export function actionOf(request: RunRequestResponse): RequestAction | null {
 export function orderedRequests(
   requests: readonly RunRequestResponse[],
 ): RunRequestResponse[] {
-  const open = (request: RunRequestResponse) =>
-    request.status === "open" ? 0 : 1;
+  const rank = (request: RunRequestResponse) => {
+    const action = actionOf(request);
+    return action === null ? 2 : action === "fyi" ? 1 : 0;
+  };
   return [...requests].sort((a, b) =>
-    open(a) - open(b) || b.createdAt.localeCompare(a.createdAt)
+    rank(a) - rank(b) || b.createdAt.localeCompare(a.createdAt)
   );
 }
 

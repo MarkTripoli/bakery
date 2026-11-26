@@ -58,15 +58,26 @@ Deno.test("a closed request offers nothing", () => {
   }
 });
 
-Deno.test("open requests come first, newest first", () => {
+Deno.test("what needs doing comes first, then news, then closed", () => {
   const ids = orderedRequests([
-    request({ id: "old-open", createdAt: "2026-01-01T00:00:00.000Z" }),
+    request({ id: "news", createdAt: "2026-01-04T00:00:00.000Z" }),
+    request({
+      id: "old-open",
+      intent: "review",
+      artifactVersionId: "v",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    }),
     request({
       id: "closed",
       status: "expired",
       createdAt: "2026-01-03T00:00:00.000Z",
     }),
-    request({ id: "new-open", createdAt: "2026-01-02T00:00:00.000Z" }),
+    request({
+      id: "new-open",
+      intent: "take_over",
+      stepKey: "build",
+      createdAt: "2026-01-02T00:00:00.000Z",
+    }),
   ]).map((one) => one.id);
-  assertEquals(ids, ["new-open", "old-open", "closed"]);
+  assertEquals(ids, ["new-open", "old-open", "news", "closed"]);
 });
