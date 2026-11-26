@@ -874,10 +874,7 @@ export function requireDraftDefinition(definition: unknown): string {
  * stored list is kept). A list the contract refuses, or a schedule the
  * scheduler cannot read, is refused here, where the author can fix it.
  */
-function readDraftStarts(
-  starts: unknown,
-  definition: unknown,
-): string | null {
+function readDraftStarts(starts: unknown): string | null {
   if (starts === undefined) return null;
   const parsed = WorkflowStartsSchema.safeParse(starts);
   if (!parsed.success) {
@@ -887,7 +884,7 @@ function readDraftStarts(
       "start_invalid",
     );
   }
-  return canonicalJson(readStarts(parsed.data, definition));
+  return canonicalJson(readStarts(parsed.data));
 }
 
 const DRAFT_RETURNING =
@@ -1062,7 +1059,7 @@ export async function updateWorkflowDraft(
   const { organizationId, principalId } = facts;
   const { workflowId, versionId, expectedVersion } = target;
   const canonical = requireDraftDefinition(value.definition);
-  const starts = readDraftStarts(value.starts, value.definition);
+  const starts = readDraftStarts(value.starts);
   await lockAuthoringDefinition(transaction, organizationId, workflowId);
   await settlePersonalSkillUse(transaction, facts, workflowId, value);
   const draft = await transaction.query(
@@ -1356,7 +1353,7 @@ export async function publishWorkflowVersion(
     // can say nothing about its shape: a version that published a start the
     // contract refuses would be one no matcher could ever read back.
     starts: canonicalJson(
-      readStarts(WorkflowStartsSchema.parse(draft.starts), draft.definition),
+      readStarts(WorkflowStartsSchema.parse(draft.starts)),
     ),
   });
   await writeToolCallBindings(transaction, {
@@ -1476,7 +1473,7 @@ export async function activateWorkflowVersion(
     transaction.query<WorkflowDefinitionRow>(
       `update bakery.workflow_definitions
           set active_version_id = $4, active_version_set_by = $5,
-              updated_at = now(), version = version + 1
+              active_version_set_at = now(), updated_at = now(), version = version + 1
         where organization_id = $1 and id = $2 and version = $3
         returning ${DEFINITION_COLUMNS}`,
       // The principal who uses the version is who its starts run as.

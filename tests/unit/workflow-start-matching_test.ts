@@ -164,18 +164,13 @@ Deno.test("matching is strict about type and about fields the event lacks", () =
 });
 
 const parsed = (starts: unknown) => WorkflowStartsSchema.parse(starts);
-const noRepositoryNeeded = { inputs: {} };
-const needsRepository = {
-  inputs: { repositoryId: { type: "uuid", required: true } },
-};
 const refusedWith = (
   starts: unknown,
   reason: string,
   startId: string,
-  definition: unknown = noRepositoryNeeded,
 ) => {
   const error = assertThrows(
-    () => readStarts(parsed(starts), definition),
+    () => readStarts(parsed(starts)),
     StandardError,
   );
   assertEquals(error.code, "VALIDATION_FAILED");
@@ -231,23 +226,27 @@ Deno.test("a start a source can fire is read as written, and schedules still go 
   assertEquals(
     readStarts(
       parsed(eventStart("change_request.opened", { repositoryId: 7 })),
-      needsRepository,
     ),
     eventStart("change_request.opened", { repositoryId: 7 }),
   );
   assertEquals(
-    readStarts(parsed(eventStart("work_item.ready")), needsRepository).length,
+    readStarts(parsed(eventStart("work_item.ready"))).length,
     1,
   );
+  const repositoryId = "6f1c2b9e-3d4a-4b5c-8d6e-7f8091a2b3c4";
   const clock = (cron: string, timezone: string) => [
-    { id: "clock", on: { kind: "schedule" as const, cron, timezone } },
+    {
+      id: "clock",
+      inputs: { repositoryId },
+      on: { kind: "schedule" as const, cron, timezone },
+    },
   ];
   assertEquals(
-    readStarts(parsed(clock("0 9 * * *", "europe/london")), noRepositoryNeeded),
+    readStarts(parsed(clock("0 9 * * *", "europe/london"))),
     clock("0 9 * * *", "Europe/London"),
   );
   const error = assertThrows(
-    () => readStarts(parsed(clock("61 * * * *", "UTC")), noRepositoryNeeded),
+    () => readStarts(parsed(clock("61 * * * *", "UTC"))),
     StandardError,
   );
   assertEquals(error.params, {
@@ -256,7 +255,7 @@ Deno.test("a start a source can fire is read as written, and schedules still go 
   });
 });
 
-Deno.test("a schedule start for a workflow that needs a repository must name one, or it is refused where the author can fix it", () => {
+Deno.test("a schedule start must name a repository, or it is refused where the author can fix it, whatever the workflow's inputs say", () => {
   const clock = (inputs?: Record<string, string>) => [{
     id: "clock",
     ...(inputs === undefined ? {} : { inputs }),
@@ -266,25 +265,22 @@ Deno.test("a schedule start for a workflow that needs a repository must name one
     clock(),
     "start_schedule_repository_missing",
     "clock",
-    needsRepository,
   );
   refusedWith(
     clock({ repositoryId: "not-a-uuid" }),
     "start_schedule_repository_missing",
     "clock",
-    needsRepository,
   );
   const repositoryId = "6f1c2b9e-3d4a-4b5c-8d6e-7f8091a2b3c4";
   assertEquals(
-    readStarts(parsed(clock({ repositoryId })), needsRepository),
+    readStarts(parsed(clock({ repositoryId }))),
     clock({ repositoryId }),
   );
-  assertEquals(readStarts(parsed(clock()), noRepositoryNeeded), clock());
 });
 
 Deno.test("an event start needs no static repository: the event supplies it", () => {
   assertEquals(
-    readStarts(parsed(eventStart("work_item.ready")), needsRepository).length,
+    readStarts(parsed(eventStart("work_item.ready"))).length,
     1,
   );
 });

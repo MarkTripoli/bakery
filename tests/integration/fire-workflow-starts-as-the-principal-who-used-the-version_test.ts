@@ -157,6 +157,43 @@ const activatedBy = (
     [fixture.organizationId, s.workflowId, principalId],
   );
 
+const usedAt = (
+  fixture: Parameters<Parameters<typeof withWorkerFixture>[0]>[0],
+  s: Setup,
+  at: string,
+) =>
+  fixture.pgDatabase.query(
+    `update bakery.workflow_definitions set active_version_set_at = $3
+      where organization_id = $1 and id = $2`,
+    [fixture.organizationId, s.workflowId, at],
+  );
+
+async function useCopyOfVersion(
+  fixture: Parameters<Parameters<typeof withWorkerFixture>[0]>[0],
+  s: Setup,
+  at: string,
+): Promise<string> {
+  const copyId = crypto.randomUUID();
+  await fixture.pgDatabase.query(
+    `insert into bakery.workflow_versions
+     select (jsonb_populate_record(
+       null::bakery.workflow_versions,
+       to_jsonb(original) ||
+         jsonb_build_object('id', $2::uuid, 'revision', original.revision + 1)
+     )).*
+       from bakery.workflow_versions original
+      where original.id = $1`,
+    [s.published.id, copyId],
+  );
+  await fixture.pgDatabase.query(
+    `update bakery.workflow_definitions
+        set active_version_id = $3, active_version_set_at = $4
+      where organization_id = $1 and id = $2`,
+    [fixture.organizationId, s.workflowId, copyId, at],
+  );
+  return copyId;
+}
+
 Deno.test("a live start runs the version in use as the principal who used it, once per event", () =>
   withWorkerFixture(async (fixture) => {
     const s = await setUp(fixture);
@@ -571,6 +608,7 @@ Deno.test("a schedule start fires the version in use once per tick, however ofte
       id: "hourly",
       on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
     });
+    await usedAt(fixture, s, "2026-11-25T09:00:00Z");
     const before = await s.counts();
     const tick = async (at: string) =>
       (await fireDueScheduleStarts({
@@ -600,6 +638,7 @@ Deno.test("two clocks waking on one tick start exactly one run", () =>
       id: "hourly",
       on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
     });
+    await usedAt(fixture, s, "2026-11-25T09:00:00Z");
     const before = await s.counts();
     const now = new Date("2026-11-25T10:00:20Z");
     const results = await Promise.all([
@@ -612,5 +651,69 @@ Deno.test("two clocks waking on one tick start exactly one run", () =>
       ["duplicate", "started"],
     );
     assertEquals(Number((await s.counts()).runs), Number(before.runs) + 1);
+    assertEquals((await s.firings()).length, 1);
+  }));
+
+const hourlyTick = (
+  fixture: Parameters<Parameters<typeof withWorkerFixture>[0]>[0],
+  s: Setup,
+) =>
+async (at: string) =>
+  (await fireDueScheduleStarts({
+    database: fixture.runtimePgDatabase,
+    now: new Date(at),
+  })).filter((outcome) => outcome.workflowId === s.workflowId)
+    .map((outcome) => [outcome.startId, outcome.result, outcome.code]);
+
+Deno.test("a tick that came before the version was put in use does not fire it", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      id: "hourly",
+      on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
+    });
+    await usedAt(fixture, s, "2026-11-25T10:02:00Z");
+    const before = await s.counts();
+    assertEquals(await hourlyTick(fixture, s)("2026-11-25T10:03:00Z"), [
+      ["hourly", "superseded", undefined],
+    ]);
+    assertEquals(await s.firings(), []);
+    assertEquals(Number((await s.counts()).runs), Number(before.runs));
+  }));
+
+Deno.test("using a newer version right after a tick fired does not fire that tick again", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      id: "hourly",
+      on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
+    });
+    await usedAt(fixture, s, "2026-11-25T09:00:00Z");
+    const before = await s.counts();
+    const tick = hourlyTick(fixture, s);
+    assertEquals(await tick("2026-11-25T10:00:20Z"), [
+      ["hourly", "started", undefined],
+    ]);
+    await useCopyOfVersion(fixture, s, "2026-11-25T10:01:00Z");
+    assertEquals(await tick("2026-11-25T10:02:00Z"), [
+      ["hourly", "superseded", undefined],
+    ]);
+    assertEquals(Number((await s.counts()).runs), Number(before.runs) + 1);
+    assertEquals((await s.firings()).length, 1);
+  }));
+
+Deno.test("one tick of one start makes one firing row, whichever version records it", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      id: "hourly",
+      on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
+    });
+    await usedAt(fixture, s, "2026-11-25T09:00:00Z");
+    const tick = hourlyTick(fixture, s);
+    assertEquals(await tick("2026-11-25T10:00:20Z"), [
+      ["hourly", "started", undefined],
+    ]);
+    await useCopyOfVersion(fixture, s, "2026-11-25T09:30:00Z");
+    assertEquals(await tick("2026-11-25T10:01:00Z"), [
+      ["hourly", "duplicate", undefined],
+    ]);
     assertEquals((await s.firings()).length, 1);
   }));

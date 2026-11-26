@@ -15,14 +15,10 @@ import { readStartSchedules } from "./start-schedules.ts";
  * of the declared type, so a start that nothing could ever fire is refused
  * where the author can fix it and not frozen into an immutable version.
  */
-export function readStarts(
-  starts: readonly WorkflowStart[],
-  definition: unknown,
-): WorkflowStart[] {
-  const needsRepository = requiresRepository(definition);
+export function readStarts(starts: readonly WorkflowStart[]): WorkflowStart[] {
   for (const start of starts) {
     if (start.on.kind === "schedule") {
-      if (needsRepository && !namesRepository(start.inputs)) {
+      if (!namesRepository(start.inputs)) {
         throw refused("start_schedule_repository_missing", start.id);
       }
       continue;
@@ -46,16 +42,6 @@ export function readStarts(
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function requiresRepository(definition: unknown): boolean {
-  if (!isRecord(definition) || !isRecord(definition.inputs)) return false;
-  const input = definition.inputs.repositoryId;
-  return isRecord(input) && input.required === true;
-}
 
 function namesRepository(inputs: WorkflowStart["inputs"]): boolean {
   const repositoryId = inputs?.repositoryId;

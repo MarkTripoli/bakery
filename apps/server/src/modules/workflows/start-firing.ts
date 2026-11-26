@@ -60,6 +60,7 @@ export type StartFiringOutcome = Readonly<{
 type Definition = {
   active_version_id: string | null;
   active_version_set_by: string | null;
+  active_version_set_at: Date | null;
   enabled: boolean;
   name: string;
 };
@@ -104,6 +105,14 @@ export async function fireLiveStart(
   );
 }
 
+function tickPrecedesVersionUse(
+  scheduledFor: Date,
+  definition: Definition,
+): boolean {
+  const usedAt = definition.active_version_set_at;
+  return usedAt === null || scheduledFor.getTime() < usedAt.getTime();
+}
+
 export type StartTrigger =
   | Readonly<{ inboundEventId: string }>
   | Readonly<{ scheduledAt: Date }>;
@@ -130,11 +139,9 @@ export async function fireStart(
     ...(code === undefined ? {} : { code }),
   });
 
-  // The definition is locked, then read again: the match ran before the lock,
-  // and a person may have used another version in between. A start answers
-  // only for the version in use at the moment it fires.
   const locked = await transaction.query<Definition>(
-    `select active_version_id, active_version_set_by, enabled, name
+    `select active_version_id, active_version_set_by, active_version_set_at,
+            enabled, name
        from bakery.workflow_definitions
       where organization_id = $1 and id = $2
         for update`,
@@ -154,21 +161,11 @@ export async function fireStart(
   const applicationId = application.rows[0]?.application_id;
   if (applicationId === undefined) return outcome("superseded");
 
-  if ("scheduledAt" in trigger) {
-    const fired = await transaction.query(
-      `select 1 from bakery.workflow_start_firings
-        where organization_id = $1 and workflow_version_id = $2
-          and start_id = $3 and trigger_event_id is null
-          and created_at >= $4
-        limit 1`,
-      [
-        organizationId,
-        start.versionId,
-        start.startId,
-        trigger.scheduledAt.toISOString(),
-      ],
-    );
-    if (fired.rows.length > 0) return outcome("duplicate");
+  const scheduledFor = "scheduledAt" in trigger ? trigger.scheduledAt : null;
+  if (
+    scheduledFor !== null && tickPrecedesVersionUse(scheduledFor, definition)
+  ) {
+    return outcome("superseded");
   }
 
   const recent = await transaction.query<{ count: string }>(
@@ -184,8 +181,8 @@ export async function fireStart(
     `insert into bakery.workflow_start_firings (
        organization_id, workflow_id, workflow_version_id, start_id,
        trigger_event_id, application_id, repository_id, actor_id, status,
-       failure_code
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       failure_code, scheduled_for
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      on conflict do nothing
      returning id, version`,
     [
@@ -199,6 +196,7 @@ export async function fireStart(
       definition.active_version_set_by,
       overRate ? "skipped" : "queued",
       overRate ? "rate_limited" : null,
+      scheduledFor?.toISOString() ?? null,
     ],
   );
   const firing = inserted.rows[0];
