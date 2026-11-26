@@ -64,10 +64,13 @@ async function openHarness() {
   ));
   assertEquals(sourceResponse.status, 201, await sourceResponse.clone().text());
   const source = await sourceResponse.json() as { id: string };
-  const admit = async (idempotencyKey = `import-${crypto.randomUUID()}`) => {
+  const admit = async (
+    idempotencyKey = `import-${crypto.randomUUID()}`,
+    revision = etag,
+  ) => {
     const response = await fixture.app.fetch(authRequest(
       "/v1/skill-imports",
-      { sourceId: source.id, revision: etag },
+      { sourceId: source.id, revision },
       {
         cookie,
         headers: { ...headers, "Idempotency-Key": idempotencyKey },
@@ -361,6 +364,161 @@ Deno.test("an import whose source drops on its second read is retried to complet
     assertEquals(await skillVersions(h), [
       { revision: 1, status: "published" },
     ]);
+  } finally {
+    await h.close();
+  }
+});
+
+const one = '"fixture-revision-1"';
+const two = '"fixture-revision-2"';
+
+async function sourceAt(
+  revision: string,
+  body: string,
+): Promise<SkillSourceAdapter> {
+  const remote = await createRemoteSkillFixture([{
+    path: "SKILL.md",
+    content: new TextEncoder().encode(body),
+    mediaType: "text/markdown",
+  }]);
+  const proof: SkillSourceProof = Object.freeze({
+    sourceType: "url",
+    normalizedLocator: locator,
+    requestedRevision: revision,
+    sourceRevision: revision,
+    sourceProofDigest: await fixtureSha256(remote.manifestBytes),
+    normalizedPath: "",
+    inventory: Object.freeze({
+      manifest: remote.manifest,
+      manifestBytes: remote.manifestBytes,
+      files: Object.freeze(remote.files.map((file) =>
+        Object.freeze({
+          path: file.path,
+          content: file.content,
+          isExecutable: false,
+        })
+      )),
+    }),
+  });
+  return { fetchPinnedSource: () => Promise.resolve(proof) };
+}
+
+async function importAt(
+  h: Harness,
+  revision: string,
+  body: string,
+  faultAfterReserve = false,
+) {
+  const run = await h.admit(undefined, revision);
+  try {
+    const result = await executeSkillImport(run.id, {
+      database: h.fixture.runtimePgDatabase,
+      sourceAdapter: await sourceAt(revision, body),
+      skillFileStore: h.store,
+      processHooks: {
+        afterCheckpoint: (reached) => {
+          if (faultAfterReserve && reached === "reserved") {
+            throw new SkillSourceAdapterError("SOURCE_UNAVAILABLE");
+          }
+        },
+      },
+    });
+    return result;
+  } catch (error) {
+    if (!faultAfterReserve) throw error;
+    await withPgTransaction(
+      h.fixture.runtimePgDatabase,
+      (transaction) =>
+        failSkillImportExecution(transaction, run.id, "SOURCE_UNAVAILABLE"),
+    );
+    return { runId: run.id, state: "failed" as const };
+  }
+}
+
+async function versionsBySourceRevision(h: Harness) {
+  const result = await h.fixture.pgDatabase.query<{
+    id: string;
+    revision: number;
+    sourceRevision: string;
+    status: string;
+  }>(
+    `select version.id, version.revision,
+            version.source_revision as "sourceRevision", version.status
+       from bakery.skill_versions as version
+       join bakery.skills as skill
+         on skill.organization_id = version.organization_id
+        and skill.id = version.skill_id
+      where skill.organization_id = $1 and skill.source_id = $2
+      order by version.revision`,
+    [h.organizationId, h.source.id],
+  );
+  return result.rows;
+}
+
+Deno.test("a failed revision is retried into its draft after a later revision was imported", async () => {
+  const h = await openHarness();
+  try {
+    assertEquals((await importAt(h, one, "# one\n", true)).state, "failed");
+    assertEquals((await importAt(h, two, "# two\n")).state, "completed");
+    const retry = await importAt(h, one, "# one\n");
+    assertEquals(retry.state, "completed");
+    const versions = await versionsBySourceRevision(h);
+    assertEquals(
+      versions.map(({ revision, sourceRevision, status }) => ({
+        revision,
+        sourceRevision,
+        status,
+      })),
+      [
+        { revision: 1, sourceRevision: one, status: "published" },
+        { revision: 2, sourceRevision: two, status: "published" },
+      ],
+    );
+    assertEquals(retry.skillVersionId, versions[0]?.id);
+    const again = await h.admit(undefined, one);
+    assertEquals(again.id, retry.runId);
+  } finally {
+    await h.close();
+  }
+});
+
+Deno.test("two failed revisions are each retried into their own draft", async () => {
+  const h = await openHarness();
+  try {
+    assertEquals((await importAt(h, one, "# one\n", true)).state, "failed");
+    assertEquals((await importAt(h, two, "# two\n", true)).state, "failed");
+    assertEquals((await importAt(h, one, "# one\n")).state, "completed");
+    assertEquals((await importAt(h, two, "# two\n")).state, "completed");
+    assertEquals(
+      (await versionsBySourceRevision(h)).map(({ revision, status }) => ({
+        revision,
+        status,
+      })),
+      [
+        { revision: 1, status: "published" },
+        { revision: 2, status: "published" },
+      ],
+    );
+  } finally {
+    await h.close();
+  }
+});
+
+Deno.test("a new revision whose files did not change completes onto the existing version", async () => {
+  const h = await openHarness();
+  try {
+    const first = await importAt(h, one, "# same\n");
+    assertEquals(first.state, "completed");
+    const second = await importAt(h, two, "# same\n");
+    assertEquals(second.state, "completed");
+    assertEquals(second.skillVersionId, first.skillVersionId);
+    assertEquals(
+      (await versionsBySourceRevision(h)).map(({ revision, status }) => ({
+        revision,
+        status,
+      })),
+      [{ revision: 1, status: "published" }],
+    );
   } finally {
     await h.close();
   }

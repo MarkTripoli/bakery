@@ -53,13 +53,7 @@ type SourceRow = {
   enabled: boolean;
 };
 
-type AbandonedDraft = Readonly<{ revision: number; digest: string }>;
-
-type SkillIdentity = Readonly<{
-  skillId: string;
-  ordinal: number;
-  abandonedDraft?: AbandonedDraft;
-}>;
+type SkillIdentity = Readonly<{ skillId: string; ordinal: number }>;
 
 export type SkillImportExecutionResult = Readonly<{
   runId: string;
@@ -224,60 +218,60 @@ async function ensureSkillIdentity(
       ],
     );
   }
-  const latest = await transaction.query<{
-    revision: number;
-    digest: string;
-    abandoned: boolean;
-  }>(
-    `select version.revision, version.digest,
-            version.status = 'draft' and not exists (
-              select 1 from bakery.skill_imports as import
-               where import.organization_id = version.organization_id
-                 and import.skill_version_id = version.id
-                 and import.state <> 'failed'
-            ) as abandoned
-       from bakery.skill_versions as version
-      where version.organization_id = $1 and version.skill_id = $2
-      order by version.revision desc limit 1`,
+  const latest = await transaction.query<{ revision: number }>(
+    `select revision from bakery.skill_versions
+      where organization_id = $1 and skill_id = $2
+      order by revision desc limit 1`,
     [checkpoint.organization_id, skillId],
   );
-  const top = latest.rows[0];
   return Object.freeze({
     skillId,
-    ordinal: (top?.revision ?? 0) + 1,
-    ...(top?.abandoned
-      ? { abandonedDraft: { revision: top.revision, digest: top.digest } }
-      : {}),
+    ordinal: (latest.rows[0]?.revision ?? 0) + 1,
   });
 }
 
-async function validateForIdentity(
+type VersionTarget = Readonly<{
+  identity: SkillIdentity;
+  sourceRevision: string;
+  validated: Awaited<ReturnType<typeof validatePinnedSkillSource>>;
+}>;
+
+async function resolveVersionTarget(
+  database: PgDatabase,
+  checkpoint: SkillImportCheckpointRow,
   proof: SkillSourceProof,
   identity: SkillIdentity,
-  registeredLicense: string,
-) {
-  const next = await validatePinnedSkillSource({
-    proof,
-    skillId: identity.skillId,
-    revision: identity.ordinal,
-    registeredLicense,
-  });
-  const draft = identity.abandonedDraft;
-  if (draft === undefined || draft.digest !== next.version.digest) {
-    return { identity, validated: next };
-  }
-  const reused = Object.freeze({
-    skillId: identity.skillId,
-    ordinal: draft.revision,
-  });
-  return {
-    identity: reused,
-    validated: await validatePinnedSkillSource({
+): Promise<VersionTarget> {
+  const validate = (revision: number) =>
+    validatePinnedSkillSource({
       proof,
-      skillId: reused.skillId,
-      revision: reused.ordinal,
-      registeredLicense,
+      skillId: identity.skillId,
+      revision,
+      registeredLicense: checkpoint.registered_license,
+    });
+  const next = await validate(identity.ordinal);
+  const existing = await withPgTransaction(
+    database,
+    (transaction) =>
+      transaction.query<{ revision: number; source_revision: string }>(
+        `select revision, source_revision from bakery.skill_versions
+          where organization_id = $1 and skill_id = $2 and digest = $3`,
+        [checkpoint.organization_id, identity.skillId, next.version.digest],
+      ),
+  );
+  const same = existing.rows[0];
+  if (!same) {
+    return { identity, sourceRevision: proof.sourceRevision, validated: next };
+  }
+  return {
+    identity: Object.freeze({
+      skillId: identity.skillId,
+      ordinal: same.revision,
     }),
+    sourceRevision: same.source_revision,
+    validated: same.revision === identity.ordinal
+      ? next
+      : await validate(same.revision),
   };
 }
 
@@ -435,12 +429,12 @@ export async function executeSkillImport(
         execution.requested_by,
       ),
   );
-  const admitted = await validateForIdentity(
+  const reserveTarget = await resolveVersionTarget(
+    options.database,
+    execution,
     proof,
     identity,
-    execution.registered_license,
   );
-  let validated = admitted.validated;
   let preparation = await withPgTransaction(
     options.database,
     (transaction) =>
@@ -448,9 +442,9 @@ export async function executeSkillImport(
         transaction,
         execution,
         execution.requested_by,
-        validated.version,
-        proof.sourceRevision,
-        admitted.identity,
+        reserveTarget.validated.version,
+        reserveTarget.sourceRevision,
+        reserveTarget.identity,
       ),
   );
   execution = await withPgTransaction(
@@ -485,12 +479,16 @@ export async function executeSkillImport(
   if (execution.skill_id === null || execution.ordinal === null) {
     throw new StandardError({ code: "STATE_CONFLICT" });
   }
-  validated = await validatePinnedSkillSource({
+  const target = await resolveVersionTarget(
+    options.database,
+    execution,
     proof,
-    skillId: execution.skill_id,
-    revision: execution.ordinal,
-    registeredLicense: execution.registered_license,
-  });
+    {
+      skillId: execution.skill_id,
+      ordinal: execution.ordinal,
+    },
+  );
+  const validated = target.validated;
   preparation = await withPgTransaction(
     options.database,
     (transaction) =>
@@ -499,7 +497,7 @@ export async function executeSkillImport(
         execution,
         execution.requested_by,
         validated.version,
-        proof.sourceRevision,
+        target.sourceRevision,
       ),
   );
   const objectProof = await readStoredProof(
@@ -515,7 +513,7 @@ export async function executeSkillImport(
         current,
         current.requested_by,
         validated.version,
-        proof.sourceRevision,
+        target.sourceRevision,
       );
       const version = await finalizeSkillVersionPublication({
         transaction,

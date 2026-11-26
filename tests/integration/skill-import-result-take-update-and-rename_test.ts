@@ -10,7 +10,15 @@ import {
   SkillSourceAdapterError,
   type SkillSourceFetchRequest,
 } from "../../apps/server/src/modules/catalog/source-adapters.ts";
+import { failSkillImportExecution } from "../../apps/server/src/modules/catalog/import-persistence.ts";
+import { executeSkillImport } from "../../apps/server/src/modules/catalog/import-workflow.ts";
+import { SkillFileStore } from "../../apps/server/src/modules/catalog/storage.ts";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { authTestOrigin } from "../helpers/auth.ts";
+import {
+  createRemoteSkillFixture,
+  fixtureSha256,
+} from "../fixtures/remote-skill-source.ts";
 import { openPersonalSkillFixture } from "../helpers/private-skill-fixture.ts";
 
 type Fx = Awaited<ReturnType<typeof openPersonalSkillFixture>>;
@@ -482,6 +490,113 @@ Deno.test("taking a reviewed update imports exactly that revision and keeps foll
       ["main", NEWER],
     );
     assertEquals(source.calls.at(-1)?.requestedRevision, "main");
+  } finally {
+    await f.close();
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("a taken update whose source dropped after reserving is taken again into that version", async () => {
+  const root = await Deno.makeTempDir({ prefix: "bakery-74-take-retry-" });
+  const source = fakeSource();
+  const f = await openPersonalSkillFixture({
+    skillFileRoot: root,
+    skillSourceAdapter: source.adapter,
+  });
+  try {
+    const store = new SkillFileStore(root);
+    await store.initialize();
+    const owner = api(f, f.ownerCookie);
+    const { skill } = await importedSkill(f, "retried");
+    source.state.revision = NEWER;
+    source.state.files = { "SKILL.md": "# Guide\n\nnewer\n" };
+    const check = await owner("POST", `/v1/skills/${skill.id}/source-update`);
+    assertEquals(check.status, 200, await check.clone().text());
+    const skillVersion = async () =>
+      (await (await f.read(f.ownerCookie, `/v1/skills/${skill.id}`))
+        .json() as { version: number }).version;
+    const path = `/v1/skills/${skill.id}/source-update/take`;
+    const take = async (key: string) => {
+      const response = await command(f, f.ownerCookie, path, {
+        revision: NEWER,
+      }, { key, version: await skillVersion() });
+      assertEquals(response.status, 201, await response.clone().text());
+      return (await response.json() as Run).id;
+    };
+    const remote = await createRemoteSkillFixture(
+      Object.entries(source.state.files).map(([file, text]) => ({
+        path: file,
+        content: encoder.encode(text),
+        mediaType: "text/markdown",
+      })),
+    );
+    const sourceProofDigest = await fixtureSha256(remote.manifestBytes);
+    const pinned: SkillSourceAdapter = {
+      async fetchPinnedSource(request) {
+        const proof = await source.adapter.fetchPinnedSource(request);
+        return {
+          ...proof,
+          sourceProofDigest,
+          inventory: {
+            manifest: remote.manifest,
+            manifestBytes: remote.manifestBytes,
+            files: remote.files.map((file) => ({
+              path: file.path,
+              content: file.content,
+              isExecutable: false,
+            })),
+          },
+        };
+      },
+    };
+    const execute = (runId: string, dropAfterReserve = false) =>
+      executeSkillImport(runId, {
+        database: f.fixture.runtimePgDatabase,
+        sourceAdapter: pinned,
+        skillFileStore: store,
+        processHooks: {
+          afterCheckpoint: (reached) => {
+            if (dropAfterReserve && reached === "reserved") {
+              source.state.down = true;
+            }
+          },
+        },
+      });
+
+    const first = await take("take-first");
+    let thrown: unknown;
+    try {
+      await execute(first, true);
+    } catch (error) {
+      thrown = error;
+    }
+    assertEquals(
+      thrown instanceof SkillSourceAdapterError ? thrown.code : thrown,
+      "SOURCE_UNAVAILABLE",
+    );
+    await withPgTransaction(
+      f.fixture.runtimePgDatabase,
+      (transaction) =>
+        failSkillImportExecution(transaction, first, "SOURCE_UNAVAILABLE"),
+    );
+
+    source.state.down = false;
+    const second = await take("take-second");
+    assertEquals(second === first, false);
+    assertEquals((await execute(second)).state, "completed");
+    const versions = await f.fixture.pgDatabase.query<{
+      revision: number;
+      source_revision: string;
+      status: string;
+    }>(
+      `select revision, source_revision, status from bakery.skill_versions
+        where organization_id = $1 and skill_id = $2 order by revision`,
+      [f.organizationId, skill.id],
+    );
+    assertEquals(versions.rows, [
+      { revision: 1, source_revision: INSTALLED, status: "published" },
+      { revision: 2, source_revision: NEWER, status: "published" },
+    ]);
   } finally {
     await f.close();
     await Deno.remove(root, { recursive: true });
