@@ -73,7 +73,28 @@ export type OAuth2Profile = {
   identify(ctx: DriverContext): Promise<
     { externalAccountId: string; accountLabel: string }
   >;
+  connectedResource?(input: ConnectedResourceInput): ConnectedResource;
 };
+
+export type ConnectedResourceInput = Readonly<{
+  tokenResponse: unknown;
+  externalAccountId: string;
+  accountLabel: string;
+}>;
+
+export type ConnectedResourceGrant = Readonly<{
+  capability: string;
+  actionVersion: number;
+}>;
+
+export type ConnectedResource = Readonly<{
+  kind: string;
+  externalId: string;
+  displayName: string;
+  binding: Readonly<Record<string, string>>;
+  servicePrincipalName: string;
+  serviceGrants: readonly ConnectedResourceGrant[];
+}>;
 
 /**
  * `connect.kind: "api-token"` - core stores and encrypts; the provider only proves it.

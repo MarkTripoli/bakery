@@ -7,6 +7,7 @@ import { contractSchemas } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
 import type { SecretsKeyConfig } from "@bakery/config";
 import type {
+  ConnectedResource,
   Identity,
   OAuth2Profile,
   ProviderRequestPort,
@@ -43,6 +44,7 @@ import {
   readStoredClientCredentials,
 } from "./client-credentials.ts";
 import { encodeSecretSlots } from "./provider-credential-port.ts";
+import { bindConnectedResource } from "./connected-resource.ts";
 import { PROVIDERS } from "./registry.ts";
 
 type AuthRedirect = z.output<typeof contractSchemas.AuthRedirect>;
@@ -124,6 +126,12 @@ const GrantedTokensSchema = z.object({
 
 export type GrantedTokens = z.output<typeof GrantedTokensSchema>;
 
+export type ExchangedTokens =
+  & GrantedTokens
+  & Readonly<{
+    providerResponse: unknown;
+  }>;
+
 function providerSchema(profile: OAuth2Profile): z.ZodType {
   if (!(profile.tokenResponse instanceof z.ZodType)) {
     throw new Error("provider token response is not a schema");
@@ -172,7 +180,7 @@ export async function exchangeOAuth2Code(
     codeVerifier: string;
   }>,
   signal: AbortSignal,
-): Promise<GrantedTokens> {
+): Promise<ExchangedTokens> {
   const response = await fetcher(profile.tokenUrl, {
     method: "POST",
     headers: {
@@ -197,7 +205,7 @@ export async function exchangeOAuth2Code(
   const parsed = providerSchema(profile).parse(
     JSON.parse(new TextDecoder().decode(body)),
   );
-  return GrantedTokensSchema.parse(parsed);
+  return { ...GrantedTokensSchema.parse(parsed), providerResponse: parsed };
 }
 
 export function bearerRequestPort(
@@ -240,12 +248,35 @@ export function bearerRequestPort(
 export function grantedScopes(
   profile: OAuth2Profile,
   granted: GrantedTokens,
-): Record<string, string> {
+): Record<string, PermissionLevel> {
   const scopes = granted.scope === undefined
     ? [...profile.scopes]
     : granted.scope.split(/[ ,]+/).filter((scope) => scope.length > 0);
-  return Object.fromEntries(scopes.map((scope) => [scope, "granted"]));
+  const permissions: Record<string, PermissionLevel> = {};
+  for (const scope of scopes) {
+    const separator = scope.indexOf(":");
+    if (separator <= 0) continue;
+    const suffix = scope.slice(separator + 1);
+    const level = Object.hasOwn(SCOPE_LEVELS, suffix)
+      ? SCOPE_LEVELS[suffix]
+      : undefined;
+    if (level === undefined) continue;
+    const name = scope.slice(0, separator);
+    const held = Object.hasOwn(permissions, name)
+      ? permissions[name]
+      : undefined;
+    if (held !== "write") permissions[name] = level;
+  }
+  return permissions;
 }
+
+type PermissionLevel = "read" | "write";
+
+const SCOPE_LEVELS: Readonly<Record<string, PermissionLevel>> = Object.freeze({
+  read: "read",
+  history: "read",
+  write: "write",
+});
 
 type OAuth2Client = Readonly<{
   registrationId: string;
@@ -278,6 +309,7 @@ export type OAuth2BindingPreparation = Readonly<{
   identity: Pick<Identity, "externalAccountId" | "accountLabel">;
   grantedPermissions: Readonly<Record<string, string>>;
   secretSlots: string;
+  connectedResource: ConnectedResource | null;
 }>;
 
 const preparationSlot = Symbol("private OAuth2 binding preparation");
@@ -398,7 +430,7 @@ export function createOAuth2CallbackRunner(
       return await fail("exchange", ConnectionOutcome.ProviderUnregistered);
     }
     const signal = AbortSignal.timeout(CALLBACK_DEADLINE_MS);
-    let granted: GrantedTokens;
+    let granted: ExchangedTokens;
     try {
       const key = await loadSecretKey(dependencies.secretsKey);
       granted = await exchangeOAuth2Code(fetcher, provider.profile, {
@@ -437,7 +469,22 @@ export function createOAuth2CallbackRunner(
         error,
       );
     }
+    let connectedResource: ConnectedResource | null;
+    try {
+      connectedResource = provider.profile.connectedResource?.({
+        tokenResponse: granted.providerResponse,
+        externalAccountId: identity.externalAccountId,
+        accountLabel: identity.accountLabel,
+      }) ?? null;
+    } catch (error) {
+      return await fail(
+        "identify",
+        ConnectionOutcome.InstallationCheckFailed,
+        error,
+      );
+    }
     const prepared: OAuth2BindingPreparation = {
+      connectedResource,
       attemptId: claim.id,
       provider: provider.slug,
       registrationId: client.registrationId,
@@ -552,7 +599,7 @@ export async function bindOAuth2Connection(
       return await fail(ConnectionOutcome.ReconnectUnavailable);
     }
     if (row.externalAccountId === accountId) {
-      await storeInstallation();
+      const refreshedInstallationId = await storeInstallation();
       const refreshed = await transaction.query<
         { version: number; authorizationRevision: number }
       >(
@@ -572,6 +619,10 @@ export async function bindOAuth2Connection(
       );
       const updated = refreshed.rows[0];
       if (updated === undefined) throw new StandardError({ code: "INTERNAL" });
+      await bindPreparedResource(
+        attempt.reconnectConnectionId,
+        refreshedInstallationId,
+      );
       await completeAttempt(attempt.reconnectConnectionId, {
         step: "refreshed",
         accountId,
@@ -630,6 +681,7 @@ export async function bindOAuth2Connection(
       params: { reason: "already_connected" },
     });
   }
+  await bindPreparedResource(created.id, installationId);
   await completeAttempt(created.id, {
     step: "bound",
     status: "enabled",
@@ -637,6 +689,20 @@ export async function bindOAuth2Connection(
     reconnectConnectionId: attempt.reconnectConnectionId,
   });
   return redirect(ConnectionOutcome.Connected, created.id);
+
+  async function bindPreparedResource(
+    connectionId: string,
+    installationId: string,
+  ): Promise<void> {
+    if (prepared.connectedResource === null) return;
+    await bindConnectedResource(transaction, {
+      organizationId: attempt!.organizationId,
+      connectionId,
+      installationId,
+      grantedBy: attempt!.initiatingPrincipalId,
+      resource: prepared.connectedResource,
+    });
+  }
 
   async function storeInstallation(): Promise<string> {
     const existing = await transaction.query<
