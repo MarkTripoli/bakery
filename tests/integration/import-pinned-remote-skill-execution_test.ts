@@ -374,6 +374,9 @@ Deno.test("every refused import leaves no skill behind", async () => {
     ]),
     "a licence other than the source's": withManifest(otherLicense),
     "a stale file hash": withManifest(stale, "# Changed after hashing\n"),
+    "a lone surrogate in the description": withoutManifest([
+      file("SKILL.md", '---\nname: s\ndescription: "\\ud800"\n---\n# S\n'),
+    ]),
   };
   for (const [name, inventory] of Object.entries(refusals)) {
     const { store, fixture, organizationId, run, etag, locator, close } =
