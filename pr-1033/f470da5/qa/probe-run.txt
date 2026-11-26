@@ -1,0 +1,23 @@
+
+> bakery@ test:integration /home/marktripoli/Development/bakery-wt/_qa/qa1033d
+> deno run --allow-env --allow-read --allow-run scripts/run-tests.ts integration tests/integration/qa1033d-probe_test.ts
+
+Check tests/integration/qa1033d-probe_test.ts
+running 2 tests from ./tests/integration/qa1033d-probe_test.ts
+qa probe: upstream reverts to earlier files ...
+------- output -------
+PROBE after A then B: active revision 2 is B true
+PROBE check with reverted upstream: update_available ["SKILL.md changed"]
+PROBE import of reverted revision: completed reports version of A true
+PROBE active afterwards: revision 1 still B false
+PROBE check afterwards: current []
+----- output end -----
+qa probe: upstream reverts to earlier files ... ok (10s)
+qa probe: a match on the active version leaves the skill row alone ...
+------- output -------
+PROBE active match: version 2 -> 2 same active true
+----- output end -----
+qa probe: a match on the active version leaves the skill row alone ... ok (902ms)
+
+ok | 2 passed | 0 failed (11s)
+
