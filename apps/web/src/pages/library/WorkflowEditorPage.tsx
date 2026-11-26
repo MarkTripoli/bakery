@@ -16,12 +16,14 @@ import {
   automaticStarts,
   type DraftStart,
   eventRepositoryId,
+  inputLabel,
   sameStarts,
   savedStart,
   startNeeds,
   startProblems,
   startsOfVersion,
 } from "./start-list.ts";
+import { startCardOf } from "./start-card.ts";
 import type { StartFocus } from "./StartPanel.tsx";
 import { publishChanges } from "./publish-changes.ts";
 import { PublishSummary } from "./PublishSummary.tsx";
@@ -835,7 +837,7 @@ export function WorkflowEditorPage(
         ...problem,
         sentence: translate(
           `library.editor.start.problem.row.${problem.kind}`,
-          { number: problem.number, name: problem.name },
+          { number: problem.number, name: inputLabel(problem.name) },
         ),
         target: {
           startId: problem.startId,
@@ -846,13 +848,7 @@ export function WorkflowEditorPage(
     [editor.starts, needs, translate],
   );
   const automatic = automaticStarts(editor.starts);
-  const startCard = editor.starts.length === 0 ? undefined : {
-    title: translate("library.editor.start.title"),
-    line: translate("library.editor.start.card", {
-      events: automatic.events,
-      schedules: automatic.schedules,
-    }),
-  };
+  const startCard = startCardOf(editor.starts, translate);
   const problemsByStep = useMemo<ReadonlyMap<string, string>>(() => {
     const merged = new Map(checker.byStep);
     for (const [id, issues] of approvalIssues) {
@@ -1867,13 +1863,13 @@ export function WorkflowEditorPage(
                   <UI.Text variant="muted">
                     {translate("library.workflow.steps.never" as never)}
                   </UI.Text>
-                  {blocked || automatic.events === 0 ? null : (
+                  {blocked || automatic === 0 ? null : (
                     <UI.Text>
                       {translate(
                         publishedUnused
                           ? "library.editor.start.useNote"
                           : "library.editor.start.publishNote",
-                        { count: automatic.events },
+                        { count: automatic },
                       )}
                     </UI.Text>
                   )}

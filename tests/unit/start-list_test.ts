@@ -7,12 +7,15 @@ import { neutralFieldsOf } from "../../apps/server/src/modules/integrations/neut
 import {
   chosenRepository,
   eventRepositoryId,
+  inputLabel,
   newStart,
   otherFilters,
   savedStart,
   startNeeds,
   startProblems,
   startsOfVersion,
+  toEvent,
+  toSchedule,
   withBriefInput,
   withBudget,
   withRepository,
@@ -85,13 +88,38 @@ Deno.test("a start lists each missing input until it is filled", () => {
   });
 });
 
-Deno.test("a schedule start is never reported as needing inputs", () => {
+const NIGHTLY = {
+  id: "nightly",
+  on: { kind: "schedule", cron: "0 2 * * *", timezone: "Europe/London" },
+} as const;
+
+Deno.test("a schedule start needs a repository even when no input asks for one", () => {
   assertEquals(
-    startProblems([{
-      id: "nightly",
-      on: { kind: "schedule", cron: "0 2 * * *", timezone: "Europe/London" },
-    }], NEEDS),
+    startProblems([NIGHTLY], []).map((one) => [one.kind, one.name]),
+    [["repository", "repositoryId"]],
+  );
+  assertEquals(
+    startProblems([NIGHTLY], NEEDS).map((one) => one.kind).includes("title"),
+    true,
+  );
+  assertEquals(
+    startProblems([toSchedule(NIGHTLY, NIGHTLY.on, REPOSITORY)], []),
     [],
+  );
+});
+
+Deno.test("switching between a schedule and an event keeps the chosen repository", () => {
+  const scheduled = toSchedule(newStart([]), NIGHTLY.on, REPOSITORY);
+  assertEquals(scheduled.inputs?.repositoryId, REPOSITORY.id);
+  const event = toEvent(
+    scheduled,
+    "work_item.opened",
+    undefined,
+    [REPOSITORY],
+  );
+  assertEquals(
+    [event.inputs, event.on.kind === "event" && event.on.filter],
+    [undefined, { repositoryId: 42 }],
   );
 });
 
@@ -173,5 +201,40 @@ Deno.test("a refused amount typed into an empty field leaves it empty", () => {
   assertEquals(
     [refused.budgetUsd, refused.budgetTyped],
     [undefined, "20000"],
+  );
+});
+
+Deno.test("an input is labelled with words, not its raw name", () => {
+  assertEquals(
+    ["instructions", "release_notes", "targetBranch"].map(inputLabel),
+    ["Instructions", "Release notes", "Target branch"],
+  );
+  assertEquals(
+    ["githubPRNumber", "prURL", "APIKey", "repoIDs", "sha256Digest"].map(
+      inputLabel,
+    ),
+    ["Github PR number", "Pr URL", "API key", "Repo IDs", "Sha256 digest"],
+  );
+  assertEquals(
+    [
+      "S3Bucket",
+      "APIv2",
+      "OAuthToken",
+      "iOSVersion",
+      "E2ETests",
+      "IPv6Address",
+    ].map(inputLabel),
+    [
+      "S3 bucket",
+      "API v2",
+      "OAuth token",
+      "iOS version",
+      "E2E tests",
+      "IPv6 address",
+    ],
+  );
+  assertEquals(
+    ["planX", "XMLHttpRequest", "base_URL", "v2API"].map(inputLabel),
+    ["Plan x", "XML http request", "Base URL", "V2 API"],
   );
 });

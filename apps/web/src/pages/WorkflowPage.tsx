@@ -49,6 +49,8 @@ import {
 } from "./library/workflow-state.ts";
 import { stepsOfTree, treeOf } from "./library/workflow-tree.ts";
 import { WorkflowDiagram } from "./library/WorkflowDiagram.tsx";
+import { startCardOf } from "./library/start-card.ts";
+import { startsOfVersion } from "./library/start-list.ts";
 import { DiagramViewSwitch, useDiagramView } from "./library/diagram-view.tsx";
 
 /** How many versions the Versions card lists before "Show all". */
@@ -545,6 +547,7 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
   // The same tree the editor draws, so a step Bakery cannot read keeps its
   // place here instead of vanishing (design-ux's ruling on #67).
   const tree = treeOf(shown?.normalizedSpec);
+  const shownStart = startCardOf(startsOfVersion(shown?.starts), translate);
   const badge = !current.enabled
     ? (
       <UI.Badge tone="neutral">
@@ -777,6 +780,7 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
             variant="list"
           >
             <WorkflowDiagram
+              {...(shownStart === undefined ? {} : { start: shownStart })}
               tree={tree}
               selectedId={null}
               problems={EMPTY_PROBLEMS}

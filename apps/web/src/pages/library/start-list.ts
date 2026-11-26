@@ -162,12 +162,50 @@ export function withBudget(
     : { ...rest, budgetUsd: settled, budgetTyped: text };
 }
 
+export const SCHEDULE_REPOSITORY: StartNeed = {
+  name: "repositoryId",
+  kind: "repository",
+};
+
+export function toSchedule(
+  start: DraftStart,
+  on: { readonly cron: string; readonly timezone: string },
+  repository: StartRepository,
+): DraftStart {
+  return withTextInput(
+    { ...start, on: { kind: "schedule", ...on } },
+    SCHEDULE_REPOSITORY.name,
+    textInput(start, SCHEDULE_REPOSITORY.name) || repository.id,
+  );
+}
+
+export function toEvent(
+  start: DraftStart,
+  eventKind: string,
+  need: StartNeed | undefined,
+  repositories: readonly StartRepository[],
+): DraftStart {
+  const id = textInput(start, SCHEDULE_REPOSITORY.name);
+  const repository = repositories.find((one) => one.id === id);
+  const next = withTextInput(
+    { ...start, on: { kind: "event", eventKind, filter: {} } },
+    SCHEDULE_REPOSITORY.name,
+    "",
+  );
+  return withRepository(next, need, repository);
+}
+
 export function startProblems(
   starts: readonly DraftStart[],
   needs: readonly StartNeed[],
 ): readonly StartProblem[] {
   return starts.flatMap((start, index) => {
-    if (start.on.kind !== "event") return [];
+    const unplaced = start.on.kind === "schedule" &&
+        !needs.some((need) => need.kind === "repository") &&
+        textInput(start, SCHEDULE_REPOSITORY.name).trim() === ""
+      ? [SCHEDULE_REPOSITORY]
+      : [];
+    const required = [...unplaced, ...needs];
     const budget: readonly StartProblem[] = start.budgetTyped === undefined
       ? []
       : [{
@@ -176,7 +214,7 @@ export function startProblems(
         kind: "budget",
         name: BUDGET_PROBLEM_NAME,
       }];
-    const missingInputs = needs.flatMap((need): readonly StartProblem[] => {
+    const missingInputs = required.flatMap((need): readonly StartProblem[] => {
       const missing = need.kind === "brief"
         ? briefInput(start, need.name).title.trim() === ""
         : need.kind === "unsupported"
@@ -238,7 +276,13 @@ export function withRepository(
   need: StartNeed | undefined,
   repository: StartRepository | undefined,
 ): WorkflowStart {
-  if (start.on.kind !== "event") return start;
+  if (start.on.kind !== "event") {
+    return withTextInput(
+      start,
+      SCHEDULE_REPOSITORY.name,
+      repository?.id ?? "",
+    );
+  }
   const { [REPOSITORY_FILTER]: _held, ...others } = start.on.filter;
   const filter = repository === undefined ||
       repository.eventRepositoryId === null
@@ -252,9 +296,8 @@ export function withRepository(
 
 export function automaticStarts(
   starts: readonly WorkflowStart[],
-): { readonly events: number; readonly schedules: number } {
-  const events = starts.filter((start) => start.on.kind === "event").length;
-  return { events, schedules: starts.length - events };
+): number {
+  return starts.length;
 }
 
 export function sameStarts(
@@ -262,4 +305,18 @@ export function sameStarts(
   right: readonly WorkflowStart[],
 ): boolean {
   return canonicalJson(left) === canonicalJson(right);
+}
+
+const WORD_BOUNDARY =
+  /(?<=[a-z])(?!(?<=\b[a-z])[A-Z]{2})(?=[A-Z])|(?<=\d)(?=[A-Z][a-z])|(?<=[a-z]\d+)(?=[A-Z])|(?<=[A-Z\d][A-Z])(?=[A-Z](?!s\b|v\d)[a-z])|(?<=[A-Z]{3})(?=v\d)/g;
+const KEEPS_CAPITALS = /[A-Z].*[A-Z]|^[A-Z]+\d/;
+
+export function inputLabel(name: string): string {
+  const [first = name, ...rest] = name.replace(/[_-]+/g, " ")
+    .replace(WORD_BOUNDARY, " ").trim().split(/\s+/)
+    .map((word) => KEEPS_CAPITALS.test(word) ? word : word.toLowerCase());
+  const lead = first === first.toLowerCase()
+    ? first.charAt(0).toUpperCase() + first.slice(1)
+    : first;
+  return [lead, ...rest].join(" ");
 }
