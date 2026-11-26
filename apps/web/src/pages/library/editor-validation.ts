@@ -1,11 +1,3 @@
-/**
- * Where the server's validation report belongs on the step the person is
- * looking at (#67, slice 1). The report answers JSON Pointers into the
- * definition it was given, so `/steps/2/uses` is the third step's action; a
- * pointer that names no step ("", `/steps`, `/name`) is the workflow's own
- * problem, not a step's.
- */
-
 /** One problem as the report states it. */
 export type ValidationProblem = {
   readonly path: string;
@@ -14,8 +6,8 @@ export type ValidationProblem = {
 };
 
 export type StepProblems = {
-  /** The problems that belong to a step, by the step's index. */
-  readonly byStep: ReadonlyMap<number, readonly ValidationProblem[]>;
+  readonly byStep: ReadonlyMap<string, readonly ValidationProblem[]>;
+  readonly unmapped: readonly ValidationProblem[];
   /** The problems about the workflow itself, which no step can hold. */
   readonly workflow: readonly ValidationProblem[];
 };
@@ -57,32 +49,58 @@ export function unboundActionsOf(
   return actions;
 }
 
-/** The step index a pointer names, or null when it names no single step. */
-export function stepIndexOf(path: string): number | null {
-  // `/steps/2/uses`, `/steps/2`, and nothing else: a bare `/steps` is the list.
-  const parts = path.split("/").filter((part) => part !== "");
-  if (parts.length < 2 || parts[0] !== "steps") return null;
-  if (!/^(0|[1-9][0-9]*)$/.test(parts[1])) return null;
-  return Number(parts[1]);
+const NODE_LISTS: ReadonlySet<string> = new Set([
+  "steps",
+  "then",
+  "else",
+  "lanes",
+  "branches",
+]);
+const POSITION = /^(0|[1-9][0-9]*)$/;
+
+export function pointsIntoSteps(path: string): boolean {
+  const [head, position] = path.split("/").filter((part) => part !== "");
+  return head === "steps" && position !== undefined && POSITION.test(position);
 }
 
-/** The report's problems sorted by the step they belong to. */
+export function nodeIdAt(path: string, definition: unknown): string | null {
+  if (!pointsIntoSteps(path)) return null;
+  const parts = path.split("/").filter((part) => part !== "");
+  let node: unknown = definition;
+  let found: string | null = null;
+  for (const [at, part] of parts.entries()) {
+    node = typeof node === "object" && node !== null
+      ? (node as Record<string, unknown>)[part]
+      : undefined;
+    if (!POSITION.test(part) || !NODE_LISTS.has(parts[at - 1])) continue;
+    const id = (node as Record<string, unknown> | undefined)?.id;
+    if (typeof id === "string") found = id;
+  }
+  return found;
+}
+
 export function problemsOf(
   problems: readonly ValidationProblem[],
+  definition: unknown,
 ): StepProblems {
-  const byStep = new Map<number, ValidationProblem[]>();
+  const byStep = new Map<string, ValidationProblem[]>();
+  const unmapped: ValidationProblem[] = [];
   const workflow: ValidationProblem[] = [];
   for (const problem of problems) {
-    const index = stepIndexOf(problem.path);
-    if (index === null) {
+    if (!pointsIntoSteps(problem.path)) {
       workflow.push(problem);
       continue;
     }
-    const held = byStep.get(index) ?? [];
+    const id = nodeIdAt(problem.path, definition);
+    if (id === null) {
+      unmapped.push(problem);
+      continue;
+    }
+    const held = byStep.get(id) ?? [];
     held.push(problem);
-    byStep.set(index, held);
+    byStep.set(id, held);
   }
-  return { byStep, workflow };
+  return { byStep, unmapped, workflow };
 }
 
 /**

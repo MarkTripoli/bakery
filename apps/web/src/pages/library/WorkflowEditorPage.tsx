@@ -60,7 +60,10 @@ import {
   editorStateOf,
   type EditorStep,
   freeStepId,
+  groupStartsOf,
+  isPlainGroup,
   type LoopEdit,
+  nodeIds,
   skillsOfNode,
 } from "./editor-state.ts";
 import { LeaveGuard } from "../repository-rules/leave-guard.tsx";
@@ -90,6 +93,8 @@ import {
   treeOf,
   type TreeStep,
 } from "./workflow-tree.ts";
+
+const GROUP_STEP_TYPES: readonly string[] = [APPROVAL_ACTION];
 
 /**
  * The workflow editor (#67, slice 1 of the owner's spec): the workflow drawn
@@ -223,12 +228,13 @@ export function WorkflowEditorPage(
   const versionSteps = useMemo<readonly EditorStep[]>(() => {
     const spec = record(draft?.normalizedSpec);
     const steps = Array.isArray(spec.steps) ? spec.steps : [];
-    return steps.flatMap((raw) => {
+    const entry = (raw: unknown, list?: string): EditorStep[] => {
       const step = record(raw);
       const id = typeof step.id === "string" ? step.id : "";
       const uses = typeof step.uses === "string" ? step.uses : "";
       if (id === "") return [];
       return [{
+        ...(list === undefined ? {} : { list }),
         id,
         uses,
         agentVersionId: typeof step.agentVersionId === "string"
@@ -237,7 +243,12 @@ export function WorkflowEditorPage(
         skills: skillsOfNode(step),
         ...approvalPart(uses, step),
       }];
-    });
+    };
+    return steps.flatMap((raw) =>
+      isPlainGroup(raw)
+        ? raw.steps.flatMap((inner) => entry(inner, raw.id))
+        : entry(raw)
+    );
   }, [draft]);
 
   const versionStarts = useMemo(
@@ -556,8 +567,10 @@ export function WorkflowEditorPage(
     return Array.isArray(rawSpec.steps) ? rawSpec.steps : null;
   }, [rawSpec]);
   const plainList = rawSteps !== null && rawSteps.every(isActionNode);
+  const grouped = !plainList && (rawSteps?.some(isPlainGroup) ?? false);
   const tree = useMemo(() => {
     if (rawSteps === null) return treeOf({});
+    if (grouped) return treeOf(definitionOf(rawSpec, steps));
     if (!plainList) return treeOf(rawSpec);
     const rawById = new Map<string, Record<string, unknown>>();
     for (const node of rawSteps) {
@@ -575,10 +588,27 @@ export function WorkflowEditorPage(
           : { agentVersionId: step.agentVersionId }),
       })),
     });
-  }, [rawSpec, rawSteps, plainList, steps]);
+  }, [rawSpec, rawSteps, plainList, grouped, steps]);
   // Slice 1 adds, moves and removes only the actions of a straight line; a
   // definition that holds groups is drawn and read, never rewritten.
-  const editable = canManage && plainList;
+  const editable = canManage && (plainList || grouped);
+  const canChange = (step: EditorStep | undefined) =>
+    editable && step !== undefined && (plainList || step.list !== undefined);
+  const groupStarts = useMemo(
+    () => grouped ? groupStartsOf(tree, steps) : new Map(),
+    [grouped, tree, steps],
+  );
+  const addAfter = grouped
+    ? new Set<string | null>([
+      ...groupStarts.keys(),
+      ...steps.filter((step) => step.list !== undefined).map((step) => step.id),
+    ])
+    : undefined;
+  const addBefore = new Map<string | null, string>(
+    [...groupStarts].flatMap(([block, first]) =>
+      block === null ? [] : [[block, first.uses]]
+    ),
+  );
 
   // Checking is continuous: the draft is checked against the server as it
   // changes, and each problem lands on the step its pointer names. A problem
@@ -587,6 +617,8 @@ export function WorkflowEditorPage(
     readonly byStep: ReadonlyMap<string, string>;
     /** Steps whose only problems are skills needing a choice: their Skills section says it. */
     readonly skillOnly: ReadonlySet<string>;
+    readonly refused: ReadonlySet<string>;
+    readonly refusedElsewhere: boolean;
     /** Problems that name a step the page does not draw, so no card can hold them. */
     readonly unmapped: readonly string[];
     readonly workflow: readonly string[];
@@ -594,6 +626,8 @@ export function WorkflowEditorPage(
   }>({
     byStep: new Map(),
     skillOnly: new Set(),
+    refused: new Set(),
+    refusedElsewhere: false,
     unmapped: [],
     workflow: [],
     unboundActions: new Set(),
@@ -613,32 +647,29 @@ export function WorkflowEditorPage(
       if (!result.ok) throw result.error;
       return { report: result.data, definition };
     },
-    onSuccess: ({ report, definition }, held) => {
+    onSuccess: ({ report, definition }) => {
       const found = [...(report.errors ?? []), ...(report.warnings ?? [])];
-      const sorted = problemsOf(withoutUnboundAgent(found));
+      const sorted = problemsOf(withoutUnboundAgent(found), definition);
       const byStep = new Map<string, string>();
       const skillOnly = new Set<string>();
-      const unmapped: string[] = [];
-      for (const [index, found] of sorted.byStep) {
-        const sentence = stepProblemLine(found) ?? "";
-        const step = held[index];
-        // A pointer past the steps the page sent names a step nothing draws;
-        // the chip still counts it, and its row can only be read in the code.
-        if (step === undefined) {
-          unmapped.push(sentence);
-          continue;
-        }
-        byStep.set(step.id, sentence);
-        if (found.every((problem) => SKILL_PROBLEM_CODES.has(problem.code))) {
-          skillOnly.add(step.id);
+      for (const [id, held] of sorted.byStep) {
+        byStep.set(id, stepProblemLine(held) ?? "");
+        if (held.every((problem) => SKILL_PROBLEM_CODES.has(problem.code))) {
+          skillOnly.add(id);
         }
       }
+      const refused = problemsOf(
+        withoutUnboundAgent(report.errors ?? []),
+        definition,
+      );
       setChecker({
         byStep,
         skillOnly,
-        unmapped,
-        // The workflow's own problems are sentences too, never the server's
-        // message (ruling 6900485736 section 3).
+        refused: new Set(refused.byStep.keys()),
+        refusedElsewhere: refused.unmapped.length + refused.workflow.length > 0,
+        unmapped: sorted.unmapped.map((problem) =>
+          problemSentence(problem.code)
+        ),
         workflow: sorted.workflow.map((problem) =>
           problemSentence(problem.code)
         ),
@@ -652,6 +683,8 @@ export function WorkflowEditorPage(
       setChecker({
         byStep: new Map(),
         skillOnly: new Set(),
+        refused: new Set(),
+        refusedElsewhere: false,
         unmapped: [],
         workflow: [],
         unboundActions: new Set(),
@@ -952,7 +985,8 @@ export function WorkflowEditorPage(
     });
     return out;
   }, [tree, checker, problemsByStep, approvalIssues, startIssues, translate]);
-  const blocked = rows.some((row) => row.blocking === true);
+  const blocked = checker.refused.size > 0 || checker.refusedElsewhere ||
+    rows.some((row) => row.blocking === true);
   const [focusRequest, setFocusRequest] = useState<
     {
       readonly stepId: string;
@@ -1171,7 +1205,7 @@ export function WorkflowEditorPage(
           : null,
         resolving,
       ),
-      attach: editable && live?.agentVersionId != null
+      attach: canChange(live) && live?.agentVersionId != null
         ? {
           state: catalog.isError
             ? "failed"
@@ -1240,7 +1274,7 @@ export function WorkflowEditorPage(
     const approval = live?.approval === undefined ? undefined : {
       stepId: live.id,
       fields: live.approval,
-      onChange: editable
+      onChange: canChange(live)
         ? (fields: NonNullable<EditorStep["approval"]>, typing?: string) =>
           dispatch({
             kind: "approval",
@@ -1269,7 +1303,8 @@ export function WorkflowEditorPage(
     return {
       kind: "step",
       name: stepName(step, translate),
-      deletable: editable,
+      deletable: canChange(live) &&
+        (!grouped || steps.filter((one) => one.list === live?.list).length > 1),
       uses: step.uses,
       approval,
       agentFromSetup: checker.unboundActions.has(step.uses),
@@ -1280,9 +1315,10 @@ export function WorkflowEditorPage(
         ? translate("library.editor.problem.unknown" as never)
         : translate("library.editor.problem.unreadable" as never),
       ...skillsFor(live, step),
-      canMoveUp: index > 0,
-      canMoveDown: index >= 0 && index < steps.length - 1,
-      disabled: !editable || index < 0,
+      canMoveUp: index > 0 && steps[index - 1].list === live?.list,
+      canMoveDown: index >= 0 && index < steps.length - 1 &&
+        steps[index + 1].list === live?.list,
+      disabled: !canChange(live) || index < 0,
       onMoveUp: () => {
         if (live === undefined) return;
         dispatch({ kind: "move", id: live.id, index: index - 1 });
@@ -1459,23 +1495,34 @@ export function WorkflowEditorPage(
             {...(startCard === undefined ? {} : { start: startCard })}
             canManage={canManage}
             editable={editable}
+            {...(addAfter === undefined
+              ? {}
+              : { addAfter, addBefore, offer: GROUP_STEP_TYPES })}
             onAdd={(afterId) => setPickerAfter(afterId)}
             onSelect={setSelectedId}
             onViewAsCode={() => setCodeOpen(true)}
             pickerAt={pickerAfter}
             onPick={(uses) => {
               const afterId = pickerAfter ?? null;
-              const id = freeStepId(editor, uses);
+              const id = freeStepId(editor, uses, nodeIds(rawSteps));
+              const opening = grouped ? groupStarts.get(afterId) : undefined;
+              const list = grouped
+                ? opening?.list ??
+                  steps.find((one) => one.id === afterId)?.list
+                : undefined;
               const step = {
                 id,
                 uses,
                 agentVersionId: null,
                 skills: [],
                 ...(uses === APPROVAL_ACTION ? { approval: NEW_APPROVAL } : {}),
+                ...(list === undefined ? {} : { list }),
               };
               dispatch({ kind: "add", step });
-              // Put the new step where the "+" was pressed.
-              if (afterId !== null) {
+              if (opening !== undefined) {
+                const first = steps.findIndex((one) => one.list === list);
+                dispatch({ kind: "move", id, index: first });
+              } else if (afterId !== null) {
                 const at = steps.findIndex((one) => one.id === afterId);
                 dispatch({ kind: "move", id, index: at + 1 });
               }

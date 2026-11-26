@@ -7588,6 +7588,8 @@
   "library.skills.add.happens.forYou": "⟦Ŧĥë šķïļļ ïš àððëð ƒôŕ ÿôû ôñļÿ. ŧëšŧ çôþÿ⟧",
   "library.skills.add.failure.missingRevision": "⟦{address} ĥàš ñô ƀŕàñçĥ, ŧàĝ ôŕ çôɱɱïŧ çàļļëð {revision}. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "library.skills.add.failure.shortCommit": "⟦{address} ĥàš ñô ƀŕàñçĥ ôŕ ŧàĝ çàļļëð {revision}. Ïƒ ïŧ ïš à çôɱɱïŧ, ëñŧëŕ àļļ 40 çĥàŕàçŧëŕš ôƒ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "library.editor.addBefore": "⟦Àðð à šŧëþ ƀëƒôŕë {before} ŧëšŧ çô⟧",
+  "library.editor.picker.limited": "⟦Ôŧĥëŕ šŧëþ ŧÿþëš ñëëð šëŧŧïñĝš ŧĥïš þàĝë çàññôŧ ƒïļļ ïñ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "library.editor.noChanges": "⟦Ñô çĥàñĝëš ŧô þûƀļïšĥ ŧëšŧŧ⟧",
   "library.editor.publishedUnused": "⟦Ṽëŕšïôñ {version} þûƀļïšĥëð, ñôŧ ïñ ûšë ŧëšŧ çôþÿ ŧ⟧"
 }
