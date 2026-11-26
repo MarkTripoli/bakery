@@ -31,6 +31,7 @@ import {
   type UstarFixtureEntry,
 } from "../fixtures/remote-skill-source.ts";
 import { serveRefusingGit } from "../helpers/git-refusing-server.ts";
+import { SERVER_GIT_LAUNCHER } from "../../apps/server/src/platform/server-exec.ts";
 
 const encoder = new TextEncoder();
 const locator = "http://127.0.0.1:43127/source";
@@ -125,7 +126,7 @@ async function processesNaming(text: string): Promise<string> {
   return new TextDecoder().decode(found.stdout).trim();
 }
 
-Deno.test("a git fetch that times out leaves no git process behind", async () => {
+Deno.test("a git fetch that times out leaves no git process behind, under the server's own run grant", async () => {
   const held: Promise<void>[] = [];
   let release: () => void = () => undefined;
   const hold = new Promise<void>((resolve) => {
@@ -142,18 +143,27 @@ Deno.test("a git fetch that times out leaves no git process behind", async () =>
   const url =
     `http://127.0.0.1:${server.addr.port}/hung-${crypto.randomUUID()}.git`;
   try {
-    const adapter = createSkillSourceAdapterForTest({
-      allowInsecureLoopback: true,
-      timeoutMs: 1_000,
-    });
-    await expectSourceError(
-      () =>
-        adapter.fetchPinnedSource({
-          sourceType: "git",
-          locator: url,
-          requestedRevision: "main",
-        }),
+    const child = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        `--allow-run=${SERVER_GIT_LAUNCHER}`,
+        "--allow-net",
+        "--allow-read",
+        "--allow-env",
+        "--allow-sys",
+        "--allow-write",
+        new URL("../helpers/git-timeout-restricted.child.ts", import.meta.url)
+          .pathname,
+        url,
+      ],
+      stdout: "piped",
+      stderr: "piped",
+      signal: AbortSignal.timeout(20_000),
+    }).output();
+    assertEquals(
+      new TextDecoder().decode(child.stdout).trim(),
       "SOURCE_TIMEOUT",
+      new TextDecoder().decode(child.stderr),
     );
     await new Promise((resolve) => setTimeout(resolve, 1_000));
     assertEquals(await processesNaming(url), "");

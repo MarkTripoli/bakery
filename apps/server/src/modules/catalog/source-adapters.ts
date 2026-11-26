@@ -400,27 +400,29 @@ const productionHttpFetch: HttpSourceFetch = async (url, init) => {
   };
 };
 
-function killProcessGroup(leader: number): boolean {
+const GIT_STOP_GRACE_MS = 2_000;
+
+function signal(child: Deno.ChildProcess, name: Deno.Signal): void {
   try {
-    Deno.kill(-leader, "SIGKILL");
-    return true;
-  } catch {
-    return false;
+    child.kill(name);
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
   }
 }
 
 async function killAndReap(child: Deno.ChildProcess): Promise<void> {
-  killProcessGroup(child.pid);
-  try {
-    child.kill("SIGKILL");
-  } catch {
-    // Process may already have exited.
-  }
-  try {
-    await child.status;
-  } catch {
-    // Status can reject after forced termination.
-  }
+  signal(child, "SIGTERM");
+  let grace: ReturnType<typeof setTimeout> | undefined;
+  const stopped = await Promise.race([
+    child.status.then(() => true, () => true),
+    new Promise<false>((resolve) => {
+      grace = setTimeout(() => resolve(false), GIT_STOP_GRACE_MS);
+    }),
+  ]);
+  clearTimeout(grace);
+  if (stopped) return;
+  signal(child, "SIGKILL");
+  await child.status.catch(() => undefined);
 }
 
 const productionGitRunner: GitCommandRunner = {
@@ -727,14 +729,14 @@ function commitOrName(revision: string): string {
   return GIT_OBJECT_ID.test(lower) ? lower : revision;
 }
 
-async function advertisedRefs(
+async function requireAdvertisedRevision(
   dependencies: SkillSourceAdapterDependencies,
   directory: string,
   normalizedLocator: string,
   revision: string,
   signal?: AbortSignal,
-): Promise<Uint8Array> {
-  return await runGit(
+): Promise<void> {
+  const advertised = await runGit(
     dependencies,
     directory,
     [
@@ -752,22 +754,6 @@ async function advertisedRefs(
       revision,
     ],
     MAX_GIT_TEXT_BYTES,
-    signal,
-  );
-}
-
-async function requireAdvertisedRevision(
-  dependencies: SkillSourceAdapterDependencies,
-  directory: string,
-  normalizedLocator: string,
-  revision: string,
-  signal?: AbortSignal,
-): Promise<void> {
-  const advertised = await advertisedRefs(
-    dependencies,
-    directory,
-    normalizedLocator,
-    revision,
     signal,
   );
   if (advertised.byteLength === 0) fail("SOURCE_REVISION_NOT_FOUND");

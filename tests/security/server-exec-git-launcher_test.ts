@@ -400,12 +400,10 @@ Deno.test("the git launcher is an executable file with no caller-chosen command"
   assertEquals(commands.match(/\bexec\b/g)?.length, 2);
   assertEquals(
     commands.match(/exec \/usr\/bin\/env -i \$ENVIRONMENT/g)?.length,
-    1,
+    2,
   );
   assertEquals(
-    commands.match(
-      /exec \/usr\/bin\/setsid -w \/usr\/bin\/env -i \$ENVIRONMENT/g,
-    )?.length,
+    commands.match(/\/usr\/bin\/timeout --kill-after=5 /g)?.length,
     1,
   );
   assert(!/--upload-pack|alias\.|sshCommand=|eval /.test(commands));

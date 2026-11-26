@@ -52,6 +52,7 @@ local_git() {
 }
 
 max_fetch_blobs=257
+remote_deadline_seconds=120
 
 check_url() {
   case "$1" in *[[:space:][:cntrl:]]*) exit 64 ;; esac
@@ -65,7 +66,8 @@ check_url() {
 remote_git() {
   set_environment "$protocols"
   # shellcheck disable=SC2086 # ENVIRONMENT is a fixed list of NAME=value words.
-  exec /usr/bin/setsid -w /usr/bin/env -i $ENVIRONMENT \
+  exec /usr/bin/env -i $ENVIRONMENT \
+    /usr/bin/timeout --kill-after=5 "$remote_deadline_seconds" \
     /usr/bin/git --git-dir="$dir" \
     -c core.hooksPath=/dev/null -c core.fsmonitor=false \
     -c credential.helper= -c core.askPass= -c http.followRedirects=false \
