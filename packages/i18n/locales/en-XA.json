@@ -7591,5 +7591,7 @@
   "library.editor.addBefore": "⟦Àðð à šŧëþ ƀëƒôŕë {before} ŧëšŧ çô⟧",
   "library.editor.picker.limited": "⟦Ôŧĥëŕ šŧëþ ŧÿþëš ñëëð šëŧŧïñĝš ŧĥïš þàĝë çàññôŧ ƒïļļ ïñ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "library.editor.noChanges": "⟦Ñô çĥàñĝëš ŧô þûƀļïšĥ ŧëšŧŧ⟧",
-  "library.editor.publishedUnused": "⟦Ṽëŕšïôñ {version} þûƀļïšĥëð, ñôŧ ïñ ûšë ŧëšŧ çôþÿ ŧ⟧"
+  "library.editor.publishedUnused": "⟦Ṽëŕšïôñ {version} þûƀļïšĥëð, ñôŧ ïñ ûšë ŧëšŧ çôþÿ ŧ⟧",
+  "library.workflow.draftKept": "⟦Ṽëŕšïôñ {version} ïš ïñ ûšë. Ÿôûŕ ûñçĥàñĝëð ðŕàƒŧ çôûļð ñôŧ ƀë ûþðàŧëð, šô ïŧ šŧïļļ šĥôŵš ŧĥë ëàŕļïëŕ šŧëþš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.workflow.draftKeptRetry": "⟦Ŧŕÿ ûþðàŧïñĝ ŧĥë ðŕàƒŧ àĝàïñ ŧëšŧ çô⟧"
 }

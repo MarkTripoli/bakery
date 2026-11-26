@@ -26,6 +26,8 @@ import {
 import { startCardOf } from "./start-card.ts";
 import type { StartFocus } from "./StartPanel.tsx";
 import { publishChanges } from "./publish-changes.ts";
+import { DraftKeptNotice } from "./DraftKeptNotice.tsx";
+import { rewriteDraft } from "./leftover-draft.ts";
 import { PublishSummary } from "./PublishSummary.tsx";
 import { useBakeryApi } from "../../api/context.tsx";
 import {
@@ -481,20 +483,24 @@ export function WorkflowEditorPage(
     },
   });
 
+  const [draftKept, setDraftKept] = useState<WorkflowVersionResponse | null>(
+    null,
+  );
+  const [rewriting, setRewriting] = useState(false);
   const rebaseLeftoverDraft = async (used: WorkflowVersionResponse) => {
     const target = draft?.status === "draft" ? writeTarget() : null;
     if (target === null) return;
-    await api.updateWorkflowVersion({
-      organizationId: scope.organizationId as string,
+    setRewriting(true);
+    const written = await rewriteDraft(
+      api,
+      scope.organizationId as string,
       workflowId,
-      versionId: target.id,
-      version: target.version,
-      input: {
-        definition: used.normalizedSpec,
-        starts: startsOfVersion(used.starts).map(savedStart),
-      },
-      idempotencyKey: crypto.randomUUID(),
-    });
+      target,
+      used,
+    );
+    setDraftKept(written ? null : used);
+    setRewriting(false);
+    void queryClient.invalidateQueries({ queryKey: ["protected"] });
   };
 
   const publish = useMutation({
@@ -1688,11 +1694,13 @@ export function WorkflowEditorPage(
                   version: inUse.revision,
                 })}
             </UI.Text>
-            {
-              /* A member needs to know before they try, on its own line so the
-                two sentences never run together (#67 UX ruling 6934081003
-                fix 4). */
-            }
+            {draftKept === null ? null : (
+              <DraftKeptNotice
+                onRetry={() => void rebaseLeftoverDraft(draftKept)}
+                pending={rewriting}
+                version={draftKept.revision}
+              />
+            )}
             {canManage ? null : (
               <UI.Text variant="muted">
                 {translate("library.editor.memberOnly" as never)}

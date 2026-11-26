@@ -7591,5 +7591,7 @@
   "library.editor.addBefore": "⟪Add a step before {before}⟫",
   "library.editor.picker.limited": "⟪Other step types need settings this page cannot fill in yet.⟫",
   "library.editor.noChanges": "⟪No changes to publish⟫",
-  "library.editor.publishedUnused": "⟪Version {version} published, not in use⟫"
+  "library.editor.publishedUnused": "⟪Version {version} published, not in use⟫",
+  "library.workflow.draftKept": "⟪Version {version} is in use. Your unchanged draft could not be updated, so it still shows the earlier steps.⟫",
+  "library.workflow.draftKeptRetry": "⟪Try updating the draft again⟫"
 }
