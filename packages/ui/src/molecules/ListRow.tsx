@@ -24,11 +24,13 @@ export type ListRowProps =
     /** `tall` rows hold a status pill and are 60px; `regular` rows are 56px. */
     size?: "regular" | "tall";
     selected?: boolean;
-    title: ReactNode;
-    titleEnd?: string | undefined;
     /** Trailing status or glyph. */
     trailing?: ReactNode;
-  };
+  }
+  & (
+    | { title: ReactNode; titleEnd?: undefined }
+    | { title: string; titleEnd: string | undefined }
+  );
 
 /** A phone list row: title over a detail line, with a trailing status. */
 export function ListRow(
@@ -48,13 +50,13 @@ export function ListRow(
   }: ListRowProps,
 ) {
   const detailId = useId();
-  const name = titleEnd === undefined
+  const name = titleEnd === undefined || typeof title !== "string"
     ? <span className="ui-list-row__title">{title}</span>
     : (
       <span
         className="ui-list-row__title"
         data-middle="true"
-        title={`${String(title)}${titleEnd}`}
+        title={`${title}${titleEnd}`}
       >
         <span
           className="ui-list-row__title-start"

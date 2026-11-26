@@ -306,6 +306,28 @@ for (
       expect(calls).toHaveLength(0);
     });
 
+    test("Replace and renaming a file that is not text keep focus on the file", async ({ page }) => {
+      await skillEditorFixture(page);
+      await page.goto(EDITOR);
+      await page.getByRole("button", { name: "Open assets/logo.bin" }).click();
+      const replace = page.getByRole("button", { name: "Replace" });
+      const chooser = page.waitForEvent("filechooser");
+      await replace.click();
+      await (await chooser).setFiles({
+        name: "new.bin",
+        mimeType: "application/octet-stream",
+        buffer: Buffer.from(PNG),
+      });
+      await expect(replace).toBeFocused();
+      const back = page.getByRole("button", { name: "Back to files" });
+      if (await back.isVisible()) await back.click();
+      await rowMenu(page, "assets/logo.bin", "Rename");
+      const dialog = page.getByRole("dialog");
+      await dialog.getByLabel("File name").fill("assets/mark.bin");
+      await dialog.getByRole("button", { name: "Rename" }).click();
+      await expect(replace).toBeFocused();
+    });
+
     test("Undo puts focus on the file it brought back", async ({ page }) => {
       await skillEditorFixture(page);
       await page.goto(EDITOR);

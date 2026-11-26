@@ -40,6 +40,8 @@ import {
   type DraftProblem,
   groupFiles,
   isScript,
+  isTextContent,
+  isTextMedia,
   pathProblem,
   problemWords,
   sizeWords,
@@ -268,11 +270,21 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
         if (last === null) focusAfterPaint(() => opener.current);
         else focusFile(last.id);
       }));
+  const focusReplace = () =>
+    focusAfterPaint(() =>
+      document.querySelector<HTMLElement>("[data-replace-file]")
+    );
   const replace = (file: DraftFile) =>
     pickFiles(
       false,
       ([picked]) =>
-        void run(() => state.replaceFile(file, bytesToBase64(picked!.bytes))),
+        void run(async () => {
+          const content = bytesToBase64(picked!.bytes);
+          const replaced = await state.replaceFile(file, content);
+          if (replaced === null) return;
+          if (isTextContent(content)) focusEditor(replaced);
+          else focusReplace();
+        }),
     );
   const loadLatest = () =>
     void run(async () => {
@@ -572,6 +584,7 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
               action={
                 <UI.Inline gap="compact">
                   <UI.Button
+                    data-replace-file=""
                     variant="secondary"
                     disabled={working}
                     onClick={() => replace(selected)}
@@ -879,7 +892,8 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
                 setDialog(null);
                 if (renamed === null) return;
                 if (phone) setView("file");
-                focusEditor(renamed);
+                if (isTextMedia(renamed.mediaType)) focusEditor(renamed);
+                else focusReplace();
               })}
           />
         )

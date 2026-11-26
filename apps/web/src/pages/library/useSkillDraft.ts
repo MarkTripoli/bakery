@@ -269,7 +269,7 @@ export function useSkillDraft(
         idempotencyKey: crypto.randomUUID(),
       })
     );
-    return next !== null;
+    return next?.files.find((item) => item.path === file.path) ?? null;
   };
 
   const drop = () => {
