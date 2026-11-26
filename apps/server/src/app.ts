@@ -823,6 +823,8 @@ export function createApp(options: {
       ...(skillFileStore
         ? { storageBlobStore: new ScopedOrganizationBlobStore(skillFileStore) }
         : {}),
+      allowPlainLoopbackEmail: options.config.environment === "test",
+      emailSend: options.emailSend,
       integrations,
       ticketNoteWriter,
       ticketLabelWriter,
