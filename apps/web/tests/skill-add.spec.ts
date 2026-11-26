@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { MOCK_ORGANIZATION_ID } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
 import {
@@ -64,15 +65,16 @@ type Source = {
   readonly id: string;
   readonly name: string;
   readonly locator: string;
+  readonly license?: string;
 };
 
-const source = ({ id, name, locator }: Source) => ({
+const source = ({ id, name, locator, license = "MIT" }: Source) => ({
   id,
   name,
   sourceType: "git",
   locator,
   publisher: null,
-  license: "MIT",
+  license,
   lastCheckedAt: null,
   enabled: true,
   createdAt: AT,
@@ -93,10 +95,36 @@ type Setup = {
   readonly hold?: boolean;
   readonly createStatus?: number;
   readonly madeVersionId?: string;
+  readonly nameless?: boolean;
 };
 
 async function addPage(page: Page, setup: Setup = {}) {
   await skillsFixture(page, { role: setup.role ?? "admin" });
+  if (setup.nameless === true) {
+    await page.route(
+      (url) => url.pathname === "/v1/organizations",
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            items: [{
+              id: MOCK_ORGANIZATION_ID,
+              name: "",
+              slug: "fixture-org",
+              logo: null,
+              defaultLocale: null,
+              metadata: {},
+              createdAt: AT,
+              updatedAt: AT,
+              version: 1,
+              role: "admin",
+            }],
+            nextCursor: null,
+          }),
+        }),
+    );
+  }
   const sent: Seen[] = [];
   const state = { held: setup.hold ?? false };
   const sources = (setup.saved ?? []).map(source);
@@ -331,5 +359,20 @@ test.describe("add a skill from a source", () => {
     await expect(page.getByTestId("skill-toast")).toContainText(
       "Release notes already had these files. Version 1 is in use.",
     );
+  });
+
+  test("the aside never names an organization it does not know", async ({ page }) => {
+    await addPage(page, { nameless: true });
+    await expect(page.getByText("Nothing from the source is run"))
+      .toBeVisible();
+    await expect(page.getByText("The skill is added for")).toHaveCount(0);
+  });
+
+  test("a saved source with no licence shows no empty licence row", async ({ page }) => {
+    await addPage(page, { saved: [{ ...ACME, license: "" }] });
+    await page.getByRole("radio", { name: "A source added before" }).check();
+    await page.getByRole("combobox", { name: "Source" }).selectOption(ACME.id);
+    await expect(page.getByText(ACME.locator, { exact: true })).toBeVisible();
+    await expect(page.getByText("Licence", { exact: true })).toHaveCount(0);
   });
 });

@@ -354,9 +354,11 @@ export function AddSkillPage() {
         aside={
           <UI.Stack gap="compact">
             <UI.Heading level="section">{copy("happens.title")}</UI.Heading>
-            <UI.Text>
-              {copy("happens.forOrg", { organization: organizationName })}
-            </UI.Text>
+            {organizationName === "" ? null : (
+              <UI.Text>
+                {copy("happens.forOrg", { organization: organizationName })}
+              </UI.Text>
+            )}
             <UI.Text>
               {copy(
                 cleanFolder(form.folder) === ""
@@ -450,10 +452,14 @@ export function AddSkillPage() {
                           title={copy("field.address")}
                           description={chosen.locator}
                         />
-                        <UI.DescriptionItem
-                          title={copy("field.licence")}
-                          description={chosen.license ?? ""}
-                        />
+                        {chosen.license
+                          ? (
+                            <UI.DescriptionItem
+                              title={copy("field.licence")}
+                              description={chosen.license}
+                            />
+                          )
+                          : null}
                       </UI.DescriptionList>
                     )}
                   </>
