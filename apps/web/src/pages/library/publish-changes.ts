@@ -1,4 +1,5 @@
 import type { MessageKey } from "@bakery/i18n";
+import { canonicalJson } from "../projects/repository-state.ts";
 import { ACTION_TITLES } from "./workflow-state.ts";
 import { type BlockKind, blockKindOf, planGateOf } from "./workflow-tree.ts";
 
@@ -60,18 +61,6 @@ function isNode(value: unknown): value is Held & { id: string } {
     NODE_MARKS.some((mark) => value[mark] !== undefined);
 }
 
-function canonical(value: unknown): string {
-  const ordered = (held: unknown): unknown =>
-    Array.isArray(held)
-      ? held.map(ordered)
-      : isObject(held)
-      ? Object.fromEntries(
-        Object.keys(held).sort().map((key) => [key, ordered(held[key])]),
-      )
-      : held;
-  return JSON.stringify(ordered(value)) ?? "";
-}
-
 function isWrapper(node: Held): boolean {
   return node.uses === undefined && planGateOf(node) === undefined &&
     blockKindOf(node) === "sequence";
@@ -126,7 +115,7 @@ function read(definition: unknown): Read {
       );
     if (isWrapper(value)) {
       const { steps: held, ...own } = value;
-      wrappers.push(canonical([full, own]));
+      wrappers.push(canonicalJson([full, own]));
       walk(held, full, drawn);
       return { ref: value.id };
     }
@@ -146,8 +135,8 @@ function read(definition: unknown): Read {
   return {
     cards,
     wrappers,
-    rest: canonical(rest),
-    whole: canonical(spec),
+    rest: canonicalJson(rest),
+    whole: canonicalJson(spec),
   };
 }
 
@@ -182,7 +171,7 @@ function withoutLimit(card: Card): string {
       )
       : held;
   const own = card.own as Held;
-  return canonical(strip({
+  return canonicalJson(strip({
     ...own,
     ...(own.repeat === undefined ? {} : { repeat: strip(own.repeat) }),
     ...(own.forEach === undefined ? {} : { forEach: strip(own.forEach) }),
@@ -214,7 +203,7 @@ export function publishChanges(
   const changed: string[] = [];
   const limits: LimitChange[] = [];
   for (const [card, earlier] of matched) {
-    if (canonical(card.own) === canonical(earlier.own)) continue;
+    if (canonicalJson(card.own) === canonicalJson(earlier.own)) continue;
     const max = limitOf(card);
     const was = limitOf(earlier);
     if (max !== null && was !== null && max !== was) {
@@ -255,8 +244,4 @@ export function publishChanges(
     other: differs && !first && !listed,
     differs,
   };
-}
-
-export function anyChange(changes: PublishChanges): boolean {
-  return changes.differs;
 }

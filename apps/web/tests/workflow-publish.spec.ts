@@ -158,6 +158,7 @@ test.describe("workflow editor: what publishing changes", () => {
       .toBeVisible();
     await expect(dialog.getByRole("button", { name: "Use this version" }))
       .toBeVisible();
+    await expect(dialog).not.toContainText("is already published");
     await still(page, "publish-not-used");
   });
   test("a group removed around a step can still be published", async ({ page }) => {

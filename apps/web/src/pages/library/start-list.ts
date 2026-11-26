@@ -3,6 +3,7 @@ import {
   type WorkflowStart,
   WorkflowStartsSchema,
 } from "@bakery/contracts/workflow-starts";
+import { canonicalJson } from "../projects/repository-state.ts";
 
 export type DraftStart = WorkflowStart & { readonly budgetTyped?: string };
 
@@ -260,15 +261,5 @@ export function sameStarts(
   left: readonly WorkflowStart[],
   right: readonly WorkflowStart[],
 ): boolean {
-  const ordered = (value: unknown): unknown =>
-    Array.isArray(value)
-      ? value.map(ordered)
-      : typeof value === "object" && value !== null
-      ? Object.fromEntries(
-        Object.entries(value).sort(([a], [b]) => a < b ? -1 : 1).map((
-          [key, held],
-        ) => [key, ordered(held)]),
-      )
-      : value;
-  return JSON.stringify(ordered(left)) === JSON.stringify(ordered(right));
+  return canonicalJson(left) === canonicalJson(right);
 }

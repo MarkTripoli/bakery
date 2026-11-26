@@ -1,8 +1,5 @@
 import { assertEquals } from "@std/assert";
-import {
-  anyChange,
-  publishChanges,
-} from "../../apps/web/src/pages/library/publish-changes.ts";
+import { publishChanges } from "../../apps/web/src/pages/library/publish-changes.ts";
 
 const t = (key: string) => key.split(".").at(-1)!;
 const brief = { id: "brief", uses: "task.brief" };
@@ -18,7 +15,7 @@ Deno.test("the same steps in another key order are no change", () => {
     { steps: [brief] },
     t,
   );
-  assertEquals(anyChange(changes), false);
+  assertEquals(changes.differs, false);
 });
 
 Deno.test("steps are listed as new, changed and removed by name", () => {
@@ -121,7 +118,7 @@ Deno.test("a change to the first of two steps that share an id is listed", () =>
     t,
   );
   assertEquals(changes.changed, ["Approve the budget"]);
-  assertEquals(anyChange(changes), true);
+  assertEquals(changes.differs, true);
   assertEquals(publishChanges(null, twoGates("One"), t).added, [
     "One",
     "Approve the plan",
@@ -140,7 +137,7 @@ Deno.test("adding or removing a group around a step is something to publish", ()
     ) {
       const changes = publishChanges({ steps: before }, { steps: after }, t);
       assertEquals(
-        [changes.added, changes.removed, changes.grouped, anyChange(changes)],
+        [changes.added, changes.removed, changes.grouped, changes.differs],
         [[], [], true, true],
       );
     }
@@ -188,5 +185,5 @@ Deno.test("a difference the list cannot name still counts", () => {
     { steps: [brief, 1], extra: [] },
     t,
   );
-  assertEquals([changes.other, anyChange(changes)], [true, true]);
+  assertEquals([changes.other, changes.differs], [true, true]);
 });

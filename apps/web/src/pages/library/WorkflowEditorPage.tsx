@@ -23,7 +23,7 @@ import {
   startsOfVersion,
 } from "./start-list.ts";
 import type { StartFocus } from "./StartPanel.tsx";
-import { anyChange, publishChanges } from "./publish-changes.ts";
+import { publishChanges } from "./publish-changes.ts";
 import { PublishSummary } from "./PublishSummary.tsx";
 import { useBakeryApi } from "../../api/context.tsx";
 import {
@@ -536,7 +536,7 @@ export function WorkflowEditorPage(
   );
   const startsChanged = !sameStarts(editor.starts, inUseStarts);
   const draftDiffers = draft !== null &&
-    (publishedUnused || anyChange(changes) || startsChanged);
+    (publishedUnused || changes.differs || startsChanged);
 
   // The drawing comes from the definition itself, so nothing in it is left out:
   // groups, steps only changeable in code, and steps Bakery cannot read all keep
@@ -1856,6 +1856,8 @@ export function WorkflowEditorPage(
                   <UI.Text>
                     {blocked
                       ? translate("library.editor.publish.blocked")
+                      : publish.error instanceof ActivationFailed
+                      ? null
                       : publishedUnused
                       ? translate("library.editor.publish.useBody", {
                         version: String(draft.revision),
