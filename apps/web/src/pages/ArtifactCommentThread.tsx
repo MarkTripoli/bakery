@@ -51,7 +51,7 @@ export function ArtifactCommentThread(
   const { translate: t, locale, timeZone } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const authorOf = (name: string | null | undefined) =>
-    name ?? t("artifact.author.unknown" as never);
+    name ?? t("artifact.author.unknown");
   const profile = useQuery(userProfileQueryOptions(api, scope));
   const access = useQuery({
     ...effectiveAccessQueryOptions(api, scope),

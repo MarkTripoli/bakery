@@ -918,10 +918,10 @@ export function ArtifactRetrievalPage(
     const versionUnshown = versionMissing || versionPending;
     const unshown = versionMissing
       ? {
-        title: "artifact.retrieval.versionNotFound",
-        description: "artifact.retrieval.versionNotFoundDescription",
+        title: "artifact.retrieval.versionNotFound" as const,
+        description: "artifact.retrieval.versionNotFoundDescription" as const,
         action: newestId === null ? null : {
-          label: "artifact.retrieval.showNewest",
+          label: "artifact.retrieval.showNewest" as const,
           onClick: () => {
             void navigate({
               to: "/tasks/$taskId/artifacts/$artifactId",
@@ -933,16 +933,16 @@ export function ArtifactRetrievalPage(
       }
       : versionPages.moreError
       ? {
-        title: "artifact.retrieval.versionLoadFailed",
-        description: "artifact.retrieval.versionLoadFailedDescription",
+        title: "artifact.retrieval.versionLoadFailed" as const,
+        description: "artifact.retrieval.versionLoadFailedDescription" as const,
         action: {
-          label: "artifact.retrieval.tryAgain",
+          label: "artifact.retrieval.tryAgain" as const,
           onClick: () => versionPages.loadMore(),
         },
       }
       : {
-        title: "artifact.retrieval.versionLoading",
-        description: "artifact.retrieval.versionLoadingDescription",
+        title: "artifact.retrieval.versionLoading" as const,
+        description: "artifact.retrieval.versionLoadingDescription" as const,
         action: null,
       };
     const newest = newestId === null
@@ -1046,7 +1046,7 @@ export function ArtifactRetrievalPage(
           description={selectedVersion
             ? translate("artifact.view.description", {
               author: selectedVersion.authorName ??
-                translate("artifact.author.unknown" as never),
+                translate("artifact.author.unknown"),
               // One formatter for every size on the page: the sentence must not
               // say "317705 bytes" above a facts line saying "310.3 KB" (#437).
               size: formatFileSize(selectedVersion.sizeBytes, locale, sizeText),
@@ -1061,7 +1061,7 @@ export function ArtifactRetrievalPage(
               ? [{
                 id: "",
                 label: translate(
-                  "artifact.retrieval.chooseVersion" as never,
+                  "artifact.retrieval.chooseVersion",
                 ),
               }]
               : []),
@@ -1226,11 +1226,11 @@ export function ArtifactRetrievalPage(
                 label={translate("artifact.preview.title")}
                 state="unavailable"
                 unavailable={{
-                  title: translate(unshown.title as never),
-                  description: translate(unshown.description as never),
+                  title: translate(unshown.title),
+                  description: translate(unshown.description),
                   ...(unshown.action === null ? {} : {
                     action: {
-                      label: translate(unshown.action.label as never),
+                      label: translate(unshown.action.label),
                       onClick: unshown.action.onClick,
                     },
                   }),
