@@ -232,6 +232,7 @@ export type CatalogActionName =
   | "integrationAppRegistrations.put"
   | "integrationAuth.authorizationCallback"
   | "integrationAuth.manifestCallback"
+  | "integrationAuth.providerCallback"
   | "integrationAuth.setup"
   | "integrationAuth.slackIdentityCallback"
   | "integrationAuthAttempts.create"

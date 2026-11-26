@@ -7226,15 +7226,16 @@
           "type": "enum",
           "required": true,
           "enum": [
-            "github"
+            "github",
+            "slack"
           ],
-          "description": "Integration provider to authorize against; only github is supported. The server builds the authorization URL from the provider app registered for this Bakery installation, never from request data."
+          "description": "Integration provider to authorize against: github through its registered App, or slack through the OAuth2 client credentials saved for this Bakery installation. The server builds the authorization URL from that registration, never from request data."
         },
         {
           "name": "reconnectConnectionId",
           "type": "uuid",
           "required": false,
-          "description": "When reconnecting an existing connection of the caller's organization, identifies it; completion for the same verified GitHub account refreshes that connection, and a different account creates a new pending connection and leaves this one unchanged. An unknown, archived or other organization's connection is refused as not found and no attempt is created."
+          "description": "When reconnecting an existing connection of the caller's organization, identifies it; completion for the same verified account (the GitHub account, or the Slack workspace) refreshes that connection, and a different account creates a new connection (pending for GitHub until repositories are chosen, enabled for Slack) and leaves this one unchanged. An unknown, archived or other organization's connection is refused as not found and no attempt is created."
         },
         {
           "name": "returnPath",
