@@ -152,13 +152,40 @@ export function applyLoops(
   for (const loop of loops) {
     const node = nodeAt(copy, loop.path);
     if (node === null) continue;
-    if (loop.min === null) delete node.min;
-    else node.min = loop.min;
-    node.max = loop.max;
-    if (loop.allow === null) delete node.allow;
-    else node.allow = loop.allow;
+    const held = loopBodyOf(node);
+    if (held !== node) {
+      delete node.min;
+      delete node.max;
+      delete node.allow;
+    }
+    if (loop.min === null) delete held.min;
+    else held.min = loop.min;
+    held.max = loop.max;
+    if (loop.allow === null) delete held.allow;
+    else held.allow = loop.allow;
   }
   return copy;
+}
+
+const AUTHORED_WRAPPERS = ["repeat", "branch", "parallel"] as const;
+
+function objectOf(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function loopBodyOf(node: Record<string, unknown>): Record<string, unknown> {
+  return objectOf(node.repeat) ?? node;
+}
+
+function childOf(node: Record<string, unknown>, key: string): unknown {
+  if (node[key] !== undefined) return node[key];
+  for (const wrapper of AUTHORED_WRAPPERS) {
+    const inner = objectOf(node[wrapper])?.[key];
+    if (inner !== undefined) return inner;
+  }
+  return undefined;
 }
 
 function nodeAt(
@@ -171,15 +198,12 @@ function nodeAt(
       if (!Array.isArray(held)) return null;
       held = held[segment];
     } else {
-      if (typeof held !== "object" || held === null || Array.isArray(held)) {
-        return null;
-      }
-      held = (held as Record<string, unknown>)[segment];
+      const holder = objectOf(held);
+      if (holder === null) return null;
+      held = childOf(holder, segment);
     }
   }
-  return typeof held === "object" && held !== null && !Array.isArray(held)
-    ? held as Record<string, unknown>
-    : null;
+  return objectOf(held);
 }
 
 /** The skill version ids an authored step names; anything else is no skills. */

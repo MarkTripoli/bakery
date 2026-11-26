@@ -102,7 +102,9 @@ function withKind(node: Record<string, unknown>): Record<string, unknown> {
     return {
       ...node,
       kind: "repeat",
+      min: repeat.min,
       max: repeat.max,
+      allow: repeat.allow,
       seed: repeat.seed,
       steps: repeat.steps,
     };

@@ -39,6 +39,7 @@ import {
   editorStateOf,
   type EditorStep,
   freeStepId,
+  type LoopEdit,
   skillsOfNode,
 } from "./editor-state.ts";
 import { LeaveGuard } from "../repository-rules/leave-guard.tsx";
@@ -279,6 +280,7 @@ export function WorkflowEditorPage(
   >(null);
   // The slots the last write sent, so only those are cleared when it lands.
   const sentSlots = useRef<string[]>([]);
+  const sentLoops = useRef<readonly LoopEdit[]>([]);
   // Slots the person settled (by choosing a skill or removing the placeholder) and the
   // draft has not saved yet: the save tells the server, and the row is gone at once.
   const [resolving, setResolving] = useState<ReadonlySet<string>>(new Set());
@@ -312,6 +314,7 @@ export function WorkflowEditorPage(
     mutationKey: ["workflowVersions.update"],
     mutationFn: async (steps: readonly EditorStep[]) => {
       if (draft === null) throw new Error("no draft version");
+      sentLoops.current = editor.loops;
       const result = await api.updateWorkflowVersion({
         organizationId: scope.organizationId as string,
         workflowId,
@@ -359,7 +362,7 @@ export function WorkflowEditorPage(
       // What was written is what is saved: an edit made meanwhile is still to save.
       lastSaved.current = JSON.stringify({
         steps: written,
-        loops: editor.loops,
+        loops: sentLoops.current,
       });
       // The slots this save settled are done; one settled meanwhile is still to save.
       setResolving((previous) =>
@@ -882,6 +885,7 @@ export function WorkflowEditorPage(
         const loop = group.loop;
         return {
           kind: "loop",
+          at: loop.path.join("/"),
           name: translate(GROUP_LABEL[group.label] as never),
           fix: loop.fix,
           values: { min: loop.min, max: loop.max, allow: loop.allow },

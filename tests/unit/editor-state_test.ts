@@ -422,3 +422,38 @@ Deno.test("every step the picker adds gets an ID the compiler accepts, twice ove
     assert(first !== second);
   }
 });
+
+Deno.test("a loop written as repeat: keeps its numbers inside repeat", () => {
+  const spec = {
+    steps: [{ id: "again", max: 4, repeat: { max: 3, steps: [] } }],
+  };
+  const written = definitionOf(spec, [step("again", "")], [
+    { path: ["steps", 0], min: 2, max: 5, allow: 3 },
+  ]);
+  assertEquals(written.steps, [
+    { id: "again", repeat: { max: 5, min: 2, allow: 3, steps: [] } },
+  ]);
+});
+
+Deno.test("a loop inside an authored block is found and written", () => {
+  const spec = {
+    steps: [{
+      id: "outer",
+      repeat: {
+        max: 2,
+        steps: [{ id: "pick", branch: { then: [{ kind: "repeat", max: 3 }] } }],
+      },
+    }],
+  };
+  const written = definitionOf(spec, [step("outer", "")], [
+    {
+      path: ["steps", 0, "steps", 0, "then", 0],
+      min: null,
+      max: 6,
+      allow: null,
+    },
+  ]) as { steps: { repeat: { steps: { branch: { then: unknown[] } }[] } }[] };
+  assertEquals(written.steps[0]!.repeat.steps[0]!.branch.then, [
+    { kind: "repeat", max: 6 },
+  ]);
+});
