@@ -379,3 +379,19 @@ Deno.test("a reason that names no issue or label says so in words, never with an
     "issues.reason.unknown",
   );
 });
+
+Deno.test("issue 407: the repository is read from the snapshot's container, as the server stores it", () => {
+  const stored = {
+    snapshot: {
+      title: "Add invoice export",
+      labels: [],
+      state: "open",
+      container: {
+        kind: "repository",
+        externalId: "acme/web",
+        displayName: "acme/web",
+      },
+    },
+  } as unknown as Parameters<typeof issueSnapshot>[0];
+  assertEquals(issueSnapshot(stored).repository, "acme/web");
+});

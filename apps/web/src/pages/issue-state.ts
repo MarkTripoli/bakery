@@ -49,7 +49,8 @@ export function issueSnapshot(row: IssueRow): IssueSnapshot {
       )
       : [],
     state: text(snapshot.state) || row.state,
-    repository: text(snapshot.repositoryFullName),
+    repository: text(record(snapshot.container).displayName) ||
+      text(snapshot.repositoryFullName),
   };
 }
 
