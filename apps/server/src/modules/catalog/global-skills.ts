@@ -3,6 +3,7 @@ import type {
   ActionContext,
 } from "@bakery/contracts/action-registry";
 import { CatalogImplementedAction } from "@bakery/contracts/implemented-actions";
+import { appendAudit } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import type { CatalogActionHandlers } from "./actions.ts";
@@ -50,9 +51,15 @@ export type GlobalSkillInstall = Readonly<{
   publication: LocalSkillVersionPublicationPreparation;
 }>;
 
+export type GlobalSkillReactivation = Readonly<{
+  skillId: string;
+  versionId: string;
+}>;
+
 export type GlobalSkillInstallPreparation = Readonly<{
   organizationId: string;
   installs: readonly GlobalSkillInstall[];
+  reactivations: readonly GlobalSkillReactivation[];
 }>;
 
 async function derivedId(...parts: string[]): Promise<string> {
@@ -106,6 +113,7 @@ export async function prepareGlobalSkillInstall(options: {
   const { transaction, organizationId } = options;
   const packages = options.packages ?? await bundledSkills();
   const installs: GlobalSkillInstall[] = [];
+  const reactivations: GlobalSkillReactivation[] = [];
   let principalReady = false;
   for (const bundled of packages) {
     const skillId = await globalSkillId(organizationId, bundled.slug);
@@ -141,6 +149,18 @@ export async function prepareGlobalSkillInstall(options: {
       computeDigest: true,
     })).digest;
     if (own?.digest === digest) continue;
+    const earlier = own === undefined
+      ? undefined
+      : (await transaction.query<{ id: string }>(
+        `select id from bakery.skill_versions
+          where organization_id = $1 and skill_id = $2 and digest = $3
+            and status = 'published'`,
+        [organizationId, skillId, digest],
+      )).rows[0];
+    if (earlier) {
+      reactivations.push(Object.freeze({ skillId, versionId: earlier.id }));
+      continue;
+    }
     if (!principalReady) {
       await ensureBakeryPrincipal(transaction);
       principalReady = true;
@@ -172,7 +192,44 @@ export async function prepareGlobalSkillInstall(options: {
       }),
     }));
   }
-  return Object.freeze({ organizationId, installs: Object.freeze(installs) });
+  return Object.freeze({
+    organizationId,
+    installs: Object.freeze(installs),
+    reactivations: Object.freeze(reactivations),
+  });
+}
+
+export async function reactivateGlobalSkillVersions(options: {
+  transaction: PgTransactionClient;
+  preparation: GlobalSkillInstallPreparation;
+  requestId: string;
+  traceId: string;
+}): Promise<void> {
+  const { transaction, preparation } = options;
+  for (const reactivation of preparation.reactivations) {
+    const moved = await transaction.query<{ id: string }>(
+      `update bakery.skills
+          set active_version_id = $3, updated_at = now(), version = version + 1
+        where organization_id = $1 and id = $2
+          and active_version_id is distinct from $3
+        returning id`,
+      [
+        preparation.organizationId,
+        reactivation.skillId,
+        reactivation.versionId,
+      ],
+    );
+    if (moved.rows.length === 0) continue;
+    await appendAudit(transaction, {
+      organizationId: preparation.organizationId,
+      principalId: BAKERY_PRINCIPAL_ID,
+      operation: "skillVersions.install",
+      resourceType: "skill_version",
+      resourceId: reactivation.versionId,
+      requestId: options.requestId,
+      traceId: options.traceId,
+    });
+  }
 }
 
 /** Stores every package's files, after the preflight has rolled back. */
@@ -207,6 +264,7 @@ export async function commitGlobalSkillInstall(options: {
     [`bakery.global-skills:${preparation.organizationId}`],
   );
   await ensureBakeryPrincipal(transaction);
+  await reactivateGlobalSkillVersions(options);
   for (const [index, install] of preparation.installs.entries()) {
     const present = await transaction.query(
       "select 1 from bakery.skills where organization_id = $1 and id = $2",
@@ -297,9 +355,14 @@ export function withGlobalSkillInstall(
           });
           if (preparation.installs.length > 0) {
             stage.preparation = preparation;
-            // Release the connection before any object is written.
             throw new GlobalInstallPreflightRollbackError();
           }
+          await reactivateGlobalSkillVersions({
+            transaction,
+            preparation,
+            requestId: context.requestId,
+            traceId: context.traceId,
+          });
         }
       }
       return await handlers.listSkills(context, input);

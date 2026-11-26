@@ -229,3 +229,93 @@ Deno.test("a skill that takes the slug between the passes is kept, and the list 
     await Deno.remove(root, { recursive: true });
   }
 });
+Deno.test("rolling Bakery's skill back to an earlier package after an upgrade lists that version as active", async () => {
+  const root = await Deno.makeTempDir({ prefix: "bakery-74-global-rollback-" });
+  const f = await openPersonalSkillFixture({ skillFileRoot: root });
+  try {
+    const call = caller(f);
+    const list = async (): Promise<Page> => {
+      const response = await call("GET", "/v1/skills");
+      assertEquals(response.status, 200, await response.clone().text());
+      return await response.json() as Page;
+    };
+    const activeVersion = async () =>
+      (await f.fixture.pgDatabase.query<{ revision: number; digest: string }>(
+        `select version.revision, version.digest
+           from bakery.skills skill
+           join bakery.skill_versions version
+             on version.organization_id = skill.organization_id
+            and version.id = skill.active_version_id
+          where skill.organization_id = $1 and skill.slug = 'bakery-authoring'`,
+        [f.organizationId],
+      )).rows;
+
+    const [skill] = (await list()).items;
+    const [shipped] = await bundledSkills();
+    const shippedDigest = (await validateLocalSkillVersion(
+      await bundledSkillUpload(shipped, skill.id, 1),
+      { computeDigest: true },
+    )).digest;
+    assertEquals(await activeVersion(), [{
+      revision: 1,
+      digest: shippedDigest,
+    }]);
+
+    const upgraded = Object.freeze({
+      ...shipped,
+      files: shipped.files.map((file) =>
+        Object.freeze({
+          ...file,
+          content: new TextEncoder().encode(
+            new TextDecoder().decode(file.content) + "\nUpgraded.\n",
+          ),
+        })
+      ),
+    });
+    class PreflightRollback extends Error {}
+    let preparation: GlobalSkillInstallPreparation | undefined;
+    try {
+      await withPgTransaction(f.fixture.pgDatabase, async (transaction) => {
+        preparation = await prepareGlobalSkillInstall({
+          transaction,
+          organizationId: f.organizationId,
+          packages: [upgraded],
+        });
+        throw new PreflightRollback();
+      });
+    } catch (error) {
+      if (!(error instanceof PreflightRollback)) throw error;
+    }
+    assert(preparation !== undefined && preparation.installs.length === 1);
+    const proofs = await storeGlobalSkillInstall(
+      preparation,
+      new SkillFileStore(root),
+    );
+    await withPgTransaction(
+      f.fixture.pgDatabase,
+      (transaction) =>
+        commitGlobalSkillInstall({
+          transaction,
+          preparation: preparation!,
+          proofs,
+          requestId: crypto.randomUUID(),
+          traceId: crypto.randomUUID(),
+        }),
+    );
+    const [upgradedVersion] = await activeVersion();
+    assertEquals(upgradedVersion.revision, 2);
+    assert(upgradedVersion.digest !== shippedDigest);
+
+    assertEquals((await list()).items.map((s) => [s.id, s.slug]), [
+      [skill.id, "bakery-authoring"],
+    ]);
+    assertEquals(await activeVersion(), [{
+      revision: 1,
+      digest: shippedDigest,
+    }]);
+    assertEquals((await list()).items.map((s) => s.slug), ["bakery-authoring"]);
+  } finally {
+    await f.close();
+    await Deno.remove(root, { recursive: true });
+  }
+});
