@@ -1731,6 +1731,18 @@ a.bakery-application-rail__link:hover {
     grid-template-areas: "form aside";
     grid-template-rows: auto;
   }
+  .ui-form-with-summary[data-aside="start"] {
+    grid-template-areas:
+      "aside form"
+      "aside actions";
+    grid-template-columns: var(--layout-form-summary) minmax(
+      0,
+      var(--layout-message)
+    );
+  }
+  .ui-form-with-summary[data-aside="start"][data-actions="absent"] {
+    grid-template-areas: "aside form";
+  }
 }
 @media (max-width: 1279px) {
   /* One column: the summary ends where the buttons' own rule begins, so its last row draws none. */

@@ -547,6 +547,21 @@ function SourceDetails({ sourceId }: { readonly sourceId: string }) {
   if (source.isPending) return <UI.Skeleton shape="row" />;
   const data = source.data;
   const kind = sourceKindWords(data.sourceType);
+  if (data.locator.startsWith("bakery://")) {
+    return (
+      <UI.Stack gap="compact">
+        <UI.Text>{translate("library.skill.origin.written")}</UI.Text>
+        {data.license === null ? null : (
+          <UI.DescriptionList>
+            <UI.DescriptionItem
+              title={translate("library.skill.origin.license")}
+              description={data.license}
+            />
+          </UI.DescriptionList>
+        )}
+      </UI.Stack>
+    );
+  }
   return (
     <UI.DescriptionList>
       <UI.DescriptionItem
