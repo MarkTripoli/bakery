@@ -36477,7 +36477,7 @@ const transportSchemas = {
         "installedRevision": "The exact source revision the installed version was imported from.",
         "latestRevision": "The exact revision the source's requested revision points to now, or null when the source could not be reached.",
         "lastCheckedAt": "UTC time of the last check that reached the source, which this check moves forward when it succeeds; null when the source was never reached.",
-        "problem": "When status is unreachable, why in one code (SOURCE_TIMEOUT, SOURCE_UNAVAILABLE, SOURCE_ORIGIN_REJECTED, SOURCE_INVALID, SOURCE_LIMIT_EXCEEDED or SOURCE_REVISION_MISMATCH); null otherwise.",
+        "problem": "When status is unreachable, why in one code (SOURCE_TIMEOUT, SOURCE_UNAVAILABLE, SOURCE_ORIGIN_REJECTED, SOURCE_INVALID, SOURCE_LIMIT_EXCEEDED, SOURCE_REVISION_MISMATCH or SOURCE_REVISION_NOT_FOUND); null otherwise.",
         "changes": "One entry per file that differs, by path: path, change (added, removed or changed), installedSha256 and latestSha256 (or null on the side without the file), installedSizeBytes and latestSizeBytes (or null), diff (hunks of lines with three lines of context, a line kept starting with a space, removed with - and added with +; null when none is shown) and diffOmitted (binary, too_large or mode_only when diff is null for that reason, otherwise null). At most 200.",
         "changesTruncated": "True when more than 200 files differ and the list stops at the first 200 by path."
       }

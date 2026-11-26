@@ -124,6 +124,14 @@ case "$op" in
     case "$revision" in "" | -* | *[!A-Za-z0-9._/-]* | *..*) exit 64 ;; esac
     remote_git fetch --no-tags --depth=1 --filter=blob:none -- "$url" "$revision"
     ;;
+  ls-remote)
+    [ "$#" -eq 2 ] || exit 64
+    url=$1
+    revision=$2
+    check_url "$url"
+    case "$revision" in "" | -* | *[!A-Za-z0-9._/-]* | *..*) exit 64 ;; esac
+    remote_git ls-remote -- "$url" "$revision"
+    ;;
   fetch-blobs)
     [ "$#" -ge 2 ] && [ "$#" -le $((max_fetch_blobs + 1)) ] || exit 64
     url=$1

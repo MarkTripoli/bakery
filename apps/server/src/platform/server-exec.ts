@@ -113,6 +113,14 @@ export function gitLauncherArgs(
   }
   if (
     same(args, 0, FETCH_CONFIG) &&
+    same(args, FETCH_CONFIG.length, ["ls-remote", "--"]) &&
+    args.length === FETCH_CONFIG.length + 4
+  ) {
+    const [url, revision] = args.slice(-2) as [string, string];
+    return ["ls-remote", gitDirectory, url, revision];
+  }
+  if (
+    same(args, 0, FETCH_CONFIG) &&
     same(args, FETCH_CONFIG.length, FETCH_FLAGS) &&
     args[FETCH_CONFIG.length + FETCH_FLAGS.length] === "--" &&
     args.length === FETCH_CONFIG.length + FETCH_FLAGS.length + 3
