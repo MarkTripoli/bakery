@@ -643,6 +643,46 @@ async function assertReservedFiles(
   }
 }
 
+async function activateSkillVersion(
+  transaction: PgTransactionClient,
+  options: Readonly<{
+    organizationId: string;
+    principalId: string;
+    skillId: string;
+    versionId: string;
+    onlyWhenInactive: boolean;
+    operation: string;
+    requestId: string;
+    traceId: string;
+  }>,
+): Promise<number | null> {
+  const result = await transaction.query<{ version: number }>(
+    `update bakery.skills
+        set active_version_id = $3, updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2
+        and (not $4::boolean or active_version_id is distinct from $3)
+      returning version`,
+    [
+      options.organizationId,
+      options.skillId,
+      options.versionId,
+      options.onlyWhenInactive,
+    ],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  await appendAudit(transaction, {
+    organizationId: options.organizationId,
+    principalId: options.principalId,
+    operation: options.operation,
+    resourceType: "skill_version",
+    resourceId: options.versionId,
+    requestId: options.requestId,
+    traceId: options.traceId,
+  });
+  return row.version;
+}
+
 /** Finalizes shared local or reserved remote publication under live authority. */
 export async function finalizeSkillVersionPublication(options: {
   transaction: PgTransactionClient;
@@ -693,22 +733,26 @@ export async function finalizeSkillVersionPublication(options: {
   );
   const replay = assertRevisionAvailable(final.rows[0], preparation);
   if (replay?.status === "published") {
-    const reactivated = await transaction.query<{ id: string }>(
-      `update bakery.skills
-          set active_version_id = $3, updated_at = now(), version = version + 1
-        where organization_id = $1 and id = $2
-          and active_version_id is distinct from $3
-        returning id`,
-      [organizationId, validated.skillId, replay.id],
-    );
-    if (reactivated.rows.length === 1) {
-      await appendAudit(transaction, {
+    const reactivated = await activateSkillVersion(transaction, {
+      organizationId,
+      principalId,
+      skillId: validated.skillId,
+      versionId: replay.id,
+      onlyWhenInactive: true,
+      operation: options.operation,
+      requestId: options.requestId,
+      traceId: options.traceId,
+    });
+    if (reactivated !== null) {
+      await appendDomainEvent(transaction, {
         organizationId,
-        principalId,
-        operation: options.operation,
-        resourceType: "skill_version",
-        resourceId: replay.id,
-        requestId: options.requestId,
+        eventType: "skills.updated",
+        aggregateId: validated.skillId,
+        aggregateVersion: reactivated,
+        payload: {
+          resourceId: validated.skillId,
+          resourceVersion: reactivated,
+        },
         traceId: options.traceId,
       });
     }
@@ -779,25 +823,19 @@ export async function finalizeSkillVersionPublication(options: {
     await insertSkillFiles(transaction, preparation, insertedRow.id);
     row = insertedRow;
   }
-  const active = await transaction.query<{ id: string }>(
-    `update bakery.skills
-        set active_version_id = $3, updated_at = now(), version = version + 1
-      where organization_id = $1 and id = $2
-      returning id`,
-    [organizationId, validated.skillId, row.id],
-  );
-  if (active.rows.length !== 1) {
-    throw new StandardError({ code: "PRECONDITION_FAILED" });
-  }
-  await appendAudit(transaction, {
+  const active = await activateSkillVersion(transaction, {
     organizationId,
     principalId,
+    skillId: validated.skillId,
+    versionId: row.id,
+    onlyWhenInactive: false,
     operation: options.operation,
-    resourceType: "skill_version",
-    resourceId: row.id,
     requestId: options.requestId,
     traceId: options.traceId,
   });
+  if (active === null) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
   await appendDomainEvent(transaction, {
     organizationId,
     eventType: "skill.version_created",

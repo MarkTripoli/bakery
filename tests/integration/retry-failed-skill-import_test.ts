@@ -619,6 +619,34 @@ Deno.test("importing earlier files again as a new revision makes their version a
       [h.organizationId, h.source.id],
     );
     assertEquals(skill.rows[0]?.activeVersionId, a.skillVersionId);
+    const events = await h.fixture.pgDatabase.query<{
+      aggregateVersion: number;
+      skillVersion: number;
+    }>(
+      `select event.aggregate_version as "aggregateVersion",
+              skill.version as "skillVersion"
+         from bakery.domain_events as event
+         join bakery.skills as skill on skill.id = event.aggregate_id
+        where event.organization_id = $1 and event.aggregate_id = $2
+          and event.event_type = 'skills.updated'`,
+      [h.organizationId, skill.rows[0]?.id],
+    );
+    assertEquals(events.rows.length, 1);
+    assertEquals(
+      events.rows[0]?.aggregateVersion,
+      events.rows[0]?.skillVersion,
+    );
+    const replay = await importAt(h, live.revision, "# a\n");
+    assertEquals(replay.skillVersionId, a.skillVersionId);
+    assertEquals(
+      (await h.fixture.pgDatabase.query(
+        `select 1 from bakery.domain_events
+          where organization_id = $1 and aggregate_id = $2
+            and event_type = 'skills.updated'`,
+        [h.organizationId, skill.rows[0]?.id],
+      )).rows.length,
+      1,
+    );
     const check = await h.checkUpdate(skill.rows[0]!.id);
     assertEquals([check.status, check.changes], ["current", []]);
   } finally {
