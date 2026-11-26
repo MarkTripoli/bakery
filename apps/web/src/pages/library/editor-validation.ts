@@ -128,6 +128,8 @@ const SENTENCES: Readonly<Record<string, string>> = {
     "This step's ID clashes with another step. Delete this step and add it again.",
   step_id_invalid:
     "This step's ID clashes with another step. Delete this step and add it again.",
+  node_id_invalid:
+    "This step's ID cannot be published. Delete this step and add it again.",
   step_binding_override_forbidden:
     "This step chooses an agent it is not allowed to choose. Delete the step and add it again.",
   step_not_object: "Bakery cannot read this step. Delete it and add it again.",

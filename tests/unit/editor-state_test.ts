@@ -10,6 +10,8 @@ import {
   freeStepId,
   isDirty,
 } from "../../apps/web/src/pages/library/editor-state.ts";
+import { PICKER_STEPS } from "../../apps/web/src/pages/library/workflow-state.ts";
+import { LANE_ID } from "../../packages/contracts/src/workflow-compiler/passes/shape.ts";
 
 const step = (id: string, uses = "task.brief"): EditorStep => ({
   id,
@@ -137,8 +139,8 @@ Deno.test("a new change after an undo drops what could have been redone", () => 
 });
 
 Deno.test("a step added to a list that already uses its id gets a free one", () => {
-  const state = editorStateOf([step("step"), step("step-2")]);
-  assertEquals(freeStepId(state, "step"), "step-3");
+  const state = editorStateOf([step("step"), step("step_2")]);
+  assertEquals(freeStepId(state, "step"), "step_3");
   assertEquals(freeStepId(state, "review"), "review");
 });
 
@@ -409,4 +411,14 @@ Deno.test("asking for the same loop numbers again records no undo step", () => {
   });
   assertEquals(again, state);
   assertEquals(again.past.length, 1);
+});
+
+Deno.test("every step the picker adds gets an ID the compiler accepts, twice over", () => {
+  for (const uses of PICKER_STEPS) {
+    const first = freeStepId(editorStateOf([]), uses);
+    const second = freeStepId(editorStateOf([step(first, uses)]), uses);
+    assert(LANE_ID.test(first), first);
+    assert(LANE_ID.test(second), second);
+    assert(first !== second);
+  }
 });

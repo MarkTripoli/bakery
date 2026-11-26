@@ -227,10 +227,11 @@ export function freeStepId(
   state: EditorState,
   wanted = "step",
 ): string {
+  const base = wanted.toLowerCase().replace(/[^a-z0-9_]+/g, "_");
   const taken = new Set(state.steps.map((step) => step.id));
-  if (!taken.has(wanted)) return wanted;
+  if (!taken.has(base)) return base;
   for (let n = 2;; n += 1) {
-    const candidate = `${wanted}-${n}`;
+    const candidate = `${base}_${n}`;
     if (!taken.has(candidate)) return candidate;
   }
 }

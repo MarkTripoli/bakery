@@ -189,6 +189,7 @@ test.describe("workflow editor: Ask a person", () => {
     await expect.poll(() => savedInput(server.saves.at(-1))).toEqual({
       prompt: { $literal: "Ship the release for $5?" },
     });
+    expect(server.saves.at(-1)!.at(-1)!.id).toMatch(/^[a-z][a-z0-9_]{1,63}$/);
     await expect(page.getByText(PROMPT_PROBLEM)).toHaveCount(0);
   });
 
@@ -245,6 +246,31 @@ test.describe("workflow editor: Ask a person", () => {
     await dialog.getByRole("button", { name: "Show me" }).click();
     await expect(dialog).toHaveCount(0);
     await expect(who(page)).toBeFocused();
+  });
+
+  test("a publish the server refuses says so instead of doing nothing", async ({ page }) => {
+    await editor(page, { steps: [ask({ prompt: "Ship it?" })] });
+    await page.route(
+      (url) => url.pathname.endsWith("/publish"),
+      (route) =>
+        route.fulfill({
+          status: 422,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "about:blank",
+            title: "x",
+            status: 422,
+            code: "UNPROCESSABLE",
+          }),
+        }),
+    );
+    await page.getByRole("button", { name: "Publish" }).click();
+    const dialog = page.getByRole("alertdialog");
+    await dialog.getByRole("button", { name: "Publish and use" }).click();
+    await expect(dialog.getByRole("alert")).toContainText(
+      "Publishing did not work, so nothing changed.",
+    );
+    await still(page, "ask-step-publish-failed");
   });
 
   test("Show me on a missing question lands in the question", async ({ page }) => {

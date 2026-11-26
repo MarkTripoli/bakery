@@ -1217,7 +1217,7 @@ export function WorkflowEditorPage(
             pickerAt={pickerAfter}
             onPick={(uses) => {
               const afterId = pickerAfter ?? null;
-              const id = freeStepId(editor, uses.replaceAll(".", "-"));
+              const id = freeStepId(editor, uses);
               const step = {
                 id,
                 uses,
@@ -1295,6 +1295,7 @@ export function WorkflowEditorPage(
     if (changed || save.isPending || shownSave.kind === "saving") {
       setPublishAfterSave(true);
     } else setPublishOpen(true);
+    publish.reset();
   };
   const publishButton = (
     <UI.Button
@@ -1606,7 +1607,13 @@ export function WorkflowEditorPage(
                   <UI.Text variant="muted">
                     {translate("library.workflow.steps.never" as never)}
                   </UI.Text>
-                  {/* Pressed with problems, publishing shows the same list. */}
+                  {publish.isError
+                    ? (
+                      <UI.InlineNotice tone="error" role="alert">
+                        {translate("library.editor.publish.failed" as never)}
+                      </UI.InlineNotice>
+                    )
+                    : null}
                   {problemCount === 0 ? null : problemList}
                 </UI.Stack>
               )
