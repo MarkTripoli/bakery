@@ -7498,5 +7498,16 @@
   "library.editor.publish.useBody": "⟪Version {version} is already published. Using it makes it the one new tasks get.⟫",
   "library.editor.start.useNote": "⟪{count, plural, one {Using it also switches on # automatic start.} other {Using it also switches on # automatic starts.}}⟫",
   "library.editor.start.problem.budget": "⟪Write an amount from 0 to {max}, in digits, such as 2.50.⟫",
-  "library.editor.start.problem.row.budget": "⟪Automatic start {number}: fix the spend limit.⟫"
+  "library.editor.start.problem.row.budget": "⟪Automatic start {number}: fix the spend limit.⟫",
+  "library.editor.publish.changesSince": "⟪Changes since version {version}⟫",
+  "library.editor.publish.firstVersion": "⟪This is the first version.⟫",
+  "library.editor.publish.new": "⟪New: {names}⟫",
+  "library.editor.publish.changed": "⟪Changed: {names}⟫",
+  "library.editor.publish.removed": "⟪Removed: {names}⟫",
+  "library.editor.publish.reordered": "⟪The order of steps changed.⟫",
+  "library.editor.publish.settings": "⟪The workflow's settings changed.⟫",
+  "library.editor.publish.starts": "⟪Automatic starts changed.⟫",
+  "library.editor.publish.noProblems": "⟪No problems found.⟫",
+  "library.editor.publish.stale": "⟪This draft changed since you opened it. Bakery has read it again: check the changes, then publish.⟫",
+  "library.editor.publish.notUsed": "⟪Version {version} was published but is not in use yet. Choose Use this version on the workflow page.⟫"
 }

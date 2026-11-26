@@ -7498,5 +7498,16 @@
   "library.editor.publish.useBody": "⟦Ṽëŕšïôñ {version} ïš àļŕëàðÿ þûƀļïšĥëð. Ûšïñĝ ïŧ ɱàķëš ïŧ ŧĥë ôñë ñëŵ ŧàšķš ĝëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.editor.start.useNote": "⟦{count, plural, one {Using it also switches on # automatic start.} other {Using it also switches on # automatic starts.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "library.editor.start.problem.budget": "⟦Ŵŕïŧë àñ àɱôûñŧ ƒŕôɱ 0 ŧô {max}, ïñ ðïĝïŧš, šûçĥ àš 2.50. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "library.editor.start.problem.row.budget": "⟦Àûŧôɱàŧïç šŧàŕŧ {number}: ƒïẋ ŧĥë šþëñð ļïɱïŧ. ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "library.editor.start.problem.row.budget": "⟦Àûŧôɱàŧïç šŧàŕŧ {number}: ƒïẋ ŧĥë šþëñð ļïɱïŧ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "library.editor.publish.changesSince": "⟦Çĥàñĝëš šïñçë ṽëŕšïôñ {version} ŧëšŧ çôþ⟧",
+  "library.editor.publish.firstVersion": "⟦Ŧĥïš ïš ŧĥë ƒïŕšŧ ṽëŕšïôñ. ŧëšŧ çô⟧",
+  "library.editor.publish.new": "⟦Ñëŵ: {names} ŧë⟧",
+  "library.editor.publish.changed": "⟦Çĥàñĝëð: {names} ŧëš⟧",
+  "library.editor.publish.removed": "⟦Ŕëɱôṽëð: {names} ŧëš⟧",
+  "library.editor.publish.reordered": "⟦Ŧĥë ôŕðëŕ ôƒ šŧëþš çĥàñĝëð. ŧëšŧ çô⟧",
+  "library.editor.publish.settings": "⟦Ŧĥë ŵôŕķƒļôŵ'š šëŧŧïñĝš çĥàñĝëð. ŧëšŧ çôþÿ⟧",
+  "library.editor.publish.starts": "⟦Àûŧôɱàŧïç šŧàŕŧš çĥàñĝëð. ŧëšŧ ç⟧",
+  "library.editor.publish.noProblems": "⟦Ñô þŕôƀļëɱš ƒôûñð. ŧëšŧ⟧",
+  "library.editor.publish.stale": "⟦Ŧĥïš ðŕàƒŧ çĥàñĝëð šïñçë ÿôû ôþëñëð ïŧ. Ɓàķëŕÿ ĥàš ŕëàð ïŧ àĝàïñ: çĥëçķ ŧĥë çĥàñĝëš, ŧĥëñ þûƀļïšĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "library.editor.publish.notUsed": "⟦Ṽëŕšïôñ {version} ŵàš þûƀļïšĥëð ƀûŧ ïš ñôŧ ïñ ûšë ÿëŧ. Çĥôôšë Ûšë ŧĥïš ṽëŕšïôñ ôñ ŧĥë ŵôŕķƒļôŵ þàĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧"
 }
