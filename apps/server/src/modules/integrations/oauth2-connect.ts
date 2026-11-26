@@ -534,7 +534,6 @@ export async function bindOAuth2Connection(
   const accountId = prepared.identity.externalAccountId;
   const label = prepared.identity.accountLabel;
   const permissions = JSON.stringify(prepared.grantedPermissions);
-  const installationId = await storeInstallation();
 
   if (attempt.reconnectConnectionId !== null) {
     const target = await transaction.query<
@@ -552,6 +551,7 @@ export async function bindOAuth2Connection(
       return await fail(ConnectionOutcome.ReconnectUnavailable);
     }
     if (row.externalAccountId === accountId) {
+      await storeInstallation();
       const refreshed = await transaction.query<
         { version: number; authorizationRevision: number }
       >(
@@ -584,6 +584,22 @@ export async function bindOAuth2Connection(
     }
   }
 
+  const live = await transaction.query(
+    `select 1
+       from bakery.integration_connections connection
+       join bakery.integration_installations installation
+         on installation.id = connection.installation_id
+      where connection.organization_id = $1
+        and installation.registration_id = $2
+        and installation.external_authorization_id = $3
+        and connection.archived_at is null
+      for update of connection`,
+    [attempt.organizationId, prepared.registrationId, accountId],
+  );
+  if (live.rows.length > 0) {
+    return await fail(ConnectionOutcome.AlreadyConnected);
+  }
+  const installationId = await storeInstallation();
   const connection = await transaction.query<{ id: string }>(
     `insert into bakery.integration_connections (
        id, organization_id, provider, installation_id,
@@ -608,7 +624,10 @@ export async function bindOAuth2Connection(
   );
   const created = connection.rows[0];
   if (created === undefined) {
-    return await fail(ConnectionOutcome.AlreadyConnected);
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "already_connected" },
+    });
   }
   await completeAttempt(created.id, {
     step: "bound",

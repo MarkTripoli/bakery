@@ -16,6 +16,7 @@ type SlackCall = { url: string; body: string; authorization: string | null };
 
 function fakeSlack(options: { tokenOk?: boolean } = {}) {
   const calls: SlackCall[] = [];
+  const issued = { token: BOT_TOKEN };
   const respond = (input: URL, init: RequestInit): Response => {
     const headers = new Headers(init.headers);
     const body = init.body instanceof URLSearchParams
@@ -34,7 +35,7 @@ function fakeSlack(options: { tokenOk?: boolean } = {}) {
       }
       return Response.json({
         ok: true,
-        access_token: BOT_TOKEN,
+        access_token: issued.token,
         token_type: "bot",
         scope: SLACK_BOT_SCOPES.join(","),
         bot_user_id: "U0TESTBOT",
@@ -46,7 +47,7 @@ function fakeSlack(options: { tokenOk?: boolean } = {}) {
     }
     if (input.href === "https://slack.com/api/auth.test") {
       return Response.json({
-        ok: headers.get("authorization") === `Bearer ${BOT_TOKEN}`,
+        ok: headers.get("authorization") === `Bearer ${issued.token}`,
         team_id: TEAM_ID,
         team: "Test Workspace",
         bot_id: "B0TESTBOT",
@@ -56,7 +57,7 @@ function fakeSlack(options: { tokenOk?: boolean } = {}) {
   };
   const fetch = (input: URL, init: RequestInit) =>
     Promise.resolve(respond(input, init));
-  return { calls, fetch };
+  return { calls, fetch, issued };
 }
 
 async function open(slack: ReturnType<typeof fakeSlack>) {
@@ -319,6 +320,109 @@ Deno.test("a refused Slack exchange or a denied authorization stores no connecti
            where provider = 'slack') as installations`,
       )).rows[0]!;
     assertEquals(counts, { connections: 0, installations: 0 });
+  } finally {
+    await o.finish();
+  }
+});
+
+async function storedToken(
+  o: Awaited<ReturnType<typeof open>>,
+): Promise<{ token: string; status: string; revision: number }> {
+  const pg = o.fixture.pgDatabase;
+  const row = (await pg.query<
+    { secret_id: string; status: string; revision: number }
+  >(
+    `select installation.credential_secret_id as secret_id, installation.status,
+       secret.active_version_revision as revision
+       from bakery.integration_installations installation
+       join bakery.secrets secret on secret.id = installation.credential_secret_id
+      where installation.provider = 'slack'
+        and installation.external_authorization_id = $1`,
+    [TEAM_ID],
+  )).rows[0]!;
+  const slots = decodeSecretSlots(
+    await openInstallationSecret(pg, o.secretsKey, row.secret_id),
+    ["access_token"],
+  );
+  return {
+    token: new TextDecoder().decode(slots.access_token),
+    status: row.status,
+    revision: row.revision,
+  };
+}
+
+function outcome(response: Response): string | null {
+  return new URL(response.headers.get("location")!, "https://x").searchParams
+    .get("slackConnection");
+}
+
+async function connectOnce(o: Awaited<ReturnType<typeof open>>) {
+  const attempt = await startAttempt(o.fixture);
+  const response = await slackCallback(o.fixture, {
+    code: "slack-code-first",
+    state: attempt.url.searchParams.get("state")!,
+  });
+  assertEquals(outcome(response), "connected");
+  return new URL(response.headers.get("location")!, "https://x").searchParams
+    .get("connectionId")!;
+}
+
+Deno.test("an already connected workspace refuses a second connect and keeps the stored token", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    await connectOnce(o);
+    const before = await storedToken(o);
+    slack.issued.token = "xoxb-second-token";
+    const again = await startAttempt(o.fixture);
+    const refused = await slackCallback(o.fixture, {
+      code: "slack-code-second",
+      state: again.url.searchParams.get("state")!,
+    });
+    assertEquals(outcome(refused), "already_connected");
+    assertEquals(await storedToken(o), before);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a reconnect whose connection is gone stores nothing and leaves the installation as it was", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    const connectionId = await connectOnce(o);
+    slack.issued.token = "xoxb-reconnect-token";
+    const response = await call(
+      o.fixture,
+      "POST",
+      "/v1/integration-auth-attempts",
+      o.fixture.adminCookie,
+      {
+        body: { provider: "slack", reconnectConnectionId: connectionId },
+        headers: {
+          "Bakery-Organization-Id": o.fixture.organizationId,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assertEquals(response.status, 201, await response.clone().text());
+    const created = await response.json() as { authorizationUrl: string };
+    const pg = o.fixture.pgDatabase;
+    await pg.query(
+      "update bakery.integration_connections set archived_at = now() where id = $1",
+      [connectionId],
+    );
+    await pg.query(
+      "update bakery.integration_installations set status = 'disabled' where provider = 'slack'",
+    );
+    const before = await storedToken(o);
+    const refused = await slackCallback(o.fixture, {
+      code: "slack-code-reconnect",
+      state: new URL(created.authorizationUrl).searchParams.get("state")!,
+    });
+    assertEquals(outcome(refused), "reconnect_unavailable");
+    assertEquals(await storedToken(o), before);
+    assertEquals(before.status, "disabled");
   } finally {
     await o.finish();
   }
