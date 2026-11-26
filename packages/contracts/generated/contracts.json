@@ -80810,6 +80810,46 @@
             }
           ]
         },
+        "PeopleTagEscalation": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "afterHours": {
+              "description": "Hours to wait after the first ask before asking the next person; 24 when left out, at most 72.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "recipientId": {
+              "description": "The one person to ask next: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one recipient field here.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "recipientRoleKey": {
+              "description": "A role to ask next instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs. PeopleTagEscalation.recipientRoleKey must contain at least 1 characters. PeopleTagEscalation.recipientRoleKey must contain at most 80 characters.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "recipientGroupId": {
+              "description": "A group to ask next instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "recipientRunRole": {
+              "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item.",
+              "type": "string",
+              "enum": [
+                "starter",
+                "task_owner"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "description": "The second ask of a waiting Notify step: who to ask, and after how many hours of no response."
+        },
         "PeopleTagInput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -80862,6 +80902,45 @@
             "wait": {
               "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back.",
               "type": "boolean"
+            },
+            "ifNobodyAnswers": {
+              "description": "Who to ask next if nobody tagged has responded after a while. Needs wait: the step keeps waiting, now on both asks, and completes responded when anyone answers.",
+              "type": "object",
+              "properties": {
+                "afterHours": {
+                  "description": "Hours to wait after the first ask before asking the next person; 24 when left out, at most 72.",
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "recipientId": {
+                  "description": "The one person to ask next: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one recipient field here.",
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "recipientRoleKey": {
+                  "description": "A role to ask next instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs. PeopleTagEscalation.recipientRoleKey must contain at least 1 characters. PeopleTagEscalation.recipientRoleKey must contain at most 80 characters.",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "recipientGroupId": {
+                  "description": "A group to ask next instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs.",
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "recipientRunRole": {
+                  "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item.",
+                  "type": "string",
+                  "enum": [
+                    "starter",
+                    "task_owner"
+                  ]
+                }
+              },
+              "additionalProperties": false
             }
           },
           "required": [
@@ -324295,6 +324374,46 @@
         }
       }
     },
+    "PeopleTagEscalation": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "afterHours": {
+          "description": "Hours to wait after the first ask before asking the next person; 24 when left out, at most 72.",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "recipientId": {
+          "description": "The one person to ask next: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one recipient field here.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "recipientRoleKey": {
+          "description": "A role to ask next instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs. PeopleTagEscalation.recipientRoleKey must contain at least 1 characters. PeopleTagEscalation.recipientRoleKey must contain at most 80 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "recipientGroupId": {
+          "description": "A group to ask next instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "recipientRunRole": {
+          "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item.",
+          "type": "string",
+          "enum": [
+            "starter",
+            "task_owner"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "The second ask of a waiting Notify step: who to ask, and after how many hours of no response."
+    },
     "PeopleTagInput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -324347,6 +324466,45 @@
         "wait": {
           "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back.",
           "type": "boolean"
+        },
+        "ifNobodyAnswers": {
+          "description": "Who to ask next if nobody tagged has responded after a while. Needs wait: the step keeps waiting, now on both asks, and completes responded when anyone answers.",
+          "type": "object",
+          "properties": {
+            "afterHours": {
+              "description": "Hours to wait after the first ask before asking the next person; 24 when left out, at most 72.",
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "recipientId": {
+              "description": "The one person to ask next: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one recipient field here.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "recipientRoleKey": {
+              "description": "A role to ask next instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs. PeopleTagEscalation.recipientRoleKey must contain at least 1 characters. PeopleTagEscalation.recipientRoleKey must contain at most 80 characters.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "recipientGroupId": {
+              "description": "A group to ask next instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "recipientRunRole": {
+              "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item.",
+              "type": "string",
+              "enum": [
+                "starter",
+                "task_owner"
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": [
