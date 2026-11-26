@@ -517,7 +517,8 @@ export async function admitSkillImport(
           where import.organization_id = $1 and import.source_id = $2
             and import.requested_revision = $3 and import.source_path = $4
             and import.scope = $5
-            and import.owner_principal_id is not distinct from $6::uuid`,
+            and import.owner_principal_id is not distinct from $6::uuid
+            and import.state <> 'failed'`,
     [
       organizationId,
       source.id,
