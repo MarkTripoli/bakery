@@ -93,6 +93,7 @@ export type ConnectedResource = Readonly<{
   displayName: string;
   binding: Readonly<Record<string, string>>;
   servicePrincipalName: string;
+  servicePurpose: string;
   serviceGrants: readonly ConnectedResourceGrant[];
 }>;
 

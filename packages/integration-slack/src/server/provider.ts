@@ -171,6 +171,7 @@ const oauth2: OAuth2Profile = {
       displayName: accountLabel,
       binding: { teamId: externalAccountId, botUserId: token.bot_user_id },
       servicePrincipalName: "Slack delivery",
+      servicePurpose: "slack.delivery",
       serviceGrants: [SLACK_DM_OPEN, SLACK_MESSAGE_POST, SLACK_MESSAGE_UPDATE]
         .map((action) => ({
           capability: action.id,

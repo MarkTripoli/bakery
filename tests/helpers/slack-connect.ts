@@ -138,6 +138,12 @@ export async function clear(fixture: Fixture) {
   );
   await pg.query("delete from bakery.secrets where provider = 'slack'");
   await pg.query(
+    `delete from bakery.delivery_principals where principal_id in
+       (select id from bakery.principals
+         where principal_type = 'service' and display_name = $1)`,
+    [DELIVERY_PRINCIPAL_NAME],
+  );
+  await pg.query(
     `delete from bakery.permission_grants where principal_id in
        (select id from bakery.principals
          where principal_type = 'service' and display_name = $1)`,

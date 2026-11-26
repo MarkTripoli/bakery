@@ -362,6 +362,12 @@ Deno.test("connecting Slack records the workspace, one delivery principal and it
     assertEquals(principal.provider_user_id, null);
     assertEquals(principal.memberships, 0);
     assertEquals(principal.capabilities, ["integrationConnections.invoke"]);
+    const keyed = await o.fixture.pgDatabase.query<{ principal_id: string }>(
+      `select principal_id from bakery.delivery_principals
+        where organization_id = $1 and purpose = 'slack.delivery'`,
+      [o.fixture.organizationId],
+    );
+    assertEquals(keyed.rows.map((row) => row.principal_id), [principal.id]);
     assertEquals(
       first.grants,
       ["slack.dm.open", "slack.message.post", "slack.message.update"].map(

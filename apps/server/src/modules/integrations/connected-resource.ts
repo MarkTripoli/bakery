@@ -94,23 +94,29 @@ async function ensureServicePrincipal(
   transaction: PgTransactionClient,
   input: ConnectedResourceBinding,
 ): Promise<string> {
-  const name = input.resource.servicePrincipalName;
+  const purpose = input.resource.servicePurpose;
   await transaction.query(
     `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
-    [`service-principal:${input.organizationId}:${name}`],
+    [`delivery-principal:${input.organizationId}:${purpose}`],
   );
-  const existing = await findServicePrincipal(
+  const existing = await findDeliveryPrincipal(
     transaction,
     input.organizationId,
-    name,
+    purpose,
   );
   if (existing !== null) return existing;
   const created = await transaction.query<{ id: string }>(
     `insert into bakery.principals (display_name, principal_type)
      values ($1, 'service') returning id`,
-    [name],
+    [input.resource.servicePrincipalName],
   );
   const principalId = created.rows[0]!.id;
+  await transaction.query(
+    `insert into bakery.delivery_principals
+       (organization_id, purpose, principal_id)
+     values ($1, $2, $3)`,
+    [input.organizationId, purpose, principalId],
+  );
   await transaction.query(
     `insert into bakery.permission_grants (
        organization_id, principal_id, capability, granted_by_principal_id,
@@ -127,32 +133,15 @@ async function ensureServicePrincipal(
   return principalId;
 }
 
-export async function findServicePrincipal(
+export async function findDeliveryPrincipal(
   transaction: PgTransactionClient,
   organizationId: string,
-  name: string,
+  purpose: string,
 ): Promise<string | null> {
-  const found = await transaction.query<{ id: string }>(
-    `select principal.id
-       from bakery.principals principal
-       join bakery.permission_grants permission
-         on permission.principal_id = principal.id
-        and permission.organization_id = $1
-        and permission.capability = $3
-        and permission.revoked_at is null
-        and permission.expires_at is null
-      where principal.principal_type = 'service'
-        and principal.display_name = $2
-        and principal.provider_user_id is null
-        and principal.created_by_principal_id is null
-        and principal.disabled_at is null
-        and not exists (
-          select 1 from bakery.organization_memberships membership
-           where membership.principal_id = principal.id
-        )
-      order by principal.id
-      limit 1`,
-    [organizationId, name, SERVICE_INVOKE_CAPABILITY],
+  const found = await transaction.query<{ principalId: string }>(
+    `select principal_id as "principalId" from bakery.delivery_principals
+      where organization_id = $1 and purpose = $2`,
+    [organizationId, purpose],
   );
-  return found.rows[0]?.id ?? null;
+  return found.rows[0]?.principalId ?? null;
 }
