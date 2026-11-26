@@ -1,0 +1,48 @@
+[
+  {
+    "at": "6.8",
+    "event": "import dialog",
+    "text": "Import a workflow × Definition file Choose a file A workflow definition file exported from Bakery (.yaml). Or paste the definition Looks good: 3 steps. Name* Importing creates a draft. Nothing runs. Cancel Import as draft"
+  },
+  {
+    "at": "6.9",
+    "event": "POST /v1/workflows",
+    "status": 201
+  },
+  {
+    "at": "6.9",
+    "event": "POST /v1/workflows/:id/versions",
+    "status": 201
+  },
+  {
+    "at": "12.5",
+    "event": "group together",
+    "text": "At the same time"
+  },
+  {
+    "at": "12.5",
+    "event": "group each",
+    "text": "For each item At most 3 items"
+  },
+  {
+    "at": "12.6",
+    "event": "group repeat",
+    "text": "Repeat At most 3 tries"
+  },
+  {
+    "at": "13.9",
+    "event": "leave asked",
+    "text": "Leave the editor? Your last change may be lost. Stay Leave anyway"
+  },
+  {
+    "at": "14.5",
+    "event": "PATCH /v1/workflows/:id/versions/:id",
+    "status": 200
+  },
+  {
+    "at": "24.0",
+    "event": "reloaded",
+    "repeat": "Repeat At most 5 tries",
+    "together": "At the same time"
+  }
+]
