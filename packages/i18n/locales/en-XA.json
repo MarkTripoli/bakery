@@ -7584,5 +7584,7 @@
   "library.editor.start.timezone": "⟦Ŧïɱë žôñë ŧ⟧",
   "library.editor.start.next": "⟦Ñëẋŧ šŧàŕŧš ŧ⟧",
   "library.editor.start.clockChange": "⟦Ïƒ ŧĥë çļôçķš šķïþ ŧĥïš ŧïɱë, ïŧ šŧàŕŧš ŵĥëñ ŧĥëÿ çĥàñĝë. Ïƒ ïŧ ĥàþþëñš ŧŵïçë, ïŧ šŧàŕŧš ôñçë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
-  "library.editor.start.scheduleSummary": "⟦{repeat} àŧ {time} ({timezone}) ŧëšŧ çôþ⟧"
+  "library.editor.start.scheduleSummary": "⟦{repeat} àŧ {time} ({timezone}) ŧëšŧ çôþ⟧",
+  "library.editor.noChanges": "⟦Ñô çĥàñĝëš ŧô þûƀļïšĥ ŧëšŧŧ⟧",
+  "library.editor.publishedUnused": "⟦Þûƀļïšĥëð, ñôŧ ïñ ûšë ŧëšŧŧ⟧"
 }

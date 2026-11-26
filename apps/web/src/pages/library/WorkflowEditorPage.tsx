@@ -963,8 +963,13 @@ export function WorkflowEditorPage(
   >(null);
 
   const problemCount = rows.length;
-  const problemWord = problemCount === 0
+  const cleanWord = publishedUnused
+    ? translate("library.editor.publishedUnused")
+    : draftDiffers
     ? translate("library.editor.ready" as never)
+    : translate("library.editor.noChanges");
+  const problemWord = problemCount === 0
+    ? cleanWord
     : problemCount === 1
     ? translate("library.editor.problem.one" as never)
     : translate("library.editor.problems" as never, {

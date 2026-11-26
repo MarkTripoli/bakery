@@ -128,6 +128,8 @@ test.describe("workflow editor: what publishing changes", () => {
 
   test("a draft that matches the version in use has nothing to publish", async ({ page }) => {
     await editor(page, { draftSteps: IN_USE });
+    await expect(page.getByTestId("editor-problems"))
+      .toHaveText("No changes to publish");
     const dialog = await openPublish(page);
     await expect(dialog).toContainText("Nothing to publish");
   });
@@ -160,6 +162,8 @@ test.describe("workflow editor: what publishing changes", () => {
       .toBeVisible();
     await expect(dialog).not.toContainText("is already published");
     await still(page, "publish-not-used");
+    await expect(page.getByTestId("editor-problems"))
+      .toHaveText("Published, not in use");
   });
   test("a group removed around a step can still be published", async ({ page }) => {
     await editor(page, {

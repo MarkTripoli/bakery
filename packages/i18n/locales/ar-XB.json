@@ -7584,5 +7584,7 @@
   "library.editor.start.timezone": "⟪Time zone⟫",
   "library.editor.start.next": "⟪Next starts⟫",
   "library.editor.start.clockChange": "⟪If the clocks skip this time, it starts when they change. If it happens twice, it starts once.⟫",
-  "library.editor.start.scheduleSummary": "⟪{repeat} at {time} ({timezone})⟫"
+  "library.editor.start.scheduleSummary": "⟪{repeat} at {time} ({timezone})⟫",
+  "library.editor.noChanges": "⟪No changes to publish⟫",
+  "library.editor.publishedUnused": "⟪Published, not in use⟫"
 }
