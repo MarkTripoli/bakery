@@ -7381,12 +7381,12 @@
   "library.skills.editor.failure.failed": "⟪That did not work and nothing changed. Try again in a moment.⟫",
   "library.skills.editor.settings.licenseHelp": "⟪The licence this version declares. Needed to publish.⟫",
   "library.skills.editor.problems.licence": "⟪Licence: add one before publishing, up to 200 plain characters.⟫",
-  "library.skills.editor.leave.title": "⟪Leave without saving?⟫",
-  "library.skills.editor.leave.body": "⟪{count, plural, one {Your last change to # file is not saved yet.} other {Your last changes to # files are not saved yet.}}⟫",
   "library.skills.editor.leave.stay": "⟪Stay⟫",
-  "library.skills.editor.leave.confirm": "⟪Leave without saving⟫",
   "library.skills.editor.file.actions": "⟪Actions for {file}⟫",
   "library.skills.editor.file.replace": "⟪Replace⟫",
   "library.skills.editor.addFile.upload": "⟪Upload files⟫",
-  "library.skills.editor.addFile.skipped": "⟪Not added, because a file with that name already exists or the name cannot be used: {names}⟫"
+  "library.skills.editor.addFile.skipped": "⟪Not added, because a file with that name already exists or the name cannot be used: {names}⟫",
+  "library.skills.editor.leave.title": "⟪Leave the editor?⟫",
+  "library.skills.editor.leave.body": "⟪What you just typed may not be saved yet.⟫",
+  "library.skills.editor.leave.confirm": "⟪Leave anyway⟫"
 }

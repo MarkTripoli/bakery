@@ -174,7 +174,10 @@ for (
       await typeInto(page, "SKILL.md", "Typed and left");
       await page.evaluate(() => history.back());
       const ask = page.getByRole("alertdialog");
-      await expect(ask).toContainText("Leave without saving?");
+      await expect(ask).toContainText("Leave the editor?");
+      await expect(ask).toContainText(
+        "What you just typed may not be saved yet.",
+      );
       await ask.getByRole("button", { name: "Stay" }).click();
       await expect(page).toHaveURL(new RegExp(`${EDITOR}$`));
       await expect(page.getByTestId("skill-editor-save")).toContainText(
