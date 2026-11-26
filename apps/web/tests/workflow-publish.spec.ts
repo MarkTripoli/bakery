@@ -130,6 +130,7 @@ test.describe("workflow editor: what publishing changes", () => {
     await editor(page, { draftSteps: IN_USE });
     await expect(page.getByTestId("editor-problems"))
       .toHaveText("No changes to publish");
+    await still(page, "publish-header-unchanged");
     const dialog = await openPublish(page);
     await expect(dialog).toContainText("Nothing to publish");
   });
