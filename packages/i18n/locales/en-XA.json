@@ -7587,5 +7587,7 @@
   "library.skills.add.hint.revision": "⟦À ŧàĝ ôŕ çôɱɱïŧ ķëëþš ŧĥë šķïļļ ƒŕôɱ çĥàñĝïñĝ ûñðëŕ ÿôû. À ƀŕàñçĥ ļëŧš Ɓàķëŕÿ ŧëļļ ÿôû ŵĥëñ ïŧ ɱôṽëš. Ŵŕïŧë à çôɱɱïŧ àš àļļ 40 çĥàŕàçŧëŕš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "library.skills.add.happens.forYou": "⟦Ŧĥë šķïļļ ïš àððëð ƒôŕ ÿôû ôñļÿ. ŧëšŧ çôþÿ⟧",
   "library.skills.add.failure.missingRevision": "⟦{address} ĥàš ñô ƀŕàñçĥ, ŧàĝ ôŕ çôɱɱïŧ çàļļëð {revision}. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "library.skills.add.failure.shortCommit": "⟦{address} ĥàš ñô ƀŕàñçĥ ôŕ ŧàĝ çàļļëð {revision}. Ïƒ ïŧ ïš à çôɱɱïŧ, ëñŧëŕ àļļ 40 çĥàŕàçŧëŕš ôƒ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧"
+  "library.skills.add.failure.shortCommit": "⟦{address} ĥàš ñô ƀŕàñçĥ ôŕ ŧàĝ çàļļëð {revision}. Ïƒ ïŧ ïš à çôɱɱïŧ, ëñŧëŕ àļļ 40 çĥàŕàçŧëŕš ôƒ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "library.editor.addBefore": "⟦Àðð à šŧëþ ƀëƒôŕë {before} ŧëšŧ çô⟧",
+  "library.editor.picker.limited": "⟦Ôŧĥëŕ šŧëþ ŧÿþëš ñëëð šëŧŧïñĝš ŧĥïš þàĝë çàññôŧ ƒïļļ ïñ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }

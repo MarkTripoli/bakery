@@ -63,6 +63,9 @@ export type DiagramProps = {
   readonly canManage: boolean;
   /** Whether slice 1 can add, move and remove steps here. */
   readonly editable: boolean;
+  readonly addAfter?: ReadonlySet<string | null>;
+  readonly addBefore?: ReadonlyMap<string | null, string>;
+  readonly offer?: readonly string[];
   /**
    * Whether this is a read-only page (the workflow page or a built-in), where
    * nothing can be edited at all. "Edited in code" tells a person where to go
@@ -110,6 +113,9 @@ const GROUP_ICON: Readonly<Partial<Record<GroupLabel, string>>> = {
 
 export function WorkflowDiagram(
   {
+    addAfter,
+    addBefore,
+    offer,
     canManage,
     detail,
     editable,
@@ -150,7 +156,7 @@ export function WorkflowDiagram(
   // down and said nothing about what each step does (#67 UX ruling
   // 6934081003 fix 2, spec in 6900431228).
   const [pickQuery, setPickQuery] = useState("");
-  const offered = PICKER_STEPS.filter((uses) => {
+  const offered = (offer ?? PICKER_STEPS).filter((uses) => {
     const needle = pickQuery.trim().toLowerCase();
     return needle === "" ||
       title(uses).toLowerCase().includes(needle) ||
@@ -193,6 +199,11 @@ export function WorkflowDiagram(
 
   const pickerBody = (
     <UI.Stack gap="compact" data-testid="step-picker">
+      {offer === undefined ? null : (
+        <UI.Text variant="muted">
+          {translate("library.editor.picker.limited")}
+        </UI.Text>
+      )}
       <UI.SearchField
         aria-label={translate("library.editor.picker.search" as never)}
         placeholder={translate("library.editor.picker.search" as never)}
@@ -280,12 +291,16 @@ export function WorkflowDiagram(
 
   const addControl = (afterId: string | null): ReactNode => {
     if (!editable || !canManage) return null;
+    if (addAfter !== undefined && !addAfter.has(afterId)) return null;
     const open = pickerAt !== undefined && pickerAt === afterId;
-    const addLabel = translate("library.editor.addHere" as never, {
-      after: afterId === null
-        ? translate("library.editor.startsHere" as never)
-        : title(treeStepUses(tree, afterId) ?? afterId),
-    });
+    const next = addBefore?.get(afterId);
+    const addLabel = next === undefined
+      ? translate("library.editor.addHere", {
+        after: afterId === null
+          ? translate("library.editor.startsHere")
+          : title(treeStepUses(tree, afterId) ?? afterId),
+      })
+      : translate("library.editor.addBefore", { before: title(next) });
     return (
       <>
         <UI.Popover
@@ -551,7 +566,10 @@ export function WorkflowDiagram(
     }
   };
   const renderAdd = (block: CanvasBlock): ReactNode => {
-    if (block.kind !== "start" && block.kind !== "step") return null;
+    if (
+      block.kind !== "start" && block.kind !== "step" &&
+      addAfter?.has(block.id) !== true
+    ) return null;
     const afterId = block.kind === "start" ? null : block.id;
     const control = addControl(afterId);
     return control === null
@@ -604,6 +622,7 @@ export function WorkflowDiagram(
     const limit = limitOf(node);
     return (
       <UI.OutlineRow
+        add={addBefore?.has(node.id) ? outlineAdd(node.id) : undefined}
         codeMark={inCode ? undefined : codeMark()}
         data-group={node.label}
         icon={glyphOf(node.label)}
@@ -652,6 +671,9 @@ export function WorkflowDiagram(
       ) {
         rows.push(
           <UI.OutlineRow
+            add={addBefore?.has(`if-${node.id}`)
+              ? outlineAdd(`if-${node.id}`)
+              : undefined}
             codeMark={inCode ? undefined : codeMark()}
             data-group="if"
             icon={<UI.IconGlyph name="branch" size="small" />}

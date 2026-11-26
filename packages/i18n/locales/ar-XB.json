@@ -7587,5 +7587,7 @@
   "library.skills.add.hint.revision": "⟪A tag or commit keeps the skill from changing under you. A branch lets Bakery tell you when it moves. Write a commit as all 40 characters.⟫",
   "library.skills.add.happens.forYou": "⟪The skill is added for you only.⟫",
   "library.skills.add.failure.missingRevision": "⟪{address} has no branch, tag or commit called {revision}.⟫",
-  "library.skills.add.failure.shortCommit": "⟪{address} has no branch or tag called {revision}. If it is a commit, enter all 40 characters of it.⟫"
+  "library.skills.add.failure.shortCommit": "⟪{address} has no branch or tag called {revision}. If it is a commit, enter all 40 characters of it.⟫",
+  "library.editor.addBefore": "⟪Add a step before {before}⟫",
+  "library.editor.picker.limited": "⟪Other step types need settings this page cannot fill in yet.⟫"
 }

@@ -5,6 +5,8 @@
  * what this decides, and the publish dialog sends its `steps`.
  */
 
+import { canvasGraph } from "./canvas-graph.ts";
+import type { Tree } from "./workflow-tree.ts";
 import type { WorkflowStart } from "@bakery/contracts/workflow-starts";
 import {
   type ApprovalFields,
@@ -21,6 +23,7 @@ export type EditorStep = {
   /** The skill versions the step names, in order (#431); none for most steps. */
   readonly skills: readonly string[];
   readonly approval?: ApprovalFields;
+  readonly list?: string;
 };
 
 export type LoopEdit = {
@@ -82,16 +85,57 @@ export type EditorAction =
   | { readonly kind: "undo" }
   | { readonly kind: "redo" };
 
-function straightLineOf(held: readonly unknown[]): boolean {
-  return held.every((node) => {
-    if (typeof node !== "object" || node === null || Array.isArray(node)) {
-      return false;
+function isActionEntry(node: unknown): boolean {
+  if (typeof node !== "object" || node === null || Array.isArray(node)) {
+    return false;
+  }
+  const record = node as Record<string, unknown>;
+  const kind = typeof record.kind === "string" ? record.kind : "";
+  return (kind === "" || kind === "action") &&
+    typeof record.id === "string" && record.steps === undefined &&
+    AUTHORED_WRAPPERS.every((wrapper) => record[wrapper] === undefined);
+}
+
+export function straightLineOf(held: readonly unknown[]): boolean {
+  return held.every(isActionEntry);
+}
+
+const GROUP_KEYS: ReadonlySet<string> = new Set([
+  "id",
+  "name",
+  "needs",
+  "kind",
+  "steps",
+]);
+
+export type PlainGroup = Record<string, unknown> & {
+  readonly id: string;
+  readonly steps: readonly Record<string, unknown>[];
+};
+
+export function isPlainGroup(node: unknown): node is PlainGroup {
+  const held = objectOf(node);
+  return held !== null && typeof held.id === "string" &&
+    (held.kind === undefined || held.kind === "sequence") &&
+    Object.keys(held).every((key) => GROUP_KEYS.has(key)) &&
+    Array.isArray(held.steps) && held.steps.length > 0 &&
+    straightLineOf(held.steps);
+}
+
+export function nodeIds(value: unknown): ReadonlySet<string> {
+  const found = new Set<string>();
+  const walk = (held: unknown) => {
+    if (Array.isArray(held)) {
+      held.forEach(walk);
+      return;
     }
-    const record = node as Record<string, unknown>;
-    const kind = typeof record.kind === "string" ? record.kind : "";
-    return (kind === "" || kind === "action") &&
-      typeof record.id === "string";
-  });
+    const node = objectOf(held);
+    if (node === null) return;
+    if (typeof node.id === "string") found.add(node.id);
+    Object.values(node).forEach(walk);
+  };
+  walk(value);
+  return found;
 }
 
 /**
@@ -108,50 +152,63 @@ export function definitionOf(
 ): Record<string, unknown> {
   const authored = applyLoops(spec, loops);
   const held = Array.isArray(authored?.steps) ? authored.steps : [];
-  if (!straightLineOf(held)) return authored ?? {};
-  const byId = new Map<string, Record<string, unknown>>();
-  for (const raw of held) {
-    if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
-      const node = raw as Record<string, unknown>;
-      if (typeof node.id === "string") byId.set(node.id, node);
-    }
+  if (straightLineOf(held)) {
+    return { ...(authored ?? {}), steps: stepNodes(held, steps) };
   }
+  if (!held.some(isPlainGroup)) return authored ?? {};
   return {
     ...(authored ?? {}),
-    steps: steps.map((step) => {
-      const node = byId.get(step.id);
-      const agent = typeof node?.agentVersionId === "string"
-        ? node.agentVersionId
-        : null;
-      const skills = skillsOfNode(node);
-      const sameAction = node !== undefined &&
-        (node.uses === step.uses ||
-          (typeof node.uses !== "string" && step.uses === ""));
-      if (
-        node !== undefined && sameAction &&
-        agent === step.agentVersionId && sameList(skills, step.skills) &&
-        keepsApproval(node, step)
-      ) {
-        return node;
-      }
-      const { agentVersionId: _dropped, skills: _skills, ...rest } = node ?? {};
-      if (step.approval !== undefined) delete rest.with;
-      const input = step.approval === undefined
-        ? null
-        : approvalInput(step.approval);
-      return {
-        ...rest,
-        ...(input === null ? {} : { with: input }),
-        id: step.id,
-        uses: step.uses,
-        ...(step.agentVersionId === null
-          ? {}
-          : { agentVersionId: step.agentVersionId }),
-        // A step with no skills carries no `skills` key, as an authored one does.
-        ...(step.skills.length === 0 ? {} : { skills: [...step.skills] }),
-      };
+    steps: held.map((node) => {
+      if (!isPlainGroup(node)) return node;
+      const inside = steps.filter((step) => step.list === node.id);
+      return inside.length === 0
+        ? node
+        : { ...node, steps: stepNodes(node.steps, inside) };
     }),
   };
+}
+
+function stepNodes(
+  held: readonly unknown[],
+  steps: readonly EditorStep[],
+): readonly Record<string, unknown>[] {
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const raw of held) {
+    const node = objectOf(raw);
+    if (node !== null && typeof node.id === "string") byId.set(node.id, node);
+  }
+  return steps.map((step) => {
+    const node = byId.get(step.id);
+    const agent = typeof node?.agentVersionId === "string"
+      ? node.agentVersionId
+      : null;
+    const skills = skillsOfNode(node);
+    const sameAction = node !== undefined &&
+      (node.uses === step.uses ||
+        (typeof node.uses !== "string" && step.uses === ""));
+    if (
+      node !== undefined && sameAction &&
+      agent === step.agentVersionId && sameList(skills, step.skills) &&
+      keepsApproval(node, step)
+    ) {
+      return node;
+    }
+    const { agentVersionId: _dropped, skills: _skills, ...rest } = node ?? {};
+    if (step.approval !== undefined) delete rest.with;
+    const input = step.approval === undefined
+      ? null
+      : approvalInput(step.approval);
+    return {
+      ...rest,
+      ...(input === null ? {} : { with: input }),
+      id: step.id,
+      uses: step.uses,
+      ...(step.agentVersionId === null
+        ? {}
+        : { agentVersionId: step.agentVersionId }),
+      ...(step.skills.length === 0 ? {} : { skills: [...step.skills] }),
+    };
+  });
 }
 
 export function applyLoops(
@@ -276,9 +333,10 @@ export function canRedo(state: EditorState): boolean {
 export function freeStepId(
   state: EditorState,
   wanted = "step",
+  held: ReadonlySet<string> = new Set(),
 ): string {
   const base = wanted.toLowerCase().replace(/[^a-z0-9_]+/g, "_");
-  const taken = new Set(state.steps.map((step) => step.id));
+  const taken = new Set([...held, ...state.steps.map((step) => step.id)]);
   if (!taken.has(base)) return base;
   for (let n = 2;; n += 1) {
     const candidate = `${base}_${n}`;
@@ -434,4 +492,27 @@ export function editorReducer(
       };
     }
   }
+}
+
+export function groupStartsOf(
+  tree: Tree,
+  steps: readonly EditorStep[],
+): ReadonlyMap<string | null, { list: string; uses: string }> {
+  const edges = canvasGraph(tree).edges;
+  const listed = new Set(
+    steps.filter((step) => step.list !== undefined).map((step) => step.id),
+  );
+  const starts = new Map<string | null, { list: string; uses: string }>();
+  const seen = new Set<string>();
+  for (const step of steps) {
+    if (step.list === undefined || seen.has(step.list)) continue;
+    seen.add(step.list);
+    const before = edges.find((edge) => edge.target === step.id)?.source;
+    if (before === undefined || listed.has(before)) continue;
+    starts.set(before === "start" ? null : before, {
+      list: step.list,
+      uses: step.uses,
+    });
+  }
+  return starts;
 }
