@@ -51,7 +51,9 @@ export function PublishSummary(
       {changes.grouped ? <UI.Text>{copy("grouped")}</UI.Text> : null}
       {changes.other ? <UI.Text>{copy("other")}</UI.Text> : null}
       {changes.settings ? <UI.Text>{copy("settings")}</UI.Text> : null}
-      {startsChanged ? <UI.Text>{copy("starts")}</UI.Text> : null}
+      {startsChanged && inUseRevision !== null
+        ? <UI.Text>{copy("starts")}</UI.Text>
+        : null}
       {blocked || problemCount > 0
         ? null
         : <UI.Text variant="muted">{copy("noProblems")}</UI.Text>}

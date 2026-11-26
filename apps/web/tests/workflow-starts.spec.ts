@@ -327,6 +327,9 @@ test.describe("workflow editor: how it starts", () => {
     await expect(page.getByRole("alertdialog")).toContainText(
       "Publish and use also switches on 1 automatic start.",
     );
+    await expect(page.getByRole("alertdialog")).not.toContainText(
+      "Automatic starts changed.",
+    );
     await page.getByRole("button", { name: "Keep editing" }).click();
     await field(page, "When").selectOption("work_item.opened");
     await expect(field(page, "Repeats")).toHaveCount(0);
