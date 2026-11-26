@@ -1,6 +1,7 @@
 import { MAX_ARTIFACT_BYTES } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
 import type { ActionContext } from "@bakery/contracts/action-registry";
+import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import {
@@ -168,6 +169,12 @@ function versionBinding(
     filters: JSON.stringify({ artifactId }),
     schemaVersion: 1,
   };
+}
+
+function readsTheTask(context: ActionContext): boolean {
+  const authority = (context as Partial<AuthorizedActionContext>).authority;
+  return authority !== undefined && "organizationId" in authority &&
+    (authority as { artifactGrant?: unknown }).artifactGrant === undefined;
 }
 
 function artifact(row: ArtifactRow) {
@@ -542,7 +549,10 @@ export function createArtifactReadHandlers(
         throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       }
       await refuseHiddenArtifact(context, organizationId, result.rows[0].id);
-      return artifact(result.rows[0]);
+      const { task_title: taskTitle, ...row } = result.rows[0];
+      return artifact(
+        readsTheTask(context) ? { ...row, task_title: taskTitle } : row,
+      );
     },
 
     async listArtifactVersions(

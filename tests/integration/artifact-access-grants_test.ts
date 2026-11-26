@@ -252,13 +252,20 @@ Deno.test("a document grant opens that document, comments and nothing else", asy
     await t.step(
       "the grant opens the document and its comments only",
       async () => {
+        const taskTitle = `Task only its team may name ${crypto.randomUUID()}`;
+        await db.query("update bakery.tasks set title = $1 where id = $2", [
+          taskTitle,
+          f.taskId,
+        ]);
         const read = await as(ana, `/v1/artifacts/${artifact}`);
         const opened = await json<{ taskTitle?: string }>(read.clone(), 200);
-        const task = (await db.query<{ title: string }>(
-          "select title from bakery.tasks where id = $1",
-          [f.taskId],
-        )).rows[0];
-        assertEquals(opened.taskTitle, task?.title);
+        assertEquals(opened.taskTitle, undefined);
+        const byTaskReader = await json<{ taskTitle?: string }>(
+          await as(writer, `/v1/artifacts/${artifact}`),
+          200,
+        );
+        assertEquals(byTaskReader.taskTitle, taskTitle);
+        assert(!JSON.stringify(opened).includes(taskTitle));
         const versions = await json<
           { items: { authorId: string; authorName?: string | null }[] }
         >(
