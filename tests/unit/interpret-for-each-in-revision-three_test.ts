@@ -97,12 +97,18 @@ Deno.test("without a forEach revision 3 answers exactly as revision 2", async ()
     {
       id: "fan",
       parallel: {
-        maxConcurrency: 1,
+        maxConcurrency: 2,
         join: "all-required",
         failurePolicy: "stop-dependent",
         branches: [
           { id: "lane_a", repository: "main", steps: [noop("a1")] },
-          { id: "lane_b", repository: "main", steps: [noop("b1")] },
+          {
+            id: "lane_b",
+            repository: "main",
+            steps: [
+              noop("b1", { files: { read: ["inputs"], write: ["outputs"] } }),
+            ],
+          },
         ],
       },
     },

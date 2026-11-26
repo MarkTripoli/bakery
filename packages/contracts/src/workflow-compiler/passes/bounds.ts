@@ -153,7 +153,7 @@ function concurrentWorkspaceWriters(
   if (node.maxConcurrency <= 1) return [];
   const waitsOn = laneWaitsOn(node.lanes);
   const writing = node.lanes
-    .map((lane) => ({ lane, writers: workspaceWriters(lane.steps) }))
+    .map((lane) => ({ lane, writers: writersOf(lane.steps, "workspace") }))
     .filter(({ writers }) => writers.length > 0);
   return writing.flatMap(({ lane, writers }, index) =>
     writing.slice(0, index).some(({ lane: earlier }) =>
@@ -166,31 +166,30 @@ function concurrentWorkspaceWriters(
   );
 }
 
-function workspaceWriters(
+function writersOf(
   nodes: readonly WorkflowNode[],
+  area: "workspace",
 ): WorkflowNode[] {
   return nodes.flatMap((node): WorkflowNode[] => {
     switch (node.kind) {
       case "action":
-        return resolveStepFiles(node.files).write.includes("workspace")
-          ? [node]
-          : [];
+        return resolveStepFiles(node.files).write.includes(area) ? [node] : [];
       case "wait":
         return [];
       case "sequence":
       case "forEach":
-        return workspaceWriters(node.steps);
+        return writersOf(node.steps, area);
       case "branch":
-        return [...workspaceWriters(node.then), ...workspaceWriters(node.else)];
+        return [...writersOf(node.then, area), ...writersOf(node.else, area)];
       case "repeat":
         return [
           ...(node.seed.form === "sequence"
-            ? workspaceWriters(node.seed.steps)
+            ? writersOf(node.seed.steps, area)
             : []),
-          ...workspaceWriters(node.steps),
+          ...writersOf(node.steps, area),
         ];
       case "parallel":
-        return node.lanes.flatMap((lane) => workspaceWriters(lane.steps));
+        return node.lanes.flatMap((lane) => writersOf(lane.steps, area));
     }
   });
 }
