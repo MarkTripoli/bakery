@@ -146,7 +146,6 @@ export function isSkillMediaType(value: string): boolean {
   return MEDIA.test(value);
 }
 
-/** Whether a file of this media type may be marked runnable. */
 export function compareByCodeUnitPath(
   left: Readonly<{ path: string }>,
   right: Readonly<{ path: string }>,
@@ -154,6 +153,7 @@ export function compareByCodeUnitPath(
   return left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
 }
 
+/** Whether a file of this media type may be marked runnable. */
 export function isSkillExecutableMedia(mediaType: string): boolean {
   return executableMediaAllowed(mediaType);
 }
