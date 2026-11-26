@@ -576,7 +576,14 @@ const NESTED_CONTAINERS: [string, unknown][] = [
       failurePolicy: "stop-dependent",
       branches: [
         { id: "lane_a", repository: "main", steps: [noopNode("work_a")] },
-        { id: "lane_b", repository: "main", steps: [noopNode("work_b")] },
+        {
+          id: "lane_b",
+          repository: "main",
+          steps: [{
+            ...noopNode("work_b"),
+            files: { read: ["inputs"], write: ["outputs"] },
+          }],
+        },
       ],
     },
   }],

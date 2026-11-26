@@ -1,3 +1,4 @@
+import { CURRENT_INTERPRETER_REVISION } from "../../packages/contracts/src/workflow-interpreter/mod.ts";
 import { assertEquals } from "@std/assert";
 import { rows, seedPlanRun, setRow, state } from "../helpers/plan-run.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
@@ -61,7 +62,7 @@ async function seedRun(fixture: WorkerFixture, max: number) {
 const CASE_A = "rev-case-a";
 const CASE_B = "rev-case-b";
 
-Deno.test("a new plan run is pinned to revision 4 and runs each item of a forEach as its own keyed step", () =>
+Deno.test("a new plan run is pinned to the current interpreter revision and runs each item of a forEach as its own keyed step", () =>
   withWorkerFixture(async (fixture) => {
     const { seeded, repo } = await seedRun(fixture, 4);
     const pin = (await fixture.pgDatabase.query<{ revision: string }>(
@@ -69,7 +70,7 @@ Deno.test("a new plan run is pinned to revision 4 and runs each item of a forEac
          from bakery.workflow_runs where id = $1`,
       [seeded.job.runId],
     )).rows[0].revision;
-    assertEquals(pin, "4");
+    assertEquals(pin, CURRENT_INTERPRETER_REVISION);
     assertEquals(seeded.firstKey, "prepare");
 
     const next = async () =>

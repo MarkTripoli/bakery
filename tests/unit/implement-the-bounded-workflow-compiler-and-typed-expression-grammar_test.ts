@@ -724,6 +724,8 @@ function repeatNode(extra: Def = {}, body: Def = {}): Def {
   };
 }
 
+const READ_ONLY_FILES = { read: ["inputs"], write: ["outputs"] };
+
 function parallelNode(extra: Def = {}, body: Def = {}): Def {
   return {
     id: "fan",
@@ -733,7 +735,11 @@ function parallelNode(extra: Def = {}, body: Def = {}): Def {
       failurePolicy: "stop-dependent",
       branches: [
         { id: "lane_a", repository: "main", steps: [noop("work_a")] },
-        { id: "lane_b", repository: "main", steps: [noop("work_b")] },
+        {
+          id: "lane_b",
+          repository: "main",
+          steps: [{ ...noop("work_b"), files: READ_ONLY_FILES }],
+        },
       ],
       ...body,
     },
@@ -943,7 +949,11 @@ Deno.test("identifier diagnostics cover invalid, duplicate, reserved, depth and 
         parallelNode({}, {
           branches: [
             { id: "lane_a", repository: "main", steps: [noop("work_a")] },
-            { id: "lane_a", repository: "main", steps: [noop("work_b")] },
+            {
+              id: "lane_a",
+              repository: "main",
+              steps: [{ ...noop("work_b"), files: READ_ONLY_FILES }],
+            },
           ],
         }),
       ]),
@@ -977,7 +987,11 @@ Deno.test("identifier diagnostics cover invalid, duplicate, reserved, depth and 
     parallelNode({}, {
       branches: [
         { id: "lane_a", repository: "main", steps: [noop("work")] },
-        { id: "lane_b", repository: "main", steps: [noop("work")] },
+        {
+          id: "lane_b",
+          repository: "main",
+          steps: [{ ...noop("work"), files: READ_ONLY_FILES }],
+        },
       ],
     }),
   ]));
@@ -1747,7 +1761,11 @@ Deno.test("branch outputs and export-name conflicts", async () => {
         parallelNode({}, {
           branches: [
             { id: "lane_a", repository: "main", steps: [noop("result")] },
-            { id: "lane_b", repository: "main", steps: [noop("work_b")] },
+            {
+              id: "lane_b",
+              repository: "main",
+              steps: [{ ...noop("work_b"), files: READ_ONLY_FILES }],
+            },
           ],
           outputs: { lane_a: { result: "$step.fan.lane_a.result.x" } },
         }),
@@ -1907,7 +1925,6 @@ Deno.test("wait and parallel shapes", async () => {
       "parallel with nine lanes",
       workflow([
         parallelNode({}, {
-          maxConcurrency: 1,
           branches: Array.from(
             { length: 9 },
             (_, index) => lane(`lane_${index}`),
@@ -2022,7 +2039,11 @@ Deno.test("presentation keys are stripped only at the root, node and lane levels
             steps: [{ ...noop("work_a"), ...presentation }],
             ...presentation,
           },
-          { id: "lane_b", repository: "main", steps: [noop("work_b")] },
+          {
+            id: "lane_b",
+            repository: "main",
+            steps: [{ ...noop("work_b"), files: READ_ONLY_FILES }],
+          },
         ],
       }),
     ]),
@@ -3254,7 +3275,9 @@ Deno.test("parallel exports, lane scope and prerequisite lanes", async () => {
           repository: "main",
           needs: ["lane_a"],
           steps: [
-            rev("b_check", { revision: "$step.fan.lane_a.sha" }),
+            rev("b_check", { revision: "$step.fan.lane_a.sha" }, {
+              files: READ_ONLY_FILES,
+            }),
           ],
           ...laneB,
         },
@@ -3264,7 +3287,9 @@ Deno.test("parallel exports, lane scope and prerequisite lanes", async () => {
   });
   const laneBSteps = (withExtra: Def): Def => ({
     steps: [
-      rev("b_check", { evidence: "$step.verify.checkRunIds", ...withExtra }),
+      rev("b_check", { evidence: "$step.verify.checkRunIds", ...withExtra }, {
+        files: READ_ONLY_FILES,
+      }),
     ],
   });
   // Exports are read after the group; a prerequisite lane's exports are readable.
@@ -3330,7 +3355,9 @@ Deno.test("parallel exports, lane scope and prerequisite lanes", async () => {
         chk("verify"),
         group({
           steps: [
-            rev("b_check", { revision: "$step.fan.lane_b.sha" }),
+            rev("b_check", { revision: "$step.fan.lane_b.sha" }, {
+              files: READ_ONLY_FILES,
+            }),
           ],
         }),
       ]),
@@ -3417,8 +3444,18 @@ Deno.test("needs: unknown, forward, self and lane cycles", async () => {
       failurePolicy: "stop-dependent",
       branches: [
         { id: "lane_a", repository: "main", needs: a, steps: [noop("work_a")] },
-        { id: "lane_b", repository: "main", needs: b, steps: [noop("work_b")] },
-        { id: "lane_c", repository: "main", needs: c, steps: [noop("work_c")] },
+        {
+          id: "lane_b",
+          repository: "main",
+          needs: b,
+          steps: [{ ...noop("work_b"), files: READ_ONLY_FILES }],
+        },
+        {
+          id: "lane_c",
+          repository: "main",
+          needs: c,
+          steps: [{ ...noop("work_c"), files: READ_ONLY_FILES }],
+        },
       ],
     },
   });
@@ -3894,7 +3931,10 @@ Deno.test("worst case follows the documented formulas", async () => {
         {
           id: "lane_b",
           repository: "main",
-          steps: [fast("work_b"), fast("work_c")],
+          steps: [
+            fast("work_b", { files: READ_ONLY_FILES }),
+            fast("work_c", { files: READ_ONLY_FILES }),
+          ],
         },
       ],
     })]),
@@ -4011,6 +4051,14 @@ Deno.test("nested repeat, parallel and repeat steps get unique round-trip keys",
     },
     steps: [fast("work")],
   });
+  const readOnlyInner = repeatNode({ id: "inner" }, {
+    max: 3,
+    seed: {
+      steps: [fast("prep", { files: READ_ONLY_FILES })],
+      outputs: { currentCandidate: { done: false } },
+    },
+    steps: [fast("work", { files: READ_ONLY_FILES })],
+  });
   const outer = repeatNode({ id: "outer" }, {
     max: 8,
     seed: {
@@ -4020,10 +4068,10 @@ Deno.test("nested repeat, parallel and repeat steps get unique round-trip keys",
     steps: [
       parallelNode({ id: "fan" }, {
         maxConcurrency: 3,
-        branches: ["lane_a", "lane_b", "lane_c"].map((id) => ({
+        branches: ["lane_a", "lane_b", "lane_c"].map((id, index) => ({
           id,
           repository: "main",
-          steps: [{ ...inner, id: "inner" }],
+          steps: [{ ...(index === 0 ? inner : readOnlyInner), id: "inner" }],
         })),
       }),
     ],
@@ -4651,6 +4699,66 @@ Deno.test("a forEach's worst case is max times its body and counts against the l
     ], { limits: { maxAttempts: 12 } })),
     [{ path: "/limits", code: "expansion_attempts_exceeded" }],
   );
+});
+
+Deno.test("two parallel lanes that can run at once cannot both write the workspace (#430)", async () => {
+  await runCases([
+    [
+      "a step with no files section writes the workspace",
+      workflow([parallelNode({}, {
+        branches: [
+          { id: "lane_a", repository: "main", steps: [noop("work_a")] },
+          { id: "lane_b", repository: "main", steps: [noop("work_b")] },
+        ],
+      })]),
+      [{
+        path: "/steps/0/parallel/branches/1/steps/0/files",
+        code: "parallel_lanes_workspace_write",
+      }],
+    ],
+    [
+      "a writer nested in a branch of the later lane",
+      workflow([parallelNode({}, {
+        branches: [
+          { id: "lane_a", repository: "main", steps: [noop("work_a")] },
+          {
+            id: "lane_b",
+            repository: "main",
+            steps: [branchNode({}, { then: [noop("nested")], else: [] })],
+          },
+        ],
+      })]),
+      [{
+        path: "/steps/0/parallel/branches/1/steps/0/branch/then/0/files",
+        code: "parallel_lanes_workspace_write",
+      }],
+    ],
+  ]);
+  await accepted(workflow([parallelNode()]));
+  await accepted(workflow([parallelNode({}, {
+    branches: [
+      { id: "lane_a", repository: "main", steps: [noop("work_a")] },
+      { id: "lane_b", repository: "other", steps: [noop("work_b")] },
+    ],
+  })]));
+  await accepted(workflow([parallelNode({}, {
+    branches: [
+      { id: "lane_a", repository: "main", steps: [noop("work_a")] },
+      {
+        id: "lane_b",
+        repository: "main",
+        needs: ["lane_a"],
+        steps: [noop("work_b")],
+      },
+    ],
+  })]));
+  await accepted(workflow([parallelNode({}, {
+    maxConcurrency: 1,
+    branches: [
+      { id: "lane_a", repository: "main", steps: [noop("work_a")] },
+      { id: "lane_b", repository: "main", steps: [noop("work_b")] },
+    ],
+  })]));
 });
 
 Deno.test("every closed diagnostic code is exercised by this suite", () => {

@@ -12,7 +12,7 @@ import {
   nextAggregateVersion,
 } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../platform/database.ts";
-import { postgresErrorCode } from "../../platform/postgres-errors.ts";
+import { isPostgresForeignKeyRefusal } from "../../platform/postgres-errors.ts";
 import { isNonPublicAddress } from "./provider-egress.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
@@ -41,9 +41,6 @@ import {
 type RouteCreate = z.output<typeof contractSchemas.ProviderRouteCreate>;
 type RouteUpdate = z.output<typeof contractSchemas.ProviderRouteUpdate>;
 type RouteOutput = z.output<typeof contractSchemas.ProviderRoute>;
-
-/** SQLSTATE for a foreign-key violation: the account or binding is not in this organization. */
-const POSTGRES_FOREIGN_KEY_VIOLATION = "23503";
 
 /**
  * A route endpoint must be an https origin and path a provider serves, and must
@@ -159,7 +156,7 @@ export async function createProviderRoute(
     );
     row = inserted.rows[0];
   } catch (error) {
-    if (postgresErrorCode(error) === POSTGRES_FOREIGN_KEY_VIOLATION) {
+    if (isPostgresForeignKeyRefusal(error)) {
       throw unprocessable(
         ["providerAccountId", "workerBindingId"],
         "provider_route_binding_unknown",
