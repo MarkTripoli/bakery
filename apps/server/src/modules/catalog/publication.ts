@@ -11,6 +11,7 @@ import { assertMayAuthorSkill, type SkillScope } from "./skill-scope-guard.ts";
 import type { SkillFileStoreOperations } from "./storage.ts";
 import { SkillFileStoreError } from "./storage.ts";
 import {
+  compareByCodeUnitPath,
   type LocalSkillVersionInput,
   SkillUploadInvalid,
   skillUploadIssues,
@@ -630,6 +631,7 @@ async function assertReservedFiles(
       order by path`,
     [preparation.organizationId, preparation.identity.versionId],
   );
+  const stored = [...result.rows].sort(compareByCodeUnitPath);
   const expected = preparation.validated.files.map((file, index) => ({
     path: file.path,
     media_type: file.mediaType,
@@ -637,8 +639,8 @@ async function assertReservedFiles(
     size_bytes: file.sizeBytes,
     sha256: file.sha256,
     is_executable: file.isExecutable,
-  })).sort((left, right) => left.path.localeCompare(right.path));
-  if (canonicalJson(result.rows) !== canonicalJson(expected)) {
+  })).sort(compareByCodeUnitPath);
+  if (canonicalJson(stored) !== canonicalJson(expected)) {
     throw new StandardError({ code: "SKILL_CONTENT_INTEGRITY_FAILED" });
   }
 }

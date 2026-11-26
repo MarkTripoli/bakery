@@ -20,6 +20,10 @@ import {
   validateLocalSkillVersion,
 } from "./validation.ts";
 import { unicodeDefaultCaseFold } from "./unicode-case-fold.ts";
+import {
+  deriveSkillMdManifest,
+  SkillMdManifestInvalid,
+} from "./skill-md-manifest.ts";
 
 export const SKILL_SOURCE_TIMEOUT_MS = 30_000;
 const MAX_GIT_TEXT_BYTES = 256 * 1024;
@@ -582,7 +586,14 @@ async function loadGitInventory(
       }));
     }
   }
-  if (!manifestBytes || files.length > MAX_UPLOAD_FILES) fail("SOURCE_INVALID");
+  if (files.length > MAX_UPLOAD_FILES) fail("SOURCE_INVALID");
+  if (!manifestBytes) {
+    return Object.freeze({
+      manifest: Object.freeze({}),
+      manifestBytes: new Uint8Array(),
+      files: Object.freeze(files),
+    });
+  }
   let manifest: unknown;
   try {
     manifest = JSON.parse(
@@ -861,7 +872,9 @@ async function fetchUrlSource(
     }
     let inventory: SkillArchiveInventory;
     try {
-      inventory = await parseGzipUstarArchive(compressed, normalizedPath);
+      inventory = await parseGzipUstarArchive(compressed, normalizedPath, {
+        manifestRequired: false,
+      });
     } catch (error) {
       if (error instanceof TarArchiveError) fail("SOURCE_INVALID");
       throw error;
@@ -966,6 +979,24 @@ function encodeBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+async function sourceManifest(
+  proof: SkillSourceProof,
+  registeredLicense: string,
+): Promise<Readonly<Record<string, unknown>>> {
+  if (proof.inventory.manifestBytes.byteLength > 0) {
+    return proof.inventory.manifest;
+  }
+  try {
+    return await deriveSkillMdManifest(
+      proof.inventory.files,
+      registeredLicense,
+    );
+  } catch (error) {
+    if (error instanceof SkillMdManifestInvalid) fail("SOURCE_INVALID");
+    throw error;
+  }
+}
+
 /** Reconciles a proved source inventory through the unchanged catalog validator. */
 export async function validatePinnedSkillSource(
   options: Readonly<{
@@ -976,7 +1007,7 @@ export async function validatePinnedSkillSource(
   }>,
 ): Promise<ValidatedPinnedSkillSource> {
   const { proof } = options;
-  const manifest = proof.inventory.manifest;
+  const manifest = await sourceManifest(proof, options.registeredLicense);
   if (
     typeof manifest.digest !== "string" || !DIGEST.test(manifest.digest) ||
     typeof manifest.entryPath !== "string" || !Array.isArray(manifest.files)
