@@ -1,0 +1,15 @@
+import { anyChange, publishChanges } from "../../apps/web/src/pages/library/publish-changes.ts";
+const t = (k: string) => k.split(".").at(-1)!;
+const gate = (name: string) => ({ id: "approve", uses: "human.approval", name });
+const two = (first: string) => ({ steps: [{ id: "a", steps: [gate(first)] }, { id: "b", steps: [gate("Approve the plan")] }] });
+const only = { id: "brief", uses: "task.brief" };
+const cases: Record<string, [unknown, unknown]> = {
+  "rename the first of two steps that share an id": [two("Approve the requirements"), two("Approve the budget")],
+  "remove a conditional group around one step": [{ steps: [{ id: "g", if: "$input.go", steps: [only] }] }, { steps: [only] }],
+  "add a group around one step": [{ steps: [only] }, { steps: [{ id: "g", steps: [only] }] }],
+};
+Deno.test("qa probe", () => {
+  for (const [label, [before, after]] of Object.entries(cases)) {
+    console.log("PROBE", label, "anyChange=" + anyChange(publishChanges(before, after, t)));
+  }
+});

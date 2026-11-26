@@ -1,0 +1,4 @@
+PROBE rename the first of two steps that share an id anyChange=false
+PROBE remove a conditional group around one step anyChange=false
+PROBE add a group around one step anyChange=false
+ok | 1 passed | 0 failed (8ms)
