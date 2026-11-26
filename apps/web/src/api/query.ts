@@ -121,6 +121,7 @@ import type {
   RunControlCapabilities,
   RunListResponse,
   RunPreviewResponse,
+  RunRequestsResponse,
   RunResponse,
   RunStepListResponse,
   SavedDataPage,
@@ -1208,6 +1209,59 @@ export function notificationTargetQueryOptions(
     retry: retryNetworkOnce,
     staleTime: 0,
     gcTime: 0,
+  });
+}
+
+export function myRunRequestsQueryOptions(
+  client: Pick<BakeryApiClient, "listMyRunRequests">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<RunRequestsResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "runRequests.mine", { id: runId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listMyRunRequests({
+          organizationId: requireOrganization(scope),
+          runId,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+const TASK_RUN_PAGES = 10;
+
+export function taskRunIdsQueryOptions(
+  client: Pick<BakeryApiClient, "listRuns">,
+  scope: ApiScope,
+  taskId: string,
+) {
+  return queryOptions<readonly string[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "runRequests.runs", { taskId }),
+    queryFn: async ({ signal }) => {
+      const ids: string[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < TASK_RUN_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listRuns({
+            organizationId: requireOrganization(scope),
+            taskId,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        ids.push(...read.items.map((run) => run.id));
+        if (read.nextCursor === null) break;
+        cursor = read.nextCursor;
+      }
+      return ids;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
   });
 }
 
@@ -3762,7 +3816,7 @@ export function runAttemptsQueryOptions(
   });
 }
 
-function requireOrganization(scope: ApiScope): string {
+export function requireOrganization(scope: ApiScope): string {
   if (!scope.organizationId) {
     throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
   }

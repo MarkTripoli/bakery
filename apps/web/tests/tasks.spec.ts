@@ -1196,6 +1196,11 @@ test("review: actual route targets and reload", async ({ page }, testInfo) => {
   }
 });
 
+const runStep = (page: Page, name: string) =>
+  page.getByRole("list", { name: "Run steps" }).getByText(name, {
+    exact: true,
+  });
+
 test("intercepted run view renders server current run and survives reload", async ({ page }) => {
   await page.route(
     "**/v1/tasks?*",
@@ -1231,11 +1236,11 @@ test("intercepted run view renders server current run and survives reload", asyn
   // The run id is not on the page until Details is opened, and then it is short.
   await page.getByText("Run details", { exact: true }).first().click();
   await expect(page.getByTestId("run-id-row")).toContainText(runId.slice(0, 8));
-  await expect(page.getByText("publish", { exact: true })).toBeVisible();
+  await expect(runStep(page, "Publish")).toBeVisible();
   await page.reload();
   await page.getByText("Run details", { exact: true }).first().click();
   await expect(page.getByTestId("run-id-row")).toContainText(runId.slice(0, 8));
-  await expect(page.getByText("publish", { exact: true })).toBeVisible();
+  await expect(runStep(page, "Publish")).toBeVisible();
 });
 
 test("intercepted duplicate sync event invalidates without duplicate step rows", async ({ page }) => {
@@ -1270,10 +1275,10 @@ test("intercepted duplicate sync event invalidates without duplicate step rows",
   });
   await page.goto("/tasks");
   await page.getByRole("link", { name: task.title }).click();
-  await expect(page.getByText("publish", { exact: true })).toHaveCount(1);
+  await expect(runStep(page, "Publish")).toHaveCount(1);
   await page.evaluate(() => globalThis.dispatchEvent(new Event("online")));
   await expect.poll(() => syncCalls).toBeGreaterThan(1);
-  await expect(page.getByText("publish", { exact: true })).toHaveCount(1);
+  await expect(runStep(page, "Publish")).toHaveCount(1);
 });
 
 test("background run and step transitions announce politely without moving focus", async ({ page }) => {
@@ -1333,7 +1338,7 @@ test("background run and step transitions announce politely without moving focus
   );
   await expect(summary).toHaveAttribute("aria-atomic", "true");
   await expect(summary).toHaveText("Current run: Running");
-  await expect(page.getByText("publish", { exact: true })).toBeVisible();
+  await expect(runStep(page, "Publish")).toBeVisible();
   await summary.evaluate((element) =>
     element.setAttribute("data-persistent-probe", "original")
   );
