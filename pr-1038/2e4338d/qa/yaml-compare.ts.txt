@@ -1,0 +1,25 @@
+import { parse } from "yaml";
+import { parseSkillMdFrontMatter } from "/home/marktripoli/Development/bakery-wt/_qa/qa1038/apps/server/src/modules/catalog/skill-md-manifest.ts";
+const cases: Record<string, string> = {
+  "plain value on two lines": "name: demo\ndescription: Reviews pull requests\n  and posts a summary.",
+  "value starting on the next line": "name: demo\ndescription:\n  Reviews pull requests.",
+  "quoted value on two lines": "name: demo\ndescription: \"Reviews pull requests\n  and posts a summary.\"",
+  "inline comment": "name: demo # internal\ndescription: Reviews pull requests.",
+  "escaped quotes": "name: demo\ndescription: \"Says \\\"hello\\\" first.\"",
+  "single-quoted apostrophe": "name: demo\ndescription: 'The team''s reviewer.'",
+};
+for (const [label, front] of Object.entries(cases)) {
+  const want = parse(front) as Record<string, string>;
+  let got: ReadonlyMap<string, string>;
+  try { got = parseSkillMdFrontMatter("---\n" + front + "\n---\nbody\n"); } catch (e) { console.log("YAML", label, "-> refused"); continue; }
+  const bad = ["name", "description"].filter((k) => got.get(k) !== want[k]?.trim());
+  console.log("YAML", label, bad.length === 0 ? "-> same" : "-> " + bad.map((k) => k + " got " + JSON.stringify(got.get(k) ?? null) + " yaml " + JSON.stringify(want[k])).join("; "));
+}
+let differ = 0;
+for (const dir of Deno.readDirSync("/home/marktripoli/Development/bakery-wt/_qa/qa1038-run/repo/skills")) {
+  const text = Deno.readTextFileSync("/home/marktripoli/Development/bakery-wt/_qa/qa1038-run/repo/skills/" + dir.name + "/SKILL.md");
+  const want = parse(text.split(/^---\s*$/m)[1]) as Record<string, string>;
+  const got = parseSkillMdFrontMatter(text);
+  if (got.get("name") !== want.name?.trim() || got.get("description") !== want.description?.trim()) { differ += 1; console.log("YAML real", dir.name, "differs"); }
+}
+console.log("YAML real folders differing:", differ);

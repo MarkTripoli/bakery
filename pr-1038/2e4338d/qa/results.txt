@@ -1,0 +1,17 @@
+== pg18alpine
+PROBE skills/doc-coauthoring completed files 1
+PROBE skills/internal-comms FAILED SKILL_CONTENT_INTEGRITY_FAILED
+PROBE skills/frontend-design completed files 2
+PROBE skills/pptx FAILED SKILL_CONTENT_INTEGRITY_FAILED
+PROBE db order ["LICENSE.txt","SKILL.md","editing.md","scripts/a.py"] js ["editing.md","LICENSE.txt","scripts/a.py","SKILL.md"] {"c":"en_US.utf8","v":"18.7"}
+ok | 2 passed | 0 failed (8s)
+== pg18debian
+PROBE skills/doc-coauthoring completed files 1
+PROBE skills/internal-comms completed files 6
+PROBE skills/frontend-design completed files 2
+PROBE skills/pptx FAILED SKILL_CONTENT_INTEGRITY_FAILED
+PROBE db order ["editing.md","LICENSE.txt","scripts/a.py","SKILL.md"] js ["editing.md","LICENSE.txt","scripts/a.py","SKILL.md"] {"c":"en_US.utf8","v":"18.7 (Debian 18.7-1.pgdg13+2)"}
+ok | 2 passed | 0 failed (6s)
+== main
+PROBE main manifest source -> SKILL_CONTENT_INTEGRITY_FAILED
+ok | 1 passed | 0 failed (3s)

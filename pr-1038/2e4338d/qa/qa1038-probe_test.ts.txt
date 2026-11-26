@@ -1,0 +1,220 @@
+import { assertEquals, assertNotEquals } from "@std/assert";
+import { createSuperuser } from "../../apps/server/src/modules/auth/index.ts";
+import { failSkillImportExecution } from "../../apps/server/src/modules/catalog/import-persistence.ts";
+import { executeSkillImport } from "../../apps/server/src/modules/catalog/import-workflow.ts";
+import type { SkillImportCheckpointBoundary } from "../../apps/server/src/modules/catalog/import-workflow.ts";
+import {
+  type SkillSourceAdapter,
+  SkillSourceAdapterError,
+  type SkillSourceProof,
+} from "../../apps/server/src/modules/catalog/source-adapters.ts";
+import { SkillFileStore } from "../../apps/server/src/modules/catalog/storage.ts";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import {
+  authRequest,
+  cleanupAuthFixture,
+  openAuthFixture,
+  sessionCookie,
+} from "../helpers/auth.ts";
+import {
+  createRemoteSkillFixture,
+  fixtureSha256,
+} from "../fixtures/remote-skill-source.ts";
+
+const etag = '"fixture-revision-1"';
+const locator = "https://example.com/retry-skills.tar.gz";
+
+type Harness = Awaited<ReturnType<typeof openHarness>>;
+
+let importPath = "skills/pptx";
+
+async function openHarness(skillSourceAdapter?: SkillSourceAdapter) {
+  const root = await Deno.makeTempDir({ prefix: "bakery-import-retry-" });
+  const store = new SkillFileStore(root);
+  await store.initialize();
+  const fixture = await openAuthFixture({
+    skillFileStore: store,
+    skillSourceAdapter,
+  });
+  const suffix = crypto.randomUUID();
+  const email = `skill-retry-${suffix}@example.test`;
+  const password = `SkillRetry-${suffix}`;
+  await createSuperuser({
+    pgDatabase: fixture.pgDatabase,
+    config: fixture.config.auth!,
+  }, { email, displayName: "Skill Retry Admin", password });
+  const scope = await fixture.pgDatabase.query<{ organizationId: string }>(
+    `select organization_id as "organizationId"
+       from bakery.organization_memberships as membership
+       join bakery.principals as principal
+         on principal.id = membership.principal_id
+       join public."user" as provider_user
+         on provider_user.id = principal.provider_user_id
+      where provider_user.email = $1`,
+    [email],
+  );
+  const organizationId = scope.rows[0]?.organizationId;
+  if (!organizationId) throw new Error("TEST_ORGANIZATION_MISSING");
+  const signIn = await fixture.auth.handler(authRequest(
+    "/api/auth/sign-in/email",
+    { email, password },
+  ));
+  assertEquals(signIn.status, 200);
+  const cookie = sessionCookie(signIn);
+  const headers = { cookie, "Bakery-Organization-Id": organizationId };
+  const sourceResponse = await fixture.app.fetch(authRequest(
+    "/v1/skill-sources",
+    { sourceType: "git", url: "https://github.com/anthropics/skills", name: "Real skills", license: "Apache-2.0" },
+    { cookie, headers: { ...headers, "Idempotency-Key": `source-${suffix}` } },
+  ));
+  assertEquals(sourceResponse.status, 201, await sourceResponse.clone().text());
+  const source = await sourceResponse.json() as { id: string };
+  const admit = async (
+    idempotencyKey = `import-${crypto.randomUUID()}`,
+    revision = "main",
+  ) => {
+    const response = await fixture.app.fetch(authRequest(
+      "/v1/skill-imports",
+      { sourceId: source.id, revision, path: importPath },
+      {
+        cookie,
+        headers: { ...headers, "Idempotency-Key": idempotencyKey },
+      },
+    ));
+    assertEquals(response.status, 201, await response.clone().text());
+    return await response.json() as { id: string; status: string };
+  };
+  const close = async () => {
+    await cleanupAuthFixture(fixture.pgDatabase, [email]);
+    await fixture.close();
+    await Deno.remove(root, { recursive: true });
+  };
+  const checkUpdate = async (skillId: string) => {
+    const response = await fixture.app.fetch(authRequest(
+      `/v1/skills/${skillId}/source-update`,
+      undefined,
+      {
+        cookie,
+        headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+      },
+    ));
+    assertEquals(response.status, 200, await response.clone().text());
+    return await response.json() as {
+      status: string;
+      installedRevision: string;
+      latestRevision: string | null;
+      changes: { path: string; change: string }[];
+    };
+  };
+  return {
+    fixture,
+    store,
+    organizationId,
+    source,
+    admit,
+    checkUpdate,
+    close,
+  };
+}
+
+async function workingSource(): Promise<SkillSourceAdapter> {
+  const remote = await createRemoteSkillFixture();
+  const proof: SkillSourceProof = Object.freeze({
+    sourceType: "url",
+    normalizedLocator: locator,
+    requestedRevision: etag,
+    sourceRevision: etag,
+    sourceProofDigest: await fixtureSha256(remote.manifestBytes),
+    normalizedPath: "",
+    inventory: Object.freeze({
+      manifest: remote.manifest,
+      manifestBytes: remote.manifestBytes,
+      files: Object.freeze(remote.files.map((file) =>
+        Object.freeze({
+          path: file.path,
+          content: file.content,
+          isExecutable: file.isExecutable ?? false,
+        })
+      )),
+    }),
+  });
+  return { fetchPinnedSource: () => Promise.resolve(proof) };
+}
+
+const unavailableSource: SkillSourceAdapter = {
+  fetchPinnedSource: () =>
+    Promise.reject(new SkillSourceAdapterError("SOURCE_UNAVAILABLE")),
+};
+
+async function failWithUnavailableSource(h: Harness, runId: string) {
+  let thrown: unknown;
+  try {
+    await executeSkillImport(runId, {
+      database: h.fixture.runtimePgDatabase,
+      sourceAdapter: unavailableSource,
+      skillFileStore: h.store,
+    });
+  } catch (error) {
+    thrown = error;
+  }
+  assertEquals(
+    thrown instanceof SkillSourceAdapterError ? thrown.code : thrown,
+    "SOURCE_UNAVAILABLE",
+  );
+  await withPgTransaction(
+    h.fixture.runtimePgDatabase,
+    (transaction) =>
+      failSkillImportExecution(transaction, runId, "SOURCE_UNAVAILABLE"),
+  );
+}
+
+async function importRuns(h: Harness) {
+  const result = await h.fixture.pgDatabase.query<{
+    runId: string;
+    state: string;
+    runStatus: string;
+  }>(
+    `select import.run_id as "runId", import.state,
+            run.status as "runStatus"
+       from bakery.skill_imports as import
+       join bakery.workflow_runs as run
+         on run.organization_id = import.organization_id
+        and run.id = import.run_id
+      where import.organization_id = $1 and import.source_id = $2
+      order by import.created_at, import.id`,
+    [h.organizationId, h.source.id],
+  );
+  return result.rows;
+}
+import { createSkillSourceAdapter } from "../../apps/server/src/modules/catalog/source-adapters.ts";
+
+Deno.test("qa probe: a real public skill imports through the server flow", async () => {
+  const adapter = createSkillSourceAdapter();
+  const h = await openHarness(adapter);
+  try {
+    for (const path of ["skills/doc-coauthoring", "skills/internal-comms", "skills/frontend-design", "skills/pptx"]) {
+      importPath = path;
+      const run = await h.admit();
+      try {
+        const result = await executeSkillImport(run.id, { database: h.fixture.runtimePgDatabase, sourceAdapter: adapter, skillFileStore: h.store });
+        const names = await h.fixture.pgDatabase.query<{ path: string }>(`select path from bakery.skill_files where skill_version_id = $1 order by path`, [result.skillVersionId]);
+        console.log("PROBE", path, result.state, "files", names.rows.length);
+      } catch (error) {
+        console.log("PROBE", path, "FAILED", (error as { code?: string }).code ?? (error as Error).message);
+      }
+    }
+  } finally {
+    await h.close();
+  }
+});
+
+Deno.test("qa probe: database order against localeCompare", async () => {
+  const h = await openHarness(createSkillSourceAdapter());
+  try {
+    const rows = await h.fixture.pgDatabase.query<{ path: string }>(`select path from unnest(array['SKILL.md','LICENSE.txt','scripts/a.py','editing.md']) as t(path) order by path`);
+    const collation = await h.fixture.pgDatabase.query<{ c: string; v: string }>(`select datcollate as c, current_setting('server_version') as v from pg_database where datname = current_database()`);
+    console.log("PROBE db order", JSON.stringify(rows.rows.map((r) => r.path)), "js", JSON.stringify(rows.rows.map((r) => r.path).sort((a, b) => a.localeCompare(b))), JSON.stringify(collation.rows[0]));
+  } finally {
+    await h.close();
+  }
+});
