@@ -474,12 +474,19 @@ Deno.test("an event wait or a group with lanes of several repository aliases is 
   const sameAlias = {
     id: "fan",
     parallel: {
-      maxConcurrency: 1,
+      maxConcurrency: 2,
       join: "all-required",
       failurePolicy: "stop-dependent",
       branches: [
         { id: "lane_a", repository: "repo_a", steps: [noop("work_a")] },
-        { id: "lane_b", repository: "repo_a", steps: [noop("work_b")] },
+        {
+          id: "lane_b",
+          repository: "repo_a",
+          steps: [{
+            ...noop("work_b"),
+            files: { read: ["inputs"], write: ["outputs"] },
+          }],
+        },
       ],
     },
   };
@@ -517,7 +524,14 @@ Deno.test("an event wait or a group with lanes of several repository aliases is 
           ...sameAlias.parallel,
           branches: [
             { id: "lane_c", repository: "repo_b", steps: [noop("work_c")] },
-            { id: "lane_d", repository: "repo_b", steps: [noop("work_d")] },
+            {
+              id: "lane_d",
+              repository: "repo_b",
+              steps: [{
+                ...noop("work_d"),
+                files: { read: ["inputs"], write: ["outputs"] },
+              }],
+            },
           ],
         },
       },
@@ -532,7 +546,14 @@ Deno.test("an event wait or a group with lanes of several repository aliases is 
             repository: "repo_a",
             steps: [wait],
           },
-          { id: "lane_b", repository: "repo_a", steps: [noop("work_b")] },
+          {
+            id: "lane_b",
+            repository: "repo_a",
+            steps: [{
+              ...noop("work_b"),
+              files: { read: ["inputs"], write: ["outputs"] },
+            }],
+          },
         ],
       },
     }]],
