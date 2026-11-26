@@ -513,6 +513,7 @@ Deno.test("publish and read immutable organization rule versions through the mou
       const expected = await maxRevision(organizationAId);
       let pending: Promise<Response> | Response;
       let demotion: Promise<unknown> | undefined;
+      let demoted = false;
       await withPgTransaction(runtime, async (transaction) => {
         await transaction.query(
           `select pg_advisory_xact_lock(
@@ -531,11 +532,20 @@ Deno.test("publish and read immutable organization rule versions through the mou
           update bakery.organization_memberships
              set role = 'developer'
            where organization_id = ${organizationAId}
-             and principal_id = ${f.demotableA.principalId}`;
+             and principal_id = ${f.demotableA.principalId}`.execute();
+        demotion.then(() => {
+          demoted = true;
+        });
         await new Promise((resolve) => setTimeout(resolve, 200));
+        assertEquals(demoted, false);
       });
       assertEquals((await pending!).status, 201);
       await demotion;
+      const role = await f.owner`
+        select role from bakery.organization_memberships
+         where organization_id = ${organizationAId}
+           and principal_id = ${f.demotableA.principalId}`;
+      assertEquals(role[0]?.role, "developer");
       const before = await ruleFactCounts(runtime, organizationAId);
       const refused = await send("POST", versionsA, {
         cookie: f.cookies.demotableA,
