@@ -209,4 +209,10 @@ Deno.test("an input is labelled with words, not its raw name", () => {
     ["instructions", "release_notes", "targetBranch"].map(inputLabel),
     ["Instructions", "Release notes", "Target branch"],
   );
+  assertEquals(
+    ["githubPRNumber", "prURL", "APIKey", "repoIDs", "sha256Digest"].map(
+      inputLabel,
+    ),
+    ["Github PR number", "Pr URL", "API key", "Repo IDs", "Sha256 digest"],
+  );
 });

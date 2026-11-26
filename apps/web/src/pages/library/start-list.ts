@@ -307,8 +307,11 @@ export function sameStarts(
   return canonicalJson(left) === canonicalJson(right);
 }
 
+const NAME_WORD = /[A-Z]{2,}s(?![a-z])|[A-Z]+(?![a-z])|[A-Z]?[a-z0-9]+|[A-Z]/g;
+
 export function inputLabel(name: string): string {
-  const words = name.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[_-]+/g, " ").trim().toLowerCase();
+  const words = (name.match(NAME_WORD) ?? [name]).map((word) =>
+    /^[A-Z]{2}/.test(word) ? word : word.toLowerCase()
+  ).join(" ");
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
