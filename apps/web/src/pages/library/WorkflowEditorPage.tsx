@@ -482,9 +482,9 @@ export function WorkflowEditorPage(
   const publish = useMutation({
     mutationKey: ["workflowVersions.publish"],
     mutationFn: async (alsoUse: boolean) => {
-      const latest = writeTarget();
-      let versionId = draft?.id ?? "";
-      let revision = draft?.revision ?? 0;
+      const latest = otherUnused === undefined ? writeTarget() : null;
+      let versionId = otherUnused?.id ?? draft?.id ?? "";
+      let revision = otherUnused?.revision ?? draft?.revision ?? 0;
       if (latest !== null) {
         const published = await api.publishWorkflowVersion({
           organizationId: scope.organizationId as string,
@@ -548,8 +548,21 @@ export function WorkflowEditorPage(
     [inUse, draft, steps, editor.loops, translate],
   );
   const startsChanged = !sameStarts(editor.starts, inUseStarts);
-  const draftDiffers = draft !== null &&
-    (publishedUnused || changes.differs || startsChanged);
+  const pendingChanges = draft !== null && (changes.differs || startsChanged);
+  const newerUnused = inUse === null ? undefined : (versions.data?.items ?? [])
+    .filter((item) =>
+      item.status === "published" && item.revision > inUse.revision
+    )
+    .sort((a, b) => b.revision - a.revision)[0];
+  const unused = publishedUnused
+    ? draft
+    : pendingChanges
+    ? undefined
+    : newerUnused;
+  const otherUnused = unused !== undefined && unused.id !== draft?.id
+    ? unused
+    : undefined;
+  const draftDiffers = pendingChanges || unused !== undefined;
 
   // The drawing comes from the definition itself, so nothing in it is left out:
   // groups, steps only changeable in code, and steps Bakery cannot read all keep
@@ -997,18 +1010,30 @@ export function WorkflowEditorPage(
   >(null);
 
   const problemCount = rows.length;
-  const newerUnused = inUse === null ? undefined : (versions.data?.items ?? [])
-    .filter((item) =>
-      item.status === "published" && item.revision > inUse.revision
-    )
-    .sort((a, b) => b.revision - a.revision)[0];
-  const unusedRevision = publishedUnused
-    ? draft.revision
-    : draftDiffers
-    ? undefined
-    : newerUnused?.revision;
-  const cleanWord = unusedRevision !== undefined
-    ? translate("library.editor.publishedUnused", { version: unusedRevision })
+  const shown = otherUnused === undefined
+    ? {
+      changes,
+      startsChanged,
+      automatic,
+      blocked,
+      problemCount,
+    }
+    : {
+      changes: publishChanges(
+        inUse?.normalizedSpec,
+        record(otherUnused.normalizedSpec),
+        (key) => translate(key),
+      ),
+      startsChanged: !sameStarts(
+        startsOfVersion(otherUnused.starts),
+        inUseStarts,
+      ),
+      automatic: automaticStarts(startsOfVersion(otherUnused.starts)),
+      blocked: false,
+      problemCount: 0,
+    };
+  const cleanWord = unused !== undefined
+    ? translate("library.editor.publishedUnused", { version: unused.revision })
     : draftDiffers
     ? translate("library.editor.ready" as never)
     : translate("library.editor.noChanges");
@@ -1858,9 +1883,9 @@ export function WorkflowEditorPage(
           <UI.AlertDialog
             open
             variant="destructive"
-            title={publishedUnused
+            title={unused !== undefined
               ? translate("library.editor.publish.useTitle", {
-                version: String(draft.revision),
+                version: String(unused.revision),
               })
               : draftDiffers
               ? translate("library.editor.publish.title", {
@@ -1882,10 +1907,10 @@ export function WorkflowEditorPage(
                   : translate("library.editor.publish.close" as never)}
               </UI.Button>
             }
-            confirmAction={draftDiffers && !blocked
+            confirmAction={draftDiffers && !shown.blocked
               ? (
                 <UI.Inline gap="compact">
-                  {publishedUnused ? null : (
+                  {unused !== undefined ? null : (
                     <UI.Button
                       variant="secondary"
                       disabled={publish.isPending}
@@ -1900,7 +1925,7 @@ export function WorkflowEditorPage(
                     disabled={publish.isPending}
                     onClick={() => publish.mutate(true)}
                   >
-                    {publishedUnused
+                    {unused !== undefined
                       ? translate("library.workflow.versions.use")
                       : translate("library.editor.publish.andUse")}
                   </UI.Button>
@@ -1912,35 +1937,35 @@ export function WorkflowEditorPage(
               ? (
                 <UI.Stack gap="tight">
                   <UI.Text>
-                    {blocked
+                    {shown.blocked
                       ? translate("library.editor.publish.blocked")
                       : publish.error instanceof ActivationFailed
                       ? null
-                      : publishedUnused
+                      : unused !== undefined
                       ? translate("library.editor.publish.useBody", {
-                        version: String(draft.revision),
+                        version: String(unused.revision),
                       })
                       : translate("library.editor.publish.body")}
                   </UI.Text>
                   <UI.Text variant="muted">
                     {translate("library.workflow.steps.never" as never)}
                   </UI.Text>
-                  {blocked || automatic === 0 ? null : (
+                  {shown.blocked || shown.automatic === 0 ? null : (
                     <UI.Text>
                       {translate(
-                        publishedUnused
+                        unused !== undefined
                           ? "library.editor.start.useNote"
                           : "library.editor.start.publishNote",
-                        { count: automatic },
+                        { count: shown.automatic },
                       )}
                     </UI.Text>
                   )}
                   <PublishSummary
-                    blocked={blocked}
-                    changes={changes}
+                    blocked={shown.blocked}
+                    changes={shown.changes}
                     inUseRevision={inUse?.revision ?? null}
-                    problemCount={problemCount}
-                    startsChanged={startsChanged}
+                    problemCount={shown.problemCount}
+                    startsChanged={shown.startsChanged}
                   />
                   {publish.error === null
                     ? null
@@ -1960,7 +1985,7 @@ export function WorkflowEditorPage(
                           )}
                       </UI.InlineNotice>
                     )}
-                  {problemCount === 0 ? null : problemList}
+                  {shown.problemCount === 0 ? null : problemList}
                 </UI.Stack>
               )
               : (

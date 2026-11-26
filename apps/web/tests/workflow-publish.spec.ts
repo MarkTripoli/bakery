@@ -33,6 +33,7 @@ type Setup = {
   readonly activateStatus?: number;
   readonly inUseSteps?: readonly unknown[];
   readonly publishedAlready?: boolean;
+  readonly activations?: unknown[];
 };
 
 async function editor(page: Page, setup: Setup) {
@@ -96,7 +97,10 @@ async function editor(page: Page, setup: Setup) {
   );
   await page.route(
     (url) => url.pathname.endsWith("/activations"),
-    (route) => route.fulfill(json(conflict, setup.activateStatus ?? 412)),
+    (route) => {
+      setup.activations?.push(route.request().postDataJSON());
+      return route.fulfill(json(conflict, setup.activateStatus ?? 412));
+    },
   );
   await page.goto(EDIT);
   await expect(page.locator("[data-card='start']")).toBeVisible();
@@ -171,14 +175,26 @@ test.describe("workflow editor: what publishing changes", () => {
     await expect(page.getByTestId("editor-problems"))
       .toHaveText("Version 2 published, not in use");
   });
-  test("a newer published version not in use is still named on a fresh visit", async ({ page }) => {
+  test("a newer published version not in use can still be used on a fresh visit", async ({ page }) => {
+    const activations: unknown[] = [];
     await editor(page, {
       draftSteps: [IN_USE[0], repeat(5)],
       publishedAlready: true,
+      activations,
     });
     await expect(page.getByTestId("editor-problems"))
       .toHaveText("Version 2 published, not in use");
     await still(page, "publish-header-newer");
+    const dialog = await openPublish(page);
+    await expect(dialog.getByRole("heading", { name: "Use version 2" }))
+      .toBeVisible();
+    await expect(dialog).toContainText("Repeat: at most 5 tries, was 3");
+    await expect(dialog.getByRole("button", { name: "Publish only" }))
+      .toHaveCount(0);
+    await still(page, "publish-newer-dialog");
+    await dialog.getByRole("button", { name: "Use this version" }).click();
+    await expect.poll(() => activations.length).toBe(1);
+    expect(activations[0]).toMatchObject({ versionId: uuid(1002) });
   });
 
   test("a group removed around a step can still be published", async ({ page }) => {
