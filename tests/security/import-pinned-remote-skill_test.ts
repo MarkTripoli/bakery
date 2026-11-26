@@ -20,6 +20,10 @@ import {
   createUstarArchive,
   gzipFixture,
   type RemoteSkillFixture,
+  SKILL_MD_ONLY_PATH,
+  SKILL_MD_ONLY_SCRIPT,
+  SKILL_MD_ONLY_SKILL,
+  SKILL_MD_ONLY_TAG,
   startRemoteSkillSourceFixture,
   stopRemoteSkillSourceFixture,
   type UstarFixtureEntry,
@@ -95,7 +99,9 @@ async function proofFromArchive(
     sourceRevision: etag,
     sourceProofDigest: "f".repeat(64),
     normalizedPath: "",
-    inventory: await parseGzipUstarArchive(compressed),
+    inventory: await parseGzipUstarArchive(compressed, undefined, {
+      manifestRequired: false,
+    }),
   };
 }
 
@@ -284,6 +290,79 @@ Deno.test("real smart HTTP Git that honours the blob filter still imports every 
     assertEquals(validated.version.files[0].path, "SKILL.md");
   } finally {
     await stopRemoteSkillSourceFixture(fixture);
+  }
+});
+
+Deno.test("a SKILL.md folder with no manifest.json imports from a Git server that honours the blob filter", async () => {
+  const fixture = await startRemoteSkillSourceFixture({
+    allowBlobFilter: true,
+  });
+  try {
+    const adapter = createSkillSourceAdapterForTest({
+      allowInsecureLoopback: true,
+      timeoutMs: 5_000,
+    });
+    const proof = await adapter.fetchPinnedSource({
+      sourceType: "git",
+      locator: fixture.gitUrl,
+      requestedRevision: SKILL_MD_ONLY_TAG,
+      path: SKILL_MD_ONLY_PATH,
+    });
+    const validated = await validatePinnedSkillSource({
+      proof,
+      skillId: "22222222-2222-4222-8222-222222222222",
+      revision: 1,
+      registeredLicense: "MIT",
+    });
+    assertEquals(validated.version.entryPath, "SKILL.md");
+    assertEquals(validated.version.manifest.name, "plain-skill");
+    assertEquals(
+      validated.version.manifest.description,
+      "A skill folder in the standard agent-skills layout, with no manifest.json.",
+    );
+    assertEquals(validated.version.manifest.license, "MIT");
+    assertEquals(
+      validated.version.files.map((file) => [
+        file.path,
+        file.mediaType,
+        file.isExecutable,
+        new TextDecoder().decode(file.content),
+      ]),
+      [
+        ["SKILL.md", "text/markdown", false, SKILL_MD_ONLY_SKILL],
+        ["scripts/run.py", "text/x-python", true, SKILL_MD_ONLY_SCRIPT],
+      ],
+    );
+  } finally {
+    await stopRemoteSkillSourceFixture(fixture);
+  }
+});
+
+Deno.test("a folder with neither manifest.json nor a SKILL.md naming the skill is refused", async () => {
+  const noSkill = await gzipFixture(createUstarArchive([
+    { path: "README.md", content: encoder.encode("# Not a skill\n") },
+  ]));
+  const noName = await gzipFixture(createUstarArchive([
+    {
+      path: "SKILL.md",
+      content: encoder.encode("---\ndescription: nameless\n---\n# Skill\n"),
+    },
+  ]));
+  const noFrontMatter = await gzipFixture(createUstarArchive([
+    { path: "SKILL.md", content: encoder.encode("# Skill\n") },
+  ]));
+  for (const archive of [noSkill, noName, noFrontMatter]) {
+    await assertRejects(
+      async () =>
+        await validatePinnedSkillSource({
+          proof: await proofFromArchive(archive),
+          skillId: "22222222-2222-4222-8222-222222222222",
+          revision: 1,
+          registeredLicense: "MIT",
+        }),
+      SkillSourceAdapterError,
+      "SOURCE_INVALID",
+    );
   }
 });
 
