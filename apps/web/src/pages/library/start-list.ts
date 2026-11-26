@@ -150,7 +150,7 @@ export function savedStart(start: DraftStart): WorkflowStart {
 export function withBudget(
   start: DraftStart,
   text: string,
-  settled: number | undefined = start.budgetUsd,
+  settled: number | undefined,
 ): DraftStart {
   const { budgetTyped: _typed, budgetUsd: _budget, ...rest } = start;
   if (text.trim() === "") return rest;

@@ -121,9 +121,9 @@ Deno.test("a repository known only by name sets the input and no filter", () => 
 Deno.test("clearing a field removes the input rather than saving an empty one", () => {
   const filled = withTextInput(newStart([]), "note", "hello");
   assertEquals(withTextInput(filled, "note", "  ").inputs, undefined);
-  assertEquals(withBudget(filled, "").budgetUsd, undefined);
-  assertEquals(withBudget(filled, "12.5").budgetUsd, 12.5);
-  assertEquals(withBudget(filled, "-1").budgetTyped, "-1");
+  assertEquals(withBudget(filled, "", filled.budgetUsd).budgetUsd, undefined);
+  assertEquals(withBudget(filled, "12.5", filled.budgetUsd).budgetUsd, 12.5);
+  assertEquals(withBudget(filled, "-1", filled.budgetUsd).budgetTyped, "-1");
 });
 
 Deno.test("starts that cannot be read are listed as none", () => {
@@ -146,18 +146,32 @@ Deno.test("removing a start can be undone with the steps left alone", () => {
 Deno.test("a spend limit that is not an amount is kept as typed, not saved", () => {
   const start = newStart([]);
   for (const typed of ["$25", "5,00", "-1", "abc", "20000", "1e3"]) {
-    const next = withBudget(start, typed);
+    const next = withBudget(start, typed, start.budgetUsd);
     assertEquals([next.budgetUsd, next.budgetTyped], [5, typed], typed);
     assertEquals(savedStart(next), start);
     assertEquals(startProblems([next], []).map((one) => one.kind), ["budget"]);
   }
-  assertEquals(withBudget(withBudget(start, "$"), "2.50").budgetUsd, 2.5);
-  assertEquals("budgetTyped" in withBudget(withBudget(start, "$"), ""), false);
+  assertEquals(withBudget(withBudget(start, "$", 5), "2.50", 5).budgetUsd, 2.5);
+  assertEquals(
+    "budgetTyped" in withBudget(withBudget(start, "$", 5), "", 5),
+    false,
+  );
 });
 
 Deno.test("a refused amount restores the limit the field started with", () => {
   const typing = withBudget(newStart([]), "2000", 5);
   assertEquals(withBudget(typing, "20000", 5).budgetUsd, 5);
   const none = withBudget(typing, "", 5);
-  assertEquals(withBudget(none, "20000").budgetUsd, undefined);
+  assertEquals(withBudget(none, "20000", none.budgetUsd).budgetUsd, undefined);
+});
+
+Deno.test("a refused amount typed into an empty field leaves it empty", () => {
+  const empty = withBudget(newStart([]), "", 5);
+  const halfTyped = withBudget(empty, "2000", undefined);
+  assertEquals(halfTyped.budgetUsd, 2000);
+  const refused = withBudget(halfTyped, "20000", undefined);
+  assertEquals(
+    [refused.budgetUsd, refused.budgetTyped],
+    [undefined, "20000"],
+  );
 });

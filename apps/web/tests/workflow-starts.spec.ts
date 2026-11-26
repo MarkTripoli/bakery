@@ -489,26 +489,26 @@ test.describe("workflow editor: a published workflow", () => {
     });
   }
 
-  test("a limit typed past what can be saved leaves the earlier limit saved", async ({ page }) => {
-    const server = await editor(page);
-    await startCard(page).click();
-    await add(page).click();
-    const limit = page.getByRole("textbox", { name: /Spend limit/ });
-    const saved = () => server.saves.at(-1)?.[0]?.budgetUsd;
-    await expect.poll(saved).toBe(5);
-    for (const typed of ["20000", "1e3"]) {
-      await limit.fill("");
-      await limit.blur();
-      await limit.fill("5");
-      await limit.blur();
-      await expect.poll(saved).toBe(5);
-      await limit.focus();
-      await limit.press("ControlOrMeta+a");
-      await limit.pressSequentially(typed, { delay: 800 });
-      await expect(limit).toHaveAttribute("aria-invalid", "true");
-      await expect.poll(saved).toBe(5);
-    }
-  });
+  for (const earlier of ["5", ""]) {
+    test(`a limit typed past what can be saved leaves the earlier limit saved: "${earlier}"`, async ({ page }) => {
+      const server = await editor(page);
+      await startCard(page).click();
+      await add(page).click();
+      const limit = page.getByRole("textbox", { name: /Spend limit/ });
+      const saved = () => String(server.saves.at(-1)?.[0]?.budgetUsd ?? "");
+      await expect.poll(saved).toBe("5");
+      for (const typed of ["20000", "1e3"]) {
+        await limit.fill(earlier);
+        await limit.blur();
+        await expect.poll(saved).toBe(earlier);
+        await limit.focus();
+        await limit.press("ControlOrMeta+a");
+        await limit.pressSequentially(typed, { delay: 800 });
+        await expect(limit).toHaveAttribute("aria-invalid", "true");
+        await expect.poll(saved).toBe(earlier);
+      }
+    });
+  }
 
   test("after Publish only, the next edit is offered as the next version", async ({ page }) => {
     const server = await editor(page, { inUse: "none" });
