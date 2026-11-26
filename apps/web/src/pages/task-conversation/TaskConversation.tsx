@@ -76,7 +76,6 @@ import { QuestionAnswer } from "./QuestionAnswer.tsx";
 import { RequestsForYou } from "../task-requests/RequestsForYou.tsx";
 import { rereadRequests } from "../task-requests/reread.ts";
 
-const SHEET_SETTLE_MS = 250;
 import { TASK_READS, useQuestionAnswers } from "./useQuestionAnswers.ts";
 import { StageStrip } from "./StageStrip.tsx";
 import { TurnStatus } from "./TurnStatus.tsx";
@@ -411,6 +410,16 @@ export function TaskConversation(
   // ---- planning only -----------------------------------------------------
   const phone = useShellViewport() === "phone";
   const [planOpen, setPlanOpen] = useState(false);
+  const [wantedQuestion, setWantedQuestion] = useState<string | null>(null);
+  useEffect(() => {
+    if (wantedQuestion === null) return;
+    const card = globalThis.document.querySelector<HTMLElement>(
+      `[data-ui-component="questionCard"][data-question-id="${wantedQuestion}"]`,
+    );
+    card?.scrollIntoView({ block: "center" });
+    card?.focus();
+    setWantedQuestion(null);
+  }, [wantedQuestion]);
   const [planningPending, setPlanningPending] = useState<boolean | null>(null);
   const [planningFailed, setPlanningFailed] = useState(false);
   const setPlanningOnly = async (value: boolean) => {
@@ -583,15 +592,7 @@ export function TaskConversation(
   const coordinationLink = (coordination.data?.items.length ?? 0) > 0;
   const showQuestion = (questionId: string) => {
     if (phone) setPlanOpen(true);
-    globalThis.setTimeout(() => {
-      const card = globalThis.document.querySelector<HTMLElement>(
-        `[data-ui-component="questionCard"][data-question-id="${questionId}"]`,
-      );
-      if (card === null) return;
-      card.tabIndex = -1;
-      card.scrollIntoView({ block: "center" });
-      card.focus();
-    }, phone ? SHEET_SETTLE_MS : 0);
+    setWantedQuestion(questionId);
   };
   const planCard = (
     <UI.PlanSummaryCard

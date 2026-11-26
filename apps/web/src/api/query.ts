@@ -3816,7 +3816,7 @@ export function runAttemptsQueryOptions(
   });
 }
 
-function requireOrganization(scope: ApiScope): string {
+export function requireOrganization(scope: ApiScope): string {
   if (!scope.organizationId) {
     throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
   }

@@ -45,8 +45,9 @@ export function useQuestionAnswers(
   const [phases, setPhases] = useState<Record<string, QuestionPhase>>({});
   const pending = useRef<Record<string, PendingAnswer>>({});
   const reread = () => {
+    if (refresh !== undefined) return refresh();
     void rereadRequests(cache, organizationId, null);
-    return refresh?.() ?? cache.invalidateQueries({
+    return cache.invalidateQueries({
       predicate: ({ queryKey }) =>
         queryKey[0] === "protected" && queryKey[2] === organizationId &&
         TASK_READS.has(String(queryKey[3])),

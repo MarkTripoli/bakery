@@ -13,6 +13,7 @@ import {
   artifactsListQueryOptions,
   artifactVersionsQueryOptions,
   myRunRequestsQueryOptions,
+  requireOrganization,
   taskRunIdsQueryOptions,
 } from "../../api/query.ts";
 import { failureStatus } from "../../app/async-state.ts";
@@ -247,7 +248,7 @@ function TakeOver(
     mutationKey: ["runSteps.takeOver"],
     mutationFn: async () => {
       const result = await api.restartRunStep({
-        organizationId: scope.organizationId as string,
+        organizationId: requireOrganization(scope),
         runId: request.runId,
         stepKey: request.stepKey!,
         ...(note.trim() === "" ? {} : { note: note.trim() }),
@@ -259,7 +260,9 @@ function TakeOver(
       void rereadRequests(queryClient, scope.organizationId, request.runId);
       void queryClient.invalidateQueries({
         predicate: ({ queryKey }) =>
-          queryKey[3] === "runSteps.list" || queryKey[3] === "runs.get",
+          queryKey[0] === "protected" &&
+          queryKey[2] === scope.organizationId &&
+          (queryKey[3] === "runSteps.list" || queryKey[3] === "runs.get"),
       });
     },
   });
