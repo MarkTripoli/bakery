@@ -354,6 +354,17 @@ test.describe("add a skill from a source", () => {
     await still(page, "skill-add-missing-revision");
   });
 
+  test("a short commit hash is asked for in full, not called missing", async ({ page }) => {
+    await addPage(page, { failureCode: "SOURCE_REVISION_NOT_FOUND" });
+    await fillRepository(page);
+    await box(page, /Branch, tag or commit/).fill("e4bb5d9");
+    await submit(page).click();
+    await expect(page.getByRole("alert")).toContainText(
+      "https://example.test/acme/release has no branch or tag called e4bb5d9. If it is a commit, enter all 40 characters of it.",
+    );
+    await still(page, "skill-add-short-commit");
+  });
+
   test("a failure keeps the work, names the fix and keeps the saved source", async ({ page }) => {
     const { sent } = await addPage(page, {
       failureCode: "SOURCE_UNAVAILABLE",

@@ -7532,7 +7532,6 @@
   "library.skills.add.hint.address": "⟪The web address you would clone. It must be one this installation is allowed to read.⟫",
   "library.skills.add.hint.name": "⟪Shown when you add another skill from it.⟫",
   "library.skills.add.hint.licence": "⟪The licence the source declares.⟫",
-  "library.skills.add.hint.revision": "⟪A tag or commit keeps the skill from changing under you. A branch lets Bakery tell you when it moves.⟫",
   "library.skills.add.hint.folder": "⟪Where the skill is in the repository. Leave empty when it is at the top.⟫",
   "library.skills.add.take": "⟪What to take⟫",
   "library.skills.add.problem.address": "⟪Enter the repository address.⟫",
@@ -7569,5 +7568,7 @@
   "library.skill.files.of": "⟪The files of version {number}.⟫",
   "library.skills.add.switchedBack": "⟪{name} already had these files, so version {version} is in use again (was version {previous}).⟫",
   "library.skills.add.happens.forYou": "⟪The skill is added for you only.⟫",
-  "library.skills.add.failure.missingRevision": "⟪{address} has no branch, tag or commit called {revision}.⟫"
+  "library.skills.add.failure.missingRevision": "⟪{address} has no branch, tag or commit called {revision}.⟫",
+  "library.skills.add.hint.revision": "⟪A tag or commit keeps the skill from changing under you. A branch lets Bakery tell you when it moves. Write a commit as all 40 characters.⟫",
+  "library.skills.add.failure.shortCommit": "⟪{address} has no branch or tag called {revision}. If it is a commit, enter all 40 characters of it.⟫"
 }

@@ -275,7 +275,11 @@ export function AddSkillPage() {
     : add.isError
     ? "other"
     : outcome?.state === "failed"
-    ? importFailureKind(outcome.failureCode, attempt?.folder ?? "")
+    ? importFailureKind(
+      outcome.failureCode,
+      attempt?.folder ?? "",
+      attempt?.revision ?? "",
+    )
     : null;
   const problems = tried ? sourceProblems(form, fromSaved) : {};
   const problem = (field: keyof SourceForm) => {

@@ -79,6 +79,7 @@ export type ImportFailure =
   | "limit"
   | "moved"
   | "missingRevision"
+  | "shortCommit"
   | "removed"
   | "other";
 
@@ -94,11 +95,17 @@ const FAILURE_KINDS: Readonly<Record<string, ImportFailure>> = {
   PRECONDITION_FAILED: "removed",
 };
 
+const SHORT_COMMIT = /^[0-9a-f]{4,39}$/i;
+
 export function importFailureKind(
   code: string | null,
   folder: string,
+  revision: string,
 ): ImportFailure {
   const kind = FAILURE_KINDS[code ?? ""] ?? "other";
+  if (kind === "missingRevision" && SHORT_COMMIT.test(revision)) {
+    return "shortCommit";
+  }
   return kind === "invalid" && cleanFolder(folder) === ""
     ? "invalidAtTop"
     : kind;

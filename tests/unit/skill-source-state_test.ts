@@ -52,13 +52,26 @@ Deno.test("a skill is named after the last folder, as the server names it", () =
 });
 
 Deno.test("each server code has its own words and unknown ones do not guess", () => {
-  assertEquals(importFailureKind("SOURCE_INVALID", "skills/a"), "invalid");
-  assertEquals(importFailureKind("SOURCE_INVALID", ""), "invalidAtTop");
-  assertEquals(importFailureKind("SOURCE_TIMEOUT", ""), "timeout");
   assertEquals(
-    importFailureKind("SOURCE_REVISION_NOT_FOUND", ""),
+    importFailureKind("SOURCE_INVALID", "skills/a", "main"),
+    "invalid",
+  );
+  assertEquals(importFailureKind("SOURCE_INVALID", "", "main"), "invalidAtTop");
+  assertEquals(importFailureKind("SOURCE_TIMEOUT", "", "main"), "timeout");
+  assertEquals(
+    importFailureKind("SOURCE_REVISION_NOT_FOUND", "", "main"),
     "missingRevision",
   );
-  assertEquals(importFailureKind("INTERNAL", ""), "other");
-  assertEquals(importFailureKind(null, ""), "other");
+  assertEquals(importFailureKind("INTERNAL", "", "main"), "other");
+  assertEquals(importFailureKind(null, "", "main"), "other");
+});
+
+Deno.test("a short commit hash that was not found asks for all of it", () => {
+  const kind = (revision: string) =>
+    importFailureKind("SOURCE_REVISION_NOT_FOUND", "", revision);
+  assertEquals(kind("e4bb5d9"), "shortCommit");
+  assertEquals(kind("E4BB5D9"), "shortCommit");
+  assertEquals(kind("release-9"), "missingRevision");
+  assertEquals(kind("v2.1.0"), "missingRevision");
+  assertEquals(kind("a".repeat(40)), "missingRevision");
 });
