@@ -144,6 +144,7 @@ export async function setUpAutomation(
     )).rows[0];
   return {
     scope,
+    agent,
     repository,
     published,
     automation,
