@@ -101,6 +101,18 @@ Deno.test("a problem reads tied to its file and line, or to the whole skill", ()
   );
 });
 
+Deno.test("a missing licence is said in plain words, not the server's", () => {
+  assertEquals(
+    problemWords({
+      file: null,
+      line: null,
+      code: "license",
+      message: "The manifest needs a license of 1 to 200 printable characters.",
+    }),
+    { key: "library.skills.editor.problems.licence", values: {} },
+  );
+});
+
 Deno.test("what the contract leaves untyped is read as files and problems, and shapes that are not are dropped", () => {
   const draft = typedDraft({
     id: "d",

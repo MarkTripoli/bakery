@@ -216,6 +216,12 @@ export function sizeWords(
   };
 }
 export function problemWords(problem: DraftProblem): Words {
+  if (problem.code === "license") {
+    return {
+      key: "library.skills.editor.problems.licence" as MessageKey,
+      values: {},
+    };
+  }
   if (problem.file === null) {
     return {
       key: "library.skills.editor.problems.whole" as MessageKey,

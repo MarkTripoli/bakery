@@ -7335,7 +7335,6 @@
   "library.skills.editor.settings.entry": "⟦Ïñšŧŕûçŧïôñš ƒïļë ŧëš⟧",
   "library.skills.editor.settings.entryHelp": "⟦Ŧĥë ƒïļë àñ àĝëñŧ ŕëàðš ƒïŕšŧ. ŧëšŧ çôþ⟧",
   "library.skills.editor.settings.license": "⟦Ļïçëñçë…⟧",
-  "library.skills.editor.settings.licenseHelp": "⟦Ŧĥë ļïçëñçë ŧĥïš ṽëŕšïôñ ðëçļàŕëš. Ôþŧïôñàļ. ŧëšŧ çôþÿ ŧëš⟧",
   "library.skills.editor.empty.title": "⟦Šŧàŕŧ ŵïŧĥ ŧĥë ïñšŧŕûçŧïôñš ŧëšŧ çô⟧",
   "library.skills.editor.empty.description": "⟦Ŧĥë ïñšŧŕûçŧïôñš ƒïļë ïš ŵĥàŧ àñ àĝëñŧ ŕëàðš ƒïŕšŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.skills.editor.empty.action": "⟦Àðð ŠĶÏĻĻ.ɱð ŧë⟧",
@@ -7379,5 +7378,7 @@
   "library.skills.editor.failure.rejected": "⟦Ŧĥàŧ çĥàñĝë ŵàš ñôŧ àççëþŧëð. Çĥëçķ ïŧ àñð ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "library.skills.editor.failure.nameTaken": "⟦Ŧĥàŧ ñàɱë ïš àļŕëàðÿ ûšëð ĥëŕë. Çĥôôšë àñôŧĥëŕ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "library.skills.editor.failure.offline": "⟦Ÿôû àŕë ôƒƒļïñë. Ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ ŵĥëñ ÿôû àŕë ƀàçķ ôñļïñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
-  "library.skills.editor.failure.failed": "⟦Ŧĥàŧ ðïð ñôŧ ŵôŕķ àñð ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
+  "library.skills.editor.failure.failed": "⟦Ŧĥàŧ ðïð ñôŧ ŵôŕķ àñð ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "library.skills.editor.settings.licenseHelp": "⟦Ŧĥë ļïçëñçë ŧĥïš ṽëŕšïôñ ðëçļàŕëš. Ñëëðëð ŧô þûƀļïšĥ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "library.skills.editor.problems.licence": "⟦Ļïçëñçë: àðð ôñë ƀëƒôŕë þûƀļïšĥïñĝ, ûþ ŧô 200 þļàïñ çĥàŕàçŧëŕš. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
 }

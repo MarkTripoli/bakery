@@ -305,23 +305,27 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
   );
   const settings = (
     <UI.Stack gap="standard" data-testid="skill-editor-settings">
-      <UI.Combobox
-        label={translate("library.skills.editor.settings.entry")}
-        help={translate("library.skills.editor.settings.entryHelp")}
-        name="skill-entry-path"
-        value={draft.entryPath}
-        disabled={working || draft.files.length === 0}
-        options={draft.files.map((file) => ({
-          label: file.path,
-          value: file.path,
-        }))}
-        onChange={(event) => {
-          const value = event.target.value;
-          if (value !== draft.entryPath) {
-            void run(() => state.changeSettings({ entryPath: value }));
-          }
-        }}
-      />
+      <UI.Stack gap="tight">
+        <UI.Combobox
+          label={translate("library.skills.editor.settings.entry")}
+          name="skill-entry-path"
+          value={draft.entryPath}
+          disabled={working || draft.files.length === 0}
+          options={draft.files.map((file) => ({
+            label: file.path,
+            value: file.path,
+          }))}
+          onChange={(event) => {
+            const value = event.target.value;
+            if (value !== draft.entryPath) {
+              void run(() => state.changeSettings({ entryPath: value }));
+            }
+          }}
+        />
+        <UI.Text variant="caption">
+          {translate("library.skills.editor.settings.entryHelp")}
+        </UI.Text>
+      </UI.Stack>
       <UI.Field
         label={translate("library.skills.editor.settings.license")}
         htmlFor="skill-license"
