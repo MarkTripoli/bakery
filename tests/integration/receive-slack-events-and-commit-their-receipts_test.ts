@@ -427,6 +427,14 @@ Deno.test("running Slack ingress uses canonical conversation admission", async (
            from inserted cross join agent`,
         [f.organizationId, conversationId, f.adminId],
       );
+      await f.pgDatabase.query(
+        `insert into bakery.conversation_feed_sequences (
+           organization_id, conversation_id, last_sequence
+         ) values ($1, $2, 50)
+         on conflict (organization_id, conversation_id)
+           do update set last_sequence = 50`,
+        [f.organizationId, conversationId],
+      );
       const queueFullPayload = replyPayload(
         eventId(),
         "retry after capacity",
