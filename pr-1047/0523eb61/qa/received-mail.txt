@@ -1,0 +1,40 @@
+== mail 1
+non-ascii on wire: False | longest line: 91 | header lines over 76: [81, 91]
+From: Bäkery — Équipe <bakery@example.test> | Subject: José Núñez-Ångström van der Överlång asked you to review in Bakery
+type: multipart/alternative | parts: ['text/plain', 'text/html'] | defects: [] [[], []]
+-- text/plain | carries secret: False
+José Núñez-Ångström van der Överlång asked you to review work in Mise en production — étape 2 très longue très longue très longue très longue très longue très longue très longue très longue .
+
+Open in Bakery: http://127.0.0.1:57227/tasks/c372f7b7-21cf-40e6-8354-c7292fe4e9bb?organization=0ce7bf05-8953-470c-a850-df4a0fa3dfa0
+
+You will need to sign in. This email has no details on purpose: they stay in Bakery.
+
+You are getting this because the request has not been opened in Bakery for 15 minutes.
+-- text/html | carries secret: False
+<!doctype html>
+<html><body style="font-family:sans-serif;line-height:1.5">
+<p>José Núñez-Ångström van der Överlång asked you to review work in Mise en production — étape 2 très longue très longue très longue très longue très longue très longue très longue très longue .</p>
+<p><a href="http://127.0.0.1:57227/tasks/c372f7b7-21cf-40e6-8354-c7292fe4e9bb?organization=0ce7bf05-8953-470c-a850-df4a0fa3dfa0" style="display:inline-block;padding:10px 16px;border-radius:6px;background:#1f2937;color:#ffffff;text-decoration:none">Open in Bakery</a></p>
+<p>You will need to sign in. This email has no details on purpose: they stay in Bakery.</p>
+<p style="color:#6b7280">You are getting this because the request has not been opened in Bakery for 15 minutes.</p>
+</body></html>
+== mail 2
+non-ascii on wire: False | longest line: 91 | header lines over 76: [91]
+From: Bäkery — Équipe <bakery@example.test> | Subject: Browser Admin asked you to approve in Bakery
+type: multipart/alternative | parts: ['text/plain', 'text/html'] | defects: [] [[], []]
+-- text/plain | carries secret: False
+Browser Admin asked you to approve a step of Zeta release plan.
+
+Open in Bakery: http://127.0.0.1:57227/tasks/60f0c735-64aa-465c-90d9-66696a462e9e?organization=0ce7bf05-8953-470c-a850-df4a0fa3dfa0
+
+You will need to sign in. This email has no details on purpose: they stay in Bakery.
+
+You are getting this because the request has not been opened in Bakery for 15 minutes.
+-- text/html | carries secret: False
+<!doctype html>
+<html><body style="font-family:sans-serif;line-height:1.5">
+<p>Browser Admin asked you to approve a step of Zeta release plan.</p>
+<p><a href="http://127.0.0.1:57227/tasks/60f0c735-64aa-465c-90d9-66696a462e9e?organization=0ce7bf05-8953-470c-a850-df4a0fa3dfa0" style="display:inline-block;padding:10px 16px;border-radius:6px;background:#1f2937;color:#ffffff;text-decoration:none">Open in Bakery</a></p>
+<p>You will need to sign in. This email has no details on purpose: they stay in Bakery.</p>
+<p style="color:#6b7280">You are getting this because the request has not been opened in Bakery for 15 minutes.</p>
+</body></html>
