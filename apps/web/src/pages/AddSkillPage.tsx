@@ -30,8 +30,6 @@ import {
 const POLL_MS = 1500;
 const FAILURE_ID = "skill-add-failure";
 
-type Who = "organization" | "personal";
-
 type AddKey = MessageKey extends infer Key
   ? Key extends `library.skills.add.${infer Suffix}` ? Suffix : never
   : never;
@@ -42,6 +40,7 @@ type Attempt = {
   readonly folder: string;
   readonly revision: string;
   readonly alreadyAdded: boolean;
+  readonly startedAt: string;
 };
 
 class AddFailed extends Error {
@@ -74,7 +73,6 @@ export function AddSkillPage() {
 
   const [form, setForm] = useState<SourceForm>(EMPTY_SOURCE_FORM);
   const [fromSaved, setFromSaved] = useState(false);
-  const [who, setWho] = useState<Who>("organization");
   const [tried, setTried] = useState(false);
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const importKey = useRef<{ body: string; key: string } | null>(null);
@@ -118,7 +116,6 @@ export function AddSkillPage() {
         sourceId,
         revision: form.revision.trim(),
         ...(folder === "" ? {} : { path: folder }),
-        scope: who,
       };
       const body = JSON.stringify(input);
       if (importKey.current?.body !== body) {
@@ -144,6 +141,7 @@ export function AddSkillPage() {
         folder,
         revision: input.revision,
         alreadyAdded: run.data.status === "completed",
+        startedAt: run.data.createdAt,
       };
     },
     onSuccess: setAttempt,
@@ -207,11 +205,23 @@ export function AddSkillPage() {
         id: outcome.skillId,
       });
       if (skill.ok) {
+        const versions = await api.listSkillVersions({
+          organizationId,
+          skillId: outcome.skillId,
+        });
+        const made = versions.ok
+          ? versions.data.items.find((item) => item.id === outcome.versionId)
+          : undefined;
+        const unchanged = made !== undefined &&
+          Date.parse(made.createdAt) < Date.parse(attempt.startedAt);
         sayAboutSkill(
-          copy(attempt.alreadyAdded ? "already" : "done", {
-            name: skill.data.name,
-            version: skill.data.activeRevision ?? 1,
-          }),
+          copy(
+            attempt.alreadyAdded ? "already" : unchanged ? "unchanged" : "done",
+            {
+              name: skill.data.name,
+              version: skill.data.activeRevision ?? 1,
+            },
+          ),
         );
       }
       void queryClient.invalidateQueries({ queryKey: ["protected"] });
@@ -345,10 +355,7 @@ export function AddSkillPage() {
           <UI.Stack gap="compact">
             <UI.Heading level="section">{copy("happens.title")}</UI.Heading>
             <UI.Text>
-              {copy(
-                who === "personal" ? "happens.forYou" : "happens.forOrg",
-                { organization: organizationName },
-              )}
+              {copy("happens.forOrg", { organization: organizationName })}
             </UI.Text>
             <UI.Text>
               {copy(
@@ -463,36 +470,6 @@ export function AddSkillPage() {
               <UI.Heading level="section">{copy("take")}</UI.Heading>
               {text("revision", true, copy("hint.revision"))}
               {text("folder", false, copy("hint.folder"))}
-            </UI.Stack>
-            <UI.Stack
-              gap="tight"
-              role="radiogroup"
-              aria-label={translate("library.skills.new.who")}
-            >
-              <UI.Heading level="section">
-                {translate("library.skills.new.who")}
-              </UI.Heading>
-              <UI.PresetOption
-                checked={who === "organization"}
-                description={translate(
-                  "library.skill.copy.organizationHint",
-                  { organization: organizationName },
-                )}
-                disabled={reading}
-                name="skill-add-who"
-                onChange={() => setWho("organization")}
-                title={translate("library.skill.scope.organization")}
-                value="organization"
-              />
-              <UI.PresetOption
-                checked={who === "personal"}
-                description={translate("library.skill.copy.personalHint")}
-                disabled={reading}
-                name="skill-add-who"
-                onChange={() => setWho("personal")}
-                title={translate("library.skill.scope.personal")}
-                value="personal"
-              />
             </UI.Stack>
           </UI.Stack>
         </form>

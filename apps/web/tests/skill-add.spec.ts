@@ -1,14 +1,19 @@
 import { expect, type Page, test } from "@playwright/test";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
-import { IDS, type Seen, skillsFixture } from "./helpers/skills-fixture.ts";
+import {
+  IDS,
+  type Seen,
+  skillsFixture,
+  versionId,
+} from "./helpers/skills-fixture.ts";
 
 registerPageHealth(test);
 
 const ADD = "/library/skills/add";
 const uuid = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-const AT = "2026-11-22T10:00:00.000Z";
+const AT = "2026-11-25T10:00:00.000Z";
 
 const account = (scope: "installation" | "run", runId: string | null) => ({
   scope,
@@ -87,6 +92,7 @@ type Setup = {
   readonly failureCode?: string;
   readonly hold?: boolean;
   readonly createStatus?: number;
+  readonly madeVersionId?: string;
 };
 
 async function addPage(page: Page, setup: Setup = {}) {
@@ -148,7 +154,7 @@ async function addPage(page: Page, setup: Setup = {}) {
         runId: uuid(801),
         state: done ? failed ? "failed" : "completed" : "queued",
         skillId: done && !failed ? IDS.releaseNotes : null,
-        versionId: done && !failed ? uuid(821) : null,
+        versionId: done && !failed ? setup.madeVersionId ?? uuid(821) : null,
         failureCode: failed ? setup.failureCode : null,
       }));
     },
@@ -248,20 +254,19 @@ test.describe("add a skill from a source", () => {
         sourceId: uuid(812),
         revision: "v2.1.0",
         path: "skills/release-notes",
-        scope: "organization",
       }],
     ]);
   });
 
-  test("a saved source is reused, for yourself", async ({ page }) => {
+  test("a saved source is reused, for the organization", async ({ page }) => {
     const { sent } = await addPage(page, { saved: [ACME] });
     await page.getByRole("radio", { name: "A source added before" }).check();
     await expect(page.getByText("1 source. Its address")).toBeVisible();
     await page.getByRole("combobox", { name: "Source" }).selectOption(ACME.id);
     await expect(page.getByText(ACME.locator, { exact: true })).toBeVisible();
     await box(page, /Branch, tag or commit/).fill("main");
-    await page.getByRole("radio", { name: "Private" }).check();
-    await expect(page.getByText("The skill is added for you only."))
+    await expect(page.getByRole("radio", { name: "Private" })).toHaveCount(0);
+    await expect(page.getByText("The skill is added for Fixture Org."))
       .toBeVisible();
     await still(page, "skill-add-saved");
     await submit(page).click();
@@ -270,7 +275,6 @@ test.describe("add a skill from a source", () => {
       ["/v1/skill-imports", {
         sourceId: ACME.id,
         revision: "main",
-        scope: "personal",
       }],
     ]);
   });
@@ -286,7 +290,7 @@ test.describe("add a skill from a source", () => {
     await expect(alert).toBeInViewport();
     await expect(page.locator("#skill-add-failure")).toBeFocused();
     await expect(alert).toContainText(
-      "Bakery could not reach https://example.test/acme/release.",
+      "Bakery could not read v2.1.0 from https://example.test/acme/release.",
     );
     await expect(alert).toContainText("The source is saved");
     await expect(
@@ -302,7 +306,6 @@ test.describe("add a skill from a source", () => {
       sourceId: uuid(812),
       revision: "v2.1.1",
       path: "skills/release-notes",
-      scope: "organization",
     });
   });
 
@@ -314,5 +317,19 @@ test.describe("add a skill from a source", () => {
       "This repository is already saved. Choose it under A source added before.",
     );
     expect(sent.map((one) => one.path)).toEqual(["/v1/skill-sources"]);
+  });
+
+  test("files that did not change are not called a new version", async ({ page }) => {
+    await addPage(page, {
+      saved: [ACME],
+      madeVersionId: versionId(IDS.releaseNotes, 1),
+    });
+    await page.getByRole("radio", { name: "A source added before" }).check();
+    await page.getByRole("combobox", { name: "Source" }).selectOption(ACME.id);
+    await box(page, /Branch, tag or commit/).fill("v2.2.0");
+    await submit(page).click();
+    await expect(page.getByTestId("skill-toast")).toContainText(
+      "Release notes already had these files. Version 1 is in use.",
+    );
   });
 });
