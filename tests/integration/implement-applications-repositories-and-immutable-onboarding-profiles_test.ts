@@ -174,6 +174,27 @@ type IntegrationDatabaseFixture = {
   cleanup: () => Promise<void>;
 };
 
+function columnsOf(
+  before: readonly unknown[],
+  after: readonly unknown[],
+): Record<string, unknown>[] {
+  const kept = new Set(
+    before.flatMap((row) => Object.keys(row as Record<string, unknown>)),
+  );
+  return after.map((row) =>
+    Object.fromEntries(
+      Object.entries(row as Record<string, unknown>).filter(([column]) =>
+        kept.has(column)
+      ),
+    )
+  );
+}
+
+const JOBS_COLUMNS_ADDED_AFTER_0049 = [
+  "conversation_turn_id",
+  "context_inputs",
+];
+
 async function migrateTestDatabase(
   options: {
     legacyIdentity?: LegacyIdentityMode;
@@ -287,15 +308,19 @@ async function migrateTestDatabase(
     };
     const migrateThrough = async (through: string): Promise<void> => {
       await migrate(owner!, allMigrations, { through });
-      // The authority runner needs a fully migrated auth schema
-      // (organisation_roles, migration 0100). Apply every auth
-      // migration to head so that loadMembership's LEFT JOIN never
-      // hits an undefined-table error, regardless of the projects
-      // boundary the caller requested.
       const authMigrations = await loadMigrations(authBakeryMigrationSource);
+      const authorityTable =
+        /\bbakery\.(organization_roles|organization_memberships|permission_grants)\b/;
+      const authorityThrough = authMigrations
+        .filter((migration) => authorityTable.test(migration.sql))
+        .map((migration) => migration.version)
+        .sort()
+        .at(-1) ?? through;
       const isAuthMigration: Record<string, true> = {};
       for (const migration of authMigrations) {
-        isAuthMigration[migration.version] = true;
+        if (migration.version <= authorityThrough) {
+          isAuthMigration[migration.version] = true;
+        }
       }
       await migrate(
         owner!,
@@ -6340,7 +6365,7 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
     // before and after reads even for the same SQL.
     const cloudBefore = Array.from(
       await owner`
-      select run.snapshot, (to_jsonb(job) - 'conversation_turn_id') as job from bakery.workflow_runs run
+      select run.snapshot, (to_jsonb(job) - ${JOBS_COLUMNS_ADDED_AFTER_0049}::text[]) as job from bakery.workflow_runs run
       join bakery.run_steps step on step.organization_id = run.organization_id and step.run_id = run.id
       join bakery.jobs job on job.organization_id = step.organization_id and job.run_step_id = step.id
       where run.id = ${cloudRunId}`,
@@ -6489,7 +6514,7 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
           ${corruptProfileId}, ${3 + index}, ${corrupt.digest})`;
     }
     const corruptBefore = (await owner`
-      select to_jsonb(run) as run, (to_jsonb(job) - 'conversation_turn_id') as job
+      select to_jsonb(run) as run, (to_jsonb(job) - ${JOBS_COLUMNS_ADDED_AFTER_0049}::text[]) as job
       from bakery.jobs job join bakery.run_steps step on step.organization_id = job.organization_id and step.id = job.run_step_id
       join bakery.workflow_runs run on run.organization_id = step.organization_id and run.id = step.run_id
       where job.id in ${owner(corruptJobIds)} order by job.id`).map((
@@ -6628,7 +6653,7 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
     // Compare every persisted job field, not postgres.js Result statement and
     // connection metadata (the post-migration query has a different statement).
     const deniedBefore = (await owner`
-      select (to_jsonb(job) - 'conversation_turn_id') as job from bakery.jobs job
+      select (to_jsonb(job) - ${JOBS_COLUMNS_ADDED_AFTER_0049}::text[]) as job from bakery.jobs job
       where job.id in ${owner(deniedJobIds)} order by job.id`).map((row) =>
       row.job
     );
@@ -6696,7 +6721,7 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
       1,
     );
     const corruptAfter = await owner`
-      select to_jsonb(run) as run, (to_jsonb(job) - 'conversation_turn_id') as job
+      select to_jsonb(run) as run, (to_jsonb(job) - ${JOBS_COLUMNS_ADDED_AFTER_0049}::text[]) as job
       from bakery.jobs job join bakery.run_steps step on step.organization_id = job.organization_id and step.id = job.run_step_id
       join bakery.workflow_runs run on run.organization_id = step.organization_id and run.id = step.run_id
       where job.id in ${owner(corruptJobIds)} order by job.id`;
@@ -6709,6 +6734,8 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
         outcome_reason: outcomeReason,
         // Added by 0235: the run that spawned this one, null for a run nobody spawned.
         spawned_by_run_id: spawnedByRunId,
+        environment,
+        placement,
         ...legacyRun
       } = run;
       assertEquals(kind, "workflow");
@@ -6716,6 +6743,8 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
       assertEquals(outcome, null);
       assertEquals(outcomeReason, null);
       assertEquals(spawnedByRunId, null);
+      assertEquals(environment, "live");
+      assertEquals(placement, {});
       return { run: legacyRun, job };
     });
     assertEquals(corruptLegacyProjection, corruptBefore);
@@ -6786,21 +6815,27 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
       { capabilities: ["git", "shell", "browser", "operator.approved"] },
     );
     assertEquals(
-      Array.from(
-        await owner`select * from bakery.job_attempts where id = ${attemptId}`,
+      columnsOf(
+        attemptsBefore,
+        Array.from(
+          await owner`select * from bakery.job_attempts where id = ${attemptId}`,
+        ),
       ),
       attemptsBefore,
     );
     assertEquals(
-      Array.from(
-        await owner`select * from bakery.worker_claim_replays where attempt_id = ${attemptId}`,
+      columnsOf(
+        replaysBefore,
+        Array.from(
+          await owner`select * from bakery.worker_claim_replays where attempt_id = ${attemptId}`,
+        ),
       ),
       replaysBefore,
     );
     assertEquals(
       Array.from(
         await owner`
-      select run.snapshot, (to_jsonb(job) - 'conversation_turn_id') as job from bakery.workflow_runs run
+      select run.snapshot, (to_jsonb(job) - ${JOBS_COLUMNS_ADDED_AFTER_0049}::text[]) as job from bakery.workflow_runs run
       join bakery.run_steps step on step.organization_id = run.organization_id and step.run_id = run.id
       join bakery.jobs job on job.organization_id = step.organization_id and job.run_step_id = step.id
       where run.id = ${cloudRunId}`,
@@ -6821,7 +6856,7 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
     );
     assertEquals(
       (await owner`
-        select (to_jsonb(job) - 'conversation_turn_id') as job from bakery.jobs job
+        select (to_jsonb(job) - ${JOBS_COLUMNS_ADDED_AFTER_0049}::text[]) as job from bakery.jobs job
         where job.id in ${owner(deniedJobIds)} order by job.id`).map((row) =>
         row.job
       ),
