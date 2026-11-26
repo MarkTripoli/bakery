@@ -18,9 +18,22 @@ const field = (schema: string, name: string) =>
 Deno.test("bounds spelled minimum and maximum are enforced like min and max", () => {
   const size = field("BlobUploadStart", "sizeBytes");
   assertEquals(size.safeParse(0).success, true);
-  assertEquals(size.safeParse(5_368_709_120).success, true);
-  assertEquals(size.safeParse(5_368_709_121).success, false);
   assertEquals(size.safeParse(-1).success, false);
+  const source = structuredClone(transport) as unknown as {
+    inputs: Record<
+      string,
+      { fields: { name: string; bounds: Record<string, unknown> }[] }
+    >;
+  };
+  source.inputs.BlobUploadStart.fields.find((entry) =>
+    entry.name === "sizeBytes"
+  )!.bounds.maximum = 7;
+  const capped = (generateContracts(
+    source as unknown as typeof transport,
+  ).schemas as unknown as Record<string, Shaped>).BlobUploadStart.shape
+    .sizeBytes;
+  assertEquals(capped.safeParse(7).success, true);
+  assertEquals(capped.safeParse(8).success, false);
   assertEquals(
     field("WorkerMaintenanceReport", "sequence").safeParse(0).success,
     false,
@@ -64,6 +77,13 @@ Deno.test("bounds declared beside a schema's fields are applied to those fields"
       Array.from({ length: 101 }, (_, index) => `p${index}`),
     ).success,
     false,
+  );
+});
+
+Deno.test("an upload declared over 5 GiB reaches the handler, which answers 413 BODY_TOO_LARGE", () => {
+  assertEquals(
+    field("BlobUploadStart", "sizeBytes").safeParse(5_368_709_121).success,
+    true,
   );
 });
 
@@ -168,6 +188,16 @@ Deno.test("a decimal amount's range is left to its handler, and named in its des
     (budget.description ?? "").includes(
       "is checked by its handler to be between 0 and 200",
     ),
+  );
+  assert((budget.description ?? "").includes("BUDGET_CAP_EXCEEDED"));
+  const automation = (contractSchemas as unknown as Record<string, Shaped>)
+    .AutomationVersionCreate.shape.budgetLimitUsd as unknown as {
+      description?: string;
+    };
+  assert(
+    (automation.description ?? "").length >
+      "AutomationVersionCreate.budgetLimitUsd is checked by its handler to be between 0 and 200."
+        .length,
   );
 });
 

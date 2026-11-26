@@ -1378,13 +1378,14 @@ function primitive(
     const lower = numericBound(field.bounds, "min", "minimum");
     const upper = numericBound(field.bounds, "max", "maximum");
     if (lower !== undefined || upper !== undefined) {
+      const range = lower !== undefined && upper !== undefined
+        ? `${path} is checked by its handler to be between ${lower} and ${upper}.`
+        : lower !== undefined
+        ? `${path} is checked by its handler to be at least ${lower}.`
+        : `${path} is checked by its handler to be at most ${upper}.`;
       schema = described(
         schema,
-        lower !== undefined && upper !== undefined
-          ? `${path} is checked by its handler to be between ${lower} and ${upper}.`
-          : lower !== undefined
-          ? `${path} is checked by its handler to be at least ${lower}.`
-          : `${path} is checked by its handler to be at most ${upper}.`,
+        [schema.description, range].filter(Boolean).join(" "),
       );
     }
   }

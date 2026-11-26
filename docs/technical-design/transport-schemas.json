@@ -12123,8 +12123,7 @@
           "type": "integer",
           "required": true,
           "bounds": {
-            "minimum": 0,
-            "maximum": 5368709120
+            "minimum": 0
           },
           "description": "Total size of the file in bytes, declared up front and bounded by the 5 GiB per-blob limit. Declaring it lets the server refuse an incomplete assembly instead of accepting a truncated file."
         },

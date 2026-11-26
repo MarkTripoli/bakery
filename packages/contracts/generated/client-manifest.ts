@@ -14231,7 +14231,7 @@ export const clientManifest = {
           "x-utf8-max-bytes": 4096
         },
         "budgetLimitUsd": {
-          "description": "CoordinationPlanCreate.budgetLimitUsd is checked by its handler to be between 0 and 200.",
+          "description": "Shared ceiling in USD across every child run of the plan, with up to six decimal places; reservations that would exceed it are rejected, and retries never multiply it. Omit for no plan-scoped ceiling. CoordinationPlanCreate.budgetLimitUsd is checked by its handler to be between 0 and 200.",
           "type": "string",
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
         }
@@ -14490,7 +14490,7 @@ export const clientManifest = {
           "description": "Identifier of the `parallel` node in the workflow version. A node that is missing or is not a parallel node is refused with `workflow_node_not_parallel`. CoordinationPlanCreateFromWorkflow.nodeId must contain at least 1 characters. CoordinationPlanCreateFromWorkflow.nodeId must contain at most 64 characters."
         },
         "budgetLimitUsd": {
-          "description": "CoordinationPlanCreateFromWorkflow.budgetLimitUsd is checked by its handler to be between 0 and 200.",
+          "description": "Shared ceiling in USD across every child run of the plan, with up to six decimal places; omit for no plan-scoped ceiling. CoordinationPlanCreateFromWorkflow.budgetLimitUsd is checked by its handler to be between 0 and 200.",
           "type": "string",
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
         }
@@ -17055,7 +17055,7 @@ export const clientManifest = {
           ]
         },
         "budgetLimitUsd": {
-          "description": "AutomationVersionCreate.budgetLimitUsd is checked by its handler to be between 0 and 200.",
+          "description": "Per-run budget in USD for each run this automation version starts, as on a run; defaults to 0, which a workflow with a model step refuses at start. AutomationVersionCreate.budgetLimitUsd is checked by its handler to be between 0 and 200.",
           "type": "string",
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
         },
@@ -22425,7 +22425,7 @@ export const clientManifest = {
           ]
         },
         "budgetLimitUsd": {
-          "description": "RunCreate.budgetLimitUsd is checked by its handler to be between 0 and 200.",
+          "description": "Maximum execution budget for this run, in US dollars; inclusive cap 200.000000 with up to six decimal places. New spend stops once the cap is reached and admission is refused with `BUDGET_CAP_EXCEEDED` if it cannot be reserved. RunCreate.budgetLimitUsd is checked by its handler to be between 0 and 200.",
           "type": "string",
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
         },
@@ -31457,8 +31457,8 @@ export const clientManifest = {
         "sizeBytes": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 5368709120,
-          "description": "Total size of the file in bytes, declared up front and bounded by the 5 GiB per-blob limit. Declaring it lets the server refuse an incomplete assembly instead of accepting a truncated file. BlobUploadStart.sizeBytes must be at least 0. BlobUploadStart.sizeBytes must be at most 5368709120."
+          "maximum": 9007199254740991,
+          "description": "Total size of the file in bytes, declared up front and bounded by the 5 GiB per-blob limit. Declaring it lets the server refuse an incomplete assembly instead of accepting a truncated file. BlobUploadStart.sizeBytes must be at least 0."
         },
         "mediaType": {
           "type": "string",
@@ -33344,7 +33344,7 @@ export const clientManifest = {
         "maxSpendUsd": {
           "type": "string",
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
-          "description": "BatchCreate.maxSpendUsd is checked by its handler to be between 0 and 4000."
+          "description": "Stop starting new issues once this much has been spent across the batch's issues. Checked before each new issue starts, so one running issue can go over it. BatchCreate.maxSpendUsd is checked by its handler to be between 0 and 4000."
         },
         "continueMode": {
           "type": "string",
@@ -34464,7 +34464,7 @@ export const clientManifest = {
           "maximum": 5
         },
         "budgetLimitUsd": {
-          "description": "EvaluationBatchCreate.budgetLimitUsd is checked by its handler to be between 0 and 200.",
+          "description": "Most this batch may spend, in USD. EvaluationBatchCreate.budgetLimitUsd is checked by its handler to be between 0 and 200.",
           "type": "string",
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
         }
@@ -35969,7 +35969,7 @@ export const clientManifest = {
         "budgetUsd": {
           "type": "string",
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
-          "description": "PluginAuthoringRunCreate.budgetUsd is checked by its handler to be between 0 and 200."
+          "description": "Most the run may spend on generation, in USD with up to six decimal places. An attempt that is expected to go over it is not started and the run ends budget_exhausted. PluginAuthoringRunCreate.budgetUsd is checked by its handler to be between 0 and 200."
         },
         "maxAttempts": {
           "type": "integer",
