@@ -1,0 +1,5 @@
+PROBE manifest.json licence differs from the source -> refused SOURCE_INVALID | skills left: 1 [{"versions":0,"active":false}]
+PROBE manifest.json does not match a changed file -> refused SOURCE_INVALID | skills left: 1 [{"versions":0,"active":false}]
+PROBE SKILL.md folder with two names differing only in capitals -> refused SOURCE_INVALID | skills left: 1 [{"versions":0,"active":false}]
+PROBE SKILL.md folder, valid (control) -> completed | skills left: 1 [{"versions":1,"active":true}]
+ok | 4 passed | 0 failed (10s)
