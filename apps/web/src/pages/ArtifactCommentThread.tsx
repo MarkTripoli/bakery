@@ -19,6 +19,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ArtifactAnchorDescription } from "./ArtifactCommentAnchor.tsx";
 import { ArtifactCommentEditor } from "./ArtifactCommentEditor.tsx";
+import { initialsOf } from "./author-name.ts";
 
 export function ArtifactCommentThread(
   {
@@ -49,6 +50,8 @@ export function ArtifactCommentThread(
   const scope = useProtectedScope();
   const { translate: t } = useI18n();
   const [expanded, setExpanded] = useState(false);
+  const authorOf = (name: string | null | undefined) =>
+    name ?? t("artifact.author.unknown" as never);
   const profile = useQuery(userProfileQueryOptions(api, scope));
   const access = useQuery({
     ...effectiveAccessQueryOptions(api, scope),
@@ -92,8 +95,8 @@ export function ArtifactCommentThread(
       <ArtifactDiscussionView
         composer={composer}
         title={t("artifact.comments.discussion")}
-        author={root.authorId}
-        initials={root.authorId.slice(0, 2).toUpperCase()}
+        author={authorOf(root.authorName)}
+        initials={initialsOf(authorOf(root.authorName))}
         timestamp={root.createdAt}
         body={root.deletedAt ? t("artifact.comments.deleted") : root.body}
         location={root.artifactVersionId !== viewVersionId
@@ -118,7 +121,7 @@ export function ArtifactCommentThread(
             item,
           ) => ({
             id: item.id,
-            author: item.authorId,
+            author: authorOf(item.authorName),
             body: (
               <>
                 <UI.Text>

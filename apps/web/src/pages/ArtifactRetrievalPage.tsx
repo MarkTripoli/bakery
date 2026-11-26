@@ -1006,7 +1006,8 @@ export function ArtifactRetrievalPage(
             : translate("artifact.retrieval.noCurrentVersion")}
           description={selectedVersion
             ? translate("artifact.view.description", {
-              author: selectedVersion.authorId,
+              author: selectedVersion.authorName ??
+                translate("artifact.author.unknown" as never),
               step: selectedVersion.runStepId ??
                 translate("artifact.retrieval.notAvailable"),
               // One formatter for every size on the page: the sentence must not
@@ -1102,11 +1103,16 @@ export function ArtifactRetrievalPage(
             title: translate("artifact.view.evidence"),
             baseLabel: translate("artifact.view.base"),
             headLabel: translate("artifact.view.head"),
-            context: translate("artifact.view.context", {
-              task: taskId,
-              step: selectedVersion?.runStepId ??
-                translate("artifact.retrieval.notAvailable"),
-            }),
+            context: translate(
+              (view.artifact.taskTitle
+                ? "artifact.view.context"
+                : "artifact.view.contextStep") as never,
+              {
+                task: view.artifact.taskTitle ?? "",
+                step: selectedVersion?.runStepId ??
+                  translate("artifact.retrieval.notAvailable"),
+              } as never,
+            ),
             base: selectedVersion?.subjectBaseSha ??
               translate("artifact.retrieval.notAvailable"),
             head: selectedVersion?.subjectHeadSha ??

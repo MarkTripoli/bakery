@@ -7295,5 +7295,7 @@
   "machines.work.empty.needs_attention.description": "⟪Work that lost contact, or that Bakery cannot tell finished, is listed here.⟫",
   "machines.column.slots": "⟪Tasks⟫",
   "machines.tabs.checksFailed": "⟪{count, plural, one {# failed} other {# failed}}⟫",
-  "machines.work.line.stoppingNoTask": "⟪Someone stopped this work. The machine is finishing up.⟫"
+  "machines.work.line.stoppingNoTask": "⟪Someone stopped this work. The machine is finishing up.⟫",
+  "artifact.view.contextStep": "⟪Step {step}⟫",
+  "artifact.author.unknown": "⟪Someone⟫"
 }

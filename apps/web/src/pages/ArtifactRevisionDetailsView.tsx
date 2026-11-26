@@ -276,7 +276,8 @@ export function ArtifactRevisionDetailsView(
               <UI.DescriptionList>
                 <Detail
                   label={translate("artifact.retrieval.authorLabel")}
-                  value={selectedVersion.authorId}
+                  value={selectedVersion.authorName ??
+                    t("artifact.author.unknown")}
                 />
                 <Detail
                   label={translate("artifact.retrieval.subjectHeadLabel")}

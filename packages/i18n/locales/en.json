@@ -1883,6 +1883,8 @@
   "artifact.view.description": "Published by {author} · Step {step} · {size}",
   "artifact.view.evidence": "Evidence context",
   "artifact.view.context": "Task {task} / Step {step}",
+  "artifact.view.contextStep": "Step {step}",
+  "artifact.author.unknown": "Someone",
   "artifact.view.openTask": "Open task",
   "artifact.edit.action": "Edit",
   "artifact.edit.stop": "Stop editing",
