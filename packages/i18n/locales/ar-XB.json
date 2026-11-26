@@ -7467,7 +7467,6 @@
   "library.editor.start.title.field": "⟪Task title⟫",
   "library.editor.start.description": "⟪What to do⟫",
   "library.editor.start.schedule": "⟪On a schedule: {cron} ({timezone})⟫",
-  "library.editor.start.scheduleNotRun": "⟪Bakery does not run scheduled starts yet.⟫",
   "library.editor.start.readBudget": "⟪Up to ${amount} per run⟫",
   "library.editor.start.readRepository": "⟪Repository: {name}⟫",
   "library.editor.start.publishNote": "⟪{count, plural, one {Publish and use also switches on # automatic start.} other {Publish and use also switches on # automatic starts.}}⟫",

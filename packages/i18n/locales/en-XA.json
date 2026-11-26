@@ -7467,7 +7467,6 @@
   "library.editor.start.title.field": "⟦Ŧàšķ ŧïŧļë ŧ⟧",
   "library.editor.start.description": "⟦Ŵĥàŧ ŧô ðô ŧ⟧",
   "library.editor.start.schedule": "⟦Ôñ à šçĥëðûļë: {cron} ({timezone}) ŧëšŧ çôþÿ⟧",
-  "library.editor.start.scheduleNotRun": "⟦Ɓàķëŕÿ ðôëš ñôŧ ŕûñ šçĥëðûļëð šŧàŕŧš ÿëŧ. ŧëšŧ çôþÿ ŧë⟧",
   "library.editor.start.readBudget": "⟦Ûþ ŧô ${amount} þëŕ ŕûñ ŧëšŧ ç⟧",
   "library.editor.start.readRepository": "⟦Ŕëþôšïŧôŕÿ: {name} ŧëšŧ⟧",
   "library.editor.start.publishNote": "⟦{count, plural, one {Publish and use also switches on # automatic start.} other {Publish and use also switches on # automatic starts.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
