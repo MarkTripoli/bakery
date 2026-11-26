@@ -91,6 +91,7 @@ export type SkillSourceAdapterErrorCode =
   | "SOURCE_LIMIT_EXCEEDED"
   | "SOURCE_ORIGIN_REJECTED"
   | "SOURCE_REVISION_MISMATCH"
+  | "SOURCE_REVISION_NOT_FOUND"
   | "SOURCE_TIMEOUT"
   | "SOURCE_UNAVAILABLE";
 
@@ -682,6 +683,41 @@ async function fetchMissingBlobs(
   );
 }
 
+function commitOrName(revision: string): string {
+  const lower = revision.toLowerCase();
+  return GIT_OBJECT_ID.test(lower) ? lower : revision;
+}
+
+async function requireAdvertisedRevision(
+  dependencies: SkillSourceAdapterDependencies,
+  directory: string,
+  normalizedLocator: string,
+  revision: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const advertised = await runGit(
+    dependencies,
+    directory,
+    [
+      "-c",
+      "credential.helper=",
+      "-c",
+      "core.askPass=",
+      "-c",
+      "http.followRedirects=false",
+      "-c",
+      "protocol.version=2",
+      "ls-remote",
+      "--",
+      normalizedLocator,
+      revision,
+    ],
+    MAX_GIT_TEXT_BYTES,
+    signal,
+  );
+  if (advertised.byteLength === 0) fail("SOURCE_REVISION_NOT_FOUND");
+}
+
 async function fetchGitSource(
   dependencies: SkillSourceAdapterDependencies,
   request: SkillSourceFetchRequest,
@@ -695,7 +731,7 @@ async function fetchGitSource(
   if (expectedRevision !== undefined && !GIT_OBJECT_ID.test(expectedRevision)) {
     fail("SOURCE_INVALID");
   }
-  const fetchRevision = expectedRevision ?? requestedRevision;
+  const fetchRevision = expectedRevision ?? commitOrName(requestedRevision);
   const normalizedPath = normalizeSourcePath(request.path);
   const directory = await dependencies.makeTempDirectory();
   try {
@@ -706,6 +742,15 @@ async function fetchGitSource(
       4_096,
       request.signal,
     );
+    if (expectedRevision === undefined && !GIT_OBJECT_ID.test(fetchRevision)) {
+      await requireAdvertisedRevision(
+        dependencies,
+        directory,
+        normalizedLocator,
+        fetchRevision,
+        request.signal,
+      );
+    }
     await runGit(
       dependencies,
       directory,
@@ -997,6 +1042,17 @@ async function sourceManifest(
   }
 }
 
+function wellFormedStrings(value: unknown): boolean {
+  if (typeof value === "string") return value.isWellFormed();
+  if (Array.isArray(value)) return value.every(wellFormedStrings);
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).every(([key, entry]) =>
+      key.isWellFormed() && wellFormedStrings(entry)
+    );
+  }
+  return true;
+}
+
 /** Reconciles a proved source inventory through the unchanged catalog validator. */
 export async function validatePinnedSkillSource(
   options: Readonly<{
@@ -1059,5 +1115,6 @@ export async function validatePinnedSkillSource(
   if (version.manifest.license !== options.registeredLicense) {
     fail("SOURCE_INVALID");
   }
+  if (!wellFormedStrings(version.manifest)) fail("SOURCE_INVALID");
   return Object.freeze({ proof, version });
 }

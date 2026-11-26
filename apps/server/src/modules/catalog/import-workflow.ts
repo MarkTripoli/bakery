@@ -99,6 +99,7 @@ const nonRetriableImportCodes = new Set([
   "SOURCE_LIMIT_EXCEEDED",
   "SOURCE_ORIGIN_REJECTED",
   "SOURCE_REVISION_MISMATCH",
+  "SOURCE_REVISION_NOT_FOUND",
   "STATE_CONFLICT",
   "UNPROCESSABLE",
 ]);
@@ -408,6 +409,12 @@ export async function executeSkillImport(
 
   let proof = await fetchProof(execution);
   assertProof(execution, proof);
+  await validatePinnedSkillSource({
+    proof,
+    skillId: crypto.randomUUID(),
+    revision: 1,
+    registeredLicense: execution.registered_license,
+  });
   execution = await withPgTransaction(
     options.database,
     (transaction) =>
