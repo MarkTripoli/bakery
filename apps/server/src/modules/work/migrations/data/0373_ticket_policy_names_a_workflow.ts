@@ -3,7 +3,6 @@ import {
   workflowPresetById,
   type WorkflowPresetDefinition,
 } from "@bakery/contracts/workflow-presets";
-import { canonicalJson } from "../../../../platform/canonical-json.ts";
 import {
   type DataMigration,
   type DataMigrationConnection,
@@ -11,6 +10,8 @@ import {
 } from "../../../../platform/data-migrate.ts";
 
 const ORGANIZATIONS_PER_BATCH = 20;
+
+type JsonValue = Parameters<DataMigrationConnection["json"]>[0];
 
 type LegacyPin = { id: string; revision: number };
 type Pin = { workflowId: string; versionId: string; digest: string };
@@ -79,7 +80,7 @@ async function installBuiltIn(
         digest, status, created_by
       ) values (
         ${organizationId}, ${workflowId}, ${preset.revision},
-        ${preset.sourceYaml}, ${canonicalJson(preset.spec)}::jsonb,
+        ${preset.sourceYaml}, ${transaction.json(preset.spec as JsonValue)},
         ${preset.digest}, 'published', ${principalId}
       )
       on conflict (workflow_id, revision) do nothing`;
@@ -163,7 +164,9 @@ async function upgradeOrganization(
   for (const source of sources) {
     await transaction`
       update bakery.ticket_sources
-         set policy = ${canonicalJson(policyOf(source.policy, builtIns))}::jsonb
+         set policy = ${
+      transaction.json(policyOf(source.policy, builtIns) as JsonValue)
+    }
        where organization_id = ${organizationId} and id = ${source.id}`;
   }
   const requests = await transaction<{ id: string; pin: unknown }[]>`
@@ -176,7 +179,7 @@ async function upgradeOrganization(
     if (pin === null) continue;
     await transaction`
       update bakery.ticket_requests
-         set pinned_preset = ${canonicalJson(pin)}::jsonb
+         set pinned_preset = ${transaction.json(pin)}
        where organization_id = ${organizationId} and id = ${request.id}`;
   }
   const targets = await transaction<{ id: string; pin: unknown }[]>`
@@ -189,7 +192,7 @@ async function upgradeOrganization(
     if (pin === null) continue;
     await transaction`
       update bakery.ticket_request_targets
-         set pinned_preset = ${canonicalJson(pin)}::jsonb
+         set pinned_preset = ${transaction.json(pin)}
        where organization_id = ${organizationId} and id = ${target.id}`;
   }
   const reports = await transaction<{ id: string; pin: unknown }[]>`
@@ -199,9 +202,16 @@ async function upgradeOrganization(
      for update`;
   for (const report of reports) {
     const pin = pinOf(report.pin, builtIns);
+    if (pin === null) {
+      await transaction`
+        update bakery.ticket_readiness_reports
+           set preset = 'null'::jsonb
+         where organization_id = ${organizationId} and id = ${report.id}`;
+      continue;
+    }
     await transaction`
       update bakery.ticket_readiness_reports
-         set preset = ${pin === null ? "null" : canonicalJson(pin)}::jsonb
+         set preset = ${transaction.json(pin)}
        where organization_id = ${organizationId} and id = ${report.id}`;
   }
 }
