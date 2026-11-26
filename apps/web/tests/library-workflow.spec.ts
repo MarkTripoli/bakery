@@ -1860,8 +1860,10 @@ for (
       await expect(panel).toContainText(
         "This part of the workflow is written in code.",
       );
+      await expect(page.getByRole("button", { name: "View as code" }))
+        .toHaveCount(1);
       await expect(panel.getByRole("button", { name: "View as code" }))
-        .toBeVisible();
+        .toHaveCount(viewport.name === "phone" ? 0 : 1);
       await expect(panel.getByRole("button", { name: "Delete" })).toHaveCount(
         0,
       );
@@ -2274,10 +2276,15 @@ for (
       const restBox = (await panel.getByText(
         "The rest of this step is written in code.",
       ).boundingBox())!;
-      const codeBox = (await panel.getByRole("button", { name: "View as code" })
-        .boundingBox())!;
       expect(skillsBox.y).toBeLessThan(restBox.y);
-      expect(restBox.y).toBeLessThan(codeBox.y);
+      await expect(page.getByRole("button", { name: "View as code" }))
+        .toHaveCount(1);
+      if (viewport.name === "desktop") {
+        const codeBox = (await panel.getByRole("button", {
+          name: "View as code",
+        }).boundingBox())!;
+        expect(restBox.y).toBeLessThan(codeBox.y);
+      }
       const slot = skills.locator("[data-skill-status='missing']");
       await expect(slot.getByRole("button", { name: "Choose a skill…" }))
         .toBeVisible();
