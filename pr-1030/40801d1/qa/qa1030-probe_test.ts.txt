@@ -1,0 +1,119 @@
+import { assert } from "@std/assert";
+import { publishWrittenWorkflow } from "../helpers/ticket-admission/written-workflow.ts";
+import { seedFact, withAutomation } from "../helpers/ticket-admission/automation-fixtures.ts";
+import {
+  automaticPolicy,
+  createMemoryFactIndex,
+  type TicketFixture,
+} from "../helpers/ticket-admission/fixtures.ts";
+import { processAutomationRoute } from "../../apps/server/src/modules/workflows/automations/event-intake.ts";
+
+async function count(fx: TicketFixture, table: string): Promise<number> {
+  const result = await fx.owner.query<{ count: string }>(
+    `select count(*)::text as count from bakery.${table} where organization_id = $1`,
+    [fx.organizationId],
+  );
+  return Number(result.rows[0]?.count ?? 0);
+}
+
+async function startsOn(fx: TicketFixture, actions: string[]) {
+  const workflow = fx.builtInWorkflow("fixed-coding");
+  const active = await fx.owner.query<{ active_version_id: string }>(
+    `select active_version_id from bakery.workflow_definitions where organization_id = $1 and id = $2`,
+    [fx.organizationId, workflow.workflowId],
+  );
+  await fx.owner.query(
+    `update bakery.workflow_versions set starts = $3::jsonb where organization_id = $1 and id = $2`,
+    [
+      fx.organizationId,
+      active.rows[0].active_version_id,
+      JSON.stringify(actions.map((action) => ({
+        id: `on-${action}`,
+        budgetUsd: 5,
+        inputs: {},
+        on: { kind: "event", eventKind: `work_item.${action}`, filter: {} },
+      }))),
+    ],
+  );
+}
+
+Deno.test("qa probe A: close an admitted issue", () =>
+  withAutomation(async (a) => {
+    const { fx } = a;
+    await startsOn(fx, ["closed"]);
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    a.seedLabeler();
+    a.issue(617);
+    const labelled = await a.deliverRoutes(617);
+    await processAutomationRoute(fx.runtime, labelled.automation);
+    const admitted = await a.intake(labelled.fact_refresh);
+    console.log("PROBE A admitted", JSON.stringify(admitted));
+    a.edit(617, { state: "closed" });
+    const closed = await a.deliverRoutes(617, "closed");
+    const side = await processAutomationRoute(fx.runtime, closed.automation);
+    console.log("PROBE A automation side on close", JSON.stringify(side));
+    const intake = await a.intake(closed.fact_refresh);
+    console.log("PROBE A intake on close", JSON.stringify(intake));
+    console.log("PROBE A firings after close", await count(fx, "workflow_start_firings"), "requests", JSON.stringify(await a.requests(sourceId)));
+  }));
+
+Deno.test("qa probe B: issue read fails once on delivery, poll admits later", () =>
+  withAutomation(async (a) => {
+    const { fx } = a;
+    await startsOn(fx, ["labeled"]);
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    a.seedLabeler();
+    a.issue(620);
+    const routes = await a.deliverRoutes(620);
+    const side = await processAutomationRoute(fx.runtime, routes.automation);
+    console.log("PROBE B automation side", JSON.stringify(side));
+    const before = await count(fx, "workflow_runs");
+    const failing = new Proxy(a.live, {
+      get(target, key, receiver) {
+        if (key === "readIssue") {
+          return () => Promise.resolve({ kind: "unavailable", reason: "rate_limited" });
+        }
+        const value = Reflect.get(target, key, receiver);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const first = await a.intake(routes.fact_refresh, { reader: failing });
+    console.log("PROBE B intake while GitHub fails", JSON.stringify(first));
+    console.log("PROBE B runs added", (await count(fx, "workflow_runs")) - before, "firings", await count(fx, "workflow_start_firings"));
+    const index = createMemoryFactIndex();
+    index.set(620, new Date().toISOString(), ["bakery:execute"]);
+    const again = await a.intake(routes.fact_refresh);
+    console.log("PROBE B intake once GitHub answers (retry or next delivery)", JSON.stringify(again));
+    console.log("PROBE B runs added total", (await count(fx, "workflow_runs")) - before, "firings", await count(fx, "workflow_start_firings"), "requests", JSON.stringify(await a.requests(sourceId)));
+    assert(true);
+  }));
+
+Deno.test("qa probe C: written workflow, issue read fails on delivery", () =>
+  withAutomation(async (a) => {
+    const { fx } = a;
+    const written = await publishWrittenWorkflow(fx, "qa-written");
+    await fx.owner.query(
+      `update bakery.workflow_versions set starts = $3::jsonb where organization_id = $1 and id = $2`,
+      [fx.organizationId, written.versionId, JSON.stringify([{ id: "on-labeled", budgetUsd: 5, inputs: {}, on: { kind: "event", eventKind: "work_item.labeled", filter: {} } }])],
+    );
+    const sourceId = await fx.insertSource({ policy: { ...automaticPolicy(fx), workflow: { workflowId: written.workflowId } } });
+    a.seedLabeler();
+    a.issue(621);
+    const routes = await a.deliverRoutes(621);
+    await processAutomationRoute(fx.runtime, routes.automation);
+    const runs = async () => (await fx.owner.query(`select workflow_version_id = $2 as written from bakery.workflow_runs where organization_id = $1`, [fx.organizationId, written.versionId])).rows;
+    const firings = async () => (await fx.owner.query(`select * from bakery.workflow_start_firings where organization_id = $1`, [fx.organizationId])).rows;
+    const failing = new Proxy(a.live, {
+      get(target, key, receiver) {
+        if (key === "readIssue") return () => Promise.resolve({ kind: "unavailable", reason: "rate_limited" });
+        const value = Reflect.get(target, key, receiver);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    console.log("PROBE C first", JSON.stringify(await a.intake(routes.fact_refresh, { reader: failing })));
+    console.log("PROBE C after failed read: runs", JSON.stringify(await runs()), "firings", JSON.stringify(await firings()));
+    await seedFact(a, 621, "2026-11-01T00:00:00.000Z", ["bakery:execute"]);
+    a.index.set(621, new Date().toISOString(), ["bakery:execute"]);
+    console.log("PROBE C second", JSON.stringify(await a.poll()));
+    console.log("PROBE C after admission: runs", JSON.stringify(await runs()), "firings", JSON.stringify(await firings()), "requests", JSON.stringify((await a.requests(sourceId)).map((r) => [r.number, r.disposition, r.workflow_run_id !== null])));
+  }));
