@@ -28874,7 +28874,6 @@ const transportSchemas = {
         "existingResourceId": "uuid"
       },
       "bounds": {
-        "additionalMembersMaxBytes": 8000,
         "issuesMaxItems": 50,
         "detailMaxLength": 2000,
         "titleMaxLength": 200
@@ -28901,7 +28900,7 @@ const transportSchemas = {
         "A STATE_CONFLICT whose cause is a named state rule sets reason to that stable lowercase snake_case slug (for example approval_required, approval_unavailable, task_not_startable) so a client can tell the rules apart without parsing prose. The slug is bounded to 64 characters; any other value is dropped.",
         "Params cannot override type, title, status, detail, instance, code or correlation IDs. Whitelist/redact known extensions; never serialize Error, cause, stack, SQL, raw provider payloads, secrets or submitted invalid values."
       ],
-      "description": "RFC 9457 problem-details body returned for every Bakery REST/MCP/WS failure: `type` is the primary identifier, `code` its stable registry alias, and `status` matches the actual response status, with `requestId`/`traceId` for correlation. `issues`, `retryAfterSeconds`, `reason`, and the sync-specific reset fields are present only when that failure kind applies.",
+      "description": "RFC 9457 problem-details body returned for every Bakery REST/MCP/WS failure: `type` is the primary identifier, `code` its stable registry alias, and `status` matches the actual response status, with `requestId`/`traceId` for correlation. `issues`, `retryAfterSeconds`, `reason`, and the sync-specific reset fields are present only when that failure kind applies. Members beyond these take at most 8000 bytes together.",
       "fieldDescriptions": {
         "type": "RFC 9457 URI identifying the problem type.",
         "title": "Human-readable title presented for the problem response.",
@@ -29274,10 +29273,9 @@ const transportSchemas = {
         "comments": "CommentSnapshot[]"
       },
       "bounds": {
-        "maxBytes": 32768,
-        "maxRoots": 100
+        "maxBytes": 32768
       },
-      "description": "Complete selected root threads as of send, byte bounded; reject oversized selection and ask for fewer threads. Every reference and current grant is validated before snapshot and again at admission/effects.",
+      "description": "Complete selected root threads as of send, at most 100 roots, byte bounded; reject oversized selection and ask for fewer threads. Every reference and current grant is validated before snapshot and again at admission/effects.",
       "fieldDescriptions": {
         "comments": "Contract-defined comments associated with the comment context record."
       }
@@ -31345,8 +31343,9 @@ const transportSchemas = {
       },
       "bounds": {
         "resourceKindsMaxItems": 50,
-        "providerPermissionsMaxItems": 100,
-        "schemaMaxBytes": 131072
+        "requiredProviderPermissionsMaxItems": 100,
+        "inputSchemaMaxBytes": 131072,
+        "outputSchemaMaxBytes": 131072
       },
       "description": "Effective intersection of the pinned provider manifest, installation permission, selected resource and current organization grant.",
       "fieldDescriptions": {

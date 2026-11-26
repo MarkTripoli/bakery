@@ -44156,7 +44156,8 @@ export const clientManifest = {
                       "comments"
                     ],
                     "additionalProperties": false,
-                    "description": "Structured review-comment context associated with the message."
+                    "description": "Structured review-comment context associated with the message.",
+                    "x-utf8-max-bytes": 32768
                   },
                   {
                     "type": "null",
@@ -64667,7 +64668,8 @@ export const clientManifest = {
                 "comments"
               ],
               "additionalProperties": false,
-              "description": "Structured review-comment context associated with the message."
+              "description": "Structured review-comment context associated with the message.",
+              "x-utf8-max-bytes": 32768
             },
             {
               "type": "null",
@@ -79536,18 +79538,18 @@ export const clientManifest = {
             "properties": {
               "path": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
+                "maxLength": 500,
+                "description": "JSON Pointer into the submitted definition, or an empty string for the whole document. ValidationIssue.path must contain at most 500 characters."
               },
               "code": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "Stable Bakery code identifying the response outcome."
+                "maxLength": 100,
+                "description": "Stable Bakery code identifying the response outcome. ValidationIssue.code must contain at most 100 characters."
               },
               "message": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "Human-readable validation message."
+                "maxLength": 500,
+                "description": "Human-readable validation message. ValidationIssue.message must contain at most 500 characters."
               }
             },
             "required": [
@@ -79568,18 +79570,18 @@ export const clientManifest = {
             "properties": {
               "path": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
+                "maxLength": 500,
+                "description": "JSON Pointer into the submitted definition, or an empty string for the whole document. ValidationIssue.path must contain at most 500 characters."
               },
               "code": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "Stable Bakery code identifying the response outcome."
+                "maxLength": 100,
+                "description": "Stable Bakery code identifying the response outcome. ValidationIssue.code must contain at most 100 characters."
               },
               "message": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "Human-readable validation message."
+                "maxLength": 500,
+                "description": "Human-readable validation message. ValidationIssue.message must contain at most 500 characters."
               }
             },
             "required": [
@@ -79826,18 +79828,18 @@ export const clientManifest = {
             "properties": {
               "path": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
+                "maxLength": 500,
+                "description": "JSON Pointer into the submitted definition, or an empty string for the whole document. ValidationIssue.path must contain at most 500 characters."
               },
               "code": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "Stable Bakery code identifying the response outcome."
+                "maxLength": 100,
+                "description": "Stable Bakery code identifying the response outcome. ValidationIssue.code must contain at most 100 characters."
               },
               "message": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "Human-readable validation message."
+                "maxLength": 500,
+                "description": "Human-readable validation message. ValidationIssue.message must contain at most 500 characters."
               }
             },
             "required": [
@@ -80208,8 +80210,8 @@ export const clientManifest = {
                 },
                 "title": {
                   "type": "string",
-                  "maxLength": 65536,
-                  "description": "Human-readable title presented for the problem response."
+                  "maxLength": 200,
+                  "description": "Human-readable title presented for the problem response. Problem.title must contain at most 200 characters."
                 },
                 "status": {
                   "type": "integer",
@@ -80219,8 +80221,8 @@ export const clientManifest = {
                 },
                 "detail": {
                   "type": "string",
-                  "maxLength": 65536,
-                  "description": "Human-readable detail explaining the response outcome."
+                  "maxLength": 2000,
+                  "description": "Human-readable detail explaining the response outcome. Problem.detail must contain at most 2000 characters."
                 },
                 "code": {
                   "type": "string",
@@ -80256,18 +80258,18 @@ export const clientManifest = {
                     "properties": {
                       "path": {
                         "type": "string",
-                        "maxLength": 65536,
-                        "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
+                        "maxLength": 500,
+                        "description": "JSON Pointer into the submitted definition, or an empty string for the whole document. ValidationIssue.path must contain at most 500 characters."
                       },
                       "code": {
                         "type": "string",
-                        "maxLength": 65536,
-                        "description": "Stable Bakery code identifying the response outcome."
+                        "maxLength": 100,
+                        "description": "Stable Bakery code identifying the response outcome. ValidationIssue.code must contain at most 100 characters."
                       },
                       "message": {
                         "type": "string",
-                        "maxLength": 65536,
-                        "description": "Human-readable validation message."
+                        "maxLength": 500,
+                        "description": "Human-readable validation message. ValidationIssue.message must contain at most 500 characters."
                       }
                     },
                     "required": [
@@ -83428,8 +83430,8 @@ export const clientManifest = {
         },
         "title": {
           "type": "string",
-          "maxLength": 65536,
-          "description": "Human-readable title presented for the problem response."
+          "maxLength": 200,
+          "description": "Human-readable title presented for the problem response. Problem.title must contain at most 200 characters."
         },
         "status": {
           "type": "integer",
@@ -83439,8 +83441,8 @@ export const clientManifest = {
         },
         "detail": {
           "type": "string",
-          "maxLength": 65536,
-          "description": "Human-readable detail explaining the response outcome."
+          "maxLength": 2000,
+          "description": "Human-readable detail explaining the response outcome. Problem.detail must contain at most 2000 characters."
         },
         "code": {
           "type": "string",
@@ -83476,18 +83478,18 @@ export const clientManifest = {
             "properties": {
               "path": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
+                "maxLength": 500,
+                "description": "JSON Pointer into the submitted definition, or an empty string for the whole document. ValidationIssue.path must contain at most 500 characters."
               },
               "code": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "Stable Bakery code identifying the response outcome."
+                "maxLength": 100,
+                "description": "Stable Bakery code identifying the response outcome. ValidationIssue.code must contain at most 100 characters."
               },
               "message": {
                 "type": "string",
-                "maxLength": 65536,
-                "description": "Human-readable validation message."
+                "maxLength": 500,
+                "description": "Human-readable validation message. ValidationIssue.message must contain at most 500 characters."
               }
             },
             "required": [
@@ -83585,7 +83587,7 @@ export const clientManifest = {
         "retryable"
       ],
       "additionalProperties": false,
-      "description": "RFC 9457 problem-details body returned for every Bakery REST/MCP/WS failure: `type` is the primary identifier, `code` its stable registry alias, and `status` matches the actual response status, with `requestId`/`traceId` for correlation. `issues`, `retryAfterSeconds`, `reason`, and the sync-specific reset fields are present only when that failure kind applies.",
+      "description": "RFC 9457 problem-details body returned for every Bakery REST/MCP/WS failure: `type` is the primary identifier, `code` its stable registry alias, and `status` matches the actual response status, with `requestId`/`traceId` for correlation. `issues`, `retryAfterSeconds`, `reason`, and the sync-specific reset fields are present only when that failure kind applies. Members beyond these take at most 8000 bytes together.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -83790,8 +83792,8 @@ export const clientManifest = {
                 },
                 "title": {
                   "type": "string",
-                  "maxLength": 65536,
-                  "description": "Human-readable title presented for the problem response."
+                  "maxLength": 200,
+                  "description": "Human-readable title presented for the problem response. Problem.title must contain at most 200 characters."
                 },
                 "status": {
                   "type": "integer",
@@ -83801,8 +83803,8 @@ export const clientManifest = {
                 },
                 "detail": {
                   "type": "string",
-                  "maxLength": 65536,
-                  "description": "Human-readable detail explaining the response outcome."
+                  "maxLength": 2000,
+                  "description": "Human-readable detail explaining the response outcome. Problem.detail must contain at most 2000 characters."
                 },
                 "code": {
                   "type": "string",
@@ -83838,18 +83840,18 @@ export const clientManifest = {
                     "properties": {
                       "path": {
                         "type": "string",
-                        "maxLength": 65536,
-                        "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
+                        "maxLength": 500,
+                        "description": "JSON Pointer into the submitted definition, or an empty string for the whole document. ValidationIssue.path must contain at most 500 characters."
                       },
                       "code": {
                         "type": "string",
-                        "maxLength": 65536,
-                        "description": "Stable Bakery code identifying the response outcome."
+                        "maxLength": 100,
+                        "description": "Stable Bakery code identifying the response outcome. ValidationIssue.code must contain at most 100 characters."
                       },
                       "message": {
                         "type": "string",
-                        "maxLength": 65536,
-                        "description": "Human-readable validation message."
+                        "maxLength": 500,
+                        "description": "Human-readable validation message. ValidationIssue.message must contain at most 500 characters."
                       }
                     },
                     "required": [
@@ -84200,8 +84202,8 @@ export const clientManifest = {
                       },
                       "title": {
                         "type": "string",
-                        "maxLength": 65536,
-                        "description": "Human-readable title presented for the problem response."
+                        "maxLength": 200,
+                        "description": "Human-readable title presented for the problem response. Problem.title must contain at most 200 characters."
                       },
                       "status": {
                         "type": "integer",
@@ -84211,8 +84213,8 @@ export const clientManifest = {
                       },
                       "detail": {
                         "type": "string",
-                        "maxLength": 65536,
-                        "description": "Human-readable detail explaining the response outcome."
+                        "maxLength": 2000,
+                        "description": "Human-readable detail explaining the response outcome. Problem.detail must contain at most 2000 characters."
                       },
                       "code": {
                         "type": "string",
@@ -84248,18 +84250,18 @@ export const clientManifest = {
                           "properties": {
                             "path": {
                               "type": "string",
-                              "maxLength": 65536,
-                              "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
+                              "maxLength": 500,
+                              "description": "JSON Pointer into the submitted definition, or an empty string for the whole document. ValidationIssue.path must contain at most 500 characters."
                             },
                             "code": {
                               "type": "string",
-                              "maxLength": 65536,
-                              "description": "Stable Bakery code identifying the response outcome."
+                              "maxLength": 100,
+                              "description": "Stable Bakery code identifying the response outcome. ValidationIssue.code must contain at most 100 characters."
                             },
                             "message": {
                               "type": "string",
-                              "maxLength": 65536,
-                              "description": "Human-readable validation message."
+                              "maxLength": 500,
+                              "description": "Human-readable validation message. ValidationIssue.message must contain at most 500 characters."
                             }
                           },
                           "required": [

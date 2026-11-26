@@ -1,7 +1,11 @@
 import { assertEquals, assertThrows } from "@std/assert";
+import transport from "../../docs/technical-design/transport-schemas.json" with {
+  type: "json",
+};
 import {
   assertKnownBounds,
   contractSchemas,
+  generateContracts,
 } from "../../packages/contracts/src/contracts.ts";
 
 type Shaped = {
@@ -36,5 +40,67 @@ Deno.test("a bound key the generator does not know is refused loudly", () => {
   assertKnownBounds(
     { min: 1, max: 2, minimum: 1, maximum: 2 },
     "Example.count",
+  );
+});
+
+Deno.test("bounds declared beside a schema's fields are applied to those fields", () => {
+  const entry = (contractSchemas as unknown as Record<string, Shaped>)
+    .SkillFileManifestEntry.shape;
+  assertEquals(entry.path.safeParse("a".repeat(501)).success, false);
+  assertEquals(entry.sizeBytes.safeParse(10_485_761).success, false);
+  const issue = (contractSchemas as unknown as Record<string, Shaped>)
+    .ValidationIssue.shape;
+  assertEquals(issue.path.safeParse("p".repeat(501)).success, false);
+  assertEquals(issue.code.safeParse("c".repeat(101)).success, false);
+  assertEquals(issue.message.safeParse("m".repeat(501)).success, false);
+  const problem = (contractSchemas as unknown as Record<string, Shaped>)
+    .Problem.shape;
+  assertEquals(problem.title.safeParse("t".repeat(201)).success, false);
+  assertEquals(problem.detail.safeParse("d".repeat(2001)).success, false);
+  const capability = (contractSchemas as unknown as Record<string, Shaped>)
+    .IntegrationCapability.shape;
+  assertEquals(
+    capability.requiredProviderPermissions.safeParse(
+      Array.from({ length: 101 }, (_, index) => `p${index}`),
+    ).success,
+    false,
+  );
+});
+
+Deno.test("a misspelled, unusable or misplaced bound stops generation", () => {
+  type Field = { name: string; bounds: Record<string, unknown> };
+  type Source = {
+    inputs: Record<string, { fields: Field[] }>;
+    outputs: Record<string, { bounds: Record<string, unknown> }>;
+  };
+  const withBound = (edit: (source: Source) => void) => {
+    const source = structuredClone(transport) as unknown as Source;
+    edit(source);
+    return () => generateContracts(source as unknown as typeof transport);
+  };
+  const sizeBytes = (source: Source) =>
+    source.inputs.BlobUploadStart.fields.find((field) =>
+      field.name === "sizeBytes"
+    )!;
+  assertThrows(
+    withBound((source) => {
+      source.outputs.SkillFileManifestEntry.bounds.pathMaximumLenght = 5;
+    }),
+    Error,
+    "names an unknown bound: pathMaximumLenght",
+  );
+  assertThrows(
+    withBound((source) => {
+      sizeBytes(source).bounds.maximum = "3";
+    }),
+    Error,
+    "has an unusable value",
+  );
+  assertThrows(
+    withBound((source) => {
+      sizeBytes(source).bounds.maxLength = 3;
+    }),
+    Error,
+    "does not apply to a number",
   );
 });
