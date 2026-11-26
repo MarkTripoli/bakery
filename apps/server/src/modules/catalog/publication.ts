@@ -619,6 +619,13 @@ async function insertSkillFiles(
   }
 }
 
+function byCodeUnitPath(
+  left: Readonly<{ path: string }>,
+  right: Readonly<{ path: string }>,
+): number {
+  return left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
+}
+
 async function assertReservedFiles(
   transaction: PgTransactionClient,
   preparation: SkillVersionPublicationPreparation,
@@ -630,6 +637,7 @@ async function assertReservedFiles(
       order by path`,
     [preparation.organizationId, preparation.identity.versionId],
   );
+  const stored = [...result.rows].sort(byCodeUnitPath);
   const expected = preparation.validated.files.map((file, index) => ({
     path: file.path,
     media_type: file.mediaType,
@@ -637,8 +645,8 @@ async function assertReservedFiles(
     size_bytes: file.sizeBytes,
     sha256: file.sha256,
     is_executable: file.isExecutable,
-  })).sort((left, right) => left.path.localeCompare(right.path));
-  if (canonicalJson(result.rows) !== canonicalJson(expected)) {
+  })).sort(byCodeUnitPath);
+  if (canonicalJson(stored) !== canonicalJson(expected)) {
     throw new StandardError({ code: "SKILL_CONTENT_INTEGRITY_FAILED" });
   }
 }

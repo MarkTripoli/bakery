@@ -1,3 +1,4 @@
+import { parse as parseYaml } from "yaml";
 import { canonicalJson } from "../../platform/canonical-json.ts";
 
 export type SkillMdSourceFile = Readonly<{
@@ -33,9 +34,7 @@ export class SkillMdManifestInvalid extends Error {
 
 const SKILL_MD = "SKILL.md";
 const MAX_NAME_LENGTH = 200;
-const MAX_DESCRIPTION_LENGTH = 1_024;
 const FRONT_MATTER_FENCE = "---";
-const TOP_LEVEL_KEY = /^([A-Za-z0-9_-]+):(?:[ \t]+(.*))?$/;
 
 const MEDIA_TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
   ".json": "application/json",
@@ -63,25 +62,6 @@ function decodeUtf8(bytes: Uint8Array): string | null {
   }
 }
 
-function unquote(value: string): string {
-  const trimmed = value.trim();
-  if (trimmed.length >= 2) {
-    const first = trimmed[0];
-    if ((first === '"' || first === "'") && trimmed.endsWith(first)) {
-      return trimmed.slice(1, -1);
-    }
-  }
-  return trimmed;
-}
-
-function blockScalar(indicator: string, lines: readonly string[]): string {
-  const folded = indicator.startsWith(">");
-  const body = lines.map((line) => line.trim());
-  return folded
-    ? body.filter((line) => line !== "").join(" ")
-    : body.join("\n");
-}
-
 function frontMatterLines(text: string): string[] {
   const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/);
   if (lines[0]?.trimEnd() !== FRONT_MATTER_FENCE) invalid();
@@ -94,31 +74,20 @@ function frontMatterLines(text: string): string[] {
 
 export function parseSkillMdFrontMatter(
   text: string,
-): ReadonlyMap<string, string> {
-  const lines = frontMatterLines(text);
-  const values = new Map<string, string>();
-  let index = 0;
-  while (index < lines.length) {
-    const line = lines[index];
-    index++;
-    if (line.trim() === "" || line.trimStart().startsWith("#")) continue;
-    const match = line.match(TOP_LEVEL_KEY);
-    if (!match) continue;
-    const continuation: string[] = [];
-    while (index < lines.length && /^[ \t]|^$/.test(lines[index])) {
-      continuation.push(lines[index]);
-      index++;
-    }
-    const key = match[1];
-    if (values.has(key)) invalid();
-    const raw = (match[2] ?? "").trim();
-    if (/^[>|][+-]?$/.test(raw)) {
-      values.set(key, blockScalar(raw, continuation));
-    } else if (raw !== "") {
-      values.set(key, unquote(raw));
-    }
+): Readonly<Record<string, unknown>> {
+  let parsed: unknown;
+  try {
+    parsed = parseYaml(frontMatterLines(text).join("\n"), {
+      maxAliasCount: 0,
+      uniqueKeys: true,
+    });
+  } catch {
+    return invalid();
   }
-  return values;
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    invalid();
+  }
+  return parsed as Record<string, unknown>;
 }
 
 function isDisallowedControl(character: string): boolean {
@@ -126,9 +95,11 @@ function isDisallowedControl(character: string): boolean {
   return code === 0x7f || (code < 0x20 && code !== 0x09 && code !== 0x0a);
 }
 
-function boundedText(value: string | undefined, maxLength: number): string {
-  const text = value?.trim() ?? "";
-  if (text.length < 1 || text.length > maxLength) invalid();
+function boundedText(value: unknown, maxLength?: number): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (text.length < 1 || (maxLength !== undefined && text.length > maxLength)) {
+    invalid();
+  }
   if ([...text].some(isDisallowedControl)) invalid();
   return text;
 }
@@ -181,11 +152,8 @@ export async function deriveSkillMdManifest(
   const text = decodeUtf8(entry.content);
   if (text === null) invalid();
   const frontMatter = parseSkillMdFrontMatter(text);
-  const name = boundedText(frontMatter.get("name"), MAX_NAME_LENGTH);
-  const description = boundedText(
-    frontMatter.get("description"),
-    MAX_DESCRIPTION_LENGTH,
-  );
+  const name = boundedText(frontMatter.name, MAX_NAME_LENGTH);
+  const description = boundedText(frontMatter.description);
   const described = await Promise.all(files.map(async (file) => ({
     path: file.path,
     mediaType: skillFileMediaType(file),
