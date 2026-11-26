@@ -4407,6 +4407,8 @@ const requestFixture = (extra: Record<string, unknown> = {}) => ({
   createdAt: stamp(20),
   updatedAt: stamp(20),
   version: 1,
+  nextAsk: null,
+  passedOn: false,
   ...extra,
 });
 

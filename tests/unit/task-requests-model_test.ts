@@ -31,6 +31,8 @@ const request = (
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
   version: 1,
+  nextAsk: null,
+  passedOn: false,
   ...extra,
 });
 
