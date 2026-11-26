@@ -26457,9 +26457,10 @@ export const clientManifest = {
         "provider": {
           "type": "string",
           "enum": [
-            "github"
+            "github",
+            "slack"
           ],
-          "description": "Integration provider to authorize against; only github is supported. The server builds the authorization URL from the provider app registered for this Bakery installation, never from request data."
+          "description": "Integration provider to authorize against: github through its registered App, or slack through the OAuth2 client credentials saved for this Bakery installation. The server builds the authorization URL from that registration, never from request data."
         },
         "reconnectConnectionId": {
           "description": "When reconnecting an existing connection of the caller's organization, identifies it; completion for the same verified GitHub account refreshes that connection, and a different account creates a new pending connection and leaves this one unchanged. An unknown, archived or other organization's connection is refused as not found and no attempt is created.",
