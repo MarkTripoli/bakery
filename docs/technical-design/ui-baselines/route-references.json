@@ -5278,6 +5278,13 @@
       "frames": []
     },
     {
+      "routeId": "library-skill-add",
+      "path": "/library/skills/add",
+      "status": "no-mock",
+      "rationale": "Adding a skill from a Git repository or a saved source (the form with what will happen beside it, and its failures) is designed by design-ux on #74 (revision 4, mocks at design-74/v4/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "library-skill",
       "path": "/library/skills/$skillId",
       "status": "no-mock",

@@ -42,6 +42,7 @@ import { FileVersionPage } from "./pages/FileVersionPage.tsx";
 import { folderPathOf } from "./pages/files/files-state.ts";
 import { AgentPage } from "./pages/AgentPage.tsx";
 import { EvaluationRunPage } from "./pages/EvaluationRunPage.tsx";
+import { AddSkillPage } from "./pages/AddSkillPage.tsx";
 import { SkillEditorPage } from "./pages/SkillEditorPage.tsx";
 import { SkillPage } from "./pages/SkillPage.tsx";
 import { skillFilter, skillSearch } from "./pages/library/skills-state.ts";
@@ -347,6 +348,20 @@ export const routeCoverage = [
   {
     id: "library-agent",
     path: "/library/agents/$agentId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library-skill-add",
+    path: "/library/skills/add",
     classification: "production",
     states: [
       "loading",
@@ -1717,6 +1732,15 @@ const agentRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const skillAddRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/skills/add",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: AddSkillPage,
+  errorComponent: ProtectedRouteError,
+});
+
 const skillRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/library/skills/$skillId",
@@ -3016,6 +3040,7 @@ const routeTree = rootRoute.addChildren([
   workflowEditorRoute,
   builtInWorkflowRoute,
   agentRoute,
+  skillAddRoute,
   skillRoute,
   skillEditRoute,
   evaluationRunRoute,
