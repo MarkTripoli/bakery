@@ -1,0 +1,19 @@
+# imports: state|scope|source|folder|revision|seconds|fault
+failed|organization|https://github.com/MarkTripoli/bakery|pr-1035/fixture/relese-notes|b697832a|1|{"code": "SOURCE_INVALID"}
+completed|organization|https://github.com/MarkTripoli/bakery|pr-1035/fixture/release-notes|b697832a|1|
+failed|organization|https://github.com/MarkTripoli/bakery|pr-1035/fixture/release-notes|no-such-|139|{"code": "SOURCE_UNAVAILABLE"}
+failed|personal|https://github.com/MarkTripoli/bakery|pr-1035/fixture/release-notes|b697832a|180|{"code": "DUPLICATE_KEY_VALUE_VIOLATES_UNIQUE_CONSTRAINT__SKILLS_REMOTE_SOURCE_PATH_UNIQUE_"}
+completed|personal|https://github.com/MarkTripoli/bakery.git|pr-1035/fixture/release-notes|b697832a|2|
+failed|organization|https://github.com/MarkTripoli/bakery.git|pr-1035/fixture/release-notes|b697832a|125|{"code": "DUPLICATE_KEY_VALUE_VIOLATES_UNIQUE_CONSTRAINT__SKILLS_REMOTE_SOURCE_PATH_UNIQUE_"}
+completed|organization|https://github.com/MarkTripoli/bakery|pr-1035/fixture/release-notes|e6bd76be|1|
+failed|organization|https://git.internal.invalid/team/skills||main|136|{"code": "SOURCE_UNAVAILABLE"}
+failed|organization|https://github.com/MarkTripoli/bakery/|pr-1035/fixture/relese-notes|b697832a|1|{"code": "SOURCE_INVALID"}
+completed|organization|https://github.com/MarkTripoli/bakery/|pr-1035/fixture/release-notes|b697832a|1|
+
+# index
+CREATE UNIQUE INDEX skills_remote_source_path_unique ON bakery.skills USING btree (organization_id, source_id, source_path) WHERE ((source_id IS NOT NULL) AND (source_path IS NOT NULL))
+
+# server log
+error: duplicate key value violates unique constraint "skills_remote_source_path_unique"
+  constraint: "skills_remote_source_path_unique",
+error: duplicate key value violates unique constraint "skills_remote_source_path_unique"
