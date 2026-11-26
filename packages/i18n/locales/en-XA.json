@@ -7589,5 +7589,5 @@
   "library.skills.add.failure.missingRevision": "⟦{address} ĥàš ñô ƀŕàñçĥ, ŧàĝ ôŕ çôɱɱïŧ çàļļëð {revision}. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "library.skills.add.failure.shortCommit": "⟦{address} ĥàš ñô ƀŕàñçĥ ôŕ ŧàĝ çàļļëð {revision}. Ïƒ ïŧ ïš à çôɱɱïŧ, ëñŧëŕ àļļ 40 çĥàŕàçŧëŕš ôƒ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "library.editor.noChanges": "⟦Ñô çĥàñĝëš ŧô þûƀļïšĥ ŧëšŧŧ⟧",
-  "library.editor.publishedUnused": "⟦Þûƀļïšĥëð, ñôŧ ïñ ûšë ŧëšŧŧ⟧"
+  "library.editor.publishedUnused": "⟦Ṽëŕšïôñ {version} þûƀļïšĥëð, ñôŧ ïñ ûšë ŧëšŧ çôþÿ ŧ⟧"
 }

@@ -6298,7 +6298,7 @@
   "library.editor.start.event.check.completed": "A check finishes",
   "library.editor.ready": "Ready to publish",
   "library.editor.noChanges": "No changes to publish",
-  "library.editor.publishedUnused": "Published, not in use",
+  "library.editor.publishedUnused": "Version {version} published, not in use",
   "library.editor.problems": "{count} problems",
   "settings.orgAccess.token.ending": "Token ending {ending}",
   "settings.orgAccess.token.endingShort": "ending {ending}",

@@ -32,11 +32,16 @@ type Setup = {
   readonly publishStatus?: number;
   readonly activateStatus?: number;
   readonly inUseSteps?: readonly unknown[];
+  readonly publishedAlready?: boolean;
 };
 
 async function editor(page: Page, setup: Setup) {
   await libraryFixture(page, { workflows: [WORKFLOW], versions: [] });
-  const server = { steps: setup.draftSteps, version: 1, status: "draft" };
+  const server = {
+    steps: setup.draftSteps,
+    version: 1,
+    status: setup.publishedAlready === true ? "published" : "draft",
+  };
   const version = (
     id: string,
     revision: number,
@@ -164,8 +169,18 @@ test.describe("workflow editor: what publishing changes", () => {
     await expect(dialog).not.toContainText("is already published");
     await still(page, "publish-not-used");
     await expect(page.getByTestId("editor-problems"))
-      .toHaveText("Published, not in use");
+      .toHaveText("Version 2 published, not in use");
   });
+  test("a newer published version not in use is still named on a fresh visit", async ({ page }) => {
+    await editor(page, {
+      draftSteps: [IN_USE[0], repeat(5)],
+      publishedAlready: true,
+    });
+    await expect(page.getByTestId("editor-problems"))
+      .toHaveText("Version 2 published, not in use");
+    await still(page, "publish-header-newer");
+  });
+
   test("a group removed around a step can still be published", async ({ page }) => {
     await editor(page, {
       inUseSteps: [{ id: "g", steps: [IN_USE[0]] }, repeat(3)],

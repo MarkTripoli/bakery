@@ -7589,5 +7589,5 @@
   "library.skills.add.failure.missingRevision": "⟪{address} has no branch, tag or commit called {revision}.⟫",
   "library.skills.add.failure.shortCommit": "⟪{address} has no branch or tag called {revision}. If it is a commit, enter all 40 characters of it.⟫",
   "library.editor.noChanges": "⟪No changes to publish⟫",
-  "library.editor.publishedUnused": "⟪Published, not in use⟫"
+  "library.editor.publishedUnused": "⟪Version {version} published, not in use⟫"
 }

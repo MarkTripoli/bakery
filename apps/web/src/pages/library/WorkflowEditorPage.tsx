@@ -963,8 +963,18 @@ export function WorkflowEditorPage(
   >(null);
 
   const problemCount = rows.length;
-  const cleanWord = publishedUnused
-    ? translate("library.editor.publishedUnused")
+  const newerUnused = inUse === null ? undefined : (versions.data?.items ?? [])
+    .filter((item) =>
+      item.status === "published" && item.revision > inUse.revision
+    )
+    .sort((a, b) => b.revision - a.revision)[0];
+  const unusedRevision = publishedUnused
+    ? draft.revision
+    : draftDiffers
+    ? undefined
+    : newerUnused?.revision;
+  const cleanWord = unusedRevision !== undefined
+    ? translate("library.editor.publishedUnused", { version: unusedRevision })
     : draftDiffers
     ? translate("library.editor.ready" as never)
     : translate("library.editor.noChanges");
