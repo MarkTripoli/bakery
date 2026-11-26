@@ -14,6 +14,7 @@
  * `locked` is not carried) produces no neutral event, so the vocabulary does
  * not grow by accident when a provider adds an action.
  */
+import { WORKFLOW_START_EVENT_KINDS } from "@bakery/contracts/workflow-starts";
 import { PROVIDER_TRANSLATIONS } from "./providers/neutral-translations.ts";
 
 /** The type a filter value must have for a declared field. */
@@ -39,26 +40,11 @@ const COMMON_FIELDS: Readonly<Record<string, NeutralFieldType>> = Object.freeze(
   { number: "number", headSha: "string", repositoryId: "number" },
 );
 
-/**
- * Neutral kinds a source emits today, each with the fields a start may filter
- * on. A kind appears here only when a verified delivery can produce it.
- */
 const EMITTED_KINDS: Readonly<
   Record<string, Readonly<Record<string, NeutralFieldType>>>
-> = Object.freeze({
-  "work_item.opened": COMMON_FIELDS,
-  "work_item.edited": COMMON_FIELDS,
-  "work_item.closed": COMMON_FIELDS,
-  "work_item.reopened": COMMON_FIELDS,
-  "work_item.labeled": COMMON_FIELDS,
-  "work_item.unlabeled": COMMON_FIELDS,
-  "change_request.opened": COMMON_FIELDS,
-  "change_request.updated": COMMON_FIELDS,
-  "change_request.closed": COMMON_FIELDS,
-  "change_request.reopened": COMMON_FIELDS,
-  "change_request.ready": COMMON_FIELDS,
-  "check.completed": COMMON_FIELDS,
-});
+> = Object.freeze(Object.fromEntries(
+  WORKFLOW_START_EVENT_KINDS.map((kind) => [kind, COMMON_FIELDS]),
+));
 
 /**
  * Kinds a start may name before any source here emits them, because another
