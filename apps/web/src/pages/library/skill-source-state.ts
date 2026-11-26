@@ -78,6 +78,8 @@ export type ImportFailure =
   | "origin"
   | "limit"
   | "moved"
+  | "missingRevision"
+  | "shortCommit"
   | "removed"
   | "other";
 
@@ -88,15 +90,22 @@ const FAILURE_KINDS: Readonly<Record<string, ImportFailure>> = {
   SOURCE_ORIGIN_REJECTED: "origin",
   SOURCE_LIMIT_EXCEEDED: "limit",
   SOURCE_REVISION_MISMATCH: "moved",
+  SOURCE_REVISION_NOT_FOUND: "missingRevision",
   RESOURCE_NOT_FOUND: "removed",
   PRECONDITION_FAILED: "removed",
 };
 
+const SHORT_COMMIT = /^[0-9a-f]{4,39}$/i;
+
 export function importFailureKind(
   code: string | null,
   folder: string,
+  revision: string,
 ): ImportFailure {
   const kind = FAILURE_KINDS[code ?? ""] ?? "other";
+  if (kind === "missingRevision" && SHORT_COMMIT.test(revision)) {
+    return "shortCommit";
+  }
   return kind === "invalid" && cleanFolder(folder) === ""
     ? "invalidAtTop"
     : kind;
