@@ -95,6 +95,7 @@ type Setup = {
   readonly hold?: boolean;
   readonly createStatus?: number;
   readonly madeVersionId?: string;
+  readonly inUseBefore?: number;
   readonly nameless?: boolean;
 };
 
@@ -135,6 +136,33 @@ async function addPage(page: Page, setup: Setup = {}) {
   });
   const record = (path: string, body: Record<string, unknown>) =>
     sent.push({ method: "POST", path, search: "", body });
+  const earlier = setup.inUseBefore;
+  if (earlier !== undefined) {
+    await page.route(
+      (url) => url.pathname === "/v1/skills",
+      (route) =>
+        route.fulfill(json({
+          items: [{
+            id: IDS.releaseNotes,
+            sourceId: null,
+            slug: "release-notes",
+            name: "Release notes",
+            description: null,
+            activeVersionId: versionId(IDS.releaseNotes, earlier),
+            activeRevision: earlier,
+            enabled: true,
+            scope: "organization",
+            ownerPrincipalId: null,
+            createdAt: AT,
+            updatedAt: AT,
+            version: 1,
+            copiedFromSkillId: null,
+            copiedFromVersionId: null,
+          }],
+          nextCursor: null,
+        })),
+    );
+  }
   await page.route(
     (url) => url.pathname === "/v1/skill-sources",
     (route) => {
@@ -268,8 +296,8 @@ test.describe("add a skill from a source", () => {
     await still(page, "skill-add-reading");
     state.held = false;
     await expect(page).toHaveURL(new RegExp(`/skills/${IDS.releaseNotes}$`));
-    await expect(page.getByTestId("skill-toast")).toContainText(
-      "Added Release notes.",
+    await expect(page.getByTestId("skill-toast")).toHaveText(
+      /^Added Release notes\.\W*$/,
     );
     expect(sent.map((one) => [one.path, one.body])).toEqual([
       ["/v1/skill-sources", {
@@ -353,14 +381,14 @@ test.describe("add a skill from a source", () => {
   test("files that did not change are not called a new version", async ({ page }) => {
     await addPage(page, {
       saved: [ACME],
-      madeVersionId: versionId(IDS.releaseNotes, 1),
+      madeVersionId: versionId(IDS.releaseNotes, 2),
     });
     await page.getByRole("radio", { name: "A source added before" }).check();
     await page.getByRole("combobox", { name: "Source" }).selectOption(ACME.id);
     await box(page, /Branch, tag or commit/).fill("v2.2.0");
     await submit(page).click();
-    await expect(page.getByTestId("skill-toast")).toContainText(
-      "Release notes already had these files.",
+    await expect(page.getByTestId("skill-toast")).toHaveText(
+      /^Release notes already had these files\.\W*$/,
     );
   });
 
@@ -377,5 +405,20 @@ test.describe("add a skill from a source", () => {
     await page.getByRole("combobox", { name: "Source" }).selectOption(ACME.id);
     await expect(page.getByText(ACME.locator, { exact: true })).toBeVisible();
     await expect(page.getByText("Licence", { exact: true })).toHaveCount(0);
+  });
+
+  test("older files put back say which version is in use again", async ({ page }) => {
+    await addPage(page, {
+      saved: [ACME],
+      madeVersionId: versionId(IDS.releaseNotes, 1),
+      inUseBefore: 2,
+    });
+    await page.getByRole("radio", { name: "A source added before" }).check();
+    await page.getByRole("combobox", { name: "Source" }).selectOption(ACME.id);
+    await box(page, /Branch, tag or commit/).fill("v2.0.0");
+    await submit(page).click();
+    await expect(page.getByTestId("skill-toast")).toHaveText(
+      /^Release notes already had these files, so version 1 is in use again \(was version 2\)\.\W*$/,
+    );
   });
 });

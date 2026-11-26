@@ -7566,5 +7566,6 @@
   "library.skills.add.failure.other": "⟪Something went wrong on our side. Nothing was added.⟫",
   "library.skills.add.done": "⟪Added {name}.⟫",
   "library.skills.add.already": "⟪{name} was already added from this.⟫",
-  "library.skill.files.of": "⟪The files of version {number}.⟫"
+  "library.skill.files.of": "⟪The files of version {number}.⟫",
+  "library.skills.add.switchedBack": "⟪{name} already had these files, so version {version} is in use again (was version {previous}).⟫"
 }

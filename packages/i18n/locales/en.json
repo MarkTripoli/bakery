@@ -5056,6 +5056,7 @@
   "library.tab.skills": "Skills",
   "library.skills.add.title": "Add a skill from a source",
   "library.skills.add.back": "Back to skills",
+  "library.skills.add.switchedBack": "{name} already had these files, so version {version} is in use again (was version {previous}).",
   "library.skills.add.unchanged": "{name} already had these files.",
   "library.skills.add.button": "Add from a source",
   "library.skills.add.forbidden": "Only people who manage skills can add one from a source.",

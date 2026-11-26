@@ -41,6 +41,7 @@ type Attempt = {
   readonly revision: string;
   readonly alreadyAdded: boolean;
   readonly startedAt: string;
+  readonly inUseBefore: ReadonlyMap<string, number | null>;
 };
 
 class AddFailed extends Error {
@@ -117,6 +118,20 @@ export function AddSkillPage() {
         revision: form.revision.trim(),
         ...(folder === "" ? {} : { path: folder }),
       };
+      const inUseBefore = new Map<string, number | null>();
+      let cursor: string | undefined;
+      do {
+        const read = await api.listSkills({
+          organizationId,
+          cursor,
+          limit: 100,
+        });
+        if (!read.ok) break;
+        for (const skill of read.data.items) {
+          inUseBefore.set(skill.id, skill.activeRevision);
+        }
+        cursor = read.data.nextCursor ?? undefined;
+      } while (cursor !== undefined);
       const body = JSON.stringify(input);
       if (importKey.current?.body !== body) {
         importKey.current = { body, key: crypto.randomUUID() };
@@ -142,6 +157,7 @@ export function AddSkillPage() {
         revision: input.revision,
         alreadyAdded: run.data.status === "completed",
         startedAt: run.data.createdAt,
+        inUseBefore,
       };
     },
     onSuccess: setAttempt,
@@ -214,11 +230,22 @@ export function AddSkillPage() {
           : undefined;
         const unchanged = made !== undefined &&
           Date.parse(made.createdAt) < Date.parse(attempt.startedAt);
+        const previous = attempt.inUseBefore.get(outcome.skillId) ?? null;
+        const switched = previous !== null &&
+          previous !== skill.data.activeRevision;
         sayAboutSkill(
           copy(
-            attempt.alreadyAdded ? "already" : unchanged ? "unchanged" : "done",
+            attempt.alreadyAdded
+              ? "already"
+              : !unchanged
+              ? "done"
+              : switched
+              ? "switchedBack"
+              : "unchanged",
             {
               name: skill.data.name,
+              version: skill.data.activeRevision ?? 0,
+              previous: previous ?? 0,
             },
           ),
         );
