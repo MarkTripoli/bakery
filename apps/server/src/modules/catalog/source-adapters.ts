@@ -688,14 +688,14 @@ function commitOrName(revision: string): string {
   return GIT_OBJECT_ID.test(lower) ? lower : revision;
 }
 
-async function requireAdvertisedRevision(
+async function advertisedRefs(
   dependencies: SkillSourceAdapterDependencies,
   directory: string,
   normalizedLocator: string,
   revision: string,
   signal?: AbortSignal,
-): Promise<void> {
-  const advertised = await runGit(
+): Promise<Uint8Array> {
+  return await runGit(
     dependencies,
     directory,
     [
@@ -715,7 +715,50 @@ async function requireAdvertisedRevision(
     MAX_GIT_TEXT_BYTES,
     signal,
   );
+}
+
+async function requireAdvertisedRevision(
+  dependencies: SkillSourceAdapterDependencies,
+  directory: string,
+  normalizedLocator: string,
+  revision: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const advertised = await advertisedRefs(
+    dependencies,
+    directory,
+    normalizedLocator,
+    revision,
+    signal,
+  );
   if (advertised.byteLength === 0) fail("SOURCE_REVISION_NOT_FOUND");
+}
+
+async function failMissingCommit(
+  dependencies: SkillSourceAdapterDependencies,
+  directory: string,
+  normalizedLocator: string,
+  error: unknown,
+  signal?: AbortSignal,
+): Promise<never> {
+  if (
+    !(error instanceof SkillSourceAdapterError) ||
+    error.code !== "SOURCE_UNAVAILABLE"
+  ) {
+    throw error;
+  }
+  try {
+    await advertisedRefs(
+      dependencies,
+      directory,
+      normalizedLocator,
+      "HEAD",
+      signal,
+    );
+  } catch {
+    throw error;
+  }
+  return fail("SOURCE_REVISION_NOT_FOUND");
 }
 
 async function fetchGitSource(
@@ -773,6 +816,16 @@ async function fetchGitSource(
       ],
       64 * 1024,
       request.signal,
+    ).catch((error) =>
+      expectedRevision === undefined && GIT_OBJECT_ID.test(fetchRevision)
+        ? failMissingCommit(
+          dependencies,
+          directory,
+          normalizedLocator,
+          error,
+          request.signal,
+        )
+        : Promise.reject(error)
     );
     const sourceRevision = decodeGitText(
       await runGit(

@@ -390,6 +390,27 @@ Deno.test("a branch or tag the Git server does not have fails at once as not fou
       requestedRevision: "v1",
     });
     assertEquals(proof.sourceRevision, fixture.initialCommit);
+    await expectSourceError(
+      () =>
+        adapter.fetchPinnedSource({
+          sourceType: "git",
+          locator: fixture.gitUrl,
+          requestedRevision: "0123456789abcdef0123456789abcdef01234567",
+        }),
+      "SOURCE_REVISION_NOT_FOUND",
+    );
+    const closed = Deno.listen({ hostname: "127.0.0.1", port: 0 });
+    const deadPort = (closed.addr as Deno.NetAddr).port;
+    closed.close();
+    await expectSourceError(
+      () =>
+        adapter.fetchPinnedSource({
+          sourceType: "git",
+          locator: `http://127.0.0.1:${deadPort}/repository.git`,
+          requestedRevision: "0123456789abcdef0123456789abcdef01234567",
+        }),
+      "SOURCE_UNAVAILABLE",
+    );
     const byUpperCaseCommit = await adapter.fetchPinnedSource({
       sourceType: "git",
       locator: fixture.gitUrl,
