@@ -1,3 +1,7 @@
+import {
+  isLegacyPresetPin,
+  type TicketPin,
+} from "../../packages/contracts/src/ticket-admission.ts";
 import { assert, assertEquals } from "@std/assert";
 import { bakeryDataMigrations } from "../../apps/server/src/data-migrations.ts";
 import {
@@ -7,6 +11,10 @@ import {
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { installBuiltInWorkflow } from "../../apps/server/src/modules/work/ticket-workflow.ts";
 import { withTicketFixture } from "../helpers/ticket-admission/fixtures.ts";
+
+function pinnedWorkflowId(pin: TicketPin | null): string | null {
+  return pin === null || isLegacyPresetPin(pin) ? null : pin.workflowId;
+}
 
 const MIGRATION_VERSION = "0373_ticket_policy_names_a_workflow";
 
@@ -76,7 +84,7 @@ Deno.test("issue 407: the backfill names each v1 source's built-in workflow by i
     fx.reader.setIssue({ number: 1, labels: [] });
     const admitted = await fx.admit(reviewed, { number: 1, intent: "start" });
     assertEquals(
-      admitted.report.preset?.workflowId,
+      pinnedWorkflowId(admitted.report.preset),
       installed,
       "the migrated policy is read and judged with the built-in workflow",
     );

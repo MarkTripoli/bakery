@@ -3,6 +3,7 @@ import { ticketRef } from "../../../apps/server/src/modules/work/ticket-source-r
 import { assert, assertEquals, assertFalse } from "@std/assert";
 import {
   defaultTicketSourcePolicy,
+  isLegacyPresetPin,
   isNonterminalTicketDisposition,
   isTerminalTicketDisposition,
   isTicketAutoResumableReason,
@@ -35,6 +36,7 @@ import {
   TICKET_SNAPSHOT_MAX_LABELS,
   TICKET_SNAPSHOT_TITLE_MAX_LENGTH,
   TicketAuthorityEvidenceSchema,
+  TicketPinSchema,
   TicketReadinessReportSchema,
   TicketSnapshotInputSchema,
   TicketSnapshotSchema,
@@ -406,6 +408,14 @@ Deno.test("issue 407 contract: policy v2 names a workflow by id, input may name 
     true,
   );
   assertEquals(pin({ id: "fixed-coding", revision: 1, digest: SHA }), false);
+  const legacy = { id: "fixed-coding" as const, revision: 1, digest: SHA };
+  assertEquals(TicketPinSchema.parse(legacy), legacy);
+  assertEquals(isLegacyPresetPin(legacy), true);
+  assertEquals(
+    TicketPinSchema.safeParse({ id: "other-preset", revision: 1, digest: SHA })
+      .success,
+    false,
+  );
 });
 
 Deno.test("issue 82 contract: the migration's one-nonterminal predicate lists exactly the nonterminal dispositions", async () => {

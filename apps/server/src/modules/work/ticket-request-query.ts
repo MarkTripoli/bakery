@@ -3,11 +3,13 @@ import type { ActionContext } from "@bakery/contracts/action-registry";
 import type { contractSchemas } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
 import {
+  isLegacyPresetPin,
   isTicketRequestDisposition,
   TicketAuthorityEvidenceSchema,
-  TicketWorkflowPinSchema,
+  TicketPinSchema,
 } from "@bakery/contracts/ticket-admission";
 import { TICKET_PRESET_IDS } from "@bakery/contracts/workflow-presets";
+import type { TicketPresetId } from "@bakery/contracts/ticket-admission";
 import {
   type CursorBinding,
   decodeCursor,
@@ -153,6 +155,17 @@ function triggerLabelName(row: ViewRow): string | null {
   return evidence.success ? evidence.data.labelName ?? null : null;
 }
 
+function shownBuiltIn(
+  row: ViewRow,
+): { presetId?: TicketPresetId; presetRevision?: number } {
+  const builtIn = row.pinned_origin_kind === "catalog"
+    ? TICKET_PRESET_IDS.find((id) => id === row.pinned_catalog_key)
+    : undefined;
+  return builtIn === undefined || row.pinned_revision === null
+    ? {}
+    : { presetId: builtIn, presetRevision: row.pinned_revision };
+}
+
 function toView(
   row: ViewRow,
   targets: ViewOutput["targets"] | undefined,
@@ -162,10 +175,10 @@ function toView(
     throw new Error("TICKET_REQUEST_ROW_INVALID");
   }
   const manual = row.origin === "manual" || row.origin === "adoption";
-  TicketWorkflowPinSchema.parse(row.pinned_preset);
-  const builtIn = row.pinned_origin_kind === "catalog"
-    ? TICKET_PRESET_IDS.find((id) => id === row.pinned_catalog_key)
-    : undefined;
+  const pinned = TicketPinSchema.parse(row.pinned_preset);
+  const shown = isLegacyPresetPin(pinned)
+    ? { presetId: pinned.id, presetRevision: pinned.revision }
+    : shownBuiltIn(row);
   const progress = ticketRequestProgress(
     row.disposition,
     row.run_status,
@@ -190,9 +203,7 @@ function toView(
     workflowRunId: row.workflow_run_id,
     stoppedByPrincipalId: stopped ? row.stopped_by : null,
     stoppedByName: stopped ? row.stopped_by_name : null,
-    ...(builtIn === undefined || row.pinned_revision === null
-      ? {}
-      : { presetId: builtIn, presetRevision: row.pinned_revision }),
+    ...shown,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
     version: row.version,

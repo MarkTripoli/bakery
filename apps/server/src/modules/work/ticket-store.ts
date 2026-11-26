@@ -6,6 +6,8 @@ import {
   isTicketRequestOrigin,
   type TicketAuthorityEvidence,
   TicketAuthorityEvidenceSchema,
+  type TicketPin,
+  TicketPinSchema,
   type TicketReadinessReport,
   TicketReadinessReportSchema,
   type TicketRequestDisposition,
@@ -15,8 +17,6 @@ import {
   type TicketSourcePolicy,
   type TicketStoredReport,
   TicketStoredReportSchema,
-  type TicketWorkflowPin,
-  TicketWorkflowPinSchema,
 } from "@bakery/contracts/ticket-admission";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { repositoryContainer } from "./ticket-container.ts";
@@ -275,6 +275,25 @@ export async function writeSyncProgress(
  * `policy_revision` and `updated_at` stay as they were. Returns whether the
  * row exists.
  */
+export type DataMigrationStatement = (
+  text: string,
+  parameters: unknown[],
+) => Promise<unknown>;
+
+export async function upgradeSourcePolicyToWorkflow(
+  run: DataMigrationStatement,
+  organizationId: string,
+  sourceId: string,
+  policy: Record<string, unknown>,
+): Promise<void> {
+  await run(
+    `update bakery.ticket_sources
+        set policy = $3::jsonb
+      where organization_id = $1 and id = $2 and policy ->> 'version' = '1'`,
+    [organizationId, sourceId, policy],
+  );
+}
+
 export async function writeRefusedAttempt(
   transaction: PgTransactionClient,
   refusal: {
@@ -867,7 +886,7 @@ export type TicketRequest = {
   sourcePolicyRevision: number;
   requirementsDigest: string;
   readinessReportId: string | null;
-  pinnedPreset: TicketWorkflowPin;
+  pinnedPreset: TicketPin;
   disposition: TicketRequestDisposition;
   dispositionReason: string | null;
   workflowRunId: string | null;
@@ -935,7 +954,7 @@ function toRequest(row: RequestRowRaw): TicketRequest {
     sourcePolicyRevision: row.source_policy_revision,
     requirementsDigest: row.requirements_digest,
     readinessReportId: row.readiness_report_id,
-    pinnedPreset: TicketWorkflowPinSchema.parse(row.pinned_preset),
+    pinnedPreset: TicketPinSchema.parse(row.pinned_preset),
     disposition: row.disposition,
     dispositionReason: row.disposition_reason,
     workflowRunId: row.workflow_run_id,
@@ -1063,7 +1082,7 @@ export type TicketRequestInsert = {
   sourcePolicyRevision: number;
   requirementsDigest: string;
   readinessReportId: string;
-  pinnedPreset: TicketWorkflowPin;
+  pinnedPreset: TicketPin;
 };
 
 function violatedConstraint(error: unknown): string | null {
@@ -1136,7 +1155,7 @@ export type TicketRequestTarget = {
   routingRuleId: string | null;
   routingRuleVersion: number | null;
   sourcePolicyRevision: number;
-  pinnedPreset: TicketWorkflowPin;
+  pinnedPreset: TicketPin;
   coordinationPlanId: string | null;
   childTaskId: string | null;
 };
@@ -1154,7 +1173,7 @@ export async function insertRequestTargets(
     organizationId: string;
     requestId: string;
     sourcePolicyRevision: number;
-    pinnedPreset: TicketWorkflowPin;
+    pinnedPreset: TicketPin;
     targets: readonly {
       repositoryId: string;
       role: string;
@@ -1240,7 +1259,7 @@ export async function requestTargets(
     routingRuleId: row.routing_rule_id,
     routingRuleVersion: row.routing_rule_version,
     sourcePolicyRevision: row.source_policy_revision,
-    pinnedPreset: TicketWorkflowPinSchema.parse(row.pinned_preset),
+    pinnedPreset: TicketPinSchema.parse(row.pinned_preset),
     coordinationPlanId: row.coordination_plan_id,
     childTaskId: row.child_task_id,
   }));

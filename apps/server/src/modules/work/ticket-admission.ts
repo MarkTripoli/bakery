@@ -7,6 +7,7 @@ import {
 } from "@bakery/contracts/contracts";
 import { StandardError, unprocessable } from "@bakery/contracts/http";
 import {
+  isLegacyPresetPin,
   type TicketAuthorityEvidence,
   type TicketPresetId,
   type TicketReadinessReport,
@@ -1497,9 +1498,11 @@ async function startRun(
   /** A child task of the request's plan: its own idempotency key. */
   childTaskId?: string,
 ): Promise<string> {
+  const pinned = request.pinnedPreset;
   const input = contractSchemas.RunCreate.safeParse({
-    // The request's pinned workflow, for every run it starts (#61).
-    workflowVersionId: request.pinnedPreset.versionId,
+    ...(isLegacyPresetPin(pinned)
+      ? { presetId: pinned.id }
+      : { workflowVersionId: pinned.versionId }),
     executionMode: "repository",
     ...(task.repositoryProfileId === null
       ? {}

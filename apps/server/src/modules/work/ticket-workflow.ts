@@ -1,7 +1,10 @@
 import { unprocessable } from "@bakery/contracts/http";
-import type {
-  TicketPresetId,
-  TicketWorkflowPin,
+import {
+  isLegacyPresetPin,
+  type TicketLegacyPresetPin,
+  type TicketPin,
+  type TicketPresetId,
+  type TicketWorkflowPin,
 } from "@bakery/contracts/ticket-admission";
 import {
   TICKET_PRESET_IDS,
@@ -189,14 +192,55 @@ export async function ticketWorkflowOf(
 export async function pinnedTicketWorkflow(
   transaction: PgTransactionClient,
   organizationId: string,
-  pin: TicketWorkflowPin,
+  pinned: TicketPin,
 ): Promise<TicketWorkflow> {
+  if (isLegacyPresetPin(pinned)) {
+    return await legacyTicketWorkflow(transaction, organizationId, pinned);
+  }
+  const pin = pinned;
   const row = await definitionRow(transaction, organizationId, pin.workflowId);
   const key = row === null ? null : builtInOf(row);
   return {
     kind: "ready",
     pin,
     builtIn: key === null ? null : builtInDefinition(key),
+  };
+}
+
+async function legacyTicketWorkflow(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  pin: TicketLegacyPresetPin,
+): Promise<TicketWorkflow> {
+  const builtIn = builtInDefinition(pin.id);
+  const result = await transaction.query<
+    { workflow_id: string; version_id: string; digest: string }
+  >(
+    `select definition.id as workflow_id, version.id as version_id,
+            version.digest
+       from bakery.workflow_definitions definition
+       join bakery.workflow_versions version
+         on version.organization_id = definition.organization_id
+        and version.workflow_id = definition.id
+      where definition.organization_id = $1 and definition.slug = $2
+        and definition.origin_kind = 'catalog' and version.status = 'published'
+      order by (version.revision = $3) desc, (version.revision = $4) desc,
+               version.revision desc
+      limit 1`,
+    [organizationId, builtIn.slug, pin.revision, builtIn.revision],
+  );
+  const row = result.rows[0];
+  if (row === undefined) {
+    return { kind: "unavailable", workflowId: `built-in:${pin.id}` };
+  }
+  return {
+    kind: "ready",
+    pin: {
+      workflowId: row.workflow_id,
+      versionId: row.version_id,
+      digest: row.digest,
+    },
+    builtIn,
   };
 }
 

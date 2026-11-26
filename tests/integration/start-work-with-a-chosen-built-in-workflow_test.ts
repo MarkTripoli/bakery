@@ -1,3 +1,7 @@
+import {
+  isLegacyPresetPin,
+  type TicketPin,
+} from "../../packages/contracts/src/ticket-admission.ts";
 import { assert, assertEquals } from "@std/assert";
 import {
   EXECUTE_LABEL,
@@ -19,6 +23,10 @@ import {
  * and a source policy can name either built-in workflow. The request pins it,
  * the run starts it, and the request view says which one and its revision.
  */
+
+function pinnedWorkflowId(pin: TicketPin | null): string | null {
+  return pin === null || isLegacyPresetPin(pin) ? null : pin.workflowId;
+}
 
 type Created = {
   id: string;
@@ -171,7 +179,7 @@ Deno.test("issue 61: a source policy's built-in workflow is the one admission ju
       ],
     );
     assertEquals(
-      admitted.report.preset?.workflowId,
+      pinnedWorkflowId(admitted.report.preset),
       fx.builtInWorkflow("fixed-coding-reviewed").workflowId,
     );
   }, { budget: true }));
@@ -189,7 +197,7 @@ Deno.test("issue 61: a ready reviewed workflow is admitted and its run is that w
     const request = admitted.request;
     assert(request, JSON.stringify(admitted.report.checks));
     assertEquals(
-      admitted.report.preset?.workflowId,
+      pinnedWorkflowId(admitted.report.preset),
       fx.builtInWorkflow("fixed-coding-reviewed").workflowId,
     );
     const run = await fx.owner.query<{ workflow_run_id: string | null }>(
@@ -235,7 +243,11 @@ Deno.test("issue 407: admission starts the source's workflow once, and that work
     const admitted = await fx.admit(sourceId, { number: 617, intent: "start" });
     const request = admitted.request;
     assert(request, JSON.stringify(admitted.report.checks));
-    assertEquals(request.pinnedPreset.versionId, versionId);
+    assertEquals(request.pinnedPreset, {
+      workflowId: workflow.workflowId,
+      versionId,
+      digest: (request.pinnedPreset as { digest: string }).digest,
+    });
     assertEquals(await runsOfOrganization(fx), before + 1);
     assertEquals(
       await runVersion(fx, request.workflowRunId!),

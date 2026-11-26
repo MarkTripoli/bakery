@@ -8,12 +8,12 @@ import {
   type DataMigrationConnection,
   runDataMigrationBatch,
 } from "../../../../platform/data-migrate.ts";
+import { upgradeSourcePolicyToWorkflow } from "../../ticket-store.ts";
 
 const ORGANIZATIONS_PER_BATCH = 20;
 
 type JsonValue = Parameters<DataMigrationConnection["json"]>[0];
 
-type LegacyPin = { id: string; revision: number };
 type Pin = { workflowId: string; versionId: string; digest: string };
 type BuiltIn = {
   workflowId: string;
@@ -113,17 +113,6 @@ async function installBuiltIn(
   return { workflowId, current, byRevision };
 }
 
-function pinOf(
-  value: unknown,
-  builtIns: ReadonlyMap<string, BuiltIn>,
-): Pin | null {
-  const legacy = value as LegacyPin | null;
-  if (legacy === null || typeof legacy.id !== "string") return null;
-  const builtIn = builtIns.get(legacy.id);
-  if (builtIn === undefined) return null;
-  return builtIn.byRevision.get(legacy.revision) ?? builtIn.current;
-}
-
 function policyOf(
   policy: Record<string, unknown>,
   builtIns: ReadonlyMap<string, BuiltIn>,
@@ -162,57 +151,12 @@ async function upgradeOrganization(
      order by id
      for update`;
   for (const source of sources) {
-    await transaction`
-      update bakery.ticket_sources
-         set policy = ${
-      transaction.json(policyOf(source.policy, builtIns) as JsonValue)
-    }
-       where organization_id = ${organizationId} and id = ${source.id}`;
-  }
-  const requests = await transaction<{ id: string; pin: unknown }[]>`
-    select id, pinned_preset as pin from bakery.ticket_requests
-     where organization_id = ${organizationId} and pinned_preset ? 'id'
-     order by id
-     for update`;
-  for (const request of requests) {
-    const pin = pinOf(request.pin, builtIns);
-    if (pin === null) continue;
-    await transaction`
-      update bakery.ticket_requests
-         set pinned_preset = ${transaction.json(pin)}
-       where organization_id = ${organizationId} and id = ${request.id}`;
-  }
-  const targets = await transaction<{ id: string; pin: unknown }[]>`
-    select id, pinned_preset as pin from bakery.ticket_request_targets
-     where organization_id = ${organizationId} and pinned_preset ? 'id'
-     order by id
-     for update`;
-  for (const target of targets) {
-    const pin = pinOf(target.pin, builtIns);
-    if (pin === null) continue;
-    await transaction`
-      update bakery.ticket_request_targets
-         set pinned_preset = ${transaction.json(pin)}
-       where organization_id = ${organizationId} and id = ${target.id}`;
-  }
-  const reports = await transaction<{ id: string; pin: unknown }[]>`
-    select id, preset as pin from bakery.ticket_readiness_reports
-     where organization_id = ${organizationId} and preset ? 'id'
-     order by id
-     for update`;
-  for (const report of reports) {
-    const pin = pinOf(report.pin, builtIns);
-    if (pin === null) {
-      await transaction`
-        update bakery.ticket_readiness_reports
-           set preset = 'null'::jsonb
-         where organization_id = ${organizationId} and id = ${report.id}`;
-      continue;
-    }
-    await transaction`
-      update bakery.ticket_readiness_reports
-         set preset = ${transaction.json(pin)}
-       where organization_id = ${organizationId} and id = ${report.id}`;
+    await upgradeSourcePolicyToWorkflow(
+      (text, parameters) => transaction.unsafe(text, parameters as JsonValue[]),
+      organizationId,
+      source.id,
+      policyOf(source.policy, builtIns),
+    );
   }
 }
 

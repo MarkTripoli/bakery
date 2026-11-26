@@ -227,36 +227,55 @@ Deno.test("the engine never names a preset slug or imports the presets module", 
  * or the one the source policy or a person's Start work names (#61).
  */
 const TICKET_ALLOWED: readonly Allowed[] = Object.freeze([
-  // #399 points ticket admission at the republished fixed-coding definition.
   ...[
     'import { presetAvailability, repositoryFacts } from "./workflow-presets.ts";',
-    "FIXED_CODING_PRESET,",
+    'import { FIXED_CODING_PRESET } from "@bakery/contracts/workflow-presets";',
   ].map((line) => ({
     file: "apps/server/src/modules/work/ticket-admission.ts",
     line,
     issue: "#399",
   })),
-  // #61 lets a source policy or one Start work choose a built-in workflow;
-  // the request pins it and every run it starts uses the pin.
+  {
+    file: "apps/server/src/modules/work/ticket-admission.ts",
+    line: "export const TICKET_PRESET_ID: string = FIXED_CODING_PRESET.id;",
+    issue: "#61",
+  },
   ...[
+    "TICKET_PRESET_IDS,",
     "workflowPresetById,",
     '} from "@bakery/contracts/workflow-presets";',
+    'import { ensurePresetWorkflowVersion } from "./workflow-presets.ts";',
+    "return TICKET_PRESET_IDS.find((id) => id === key) ?? null;",
     "const preset = workflowPresetById(id);",
-    "export const TICKET_PRESET_ID: string = FIXED_CODING_PRESET.id;",
   ].map((line) => ({
-    file: "apps/server/src/modules/work/ticket-admission.ts",
+    file: "apps/server/src/modules/work/ticket-workflow.ts",
     line,
-    issue: "#61",
+    issue: "#407",
+  })),
+  ...[
+    'import { TICKET_PRESET_IDS } from "@bakery/contracts/workflow-presets";',
+    "? TICKET_PRESET_IDS.find((id) => id === row.pinned_catalog_key)",
+  ].map((line) => ({
+    file: "apps/server/src/modules/work/ticket-request-query.ts",
+    line,
+    issue: "#407",
   })),
   ...[
     'import { TICKET_PRESET_IDS } from "./workflow-presets.ts";',
-    "const policyPresetSchema = z.enum(TICKET_PRESET_IDS).optional().describe(",
-    '"Built-in workflow every admission of this source runs unless a person\'s Start work names another for that one issue: fixed-coding (plan, write the code, run the checks, open a pull request) or fixed-coding-reviewed (the same with a review step). Absent means no workflow is set: people choose one each time they start work, and automatic admission cannot be on. A request keeps the workflow, revision and digest it was admitted with; changing this applies to work started afterwards.",',
     "id: z.enum(TICKET_PRESET_IDS).describe(",
   ].map((line) => ({
     file: "packages/contracts/src/ticket-admission.ts",
     line,
     issue: "#61",
+  })),
+  ...[
+    "const policyBuiltInSchema = z.enum(TICKET_PRESET_IDS).describe(",
+    '"Built-in workflow the reference names: fixed-coding (plan, write the code, run the checks, open a pull request) or fixed-coding-reviewed (the same with a review step).",',
+    "export type TicketPresetId = typeof TICKET_PRESET_IDS[number];",
+  ].map((line) => ({
+    file: "packages/contracts/src/ticket-admission.ts",
+    line,
+    issue: "#407",
   })),
 ]);
 

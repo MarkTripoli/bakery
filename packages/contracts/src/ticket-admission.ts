@@ -884,6 +884,37 @@ export const TicketWorkflowPinSchema = z.object({
 );
 export type TicketWorkflowPin = z.output<typeof TicketWorkflowPinSchema>;
 
+export const TicketLegacyPresetPinSchema = z.object({
+  id: z.enum(TICKET_PRESET_IDS).describe(
+    "Id of the built-in workflow a request or report recorded before source policies named a workflow.",
+  ),
+  revision: z.number().int().min(1).describe(
+    "Revision of that built-in workflow's definition at the observation, at least 1.",
+  ),
+  digest: sha256Hex.describe(
+    "SHA-256 digest of that built-in workflow's canonical specification.",
+  ),
+}).strict().describe(
+  "Built-in workflow identity (id, revision, digest) kept on requests, targets and reports written before policy v2; these rows are never rewritten, so they are read as they are.",
+);
+export type TicketLegacyPresetPin = z.output<
+  typeof TicketLegacyPresetPinSchema
+>;
+
+export const TicketPinSchema = z.union([
+  TicketWorkflowPinSchema,
+  TicketLegacyPresetPinSchema,
+]).describe(
+  "The workflow a report or request was bound to: a workflow version pin, or the built-in identity a row written before policy v2 carries.",
+);
+export type TicketPin = z.output<typeof TicketPinSchema>;
+
+export function isLegacyPresetPin(
+  pin: TicketPin,
+): pin is TicketLegacyPresetPin {
+  return "id" in pin;
+}
+
 export type TicketPresetId = typeof TICKET_PRESET_IDS[number];
 
 const evidenceRef = z.string().min(1).max(200).describe(
@@ -952,7 +983,7 @@ export const TicketReadinessReportSchema = z.object({
   sourcePolicyRevision: z.number().int().min(1).describe(
     "Revision of the ticket source policy the report was evaluated against, at least 1.",
   ),
-  preset: TicketWorkflowPinSchema.nullable().describe(
+  preset: TicketPinSchema.nullable().describe(
     "Workflow version the report was judged with, or null when none was chosen: no request pin, no Start work choice and no source workflow.",
   ),
 }).strict().superRefine((report, context) => {
