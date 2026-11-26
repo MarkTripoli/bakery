@@ -594,11 +594,46 @@ function constrained<T extends Schema>(schema: T, sentence: string): T {
   );
 }
 
+const KNOWN_BOUND_KEYS = new Set([
+  "default",
+  "max",
+  "maxBytes",
+  "maxDepth",
+  "maxItems",
+  "maxLength",
+  "maximum",
+  "min",
+  "minBytes",
+  "minItems",
+  "minLength",
+  "minimum",
+  "pattern",
+  "uniqueItems",
+]);
+
+export function assertKnownBounds(bounds: JsonObject, path: string): void {
+  for (const key of Object.keys(bounds)) {
+    if (!KNOWN_BOUND_KEYS.has(key)) {
+      throw new Error(`${path} names an unknown bound: ${key}`);
+    }
+  }
+}
+
+function numericBound(
+  bounds: JsonObject,
+  short: "min" | "max",
+  long: "minimum" | "maximum",
+): number | undefined {
+  const value = bounds[short] ?? bounds[long];
+  return typeof value === "number" ? value : undefined;
+}
+
 function bounded<T extends Schema>(
   schema: T,
   bounds: JsonObject,
   path: string,
 ): T {
+  assertKnownBounds(bounds, path);
   let result: Schema = schema;
   const kind = (result as unknown as Node)._def?.type;
   if (kind === "nullable" || kind === "optional") {
@@ -693,22 +728,18 @@ function bounded<T extends Schema>(
       `${path} must contain unique items.`,
     );
   }
-  if (
-    boundedKind === "number" &&
-    typeof bounds.min === "number"
-  ) {
+  const lower = numericBound(bounds, "min", "minimum");
+  if (boundedKind === "number" && lower !== undefined) {
     result = constrained(
-      (result as z.ZodNumber).min(bounds.min),
-      `${path} must be at least ${bounds.min}.`,
+      (result as z.ZodNumber).min(lower),
+      `${path} must be at least ${lower}.`,
     );
   }
-  if (
-    boundedKind === "number" &&
-    typeof bounds.max === "number"
-  ) {
+  const upper = numericBound(bounds, "max", "maximum");
+  if (boundedKind === "number" && upper !== undefined) {
     result = constrained(
-      (result as z.ZodNumber).max(bounds.max),
-      `${path} must be at most ${bounds.max}.`,
+      (result as z.ZodNumber).max(upper),
+      `${path} must be at most ${upper}.`,
     );
   }
   return result as T;
@@ -1261,12 +1292,10 @@ function primitive(
     ...(record(field.bounds) ? field.bounds : {}),
   }, path);
   if (base === "decimalString" && record(field.bounds)) {
-    const lower = typeof field.bounds.min === "number"
-      ? BigInt(field.bounds.min)
-      : undefined;
-    const upper = typeof field.bounds.max === "number"
-      ? BigInt(field.bounds.max)
-      : undefined;
+    const lowest = numericBound(field.bounds, "min", "minimum");
+    const highest = numericBound(field.bounds, "max", "maximum");
+    const lower = lowest === undefined ? undefined : BigInt(lowest);
+    const upper = highest === undefined ? undefined : BigInt(highest);
     if (lower !== undefined || upper !== undefined) {
       const refined = schema.refine((value) => {
         try {

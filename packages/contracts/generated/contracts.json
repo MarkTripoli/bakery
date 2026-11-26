@@ -73003,9 +73003,9 @@
               "pattern": "^[a-f0-9]{64}$"
             },
             "expectedInventoryRevision": {
-              "description": "Inventory revision the Admin reviewed. When sent and the host has reported newer inventory since, the request is refused with STATE_CONFLICT reason inventory_changed.",
+              "description": "Inventory revision the Admin reviewed. When sent and the host has reported newer inventory since, the request is refused with STATE_CONFLICT reason inventory_changed. WorkerMaintenanceCreate.expectedInventoryRevision must be at least 1.",
               "type": "integer",
-              "minimum": -9007199254740991,
+              "minimum": 1,
               "maximum": 9007199254740991
             }
           },
@@ -73026,9 +73026,9 @@
             },
             "sequence": {
               "type": "integer",
-              "minimum": -9007199254740991,
+              "minimum": 1,
               "maximum": 9007199254740991,
-              "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT."
+              "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT. WorkerMaintenanceReport.sequence must be at least 1."
             },
             "phase": {
               "type": "string",
@@ -87890,9 +87890,9 @@
             },
             "sizeBytes": {
               "type": "integer",
-              "minimum": -9007199254740991,
-              "maximum": 9007199254740991,
-              "description": "Total size of the file in bytes, declared up front and bounded by the 5 GiB per-blob limit. Declaring it lets the server refuse an incomplete assembly instead of accepting a truncated file."
+              "minimum": 0,
+              "maximum": 5368709120,
+              "description": "Total size of the file in bytes, declared up front and bounded by the 5 GiB per-blob limit. Declaring it lets the server refuse an incomplete assembly instead of accepting a truncated file. BlobUploadStart.sizeBytes must be at least 0. BlobUploadStart.sizeBytes must be at most 5368709120."
             },
             "mediaType": {
               "type": "string",
@@ -316543,9 +316543,9 @@
           "pattern": "^[a-f0-9]{64}$"
         },
         "expectedInventoryRevision": {
-          "description": "Inventory revision the Admin reviewed. When sent and the host has reported newer inventory since, the request is refused with STATE_CONFLICT reason inventory_changed.",
+          "description": "Inventory revision the Admin reviewed. When sent and the host has reported newer inventory since, the request is refused with STATE_CONFLICT reason inventory_changed. WorkerMaintenanceCreate.expectedInventoryRevision must be at least 1.",
           "type": "integer",
-          "minimum": -9007199254740991,
+          "minimum": 1,
           "maximum": 9007199254740991
         }
       },
@@ -316566,9 +316566,9 @@
         },
         "sequence": {
           "type": "integer",
-          "minimum": -9007199254740991,
+          "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT."
+          "description": "Per-operation report number starting at 1 with no gaps. An already used number replays the stored answer when the body is identical and is IDEMPOTENCY_PAYLOAD_MISMATCH when it differs; skipping ahead is STATE_CONFLICT. WorkerMaintenanceReport.sequence must be at least 1."
         },
         "phase": {
           "type": "string",
@@ -331478,9 +331478,9 @@
         },
         "sizeBytes": {
           "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991,
-          "description": "Total size of the file in bytes, declared up front and bounded by the 5 GiB per-blob limit. Declaring it lets the server refuse an incomplete assembly instead of accepting a truncated file."
+          "minimum": 0,
+          "maximum": 5368709120,
+          "description": "Total size of the file in bytes, declared up front and bounded by the 5 GiB per-blob limit. Declaring it lets the server refuse an incomplete assembly instead of accepting a truncated file. BlobUploadStart.sizeBytes must be at least 0. BlobUploadStart.sizeBytes must be at most 5368709120."
         },
         "mediaType": {
           "type": "string",
