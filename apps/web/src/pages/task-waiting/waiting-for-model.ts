@@ -34,18 +34,24 @@ function namesOf(requests: readonly RunRequestResponse[]): string[] {
 const latest = (requests: readonly RunRequestResponse[]) =>
   requests.map((request) => request.expiresAt).sort().at(-1)!;
 
+function newestRound(requests: readonly RunRequestResponse[]) {
+  const asked = requests.map((request) => request.createdAt).sort().at(-1);
+  return requests.filter((request) => request.createdAt === asked);
+}
+
 function lineOf(
   stepKey: string,
   requests: readonly RunRequestResponse[],
 ): WaitingLine | null {
   const open = requests.filter((request) => request.status === "open");
   if (open.length === 0) {
-    return requests.every((request) => request.status === "expired")
-      ? { kind: "expired", stepKey, expiresAt: latest(requests) }
+    const newest = newestRound(requests);
+    return newest.every((request) => request.status === "expired")
+      ? { kind: "expired", stepKey, expiresAt: latest(newest) }
       : null;
   }
   const expiresAt = latest(open);
-  const passed = requests.filter((request) => request.passedOn);
+  const passed = open.filter((request) => request.passedOn);
   if (passed.length > 0) {
     const first = requests.filter((request) => !request.passedOn);
     return {

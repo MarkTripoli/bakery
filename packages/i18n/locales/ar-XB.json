@@ -7627,9 +7627,9 @@
   "tasks.waitingFor.retry": "⟪Load it again⟫",
   "tasks.waitingFor.loadFailed": "⟪Who this run is waiting for did not load.⟫",
   "tasks.waitingFor.waiting": "⟪Waiting for {who}. Expires {date}.⟫",
-  "tasks.waitingFor.next": "⟪Waiting for {who}. If nobody answers by {time}, {next} is asked. Expires {date}.⟫",
-  "tasks.waitingFor.nextUnknown": "⟪Waiting for {who}. If nobody answers by {time}, someone else is asked. Expires {date}.⟫",
-  "tasks.waitingFor.passedOn": "⟪{first} did not answer. {next} was asked at {time}. Expires {date}.⟫",
   "tasks.waitingFor.expired": "⟪Expired: nobody answered by {date}. This run needs a person.⟫",
-  "tasks.waitingFor.fallback": "⟪{name} could not be found, so the workflow owner, {owner}, was asked instead.⟫"
+  "tasks.waitingFor.fallback": "⟪{name} could not be found, so the workflow owner, {owner}, was asked instead.⟫",
+  "tasks.waitingFor.next": "⟪Waiting for {who}. If nobody answers by {time}, {next} will be asked. Expires {date}.⟫",
+  "tasks.waitingFor.nextUnknown": "⟪Waiting for {who}. If nobody answers by {time}, someone else will be asked. Expires {date}.⟫",
+  "tasks.waitingFor.passedOn": "⟪{first} did not answer. The request went to {next} at {time}. Expires {date}.⟫"
 }

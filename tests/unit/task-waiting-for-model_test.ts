@@ -78,3 +78,21 @@ Deno.test("a name that was not found names the owner asked instead", () => {
     [{ name: "Design reviewers", owner: "Sam" }],
   );
 });
+
+Deno.test("an earlier round of the same step does not speak for the latest", () => {
+  const later = "2026-02-09T00:00:00.000Z";
+  assertEquals(
+    waitingLines([
+      ask("Dana", { status: "handled" }),
+      ask("Dana", { status: "expired", createdAt: later }),
+    ]).map((l) => l.kind),
+    ["expired"],
+  );
+  assertEquals(
+    waitingLines([
+      ask("Lee", { passedOn: true, status: "handled" }),
+      ask("Dana", { createdAt: later }),
+    ]).map((l) => l.kind),
+    ["waiting"],
+  );
+});

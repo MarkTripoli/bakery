@@ -7627,9 +7627,9 @@
   "tasks.waitingFor.retry": "⟦Ļôàð ïŧ àĝàïñ ŧë⟧",
   "tasks.waitingFor.loadFailed": "⟦Ŵĥô ŧĥïš ŕûñ ïš ŵàïŧïñĝ ƒôŕ ðïð ñôŧ ļôàð. ŧëšŧ çôþÿ ŧë⟧",
   "tasks.waitingFor.waiting": "⟦Ŵàïŧïñĝ ƒôŕ {who}. Ëẋþïŕëš {date}. ŧëšŧ çôþÿ⟧",
-  "tasks.waitingFor.next": "⟦Ŵàïŧïñĝ ƒôŕ {who}. Ïƒ ñôƀôðÿ àñšŵëŕš ƀÿ {time}, {next} ïš àšķëð. Ëẋþïŕëš {date}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "tasks.waitingFor.nextUnknown": "⟦Ŵàïŧïñĝ ƒôŕ {who}. Ïƒ ñôƀôðÿ àñšŵëŕš ƀÿ {time}, šôɱëôñë ëļšë ïš àšķëð. Ëẋþïŕëš {date}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "tasks.waitingFor.passedOn": "⟦{first} ðïð ñôŧ àñšŵëŕ. {next} ŵàš àšķëð àŧ {time}. Ëẋþïŕëš {date}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "tasks.waitingFor.expired": "⟦Ëẋþïŕëð: ñôƀôðÿ àñšŵëŕëð ƀÿ {date}. Ŧĥïš ŕûñ ñëëðš à þëŕšôñ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "tasks.waitingFor.fallback": "⟦{name} çôûļð ñôŧ ƀë ƒôûñð, šô ŧĥë ŵôŕķƒļôŵ ôŵñëŕ, {owner}, ŵàš àšķëð ïñšŧëàð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "tasks.waitingFor.fallback": "⟦{name} çôûļð ñôŧ ƀë ƒôûñð, šô ŧĥë ŵôŕķƒļôŵ ôŵñëŕ, {owner}, ŵàš àšķëð ïñšŧëàð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "tasks.waitingFor.next": "⟦Ŵàïŧïñĝ ƒôŕ {who}. Ïƒ ñôƀôðÿ àñšŵëŕš ƀÿ {time}, {next} ŵïļļ ƀë àšķëð. Ëẋþïŕëš {date}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "tasks.waitingFor.nextUnknown": "⟦Ŵàïŧïñĝ ƒôŕ {who}. Ïƒ ñôƀôðÿ àñšŵëŕš ƀÿ {time}, šôɱëôñë ëļšë ŵïļļ ƀë àšķëð. Ëẋþïŕëš {date}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "tasks.waitingFor.passedOn": "⟦{first} ðïð ñôŧ àñšŵëŕ. Ŧĥë ŕëǫûëšŧ ŵëñŧ ŧô {next} àŧ {time}. Ëẋþïŕëš {date}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
 }

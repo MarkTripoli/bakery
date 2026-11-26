@@ -4735,7 +4735,7 @@ test.describe("who a run is waiting for", () => {
       }),
     ]);
     await expect(waiting).toContainText("Waiting for Dana Teammate.");
-    await expect(waiting).toContainText("Administrators is asked.");
+    await expect(waiting).toContainText("Administrators will be asked.");
     await expect(waiting).toContainText("Expires Feb 8, 2026.");
     await still(page, "run-waiting-next");
   });
@@ -4760,7 +4760,7 @@ test.describe("who a run is waiting for", () => {
       }),
     ]);
     await expect(waiting).toContainText("Dana Teammate did not answer.");
-    await expect(waiting).toContainText("Lee Reviewer was asked at");
+    await expect(waiting).toContainText("The request went to Lee Reviewer at");
     await expect(waiting).toContainText(
       "Design reviewers could not be found, so the workflow owner, Lee Reviewer, was asked instead.",
     );
