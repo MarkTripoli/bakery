@@ -1,3 +1,4 @@
+import { CURRENT_INTERPRETER_REVISION } from "../../packages/contracts/src/workflow-interpreter/mod.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { Inngest } from "inngest";
 import { createBakeryFixedWorkflow } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
@@ -92,7 +93,7 @@ const jobCount = async (fixture: WorkerFixture, seeded: Seeded) =>
     )).rows[0].count,
   );
 
-Deno.test("a new plan run is pinned to revision 3, which runs groups as revision 2 did, and a group answers with one step per running lane, idempotently", () =>
+Deno.test("a new plan run is pinned to the current interpreter revision, which runs groups as revision 2 did, and a group answers with one step per running lane, idempotently", () =>
   withWorkerFixture(async (fixture) => {
     const seeded = await seedRun(fixture, await plan());
     const pin = (await fixture.pgDatabase.query<
@@ -102,7 +103,7 @@ Deno.test("a new plan run is pinned to revision 3, which runs groups as revision
          from bakery.workflow_runs where id = $1`,
       [seeded.job.runId],
     )).rows[0].revision;
-    assertEquals(pin, "4");
+    assertEquals(pin, CURRENT_INTERPRETER_REVISION);
 
     const set = await seeded.repository.findNextSet(
       seeded.job.runId,
