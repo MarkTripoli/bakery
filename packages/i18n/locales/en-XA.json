@@ -7567,5 +7567,7 @@
   "library.skills.add.done": "⟦Àððëð {name}. ŧë⟧",
   "library.skills.add.already": "⟦{name} ŵàš àļŕëàðÿ àððëð ƒŕôɱ ŧĥïš. ŧëšŧ çôþÿŧ⟧",
   "library.skill.files.of": "⟦Ŧĥë ƒïļëš ôƒ ṽëŕšïôñ {number}. ŧëšŧ çôþ⟧",
-  "library.skills.add.switchedBack": "⟦{name} àļŕëàðÿ ĥàð ŧĥëšë ƒïļëš, šô ṽëŕšïôñ {version} ïš ïñ ûšë àĝàïñ (ŵàš ṽëŕšïôñ {previous}). ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
+  "library.skills.add.switchedBack": "⟦{name} àļŕëàðÿ ĥàð ŧĥëšë ƒïļëš, šô ṽëŕšïôñ {version} ïš ïñ ûšë àĝàïñ (ŵàš ṽëŕšïôñ {previous}). ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "library.editor.addBefore": "⟦Àðð à šŧëþ ƀëƒôŕë {before} ŧëšŧ çô⟧",
+  "library.editor.picker.limited": "⟦Ôŧĥëŕ šŧëþ ŧÿþëš ñëëð šëŧŧïñĝš ŧĥïš þàĝë çàññôŧ ƒïļļ ïñ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }

@@ -58,6 +58,7 @@ import {
   editorStateOf,
   type EditorStep,
   freeStepId,
+  groupStartsOf,
   isPlainGroup,
   type LoopEdit,
   nodeIds,
@@ -90,6 +91,8 @@ import {
   treeOf,
   type TreeStep,
 } from "./workflow-tree.ts";
+
+const GROUP_STEP_TYPES: readonly string[] = [APPROVAL_ACTION];
 
 /**
  * The workflow editor (#67, slice 1 of the owner's spec): the workflow drawn
@@ -589,15 +592,21 @@ export function WorkflowEditorPage(
   const editable = canManage && (plainList || grouped);
   const canChange = (step: EditorStep | undefined) =>
     editable && step !== undefined && (plainList || step.list !== undefined);
-  const firstGroup = grouped && isPlainGroup(rawSteps?.[0])
-    ? rawSteps[0].id
-    : undefined;
+  const groupStarts = useMemo(
+    () => grouped ? groupStartsOf(tree, steps) : new Map(),
+    [grouped, tree, steps],
+  );
   const addAfter = grouped
     ? new Set<string | null>([
-      ...(firstGroup === undefined ? [] : [null]),
+      ...groupStarts.keys(),
       ...steps.filter((step) => step.list !== undefined).map((step) => step.id),
     ])
     : undefined;
+  const addBefore = new Map<string | null, string>(
+    [...groupStarts].flatMap(([block, first]) =>
+      block === null ? [] : [[block, first.uses]]
+    ),
+  );
 
   // Checking is continuous: the draft is checked against the server as it
   // changes, and each problem lands on the step its pointer names. A problem
@@ -606,6 +615,8 @@ export function WorkflowEditorPage(
     readonly byStep: ReadonlyMap<string, string>;
     /** Steps whose only problems are skills needing a choice: their Skills section says it. */
     readonly skillOnly: ReadonlySet<string>;
+    readonly refused: ReadonlySet<string>;
+    readonly refusedElsewhere: boolean;
     /** Problems that name a step the page does not draw, so no card can hold them. */
     readonly unmapped: readonly string[];
     readonly workflow: readonly string[];
@@ -613,6 +624,8 @@ export function WorkflowEditorPage(
   }>({
     byStep: new Map(),
     skillOnly: new Set(),
+    refused: new Set(),
+    refusedElsewhere: false,
     unmapped: [],
     workflow: [],
     unboundActions: new Set(),
@@ -632,32 +645,29 @@ export function WorkflowEditorPage(
       if (!result.ok) throw result.error;
       return { report: result.data, definition };
     },
-    onSuccess: ({ report, definition }, held) => {
+    onSuccess: ({ report, definition }) => {
       const found = [...(report.errors ?? []), ...(report.warnings ?? [])];
-      const sorted = problemsOf(withoutUnboundAgent(found));
+      const sorted = problemsOf(withoutUnboundAgent(found), definition);
       const byStep = new Map<string, string>();
       const skillOnly = new Set<string>();
-      const unmapped: string[] = [];
-      for (const [index, found] of sorted.byStep) {
-        const sentence = stepProblemLine(found) ?? "";
-        const step = held[index];
-        // A pointer past the steps the page sent names a step nothing draws;
-        // the chip still counts it, and its row can only be read in the code.
-        if (step === undefined) {
-          unmapped.push(sentence);
-          continue;
-        }
-        byStep.set(step.id, sentence);
-        if (found.every((problem) => SKILL_PROBLEM_CODES.has(problem.code))) {
-          skillOnly.add(step.id);
+      for (const [id, held] of sorted.byStep) {
+        byStep.set(id, stepProblemLine(held) ?? "");
+        if (held.every((problem) => SKILL_PROBLEM_CODES.has(problem.code))) {
+          skillOnly.add(id);
         }
       }
+      const refused = problemsOf(
+        withoutUnboundAgent(report.errors ?? []),
+        definition,
+      );
       setChecker({
         byStep,
         skillOnly,
-        unmapped,
-        // The workflow's own problems are sentences too, never the server's
-        // message (ruling 6900485736 section 3).
+        refused: new Set(refused.byStep.keys()),
+        refusedElsewhere: refused.unmapped.length + refused.workflow.length > 0,
+        unmapped: sorted.unmapped.map((problem) =>
+          problemSentence(problem.code)
+        ),
         workflow: sorted.workflow.map((problem) =>
           problemSentence(problem.code)
         ),
@@ -671,6 +681,8 @@ export function WorkflowEditorPage(
       setChecker({
         byStep: new Map(),
         skillOnly: new Set(),
+        refused: new Set(),
+        refusedElsewhere: false,
         unmapped: [],
         workflow: [],
         unboundActions: new Set(),
@@ -977,7 +989,8 @@ export function WorkflowEditorPage(
     });
     return out;
   }, [tree, checker, problemsByStep, approvalIssues, startIssues, translate]);
-  const blocked = rows.some((row) => row.blocking === true);
+  const blocked = checker.refused.size > 0 || checker.refusedElsewhere ||
+    rows.some((row) => row.blocking === true);
   const [focusRequest, setFocusRequest] = useState<
     {
       readonly stepId: string;
@@ -1471,7 +1484,9 @@ export function WorkflowEditorPage(
             {...(startCard === undefined ? {} : { start: startCard })}
             canManage={canManage}
             editable={editable}
-            {...(addAfter === undefined ? {} : { addAfter })}
+            {...(addAfter === undefined
+              ? {}
+              : { addAfter, addBefore, offer: GROUP_STEP_TYPES })}
             onAdd={(afterId) => setPickerAfter(afterId)}
             onSelect={setSelectedId}
             onViewAsCode={() => setCodeOpen(true)}
@@ -1479,10 +1494,10 @@ export function WorkflowEditorPage(
             onPick={(uses) => {
               const afterId = pickerAfter ?? null;
               const id = freeStepId(editor, uses, nodeIds(rawSteps));
+              const opening = grouped ? groupStarts.get(afterId) : undefined;
               const list = grouped
-                ? afterId === null
-                  ? firstGroup
-                  : steps.find((one) => one.id === afterId)?.list
+                ? opening?.list ??
+                  steps.find((one) => one.id === afterId)?.list
                 : undefined;
               const step = {
                 id,
@@ -1493,12 +1508,12 @@ export function WorkflowEditorPage(
                 ...(list === undefined ? {} : { list }),
               };
               dispatch({ kind: "add", step });
-              if (afterId !== null) {
-                const at = steps.findIndex((one) => one.id === afterId);
-                dispatch({ kind: "move", id, index: at + 1 });
-              } else if (grouped) {
+              if (opening !== undefined) {
                 const first = steps.findIndex((one) => one.list === list);
                 dispatch({ kind: "move", id, index: first });
+              } else if (afterId !== null) {
+                const at = steps.findIndex((one) => one.id === afterId);
+                dispatch({ kind: "move", id, index: at + 1 });
               }
               setPickerAfter(undefined);
               setSelectedId(id);

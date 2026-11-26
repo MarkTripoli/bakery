@@ -5,6 +5,8 @@
  * what this decides, and the publish dialog sends its `steps`.
  */
 
+import { canvasGraph } from "./canvas-graph.ts";
+import type { Tree } from "./workflow-tree.ts";
 import type { WorkflowStart } from "@bakery/contracts/workflow-starts";
 import {
   type ApprovalFields,
@@ -491,4 +493,27 @@ export function editorReducer(
       };
     }
   }
+}
+
+export function groupStartsOf(
+  tree: Tree,
+  steps: readonly EditorStep[],
+): ReadonlyMap<string | null, { list: string; uses: string }> {
+  const edges = canvasGraph(tree).edges;
+  const listed = new Set(
+    steps.filter((step) => step.list !== undefined).map((step) => step.id),
+  );
+  const starts = new Map<string | null, { list: string; uses: string }>();
+  const seen = new Set<string>();
+  for (const step of steps) {
+    if (step.list === undefined || seen.has(step.list)) continue;
+    seen.add(step.list);
+    const before = edges.find((edge) => edge.target === step.id)?.source;
+    if (before === undefined || listed.has(before)) continue;
+    starts.set(before === "start" ? null : before, {
+      list: step.list,
+      uses: step.uses,
+    });
+  }
+  return starts;
 }

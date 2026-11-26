@@ -7567,5 +7567,7 @@
   "library.skills.add.done": "⟪Added {name}.⟫",
   "library.skills.add.already": "⟪{name} was already added from this.⟫",
   "library.skill.files.of": "⟪The files of version {number}.⟫",
-  "library.skills.add.switchedBack": "⟪{name} already had these files, so version {version} is in use again (was version {previous}).⟫"
+  "library.skills.add.switchedBack": "⟪{name} already had these files, so version {version} is in use again (was version {previous}).⟫",
+  "library.editor.addBefore": "⟪Add a step before {before}⟫",
+  "library.editor.picker.limited": "⟪Other step types need settings this page cannot fill in yet.⟫"
 }
