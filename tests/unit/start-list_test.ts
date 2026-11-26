@@ -215,4 +215,26 @@ Deno.test("an input is labelled with words, not its raw name", () => {
     ),
     ["Github PR number", "Pr URL", "API key", "Repo IDs", "Sha256 digest"],
   );
+  assertEquals(
+    [
+      "S3Bucket",
+      "APIv2",
+      "OAuthToken",
+      "iOSVersion",
+      "E2ETests",
+      "IPv6Address",
+    ].map(inputLabel),
+    [
+      "S3 bucket",
+      "API v2",
+      "OAuth token",
+      "iOS version",
+      "E2E tests",
+      "IPv6 address",
+    ],
+  );
+  assertEquals(
+    ["planX", "XMLHttpRequest", "base_URL", "v2API"].map(inputLabel),
+    ["Plan x", "XML http request", "Base URL", "V2 API"],
+  );
 });

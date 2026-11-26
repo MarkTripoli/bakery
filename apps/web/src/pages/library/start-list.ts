@@ -307,11 +307,16 @@ export function sameStarts(
   return canonicalJson(left) === canonicalJson(right);
 }
 
-const NAME_WORD = /[A-Z]{2,}s(?![a-z])|[A-Z]+(?![a-z])|[A-Z]?[a-z0-9]+|[A-Z]/g;
+const WORD_BOUNDARY =
+  /(?<=[a-z])(?!(?<=\b[a-z])[A-Z]{2})(?=[A-Z])|(?<=\d)(?=[A-Z][a-z])|(?<=[a-z]\d+)(?=[A-Z])|(?<=[A-Z\d][A-Z])(?=[A-Z](?!s\b|v\d)[a-z])|(?<=[A-Z]{3})(?=v\d)/g;
+const KEEPS_CAPITALS = /[A-Z].*[A-Z]|^[A-Z]+\d/;
 
 export function inputLabel(name: string): string {
-  const words = (name.match(NAME_WORD) ?? [name]).map((word) =>
-    /^[A-Z]{2}/.test(word) ? word : word.toLowerCase()
-  ).join(" ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
+  const [first = name, ...rest] = name.replace(/[_-]+/g, " ")
+    .replace(WORD_BOUNDARY, " ").trim().split(/\s+/)
+    .map((word) => KEEPS_CAPITALS.test(word) ? word : word.toLowerCase());
+  const lead = first === first.toLowerCase()
+    ? first.charAt(0).toUpperCase() + first.slice(1)
+    : first;
+  return [lead, ...rest].join(" ");
 }
