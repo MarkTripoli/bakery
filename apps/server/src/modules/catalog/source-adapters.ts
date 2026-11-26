@@ -683,6 +683,11 @@ async function fetchMissingBlobs(
   );
 }
 
+function commitOrName(revision: string): string {
+  const lower = revision.toLowerCase();
+  return GIT_OBJECT_ID.test(lower) ? lower : revision;
+}
+
 async function requireAdvertisedRevision(
   dependencies: SkillSourceAdapterDependencies,
   directory: string,
@@ -726,7 +731,7 @@ async function fetchGitSource(
   if (expectedRevision !== undefined && !GIT_OBJECT_ID.test(expectedRevision)) {
     fail("SOURCE_INVALID");
   }
-  const fetchRevision = expectedRevision ?? requestedRevision;
+  const fetchRevision = expectedRevision ?? commitOrName(requestedRevision);
   const normalizedPath = normalizeSourcePath(request.path);
   const directory = await dependencies.makeTempDirectory();
   try {

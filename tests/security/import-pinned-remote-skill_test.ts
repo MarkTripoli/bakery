@@ -390,6 +390,12 @@ Deno.test("a branch or tag the Git server does not have fails at once as not fou
       requestedRevision: "v1",
     });
     assertEquals(proof.sourceRevision, fixture.initialCommit);
+    const byUpperCaseCommit = await adapter.fetchPinnedSource({
+      sourceType: "git",
+      locator: fixture.gitUrl,
+      requestedRevision: fixture.initialCommit.toUpperCase(),
+    });
+    assertEquals(byUpperCaseCommit.sourceRevision, fixture.initialCommit);
   } finally {
     await stopRemoteSkillSourceFixture(fixture);
   }
