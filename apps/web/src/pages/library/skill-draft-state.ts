@@ -116,15 +116,7 @@ const MEDIA_BY_EXTENSION: Readonly<Record<string, string>> = {
   html: "text/html",
 };
 
-const SCRIPT_EXTENSIONS = new Set([
-  "sh",
-  "bash",
-  "py",
-  "js",
-  "mjs",
-  "ts",
-  "rb",
-]);
+const SCRIPT_EXTENSIONS = new Set(["sh", "bash", "py"]);
 
 function extensionOf(path: string): string {
   const name = path.slice(path.lastIndexOf("/") + 1);
@@ -134,6 +126,27 @@ function extensionOf(path: string): string {
 
 export function mediaTypeOf(path: string): string {
   return MEDIA_BY_EXTENSION[extensionOf(path)] ?? "text/plain";
+}
+
+export function isTextContent(contentBase64: string): boolean {
+  const bytes = base64ToBytes(contentBase64);
+  if (bytes.includes(0)) return false;
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function mediaTypeFor(path: string, contentBase64: string): string {
+  return isTextContent(contentBase64)
+    ? mediaTypeOf(path)
+    : "application/octet-stream";
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
 }
 
 export function isScript(path: string): boolean {
@@ -148,9 +161,7 @@ export function textToBase64(text: string): string {
 }
 
 export function base64ToText(value: string): string {
-  const binary = atob(value);
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+  return new TextDecoder().decode(base64ToBytes(value));
 }
 
 export function byteLength(text: string): number {
@@ -202,12 +213,14 @@ export function pathProblem(
   return null;
 }
 
-const SHOWN_NAME_LIMIT = 34;
+const SPLIT_NAME_FROM = 16;
+const SHOWN_END_LENGTH = 12;
 
-export function shortName(path: string): string {
-  return path.length <= SHOWN_NAME_LIMIT
-    ? path
-    : `${path.slice(0, 16)}…${path.slice(-17)}`;
+export function splitName(path: string): { head: string; end?: string } {
+  return path.length <= SPLIT_NAME_FROM ? { head: path } : {
+    head: path.slice(0, -SHOWN_END_LENGTH),
+    end: path.slice(-SHOWN_END_LENGTH),
+  };
 }
 
 export function bytesToBase64(bytes: Uint8Array): string {

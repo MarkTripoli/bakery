@@ -3,6 +3,8 @@ import { registerPageHealth } from "./helpers/page-health.ts";
 import { still } from "./helpers/stills.ts";
 import { EDIT, skillEditorFixture } from "./helpers/skill-editor-fixture.ts";
 
+const PNG = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82];
+
 registerPageHealth(test);
 
 const EDITOR = `/library/skills/${EDIT.skill}/edit`;
@@ -255,6 +257,83 @@ for (
       await expect.poll(() =>
         calls.find((call) => call.path.endsWith("/draft/files"))?.body
       ).toMatchObject({ path: "assets/logo.bin", contentBase64: "AQID" });
+    });
+
+    test("an uploaded picture keeps its bytes and is never opened as text", async ({ page }) => {
+      const { calls } = await skillEditorFixture(page);
+      await page.goto(EDITOR);
+      await page.getByRole("button", { name: "Add file" }).click();
+      const chooser = page.waitForEvent("filechooser");
+      await page.getByRole("button", { name: "Upload files" }).click();
+      await (await chooser).setFiles({
+        name: "shot.png",
+        mimeType: "image/png",
+        buffer: Buffer.from(PNG),
+      });
+      await expect.poll(() =>
+        calls.find((call) => call.path.endsWith("/draft/files"))?.body
+      ).toMatchObject({
+        path: "shot.png",
+        mediaType: "application/octet-stream",
+        contentBase64: Buffer.from(PNG).toString("base64"),
+      });
+      const row = page.getByRole("button", { name: "Open shot.png" });
+      await expect(row).toBeFocused();
+      await row.press("Enter");
+      await expect(page.getByRole("button", { name: "Replace" })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: "Text of shot.png" }))
+        .toHaveCount(0);
+    });
+
+    test("a file stored as text that is not text offers Replace, not the editor", async ({ page }) => {
+      const { calls } = await skillEditorFixture(page, {
+        files: [
+          { path: "SKILL.md", text: "# House style\n" },
+          {
+            path: "assets/shot.png",
+            text: "",
+            bytes: PNG,
+            mediaType: "text/plain",
+          },
+        ],
+      });
+      await page.goto(EDITOR);
+      await page.getByRole("button", { name: "Open assets/shot.png" }).click();
+      await expect(page.getByRole("button", { name: "Replace" })).toBeVisible();
+      await expect(
+        page.getByRole("textbox", { name: "Text of assets/shot.png" }),
+      ).toHaveCount(0);
+      expect(calls).toHaveLength(0);
+    });
+
+    test("Undo puts focus on the file it brought back", async ({ page }) => {
+      await skillEditorFixture(page);
+      await page.goto(EDITOR);
+      await rowMenu(page, "examples/good-answer.md", "Remove");
+      await page.getByRole("button", { name: "Undo" }).click();
+      await expect(
+        page.getByRole("button", { name: "Open examples/good-answer.md" }),
+      ).toBeFocused();
+    });
+
+    test("a long name stays on one line, cut in the middle, with the whole name on hover", async ({ page }) => {
+      const long =
+        "references/a-very-long-file-name-that-keeps-going-for-the-refund-team.md";
+      await skillEditorFixture(page, {
+        files: [
+          { path: "SKILL.md", text: "# House style\n" },
+          { path: long, text: "" },
+        ],
+      });
+      await page.goto(EDITOR);
+      const name = page.getByTitle(long);
+      await expect(name).toBeVisible();
+      await expect(name).toContainText("fund-team.md");
+      const line = await page.getByText("SKILL.md", { exact: true }).first()
+        .boundingBox();
+      const shown = await name.boundingBox();
+      expect(shown!.height).toBeLessThanOrEqual(line!.height + 1);
+      await still(page, "skill-editor-long-name");
     });
 
     test("a skill published here says it was written here, with its licence", async ({ page }) => {

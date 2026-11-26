@@ -18,6 +18,7 @@ export const EDIT = {
 export type EditFile = {
   readonly path: string;
   readonly text: string;
+  readonly bytes?: readonly number[];
   readonly mediaType?: string;
   readonly isExecutable?: boolean;
 };
@@ -116,7 +117,9 @@ export async function skillEditorFixture(
       path: file.path,
       mediaType: file.mediaType ?? "text/markdown",
       isExecutable: file.isExecutable ?? false,
-      content: Buffer.from(file.text, "utf8"),
+      content: file.bytes === undefined
+        ? Buffer.from(file.text, "utf8")
+        : Buffer.from(file.bytes),
     })),
     nextFile: 50,
     conflictOnce: false,

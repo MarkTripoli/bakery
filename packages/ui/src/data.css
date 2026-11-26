@@ -1780,6 +1780,20 @@
   color: var(--color-fg);
   font: var(--type-control);
 }
+.ui-list-row__title[data-middle="true"] {
+  display: flex;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  white-space: pre;
+}
+.ui-list-row__title-start {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ui-list-row__title-end {
+  flex: 0 0 auto;
+}
 .ui-list-row__detail {
   color: var(--color-fg-muted);
   font: var(--type-caption);

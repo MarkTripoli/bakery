@@ -19,8 +19,9 @@ import {
   type DraftFile,
   groupFiles,
   isScript,
+  isTextContent,
   isTextMedia,
-  mediaTypeOf,
+  mediaTypeFor,
   textToBase64,
   type TypedCheck,
   typedCheck,
@@ -73,15 +74,18 @@ export function useSkillDraft(
   const chosenId = selectedId ?? firstFile?.id ?? null;
   const selected: DraftFile | null =
     draft?.files.find((file) => file.id === chosenId) ?? null;
-  const text = selected !== null && isTextMedia(selected.mediaType);
+  const declaredText = selected !== null && isTextMedia(selected.mediaType);
   const contentRead = useQuery({
     ...skillDraftFileQueryOptions(
       api,
       scope,
       skill.id,
-      selected !== null && text ? selected.id : "",
+      selected !== null && declaredText ? selected.id : "",
     ),
   });
+  const text = declaredText &&
+    (contentRead.data === undefined ||
+      isTextContent(contentRead.data.contentBase64));
 
   const putDraft = useCallback((next: SkillDraftResponse) => {
     latest.current = typedDraft(next);
@@ -194,7 +198,7 @@ export function useSkillDraft(
         id: skill.id,
         input: {
           path,
-          mediaType: mediaTypeOf(path),
+          mediaType: mediaTypeFor(path, contentBase64),
           isExecutable: isScript(path) ? runnable : undefined,
           contentBase64,
         },
@@ -257,7 +261,7 @@ export function useSkillDraft(
         id: skill.id,
         input: {
           path: file.path,
-          mediaType: file.mediaType,
+          mediaType: mediaTypeFor(file.path, contentBase64),
           isExecutable: file.isExecutable,
           contentBase64,
         },
@@ -321,6 +325,7 @@ export function useSkillDraft(
     );
     const back = next?.files.find((item) => item.path === file.path) ?? null;
     if (back !== null) setSelectedId(back.id);
+    return back;
   };
 
   const changeSettings = async (

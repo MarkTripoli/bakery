@@ -25,6 +25,7 @@ export type ListRowProps =
     size?: "regular" | "tall";
     selected?: boolean;
     title: ReactNode;
+    titleEnd?: string | undefined;
     /** Trailing status or glyph. */
     trailing?: ReactNode;
   };
@@ -41,22 +42,40 @@ export function ListRow(
     selected = false,
     size = "regular",
     title,
+    titleEnd,
     trailing,
     ...props
   }: ListRowProps,
 ) {
   const detailId = useId();
+  const name = titleEnd === undefined
+    ? <span className="ui-list-row__title">{title}</span>
+    : (
+      <span
+        className="ui-list-row__title"
+        data-middle="true"
+        title={`${String(title)}${titleEnd}`}
+      >
+        <span
+          className="ui-list-row__title-start"
+          data-rail="truncation-allowed"
+        >
+          {title}
+        </span>
+        <span className="ui-list-row__title-end">{titleEnd}</span>
+      </span>
+    );
   const content = (
     <>
       <span className="ui-list-row__lead">
         {badge
           ? (
             <span className="ui-list-row__headline">
-              <span className="ui-list-row__title">{title}</span>
+              {name}
               {badge}
             </span>
           )
-          : <span className="ui-list-row__title">{title}</span>}
+          : name}
         {detail
           ? (
             <span

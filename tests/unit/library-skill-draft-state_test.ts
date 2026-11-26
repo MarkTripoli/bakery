@@ -1,13 +1,17 @@
+import { isSkillExecutableMedia } from "../../apps/server/src/modules/catalog/validation.ts";
 import { assertEquals } from "@std/assert";
 import {
   base64ToText,
   groupFiles,
   isScript,
+  isTextContent,
   isTextMedia,
+  mediaTypeFor,
   mediaTypeOf,
   pathProblem,
   problemWords,
   slugOf,
+  splitName,
   textToBase64,
   typedCheck,
   typedDraft,
@@ -43,6 +47,35 @@ Deno.test("a file's type and whether it is a script come from its name", () => {
   assertEquals(mediaTypeOf("notes"), "text/plain");
   assertEquals(isScript("scripts/check.sh"), true);
   assertEquals(isScript("SKILL.md"), false);
+});
+
+Deno.test("a file is text by what it holds, whatever its name says", () => {
+  const png = btoa(String.fromCharCode(137, 80, 78, 71, 13, 10, 26, 10, 0));
+  assertEquals(mediaTypeFor("shot.png", png), "application/octet-stream");
+  assertEquals(mediaTypeFor("notes.md", png), "application/octet-stream");
+  assertEquals(
+    mediaTypeFor("a.dat", btoa("\xff\xfe")),
+    "application/octet-stream",
+  );
+  assertEquals(mediaTypeFor("notes.md", textToBase64("café")), "text/markdown");
+  assertEquals(mediaTypeFor("LICENSE", textToBase64("MIT")), "text/plain");
+  assertEquals(isTextContent(textToBase64("")), true);
+});
+
+Deno.test("every name offered as runnable gets a type the server lets run", () => {
+  for (const name of ["a.sh", "a.bash", "a.py", "a.js", "a.ts", "a.rb"]) {
+    if (!isScript(name)) continue;
+    assertEquals(isSkillExecutableMedia(mediaTypeOf(name)), true, name);
+  }
+  assertEquals(isScript("a.js"), false);
+});
+
+Deno.test("a long name keeps its end whole", () => {
+  assertEquals(splitName("SKILL.md"), { head: "SKILL.md" });
+  assertEquals(splitName("examples/good-answer.md"), {
+    head: "examples/go",
+    end: "od-answer.md",
+  });
 });
 
 Deno.test("text survives the trip to base64 and back, accents included", () => {

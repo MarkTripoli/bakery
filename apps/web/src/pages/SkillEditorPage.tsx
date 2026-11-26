@@ -39,11 +39,12 @@ import {
   type DraftFile,
   type DraftProblem,
   groupFiles,
+  isScript,
   pathProblem,
   problemWords,
-  shortName,
   sizeWords,
   SKILL_ENTRY_FILE,
+  splitName,
 } from "./library/skill-draft-state.ts";
 import { fileSize } from "./library/skills-state.ts";
 import { useSkillDraft } from "./library/useSkillDraft.ts";
@@ -196,6 +197,12 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
     chooseFile(target);
     focusEditor(target, problem.line);
   };
+  const focusFile = (fileId: string) =>
+    focusAfterPaint(() =>
+      document.querySelector<HTMLElement>(
+        `[data-testid="skill-editor-files"] [data-file="${fileId}"] button.ui-list-row__control`,
+      )
+    );
   const focusRow = (index: number) =>
     focusAfterPaint(() => {
       const rows = document.querySelectorAll<HTMLElement>(
@@ -247,14 +254,19 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
       void run(async () => {
         setDialog(null);
         const taken: string[] = [];
+        let last: DraftFile | null = null;
         for (const one of picked) {
           if (pathProblem(draft.files, one.name) !== null) {
             taken.push(one.name);
             continue;
           }
-          await state.addFile(one.name, false, bytesToBase64(one.bytes));
+          last =
+            await state.addFile(one.name, false, bytesToBase64(one.bytes)) ??
+              last;
         }
         setSkipped(taken);
+        if (last === null) focusAfterPaint(() => opener.current);
+        else focusFile(last.id);
       }));
   const replace = (file: DraftFile) =>
     pickFiles(
@@ -343,7 +355,8 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
       data-selected={state.selectedId === file.id ? "true" : undefined}
       detail={fileSize(file.sizeBytes, locale)}
       onSelect={() => chooseFile(file)}
-      title={shortName(file.path)}
+      title={splitName(file.path).head}
+      titleEnd={splitName(file.path).end}
     />
   );
   const fileItem = (file: DraftFile) => {
@@ -538,8 +551,7 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
           )
           : null}
         <UI.DataText>{selected.path}</UI.DataText>
-        {state.text && selected.path !== "" && /\.(sh|bash|py|js|mjs|ts|rb)$/i
-            .test(selected.path)
+        {state.text && isScript(selected.path)
           ? (
             <UI.Checkbox
               checked={selected.isExecutable}
@@ -818,7 +830,10 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
               onClick={() => {
                 const back = removed;
                 setRemoved(null);
-                void run(() => state.restoreFile(back));
+                void run(async () => {
+                  const restored = await state.restoreFile(back);
+                  if (restored !== null) focusFile(restored.id);
+                });
               }}
             >
               {translate("library.skills.editor.file.undo")}
