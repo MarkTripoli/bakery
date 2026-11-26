@@ -1,0 +1,153 @@
+import { assert, assertEquals } from "@std/assert";
+import { createPeopleTagStepRunner } from "../../apps/server/src/modules/work/people-tag-step.ts";
+import type { EngineStepRequest } from "../../apps/server/src/modules/workflow-adapter/engine-steps.ts";
+import { cleanupAuthFixture } from "../helpers/auth.ts";
+import { openSocketFixture } from "../helpers/events-socket.ts";
+import {
+  addMember,
+  api,
+  seedArtifactVersion,
+  seedRun,
+  seedStep,
+} from "../helpers/run-requests.ts";
+
+async function open() {
+  const fixture = await openSocketFixture();
+  const guest = await addMember(fixture, "Tagged", "guest");
+  const viewer = await addMember(fixture, "Viewer", "viewer");
+  const run = await seedRun(fixture);
+  await seedStep(fixture, run, "notify");
+  const runner = createPeopleTagStepRunner({
+    database: fixture.runtimePgDatabase,
+  });
+  const step = (
+    input: Record<string, unknown>,
+    overrides: Partial<EngineStepRequest> = {},
+  ): EngineStepRequest => ({
+    organizationId: fixture.organizationId,
+    runId: run.runId,
+    taskId: run.taskId,
+    repositoryId: null,
+    requestedBy: fixture.principalId,
+    traceId: "trace-456-b",
+    stepKey: "notify",
+    iteration: 0,
+    action: "people.tag",
+    input,
+    ...overrides,
+  });
+  const tags = async () =>
+    (await fixture.pgDatabase.query<{
+      recipient_id: string;
+      asked_by: string;
+      asked_by_kind: string;
+      intent: string;
+      step_key: string;
+      status: string;
+    }>(
+      `select recipient_id, asked_by, asked_by_kind, intent, step_key, status
+         from bakery.person_requests
+        where organization_id = $1 and run_id = $2
+        order by created_at, id`,
+      [fixture.organizationId, run.runId],
+    )).rows;
+  const ledgerKinds = async () =>
+    (await fixture.pgDatabase.query<{ kind: string }>(
+      `select kind from bakery.decisions_ledger
+        where organization_id = $1 and run_id = $2 and kind like 'request%'
+        order by created_at, kind`,
+      [fixture.organizationId, run.runId],
+    )).rows.map((row) => row.kind);
+  return {
+    fixture,
+    guest,
+    viewer,
+    run,
+    runner,
+    step,
+    tags,
+    ledgerKinds,
+    finish: async () => {
+      await cleanupAuthFixture(fixture.pgDatabase, [
+        fixture.email,
+        guest.email,
+        viewer.email,
+      ]);
+      await fixture.close();
+    },
+  };
+}
+
+async function openWithNextPerson() {
+  const o = await open();
+  const next = await addMember(o.fixture, "Next", "guest");
+  const version = await seedArtifactVersion(
+    o.fixture,
+    o.run.taskId,
+    o.run.runId,
+  );
+  const request = o.step({
+    intent: "review",
+    recipientId: o.guest.principalId,
+    artifactVersionId: version,
+    wait: true,
+    ifNobodyAnswers: { afterHours: 24, recipientId: next.principalId },
+  });
+  const askedAgo = (hours: number) =>
+    o.fixture.pgDatabase.query(
+      `update bakery.person_requests
+          set created_at = created_at - make_interval(hours => $3)
+        where organization_id = $1 and run_id = $2`,
+      [o.fixture.organizationId, o.run.runId, hours],
+    );
+  return {
+    ...o,
+    next,
+    version,
+    request,
+    askedAgo,
+    finishAll: async () => {
+      await o.fixture.pgDatabase.query(
+        "delete from bakery.artifact_comments where organization_id = $1",
+        [o.fixture.organizationId],
+      );
+      await cleanupAuthFixture(o.fixture.pgDatabase, [next.email]);
+      await o.finish();
+    },
+  };
+}
+
+
+async function group(o: Awaited<ReturnType<typeof openWithNextPerson>>, members: readonly string[]) {
+  const id = crypto.randomUUID();
+  const handle = "qa-" + id.slice(0, 8);
+  await o.fixture.pgDatabase.query("insert into bakery.organization_groups (id, organization_id, name, mention_name) values ($1, $2, $3, $3)", [id, o.fixture.organizationId, handle]);
+  for (const principalId of members) {
+    await o.fixture.pgDatabase.query("insert into bakery.organization_group_members (organization_id, group_id, principal_id) values ($1, $2, $3)", [o.fixture.organizationId, id, principalId]);
+  }
+  return id;
+}
+async function counts(o: Awaited<ReturnType<typeof openWithNextPerson>>) {
+  const reminded = (await o.fixture.pgDatabase.query<{ n: string }>("select count(*)::text as n from bakery.decisions_ledger where organization_id = $1 and run_id = $2 and kind = 'request_reminded'", [o.fixture.organizationId, o.run.runId])).rows[0]!.n;
+  return { requests: (await o.tags()).length, reminders: Number(reminded) };
+}
+async function scenario(label: string, next: (o: Awaited<ReturnType<typeof openWithNextPerson>>) => Promise<Record<string, unknown>>) {
+  const o = await openWithNextPerson();
+  try {
+    const request = { ...o.request, input: { ...(o.request.input as Record<string, unknown>), ifNobodyAnswers: { afterHours: 24, ...(await next(o)) } } };
+    await o.runner.run(request);
+    await o.askedAgo(25);
+    const results: string[] = [];
+    for (let poll = 0; poll < 5; poll += 1) results.push((await o.runner.run(request)).kind);
+    console.log("PROBE", label, "after 5 polls", JSON.stringify(await counts(o)), results[4]);
+  } finally {
+    await o.fixture.pgDatabase.query("delete from bakery.organization_group_members where organization_id = $1", [o.fixture.organizationId]);
+    await o.finishAll();
+  }
+}
+Deno.test("qa probe: next is a group holding only the person already asked", () =>
+  scenario("group of only the first person:", async (o) => ({ recipientGroupId: await group(o, [o.guest.principalId]) })));
+Deno.test("qa probe: next is a group holding both people", () =>
+  scenario("group of first and next:", async (o) => ({ recipientGroupId: await group(o, [o.guest.principalId, o.next.principalId]) })));
+Deno.test("qa probe: next person is the one already asked, named directly", () =>
+  scenario("same person by id:", (o) => Promise.resolve({ recipientId: o.guest.principalId })));
