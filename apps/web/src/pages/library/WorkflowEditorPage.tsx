@@ -16,14 +16,21 @@ import {
   automaticStarts,
   type DraftStart,
   eventRepositoryId,
+  sameStarts,
   savedStart,
   startNeeds,
   startProblems,
   startsOfVersion,
 } from "./start-list.ts";
 import type { StartFocus } from "./StartPanel.tsx";
+import { publishChanges } from "./publish-changes.ts";
+import { PublishSummary } from "./PublishSummary.tsx";
 import { useBakeryApi } from "../../api/context.tsx";
-import { asyncKindForError, failureStatus } from "../../app/async-state.ts";
+import {
+  asyncKindForError,
+  failureStatus,
+  isConflictFailure,
+} from "../../app/async-state.ts";
 
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
@@ -169,6 +176,12 @@ function isActionNode(value: unknown): boolean {
 }
 
 const START_ID = "start";
+
+class ActivationFailed extends Error {
+  constructor(readonly versionId: string, readonly revision: number) {
+    super("ACTIVATION_FAILED");
+  }
+}
 
 export function WorkflowEditorPage(
   { workflowId }: { readonly workflowId: string },
@@ -458,6 +471,7 @@ export function WorkflowEditorPage(
     mutationFn: async (alsoUse: boolean) => {
       const latest = writeTarget();
       let versionId = draft?.id ?? "";
+      let revision = draft?.revision ?? 0;
       if (latest !== null) {
         const published = await api.publishWorkflowVersion({
           organizationId: scope.organizationId as string,
@@ -469,6 +483,7 @@ export function WorkflowEditorPage(
         });
         if (!published.ok) throw published.error;
         versionId = published.data.id;
+        revision = published.data.revision;
         if (!alsoUse) return versionId;
       }
       if (!alsoUse || versionId === "") throw new Error("no draft version");
@@ -479,8 +494,16 @@ export function WorkflowEditorPage(
         version: workflow.data?.version ?? 0,
         idempotencyKey: crypto.randomUUID(),
       });
-      if (!used.ok) throw used.error;
+      if (!used.ok) throw new ActivationFailed(versionId, revision);
       return versionId;
+    },
+    onError: (error) => {
+      if (error instanceof ActivationFailed) {
+        setPublishedOnly(error.versionId);
+      }
+      if (error instanceof ActivationFailed || isConflictFailure(error)) {
+        void queryClient.invalidateQueries({ queryKey: ["protected"] });
+      }
     },
     onSuccess: async (versionId, alsoUse) => {
       setPublishedOnly(alsoUse ? null : versionId);
@@ -490,21 +513,6 @@ export function WorkflowEditorPage(
   });
 
   const steps = editor.steps;
-  const inUseSteps = useMemo<readonly EditorStep[]>(() => {
-    const spec = record(inUse?.normalizedSpec);
-    const held = Array.isArray(spec.steps) ? spec.steps : [];
-    return held.flatMap((raw) => {
-      const step = record(raw);
-      const id = typeof step.id === "string" ? step.id : "";
-      return id === "" ? [] : [{
-        id,
-        uses: typeof step.uses === "string" ? step.uses : "",
-        agentVersionId: null,
-        skills: skillsOfNode(step),
-        ...approvalPart(typeof step.uses === "string" ? step.uses : "", step),
-      }];
-    });
-  }, [inUse]);
   const inUseStarts = useMemo(
     () => startsOfVersion(inUse?.starts),
     [inUse],
@@ -515,10 +523,20 @@ export function WorkflowEditorPage(
     0,
     ...(versions.data?.items ?? []).map((item) => item.revision),
   ) + 1;
+  const changes = useMemo(
+    () =>
+      publishChanges(
+        inUse?.normalizedSpec,
+        draft === null
+          ? null
+          : definitionOf(record(draft.normalizedSpec), steps, editor.loops),
+        (key) => translate(key),
+      ),
+    [inUse, draft, steps, editor.loops, translate],
+  );
+  const startsChanged = !sameStarts(editor.starts, inUseStarts);
   const draftDiffers = draft !== null &&
-    (publishedUnused ||
-      JSON.stringify(steps) !== JSON.stringify(inUseSteps) ||
-      JSON.stringify(editor.starts) !== JSON.stringify(inUseStarts));
+    (publishedUnused || changes.differs || startsChanged);
 
   // The drawing comes from the definition itself, so nothing in it is left out:
   // groups, steps only changeable in code, and steps Bakery cannot read all keep
@@ -1838,6 +1856,8 @@ export function WorkflowEditorPage(
                   <UI.Text>
                     {blocked
                       ? translate("library.editor.publish.blocked")
+                      : publish.error instanceof ActivationFailed
+                      ? null
                       : publishedUnused
                       ? translate("library.editor.publish.useBody", {
                         version: String(draft.revision),
@@ -1857,19 +1877,37 @@ export function WorkflowEditorPage(
                       )}
                     </UI.Text>
                   )}
-                  {publish.isError
-                    ? (
+                  <PublishSummary
+                    blocked={blocked}
+                    changes={changes}
+                    inUseRevision={inUse?.revision ?? null}
+                    problemCount={problemCount}
+                    startsChanged={startsChanged}
+                  />
+                  {publish.error === null
+                    ? null
+                    : (
                       <UI.InlineNotice tone="error" role="alert">
-                        {translate("library.editor.publish.failed" as never)}
+                        {publish.error instanceof ActivationFailed
+                          ? translate(
+                            "library.editor.publish.notUsed",
+                            {
+                              version: String(publish.error.revision),
+                            },
+                          )
+                          : translate(
+                            isConflictFailure(publish.error)
+                              ? "library.editor.publish.stale"
+                              : "library.editor.publish.failed",
+                          )}
                       </UI.InlineNotice>
-                    )
-                    : null}
+                    )}
                   {problemCount === 0 ? null : problemList}
                 </UI.Stack>
               )
               : (
                 <UI.Text>
-                  {translate("library.editor.publish.nothingBody" as never)}
+                  {translate("library.editor.publish.nothingBody")}
                 </UI.Text>
               )}
           </UI.AlertDialog>

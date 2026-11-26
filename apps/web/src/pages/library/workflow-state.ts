@@ -1,3 +1,4 @@
+import type { MessageKey } from "@bakery/i18n";
 import type {
   AgentDefinitionResponse,
   AgentVersionResponse,
@@ -133,7 +134,7 @@ export const PICKER_STEPS: readonly string[] = [
  * Library and the editor say the same thing (design-ux, #432). An action with
  * no name here keeps showing its own identifier.
  */
-export const ACTION_TITLES: Readonly<Record<string, string>> = {
+export const ACTION_TITLES: Readonly<Record<string, MessageKey>> = {
   "task.brief": "library.workflow.action.taskBrief",
   "rpi.research": "library.workflow.action.rpiResearch",
   "rpi.design": "library.workflow.action.rpiDesign",
