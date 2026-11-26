@@ -26706,7 +26706,7 @@ export const clientManifest = {
           "description": "Immutable identifier of the external container this source observes (for example, the GitHub repository's stable ID); only one authoritative source per external container is permitted within an organization. TicketSourceCreate.externalContainerId must contain at most 200 characters."
         },
         "policy": {
-          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options, plan approval and the completion policy (task, merged or deployed_healthy; merged when omitted); automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot. TicketSourceCreate.policy must contain at most 65536 UTF-8 bytes.",
+          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 2 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options, plan approval, the completion policy (task, merged or deployed_healthy; merged when omitted) and the workflow, named by workflowId or by its built-in name; automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot. TicketSourceCreate.policy must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -26878,7 +26878,7 @@ export const clientManifest = {
           "type": "boolean"
         },
         "policy": {
-          "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval, completion policy); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot. TicketSourceUpdate.policy must contain at most 65536 UTF-8 bytes.",
+          "description": "Replacement TicketSourcePolicy version 2 document for this source (labels, delegation, automatic admission, readiness options, plan approval, completion policy, workflow by workflowId or built-in name); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot. TicketSourceUpdate.policy must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -27039,7 +27039,7 @@ export const clientManifest = {
       "type": "object",
       "properties": {
         "policy": {
-          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy, completion policy included (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated. TicketPreviewCreate.policy must contain at most 65536 UTF-8 bytes.",
+          "description": "Draft TicketSourcePolicy version 2 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy, completion policy included (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated. TicketPreviewCreate.policy must contain at most 65536 UTF-8 bytes.",
           "anyOf": [
             {
               "type": "string",
@@ -27573,7 +27573,7 @@ export const clientManifest = {
           "description": "Digest of the ticket's requirements (title, body, acceptance criteria) as observed by the caller; admission is rejected if it no longer matches the ticket's current requirements, so a stale request can't admit work against since-changed criteria. TicketRequestCreate.requirementsDigest must contain at most 200 characters."
         },
         "preset": {
-          "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own.",
+          "description": "Built-in workflow to run for this issue only, instead of the source policy's workflow (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's workflow runs. A new request pins the version in use with its digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own.",
           "type": "string",
           "enum": [
             "fixed-coding",
@@ -87783,7 +87783,7 @@ export const clientManifest = {
               "description": "JSON object value."
             }
           ],
-          "description": "The stored TicketSourcePolicy version 1 document: request, planning-only and hold label names, optional delegation to allowlisted GitHub users, the automatic admission switch with its server-stamped since instant, readiness options, plan approval and preset. Bounded JSON; it holds no executable expression or URL."
+          "description": "The stored TicketSourcePolicy version 2 document: request, planning-only and hold label names, optional delegation to allowlisted GitHub users, the automatic admission switch with its server-stamped since instant, readiness options, plan approval and the workflow (workflowId, plus builtIn for a built-in). Bounded JSON; it holds no executable expression or URL."
         },
         "policyRevision": {
           "type": "integer",
@@ -88084,7 +88084,7 @@ export const clientManifest = {
                     "description": "JSON object value."
                   }
                 ],
-                "description": "The stored TicketSourcePolicy version 1 document: request, planning-only and hold label names, optional delegation to allowlisted GitHub users, the automatic admission switch with its server-stamped since instant, readiness options, plan approval and preset. Bounded JSON; it holds no executable expression or URL."
+                "description": "The stored TicketSourcePolicy version 2 document: request, planning-only and hold label names, optional delegation to allowlisted GitHub users, the automatic admission switch with its server-stamped since instant, readiness options, plan approval and the workflow (workflowId, plus builtIn for a built-in). Bounded JSON; it holds no executable expression or URL."
               },
               "policyRevision": {
                 "type": "integer",
@@ -90684,7 +90684,7 @@ export const clientManifest = {
               "description": "JSON object value."
             }
           ],
-          "description": "Identity of the fixed workflow preset pinned at admission as a JSON object with id, revision and digest, so a later preset change cannot alter an in-flight request. Omitted by servers that predate it."
+          "description": "Identity of the workflow version pinned at admission as a JSON object with workflowId, versionId and digest, so a later workflow change cannot alter an in-flight request; every run of the request starts that version. Omitted by servers that predate it."
         },
         "pauseRequestedAt": {
           "description": "TicketRequest.pauseRequestedAt may be null in this transport value.",
@@ -91333,7 +91333,7 @@ export const clientManifest = {
           ]
         },
         "presetId": {
-          "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+          "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's workflow, or the one a person chose for this Start work. It never changes for the request. Omitted when the request runs a workflow the organization wrote, and by servers that predate it.",
           "type": "string",
           "enum": [
             "fixed-coding",
@@ -91698,7 +91698,7 @@ export const clientManifest = {
                 ]
               },
               "presetId": {
-                "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+                "description": "Built-in workflow the request runs, pinned at admission (#61): the source policy's workflow, or the one a person chose for this Start work. It never changes for the request. Omitted when the request runs a workflow the organization wrote, and by servers that predate it.",
                 "type": "string",
                 "enum": [
                   "fixed-coding",

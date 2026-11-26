@@ -8054,7 +8054,7 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 65536
           },
-          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 1 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options, plan approval and the completion policy (task, merged or deployed_healthy; merged when omitted); automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot."
+          "description": "Schema-validated automation policy for this source, a TicketSourcePolicy version 2 document covering request, planning-only and hold labels, optional delegation to allowlisted GitHub users, the automatic admission switch, readiness options, plan approval, the completion policy (task, merged or deployed_healthy; merged when omitted) and the workflow, named by workflowId or by its built-in name; automatic.since is stamped by the server and ignored on input. Published with a revision so already-admitted requests keep their original pinned snapshot."
         }
       ],
       "rules": [
@@ -8077,7 +8077,7 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 65536
           },
-          "description": "Replacement TicketSourcePolicy version 1 document for this source (labels, delegation, automatic admission, readiness options, plan approval, completion policy); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot."
+          "description": "Replacement TicketSourcePolicy version 2 document for this source (labels, delegation, automatic admission, readiness options, plan approval, completion policy, workflow by workflowId or built-in name); automatic.since is stamped by the server on a false-to-true flip of automatic.enabled or when a disabled source is enabled again, and ignored on input. Publishing advances its pinned revision through a diff and impact preview, while requests already admitted under the prior policy keep their original pinned snapshot."
         }
       ],
       "rules": [
@@ -8094,7 +8094,7 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 65536
           },
-          "description": "Draft TicketSourcePolicy version 1 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy, completion policy included (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated."
+          "description": "Draft TicketSourcePolicy version 2 document to evaluate instead of the saved one, validated exactly as ticketSources.update validates a replacement policy, completion policy included (422 ticket_source_policy_invalid, or delegation_principal_unknown for a delegation principal outside the organization). automatic.since is stamped as saving would stamp it, so the draft is judged by the window it would get. The draft is never stored and moves no revision; omitted, the saved policy is evaluated."
         },
         {
           "name": "filters",
@@ -8381,7 +8381,7 @@ const transportSchemas = {
             "fixed-coding",
             "fixed-coding-reviewed"
           ],
-          "description": "Built-in workflow to run for this issue only, instead of the source policy's preset (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's preset runs. A new request pins it with its revision and digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own."
+          "description": "Built-in workflow to run for this issue only, instead of the source policy's workflow (#61): fixed-coding or fixed-coding-reviewed. Omitted, the policy's workflow runs. A new request pins the version in use with its digest for its whole life; when the ticket already has an open request, that request is answered unchanged and keeps its own workflow. A workflow the repository cannot run waits with preset_setup_required like the policy's own."
         },
         {
           "name": "requirePlanApproval",
@@ -20398,7 +20398,7 @@ const transportSchemas = {
         "repositoryId": "UUID identifying the related repository resource. May be null when unavailable.",
         "externalContainerId": "UUID identifying the related external container resource.",
         "enabled": "Whether this ticket source record is currently enabled.",
-        "policy": "The stored TicketSourcePolicy version 1 document: request, planning-only and hold label names, optional delegation to allowlisted GitHub users, the automatic admission switch with its server-stamped since instant, readiness options, plan approval and preset. Bounded JSON; it holds no executable expression or URL.",
+        "policy": "The stored TicketSourcePolicy version 2 document: request, planning-only and hold label names, optional delegation to allowlisted GitHub users, the automatic admission switch with its server-stamped since instant, readiness options, plan approval and the workflow (workflowId, plus builtIn for a built-in). Bounded JSON; it holds no executable expression or URL.",
         "policyRevision": "Monotonic revision used to order or conditionally update this ticket source record.",
         "syncHealth": "Current lifecycle state of this ticket source record.",
         "lastSyncedAt": "Timestamp recording when the last synced event occurred for this ticket source record. May be null when unavailable.",
@@ -20647,7 +20647,7 @@ const transportSchemas = {
         "origin": "How this admission generation began: \"manual\" for an explicit request by a member, \"adoption\" for an explicit request on an issue that already carried the request label, \"webhook\" for a signed GitHub issues delivery, \"poll\" for the periodic or on-demand source sync. Fixed at admission. Omitted by servers that predate it.",
         "dispositionReason": "Stable reason code behind the current disposition, such as \"label_withdrawn\", \"acceptance_changed\" or \"predecessor_open\" for a suspended request. Null while no reason is recorded. Omitted by servers that predate it.",
         "readinessReportId": "UUID of the immutable readiness report that admitted or last re-pinned this request. Null while no report is pinned. Omitted by servers that predate it.",
-        "pinnedPreset": "Identity of the fixed workflow preset pinned at admission as a JSON object with id, revision and digest, so a later preset change cannot alter an in-flight request. Omitted by servers that predate it.",
+        "pinnedPreset": "Identity of the workflow version pinned at admission as a JSON object with workflowId, versionId and digest, so a later workflow change cannot alter an in-flight request; every run of the request starts that version. Omitted by servers that predate it.",
         "pauseRequestedAt": "Timestamp when a cooperative pause was enqueued for this request's live run attempt after the request was suspended. Null when no pause was requested, for example when the request has no run, no live attempt exists, or the adapter cannot pause. Omitted by servers that predate it.",
         "createdAt": "Timestamp recording when the created event occurred for this ticket request record.",
         "updatedAt": "Timestamp recording the last update to this ticket request record.",
@@ -30041,7 +30041,7 @@ const transportSchemas = {
         "repositoryId": "UUID identifying the related repository resource. May be null when unavailable.",
         "externalContainerId": "UUID identifying the related external container resource.",
         "enabled": "Whether this ticket source record is currently enabled.",
-        "policy": "The stored TicketSourcePolicy version 1 document: request, planning-only and hold label names, optional delegation to allowlisted GitHub users, the automatic admission switch with its server-stamped since instant, readiness options, plan approval and preset. Bounded JSON; it holds no executable expression or URL.",
+        "policy": "The stored TicketSourcePolicy version 2 document: request, planning-only and hold label names, optional delegation to allowlisted GitHub users, the automatic admission switch with its server-stamped since instant, readiness options, plan approval and the workflow (workflowId, plus builtIn for a built-in). Bounded JSON; it holds no executable expression or URL.",
         "policyRevision": "Monotonic revision used to order or conditionally update this ticket source record.",
         "syncHealth": "Current lifecycle state of this ticket source record.",
         "lastSyncedAt": "Timestamp recording when the last synced event occurred for this ticket source record. May be null when unavailable.",
@@ -30289,7 +30289,7 @@ const transportSchemas = {
         "origin": "How this admission generation began: \"manual\" for an explicit request by a member, \"adoption\" for an explicit request on an issue that already carried the request label, \"webhook\" for a signed GitHub issues delivery, \"poll\" for the periodic or on-demand source sync. Fixed at admission. Omitted by servers that predate it.",
         "dispositionReason": "Stable reason code behind the current disposition, such as \"label_withdrawn\", \"acceptance_changed\" or \"predecessor_open\" for a suspended request. Null while no reason is recorded. Omitted by servers that predate it.",
         "readinessReportId": "UUID of the immutable readiness report that admitted or last re-pinned this request. Null while no report is pinned. Omitted by servers that predate it.",
-        "pinnedPreset": "Identity of the fixed workflow preset pinned at admission as a JSON object with id, revision and digest, so a later preset change cannot alter an in-flight request. Omitted by servers that predate it.",
+        "pinnedPreset": "Identity of the workflow version pinned at admission as a JSON object with workflowId, versionId and digest, so a later workflow change cannot alter an in-flight request; every run of the request starts that version. Omitted by servers that predate it.",
         "pauseRequestedAt": "Timestamp when a cooperative pause was enqueued for this request's live run attempt after the request was suspended. Null when no pause was requested, for example when the request has no run, no live attempt exists, or the adapter cannot pause. Omitted by servers that predate it.",
         "createdAt": "Timestamp recording when the created event occurred for this ticket request record.",
         "updatedAt": "Timestamp recording the last update to this ticket request record.",
@@ -30387,7 +30387,7 @@ const transportSchemas = {
         "updatedAt": "When the request last changed.",
         "version": "Monotonic revision of the request.",
         "targets": "Repository-scoped children pinned at admission, ordered by role then repository.",
-        "presetId": "Built-in workflow the request runs, pinned at admission (#61): the source policy's preset, or the one a person chose for this Start work. It never changes for the request. Omitted by servers that predate it.",
+        "presetId": "Built-in workflow the request runs, pinned at admission (#61): the source policy's workflow, or the one a person chose for this Start work. It never changes for the request. Omitted when the request runs a workflow the organization wrote, and by servers that predate it.",
         "presetRevision": "Revision of that workflow's definition pinned at admission, shown as its version next to the workflow's name. Omitted by servers that predate it."
       },
       "optionalFields": [
