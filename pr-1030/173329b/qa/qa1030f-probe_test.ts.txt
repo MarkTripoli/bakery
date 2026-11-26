@@ -1,0 +1,88 @@
+import { assert } from "@std/assert";
+import {
+  activateVersion,
+  publishVersion,
+  publishWrittenWorkflow,
+} from "../helpers/ticket-admission/written-workflow.ts";
+import { automaticPolicy, withTicketFixture } from "../helpers/ticket-admission/fixtures.ts";
+import { read, ticketCall } from "../helpers/ticket-admission/operations-http.ts";
+
+Deno.test("qa probe: source save while a version with a label start is being put in use", () =>
+  withTicketFixture(async (fx) => {
+    const written = await publishWrittenWorkflow(fx, "qa-race");
+    const labelled = await publishVersion(fx, written.workflowId, { startsOn: ["labeled"] });
+    const sourceId = await fx.insertSource();
+    let release = () => {};
+    const released = new Promise<void>((resolve) => { release = resolve; });
+    let held = () => {};
+    const holding = new Promise<void>((resolve) => { held = resolve; });
+    const holder = fx.inTransaction(async (tx) => {
+      await tx.query(`select id from bakery.workflow_definitions where organization_id = $1 and id = $2 for update`, [fx.organizationId, written.workflowId]);
+      await tx.query(`update bakery.workflow_definitions set active_version_id = $3 where organization_id = $1 and id = $2`, [fx.organizationId, written.workflowId, labelled]);
+      held();
+      await released;
+    });
+    await holding;
+    const saving = ticketCall(fx, "PATCH", `/v1/ticket-sources/${sourceId}`, {
+      ifMatch: 1,
+      body: { policy: { ...automaticPolicy(fx), workflow: { workflowId: written.workflowId } } },
+    });
+    const deadline = Date.now() + 10_000;
+    let waiting = 0;
+    while (waiting === 0 && Date.now() < deadline) {
+      waiting = Number((await fx.owner.query<{ n: string }>(`select count(*)::text as n from pg_locks where not granted`)).rows[0]?.n ?? 0);
+      if (waiting === 0) await new Promise((r) => setTimeout(r, 25));
+    }
+    console.log("PROBE save waiting on a lock:", waiting > 0);
+    release();
+    await holder;
+    const response = await saving;
+    console.log("PROBE held activation, then save answered", response.status, (await response.text()).includes("overlap") ? "overlap" : "");
+    const state = await fx.owner.query<{ active: string; automatic: boolean }>(
+      `select d.active_version_id = $2 as active, (s.policy -> 'automatic' ->> 'enabled')::boolean as automatic
+         from bakery.workflow_definitions d, bakery.ticket_sources s where d.id = $1 and s.id = $3`,
+      [written.workflowId, labelled, sourceId]);
+    console.log("PROBE stored: label version in use", state.rows[0]?.active, "source automatic on it", state.rows[0]?.automatic);
+  }, { budget: true }));
+
+Deno.test("qa probe: activation and source save sent together through the API", () =>
+  withTicketFixture(async (fx) => {
+    const written = await publishWrittenWorkflow(fx, "qa-race-api");
+    const labelled = await publishVersion(fx, written.workflowId, { startsOn: ["labeled"] });
+    const sourceId = await fx.insertSource();
+    const version = async () => (await read<{ version: number }>(await ticketCall(fx, "GET", `/v1/ticket-sources/${sourceId}`), 200)).version;
+    const save = (automatic: boolean, ifMatch: number) => ticketCall(fx, "PATCH", `/v1/ticket-sources/${sourceId}`, {
+      ifMatch,
+      body: { policy: automatic ? { ...automaticPolicy(fx), workflow: { workflowId: written.workflowId } } : fx.policy() },
+    });
+    const tally = { bothAccepted: 0, oneRefused: 0, other: [] as string[] };
+    for (let round = 0; round < 20; round += 1) {
+      const at = await version();
+      const delay = round % 5 * 4;
+      const [activation, saved] = await Promise.all([
+        activateVersion(fx, written.workflowId, labelled),
+        new Promise<void>((r) => setTimeout(r, delay)).then(() => save(true, at)),
+      ]);
+      const a = activation.status, s = saved.status;
+      await activation.body?.cancel(); await saved.body?.cancel();
+      if (a === 200 && s === 200) tally.bothAccepted += 1;
+      else if ((a === 200 && s === 422) || (a === 422 && s === 200)) tally.oneRefused += 1;
+      else tally.other.push(a + "/" + s);
+      if (s === 200) await (await save(false, await version())).body?.cancel();
+      const back = await activateVersion(fx, written.workflowId, written.versionId);
+      await back.body?.cancel();
+    }
+    console.log("PROBE api rounds", JSON.stringify(tally));
+    assert(true);
+  }, { budget: true }));
+
+Deno.test("qa probe: a start filtered to another repository", () =>
+  withTicketFixture(async (fx) => {
+    const written = await publishWrittenWorkflow(fx, "qa-other-repo");
+    const labelled = await publishVersion(fx, written.workflowId, { startsOn: ["labeled"] });
+    await fx.owner.query(`update bakery.workflow_versions set starts = jsonb_set(starts, '{0,on,filter}', '{"repositoryId": 1}'::jsonb) where id = $1`, [labelled]);
+    const sourceId = await fx.insertSource({ policy: { ...automaticPolicy(fx), workflow: { workflowId: written.workflowId } } });
+    const response = await activateVersion(fx, written.workflowId, labelled);
+    console.log("PROBE start filtered to repository 1, source on another repository:", response.status, sourceId.length > 0);
+    await response.body?.cancel();
+  }, { budget: true }));

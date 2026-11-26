@@ -1,0 +1,26 @@
+
+> bakery@ test:integration /home/marktripoli/Development/bakery-wt/_qa/qa1030f
+> deno run --allow-env --allow-read --allow-run scripts/run-tests.ts integration tests/integration/qa1030f-probe_test.ts
+
+Check tests/integration/qa1030f-probe_test.ts
+running 3 tests from ./tests/integration/qa1030f-probe_test.ts
+qa probe: source save while a version with a label start is being put in use ...
+------- output -------
+PROBE save waiting on a lock: true
+PROBE held activation, then save answered 200 
+PROBE stored: label version in use true source automatic on it true
+----- output end -----
+qa probe: source save while a version with a label start is being put in use ... ok (9s)
+qa probe: activation and source save sent together through the API ...
+------- output -------
+PROBE api rounds {"bothAccepted":6,"oneRefused":14,"other":[]}
+----- output end -----
+qa probe: activation and source save sent together through the API ... ok (2s)
+qa probe: a start filtered to another repository ...
+------- output -------
+PROBE start filtered to repository 1, source on another repository: 422 true
+----- output end -----
+qa probe: a start filtered to another repository ... ok (1s)
+
+ok | 3 passed | 0 failed (14s)
+
