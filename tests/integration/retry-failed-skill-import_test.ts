@@ -595,3 +595,33 @@ Deno.test("after an unchanged revision lands on the existing version, the update
     await h.close();
   }
 });
+
+Deno.test("importing earlier files again as a new revision makes their version active and current", async () => {
+  const live = { revision: '"fixture-revision-3"', body: "# a\n" };
+  const checked: SkillSourceAdapter = {
+    fetchPinnedSource: async (request) =>
+      (await sourceAt(live.revision, live.body)).fetchPinnedSource(request),
+  };
+  const h = await openHarness(checked);
+  try {
+    const a = await importAt(h, one, "# a\n");
+    const b = await importAt(h, two, "# b\n");
+    assertNotEquals(b.skillVersionId, a.skillVersionId);
+    const again = await importAt(h, live.revision, "# a\n");
+    assertEquals(again.state, "completed");
+    assertEquals(again.skillVersionId, a.skillVersionId);
+    const skill = await h.fixture.pgDatabase.query<{
+      id: string;
+      activeVersionId: string;
+    }>(
+      `select id, active_version_id as "activeVersionId" from bakery.skills
+        where organization_id = $1 and source_id = $2`,
+      [h.organizationId, h.source.id],
+    );
+    assertEquals(skill.rows[0]?.activeVersionId, a.skillVersionId);
+    const check = await h.checkUpdate(skill.rows[0]!.id);
+    assertEquals([check.status, check.changes], ["current", []]);
+  } finally {
+    await h.close();
+  }
+});

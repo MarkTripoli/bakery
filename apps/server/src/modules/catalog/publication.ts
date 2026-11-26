@@ -692,7 +692,28 @@ export async function finalizeSkillVersionPublication(options: {
     [organizationId, validated.skillId, validated.revision],
   );
   const replay = assertRevisionAvailable(final.rows[0], preparation);
-  if (replay?.status === "published") return replay;
+  if (replay?.status === "published") {
+    const reactivated = await transaction.query<{ id: string }>(
+      `update bakery.skills
+          set active_version_id = $3, updated_at = now(), version = version + 1
+        where organization_id = $1 and id = $2
+          and active_version_id is distinct from $3
+        returning id`,
+      [organizationId, validated.skillId, replay.id],
+    );
+    if (reactivated.rows.length === 1) {
+      await appendAudit(transaction, {
+        organizationId,
+        principalId,
+        operation: options.operation,
+        resourceType: "skill_version",
+        resourceId: replay.id,
+        requestId: options.requestId,
+        traceId: options.traceId,
+      });
+    }
+    return replay;
+  }
 
   let row: SkillVersionRow;
   if (replay?.status === "draft") {
