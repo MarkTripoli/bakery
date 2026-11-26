@@ -161,7 +161,7 @@ function displayName(name: string): string {
 }
 
 const PRINTABLE_ASCII = /^[\x20-\x7e]*$/;
-const ENCODED_WORD_BYTES = 45;
+const ENCODED_WORD_BYTES = 39;
 const BODY_LINE_CHARS = 76;
 
 export function encodedHeaderText(value: string): string {

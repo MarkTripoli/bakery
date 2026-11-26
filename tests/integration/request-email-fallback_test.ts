@@ -177,13 +177,22 @@ Deno.test("an answered request, or email that is not working, sends nothing", as
   }
 });
 
-Deno.test("a send that fails is tried again, at most three times in all", async () => {
+Deno.test("a send that fails is tried again after 10 and then 30 minutes, three times in all", async () => {
   const o = await open({ mailFrom: "550 refused" });
   try {
     const id = await o.request(new Date("2026-11-26T09:00:00Z"));
-    for (let minute = 16; minute < 21; minute++) {
-      await o.sweep(new Date(`2026-11-26T09:${minute}:00Z`));
-    }
+    const attemptsAt = async (time: string) => {
+      await o.sweep(new Date(`2026-11-26T${time}:00Z`));
+      const [row] = await o.deliveries(id);
+      return row!.attempts;
+    };
+    assertEquals(await attemptsAt("09:16"), 1);
+    assertEquals(await attemptsAt("09:17"), 1);
+    assertEquals(await attemptsAt("09:25"), 1);
+    assertEquals(await attemptsAt("09:26"), 2);
+    assertEquals(await attemptsAt("09:55"), 2);
+    assertEquals(await attemptsAt("09:56"), 3);
+    assertEquals(await attemptsAt("11:00"), 3);
     const [row] = await o.deliveries(id);
     assertEquals([row.state, row.attempts], ["failed", 3]);
   } finally {

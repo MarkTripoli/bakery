@@ -18,6 +18,7 @@ import {
 export const REQUEST_EMAIL_FUNCTION_ID = "bakery-person-request-email";
 export const REQUEST_EMAIL_AFTER_MS = 15 * 60_000;
 export const REQUEST_EMAIL_MAX_ATTEMPTS = 3;
+export const REQUEST_EMAIL_RETRY_BASE_MINUTES = 10;
 const REQUEST_EMAIL_BATCH = 100;
 const EMAIL_CHANNEL = "email";
 
@@ -164,7 +165,9 @@ async function dueRequests(
         and request.created_at <= $1
         and request.expires_at > $2
         and (delivery.id is null or
-             (delivery.state = 'failed' and delivery.attempts < $4))
+             (delivery.state = 'failed' and delivery.attempts < $4
+              and delivery.updated_at <= $2 - make_interval(
+                mins => $6 * power(3, delivery.attempts - 1)::int)))
       order by request.created_at, request.id
       limit $5`,
     [
@@ -173,6 +176,7 @@ async function dueRequests(
       EMAIL_CHANNEL,
       REQUEST_EMAIL_MAX_ATTEMPTS,
       REQUEST_EMAIL_BATCH,
+      REQUEST_EMAIL_RETRY_BASE_MINUTES,
     ],
   );
   return found.rows;
@@ -206,13 +210,14 @@ async function settle(
   database: PgDatabase,
   request: DueRequest,
   outcome: SmtpOutcome,
+  now: Date,
 ): Promise<void> {
   const delivered = outcome === SmtpOutcome.Delivered;
   await database.query(
     `update bakery.person_request_deliveries
         set state = $3, failure_code = $4,
-            delivered_at = case when $5::boolean then now() else null end,
-            updated_at = now(), version = version + 1
+            delivered_at = case when $5::boolean then $6::timestamptz end,
+            updated_at = $6::timestamptz, version = version + 1
       where request_id = $1 and channel = $2 and state = 'sending'`,
     [
       request.id,
@@ -220,6 +225,7 @@ async function settle(
       delivered ? "delivered" : "failed",
       delivered ? null : outcome,
       delivered,
+      now,
     ],
   );
 }
@@ -232,7 +238,8 @@ export async function sendDueRequestEmails(
 ): Promise<RequestEmailOutcome[]> {
   const settings = await readEmailSettings(options.database);
   if (settings === null || emailState(settings) !== "working") return [];
-  const due = await dueRequests(options.database, options.now ?? new Date());
+  const now = options.now ?? new Date();
+  const due = await dueRequests(options.database, now);
   if (due.length === 0) return [];
   const password = await openEmailPassword(
     options.database,
@@ -270,7 +277,7 @@ export async function sendDueRequestEmails(
       ),
       { allowPlainLoopback: options.allowPlainLoopback },
     );
-    await settle(options.database, request, outcome);
+    await settle(options.database, request, outcome, now);
     outcomes.push(
       outcome === SmtpOutcome.Delivered
         ? { requestId: request.id, result: "delivered" }

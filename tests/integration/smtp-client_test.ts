@@ -77,6 +77,10 @@ Deno.test("a non-ASCII name and subject are encoded, and a long line is wrapped 
     );
     const mail = readMail(data);
     assertEquals(mail.subject, subject);
+    const subjectLines = /\r\nSubject: (?:[^\r\n]|\r\n )*/.exec(data)![0]
+      .slice(2).split("\r\n");
+    assert(subjectLines.length > 1, "a long encoded subject is folded");
+    assert(subjectLines.every((line) => line.length <= 76));
     assertEquals(mail.text, text);
     assert(mail.longestLine <= 998);
     assert(data.includes("From: =?UTF-8?B?"));
