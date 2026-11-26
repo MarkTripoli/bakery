@@ -830,10 +830,7 @@ export function WorkflowEditorPage(
   const automatic = automaticStarts(editor.starts);
   const startCard = editor.starts.length === 0 ? undefined : {
     title: translate("library.editor.start.title"),
-    line: translate("library.editor.start.card", {
-      events: automatic.events,
-      schedules: automatic.schedules,
-    }),
+    line: translate("library.editor.start.card", { count: automatic }),
   };
   const problemsByStep = useMemo<ReadonlyMap<string, string>>(() => {
     const merged = new Map(checker.byStep);
@@ -1847,13 +1844,13 @@ export function WorkflowEditorPage(
                   <UI.Text variant="muted">
                     {translate("library.workflow.steps.never" as never)}
                   </UI.Text>
-                  {blocked || automatic.events === 0 ? null : (
+                  {blocked || automatic === 0 ? null : (
                     <UI.Text>
                       {translate(
                         publishedUnused
                           ? "library.editor.start.useNote"
                           : "library.editor.start.publishNote",
-                        { count: automatic.events },
+                        { count: automatic },
                       )}
                     </UI.Text>
                   )}

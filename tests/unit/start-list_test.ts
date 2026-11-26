@@ -13,6 +13,8 @@ import {
   startNeeds,
   startProblems,
   startsOfVersion,
+  toEvent,
+  toSchedule,
   withBriefInput,
   withBudget,
   withRepository,
@@ -85,13 +87,38 @@ Deno.test("a start lists each missing input until it is filled", () => {
   });
 });
 
-Deno.test("a schedule start is never reported as needing inputs", () => {
+const NIGHTLY = {
+  id: "nightly",
+  on: { kind: "schedule", cron: "0 2 * * *", timezone: "Europe/London" },
+} as const;
+
+Deno.test("a schedule start needs a repository even when no input asks for one", () => {
   assertEquals(
-    startProblems([{
-      id: "nightly",
-      on: { kind: "schedule", cron: "0 2 * * *", timezone: "Europe/London" },
-    }], NEEDS),
+    startProblems([NIGHTLY], []).map((one) => [one.kind, one.name]),
+    [["repository", "repositoryId"]],
+  );
+  assertEquals(
+    startProblems([NIGHTLY], NEEDS).map((one) => one.kind).includes("title"),
+    true,
+  );
+  assertEquals(
+    startProblems([toSchedule(NIGHTLY, NIGHTLY.on, REPOSITORY)], []),
     [],
+  );
+});
+
+Deno.test("switching between a schedule and an event keeps the chosen repository", () => {
+  const scheduled = toSchedule(newStart([]), NIGHTLY.on, REPOSITORY);
+  assertEquals(scheduled.inputs?.repositoryId, REPOSITORY.id);
+  const event = toEvent(
+    scheduled,
+    "work_item.opened",
+    undefined,
+    [REPOSITORY],
+  );
+  assertEquals(
+    [event.inputs, event.on.kind === "event" && event.on.filter],
+    [undefined, { repositoryId: 42 }],
   );
 });
 

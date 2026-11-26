@@ -15,16 +15,28 @@ import {
   type DraftStart,
   newStart,
   otherFilters,
+  SCHEDULE_REPOSITORY,
   shownBudget,
   type StartNeed,
   type StartProblem,
   type StartRepository,
   textInput,
+  toEvent,
+  toSchedule,
   withBriefInput,
   withBudget,
   withRepository,
   withTextInput,
 } from "./start-list.ts";
+import {
+  cronOf,
+  NEW_SCHEDULE,
+  nextRunDays,
+  SCHEDULE_REPEATS,
+  SCHEDULE_TIMES,
+  simpleSchedule,
+  timeZones,
+} from "./start-schedule.ts";
 
 export type StartRepositories = {
   readonly state: "loading" | "failed" | "ready";
@@ -104,24 +116,10 @@ export function StartPanelBody(props: StartPanelProps) {
           <UI.Text variant="strong">
             {copy("heading", { number: index + 1 })}
           </UI.Text>
-          {start.on.kind === "schedule"
-            ? (
-              <>
-                <UI.Text>
-                  {copy("schedule", {
-                    cron: start.on.cron,
-                    timezone: start.on.timezone,
-                  })}
-                </UI.Text>
-                <UI.InlineNotice tone="warning">
-                  {copy("scheduleNotRun")}
-                </UI.InlineNotice>
-              </>
-            )
-            : onChange === undefined
-            ? <ReadOnlyEventStart {...props} start={start} />
+          {onChange === undefined
+            ? <ReadOnlyStart {...props} start={start} />
             : (
-              <EventStartFields
+              <StartFields
                 {...props}
                 base={`${base}-${start.id}`}
                 onChange={replace}
@@ -164,18 +162,36 @@ function repositoryNeed(
   return needs.find((need) => need.kind === "repository");
 }
 
-function ReadOnlyEventStart(
+function ReadOnlyStart(
   { start, needs, repositories }: StartPanelProps & {
     readonly start: WorkflowStart;
   },
 ) {
   const copy = useStartCopy();
-  if (start.on.kind !== "event") return null;
-  const id = chosenRepository(start, repositoryNeed(needs), repositories.list);
+  const need = start.on.kind === "schedule"
+    ? SCHEDULE_REPOSITORY
+    : repositoryNeed(needs);
+  const id = chosenRepository(start, need, repositories.list);
   const chosen = repositories.list.find((one) => one.id === id);
+  const simple = start.on.kind === "schedule"
+    ? simpleSchedule(start.on.cron)
+    : null;
   return (
     <>
-      <UI.Text>{eventName(start.on.eventKind, copy)}</UI.Text>
+      <UI.Text>
+        {start.on.kind === "event"
+          ? eventName(start.on.eventKind, copy)
+          : simple === null
+          ? copy("schedule", {
+            cron: start.on.cron,
+            timezone: start.on.timezone,
+          })
+          : copy("scheduleSummary", {
+            repeat: copy(`repeat.${simple.repeat}`),
+            time: simple.time,
+            timezone: start.on.timezone,
+          })}
+      </UI.Text>
       <UI.Text>
         {chosen === undefined
           ? copy("anyRepository")
@@ -186,7 +202,100 @@ function ReadOnlyEventStart(
   );
 }
 
-function EventStartFields(
+const SCHEDULE_CHOICE = "@schedule";
+const CUSTOM_REPEAT = "custom";
+
+function ScheduleFields(
+  { start, base, on, onChange }: {
+    readonly start: WorkflowStart;
+    readonly base: string;
+    readonly on: Extract<WorkflowStart["on"], { kind: "schedule" }>;
+    readonly onChange: (start: WorkflowStart) => void;
+  },
+) {
+  const copy = useStartCopy();
+  const { locale } = useI18n();
+  const simple = simpleSchedule(on.cron);
+  const set = (next: { cron?: string; timezone?: string }) =>
+    onChange({ ...start, on: { ...on, ...next } });
+  const day = new Intl.DateTimeFormat(locale, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+  const times = simple === null || SCHEDULE_TIMES.includes(simple.time)
+    ? SCHEDULE_TIMES
+    : [...SCHEDULE_TIMES, simple.time].sort();
+  return (
+    <>
+      <UI.Combobox
+        id={`${base}-repeat`}
+        label={copy("repeats")}
+        onChange={(event) => {
+          const repeat = SCHEDULE_REPEATS.find((one) =>
+            one === event.currentTarget.value
+          );
+          if (repeat === undefined) return;
+          set({
+            cron: cronOf({
+              repeat,
+              time: simple?.time ?? NEW_SCHEDULE.time,
+            }),
+          });
+        }}
+        options={[
+          ...SCHEDULE_REPEATS.map((repeat) => ({
+            value: repeat,
+            label: copy(`repeat.${repeat}`),
+          })),
+          ...(simple === null
+            ? [{
+              value: CUSTOM_REPEAT,
+              label: copy("repeat.custom", { cron: on.cron }),
+            }]
+            : []),
+        ]}
+        value={simple?.repeat ?? CUSTOM_REPEAT}
+      />
+      {simple === null ? null : (
+        <UI.Combobox
+          id={`${base}-time`}
+          label={copy("time")}
+          onChange={(event) =>
+            set({
+              cron: cronOf({ ...simple, time: event.currentTarget.value }),
+            })}
+          options={times.map((time) => ({ value: time, label: time }))}
+          value={simple.time}
+        />
+      )}
+      <UI.Combobox
+        id={`${base}-timezone`}
+        label={copy("timezone")}
+        onChange={(event) => set({ timezone: event.currentTarget.value })}
+        options={timeZones(on.timezone).map((zone) => ({
+          value: zone,
+          label: zone,
+        }))}
+        value={on.timezone}
+      />
+      {simple === null ? null : (
+        <UI.Stack gap="none" data-testid="start-next">
+          <UI.Text variant="caption">{copy("next")}</UI.Text>
+          {nextRunDays(simple, on.timezone, new Date()).map((next) => (
+            <UI.Text key={next.toISOString()} variant="caption">
+              {`${day.format(next)} ${simple.time}`}
+            </UI.Text>
+          ))}
+        </UI.Stack>
+      )}
+      <UI.Text variant="caption">{copy("clockChange")}</UI.Text>
+    </>
+  );
+}
+
+function StartFields(
   { start, base, needs, problems, repositories, onChange }:
     & Omit<StartPanelProps, "onChange">
     & {
@@ -197,16 +306,42 @@ function EventStartFields(
 ) {
   const copy = useStartCopy();
   const settledBudget = useRef(start.budgetUsd);
-  if (start.on.kind !== "event") return null;
   const on = start.on;
   const kinds: readonly string[] = WORKFLOW_START_EVENT_KINDS;
-  const options =
-    (kinds.includes(on.eventKind) ? kinds : [on.eventKind, ...kinds]).map((
-      kind,
-    ) => ({
+  const eventKinds = on.kind !== "event" || kinds.includes(on.eventKind)
+    ? kinds
+    : [on.eventKind, ...kinds];
+  const schedulable = repositories.state === "ready" &&
+    repositories.list.length > 0;
+  const options = [
+    ...eventKinds.map((kind) => ({
       value: kind,
       label: eventName(kind, copy),
-    }));
+    })),
+    ...(schedulable || on.kind === "schedule"
+      ? [{ value: SCHEDULE_CHOICE, label: copy("onSchedule") }]
+      : []),
+  ];
+  const choose = (value: string) => {
+    if (value === SCHEDULE_CHOICE) {
+      onChange(
+        toSchedule(
+          start,
+          {
+            cron: cronOf(NEW_SCHEDULE),
+            timezone: new Intl.DateTimeFormat().resolvedOptions().timeZone,
+          },
+          repositories.list[0],
+        ),
+      );
+    } else if (on.kind === "schedule") {
+      onChange(
+        toEvent(start, value, repositoryNeed(needs), repositories.list),
+      );
+    } else {
+      onChange({ ...start, on: { ...on, eventKind: value } });
+    }
+  };
   const problem = (need: StartNeed) =>
     problems.find((one) => one.startId === start.id && one.name === need.name);
   return (
@@ -214,20 +349,35 @@ function EventStartFields(
       <UI.Combobox
         id={`${base}-event`}
         label={copy("when")}
-        onChange={(event) =>
-          onChange({
-            ...start,
-            on: { ...on, eventKind: event.currentTarget.value },
-          })}
+        onChange={(event) => choose(event.currentTarget.value)}
         options={options}
-        value={on.eventKind}
+        value={on.kind === "event" ? on.eventKind : SCHEDULE_CHOICE}
       />
-      {on.eventKind.endsWith("labeled")
+      {repositories.state === "ready" && !schedulable
+        ? (
+          <UI.Text variant="caption">
+            {copy("scheduleNeedsRepository")}
+          </UI.Text>
+        )
+        : null}
+      {on.kind === "event" && on.eventKind.endsWith("labeled")
         ? <UI.Text variant="caption">{copy("anyLabel")}</UI.Text>
+        : null}
+      {on.kind === "schedule"
+        ? (
+          <ScheduleFields
+            base={base}
+            on={on}
+            onChange={onChange}
+            start={start}
+          />
+        )
         : null}
       <RepositoryField
         base={base}
-        need={repositoryNeed(needs)}
+        need={on.kind === "schedule"
+          ? SCHEDULE_REPOSITORY
+          : repositoryNeed(needs)}
         onChange={onChange}
         problem={problems.find((one) =>
           one.startId === start.id && one.kind === "repository"
@@ -340,7 +490,8 @@ function RepositoryField(
           </UI.InlineNotice>
         )
         : null}
-      {need !== undefined && chosen?.eventRepositoryId === null
+      {need !== undefined && start.on.kind === "event" &&
+          chosen?.eventRepositoryId === null
         ? <UI.Text variant="caption">{copy("repositoryHelp")}</UI.Text>
         : null}
     </UI.Stack>
