@@ -4738,7 +4738,14 @@ test.describe("who a run is waiting for", () => {
     await expect(waiting).toContainText("Administrators will be asked.");
     await expect(waiting).toContainText("Expires Feb 8, 2026.");
     await still(page, "run-waiting-next");
-    await waiting.getByRole("button", { name: "About expiry" }).click();
+    const help = waiting.getByRole("button", { name: "About expiry" });
+    await help.scrollIntoViewIfNeeded();
+    await page.evaluate(() =>
+      new Promise((settled) =>
+        requestAnimationFrame(() => requestAnimationFrame(settled))
+      )
+    );
+    await help.click();
     await expect(
       page.getByText("Bakery never treats silence as approval."),
     ).toBeVisible();
@@ -4778,6 +4785,7 @@ test.describe("who a run is waiting for", () => {
     await expect(waiting).toContainText(
       /Expired: nobody answered by Feb 8, 2026\./,
     );
+    await still(page, "run-waiting-expired");
   });
 
   test("a failed read is said with its own way to load it again", async ({ page }) => {
