@@ -3,6 +3,7 @@
 // that the launcher runs it, and that nothing else gets through: no `-c`, no
 // alias, no upload-pack, no other transport, no environment.
 import { assert, assertEquals, assertThrows } from "@std/assert";
+import { serveRefusingGit } from "../helpers/git-refusing-server.ts";
 import {
   gitLauncherArgs,
   MAX_FETCH_BLOB_OBJECTS,
@@ -86,6 +87,33 @@ async function bareRepository() {
     blob: await git(`${root}/w`, "rev-parse", "HEAD:f"),
   };
 }
+
+Deno.test("only a ref the server says it does not have exits 66; any other fetch failure does not", async () => {
+  const refusing = serveRefusingGit();
+  const repo = await bareRepository();
+  try {
+    const missing = await launch([
+      "fetch",
+      repo.dir,
+      refusing.url,
+      "0123456789abcdef0123456789abcdef01234567",
+    ]);
+    assertEquals(missing.code, 66);
+    const closed = Deno.listen({ hostname: "127.0.0.1", port: 0 });
+    const deadPort = (closed.addr as Deno.NetAddr).port;
+    closed.close();
+    const unreachable = await launch([
+      "fetch",
+      repo.dir,
+      `http://127.0.0.1:${deadPort}/repository.git`,
+      repo.commit,
+    ]);
+    assert(unreachable.code !== 0 && unreachable.code !== 66);
+  } finally {
+    await refusing.close();
+    await Deno.remove(repo.root, { recursive: true });
+  }
+});
 
 Deno.test("every git command the server issues maps onto a launcher operation", () => {
   const dir = "/srv/r.git";

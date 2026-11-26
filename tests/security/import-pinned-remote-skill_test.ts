@@ -28,6 +28,7 @@ import {
   stopRemoteSkillSourceFixture,
   type UstarFixtureEntry,
 } from "../fixtures/remote-skill-source.ts";
+import { serveRefusingGit } from "../helpers/git-refusing-server.ts";
 
 const encoder = new TextEncoder();
 const locator = "http://127.0.0.1:43127/source";
@@ -397,8 +398,22 @@ Deno.test("a branch or tag the Git server does not have fails at once as not fou
           locator: fixture.gitUrl,
           requestedRevision: "0123456789abcdef0123456789abcdef01234567",
         }),
-      "SOURCE_REVISION_NOT_FOUND",
+      "SOURCE_UNAVAILABLE",
     );
+    const refusing = serveRefusingGit();
+    try {
+      await expectSourceError(
+        () =>
+          adapter.fetchPinnedSource({
+            sourceType: "git",
+            locator: refusing.url,
+            requestedRevision: "0123456789abcdef0123456789abcdef01234567",
+          }),
+        "SOURCE_REVISION_NOT_FOUND",
+      );
+    } finally {
+      await refusing.close();
+    }
     const closed = Deno.listen({ hostname: "127.0.0.1", port: 0 });
     const deadPort = (closed.addr as Deno.NetAddr).port;
     closed.close();

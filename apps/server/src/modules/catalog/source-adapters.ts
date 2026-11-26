@@ -30,6 +30,7 @@ const MAX_GIT_TEXT_BYTES = 256 * 1024;
 const MAX_GIT_HASH_BYTES = 129;
 const GIT_OBJECT_ID = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 const DIGEST = /^[0-9a-f]{64}$/;
+const GIT_LAUNCHER_REF_NOT_FOUND = 66;
 
 export const SKILL_SOURCE_GIT_ENVIRONMENT = Object.freeze({
   PATH: "/usr/bin:/bin",
@@ -435,6 +436,9 @@ const productionGitRunner: GitCommandRunner = {
         reader.releaseLock();
       }
       const status = await abortable(child.status, invocation.signal);
+      if (status.code === GIT_LAUNCHER_REF_NOT_FOUND) {
+        fail("SOURCE_REVISION_NOT_FOUND");
+      }
       if (!status.success) fail("SOURCE_UNAVAILABLE");
       return concatenate(chunks, total);
     } catch (error) {
@@ -734,33 +738,6 @@ async function requireAdvertisedRevision(
   if (advertised.byteLength === 0) fail("SOURCE_REVISION_NOT_FOUND");
 }
 
-async function failMissingCommit(
-  dependencies: SkillSourceAdapterDependencies,
-  directory: string,
-  normalizedLocator: string,
-  error: unknown,
-  signal?: AbortSignal,
-): Promise<never> {
-  if (
-    !(error instanceof SkillSourceAdapterError) ||
-    error.code !== "SOURCE_UNAVAILABLE"
-  ) {
-    throw error;
-  }
-  try {
-    await advertisedRefs(
-      dependencies,
-      directory,
-      normalizedLocator,
-      "HEAD",
-      signal,
-    );
-  } catch {
-    throw error;
-  }
-  return fail("SOURCE_REVISION_NOT_FOUND");
-}
-
 async function fetchGitSource(
   dependencies: SkillSourceAdapterDependencies,
   request: SkillSourceFetchRequest,
@@ -816,16 +793,6 @@ async function fetchGitSource(
       ],
       64 * 1024,
       request.signal,
-    ).catch((error) =>
-      expectedRevision === undefined && GIT_OBJECT_ID.test(fetchRevision)
-        ? failMissingCommit(
-          dependencies,
-          directory,
-          normalizedLocator,
-          error,
-          request.signal,
-        )
-        : Promise.reject(error)
     );
     const sourceRevision = decodeGitText(
       await runGit(

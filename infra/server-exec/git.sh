@@ -122,7 +122,13 @@ case "$op" in
     revision=$2
     check_url "$url"
     case "$revision" in "" | -* | *[!A-Za-z0-9._/-]* | *..*) exit 64 ;; esac
-    remote_git fetch --no-tags --depth=1 --filter=blob:none -- "$url" "$revision"
+    errors=$( (remote_git fetch --no-tags --depth=1 --filter=blob:none -- "$url" "$revision") 2>&1 >/dev/null )
+    status=$?
+    [ "$status" -eq 0 ] && exit 0
+    case "$errors" in
+      *"not our ref"* | *"couldn't find remote ref"* | *"no such remote ref"*) exit 66 ;;
+    esac
+    exit "$status"
     ;;
   ls-remote)
     [ "$#" -eq 2 ] || exit 64
