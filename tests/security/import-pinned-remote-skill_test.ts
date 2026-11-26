@@ -3,6 +3,8 @@ import {
   createSkillSourceAdapter,
   createSkillSourceAdapterForTest,
   type GitCommandInvocation,
+  MAX_GIT_ERROR_BYTES,
+  readBoundedText,
   SkillSourceAdapterError,
   type SkillSourceProof,
   validatePinnedSkillSource,
@@ -113,6 +115,68 @@ async function expectSourceError(
   const error = await assertRejects(work, SkillSourceAdapterError, code);
   assertEquals(error.code, code);
 }
+
+async function processesNaming(text: string): Promise<string> {
+  const found = await new Deno.Command("/usr/bin/pgrep", {
+    args: ["-af", text],
+    stdout: "piped",
+    stderr: "null",
+  }).output();
+  return new TextDecoder().decode(found.stdout).trim();
+}
+
+Deno.test("a git fetch that times out leaves no git process behind", async () => {
+  const held: Promise<void>[] = [];
+  let release: () => void = () => undefined;
+  const hold = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const server = Deno.serve(
+    { hostname: "127.0.0.1", port: 0, onListen: () => undefined },
+    async () => {
+      held.push(hold);
+      await hold;
+      return new Response(null, { status: 503 });
+    },
+  );
+  const url =
+    `http://127.0.0.1:${server.addr.port}/hung-${crypto.randomUUID()}.git`;
+  try {
+    const adapter = createSkillSourceAdapterForTest({
+      allowInsecureLoopback: true,
+      timeoutMs: 1_000,
+    });
+    await expectSourceError(
+      () =>
+        adapter.fetchPinnedSource({
+          sourceType: "git",
+          locator: url,
+          requestedRevision: "main",
+        }),
+      "SOURCE_TIMEOUT",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    assertEquals(await processesNaming(url), "");
+  } finally {
+    release();
+    await server.shutdown();
+  }
+});
+
+Deno.test("what is kept of git's error output is capped, however much it writes", async () => {
+  const chunk = new Uint8Array(64 * 1024).fill(0x61);
+  let sent = 0;
+  const flood = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (sent >= 64 * 1024 * 1024) return controller.close();
+      sent += chunk.byteLength;
+      controller.enqueue(chunk);
+    },
+  });
+  const kept = await readBoundedText(flood, MAX_GIT_ERROR_BYTES);
+  assertEquals(sent, 64 * 1024 * 1024);
+  assertEquals(kept.length, MAX_GIT_ERROR_BYTES);
+});
 
 Deno.test("real loopback HTTP proves strong ETag, mutation, validation, and bounds", async () => {
   const fixture = await startRemoteSkillSourceFixture();

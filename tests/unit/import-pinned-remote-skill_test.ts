@@ -150,7 +150,7 @@ Deno.test("Git proof fixes argv and environment then retries the persisted commi
   assertEquals(fetch.executable, "/usr/bin/git");
   assertEquals(fetch.clearEnv, true);
   assertEquals(fetch.env, SKILL_SOURCE_GIT_LOOPBACK_ENVIRONMENT);
-  assertEquals(fetch.stderr, "null");
+  assertEquals(fetch.stderr, "piped");
   assertEquals(fetch.args, [
     "-c",
     "credential.helper=",

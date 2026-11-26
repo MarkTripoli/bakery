@@ -65,7 +65,7 @@ check_url() {
 remote_git() {
   set_environment "$protocols"
   # shellcheck disable=SC2086 # ENVIRONMENT is a fixed list of NAME=value words.
-  exec /usr/bin/env -i $ENVIRONMENT \
+  exec /usr/bin/setsid -w /usr/bin/env -i $ENVIRONMENT \
     /usr/bin/git --git-dir="$dir" \
     -c core.hooksPath=/dev/null -c core.fsmonitor=false \
     -c credential.helper= -c core.askPass= -c http.followRedirects=false \
@@ -122,13 +122,7 @@ case "$op" in
     revision=$2
     check_url "$url"
     case "$revision" in "" | -* | *[!A-Za-z0-9._/-]* | *..*) exit 64 ;; esac
-    errors=$( (remote_git fetch --no-tags --depth=1 --filter=blob:none -- "$url" "$revision") 2>&1 >/dev/null )
-    status=$?
-    [ "$status" -eq 0 ] && exit 0
-    case "$errors" in
-      *"not our ref"* | *"couldn't find remote ref"* | *"no such remote ref"*) exit 66 ;;
-    esac
-    exit "$status"
+    remote_git fetch --no-tags --depth=1 --filter=blob:none -- "$url" "$revision"
     ;;
   ls-remote)
     [ "$#" -eq 2 ] || exit 64

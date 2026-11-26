@@ -56,6 +56,18 @@ async function launch(
   return { code: output.code, stdout: decoder.decode(output.stdout).trim() };
 }
 
+async function launchForErrors(args: string[]) {
+  const output = await new Deno.Command(SERVER_GIT_LAUNCHER, {
+    args,
+    clearEnv: true,
+    env: {},
+    stdin: "null",
+    stdout: "null",
+    stderr: "piped",
+  }).output();
+  return { code: output.code, stderr: decoder.decode(output.stderr) };
+}
+
 async function git(cwd: string, ...args: string[]) {
   const output = await new Deno.Command("/usr/bin/git", {
     args,
@@ -88,27 +100,29 @@ async function bareRepository() {
   };
 }
 
-Deno.test("only a ref the server says it does not have exits 66; any other fetch failure does not", async () => {
+Deno.test("a refused ref and an unreachable server both fail the fetch, and only the refusal names the ref", async () => {
   const refusing = serveRefusingGit();
   const repo = await bareRepository();
   try {
-    const missing = await launch([
+    const missing = await launchForErrors([
       "fetch",
       repo.dir,
       refusing.url,
       "0123456789abcdef0123456789abcdef01234567",
     ]);
-    assertEquals(missing.code, 66);
+    assert(missing.code !== 0);
+    assert(missing.stderr.includes("not our ref"));
     const closed = Deno.listen({ hostname: "127.0.0.1", port: 0 });
     const deadPort = (closed.addr as Deno.NetAddr).port;
     closed.close();
-    const unreachable = await launch([
+    const unreachable = await launchForErrors([
       "fetch",
       repo.dir,
       `http://127.0.0.1:${deadPort}/repository.git`,
       repo.commit,
     ]);
-    assert(unreachable.code !== 0 && unreachable.code !== 66);
+    assert(unreachable.code !== 0);
+    assert(!unreachable.stderr.includes("not our ref"));
   } finally {
     await refusing.close();
     await Deno.remove(repo.root, { recursive: true });
@@ -386,7 +400,13 @@ Deno.test("the git launcher is an executable file with no caller-chosen command"
   assertEquals(commands.match(/\bexec\b/g)?.length, 2);
   assertEquals(
     commands.match(/exec \/usr\/bin\/env -i \$ENVIRONMENT/g)?.length,
-    2,
+    1,
+  );
+  assertEquals(
+    commands.match(
+      /exec \/usr\/bin\/setsid -w \/usr\/bin\/env -i \$ENVIRONMENT/g,
+    )?.length,
+    1,
   );
   assert(!/--upload-pack|alias\.|sshCommand=|eval /.test(commands));
 });
