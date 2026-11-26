@@ -7557,6 +7557,52 @@ const transportSchemas = {
       ],
       "description": "A split: the parent run's step owns a plan of child work items joined by typed artifacts (chapter 25 section 5). The engine starts the lanes that name what they run, as many at a time as the plan's capacity allows."
     },
+    "PeopleTagEscalation": {
+      "fields": [
+        {
+          "name": "afterHours",
+          "type": "positiveInteger",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 72
+          },
+          "description": "Hours to wait after the first ask before asking the next person; 24 when left out, at most 72."
+        },
+        {
+          "name": "recipientId",
+          "type": "uuid",
+          "required": false,
+          "description": "The one person to ask next: an active human member of this organization. Resolved when the step runs and frozen on the request. Name exactly one recipient field here."
+        },
+        {
+          "name": "recipientRoleKey",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "description": "A role to ask next instead of one person: admin, developer or a custom role's key. Every active member holding the role is tagged, each with their own request, resolved and frozen when the step runs."
+        },
+        {
+          "name": "recipientGroupId",
+          "type": "uuid",
+          "required": false,
+          "description": "A group to ask next instead of one person. Every active member of the group is tagged, each with their own request, resolved and frozen when the step runs."
+        },
+        {
+          "name": "recipientRunRole",
+          "type": "enum(starter|task_owner)",
+          "required": false,
+          "description": "A person worked out from the run instead of named: starter is the person who started the run, task_owner the person who created its work item."
+        }
+      ],
+      "rules": [
+        "Name exactly one recipient, resolved when the second ask is made, with the same rules as the first."
+      ],
+      "description": "The second ask of a waiting Notify step: who to ask, and after how many hours of no response."
+    },
     "PeopleTagInput": {
       "fields": [
         {
@@ -7613,13 +7659,20 @@ const transportSchemas = {
           "type": "boolean",
           "required": false,
           "description": "True waits for a response before the run goes on; false, the default, carries on as soon as the tag is sent. Only a review can be waited for, because an FYI asks for nothing back."
+        },
+        {
+          "name": "ifNobodyAnswers",
+          "type": "PeopleTagEscalation",
+          "required": false,
+          "description": "Who to ask next if nobody tagged has responded after a while. Needs wait: the step keeps waiting, now on both asks, and completes responded when anyone answers."
         }
       ],
       "rules": [
         "A step with no agent. The workflow tags on behalf of the person who started the run, who must still be able to write runs; the organization, the run and the step come from the run, never from this payload.",
         "Name exactly one recipient. Every rule of a request made on the run holds: a recipient who cannot be resolved falls back to the person who started the run, with a visible note, and a role or group too large to ask is refused whole.",
         "The step tags once, keyed by the run and the step, so a step looked at again finds its requests instead of tagging again.",
-        "A waiting step completes responded when anyone tagged responds, and expired when every request has expired or been withdrawn first. Nothing is approved by silence."
+        "A waiting step completes responded when anyone tagged responds, and expired when every request has expired or been withdrawn first. Nothing is approved by silence.",
+        "If ifNobodyAnswers names someone, the step asks them once, when afterHours have passed since the first ask and nobody has responded. Their request has its own seven days; the step completes expired only when every request has ended unanswered."
       ],
       "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
     },

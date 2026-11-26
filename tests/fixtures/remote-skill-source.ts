@@ -327,6 +327,44 @@ async function fixtureControl(authority: string, path: string): Promise<void> {
   await response.body?.cancel();
 }
 
+export const SKILL_MD_ONLY_TAG = "plain-v1";
+export const SKILL_MD_ONLY_PATH = "skills/plain";
+export const SKILL_MD_ONLY_SKILL = [
+  "---",
+  "name: plain-skill",
+  "description: >",
+  "  A skill folder in the standard agent-skills layout,",
+  "  with no manifest.json.",
+  "license: Complete terms in LICENSE.txt",
+  "---",
+  "",
+  "# Plain skill",
+  "",
+].join("\n");
+export const SKILL_MD_ONLY_SCRIPT = "print('plain')\n";
+
+async function commitSkillMdOnlyFolder(work: string): Promise<void> {
+  await runFixtureGit(work, ["checkout", "--orphan", "plain"]);
+  await runFixtureGit(work, ["rm", "-r", "-q", "--cached", "."]);
+  const folder = `${work}/${SKILL_MD_ONLY_PATH}`;
+  await Deno.mkdir(`${folder}/scripts`, { recursive: true });
+  await Deno.writeTextFile(`${folder}/SKILL.md`, SKILL_MD_ONLY_SKILL);
+  await Deno.writeTextFile(`${folder}/scripts/run.py`, SKILL_MD_ONLY_SCRIPT);
+  await Deno.chmod(`${folder}/scripts/run.py`, 0o755);
+  await runFixtureGit(work, ["add", "--", SKILL_MD_ONLY_PATH]);
+  await runFixtureGit(work, [
+    "-c",
+    "user.name=Bakery Fixture",
+    "-c",
+    "user.email=fixture@invalid",
+    "commit",
+    "-m",
+    "plain",
+  ]);
+  await runFixtureGit(work, ["tag", SKILL_MD_ONLY_TAG]);
+  await runFixtureGit(work, ["checkout", "-q", "-f", "main"]);
+}
+
 /** Starts an owned loopback archive and Git smart-HTTP fixture process. */
 export async function startRemoteSkillSourceFixture(
   options: Readonly<{ allowBlobFilter?: boolean }> = {},
@@ -392,6 +430,7 @@ export async function startRemoteSkillSourceFixture(
     ]);
     const secondCommit = await runFixtureGit(work, ["rev-parse", "HEAD"]);
     await Deno.writeTextFile(`${root}/second-commit`, `${secondCommit}\n`);
+    await commitSkillMdOnlyFolder(work);
     await runFixtureGit(root, ["clone", "--bare", work, "repository.git"]);
     await runFixtureGit(root, [
       "--git-dir",

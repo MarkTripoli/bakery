@@ -198,6 +198,39 @@ function isCodeOnly(node: Record<string, unknown>, uses: string): boolean {
 const FIX_ACTION = "harness.repair";
 const REVIEW_ACTION = "review.independent";
 
+export type BlockKind =
+  | "approval"
+  | "if"
+  | "fix"
+  | "repeat"
+  | "together"
+  | "each"
+  | "call"
+  | "wait"
+  | "sequence";
+
+export function planGateOf(
+  raw: unknown,
+): Record<string, unknown> | undefined {
+  const node = withKind(record(raw));
+  return text(node.kind) === "branch" ? planGateApproval(node) : undefined;
+}
+
+export function blockKindOf(raw: unknown): BlockKind | null {
+  const node = withKind(record(raw));
+  const kind = text(node.kind);
+  if (kind === "branch") {
+    return planGateApproval(node) === undefined ? "if" : "approval";
+  }
+  if (kind === "repeat") {
+    return fixLimitOf(node) === undefined ? "repeat" : "fix";
+  }
+  if (kind === "parallel") return "together";
+  if (kind === "forEach") return "each";
+  if (kind === "call" || kind === "wait" || kind === "sequence") return kind;
+  return null;
+}
+
 /**
  * The most tries of a repeat that fixes and then reviews, or undefined for any
  * other repeat (#62). Its own steps must include a repair and end with an

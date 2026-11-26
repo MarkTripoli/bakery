@@ -3,6 +3,7 @@ import {
   type WorkflowStart,
   WorkflowStartsSchema,
 } from "@bakery/contracts/workflow-starts";
+import { canonicalJson } from "../projects/repository-state.ts";
 
 export type DraftStart = WorkflowStart & { readonly budgetTyped?: string };
 
@@ -297,4 +298,11 @@ export function automaticStarts(
   starts: readonly WorkflowStart[],
 ): number {
   return starts.length;
+}
+
+export function sameStarts(
+  left: readonly WorkflowStart[],
+  right: readonly WorkflowStart[],
+): boolean {
+  return canonicalJson(left) === canonicalJson(right);
 }

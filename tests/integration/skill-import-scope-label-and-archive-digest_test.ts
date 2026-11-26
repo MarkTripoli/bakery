@@ -482,6 +482,27 @@ Deno.test("an import may be Private: its importer owns the skill, and nobody els
       (await f.read(f.adminCookie, `/v1/skill-imports/${mine.id}`)).status,
       404,
     );
+
+    const skillOf = async (run: Run) => {
+      const ran = await executeSkillImport(run.id, {
+        database: f.fixture.runtimePgDatabase,
+        sourceAdapter: source.adapter,
+        skillFileStore: store,
+      });
+      assertEquals(ran.state, "completed");
+      const rows = await db.query<{ skill_id: string | null }>(
+        "select skill_id from bakery.skill_imports where run_id = $1",
+        [run.id],
+      );
+      return rows.rows[0]?.skill_id ?? null;
+    };
+    const shared = await skillOf(organization);
+    const adminsOwn = await skillOf(admins);
+    assert(shared !== null && adminsOwn !== null);
+    assertEquals(
+      new Set([made.skillId, shared, adminsOwn]).size,
+      3,
+    );
   } finally {
     await close(f);
     await Deno.remove(root, { recursive: true });
