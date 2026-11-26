@@ -157,7 +157,13 @@ type RequestRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  first_asked_at: Date | string | null;
+  next_ask_hours: number | null;
+  next_asked_at: Date | string | null;
+  next_ask_name: string | null;
 };
+
+const DEFAULT_NEXT_ASK_HOURS = 24;
 
 const REQUEST_SELECT = `
   select request.id, request.run_id, request.step_key, request.target_id,
@@ -169,10 +175,59 @@ const REQUEST_SELECT = `
               then 'expired' else request.status end as status,
          request.expires_at, request.fallback_for_name,
          request.audience_role_key, request.audience_group_id,
-         request.audience_name, request.created_at, request.updated_at, request.version
+         request.audience_name, request.created_at, request.updated_at, request.version,
+         first_ask.first_asked_at,
+         case when step.input ? 'ifNobodyAnswers'
+              then coalesce((step.input #>> '{ifNobodyAnswers,afterHours}')::int,
+                            ${DEFAULT_NEXT_ASK_HOURS})
+         end as next_ask_hours,
+         next_ask.asked_at as next_asked_at,
+         coalesce(next_person.display_name, next_group.name, next_role.name,
+                  step.input #>> '{ifNobodyAnswers,recipientRoleKey}',
+                  next_run_person.display_name) as next_ask_name
     from bakery.person_requests as request
     join bakery.principals as recipient on recipient.id = request.recipient_id
-    left join bakery.principals as asker on asker.id = request.asked_by`;
+    left join bakery.principals as asker on asker.id = request.asked_by
+    left join bakery.run_steps as step
+      on step.organization_id = request.organization_id
+     and step.run_id = request.run_id and step.step_key = request.step_key
+     and step.iteration = request.step_iteration
+     and jsonb_typeof(step.input -> 'ifNobodyAnswers') = 'object'
+    left join lateral (
+      select min(sibling.created_at) as first_asked_at
+        from bakery.person_requests as sibling
+       where step.id is not null
+         and sibling.organization_id = request.organization_id
+         and sibling.run_id = request.run_id
+         and sibling.step_key = request.step_key
+         and sibling.step_iteration = request.step_iteration
+    ) as first_ask on true
+    left join bakery.person_request_next_asks as next_ask
+      on step.id is not null
+     and next_ask.organization_id = request.organization_id
+     and next_ask.run_id = request.run_id
+     and next_ask.step_key = request.step_key
+     and next_ask.step_iteration = request.step_iteration
+    left join bakery.principals as next_person
+      on next_person.id::text = step.input #>> '{ifNobodyAnswers,recipientId}'
+    left join bakery.organization_groups as next_group
+      on next_group.organization_id = request.organization_id
+     and next_group.id::text = step.input #>> '{ifNobodyAnswers,recipientGroupId}'
+    left join bakery.organization_roles as next_role
+      on next_role.organization_id = request.organization_id
+     and next_role.key = step.input #>> '{ifNobodyAnswers,recipientRoleKey}'
+    left join bakery.workflow_runs as next_run
+      on step.input #>> '{ifNobodyAnswers,recipientRunRole}' is not null
+     and next_run.organization_id = request.organization_id
+     and next_run.id = request.run_id
+    left join bakery.tasks as next_task
+      on next_task.organization_id = next_run.organization_id
+     and next_task.id = next_run.task_id
+    left join bakery.principals as next_run_person
+      on next_run_person.id = case step.input #>> '{ifNobodyAnswers,recipientRunRole}'
+           when 'starter' then next_run.requested_by
+           when 'task_owner' then next_task.created_by
+         end`;
 
 function iso(value: Date | string): string {
   return (value instanceof Date ? value : new Date(value)).toISOString();
@@ -217,6 +272,26 @@ function toRunRequest(row: RequestRow) {
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: row.version,
+    ...nextAskOf(row),
+  };
+}
+
+function nextAskOf(row: RequestRow) {
+  if (row.next_ask_hours === null || row.first_asked_at === null) {
+    return { nextAsk: null, passedOn: false };
+  }
+  const firstAskedAt = new Date(iso(row.first_asked_at)).getTime();
+  if (new Date(iso(row.created_at)).getTime() > firstAskedAt) {
+    return { nextAsk: null, passedOn: true };
+  }
+  return {
+    nextAsk: {
+      dueAt: new Date(firstAskedAt + row.next_ask_hours * 3_600_000)
+        .toISOString(),
+      askedAt: row.next_asked_at === null ? null : iso(row.next_asked_at),
+      who: row.next_ask_name,
+    },
+    passedOn: false,
   };
 }
 

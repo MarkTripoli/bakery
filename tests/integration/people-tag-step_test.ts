@@ -351,6 +351,61 @@ Deno.test("a waiting step asks the next person once, after the hours it names, a
   }
 });
 
+Deno.test("the run's requests say who is asked next and when, and mark the next ask once it is made", async () => {
+  const o = await openWithNextPerson();
+  try {
+    await o.fixture.pgDatabase.query(
+      `update bakery.run_steps set input = $3::jsonb
+        where organization_id = $1 and run_id = $2 and step_key = 'notify'`,
+      [o.fixture.organizationId, o.run.runId, JSON.stringify(o.request.input)],
+    );
+    const read = async () => {
+      const response = await api(
+        o.fixture,
+        o.fixture.cookie,
+        "GET",
+        `/v1/runs/${o.run.runId}/requests`,
+      );
+      assertEquals(response.status, 200);
+      const body = await response.json() as {
+        requests: {
+          recipient: { principalId: string };
+          createdAt: string;
+          nextAsk:
+            | { dueAt: string; askedAt: string | null; who: string | null }
+            | null;
+          passedOn: boolean;
+        }[];
+      };
+      return body.requests;
+    };
+    assertEquals(await o.runner.run(o.request), { kind: "pending" });
+    const [first] = await read();
+    assertEquals(first!.passedOn, false);
+    assertEquals(first!.nextAsk?.askedAt, null);
+    assertEquals(first!.nextAsk?.who, "Next");
+    assertEquals(
+      Date.parse(first!.nextAsk!.dueAt) - Date.parse(first!.createdAt),
+      24 * 3_600_000,
+    );
+    await o.askedAgo(25);
+    assertEquals(await o.runner.run(o.request), { kind: "pending" });
+    const after = await read();
+    const passed = after.find((request) =>
+      request.recipient.principalId === o.next.principalId
+    )!;
+    const original = after.find((request) =>
+      request.recipient.principalId === o.guest.principalId
+    )!;
+    assertEquals(passed.passedOn, true);
+    assertEquals(passed.nextAsk, null);
+    assertEquals(original.passedOn, false);
+    assert(original.nextAsk?.askedAt !== null);
+  } finally {
+    await o.finishAll();
+  }
+});
+
 Deno.test("a step whose first and next asks both run out completes expired and records every request expired", async () => {
   const o = await openWithNextPerson();
   try {
