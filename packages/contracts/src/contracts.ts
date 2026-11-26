@@ -1378,23 +1378,13 @@ function primitive(
     const lower = numericBound(field.bounds, "min", "minimum");
     const upper = numericBound(field.bounds, "max", "maximum");
     if (lower !== undefined || upper !== undefined) {
-      const refined = schema.refine((value) => {
-        const parsed = Number(value as string);
-        return Number.isFinite(parsed) &&
-          (lower === undefined || parsed >= lower) &&
-          (upper === undefined || parsed <= upper);
-      });
-      z.globalRegistry.add(refined, {
-        ...(lower === undefined ? {} : { "x-decimal-minimum": String(lower) }),
-        ...(upper === undefined ? {} : { "x-decimal-maximum": String(upper) }),
-      });
       schema = described(
-        refined,
+        schema,
         lower !== undefined && upper !== undefined
-          ? `${path} must be between ${lower} and ${upper}.`
+          ? `${path} is checked by its handler to be between ${lower} and ${upper}.`
           : lower !== undefined
-          ? `${path} must be at least ${lower}.`
-          : `${path} must be at most ${upper}.`,
+          ? `${path} is checked by its handler to be at least ${lower}.`
+          : `${path} is checked by its handler to be at most ${upper}.`,
       );
     }
   }
@@ -2619,6 +2609,35 @@ function oneOfSchema(
   );
 }
 
+function entriesOf(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  return record(value) ? Object.values(value) : [];
+}
+
+function assertBoundsAreRead(definition: Definition, name: string): void {
+  const read = definition.union !== undefined ||
+    definition.pageOf !== undefined ||
+    (Array.isArray(definition.fields) && definition.oneOf === undefined &&
+      definition.variants === undefined);
+  if (record(definition.bounds) && !read) {
+    throw new Error(
+      `${name} declares bounds its kind of definition never reads`,
+    );
+  }
+  for (
+    const entry of [
+      ...entriesOf(definition.oneOf),
+      ...entriesOf(definition.variants),
+    ]
+  ) {
+    if (record(entry) && entry.bounds !== undefined) {
+      throw new Error(
+        `${name} declares bounds on a variant, which are never read`,
+      );
+    }
+  }
+}
+
 function buildInput(
   name: string,
   definition: unknown,
@@ -2628,6 +2647,7 @@ function buildInput(
   if (!record(definition)) {
     throw new Error(`malformed input definition: ${name}`);
   }
+  assertBoundsAreRead(definition, name);
   if (name === "RepositoryInspectionInput") {
     return RepositoryInspectionJobInputSchema;
   }
@@ -2817,6 +2837,7 @@ function buildOutput(
   if (!record(definition)) {
     throw new Error(`unsupported output definition: ${name}`);
   }
+  assertBoundsAreRead(definition, name);
   if (name === "RepositoryProfileObservationPayload") {
     return RepositoryProfileObservationPayloadSchema;
   }

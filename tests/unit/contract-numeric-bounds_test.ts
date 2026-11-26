@@ -1,4 +1,4 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertThrows } from "@std/assert";
 import transport from "../../docs/technical-design/transport-schemas.json" with {
   type: "json",
 };
@@ -157,10 +157,46 @@ Deno.test("unions, pages, the page envelope, plain strings and integers refuse b
   );
 });
 
-Deno.test("a decimal string keeps its declared range", () => {
+Deno.test("a decimal amount's range is left to its handler, and named in its description", () => {
   const budget = (contractSchemas as unknown as Record<string, Shaped>)
-    .RunCreate.shape.budgetLimitUsd;
-  assertEquals(budget.safeParse("200").success, true);
-  assertEquals(budget.safeParse("200.01").success, false);
-  assertEquals(budget.safeParse("-1").success, false);
+    .RunCreate.shape.budgetLimitUsd as unknown as {
+      safeParse(value: unknown): { success: boolean };
+      description?: string;
+    };
+  assertEquals(budget.safeParse("201").success, true);
+  assert(
+    (budget.description ?? "").includes(
+      "is checked by its handler to be between 0 and 200",
+    ),
+  );
+});
+
+Deno.test("bounds on a definition kind that never reads them stop generation", () => {
+  type Loose = Record<string, Record<string, Record<string, unknown>>>;
+  const generate = (section: string, name: string) => () => {
+    const source = structuredClone(transport) as unknown as Loose;
+    source[section][name].bounds = { anythingMaxItems: 3 };
+    return generateContracts(source as unknown as typeof transport);
+  };
+  for (
+    const [section, name] of [
+      ["inputs", "RepositoryBindingSelector"],
+      ["inputs", "WorkerResult"],
+      ["outputs", "BinaryArtifactBytes"],
+      ["outputs", "WebSocketFrames"],
+      ["outputs", "SecretIdentityToolResult"],
+    ]
+  ) {
+    assertThrows(generate(section, name), Error, "never reads");
+  }
+  const variantBound = () => {
+    const source = structuredClone(transport) as unknown as Loose;
+    const oneOf = source.inputs.RepositoryBindingSelector.oneOf as Record<
+      string,
+      unknown
+    >[];
+    oneOf[0].bounds = { maxItems: 3 };
+    return generateContracts(source as unknown as typeof transport);
+  };
+  assertThrows(variantBound, Error, "on a variant");
 });

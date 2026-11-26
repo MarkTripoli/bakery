@@ -14231,11 +14231,9 @@ export const clientManifest = {
           "x-utf8-max-bytes": 4096
         },
         "budgetLimitUsd": {
-          "description": "CoordinationPlanCreate.budgetLimitUsd must be between 0 and 200.",
+          "description": "CoordinationPlanCreate.budgetLimitUsd is checked by its handler to be between 0 and 200.",
           "type": "string",
-          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
-          "x-decimal-minimum": "0",
-          "x-decimal-maximum": "200"
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
         }
       },
       "required": [
@@ -14492,11 +14490,9 @@ export const clientManifest = {
           "description": "Identifier of the `parallel` node in the workflow version. A node that is missing or is not a parallel node is refused with `workflow_node_not_parallel`. CoordinationPlanCreateFromWorkflow.nodeId must contain at least 1 characters. CoordinationPlanCreateFromWorkflow.nodeId must contain at most 64 characters."
         },
         "budgetLimitUsd": {
-          "description": "CoordinationPlanCreateFromWorkflow.budgetLimitUsd must be between 0 and 200.",
+          "description": "CoordinationPlanCreateFromWorkflow.budgetLimitUsd is checked by its handler to be between 0 and 200.",
           "type": "string",
-          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
-          "x-decimal-minimum": "0",
-          "x-decimal-maximum": "200"
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
         }
       },
       "required": [
@@ -17059,11 +17055,9 @@ export const clientManifest = {
           ]
         },
         "budgetLimitUsd": {
-          "description": "AutomationVersionCreate.budgetLimitUsd must be between 0 and 200.",
+          "description": "AutomationVersionCreate.budgetLimitUsd is checked by its handler to be between 0 and 200.",
           "type": "string",
-          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
-          "x-decimal-minimum": "0",
-          "x-decimal-maximum": "200"
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
         },
         "brief": {
           "description": "Text that becomes the description of the task each firing creates; the task title is the automation name and the scheduled instant. AutomationVersionCreate.brief must contain at most 20000 characters.",
@@ -22431,11 +22425,9 @@ export const clientManifest = {
           ]
         },
         "budgetLimitUsd": {
-          "description": "RunCreate.budgetLimitUsd must be between 0 and 200.",
+          "description": "RunCreate.budgetLimitUsd is checked by its handler to be between 0 and 200.",
           "type": "string",
-          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
-          "x-decimal-minimum": "0",
-          "x-decimal-maximum": "200"
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
         },
         "inputs": {
           "description": "Initial input values for the pinned workflow version's entry step, recorded immutably in the run's snapshot alongside its pinned config and skill references. RunCreate.inputs must contain at most 100000 UTF-8 bytes.",
@@ -33352,9 +33344,7 @@ export const clientManifest = {
         "maxSpendUsd": {
           "type": "string",
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
-          "description": "BatchCreate.maxSpendUsd must be between 0 and 4000.",
-          "x-decimal-minimum": "0",
-          "x-decimal-maximum": "4000"
+          "description": "BatchCreate.maxSpendUsd is checked by its handler to be between 0 and 4000."
         },
         "continueMode": {
           "type": "string",
@@ -34474,11 +34464,9 @@ export const clientManifest = {
           "maximum": 5
         },
         "budgetLimitUsd": {
-          "description": "EvaluationBatchCreate.budgetLimitUsd must be between 0 and 200.",
+          "description": "EvaluationBatchCreate.budgetLimitUsd is checked by its handler to be between 0 and 200.",
           "type": "string",
-          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
-          "x-decimal-minimum": "0",
-          "x-decimal-maximum": "200"
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
         }
       },
       "required": [
@@ -35981,9 +35969,7 @@ export const clientManifest = {
         "budgetUsd": {
           "type": "string",
           "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
-          "description": "PluginAuthoringRunCreate.budgetUsd must be between 0 and 200.",
-          "x-decimal-minimum": "0",
-          "x-decimal-maximum": "200"
+          "description": "PluginAuthoringRunCreate.budgetUsd is checked by its handler to be between 0 and 200."
         },
         "maxAttempts": {
           "type": "integer",
