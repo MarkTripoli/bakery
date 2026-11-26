@@ -20,6 +20,7 @@ import {
   createProviderCredentialPort,
   postgresStoredSlotReader,
   type ProviderCredentialPortDeps,
+  providerGateProfiles,
   routeCredentialsByProfile,
 } from "./provider-credential-port.ts";
 import {
@@ -77,10 +78,6 @@ export type CredentialStoreDeps = Readonly<{
   /** The connection's current invalidation generation. */
   generationOf(connectionId: string): number;
 }>;
-
-const INSTALLATION_TOKEN_PROFILES: ReadonlySet<string> = new Set([
-  "github-app",
-]);
 
 /** How long one installation token mint may take before it is abandoned. */
 const MINT_DEADLINE_MS = 10_000;
@@ -306,7 +303,7 @@ export function createProviderRequestPort(
           deps.secretsKey,
         ),
       }),
-      INSTALLATION_TOKEN_PROFILES,
+      providerGateProfiles(deps.providers),
     ),
     fetch: deps.fetch,
     snapshotPort: deps.snapshotPort,

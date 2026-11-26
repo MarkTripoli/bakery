@@ -143,8 +143,14 @@ export function createProviderCredentialPort(
       let stored: string | null;
       try {
         stored = await deps.readStoredSlots(request);
-      } catch {
-        throw authRequired();
+      } catch (cause) {
+        if (cause instanceof StandardError) throw cause;
+        throw new StandardError({
+          code: "DEPENDENCY_UNAVAILABLE",
+          detail: "credential_store_unavailable",
+          params: { retryAfterSeconds: 30 },
+          cause,
+        });
       }
       if (stored === null) throw authRequired();
       const controller = new AbortController();
@@ -176,15 +182,25 @@ export function createProviderCredentialPort(
   };
 }
 
+export function providerGateProfiles(
+  providers: MintingProviders,
+): ReadonlySet<string> {
+  return new Set(
+    providers.providers.flatMap((provider) =>
+      provider.impl.gate === undefined ? [] : [provider.impl.hostProfile]
+    ),
+  );
+}
+
 export function routeCredentialsByProfile(
   installation: CredentialPort,
   provider: CredentialPort,
-  installationProfiles: ReadonlySet<string>,
+  providerProfiles: ReadonlySet<string>,
 ): CredentialPort {
   return {
     resolve: (request) =>
-      installationProfiles.has(request.profileId)
-        ? installation.resolve(request)
-        : provider.resolve(request),
+      providerProfiles.has(request.profileId)
+        ? provider.resolve(request)
+        : installation.resolve(request),
   };
 }

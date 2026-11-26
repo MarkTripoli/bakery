@@ -14,6 +14,17 @@ import { createInstallationCredentialPort } from "../../apps/server/src/modules/
 import type { AppCredentials } from "../../apps/server/src/modules/integrations/callbacks.ts";
 import type { TokenTarget } from "../../apps/server/src/modules/integrations/token-broker.ts";
 import { seedRigIntegration } from "../helpers/external-effects.ts";
+import {
+  activate,
+  POST,
+  PROFILE,
+  profile,
+  provider,
+  snapshotFor,
+} from "../helpers/mock-provider-gate.ts";
+import { createBrokerForTesting } from "../../apps/server/src/modules/catalog/integration-gate-broker-testing.ts";
+import { invokeIntegration } from "../../apps/server/src/modules/catalog/integration-invoke.ts";
+import { createProviderCredentialPort } from "../../apps/server/src/modules/integrations/provider-credential-port.ts";
 import { openSocketFixture } from "../helpers/events-socket.ts";
 
 async function keyFile() {
@@ -191,6 +202,91 @@ Deno.test("a GitHub installation token is minted from the real connection and in
     assertEquals(targets[0]?.status, "enabled");
     assertEquals(targets[0]?.installationStatus, "enabled");
   } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("a provider-tier write is recorded in the effect ledger and sent once with the minted token", async () => {
+  const fixture = await openSocketFixture();
+  try {
+    const ids = {
+      organizationId: fixture.organizationId,
+      principalId: fixture.principalId,
+      connectionId: crypto.randomUUID(),
+      resourceId: crypto.randomUUID(),
+    };
+    await seedRigIntegration(fixture.pgDatabase, ids);
+    const registry = activate();
+    const base = snapshotFor(registry, ids, POST);
+    const snapshot = {
+      ...base,
+      connection: {
+        ...base.connection,
+        providerPermissions: { chat: "write" as const },
+      },
+    };
+    const port = { load: () => Promise.resolve(snapshot) };
+    const sent: { path: string; authorization: string | null; body: string }[] =
+      [];
+    const broker = createBrokerForTesting({
+      registry,
+      credentials: createProviderCredentialPort({
+        providers: { providers: [provider] },
+        readStoredSlots: () =>
+          Promise.resolve(encodeSecretSlots({ access_token: "xoxb-ledger" })),
+      }),
+      fetch: async (input, init) => {
+        sent.push({
+          path: new URL(String(input)).pathname,
+          authorization: new Headers(init?.headers).get("authorization"),
+          body: init?.body === undefined
+            ? ""
+            : await new Response(init.body).text(),
+        });
+        return Response.json({ ts: "1700000000.000100" });
+      },
+      snapshotPort: port,
+      generationOf: () => 0,
+      profiles: { [PROFILE]: profile },
+    });
+    const invoke = () =>
+      invokeIntegration({
+        database: fixture.pgDatabase,
+        registry,
+        snapshots: port,
+        snapshotsFor: () => port,
+        providerRequests: broker,
+      }, {
+        organizationId: ids.organizationId,
+        actorRef: ids.principalId,
+        connectionId: ids.connectionId,
+        input: {
+          actionId: POST.id,
+          actionVersion: POST.version,
+          resourceId: ids.resourceId,
+          arguments: { text: "Needs a decision" },
+        },
+        idempotencyKey: "mockchat-post-1",
+      });
+    const first = await invoke();
+    assertEquals(first.route, "ledger");
+    assertEquals(first.output, { ts: "1700000000.000100" });
+    const again = await invoke();
+    assertEquals(again.output, { ts: "1700000000.000100" });
+    assertEquals(sent.length, 1);
+    assertEquals(sent[0]!.path, "/conversations/D123/messages");
+    assertEquals(sent[0]!.authorization, "Bearer minted-xoxb-ledger");
+    assertEquals(JSON.parse(sent[0]!.body), { text: "Needs a decision" });
+    const effects = await fixture.pgDatabase.query<{ status: string }>(
+      "select status from bakery.external_effects where organization_id = $1 and integration_connection_id = $2",
+      [ids.organizationId, ids.connectionId],
+    );
+    assertEquals(effects.rows.map((row) => row.status), ["confirmed"]);
+  } finally {
+    await fixture.pgDatabase.query(
+      "delete from bakery.external_effects where organization_id = $1",
+      [fixture.organizationId],
+    );
     await fixture.close();
   }
 });

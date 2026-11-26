@@ -173,6 +173,7 @@ export function activateDeployedIntegrations(
 ): ActiveIntegrationRegistry {
   const defects: IntegrationDefect[] = [];
   const providerGateIds = new Set<string>();
+  const gateProfiles = new Set<string>();
   for (const [index, gate] of providerGates.entries()) {
     const owner = isDefinedIntegration(gate)
       ? providerManifests.find((manifest) =>
@@ -189,6 +190,31 @@ export function activateDeployedIntegrations(
       continue;
     }
     providerGateIds.add(owner.integrationId);
+    const gateProfile =
+      (gate as { manifest: { authenticationProfile: string } })
+        .manifest.authenticationProfile;
+    if (gateProfiles.has(gateProfile)) {
+      defects.push({
+        code: "provider-gate-profile-shared",
+        path: `providerGates[${index}]`,
+        message:
+          `Two provider gates broker through ${gateProfile}; a credential would be minted by the wrong provider.`,
+      });
+    }
+    gateProfiles.add(gateProfile);
+  }
+  for (const [index, definition] of list.entries()) {
+    if (
+      isDefinedIntegration(definition) &&
+      gateProfiles.has(definition.manifest.authenticationProfile)
+    ) {
+      defects.push({
+        code: "provider-gate-profile-shared",
+        path: `deployed[${index}]`,
+        message:
+          `${definition.manifest.id} brokers through ${definition.manifest.authenticationProfile}, which a provider gate also uses; one of them would mint with the other's credential.`,
+      });
+    }
   }
   const add = (code: string, path: string, message: string) =>
     defects.push({ code, path, message });
