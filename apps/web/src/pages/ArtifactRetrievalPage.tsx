@@ -913,6 +913,38 @@ export function ArtifactRetrievalPage(
     const versionMissing = Boolean(linkedVersionId) &&
       selectedVersion === null && versionItems.length > 0 &&
       !versionPages.hasNext;
+    const versionPending = Boolean(linkedVersionId) &&
+      selectedVersion === null && versionPages.hasNext;
+    const versionUnshown = versionMissing || versionPending;
+    const unshown = versionMissing
+      ? {
+        title: "artifact.retrieval.versionNotFound",
+        description: "artifact.retrieval.versionNotFoundDescription",
+        action: newestId === null ? null : {
+          label: "artifact.retrieval.showNewest",
+          onClick: () => {
+            void navigate({
+              to: "/tasks/$taskId/artifacts/$artifactId",
+              params: { taskId, artifactId },
+              search: { version: newestId },
+            });
+          },
+        },
+      }
+      : versionPages.moreError
+      ? {
+        title: "artifact.retrieval.versionLoadFailed",
+        description: "artifact.retrieval.versionLoadFailedDescription",
+        action: {
+          label: "artifact.retrieval.tryAgain",
+          onClick: () => versionPages.loadMore(),
+        },
+      }
+      : {
+        title: "artifact.retrieval.versionLoading",
+        description: "artifact.retrieval.versionLoadingDescription",
+        action: null,
+      };
     const newest = newestId === null
       ? undefined
       : versionItems.find((item) => item.id === newestId);
@@ -1008,11 +1040,9 @@ export function ArtifactRetrievalPage(
             ? translate("artifact.version.label", {
               revision: selectedVersion.revision,
             })
-            : translate(
-              (versionMissing
-                ? "artifact.retrieval.versionNotFound"
-                : "artifact.retrieval.noCurrentVersion") as never,
-            )}
+            : versionUnshown
+            ? ""
+            : translate("artifact.retrieval.noCurrentVersion")}
           description={selectedVersion
             ? translate("artifact.view.description", {
               author: selectedVersion.authorName ??
@@ -1021,15 +1051,13 @@ export function ArtifactRetrievalPage(
               // say "317705 bytes" above a facts line saying "310.3 KB" (#437).
               size: formatFileSize(selectedVersion.sizeBytes, locale, sizeText),
             })
-            : translate(
-              (versionMissing
-                ? "artifact.retrieval.versionNotFoundDescription"
-                : "artifact.retrieval.emptyNotice") as never,
-            )}
+            : versionUnshown
+            ? ""
+            : translate("artifact.retrieval.emptyNotice")}
           versionLabel={translate("artifact.retrieval.versionsTitle")}
           versionId={selectedVersion?.id ?? ""}
           versions={[
-            ...(versionMissing
+            ...(versionUnshown
               ? [{
                 id: "",
                 label: translate(
@@ -1129,12 +1157,9 @@ export function ArtifactRetrievalPage(
                 task: view.artifact.taskTitle,
               })
               : "",
-            base: selectedVersion?.subjectBaseSha ??
-              translate("artifact.retrieval.notAvailable"),
-            head: selectedVersion?.subjectHeadSha ??
-              translate("artifact.retrieval.notAvailable"),
-            digest: selectedVersion?.sha256 ??
-              translate("artifact.retrieval.notAvailable"),
+            base: selectedVersion?.subjectBaseSha ?? "",
+            head: selectedVersion?.subjectHeadSha ?? "",
+            digest: selectedVersion?.sha256 ?? "",
             taskAction: view.artifact.taskTitle
               ? {
                 label: translate("artifact.view.openTask"),
@@ -1195,30 +1220,18 @@ export function ArtifactRetrievalPage(
                 onMismatch={setDigestMismatch}
               />
             )
-            : versionMissing
+            : versionUnshown
             ? (
               <ArtifactPreviewView
                 label={translate("artifact.preview.title")}
                 state="unavailable"
                 unavailable={{
-                  title: translate(
-                    "artifact.retrieval.nothingToPreview" as never,
-                  ),
-                  description: translate(
-                    "artifact.retrieval.versionNotFoundHelp" as never,
-                  ),
-                  ...(newestId === null ? {} : {
+                  title: translate(unshown.title as never),
+                  description: translate(unshown.description as never),
+                  ...(unshown.action === null ? {} : {
                     action: {
-                      label: translate(
-                        "artifact.retrieval.showNewest" as never,
-                      ),
-                      onClick: () => {
-                        void navigate({
-                          to: "/tasks/$taskId/artifacts/$artifactId",
-                          params: { taskId, artifactId },
-                          search: { version: newestId },
-                        });
-                      },
+                      label: translate(unshown.action.label as never),
+                      onClick: unshown.action.onClick,
                     },
                   }),
                 }}

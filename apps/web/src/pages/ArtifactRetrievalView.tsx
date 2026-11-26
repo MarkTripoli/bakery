@@ -72,6 +72,14 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
     if (props.comments.linkedCommentId) setCommentsOpen(true);
   }, [props.comments.linkedCommentId]);
   const evidence = props.evidence;
+  const commits = [
+    evidence.base === "" ? "" : `${evidence.baseLabel} ${evidence.base}`,
+    evidence.head === "" ? "" : `${evidence.headLabel} ${evidence.head}`,
+  ].filter(Boolean).join("  →  ");
+  const identity = [
+    commits,
+    evidence.digest === "" ? "" : `sha256 ${evidence.digest}`,
+  ].filter(Boolean).join("\n");
   return (
     <>
       <ShellActiveNavigation id="work" />
@@ -84,7 +92,9 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
             <UI.Text variant="caption">
               {props.artifactLabel} · {props.kind.toUpperCase()}
             </UI.Text>
-            <UI.Badge>{props.revision}</UI.Badge>
+            {props.revision === ""
+              ? null
+              : <UI.Badge>{props.revision}</UI.Badge>}
           </UI.Inline>
         }
         description={props.description}
@@ -128,9 +138,7 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
             {evidence.context === ""
               ? null
               : <UI.Text variant="caption">{evidence.context}</UI.Text>}
-            <UI.CodeBlock
-              code={`${evidence.baseLabel} ${evidence.base}  →  ${evidence.headLabel} ${evidence.head}\nsha256 ${evidence.digest}`}
-            />
+            {identity === "" ? null : <UI.CodeBlock code={identity} />}
             <UI.Inline>
               {evidence.taskAction === undefined ? null : (
                 <UI.Button

@@ -7440,7 +7440,10 @@
   "artifact.retrieval.versionNotFound": "⟦Ṽëŕšïôñ ñôŧ ƒôûñð ŧëš⟧",
   "artifact.retrieval.versionNotFoundDescription": "⟦Ŧĥïš ļïñķ ñàɱëš à ṽëŕšïôñ ŧĥàŧ ŧĥïš ðôçûɱëñŧ ðôëš ñôŧ ĥàṽë. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "artifact.retrieval.showNewest": "⟦Šĥôŵ ŧĥë ñëŵëšŧ ṽëŕšïôñ ŧëšŧ ç⟧",
-  "artifact.retrieval.versionNotFoundHelp": "⟦Šĥôŵ ŧĥë ñëŵëšŧ ṽëŕšïôñ, ôŕ çĥôôšë ôñë àƀôṽë. ŧëšŧ çôþÿ ŧëš⟧",
   "artifact.retrieval.chooseVersion": "⟦Çĥôôšë à ṽëŕšïôñ ŧëš⟧",
-  "artifact.retrieval.nothingToPreview": "⟦Ñôŧĥïñĝ ŧô þŕëṽïëŵ ŧëšŧ⟧"
+  "artifact.retrieval.versionLoading": "⟦Ļôàðïñĝ ŧĥàŧ ṽëŕšïôñ ŧëšŧ⟧",
+  "artifact.retrieval.versionLoadingDescription": "⟦Ôļðëŕ ṽëŕšïôñš àŕë šŧïļļ ƀëïñĝ ŕëàð. ŧëšŧ çôþÿŧ⟧",
+  "artifact.retrieval.versionLoadFailed": "⟦Ŧĥàŧ ṽëŕšïôñ çôûļð ñôŧ ƀë ļôàðëð ŧëšŧ çôþÿ⟧",
+  "artifact.retrieval.versionLoadFailedDescription": "⟦Ŧŕÿ àĝàïñ, ôŕ çĥôôšë à ṽëŕšïôñ àƀôṽë. ŧëšŧ çôþÿŧ⟧",
+  "artifact.retrieval.tryAgain": "⟦Ŧŕÿ àĝàïñ ŧ⟧"
 }

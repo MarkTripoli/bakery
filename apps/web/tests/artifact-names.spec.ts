@@ -3,6 +3,8 @@ import {
   ARTIFACT,
   CONTENT,
   json,
+  OLD_CONTENT,
+  OLD_VERSION_ID,
   openComments,
   PATH,
   ROOT,
@@ -94,21 +96,80 @@ test("a reader who may not see the task gets no task line, no task actions and n
   await still(page, "artifact-names-no-task");
 });
 
-test("a link to a version that does not exist says so and points to the newest", async ({ page }) => {
+test("a link to a version that does not exist says so once and points to the newest", async ({ page }) => {
   await stubArtifactPage(page);
   await page.goto(`${PATH}?version=00000000-0000-4000-8000-0000000009ff`);
   const view = page.getByTestId("artifact-retrieval-page");
-  await expect(view).toContainText(
-    "This link names a version that this document does not have.",
-  );
+  await expect(
+    view.getByText(
+      "This link names a version that this document does not have.",
+    ),
+  ).toBeVisible();
+  await expect(view.getByText("Version not found")).toHaveCount(1);
+  await expect(view.getByText("Show the newest version")).toHaveCount(1);
   await expect(view).not.toContainText("No published version yet");
+  await expect(view).not.toContainText("Not available");
+  await expect(view).not.toContainText("sha256");
   await expect(openTask(page)).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Comments", exact: true }))
     .toHaveCount(0);
   await still(page, "artifact-names-unknown-version");
-  await page.getByRole("button", { name: "Show the newest version" }).first()
-    .click();
+  await page.getByRole("button", { name: "Show the newest version" }).click();
   await expect(page).toHaveURL(new RegExp(`version=${VERSION_ID}`));
   await expect(view).toContainText("Published by Someone");
   await expect(view).not.toContainText("Version not found");
+});
+
+test("Evidence context leaves out the commits a version does not have", async ({ page }) => {
+  await stubArtifactPage(page);
+  await page.goto(PATH);
+  const identity = page.getByTestId("artifact-retrieval-page")
+    .locator('[data-ui-component="codeBlock"]').first();
+  await expect(identity).toContainText(`sha256 ${version(CONTENT).sha256}`);
+  await expect(identity).not.toContainText("base");
+  await expect(identity).not.toContainText("head");
+  await expect(identity).not.toContainText("Not available");
+  await stubArtifactPage(page, {
+    current: { ...version(CONTENT), subjectHeadSha: "5d138ac" },
+  });
+  await page.reload();
+  await expect(identity).toContainText("head 5d138ac");
+  await expect(identity).not.toContainText("base");
+});
+
+test("a link to an old version shows loading until its page arrives", async ({ page }) => {
+  await stubArtifactPage(page);
+  const old = {
+    ...version(OLD_CONTENT),
+    id: OLD_VERSION_ID,
+    revision: 1,
+  };
+  let release = () => {};
+  const held = new Promise<void>((done) => {
+    release = done;
+  });
+  let attempts = 0;
+  await page.route(
+    (url) => url.pathname === `/v1/artifacts/${ARTIFACT.id}/versions`,
+    async (route) => {
+      if (!new URL(route.request().url()).searchParams.has("cursor")) {
+        return route.fulfill(
+          json({ items: [version(CONTENT)], nextCursor: "older" }),
+        );
+      }
+      attempts += 1;
+      await held;
+      return route.fulfill(json({ items: [old], nextCursor: null }));
+    },
+  );
+  await page.goto(`${PATH}?version=${OLD_VERSION_ID}`);
+  const view = page.getByTestId("artifact-retrieval-page");
+  await expect(view.getByText("Loading that version")).toBeVisible();
+  await expect(view).not.toContainText("No published version yet");
+  await expect(view).not.toContainText("Version not found");
+  await still(page, "artifact-names-loading-version");
+  expect(attempts).toBe(1);
+  release();
+  await expect(view).toContainText("Published by Someone");
+  await expect(view.getByText("Loading that version")).toHaveCount(0);
 });
