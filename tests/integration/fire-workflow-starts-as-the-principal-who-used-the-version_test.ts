@@ -717,3 +717,55 @@ Deno.test("one tick of one start makes one firing row, whichever version records
     ]);
     assertEquals((await s.firings()).length, 1);
   }));
+
+Deno.test("a workflow turned back on after a tick does not run that tick, and runs the next one", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      id: "hourly",
+      on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
+    });
+    await usedAt(fixture, s, "2026-11-25T09:00:00Z");
+    const enabledAt = async () =>
+      (await fixture.pgDatabase.query<{ enabledAt: Date | null }>(
+        `select enabled_at as "enabledAt" from bakery.workflow_definitions
+          where organization_id = $1 and id = $2`,
+        [fixture.organizationId, s.workflowId],
+      )).rows[0]?.enabledAt;
+    const turn = async (enabled: boolean) => {
+      const definition = await expectJson<{ version: number }>(
+        await apiCall(fixture, fixture, "GET", `/v1/workflows/${s.workflowId}`),
+        200,
+      );
+      await expectJson(
+        await apiCall(
+          fixture,
+          fixture,
+          "PATCH",
+          `/v1/workflows/${s.workflowId}`,
+          {
+            body: { enabled },
+            headers: { "If-Match": `"${definition.version}"` },
+          },
+        ),
+        200,
+      );
+    };
+    await turn(false);
+    assertEquals(await enabledAt(), null);
+    await turn(true);
+    const recorded = await enabledAt();
+    assert(recorded instanceof Date);
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_definitions set enabled_at = $3
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, s.workflowId, "2026-11-25T10:02:00Z"],
+    );
+    const tick = hourlyTick(fixture, s);
+    assertEquals(await tick("2026-11-25T10:03:00Z"), [
+      ["hourly", "superseded", undefined],
+    ]);
+    assertEquals(await s.firings(), []);
+    assertEquals(await tick("2026-11-25T11:00:20Z"), [
+      ["hourly", "started", undefined],
+    ]);
+  }));

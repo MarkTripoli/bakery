@@ -10,12 +10,11 @@ import {
   parseCron,
 } from "./automations/schedule.ts";
 import { fireStart, type StartFiringOutcome } from "./start-firing.ts";
+import { namesRepository } from "./start-read.ts";
 
 export const START_CLOCK_FUNCTION_ID = "bakery-workflow-start-clock";
 
 export const START_CLOCK_WINDOW_MS = 5 * 60_000;
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type ScheduleStart = Extract<WorkflowStart["on"], { kind: "schedule" }>;
 
@@ -87,7 +86,7 @@ export async function fireDueScheduleStarts(options: {
       }
       if (scheduledAt === null) continue;
       const repositoryId = start.inputs?.repositoryId;
-      if (typeof repositoryId !== "string" || !UUID.test(repositoryId)) {
+      if (!namesRepository(start.inputs) || typeof repositoryId !== "string") {
         outcomes.push({
           ...live,
           result: "failed",

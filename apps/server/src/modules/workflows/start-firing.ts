@@ -61,6 +61,7 @@ type Definition = {
   active_version_id: string | null;
   active_version_set_by: string | null;
   active_version_set_at: Date | null;
+  enabled_at: Date | null;
   enabled: boolean;
   name: string;
 };
@@ -105,12 +106,14 @@ export async function fireLiveStart(
   );
 }
 
-function tickPrecedesVersionUse(
+function tickPrecedesLiveUse(
   scheduledFor: Date,
   definition: Definition,
 ): boolean {
   const usedAt = definition.active_version_set_at;
-  return usedAt === null || scheduledFor.getTime() < usedAt.getTime();
+  if (usedAt === null || scheduledFor.getTime() < usedAt.getTime()) return true;
+  const enabledAt = definition.enabled_at;
+  return enabledAt !== null && scheduledFor.getTime() < enabledAt.getTime();
 }
 
 export type StartTrigger =
@@ -141,7 +144,7 @@ export async function fireStart(
 
   const locked = await transaction.query<Definition>(
     `select active_version_id, active_version_set_by, active_version_set_at,
-            enabled, name
+            enabled_at, enabled, name
        from bakery.workflow_definitions
       where organization_id = $1 and id = $2
         for update`,
@@ -163,7 +166,7 @@ export async function fireStart(
 
   const scheduledFor = "scheduledAt" in trigger ? trigger.scheduledAt : null;
   if (
-    scheduledFor !== null && tickPrecedesVersionUse(scheduledFor, definition)
+    scheduledFor !== null && tickPrecedesLiveUse(scheduledFor, definition)
   ) {
     return outcome("superseded");
   }

@@ -1,5 +1,6 @@
 alter table bakery.workflow_definitions
-  add column active_version_set_at timestamptz;
+  add column active_version_set_at timestamptz,
+  add column enabled_at timestamptz;
 
 alter table bakery.workflow_start_firings
   add column scheduled_for timestamptz;

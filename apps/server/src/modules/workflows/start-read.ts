@@ -43,7 +43,7 @@ export function readStarts(starts: readonly WorkflowStart[]): WorkflowStart[] {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function namesRepository(inputs: WorkflowStart["inputs"]): boolean {
+export function namesRepository(inputs: WorkflowStart["inputs"]): boolean {
   const repositoryId = inputs?.repositoryId;
   return typeof repositoryId === "string" && UUID.test(repositoryId);
 }

@@ -671,6 +671,10 @@ export async function updateWorkflowDefinition(
           set name = case when $4::boolean then $5 else name end,
               description = case when $6::boolean then $7 else description end,
               enabled = case when $8::boolean then $9 else enabled end,
+              enabled_at = case
+                when $8::boolean and $9::boolean and not enabled then now()
+                else enabled_at
+              end,
               updated_at = now(),
               version = version + 1
         where organization_id = $1 and id = $2 and version = $3
