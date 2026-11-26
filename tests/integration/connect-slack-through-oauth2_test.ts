@@ -478,6 +478,34 @@ Deno.test("a connected Slack workspace reads back through the connection list, g
     );
     assertEquals(read.status, 200, await read.clone().text());
     assertEquals((await read.json() as { provider: string }).provider, "slack");
+    const current = await call(
+      o.fixture,
+      "GET",
+      `/v1/integration-connections/${connectionId}`,
+      o.fixture.adminCookie,
+      { headers },
+    );
+    const { version } = await current.json() as { version: number };
+    const removed = await call(
+      o.fixture,
+      "POST",
+      `/v1/integration-connections/${connectionId}/removal`,
+      o.fixture.adminCookie,
+      {
+        headers: {
+          ...headers,
+          "If-Match": `"${version}"`,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assert(removed.ok, await removed.clone().text());
+    const audited = await o.fixture.pgDatabase.query<{ provider: string }>(
+      `select details ->> 'provider' as provider from bakery.audit_events
+        where operation = 'integrationConnections.remove' and resource_id = $1`,
+      [connectionId],
+    );
+    assertEquals(audited.rows, [{ provider: "slack" }]);
   } finally {
     await o.finish();
   }
