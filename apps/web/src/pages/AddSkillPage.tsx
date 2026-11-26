@@ -30,6 +30,8 @@ import {
 const POLL_MS = 1500;
 const FAILURE_ID = "skill-add-failure";
 
+type Who = "organization" | "personal";
+
 type AddKey = MessageKey extends infer Key
   ? Key extends `library.skills.add.${infer Suffix}` ? Suffix : never
   : never;
@@ -74,6 +76,7 @@ export function AddSkillPage() {
 
   const [form, setForm] = useState<SourceForm>(EMPTY_SOURCE_FORM);
   const [fromSaved, setFromSaved] = useState(false);
+  const [who, setWho] = useState<Who>("organization");
   const [tried, setTried] = useState(false);
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const importKey = useRef<{ body: string; key: string } | null>(null);
@@ -117,6 +120,7 @@ export function AddSkillPage() {
         sourceId,
         revision: form.revision.trim(),
         ...(folder === "" ? {} : { path: folder }),
+        scope: who,
       };
       const inUseBefore = new Map<string, number | null>();
       let cursor: string | undefined;
@@ -271,7 +275,11 @@ export function AddSkillPage() {
     : add.isError
     ? "other"
     : outcome?.state === "failed"
-    ? importFailureKind(outcome.failureCode, attempt?.folder ?? "")
+    ? importFailureKind(
+      outcome.failureCode,
+      attempt?.folder ?? "",
+      attempt?.revision ?? "",
+    )
     : null;
   const problems = tried ? sourceProblems(form, fromSaved) : {};
   const problem = (field: keyof SourceForm) => {
@@ -380,11 +388,16 @@ export function AddSkillPage() {
         aside={
           <UI.Stack gap="compact">
             <UI.Heading level="section">{copy("happens.title")}</UI.Heading>
-            {organizationName === "" ? null : (
-              <UI.Text>
-                {copy("happens.forOrg", { organization: organizationName })}
-              </UI.Text>
-            )}
+            {who === "organization" && organizationName === ""
+              ? null
+              : (
+                <UI.Text>
+                  {copy(
+                    who === "personal" ? "happens.forYou" : "happens.forOrg",
+                    { organization: organizationName },
+                  )}
+                </UI.Text>
+              )}
             <UI.Text>
               {copy(
                 cleanFolder(form.folder) === ""
@@ -502,6 +515,38 @@ export function AddSkillPage() {
               <UI.Heading level="section">{copy("take")}</UI.Heading>
               {text("revision", true, copy("hint.revision"))}
               {text("folder", false, copy("hint.folder"))}
+            </UI.Stack>
+            <UI.Stack
+              gap="tight"
+              role="radiogroup"
+              aria-label={translate("library.skills.new.who")}
+            >
+              <UI.Heading level="section">
+                {translate("library.skills.new.who")}
+              </UI.Heading>
+              <UI.PresetOption
+                checked={who === "organization"}
+                {...(organizationName === "" ? {} : {
+                  description: translate(
+                    "library.skill.copy.organizationHint",
+                    { organization: organizationName },
+                  ),
+                })}
+                disabled={reading}
+                name="skill-add-who"
+                onChange={() => setWho("organization")}
+                title={translate("library.skill.scope.organization")}
+                value="organization"
+              />
+              <UI.PresetOption
+                checked={who === "personal"}
+                description={translate("library.skill.copy.personalHint")}
+                disabled={reading}
+                name="skill-add-who"
+                onChange={() => setWho("personal")}
+                title={translate("library.skill.scope.personal")}
+                value="personal"
+              />
             </UI.Stack>
           </UI.Stack>
         </form>
