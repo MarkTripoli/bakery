@@ -5,7 +5,7 @@
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:35dddf6bbb204bfb5447a35db9ad57761799f52edba7368146ee6839b89dadb1",
+  "targetCompatibilityDigest": "sha256:4263d62fe87eff3bef2a814da4aa73e6153d1653c6003b969d47e9f4b64c8492",
   "reason": "#458 contract bounds by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main 3b78d91be1112f11894eec624cc990b0bf94d344: the generator now honours bounds spelled minimum/maximum, so BlobUploadStart.sizeBytes is at least 0 (an upload over 5 GiB still reaches its handler and answers 413 BODY_TOO_LARGE) and WorkerMaintenanceCreate.expectedInventoryRevision and WorkerMaintenanceReport.sequence are at least 1. Values outside them were never valid. Response schemas also gain the bounds their definitions declared (SkillFileManifestEntry path and size, ValidationIssue lengths, Problem title and detail, PinnedContextInput and StepContextInput size, CommentContext bytes, IntegrationCapability permissions and schema bytes); every producer already stays inside them, and the worker trims fault text to the Problem limits before it sends a result. Decimal amounts keep their range in the handler (budgetLimitUsd stays a 422 budget_limit_invalid) and name it in their description.",
   "priorApprovals": [
     {
