@@ -910,6 +910,9 @@ export function ArtifactRetrievalPage(
     // The newest revision may have moved since this one was opened. Keep the
     // reader on the immutable revision they chose and offer the newest one.
     const newestId = view.artifact.currentVersionId;
+    const versionMissing = Boolean(linkedVersionId) &&
+      selectedVersion === null && versionItems.length > 0 &&
+      !versionPages.hasNext;
     const newest = newestId === null
       ? undefined
       : versionItems.find((item) => item.id === newestId);
@@ -1005,7 +1008,11 @@ export function ArtifactRetrievalPage(
             ? translate("artifact.version.label", {
               revision: selectedVersion.revision,
             })
-            : translate("artifact.retrieval.noCurrentVersion")}
+            : translate(
+              (versionMissing
+                ? "artifact.retrieval.versionNotFound"
+                : "artifact.retrieval.noCurrentVersion") as never,
+            )}
           description={selectedVersion
             ? translate("artifact.view.description", {
               author: selectedVersion.authorName ??
@@ -1014,15 +1021,29 @@ export function ArtifactRetrievalPage(
               // say "317705 bytes" above a facts line saying "310.3 KB" (#437).
               size: formatFileSize(selectedVersion.sizeBytes, locale, sizeText),
             })
-            : translate("artifact.retrieval.emptyNotice")}
+            : translate(
+              (versionMissing
+                ? "artifact.retrieval.versionNotFoundDescription"
+                : "artifact.retrieval.emptyNotice") as never,
+            )}
           versionLabel={translate("artifact.retrieval.versionsTitle")}
           versionId={selectedVersion?.id ?? ""}
-          versions={versionItems.map((version) => ({
-            id: version.id,
-            label: translate("artifact.version.label", {
-              revision: version.revision,
-            }),
-          }))}
+          versions={[
+            ...(versionMissing
+              ? [{
+                id: "",
+                label: translate(
+                  "artifact.retrieval.chooseVersion" as never,
+                ),
+              }]
+              : []),
+            ...versionItems.map((version) => ({
+              id: version.id,
+              label: translate("artifact.version.label", {
+                revision: version.revision,
+              }),
+            })),
+          ]}
           onVersionChange={(version) => {
             void navigate({
               to: "/tasks/$taskId/artifacts/$artifactId",
@@ -1172,6 +1193,35 @@ export function ArtifactRetrievalPage(
                 onDownload={() => void download()}
                 onViewDetails={() => setDetailsOpen(true)}
                 onMismatch={setDigestMismatch}
+              />
+            )
+            : versionMissing
+            ? (
+              <ArtifactPreviewView
+                label={translate("artifact.preview.title")}
+                state="unavailable"
+                unavailable={{
+                  title: translate(
+                    "artifact.retrieval.nothingToPreview" as never,
+                  ),
+                  description: translate(
+                    "artifact.retrieval.versionNotFoundHelp" as never,
+                  ),
+                  ...(newestId === null ? {} : {
+                    action: {
+                      label: translate(
+                        "artifact.retrieval.showNewest" as never,
+                      ),
+                      onClick: () => {
+                        void navigate({
+                          to: "/tasks/$taskId/artifacts/$artifactId",
+                          params: { taskId, artifactId },
+                          search: { version: newestId },
+                        });
+                      },
+                    },
+                  }),
+                }}
               />
             )
             : (

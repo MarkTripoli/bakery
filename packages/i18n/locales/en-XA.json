@@ -7436,5 +7436,11 @@
   "library.editor.group.callEmpty": "⟦Ïŧš šŧëþš àŕë ïñ ŧĥàŧ ŵôŕķƒļôŵ ŧëšŧ çôþ⟧",
   "artifact.view.description": "⟦Þûƀļïšĥëð ƀÿ {author} · {size} ŧëšŧ çôþ⟧",
   "artifact.view.context": "⟦Ŧàšķ {task} ŧ⟧",
-  "artifact.author.unknown": "⟦Šôɱëôñë…⟧"
+  "artifact.author.unknown": "⟦Šôɱëôñë…⟧",
+  "artifact.retrieval.versionNotFound": "⟦Ṽëŕšïôñ ñôŧ ƒôûñð ŧëš⟧",
+  "artifact.retrieval.versionNotFoundDescription": "⟦Ŧĥïš ļïñķ ñàɱëš à ṽëŕšïôñ ŧĥàŧ ŧĥïš ðôçûɱëñŧ ðôëš ñôŧ ĥàṽë. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "artifact.retrieval.showNewest": "⟦Šĥôŵ ŧĥë ñëŵëšŧ ṽëŕšïôñ ŧëšŧ ç⟧",
+  "artifact.retrieval.versionNotFoundHelp": "⟦Šĥôŵ ŧĥë ñëŵëšŧ ṽëŕšïôñ, ôŕ çĥôôšë ôñë àƀôṽë. ŧëšŧ çôþÿ ŧëš⟧",
+  "artifact.retrieval.chooseVersion": "⟦Çĥôôšë à ṽëŕšïôñ ŧëš⟧",
+  "artifact.retrieval.nothingToPreview": "⟦Ñôŧĥïñĝ ŧô þŕëṽïëŵ ŧëšŧ⟧"
 }

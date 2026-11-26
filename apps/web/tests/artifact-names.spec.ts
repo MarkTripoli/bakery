@@ -9,6 +9,7 @@ import {
   stubArtifactPage,
   TASK_ID,
   version,
+  VERSION_ID,
 } from "./helpers/artifact-page-fixture.ts";
 import { MOCK_PRINCIPAL_ID } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
@@ -91,4 +92,23 @@ test("a reader who may not see the task gets no task line, no task actions and n
   await expect(page.getByText(TASK_ID)).toHaveCount(0);
   await expect(page.getByText(MOCK_PRINCIPAL_ID)).toHaveCount(0);
   await still(page, "artifact-names-no-task");
+});
+
+test("a link to a version that does not exist says so and points to the newest", async ({ page }) => {
+  await stubArtifactPage(page);
+  await page.goto(`${PATH}?version=00000000-0000-4000-8000-0000000009ff`);
+  const view = page.getByTestId("artifact-retrieval-page");
+  await expect(view).toContainText(
+    "This link names a version that this document does not have.",
+  );
+  await expect(view).not.toContainText("No published version yet");
+  await expect(openTask(page)).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Comments", exact: true }))
+    .toHaveCount(0);
+  await still(page, "artifact-names-unknown-version");
+  await page.getByRole("button", { name: "Show the newest version" }).first()
+    .click();
+  await expect(page).toHaveURL(new RegExp(`version=${VERSION_ID}`));
+  await expect(view).toContainText("Published by Someone");
+  await expect(view).not.toContainText("Version not found");
 });

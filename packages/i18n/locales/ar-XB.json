@@ -7436,5 +7436,11 @@
   "library.editor.group.callEmpty": "⟪Its steps are in that workflow⟫",
   "artifact.view.description": "⟪Published by {author} · {size}⟫",
   "artifact.view.context": "⟪Task {task}⟫",
-  "artifact.author.unknown": "⟪Someone⟫"
+  "artifact.author.unknown": "⟪Someone⟫",
+  "artifact.retrieval.versionNotFound": "⟪Version not found⟫",
+  "artifact.retrieval.versionNotFoundDescription": "⟪This link names a version that this document does not have.⟫",
+  "artifact.retrieval.showNewest": "⟪Show the newest version⟫",
+  "artifact.retrieval.versionNotFoundHelp": "⟪Show the newest version, or choose one above.⟫",
+  "artifact.retrieval.chooseVersion": "⟪Choose a version⟫",
+  "artifact.retrieval.nothingToPreview": "⟪Nothing to preview⟫"
 }

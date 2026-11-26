@@ -162,7 +162,7 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
           </>
         }
         aside={props.aside}
-        comments={!isPhone
+        comments={!isPhone || props.discussion === null
           ? props.discussion
           : commentsOpen
           ? (
