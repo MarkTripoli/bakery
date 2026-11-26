@@ -412,6 +412,9 @@ export async function observePullRequest(
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   }
   const stored = PullRequestRecordSchema.parse(locked.rows[0]);
+  const additions = observation.additions ?? stored.additions;
+  const deletions = observation.deletions ?? stored.deletions;
+  const changedFiles = observation.changedFiles ?? stored.changedFiles;
   const written = await transaction.query(
     `update bakery.pull_requests
         set url = $4, head_sha = $5, base_sha = $6, status = $7,
@@ -441,9 +444,9 @@ export async function observePullRequest(
       mergedSha,
       observation.providerUpdatedAt,
       observation.observedStartedAt,
-      observation.additions,
-      observation.deletions,
-      observation.changedFiles,
+      additions,
+      deletions,
+      changedFiles,
     ],
   );
   if (written.rowCount === 1) {
@@ -480,9 +483,9 @@ export async function observePullRequest(
       mergedSha,
       observation.providerUpdatedAt,
       observation.observedStartedAt,
-      observation.additions,
-      observation.deletions,
-      observation.changedFiles,
+      additions,
+      deletions,
+      changedFiles,
     ],
   );
   if (confirmed.rowCount === 1) {
@@ -501,8 +504,8 @@ export async function observePullRequest(
     stored.url === observation.url && stored.headSha === observation.headSha &&
     stored.baseSha === observation.baseSha && stored.status === status &&
     stored.mergedSha === mergedSha &&
-    stored.additions === observation.additions &&
-    stored.deletions === observation.deletions &&
-    stored.changedFiles === observation.changedFiles;
+    stored.additions === additions &&
+    stored.deletions === deletions &&
+    stored.changedFiles === changedFiles;
   return same ? "unchanged" : "stale";
 }
