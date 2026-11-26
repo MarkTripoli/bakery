@@ -83,6 +83,7 @@ export type DiagramProps = {
    * agent a step runs, and whether that could be read. The editor passes none.
    */
   readonly detail?: (uses: string, id: string) => ReactNode;
+  readonly lines?: ReadonlyMap<string, string>;
   readonly view?: "diagram" | "outline";
 };
 
@@ -93,6 +94,7 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   repeat: "library.editor.group.repeat",
   fix: "library.editor.group.fixUntilPasses",
   each: "library.editor.group.each",
+  call: "library.editor.group.call",
   wait: "library.editor.group.wait",
 };
 
@@ -101,6 +103,7 @@ const GROUP_ICON: Readonly<Partial<Record<GroupLabel, string>>> = {
   repeat: "refresh",
   fix: "refresh",
   each: "refresh",
+  call: "branch",
   wait: "clock",
 };
 
@@ -109,6 +112,7 @@ export function WorkflowDiagram(
     canManage,
     detail,
     editable,
+    lines,
     onAdd,
     onPick,
     onPickClose,
@@ -335,7 +339,9 @@ export function WorkflowDiagram(
       problems.get(node.id) !== undefined;
     const codeOnly = node.codeOnly === true && !drawing;
     const glyph = drawing ? "info" : stepGlyph(node);
-    const summary = drawing ? undefined : stepLine(node, translate);
+    const summary = drawing
+      ? undefined
+      : lines?.get(node.id) ?? stepLine(node, translate);
     const extra = drawing ? undefined : detail?.(node.uses, node.id);
     return { codeOnly, drawing, extra, glyph, summary };
   };
@@ -471,6 +477,10 @@ export function WorkflowDiagram(
       : said;
   };
   const noSteps = translate("library.editor.group.noSteps" as never);
+  const emptyWords = (label: GroupLabel): string =>
+    label === "call"
+      ? translate("library.editor.group.callEmpty" as never)
+      : noSteps;
   const glyphOf = (label: GroupLabel): ReactNode => {
     const name = GROUP_ICON[label];
     return name === undefined
@@ -512,17 +522,21 @@ export function WorkflowDiagram(
           <UI.StepGroup
             data-group={group.label}
             codeMark={inCode ? codeMark() : undefined}
-            empty={group.children.length === 0 ? noSteps : undefined}
+            empty={group.children.length === 0
+              ? emptyWords(group.label)
+              : undefined}
             icon={arm ? undefined : glyphOf(group.label)}
             label={wordFor(group.label)}
             limit={limit}
             onSelect={canManage ? () => onSelect(group.id) : undefined}
-            selectLabel={groupName(
-              wordFor(group.label),
-              limit,
-              stepsInside(group.children),
-              inCode,
-            )}
+            selectLabel={group.label === "call"
+              ? wordFor(group.label)
+              : groupName(
+                wordFor(group.label),
+                limit,
+                stepsInside(group.children),
+                inCode,
+              )}
             selected={selectedId === group.id}
             variant={arm ? "arm" : "box"}
           />
@@ -589,7 +603,7 @@ export function WorkflowDiagram(
         icon={glyphOf(node.label)}
         key={node.id}
         onSelect={canManage ? () => onSelect(node.id) : undefined}
-        selectLabel={groupName(
+        selectLabel={node.label === "call" ? wordFor(node.label) : groupName(
           wordFor(node.label),
           limit,
           stepsInside(node.children),
@@ -604,7 +618,9 @@ export function WorkflowDiagram(
             <UI.OutlineList>
               <UI.OutlineRow
                 caption
-                title={<UI.Text variant="muted">{noSteps}</UI.Text>}
+                title={
+                  <UI.Text variant="muted">{emptyWords(node.label)}</UI.Text>
+                }
               />
             </UI.OutlineList>
           )

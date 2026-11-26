@@ -5,6 +5,13 @@
  * what this decides, and the publish dialog sends its `steps`.
  */
 
+import {
+  type ApprovalFields,
+  approvalInput,
+  approvalOfNode,
+  sameApproval,
+} from "./approval-step.ts";
+
 /** One step as the editor holds it: what it runs, and the agent bound to it. */
 export type EditorStep = {
   readonly id: string;
@@ -12,6 +19,7 @@ export type EditorStep = {
   readonly agentVersionId: string | null;
   /** The skill versions the step names, in order (#431); none for most steps. */
   readonly skills: readonly string[];
+  readonly approval?: ApprovalFields;
 };
 
 export type LoopEdit = {
@@ -31,6 +39,7 @@ export type EditorState = EditorSnapshot & {
   readonly past: readonly EditorSnapshot[];
   /** States undone and not yet redone, newest first. */
   readonly future: readonly EditorSnapshot[];
+  readonly typing?: string;
 };
 
 export type EditorAction =
@@ -51,6 +60,12 @@ export type EditorAction =
     readonly min: number | null;
     readonly max: number;
     readonly allow: number | null;
+  }
+  | {
+    readonly kind: "approval";
+    readonly id: string;
+    readonly approval: ApprovalFields;
+    readonly typing?: string;
   }
   | { readonly kind: "reset"; readonly steps: readonly EditorStep[] }
   | { readonly kind: "undo" }
@@ -103,13 +118,19 @@ export function definitionOf(
           (typeof node.uses !== "string" && step.uses === ""));
       if (
         node !== undefined && sameAction &&
-        agent === step.agentVersionId && sameList(skills, step.skills)
+        agent === step.agentVersionId && sameList(skills, step.skills) &&
+        keepsApproval(node, step)
       ) {
         return node;
       }
       const { agentVersionId: _dropped, skills: _skills, ...rest } = node ?? {};
+      if (step.approval !== undefined) delete rest.with;
+      const input = step.approval === undefined
+        ? null
+        : approvalInput(step.approval);
       return {
         ...rest,
+        ...(input === null ? {} : { with: input }),
         id: step.id,
         uses: step.uses,
         ...(step.agentVersionId === null
@@ -131,13 +152,46 @@ export function applyLoops(
   for (const loop of loops) {
     const node = nodeAt(copy, loop.path);
     if (node === null) continue;
-    if (loop.min === null) delete node.min;
-    else node.min = loop.min;
-    node.max = loop.max;
-    if (loop.allow === null) delete node.allow;
-    else node.allow = loop.allow;
+    const held = loopBodyOf(node);
+    if (held !== node) {
+      delete node.min;
+      delete node.max;
+      delete node.allow;
+    }
+    if (loop.min === null) delete held.min;
+    else held.min = loop.min;
+    held.max = loop.max;
+    if (loop.allow === null) delete held.allow;
+    else held.allow = loop.allow;
   }
   return copy;
+}
+
+const AUTHORED_WRAPPERS = [
+  "repeat",
+  "branch",
+  "parallel",
+  "forEach",
+] as const;
+
+function objectOf(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function loopBodyOf(node: Record<string, unknown>): Record<string, unknown> {
+  return objectOf(node.repeat) ?? node;
+}
+
+function childOf(node: Record<string, unknown>, key: string): unknown {
+  if (node[key] !== undefined) return node[key];
+  for (const wrapper of AUTHORED_WRAPPERS) {
+    const held = objectOf(node[wrapper]);
+    const inner = held?.[key] ?? (key === "lanes" ? held?.branches : undefined);
+    if (inner !== undefined) return inner;
+  }
+  return undefined;
 }
 
 function nodeAt(
@@ -150,15 +204,12 @@ function nodeAt(
       if (!Array.isArray(held)) return null;
       held = held[segment];
     } else {
-      if (typeof held !== "object" || held === null || Array.isArray(held)) {
-        return null;
-      }
-      held = (held as Record<string, unknown>)[segment];
+      const holder = objectOf(held);
+      if (holder === null) return null;
+      held = childOf(holder, segment);
     }
   }
-  return typeof held === "object" && held !== null && !Array.isArray(held)
-    ? held as Record<string, unknown>
-    : null;
+  return objectOf(held);
 }
 
 /** The skill version ids an authored step names; anything else is no skills. */
@@ -168,6 +219,15 @@ export function skillsOfNode(
   return Array.isArray(node?.skills)
     ? node.skills.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+function keepsApproval(
+  node: Readonly<Record<string, unknown>>,
+  step: EditorStep,
+): boolean {
+  if (step.approval === undefined) return true;
+  const held = approvalOfNode(node);
+  return held !== null && sameApproval(held, step.approval);
 }
 
 const sameList = (left: readonly string[], right: readonly string[]) =>
@@ -199,10 +259,11 @@ export function freeStepId(
   state: EditorState,
   wanted = "step",
 ): string {
+  const base = wanted.toLowerCase().replace(/[^a-z0-9_]+/g, "_");
   const taken = new Set(state.steps.map((step) => step.id));
-  if (!taken.has(wanted)) return wanted;
+  if (!taken.has(base)) return base;
   for (let n = 2;; n += 1) {
-    const candidate = `${wanted}-${n}`;
+    const candidate = `${base}_${n}`;
     if (!taken.has(candidate)) return candidate;
   }
 }
@@ -270,6 +331,24 @@ export function editorReducer(
           index === at ? { ...step, skills: [...action.skills] } : step
         ),
       );
+    }
+    case "approval": {
+      const at = state.steps.findIndex((step) => step.id === action.id);
+      const held = state.steps[at]?.approval;
+      if (held === undefined || sameApproval(held, action.approval)) {
+        return state;
+      }
+      const next = changed(
+        state,
+        state.steps.map((step, index) =>
+          index === at ? { ...step, approval: action.approval } : step
+        ),
+      );
+      if (action.typing === undefined) return next;
+      const typing = `${action.id}/${action.typing}`;
+      return state.typing === typing
+        ? { ...next, past: state.past, typing }
+        : { ...next, typing };
     }
     case "loop": {
       const key = action.path.join("/");
