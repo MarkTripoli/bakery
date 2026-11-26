@@ -190,11 +190,14 @@ test.describe("add a skill from a source", () => {
       ),
     ).toBeVisible();
     await expect(submit(page)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Back to skills" }))
+      .toBeVisible();
   });
 
   test("missing and unusable fields are named, and nothing is sent", async ({ page }) => {
     const { sent } = await addPage(page);
     await submit(page).click();
+    await expect(box(page, /Repository address/)).toBeFocused();
     for (
       const sentence of [
         "Enter the repository address.",
@@ -222,6 +225,8 @@ test.describe("add a skill from a source", () => {
     await expect(page.getByRole("button", { name: "Reading the source…" }))
       .toBeDisabled();
     await expect(page.getByText("You can leave this page.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Back to skills" }))
+      .toBeEnabled();
     await expect(box(page, /Repository address/)).toHaveAttribute(
       "readonly",
       "",
@@ -278,6 +283,8 @@ test.describe("add a skill from a source", () => {
     await submit(page).click();
     const alert = page.getByRole("alert");
     await expect(alert).toContainText("The skill was not added");
+    await expect(alert).toBeInViewport();
+    await expect(page.locator("#skill-add-failure")).toBeFocused();
     await expect(alert).toContainText(
       "Bakery could not reach https://example.test/acme/release.",
     );

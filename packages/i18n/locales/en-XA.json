@@ -7497,5 +7497,6 @@
   "library.skills.add.failure.saved": "⟦Ŧĥïš ŕëþôšïŧôŕÿ ïš àļŕëàðÿ šàṽëð. Çĥôôšë ïŧ ûñðëŕ À šôûŕçë àððëð ƀëƒôŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "library.skills.add.failure.other": "⟦Šôɱëŧĥïñĝ ŵëñŧ ŵŕôñĝ ôñ ôûŕ šïðë. Ñôŧĥïñĝ ŵàš àððëð. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "library.skills.add.done": "⟦Àððëð {name}. Ṽëŕšïôñ {version} ïš ïñ ûšë. ŧëšŧ çôþÿ ŧë⟧",
-  "library.skills.add.already": "⟦{name} ŵàš àļŕëàðÿ àððëð ƒŕôɱ ŧĥïš. Ṽëŕšïôñ {version} ïš ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
+  "library.skills.add.already": "⟦{name} ŵàš àļŕëàðÿ àððëð ƒŕôɱ ŧĥïš. Ṽëŕšïôñ {version} ïš ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "library.skills.add.back": "⟦Ɓàçķ ŧô šķïļļš ŧë⟧"
 }

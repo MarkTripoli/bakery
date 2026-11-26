@@ -7497,5 +7497,6 @@
   "library.skills.add.failure.saved": "⟪This repository is already saved. Choose it under A source added before.⟫",
   "library.skills.add.failure.other": "⟪Something went wrong on our side. Nothing was added.⟫",
   "library.skills.add.done": "⟪Added {name}. Version {version} is in use.⟫",
-  "library.skills.add.already": "⟪{name} was already added from this. Version {version} is in use.⟫"
+  "library.skills.add.already": "⟪{name} was already added from this. Version {version} is in use.⟫",
+  "library.skills.add.back": "⟪Back to skills⟫"
 }

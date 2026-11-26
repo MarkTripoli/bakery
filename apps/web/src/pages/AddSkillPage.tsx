@@ -28,6 +28,7 @@ import {
 } from "./library/skill-source-state.ts";
 
 const POLL_MS = 1500;
+const FAILURE_ID = "skill-add-failure";
 
 type Who = "organization" | "personal";
 
@@ -224,6 +225,11 @@ export function AddSkillPage() {
 
   const reading = add.isPending ||
     attempt !== null && outcome?.state !== "failed";
+  const failedRun = outcome?.state === "failed" ? outcome.runId : null;
+  useEffect(() => {
+    if (failedRun === null && !add.isError) return;
+    globalThis.document.getElementById(FAILURE_ID)?.focus();
+  }, [failedRun, add.isError]);
   const failedKind = add.error instanceof AddFailed
     ? add.error.kind
     : add.isError
@@ -240,7 +246,11 @@ export function AddSkillPage() {
   const submit = () => {
     if (reading) return;
     setTried(true);
-    if (Object.keys(sourceProblems(form, fromSaved)).length > 0) return;
+    const [first] = Object.keys(sourceProblems(form, fromSaved));
+    if (first !== undefined) {
+      globalThis.document.getElementById(`skill-add-${first}`)?.focus();
+      return;
+    }
     setAttempt(null);
     add.mutate();
   };
@@ -296,7 +306,7 @@ export function AddSkillPage() {
           <UI.EmptyState
             action={
               <UI.Button variant="secondary" onClick={leave}>
-                {translate("library.skill.back")}
+                {copy("back")}
               </UI.Button>
             }
             title={copy("forbidden")}
@@ -318,15 +328,17 @@ export function AddSkillPage() {
     <UI.Stack gap="spacious" data-testid="skill-add-page">
       {header}
       {failedKind === null ? null : (
-        <UI.InlineNotice tone="error" role="alert">
-          <UI.Stack gap="tight">
-            <UI.Text variant="strong">{copy("failedTitle")}</UI.Text>
-            <UI.Text>{copy(`failure.${failedKind}`, failureValues)}</UI.Text>
-            {fromSaved && failedKind !== "removed"
-              ? <UI.Text>{copy("sourceKept")}</UI.Text>
-              : null}
-          </UI.Stack>
-        </UI.InlineNotice>
+        <UI.Stack id={FAILURE_ID} tabIndex={-1}>
+          <UI.InlineNotice tone="error" role="alert">
+            <UI.Stack gap="tight">
+              <UI.Text variant="strong">{copy("failedTitle")}</UI.Text>
+              <UI.Text>{copy(`failure.${failedKind}`, failureValues)}</UI.Text>
+              {fromSaved && failedKind !== "removed"
+                ? <UI.Text>{copy("sourceKept")}</UI.Text>
+                : null}
+            </UI.Stack>
+          </UI.InlineNotice>
+        </UI.Stack>
       )}
       <UI.FormWithSummary
         aside={
@@ -354,9 +366,7 @@ export function AddSkillPage() {
         actions={
           <>
             <UI.Button variant="secondary" onClick={leave}>
-              {translate(
-                reading ? "library.skill.back" : "core.actions.cancel",
-              )}
+              {reading ? copy("back") : translate("core.actions.cancel")}
             </UI.Button>
             <UI.Button
               variant="primary"
@@ -410,6 +420,7 @@ export function AddSkillPage() {
                 ? (
                   <>
                     <UI.Combobox
+                      id="skill-add-sourceId"
                       disabled={reading}
                       error={problem("sourceId")}
                       label={copy("field.source")}
