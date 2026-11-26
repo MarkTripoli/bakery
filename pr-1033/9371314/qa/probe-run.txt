@@ -1,0 +1,23 @@
+
+> bakery@ test:integration /home/marktripoli/Development/bakery-wt/_qa/qa1033c
+> deno run --allow-env --allow-read --allow-run scripts/run-tests.ts integration tests/integration/qa1033c-probe_test.ts
+
+Check tests/integration/qa1033c-probe_test.ts
+running 2 tests from ./tests/integration/qa1033c-probe_test.ts
+qa probe: upstream reverts to earlier files ...
+------- output -------
+PROBE after A then B: active revision 2 is B true
+PROBE check with reverted upstream: update_available ["SKILL.md changed"]
+PROBE import of reverted revision: completed reports version of A true
+PROBE active afterwards: revision 2 still B true
+PROBE check afterwards: update_available ["SKILL.md changed"]
+----- output end -----
+qa probe: upstream reverts to earlier files ... ok (10s)
+qa probe: two revisions with the same files imported at once ...
+------- output -------
+PROBE concurrent: ["completed","completed"]
+----- output end -----
+qa probe: two revisions with the same files imported at once ... ok (1s)
+
+ok | 2 passed | 0 failed (11s)
+
