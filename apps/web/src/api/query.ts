@@ -1212,6 +1212,26 @@ export function notificationTargetQueryOptions(
   });
 }
 
+export function runRequestsQueryOptions(
+  client: Pick<BakeryApiClient, "listRunRequests">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<RunRequestsResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "runRequests.list", { id: runId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listRunRequests({
+          organizationId: requireOrganization(scope),
+          runId,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 export function myRunRequestsQueryOptions(
   client: Pick<BakeryApiClient, "listMyRunRequests">,
   scope: ApiScope,

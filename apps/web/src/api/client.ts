@@ -1985,6 +1985,11 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RunListResponse>>;
+  readonly listRunRequests: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RunRequestsResponse>>;
   readonly listMyRunRequests: (options: {
     readonly organizationId: string;
     readonly runId: string;
@@ -6838,6 +6843,21 @@ export function createBakeryApiClient({
         ) {
           throw new ApiTransportError("protocol", 201);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listRunRequests(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["runRequests.list"](
+          { id: options.runId },
+          { signal: options.signal },
+        );
         return { ok: true, data };
       } catch (error) {
         return failed(error);
