@@ -461,18 +461,31 @@ export function LibraryPage() {
 
   const newSkillButton = tab === "skills"
     ? (
-      <UI.Button
-        variant="primary"
-        disabled={offlineNow}
-        onClick={() => {
-          importOpener.current = document.activeElement instanceof HTMLElement
-            ? document.activeElement
-            : null;
-          setNewSkill(true);
-        }}
-      >
-        {translate("library.skills.new" as never)}
-      </UI.Button>
+      <UI.Inline gap="compact">
+        {canManage
+          ? (
+            <UI.Button
+              variant="secondary"
+              disabled={offlineNow}
+              onClick={() => void navigate({ to: "/library/skills/add" })}
+            >
+              {translate("library.skills.add.button")}
+            </UI.Button>
+          )
+          : null}
+        <UI.Button
+          variant="primary"
+          disabled={offlineNow}
+          onClick={() => {
+            importOpener.current = document.activeElement instanceof HTMLElement
+              ? document.activeElement
+              : null;
+            setNewSkill(true);
+          }}
+        >
+          {translate("library.skills.new")}
+        </UI.Button>
+      </UI.Inline>
     )
     : null;
   const importButton = newSkillButton ??
