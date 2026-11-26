@@ -128,12 +128,23 @@ type SettingsOptions = {
   /** The api repository has no role in the application. */
   noRoleApi?: boolean;
   /** Workflows the organization wrote, as the workflow list returns them. */
-  workflows?: { id: string; name: string; description: string }[];
+  workflows?: {
+    id: string;
+    name: string;
+    description: string;
+    needsInputs?: boolean;
+  }[];
 };
 
 const writtenWorkflow = (
-  workflow: { id: string; name: string; description: string },
+  workflow: {
+    id: string;
+    name: string;
+    description: string;
+    needsInputs?: boolean;
+  },
 ) => ({
+  needsInputs: false,
   ...workflow,
   slug: workflow.name.toLowerCase().replaceAll(" ", "-"),
   activeVersionId: uuid(960),
@@ -674,6 +685,62 @@ for (
       await expect(page.getByText("Settings saved.")).toBeVisible();
       const sent = seen.patches[0].policy as Record<string, unknown>;
       expect(sent.workflow).toEqual({ workflowId: release.id });
+    });
+
+    test("a saved workflow missing from the list is named, one that cannot be read says so, and one that needs inputs is not offered", async ({ page }) => {
+      const kept = {
+        id: uuid(972),
+        name: "Asks for a note",
+        description: "Needs a note before it can run.",
+        needsInputs: true,
+      };
+      await settingsFixture(page, {
+        saved: { policy: policy({ workflow: { workflowId: kept.id } }) },
+        workflows: [kept],
+      });
+      await page.route(
+        (url) => url.pathname === `/v1/workflows/${kept.id}`,
+        (route) => route.fulfill(json(writtenWorkflow(kept))),
+      );
+      await openSettings(page);
+      const choice = workflowBox(page).getByLabel("Workflow");
+      await expect(choice).toHaveValue(`workflow:${kept.id}`);
+      await expect(choice.getByRole("option")).toHaveCount(4);
+      await expect(choice.getByRole("option", { name: kept.name }))
+        .toHaveCount(1);
+      await expect(workflowBox(page)).not.toContainText(kept.id);
+      await still(page, "issue-settings-workflow-unlisted", undefined, {
+        scrollTo: workflowBox(page),
+      });
+    });
+
+    test("a saved workflow that cannot be read is said to be unavailable, never shown by its id", async ({ page }) => {
+      const gone = uuid(973);
+      await settingsFixture(page, {
+        saved: { policy: policy({ workflow: { workflowId: gone } }) },
+      });
+      await page.route(
+        (url) => url.pathname === `/v1/workflows/${gone}`,
+        (route) =>
+          route.fulfill({
+            status: 404,
+            contentType: "application/problem+json",
+            body: JSON.stringify({
+              type: "about:blank",
+              title: "Not found",
+              status: 404,
+              code: "RESOURCE_NOT_FOUND",
+            }),
+          }),
+      );
+      await openSettings(page);
+      const choice = workflowBox(page).getByLabel("Workflow");
+      await expect(
+        choice.getByRole("option", {
+          name: "A workflow that is no longer available",
+        }),
+      ).toHaveCount(1);
+      await expect(workflowBox(page)).not.toContainText(gone);
     });
 
     test("a repository set to the reviewed workflow shows it chosen", async ({ page }) => {

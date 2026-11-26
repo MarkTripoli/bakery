@@ -477,6 +477,56 @@ for (
       expect(seen.starts[0]!.preset).toBe("fixed-coding");
     });
 
+    test("a repository set to a workflow the organization wrote names it on the card and opens Start work with it chosen", async ({ page }) => {
+      const triage = {
+        id: uuid(970),
+        name: "Triage and fix",
+        description: "Reads the issue, fixes it and opens a pull request.",
+      };
+      const seen = await open(page, READY, { sourceWorkflow: triage });
+      await expect(card(page).first()).toContainText(
+        "Uses Triage and fix in acme/web.",
+      );
+      await still(page, "issue-card-written-workflow");
+      await card(page).first().getByRole("button", { name: "Start work" })
+        .click();
+      const dialog = page.getByRole("alertdialog");
+      const workflow = dialog.getByLabel("Workflow");
+      await expect(workflow).toHaveValue("source");
+      await expect(workflow.getByRole("option")).toHaveCount(3);
+      await expect(dialog).toContainText(
+        "acme/web is set to Triage and fix. Choosing another applies to this issue only.",
+      );
+      await expect(dialog).toContainText(triage.description);
+      await page.mouse.move(700, 700);
+      await still(page, "issue-start-dialog-written-workflow");
+      await dialog.getByRole("button", { name: "Start work" }).click();
+      await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
+      expect(seen.starts).toHaveLength(1);
+      expect(seen.starts[0]!.preset).toBeUndefined();
+    });
+
+    test("from the list, Start work on a repository with a written workflow opens with it chosen", async ({ page }) => {
+      const seen = await issuesFixture(page, {
+        open: SEEDS,
+        sourceWorkflow: {
+          id: uuid(970),
+          name: "Triage and fix",
+          description: "Reads the issue, fixes it and opens a pull request.",
+        },
+      });
+      await page.goto("/issues");
+      await page.getByRole("button", {
+        name: "Start work on #201 Add invoice export",
+      }).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog.getByLabel("Workflow")).toHaveValue("source");
+      await expect(dialog).toContainText("acme/web is set to Triage and fix.");
+      await dialog.getByRole("button", { name: "Start work" }).click();
+      await expect.poll(() => seen.starts.length).toBe(1);
+      expect(seen.starts[0]!.preset).toBeUndefined();
+    });
+
     test("the issue card says no workflow is set for a repository without one", async ({ page }) => {
       await open(page, READY, { sourcePreset: null });
       await expect(card(page).first()).toContainText(

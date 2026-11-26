@@ -1,4 +1,5 @@
 import { assertEquals } from "@std/assert";
+import { SOURCE_WORKFLOW_CHOICE } from "../../apps/web/src/pages/issue-sources.ts";
 import type {
   BatchIssueResponse,
   BatchResponse,
@@ -434,6 +435,25 @@ Deno.test("the amount may carry a dollar sign and thousands commas and is sent w
     },
   );
   assertEquals(startBody(START_DEFAULTS), null);
+});
+
+Deno.test("issue 407: a batch on the repository's own written workflow sends no built-in", () => {
+  assertEquals(
+    startBody({
+      ...START_DEFAULTS,
+      repositoryId: "r-1",
+      presetId: SOURCE_WORKFLOW_CHOICE,
+      maxSpend: "40",
+      continueMode: "carry_on",
+    }),
+    {
+      repositoryId: "r-1",
+      maxIssues: 5,
+      maxHours: 8,
+      maxSpendUsd: "40.00",
+      continueMode: "carry_on",
+    },
+  );
 });
 
 Deno.test("leaving is only asked about when something was changed", () => {

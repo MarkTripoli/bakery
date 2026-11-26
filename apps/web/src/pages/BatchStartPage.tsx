@@ -31,7 +31,12 @@ import {
 } from "./batches/batch-refusal.ts";
 import { BatchBreadcrumbs } from "./batches/BatchBreadcrumbs.tsx";
 import { useBatchLookups } from "./batches/use-batch-lookups.ts";
-import { TICKET_PRESETS } from "./issue-sources.ts";
+import {
+  SOURCE_WORKFLOW_CHOICE,
+  sourceChoiceOf,
+  TICKET_PRESETS,
+} from "./issue-sources.ts";
+import { useWorkflowName } from "./issues/use-source-workflow.ts";
 import {
   composerLabels,
   composerSetupReasons,
@@ -93,7 +98,11 @@ export function BatchStartPage() {
   // Until the person picks one, the repository the address named is the choice.
   const [repositoryTouched, setRepositoryTouched] = useState(false);
   const repositoryChosen = repositoryTouched ? typed.repositoryId : preselected;
-  const presetDefault = lookups.presetOf(repositoryChosen) ?? "";
+  const sourceWorkflow = lookups.workflowOf(repositoryChosen);
+  const presetDefault = sourceChoiceOf(sourceWorkflow);
+  const writtenName = useWorkflowName(
+    sourceWorkflow?.kind === "written" ? sourceWorkflow.workflowId : null,
+  ).name;
   const form: StartForm = {
     ...typed,
     repositoryId: repositoryChosen,
@@ -481,7 +490,11 @@ export function BatchStartPage() {
                   ? null
                   : (
                     <UI.Text>
-                      {chosenPreset === null
+                      {form.presetId === SOURCE_WORKFLOW_CHOICE
+                        ? translate("batches.start.summary.workflow" as never, {
+                          workflow: writtenName,
+                        })
+                        : chosenPreset === null
                         ? translate(
                           "batches.start.summary.workflowUnset" as never,
                         )
@@ -639,11 +652,16 @@ export function BatchStartPage() {
               id="batch-workflow"
               label={translate("batches.start.workflow.label" as never)}
               labelHidden
-              items={TICKET_PRESETS.map((id) => ({
-                id,
-                title: presetCopy(translate, id).title,
-                description: presetCopy(translate, id).description,
-              }))}
+              items={[
+                ...(sourceWorkflow?.kind === "written"
+                  ? [{ id: SOURCE_WORKFLOW_CHOICE, title: writtenName }]
+                  : []),
+                ...TICKET_PRESETS.map((id) => ({
+                  id,
+                  title: presetCopy(translate, id).title,
+                  description: presetCopy(translate, id).description,
+                })),
+              ]}
               value={form.presetId}
               onChange={(id) => {
                 setPresetTouched(true);

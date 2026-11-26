@@ -231,6 +231,7 @@ export type Options = {
   /** The person's role in the organization; an administrator by default. */
   role?: "admin" | "developer" | "viewer";
   sourcePreset?: "fixed-coding" | "fixed-coding-reviewed" | null;
+  sourceWorkflow?: { id: string; name: string; description: string };
   /** What starting work answers: ok (default), or a refusal. */
   start?:
     | "ok"
@@ -257,6 +258,36 @@ export async function chooseFilter(page: Page, name: string) {
 /** Stubs the session, the role, the sources and the issues; returns the requests seen. */
 export async function issuesFixture(page: Page, options: Options = {}) {
   await mockAuthenticatedSession(page);
+  const written = options.sourceWorkflow;
+  if (written !== undefined) {
+    await page.route(
+      (url) => url.pathname === `/v1/workflows/${written.id}`,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ...written,
+            slug: "triage-and-fix",
+            activeVersionId: uuid(960),
+            needsInputs: false,
+            enabled: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            version: 1,
+            origin: {
+              kind: "authored",
+              catalogKey: null,
+              catalogVersion: null,
+              sourceWorkflowId: null,
+              sourceVersionId: null,
+              sourceDigest: null,
+            },
+            visibility: "listed",
+          }),
+        }),
+    );
+  }
   const seen = {
     lists: [] as string[],
     syncs: 0,
@@ -355,12 +386,16 @@ export async function issuesFixture(page: Page, options: Options = {}) {
               repositoryId: uuid(903),
               externalContainerId: "acme/web",
               enabled: true,
-              policy: options.sourcePreset === null ? {} : {
-                workflow: {
-                  workflowId: uuid(950),
-                  builtIn: options.sourcePreset ?? "fixed-coding",
+              policy: options.sourceWorkflow !== undefined
+                ? { workflow: { workflowId: options.sourceWorkflow.id } }
+                : options.sourcePreset === null
+                ? {}
+                : {
+                  workflow: {
+                    workflowId: uuid(950),
+                    builtIn: options.sourcePreset ?? "fixed-coding",
+                  },
                 },
-              },
               policyRevision: 1,
               syncHealth: sourcesMode === "degraded"
                 ? "degraded"

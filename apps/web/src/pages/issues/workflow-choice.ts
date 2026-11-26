@@ -15,7 +15,7 @@ export function writtenWorkflowsOf(
   return items
     .filter((item) =>
       item.origin.kind !== "catalog" && item.enabled &&
-      item.activeVersionId !== null
+      item.activeVersionId !== null && !item.needsInputs
     )
     .map((item) => ({
       id: item.id,
@@ -34,6 +34,7 @@ export function writtenWorkflowIdOf(value: string): string | null {
 export function workflowOptionsOf(
   written: readonly WrittenWorkflow[],
   keptWorkflowId: string | null,
+  keptName: string,
 ): { label: string; value: string }[] {
   const listed = written.map((workflow) => ({
     label: workflow.name,
@@ -43,7 +44,7 @@ export function workflowOptionsOf(
       written.some((workflow) => workflow.id === keptWorkflowId)
     ? listed
     : [...listed, {
-      label: keptWorkflowId,
+      label: keptName,
       value: WRITTEN_PREFIX + keptWorkflowId,
     }];
 }

@@ -6,6 +6,7 @@
  * catalogue keys with their values, and the page owns the words.
  */
 import { STARTABLE_PAGE_SIZE } from "../../api/query.ts";
+import { SOURCE_WORKFLOW_CHOICE } from "../issue-sources.ts";
 import type {
   BatchIssueResponse,
   BatchResponse,
@@ -731,7 +732,7 @@ export function validateStart(
 /** The body the server takes, or null while the form has a problem. */
 export function startBody(form: StartForm): {
   repositoryId: string;
-  presetId: NonNullable<BatchResponse["presetId"]>;
+  presetId?: NonNullable<BatchResponse["presetId"]>;
   maxIssues: number;
   maxHours: number;
   maxSpendUsd: string;
@@ -740,7 +741,9 @@ export function startBody(form: StartForm): {
   if (Object.keys(validateStart(form)).length > 0) return null;
   return {
     repositoryId: form.repositoryId,
-    presetId: form.presetId as NonNullable<BatchResponse["presetId"]>,
+    ...(form.presetId === SOURCE_WORKFLOW_CHOICE
+      ? {}
+      : { presetId: form.presetId as NonNullable<BatchResponse["presetId"]> }),
     maxIssues: Number(form.maxIssues.trim()),
     maxHours: Number(form.maxHours.trim()),
     maxSpendUsd: parseSpend(form.maxSpend)!.toFixed(2),

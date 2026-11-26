@@ -295,11 +295,11 @@ Deno.test("issue 407: the workflow choice lists written workflows, selects the s
   const chosen = formOf(source(policy({ workflow: { workflowId: "w-1" } })));
   assertEquals(workflowValueOf(chosen), "workflow:w-1");
   assertEquals(hasWorkflow(chosen), true);
-  assertEquals(workflowOptionsOf(written, chosen.keptWorkflowId), [
+  assertEquals(workflowOptionsOf(written, chosen.keptWorkflowId, "Triage"), [
     { label: "Triage", value: "workflow:w-1" },
   ]);
-  assertEquals(workflowOptionsOf([], "w-9"), [
-    { label: "w-9", value: "workflow:w-9" },
+  assertEquals(workflowOptionsOf([], "w-9", "Saved elsewhere"), [
+    { label: "Saved elsewhere", value: "workflow:w-9" },
   ]);
   assertEquals(writtenWorkflowIdOf("workflow:w-1"), "w-1");
   assertEquals(writtenWorkflowIdOf("fixed-coding"), null);
@@ -312,4 +312,37 @@ Deno.test("issue 407: the workflow choice lists written workflows, selects the s
     hasWorkflow(formOf(source(policy({ workflow: undefined })))),
     false,
   );
+});
+
+Deno.test("issue 407: a written workflow that needs an input is not offered, and an unlisted saved one is named, never shown by id", () => {
+  const written = writtenWorkflowsOf(
+    [
+      {
+        id: "w-1",
+        name: "Triage",
+        description: null,
+        enabled: true,
+        activeVersionId: "v-1",
+        needsInputs: false,
+        origin: { kind: "authored" },
+      },
+      {
+        id: "w-2",
+        name: "Asks for a note",
+        description: null,
+        enabled: true,
+        activeVersionId: "v-2",
+        needsInputs: true,
+        origin: { kind: "authored" },
+      },
+    ] as unknown as Parameters<typeof writtenWorkflowsOf>[0],
+  );
+  assertEquals(written.map((workflow) => workflow.id), ["w-1"]);
+  const saved = "2f4c8a1e-0b7d-4e55-9c3a-6d1f0e2b7a90";
+  const options = workflowOptionsOf(written, saved, "Asks for a note");
+  assertEquals(options.at(-1), {
+    label: "Asks for a note",
+    value: `workflow:${saved}`,
+  });
+  assertEquals(options.some((option) => option.label === saved), false);
 });

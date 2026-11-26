@@ -33,6 +33,24 @@ export function presetOfPolicy(policy: unknown): TicketPresetId | null {
   return TICKET_PRESETS.find((id) => id === preset) ?? null;
 }
 
+export const SOURCE_WORKFLOW_CHOICE = "source";
+
+export function sourceChoiceOf(ref: SourceWorkflowRef | null): string {
+  if (ref === null) return "";
+  return ref.kind === "builtIn" ? ref.preset : SOURCE_WORKFLOW_CHOICE;
+}
+
+export type SourceWorkflowRef =
+  | Readonly<{ kind: "builtIn"; preset: TicketPresetId }>
+  | Readonly<{ kind: "written"; workflowId: string }>;
+
+export function workflowOfPolicy(policy: unknown): SourceWorkflowRef | null {
+  const preset = presetOfPolicy(policy);
+  if (preset !== null) return { kind: "builtIn", preset };
+  const workflowId = text(record(record(policy).workflow).workflowId);
+  return workflowId === "" ? null : { kind: "written", workflowId };
+}
+
 /**
  * The repositories (not archived) in name order, each with its resource
  * (same connection and GitHub id, selected and available) and its source.

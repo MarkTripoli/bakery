@@ -5,7 +5,10 @@ import {
   draftOf,
   isDirty,
   policyOf,
+  SOURCE_WORKFLOW_CHOICE,
+  sourceChoiceOf,
   sourceRows,
+  workflowOfPolicy,
 } from "../../apps/web/src/pages/issue-sources.ts";
 import type {
   IntegrationResource,
@@ -184,4 +187,17 @@ Deno.test("a policy keeps everything the source had except the two labels, and a
     readiness: { requireAcceptanceCriteria: true },
     approval: { plan: "human_approval" },
   });
+});
+
+Deno.test("issue 407: a source naming a written workflow is read as that workflow, and Start work opens on it", () => {
+  const written = workflowOfPolicy({ workflow: { workflowId: "w-1" } });
+  assertEquals(written, { kind: "written", workflowId: "w-1" });
+  assertEquals(sourceChoiceOf(written), SOURCE_WORKFLOW_CHOICE);
+  const builtIn = workflowOfPolicy({
+    workflow: { workflowId: "w-2", builtIn: "fixed-coding-reviewed" },
+  });
+  assertEquals(builtIn, { kind: "builtIn", preset: "fixed-coding-reviewed" });
+  assertEquals(sourceChoiceOf(builtIn), "fixed-coding-reviewed");
+  assertEquals(workflowOfPolicy({}), null);
+  assertEquals(sourceChoiceOf(null), "");
 });

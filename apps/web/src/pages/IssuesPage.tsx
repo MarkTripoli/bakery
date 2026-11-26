@@ -28,7 +28,6 @@ import { IssuesBatchNotice } from "./issues/IssuesBatchNotice.tsx";
 import { issuesInBatch, noticesFor } from "./issues/batch-notice-model.ts";
 import { useLiveBatches } from "./issues/useLiveBatches.ts";
 import { ChooseRepositoriesSheet } from "./ChooseRepositoriesSheet.tsx";
-import { presetOfPolicy } from "./issue-sources.ts";
 import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
 import { type StartRefusal, StartWorkDialog } from "./StartWorkDialog.tsx";
 import { StartWorkNotices } from "./StartWorkNotices.tsx";
@@ -550,7 +549,7 @@ export function IssuesPage() {
             intent="start"
             row={startFor}
             policyRevision={sourceFor(startFor)?.policyRevision ?? null}
-            sourcePreset={presetOfPolicy(sourceFor(startFor)?.policy)}
+            sourcePolicy={sourceFor(startFor)?.policy}
             onClose={() => {
               setStartFor(null);
               // Cancel or Escape: back to the button that opened it.

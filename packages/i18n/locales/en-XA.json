@@ -7388,5 +7388,6 @@
   "library.skills.editor.addFile.skipped": "⟦Ñôŧ àððëð, ƀëçàûšë à ƒïļë ŵïŧĥ ŧĥàŧ ñàɱë àļŕëàðÿ ëẋïšŧš ôŕ ŧĥë ñàɱë çàññôŧ ƀë ûšëð: {names} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "library.skills.editor.leave.title": "⟦Ļëàṽë ŧĥë ëðïŧôŕ? ŧëš⟧",
   "library.skills.editor.leave.body": "⟦Ŵĥàŧ ÿôû ĵûšŧ ŧÿþëð ɱàÿ ñôŧ ƀë šàṽëð ÿëŧ. ŧëšŧ çôþÿ ŧë⟧",
-  "library.skills.editor.leave.confirm": "⟦Ļëàṽë àñÿŵàÿ ŧë⟧"
+  "library.skills.editor.leave.confirm": "⟦Ļëàṽë àñÿŵàÿ ŧë⟧",
+  "issues.settings.workflow.unavailable": "⟦À ŵôŕķƒļôŵ ŧĥàŧ ïš ñô ļôñĝëŕ àṽàïļàƀļë ŧëšŧ çôþÿ ŧ⟧"
 }

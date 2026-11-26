@@ -2,14 +2,15 @@ import { useEffect, useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
-import type { TicketPresetId, TicketRequestIntent } from "../api/client.ts";
+import type { TicketRequestIntent } from "../api/client.ts";
 import { failureStatus } from "../app/async-state.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { issueNumber, type IssueRow, issueSnapshot } from "./issue-state.ts";
-import { TICKET_PRESETS } from "./issue-sources.ts";
+import { SOURCE_WORKFLOW_CHOICE, TICKET_PRESETS } from "./issue-sources.ts";
 import { presetCopy } from "./task-composer-labels.ts";
 import { WorkflowChoice } from "./WorkflowChoice.tsx";
+import { useSourceWorkflow } from "./issues/use-source-workflow.ts";
 
 /** What a refused start says, from the server's answer. */
 export type StartRefusal =
@@ -39,7 +40,7 @@ export function startRefusal(error: unknown): StartRefusal {
  * already under way and is shown that, not an error.
  */
 export function StartWorkDialog(
-  { intent, onClose, onDone, onRefused, policyRevision, row, sourcePreset }: {
+  { intent, onClose, onDone, onRefused, policyRevision, row, sourcePolicy }: {
     readonly intent: TicketRequestIntent;
     readonly onClose: () => void;
     /** The request was made, or the issue was already being worked on. */
@@ -47,7 +48,7 @@ export function StartWorkDialog(
     readonly onRefused: (refusal: StartRefusal) => void;
     readonly policyRevision: number | null;
     readonly row: IssueRow;
-    readonly sourcePreset: TicketPresetId | null;
+    readonly sourcePolicy: unknown;
   },
 ) {
   const { translate } = useI18n();
@@ -56,7 +57,14 @@ export function StartWorkDialog(
   const queryClient = useQueryClient();
   const number = issueNumber(row);
   const { repository } = issueSnapshot(row);
-  const [preset, setPreset] = useState<TicketPresetId | null>(sourcePreset);
+  const source = useSourceWorkflow(sourcePolicy);
+  const sourceChoice = source.kind === "builtIn"
+    ? source.preset
+    : source.kind === "written"
+    ? SOURCE_WORKFLOW_CHOICE
+    : null;
+  const [choice, setChoice] = useState<string | null>(sourceChoice);
+  const preset = TICKET_PRESETS.find((id) => id === choice) ?? null;
   const [attempts, setAttempts] = useState(0);
   const tried = attempts > 0;
   const fieldId = useId();
@@ -67,15 +75,14 @@ export function StartWorkDialog(
   const start = useMutation({
     mutationKey: ["ticketRequests.create"],
     mutationFn: async () => {
-      if (preset === null) throw new Error("no workflow chosen");
+      if (choice === null) throw new Error("no workflow chosen");
       const result = await api.tickets.request({
         organizationId: scope.organizationId as string,
         id: row.id,
         intent,
         expectedSourcePolicyRevision: policyRevision as number,
         requirementsDigest: row.requirementsDigest,
-        // Only a different choice is sent: the repository's own runs otherwise.
-        ...(preset === sourcePreset ? {} : { preset }),
+        ...(choice === sourceChoice || preset === null ? {} : { preset }),
         idempotencyKey: crypto.randomUUID(),
       });
       if (!result.ok) throw result.error;
@@ -114,7 +121,7 @@ export function StartWorkDialog(
           disabled={start.isPending || policyRevision === null}
           aria-busy={start.isPending || undefined}
           onClick={() => {
-            if (preset === null) {
+            if (choice === null) {
               setAttempts((count) => count + 1);
               return;
             }
@@ -139,29 +146,37 @@ export function StartWorkDialog(
         <UI.Stack gap="compact" data-testid="start-work-workflow">
           <WorkflowChoice
             disabled={start.isPending}
-            error={tried && preset === null
+            error={tried && choice === null
               ? translate("issues.start.workflowRequired" as never)
               : undefined}
             id={fieldId}
-            items={TICKET_PRESETS.map((id) => ({
-              id,
-              title: presetCopy(translate, id).title,
-              description: presetCopy(translate, id).description,
-            }))}
+            items={[
+              ...(source.kind === "written"
+                ? [{
+                  id: SOURCE_WORKFLOW_CHOICE,
+                  title: source.name,
+                  description: source.description,
+                }]
+                : []),
+              ...TICKET_PRESETS.map((id) => ({
+                id,
+                title: presetCopy(translate, id).title,
+                description: presetCopy(translate, id).description,
+              })),
+            ]}
             label={translate("issues.start.workflow" as never)}
-            onChange={(id) =>
-              setPreset(TICKET_PRESETS.find((one) => one === id) ?? null)}
+            onChange={(id) => setChoice(id === "" ? null : id)}
             placeholder={translate("issues.start.workflowPlaceholder" as never)}
-            value={preset ?? ""}
+            value={choice ?? ""}
           />
           <UI.Text variant="caption">
-            {sourcePreset === null
+            {source.kind === "none"
               ? translate("issues.start.workflowUnsetHelp" as never, {
                 repository,
               })
               : translate("issues.start.workflowHelp" as never, {
                 repository,
-                workflow: presetCopy(translate, sourcePreset).title,
+                workflow: source.name,
               })}
           </UI.Text>
         </UI.Stack>

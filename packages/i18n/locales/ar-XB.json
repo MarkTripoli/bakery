@@ -7388,5 +7388,6 @@
   "library.skills.editor.addFile.skipped": "⟪Not added, because a file with that name already exists or the name cannot be used: {names}⟫",
   "library.skills.editor.leave.title": "⟪Leave the editor?⟫",
   "library.skills.editor.leave.body": "⟪What you just typed may not be saved yet.⟫",
-  "library.skills.editor.leave.confirm": "⟪Leave anyway⟫"
+  "library.skills.editor.leave.confirm": "⟪Leave anyway⟫",
+  "issues.settings.workflow.unavailable": "⟪A workflow that is no longer available⟫"
 }

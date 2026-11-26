@@ -7147,6 +7147,7 @@
   "issues.settings.workflow.runs": "This repository runs {workflow}.",
   "issues.settings.workflow.runsNone": "No workflow is set for this repository. People choose one when they start work.",
   "issues.settings.workflow.none": "No workflow",
+  "issues.settings.workflow.unavailable": "A workflow that is no longer available",
   "issues.settings.workflow.noneHint": "People choose a workflow each time they start work.",
   "issues.settings.automatic.needsWorkflow": "Start automatically needs a workflow. Choose one above.",
   "issues.settings.automatic.turnedOff": "Start automatically was turned off because no workflow is chosen.",

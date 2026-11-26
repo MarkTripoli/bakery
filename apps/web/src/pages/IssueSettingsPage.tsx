@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from "react";
+import { useWorkflowName } from "./issues/use-source-workflow.ts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
@@ -179,6 +180,11 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
   const [showingIssues, setShowingIssues] = useState(false);
 
   const shown = draft ?? (saved === null ? null : formOf(saved));
+  const keptListed = shown?.keptWorkflowId == null ||
+    writtenWorkflows.some((workflow) => workflow.id === shown.keptWorkflowId);
+  const keptWorkflow = useWorkflowName(
+    keptListed ? null : shown?.keptWorkflowId ?? null,
+  );
   const dirty = shown !== null && isDirty(shown, saved);
   const problems = shown === null ? {} : problemsOf(shown);
   const anyDirty = dirty || rulesDirty;
@@ -658,6 +664,7 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                           ...workflowOptionsOf(
                             writtenWorkflows,
                             shown.keptWorkflowId,
+                            keptWorkflow.name,
                           ),
                         ]}
                         value={workflowValueOf(shown)}
@@ -669,13 +676,19 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                   )
                   : (
                     <UI.Text variant="muted">
-                      {workflowNameOf(shown, writtenWorkflows, translate) ===
+                      {workflowNameOf(
+                          shown,
+                          writtenWorkflows,
+                          keptWorkflow.name,
+                          translate,
+                        ) ===
                           null
                         ? translate("issues.settings.workflow.runsNone")
                         : translate("issues.settings.workflow.runs", {
                           workflow: workflowNameOf(
                             shown,
                             writtenWorkflows,
+                            keptWorkflow.name,
                             translate,
                           ) ??
                             "",
@@ -1079,11 +1092,12 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
 function workflowNameOf(
   form: SettingsForm,
   written: readonly WrittenWorkflow[],
+  keptName: string,
   translate: Translator,
 ): string | null {
   if (form.preset !== null) return presetCopy(translate, form.preset).title;
   if (form.keptWorkflowId === null) return null;
-  return writtenWorkflowOf(form, written)?.name ?? form.keptWorkflowId;
+  return writtenWorkflowOf(form, written)?.name ?? keptName;
 }
 
 function workflowHintOf(

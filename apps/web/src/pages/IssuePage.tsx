@@ -20,8 +20,7 @@ import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ISSUES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
-import { presetOfPolicy } from "./issue-sources.ts";
-import { presetCopy } from "./task-composer-labels.ts";
+import { useSourceWorkflow } from "./issues/use-source-workflow.ts";
 import { reasonSentence } from "./IssuesList.tsx";
 import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
 import { IssueWork } from "./IssueWork.tsx";
@@ -225,7 +224,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
     item.id === row?.ticketSourceId
   );
   const policyRevision = source?.policyRevision ?? null;
-  const sourcePreset = presetOfPolicy(source?.policy);
+  const sourceWorkflow = useSourceWorkflow(source?.policy);
   const check = useMutation({
     mutationKey: ["ticketReadiness.create"],
     mutationFn: async () => {
@@ -493,13 +492,13 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
                 ? translate("issues.card.startWhenReadyCaption" as never, {
                   dependency: waitingOn,
                 })
-                : sourcePreset === null
+                : sourceWorkflow.kind === "none"
                 ? translate("issues.card.workflowNone" as never, {
                   repository: snapshot.repository,
                 })
                 : translate("issues.card.workflow" as never, {
                   repository: snapshot.repository,
-                  workflow: presetCopy(translate, sourcePreset).title,
+                  workflow: sourceWorkflow.name,
                 })}
             </UI.Text>
           </UI.Stack>
@@ -799,7 +798,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
             intent={dialog}
             row={row}
             policyRevision={policyRevision}
-            sourcePreset={sourcePreset}
+            sourcePolicy={source?.policy}
             onClose={() => {
               setDialog(null);
               // Cancel or Escape: back to the button that opened it.
