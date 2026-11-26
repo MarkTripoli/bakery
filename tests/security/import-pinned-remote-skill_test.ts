@@ -366,6 +366,35 @@ Deno.test("a folder with neither manifest.json nor a SKILL.md naming the skill i
   }
 });
 
+Deno.test("a branch or tag the Git server does not have fails at once as not found", async () => {
+  const fixture = await startRemoteSkillSourceFixture({
+    allowBlobFilter: true,
+  });
+  try {
+    const adapter = createSkillSourceAdapterForTest({
+      allowInsecureLoopback: true,
+      timeoutMs: 5_000,
+    });
+    await expectSourceError(
+      () =>
+        adapter.fetchPinnedSource({
+          sourceType: "git",
+          locator: fixture.gitUrl,
+          requestedRevision: "no-such-tag",
+        }),
+      "SOURCE_REVISION_NOT_FOUND",
+    );
+    const proof = await adapter.fetchPinnedSource({
+      sourceType: "git",
+      locator: fixture.gitUrl,
+      requestedRevision: "v1",
+    });
+    assertEquals(proof.sourceRevision, fixture.initialCommit);
+  } finally {
+    await stopRemoteSkillSourceFixture(fixture);
+  }
+});
+
 Deno.test("production source policy rejects credentials, mutable URL parts, and insecure origins", async () => {
   const adapter = createSkillSourceAdapterForTest({
     httpFetch: () => {

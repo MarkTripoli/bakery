@@ -96,6 +96,11 @@ Deno.test("Git proof fixes argv and environment then retries the persisted commi
       if (args[0] === "init" || args.includes("fetch")) {
         return Promise.resolve(new Uint8Array());
       }
+      if (args.includes("ls-remote")) {
+        return Promise.resolve(
+          encoder.encode(`${resolvedCommit}\trefs/tags/v1.2.3\n`),
+        );
+      }
       if (args[0] === "rev-parse") {
         return Promise.resolve(encoder.encode(`${resolvedCommit}\n`));
       }
@@ -164,6 +169,15 @@ Deno.test("Git proof fixes argv and environment then retries the persisted commi
     "v1.2.3",
   ]);
 
+  const listing = invocations.find((invocation) =>
+    invocation.args.includes("ls-remote")
+  );
+  assertEquals(listing?.args.slice(-3), [
+    "--",
+    "http://127.0.0.1:43127/repository.git",
+    "v1.2.3",
+  ]);
+
   invocations.length = 0;
   const retry = await adapter.fetchPinnedSource({
     sourceType: "git",
@@ -177,6 +191,10 @@ Deno.test("Git proof fixes argv and environment then retries the persisted commi
     invocation.args.includes("fetch")
   );
   assertEquals(retryFetch?.args.at(-1), commit);
+  assertEquals(
+    invocations.some((invocation) => invocation.args.includes("ls-remote")),
+    false,
+  );
 
   resolvedCommit = changedCommit;
   await assertRejects(
