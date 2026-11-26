@@ -116,6 +116,23 @@ const TERMINAL_REJECTION_STATUSES: ReadonlySet<number> = new Set([
   422,
 ]);
 
+const PROVIDER_CODE = /^[a-zA-Z0-9_.:-]{1,100}$/;
+
+function bodyRefusal(
+  refusal: RequestTemplate["refusal"],
+  data: unknown,
+): string | null {
+  if (refusal === undefined || typeof data !== "object" || data === null) {
+    return null;
+  }
+  const fields = data as Record<string, unknown>;
+  if (fields[refusal.okField] !== false) return null;
+  const code = fields[refusal.codeField];
+  return typeof code === "string" && PROVIDER_CODE.test(code)
+    ? code
+    : "unknown";
+}
+
 /**
  * Classifies a non-2xx provider response. Only authoritative refusals get a
  * class (a bare 401 is a retryable refusal); 408, 5xx and anything else leave
@@ -531,6 +548,17 @@ export function createBrokerWithProfiles(
         leaksCredential(JSON.stringify(parsedResponse.data ?? null), variants)
       ) {
         throw providerFailure();
+      }
+      const refusalCode = bodyRefusal(template.refusal, parsedResponse.data);
+      if (refusalCode !== null) {
+        throw markProviderFailure(
+          new StandardError({
+            code: "UNPROCESSABLE",
+            detail: "provider_refused",
+            params: { reason: "provider_refused", providerCode: refusalCode },
+          }),
+          { kind: "rejected", retryable: false },
+        );
       }
       return parsedResponse.data;
     } catch (error) {

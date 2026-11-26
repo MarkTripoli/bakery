@@ -1,4 +1,5 @@
 import { boundedPostgresMutation } from "../../../platform/bounded-mutation.ts";
+import { refuseDeliveryPrincipal } from "./delivery-principals-postgres.ts";
 import { assertAnotherAdminRemains } from "./last-admin-postgres.ts";
 import {
   isMembershipStatus,
@@ -515,6 +516,7 @@ export class PostgresOrganizationStore {
       if (principal.rows.length !== 1) {
         throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       }
+      await refuseDeliveryPrincipal(client, principal.rows[0].id);
       const now = this.now();
       const result = await client.query<MembershipRow>(
         `insert into bakery.organization_memberships (

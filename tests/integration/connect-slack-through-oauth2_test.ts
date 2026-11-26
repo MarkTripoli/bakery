@@ -390,6 +390,7 @@ Deno.test("connecting Slack records the workspace, one delivery principal and it
       app_mentions: "read",
       channels: "read",
       chat: "write",
+      commands: "read",
       im: "write",
     });
 
@@ -415,6 +416,60 @@ Deno.test("connecting Slack records the workspace, one delivery principal and it
     });
     assertEquals(outcome(refreshed), "refreshed");
     assertEquals(await deliveryState(o), first);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a reconnect leaves an admin's revocation of a delivery grant standing and adds no grant", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    const connectionId = await connectOnce(o);
+    await o.fixture.pgDatabase.query(
+      `update bakery.integration_grants set revoked_at = now(), revoked_by = $2
+        where connection_id = $1 and capability = 'slack.message.post'`,
+      [connectionId, o.fixture.adminId],
+    );
+    const grantsOf = async () =>
+      (await o.fixture.pgDatabase.query<
+        { id: string; capability: string; revoked: boolean }
+      >(
+        `select id, capability, revoked_at is not null as revoked
+           from bakery.integration_grants where connection_id = $1
+          order by capability, id`,
+        [connectionId],
+      )).rows;
+    const revoked = await grantsOf();
+    const response = await call(
+      o.fixture,
+      "POST",
+      "/v1/integration-auth-attempts",
+      o.fixture.adminCookie,
+      {
+        body: { provider: "slack", reconnectConnectionId: connectionId },
+        headers: {
+          "Bakery-Organization-Id": o.fixture.organizationId,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assertEquals(response.status, 201, await response.clone().text());
+    const created = await response.json() as { authorizationUrl: string };
+    const refreshed = await slackCallback(o.fixture, {
+      code: "slack-code-refresh",
+      state: new URL(created.authorizationUrl).searchParams.get("state")!,
+    });
+    assertEquals(outcome(refreshed), "refreshed");
+    assertEquals(await grantsOf(), revoked);
+    assertEquals(
+      revoked.map(({ capability, revoked }) => [capability, revoked]),
+      [
+        ["slack.dm.open", false],
+        ["slack.message.post", true],
+        ["slack.message.update", false],
+      ],
+    );
   } finally {
     await o.finish();
   }

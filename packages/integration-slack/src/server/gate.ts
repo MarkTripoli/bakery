@@ -170,6 +170,15 @@ export class SlackApiError extends Error {
   }
 }
 
+export function slackShownText(stored: string): string {
+  return stored
+    .replace(/<([^<>|]+)\|([^<>]+)>/g, "$2")
+    .replace(/<([^<>|]+)>/g, "$1")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
+}
+
 function refuse(method: string, answer: { ok: boolean; error?: string }) {
   if (!answer.ok) throw new SlackApiError(method, answer.error ?? "unknown");
 }
@@ -285,7 +294,9 @@ const messageUpdate = defineAction({
     );
     refuse("conversations.history", answer);
     const updated = (answer.messages ?? []).some((message) =>
-      message.ts === ctx.input.ts && message.text === ctx.input.text
+      message.ts === ctx.input.ts &&
+      message.text !== undefined &&
+      slackShownText(message.text) === ctx.input.text
     );
     return updated
       ? {
@@ -299,6 +310,7 @@ const messageUpdate = defineAction({
 const template = {
   resourceKind: SLACK_WORKSPACE_KIND,
   pathParams: {},
+  refusal: { okField: "ok", codeField: "error" },
   maxResponseBytes: 65_536,
 } as const;
 

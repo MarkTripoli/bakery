@@ -14,6 +14,9 @@ import {
   encodeSecretSlots,
 } from "../../apps/server/src/modules/integrations/provider-credential-port.ts";
 import { grantedScopes } from "../../apps/server/src/modules/integrations/oauth2-connect.ts";
+import { linearServerProvider } from "../../packages/integration-linear/src/server/provider.ts";
+import { providerFailureClass } from "../../apps/server/src/modules/catalog/integration-provider-outcome.ts";
+import { StandardError } from "../../packages/contracts/src/http.ts";
 import { slackProviderManifest } from "../../packages/integration-slack/src/manifest.ts";
 import {
   SLACK_DM_OPEN,
@@ -22,6 +25,7 @@ import {
   SLACK_MESSAGE_UPDATE,
   SlackApiError,
   slackGate,
+  slackShownText,
 } from "../../packages/integration-slack/src/server/gate.ts";
 import {
   SLACK_BOT_SCOPES,
@@ -178,15 +182,36 @@ Deno.test("the Slack scopes become the permission levels the gate compares", () 
       app_mentions: "read",
       channels: "read",
       chat: "write",
+      commands: "read",
       im: "write",
     },
   );
   assertEquals(
     grantedScopes(slackServerProvider.impl.connect, {
       access_token: "x",
-      scope: "im:history commands chat:write.public users:read",
+      scope: "im:history commands chat:write.public users:read.email",
     }),
-    { im: "read", users: "read" },
+    { im: "read", commands: "read", chat: "write", users: "read" },
+  );
+});
+
+Deno.test("every Linear scope is kept at its highest level", () => {
+  assertEquals(
+    grantedScopes(linearServerProvider.impl.connect, {
+      access_token: "x",
+      scope: "read write issues:create comments:create admin",
+    }),
+    {
+      read: "read",
+      write: "write",
+      issues: "write",
+      comments: "write",
+      admin: "write",
+    },
+  );
+  assertEquals(
+    grantedScopes(linearServerProvider.impl.connect, { access_token: "x" }),
+    { read: "read", issues: "write", comments: "write" },
   );
 });
 
@@ -218,17 +243,49 @@ Deno.test("a post goes to chat.postMessage and answers the channel and timestamp
   }]);
 });
 
-Deno.test("Slack's ok:false is an error naming Slack's reason", async () => {
+Deno.test("Slack's ok:false is a definite provider refusal naming Slack's reason", async () => {
   const gate = setup(() => ({ ok: false, error: "channel_not_found" }));
   const error = await assertRejects(
     () => gate.execute(SLACK_MESSAGE_POST, post),
-    SlackApiError,
+    StandardError,
   );
-  assertEquals(error.code, "channel_not_found");
+  assertEquals(error.params, {
+    reason: "provider_refused",
+    providerCode: "channel_not_found",
+  });
+  assertEquals(providerFailureClass(error), {
+    kind: "rejected",
+    retryable: false,
+  });
+});
+
+Deno.test("Slack's escaped text and rewritten links read back as the text that was sent", () => {
   assertEquals(
-    error.message,
-    "Slack refused chat.postMessage: channel_not_found.",
+    slackShownText(
+      "Fish &amp; chips &lt;b&gt; see <https://example.com/a?b=1&amp;c=2> or <https://example.com|example.com>",
+    ),
+    "Fish & chips <b> see https://example.com/a?b=1&c=2 or example.com",
   );
+});
+
+Deno.test("an update whose text Slack stored escaped is confirmed", async () => {
+  const update = {
+    channelId: DM,
+    ts: TS,
+    text: "Tom & Jerry <3 > see https://example.com/x?y=1&z=2",
+  };
+  const gate = setup(() => ({
+    ok: true,
+    messages: [{
+      ts: TS,
+      text:
+        "Tom &amp; Jerry &lt;3 &gt; see <https://example.com/x?y=1&amp;z=2>",
+    }],
+  }));
+  assertEquals(await gate.reconcile(SLACK_MESSAGE_UPDATE, update), {
+    status: "confirmed",
+    result: { channelId: DM, ts: TS },
+  });
 });
 
 Deno.test("a post whose text does not carry its marker is refused before Slack is called", async () => {

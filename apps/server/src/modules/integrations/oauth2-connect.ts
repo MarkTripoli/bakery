@@ -252,31 +252,29 @@ export function grantedScopes(
   const scopes = granted.scope === undefined
     ? [...profile.scopes]
     : granted.scope.split(/[ ,]+/).filter((scope) => scope.length > 0);
-  const permissions: Record<string, PermissionLevel> = {};
+  const permissions = new Map<string, PermissionLevel>();
   for (const scope of scopes) {
     const separator = scope.indexOf(":");
-    if (separator <= 0) continue;
-    const suffix = scope.slice(separator + 1);
-    const level = Object.hasOwn(SCOPE_LEVELS, suffix)
-      ? SCOPE_LEVELS[suffix]
-      : undefined;
-    if (level === undefined) continue;
-    const name = scope.slice(0, separator);
-    const held = Object.hasOwn(permissions, name)
-      ? permissions[name]
-      : undefined;
-    if (held !== "write") permissions[name] = level;
+    const name = separator > 0 ? scope.slice(0, separator) : scope;
+    const level = scopeLevel(
+      separator > 0 ? scope.slice(separator + 1).split(".")[0]! : scope,
+    );
+    if (permissions.get(name) !== "write") permissions.set(name, level);
   }
-  return permissions;
+  return Object.fromEntries(permissions);
 }
 
 type PermissionLevel = "read" | "write";
 
-const SCOPE_LEVELS: Readonly<Record<string, PermissionLevel>> = Object.freeze({
-  read: "read",
-  history: "read",
-  write: "write",
-});
+const WRITE_SCOPE_LEVELS: ReadonlySet<string> = new Set([
+  "write",
+  "create",
+  "admin",
+]);
+
+function scopeLevel(level: string): PermissionLevel {
+  return WRITE_SCOPE_LEVELS.has(level) ? "write" : "read";
+}
 
 type OAuth2Client = Readonly<{
   registrationId: string;

@@ -249,6 +249,18 @@ export const requestTemplateSchema = z.strictObject({
     "Static GraphQL document sent as the request body's query field; required for kind graphql and never assembled from caller input.",
   ),
   response: zodSchema,
+  refusal: z.strictObject({
+    okField: z.string().regex(/^[a-z][a-zA-Z0-9_]*$/).describe(
+      "Top-level boolean response field that is false when the provider refused the call.",
+    ),
+    codeField: z.string().regex(/^[a-z][a-zA-Z0-9_]*$/).describe(
+      "Top-level string response field that names the provider's refusal reason.",
+    ),
+  }).describe(
+    "How a provider that answers HTTP 200 marks a definite refusal in the body.",
+  ).optional().describe(
+    "Body-level refusal marker; when the ok field is false the broker records an authoritative rejection, so the write is known not to have happened.",
+  ),
   maxResponseBytes: z.number().int().min(1).max(MAX_RESPONSE_BYTES).describe(
     "Hard cap on the response bytes the broker reads, between 1 and 8 MiB.",
   ),
