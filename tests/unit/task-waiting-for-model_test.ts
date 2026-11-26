@@ -111,3 +111,35 @@ Deno.test("expiry says whether the workflow went on", () => {
     "expiredContinued",
   );
 });
+
+Deno.test("did not answer names only the round the next ask followed", () => {
+  const first = "2026-02-02T00:05:00.000Z";
+  const second = "2026-02-04T00:05:00.000Z";
+  const [line] = waitingLines([
+    ask("Lee", { passedOn: true, createdAt: second }),
+    ask("Vic", {
+      createdAt: "2026-02-03T00:00:00.000Z",
+      nextAsk: { dueAt: due, askedAt: second, who: "Lee" },
+    }),
+    ask("Sam", { passedOn: true, createdAt: first, status: "handled" }),
+    ask("Dana", {
+      status: "handled",
+      nextAsk: { dueAt: due, askedAt: first, who: "Sam" },
+    }),
+  ]);
+  assertEquals(
+    line.kind === "passedOn" && [line.first, line.next, line.askedAt],
+    [["Vic"], ["Lee"], second],
+  );
+});
+
+Deno.test("one missing name is said once", () => {
+  const missing = { fallbackForName: "Design reviewers" };
+  assertEquals(
+    fallbackLines([
+      ask("Sam", missing),
+      ask("Sam", { ...missing, stepKey: "build.other" }),
+    ]).length,
+    1,
+  );
+});

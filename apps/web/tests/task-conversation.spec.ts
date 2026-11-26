@@ -4771,6 +4771,7 @@ test.describe("who a run is waiting for", () => {
           displayName: "Lee Reviewer",
         },
         passedOn: true,
+        createdAt: "2026-02-02T12:01:00.000Z",
         fallbackForName: "Design reviewers",
       }),
     ]);
@@ -4790,6 +4791,33 @@ test.describe("who a run is waiting for", () => {
       /Expired: nobody answered by Feb 8, 2026\./,
     );
     await still(page, "run-waiting-expired");
+  });
+
+  for (const status of [403, 404]) {
+    test(`a reader refused with ${status} sees nothing and no error`, async ({ page }) => {
+      const refused = page.waitForResponse((response) =>
+        response.url().endsWith(`/v1/runs/${runId}/requests`)
+      );
+      const waiting = await openWaiting(page, [], status);
+      expect((await refused).status()).toBe(status);
+      await expect(page.getByRole("heading", { name: "Current run" }))
+        .toBeVisible();
+      await expect(waiting).toHaveCount(0);
+      await expect(page.getByText("Who this run is waiting for did not load."))
+        .toHaveCount(0);
+    });
+  }
+
+  test("two waiting steps are captioned like the step list", async ({ page }) => {
+    const waiting = await openWaiting(page, [
+      waitingRequest({ stepKey: "plan.ask" }),
+      waitingRequest({
+        id: "00000000-0000-4000-8000-000000000803",
+        stepKey: "implement",
+      }),
+    ]);
+    await expect(waiting).toContainText("Plan ask");
+    await expect(waiting).toContainText("Implement");
   });
 
   test("a failed read is said with its own way to load it again", async ({ page }) => {

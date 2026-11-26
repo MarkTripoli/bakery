@@ -6,7 +6,7 @@ import { runRequestsQueryOptions } from "../../api/query.ts";
 import { failureStatus } from "../../app/async-state.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { stepName } from "../task-step-approval/model.ts";
+import { stepTitle } from "../task-timeline.ts";
 import {
   expiryOutcome,
   fallbackLines,
@@ -27,7 +27,7 @@ export function WaitingFor(
   const { translate, locale, timeZone } = useI18n();
   const read = useQuery(runRequestsQueryOptions(api, scope, runId));
   if (read.isError) {
-    return failureStatus(read.error) === 403
+    return [403, 404].includes(failureStatus(read.error) ?? 0)
       ? null
       : (
         <UI.InlineNotice tone="warning">
@@ -92,7 +92,11 @@ export function WaitingFor(
       {lines.map((line) => (
         <UI.Stack data-step-key={line.stepKey} gap="tight" key={line.stepKey}>
           {lines.length > 1
-            ? <UI.Text variant="caption">{stepName(line.stepKey)}</UI.Text>
+            ? (
+              <UI.Text variant="caption">
+                {stepTitle(translate, line.stepKey)}
+              </UI.Text>
+            )
             : null}
           <UI.Inline gap="compact">
             <UI.Text>{words(line)}</UI.Text>

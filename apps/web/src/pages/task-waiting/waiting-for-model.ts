@@ -54,18 +54,23 @@ function lineOf(
       : null;
   }
   const expiresAt = latest(open);
-  const passed = open.filter((request) => request.passedOn);
-  if (passed.length > 0) {
-    const first = requests.filter((request) => !request.passedOn);
-    return {
-      kind: "passedOn",
-      stepKey,
-      expiresAt,
-      first: namesOf(first),
-      next: namesOf(passed),
-      askedAt: first.find((request) => request.nextAsk?.askedAt)?.nextAsk
-        ?.askedAt ?? passed[0].createdAt,
-    };
+  const newest = newestRound(open);
+  if (newest.every((request) => request.passedOn)) {
+    const askedAt = newest[0].createdAt;
+    const silent = requests.filter((request) =>
+      request.nextAsk?.askedAt === askedAt &&
+      (request.status === "open" || request.status === "expired")
+    );
+    if (silent.length > 0) {
+      return {
+        kind: "passedOn",
+        stepKey,
+        expiresAt,
+        first: namesOf(silent),
+        next: namesOf(newest),
+        askedAt,
+      };
+    }
   }
   const pending = open.find((request) =>
     request.nextAsk !== null && request.nextAsk.askedAt === null
@@ -120,12 +125,14 @@ export function expiryOutcome(
 export function fallbackLines(
   requests: readonly RunRequestResponse[],
 ): FallbackLine[] {
-  return requests.flatMap((request) =>
-    request.status === "open" && request.fallbackForName !== null
-      ? [{
-        name: request.fallbackForName,
-        owner: request.recipient.displayName,
-      }]
-      : []
-  );
+  const lines = new Map<string, FallbackLine>();
+  for (const request of requests) {
+    if (request.status !== "open" || request.fallbackForName === null) continue;
+    const line = {
+      name: request.fallbackForName,
+      owner: request.recipient.displayName,
+    };
+    lines.set(JSON.stringify(line), line);
+  }
+  return [...lines.values()];
 }
