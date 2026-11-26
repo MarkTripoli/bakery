@@ -1,0 +1,197 @@
+import { assert, assertEquals } from "@std/assert";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import {
+  fireLiveStart,
+  fireStartsFor,
+  START_FIRINGS_PER_HOUR,
+} from "../../apps/server/src/modules/workflows/start-firing.ts";
+import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
+import {
+  automationVersionInputs,
+  setUpAutomation,
+} from "../helpers/automation-fixtures.ts";
+import {
+  apiCall,
+  expectJson,
+  seedPresetRepository,
+} from "../helpers/fixed-coding-preset.ts";
+import { fireDueScheduleStarts } from "../../apps/server/src/modules/workflows/start-clock.ts";
+
+// #406 slice 3. A start answers an event by starting a run of the version in
+// use, as the principal who used that version. That principal is not trusted
+// from the day they acted: every firing re-reads their membership and
+// permissions when it fires, and one who has lost access fails the firing,
+// visibly, with no task or run. A firing is one per version, start and event.
+
+const EVENT = {
+  kind: "change_request.opened",
+  fields: { number: 3 },
+} as const;
+
+type Setup = Awaited<ReturnType<typeof setUp>>;
+
+/** A published workflow version carrying one start, used by the fixture's admin. */
+async function setUp(
+  fixture: Parameters<Parameters<typeof withWorkerFixture>[0]>[0],
+  start: Record<string, unknown> = {},
+) {
+  const s = await setUpAutomation(fixture);
+  const organizationId = fixture.organizationId;
+  const { rows } = await fixture.pgDatabase.query<{ workflow_id: string }>(
+    `select workflow_id from bakery.workflow_versions where id = $1`,
+    [s.published.id],
+  );
+  const workflowId = rows[0].workflow_id;
+  // Starts are authored on a draft; the fixture published without any, so the
+  // published version is given its list as the publish path would have stored it.
+  await fixture.pgDatabase.query(
+    `update bakery.workflow_versions set starts = $1::jsonb
+      where organization_id = $2 and id = $3`,
+    [
+      JSON.stringify([{
+        id: "on-pr",
+        budgetUsd: 5,
+        // What the fixture's workflow requires of every run.
+        inputs: automationVersionInputs(s.repository.repositoryId),
+        on: { kind: "event", eventKind: "change_request.opened", filter: {} },
+        ...start,
+      }]),
+      organizationId,
+      s.published.id,
+    ],
+  );
+  const definition = await expectJson<{ version: number }>(
+    await apiCall(fixture, fixture, "GET", `/v1/workflows/${workflowId}`),
+    200,
+  );
+  await expectJson(
+    await apiCall(
+      fixture,
+      fixture,
+      "POST",
+      `/v1/workflows/${workflowId}/activations`,
+      {
+        body: { versionId: s.published.id },
+        headers: { "If-Match": `"${definition.version}"` },
+      },
+    ),
+    200,
+  );
+  const receive = async (): Promise<string> => {
+    const id = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.inbound_events (
+         id, provider, registration_id, external_delivery_id, payload_digest,
+         event_kind, event_action, status, expires_at
+       ) values ($1, 'provider_neutral', null, $2, 'digest', 'pull_request',
+         'opened', 'accepted', now() + interval '1 day')`,
+      [id, crypto.randomUUID()],
+    );
+    return id;
+  };
+  // As the consumer runs: the application role, in one transaction.
+  const fire = async (inboundEventId: string) =>
+    await withPgTransaction(
+      fixture.runtimePgDatabase,
+      (transaction) =>
+        fireStartsFor(
+          transaction,
+          { organizationId, inboundEventId },
+          { id: s.repository.repositoryId },
+          EVENT,
+        ),
+    );
+  const firings = async () =>
+    (await fixture.pgDatabase.query<{
+      status: string;
+      failureCode: string | null;
+      runId: string | null;
+      actorId: string | null;
+      triggerEventId: string | null;
+    }>(
+      `select status, failure_code as "failureCode", run_id as "runId",
+              actor_id as "actorId", trigger_event_id as "triggerEventId"
+         from bakery.workflow_start_firings
+        where organization_id = $1 order by created_at, id`,
+      [organizationId],
+    )).rows;
+  const audits = async () =>
+    (await fixture.pgDatabase.query<{ outcome: string; code: string | null }>(
+      `select outcome, details ->> 'code' as code from bakery.audit_events
+        where organization_id = $1 and operation = 'workflowStartFirings.start'
+        order by created_at, id`,
+      [organizationId],
+    )).rows;
+  return { ...s, workflowId, receive, fire, firings, audits };
+}
+
+/** A member of the organization with this role, who is not the fixture's admin. */
+async function addMember(
+  fixture: Parameters<Parameters<typeof withWorkerFixture>[0]>[0],
+  role: "admin" | "developer",
+): Promise<string> {
+  const principalId = crypto.randomUUID();
+  await fixture.pgDatabase.query(
+    `insert into bakery.principals (id, provider_user_id, display_name, principal_type)
+     values ($1, null, 'Start activator', 'service')`,
+    [principalId],
+  );
+  await fixture.pgDatabase.query(
+    `insert into bakery.organization_memberships
+       (id, organization_id, principal_id, role, status, joined_at, created_at,
+        updated_at, version)
+     values ($1, $2, $3, $4, 'active', now(), now(), now(), 1)`,
+    [crypto.randomUUID(), fixture.organizationId, principalId, role],
+  );
+  return principalId;
+}
+
+const activatedBy = (
+  fixture: Parameters<Parameters<typeof withWorkerFixture>[0]>[0],
+  s: Setup,
+  principalId: string | null,
+) =>
+  fixture.pgDatabase.query(
+    `update bakery.workflow_definitions set active_version_set_by = $3
+      where organization_id = $1 and id = $2`,
+    [fixture.organizationId, s.workflowId, principalId],
+  );
+
+
+import { readStarts } from "../../apps/server/src/modules/workflows/start-read.ts";
+const tickBefore = (now: Date, minutes: number) => {
+  const tick = new Date(now.getTime() - minutes * 60_000);
+  return { kind: "schedule", cron: tick.getUTCMinutes() + " * * * *", timezone: "UTC" };
+};
+
+Deno.test("qa probe: a version put in use after the tick, then replaced within the window", () =>
+  withWorkerFixture(async (fixture) => {
+    const now = new Date(Date.now() + 5_000);
+    const s = await setUp(fixture, { on: tickBefore(now, 2) });
+    const first = await fireDueScheduleStarts({ database: fixture.runtimePgDatabase, now });
+    console.log("PROBE tick was 2 min before the version was put in use ->", JSON.stringify(first.map((o) => o.result + (o.code ? ":" + o.code : ""))));
+    const second = crypto.randomUUID();
+    await fixture.pgDatabase.query(
+      `insert into bakery.workflow_versions select (jsonb_populate_record(v, jsonb_build_object('id', $2::text, 'revision', v.revision + 1))).* from bakery.workflow_versions v where v.id = $1`,
+      [s.published.id, second],
+    );
+    const definition = await expectJson<{ version: number }>(await apiCall(fixture, fixture, "GET", `/v1/workflows/${s.workflowId}`), 200);
+    const activation = await apiCall(fixture, fixture, "POST", `/v1/workflows/${s.workflowId}/activations`, { body: { versionId: second }, headers: { "If-Match": `"${definition.version}"` } });
+    console.log("PROBE new version used", activation.status);
+    await activation.body?.cancel();
+    const again = await fireDueScheduleStarts({ database: fixture.runtimePgDatabase, now: new Date(now.getTime() + 60_000) });
+    console.log("PROBE same tick after the new version ->", JSON.stringify(again.map((o) => o.result + (o.code ? ":" + o.code : ""))));
+    console.log("PROBE firings", JSON.stringify((await s.firings()).map((f) => f.status + (f.runId ? " run" : ""))));
+  }));
+
+Deno.test("qa probe: a schedule start on a workflow that takes no repository", () =>
+  withWorkerFixture(async (fixture) => {
+    const now = new Date(Date.now() + 5_000);
+    const on = tickBefore(now, 0);
+    const start = { id: "nightly", budgetUsd: 5, inputs: {}, on };
+    const accepted = readStarts([start as never], { inputs: {} });
+    console.log("PROBE save/publish check accepts it:", accepted.length === 1);
+    const s = await setUp(fixture, { id: "nightly", inputs: {}, on });
+    const outcomes = await fireDueScheduleStarts({ database: fixture.runtimePgDatabase, now });
+    console.log("PROBE clock ->", JSON.stringify(outcomes.map((o) => o.result + (o.code ? ":" + o.code : ""))), "firings recorded", (await s.firings()).length, "audits", (await s.audits()).length);
+  }));

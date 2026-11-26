@@ -1,0 +1,23 @@
+
+> bakery@ test:integration /home/marktripoli/Development/bakery-wt/_qa/qa1036
+> deno run --allow-env --allow-read --allow-run scripts/run-tests.ts integration tests/integration/qa1036-probe_test.ts
+
+Check tests/integration/qa1036-probe_test.ts
+running 2 tests from ./tests/integration/qa1036-probe_test.ts
+qa probe: a version put in use after the tick, then replaced within the window ...
+------- output -------
+PROBE tick was 2 min before the version was put in use -> ["started"]
+PROBE new version used 200
+PROBE same tick after the new version -> ["started"]
+PROBE firings ["started run","started run"]
+----- output end -----
+qa probe: a version put in use after the tick, then replaced within the window ... ok (8s)
+qa probe: a schedule start on a workflow that takes no repository ...
+------- output -------
+PROBE save/publish check accepts it: true
+PROBE clock -> ["failed:start_repository_missing"] firings recorded 0 audits 0
+----- output end -----
+qa probe: a schedule start on a workflow that takes no repository ... ok (838ms)
+
+ok | 2 passed | 0 failed (9s)
+
