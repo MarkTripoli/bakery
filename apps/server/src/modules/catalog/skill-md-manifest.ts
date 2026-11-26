@@ -1,5 +1,10 @@
 import { parse as parseYaml } from "yaml";
-import { canonicalJson } from "../../platform/canonical-json.ts";
+import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
+import {
+  compareByCodeUnitPath,
+  isSkillExecutableMedia,
+  skillFileSha256,
+} from "./validation.ts";
 
 export type SkillMdSourceFile = Readonly<{
   path: string;
@@ -42,13 +47,6 @@ const MEDIA_TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
   ".py": "text/x-python",
   ".sh": "text/x-shellscript",
 };
-
-const EXECUTABLE_SAFE_MEDIA = new Set([
-  "application/octet-stream",
-  "text/plain",
-  "text/x-python",
-  "text/x-shellscript",
-]);
 
 function invalid(): never {
   throw new SkillMdManifestInvalid();
@@ -115,32 +113,10 @@ export function skillFileMediaType(file: SkillMdSourceFile): string {
   const textual = decodeUtf8(file.content) !== null;
   const mediaType = known ??
     (textual ? "text/plain" : "application/octet-stream");
-  if (file.isExecutable && !EXECUTABLE_SAFE_MEDIA.has(mediaType)) {
+  if (file.isExecutable && !isSkillExecutableMedia(mediaType)) {
     return textual ? "text/plain" : "application/octet-stream";
   }
   return mediaType;
-}
-
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text),
-  );
-  return Array.from(
-    new Uint8Array(digest),
-    (byte) => byte.toString(16).padStart(2, "0"),
-  ).join("");
-}
-
-async function fileSha256(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new Uint8Array(bytes).buffer as ArrayBuffer,
-  );
-  return Array.from(
-    new Uint8Array(digest),
-    (byte) => byte.toString(16).padStart(2, "0"),
-  ).join("");
 }
 
 export async function deriveSkillMdManifest(
@@ -158,12 +134,10 @@ export async function deriveSkillMdManifest(
     path: file.path,
     mediaType: skillFileMediaType(file),
     sizeBytes: file.content.byteLength,
-    sha256: await fileSha256(file.content),
+    sha256: await skillFileSha256(file.content),
     isExecutable: file.isExecutable,
   })));
-  described.sort((left, right) =>
-    left.path < right.path ? -1 : left.path > right.path ? 1 : 0
-  );
+  described.sort(compareByCodeUnitPath);
   const unsigned = {
     schemaVersion: 1 as const,
     name,

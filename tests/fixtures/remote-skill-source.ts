@@ -327,7 +327,6 @@ async function fixtureControl(authority: string, path: string): Promise<void> {
   await response.body?.cancel();
 }
 
-/** Starts an owned loopback archive and Git smart-HTTP fixture process. */
 export const SKILL_MD_ONLY_TAG = "plain-v1";
 export const SKILL_MD_ONLY_PATH = "skills/plain";
 export const SKILL_MD_ONLY_SKILL = [
@@ -366,6 +365,7 @@ async function commitSkillMdOnlyFolder(work: string): Promise<void> {
   await runFixtureGit(work, ["checkout", "-q", "-f", "main"]);
 }
 
+/** Starts an owned loopback archive and Git smart-HTTP fixture process. */
 export async function startRemoteSkillSourceFixture(
   options: Readonly<{ allowBlobFilter?: boolean }> = {},
 ): Promise<RunningRemoteSkillSourceFixture> {
