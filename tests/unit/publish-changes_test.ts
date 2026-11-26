@@ -27,7 +27,7 @@ Deno.test("steps are listed as new, changed and removed by name", () => {
     { steps: [{ ...brief, name: "Set the scene" }, loop(3)] },
     t,
   );
-  assertEquals(changes.added, ["harnessImplement", "repeat"]);
+  assertEquals(changes.added, ["repeat", "harnessImplement"]);
   assertEquals(changes.changed, ["Set the scene"]);
   assertEquals(changes.removed, ["harnessImplement"]);
 });
@@ -67,4 +67,37 @@ Deno.test("a change outside the steps is a change of settings", () => {
     t,
   );
   assertEquals(changes.settings, true);
+});
+
+Deno.test("blocks are named as the diagram names them, and wrappers are not listed", () => {
+  const changes = publishChanges(null, {
+    steps: [
+      { id: "flow", steps: [brief] },
+      {
+        id: "repair",
+        repeat: {
+          max: 2,
+          steps: [
+            { id: "mend", uses: "harness.repair" },
+            { id: "look", uses: "review.independent" },
+          ],
+        },
+      },
+    ],
+  }, t);
+  assertEquals(changes.added, [
+    "taskBrief",
+    "fixUntilPasses",
+    "harnessRepair",
+    "reviewIndependent",
+  ]);
+});
+
+Deno.test("a change to a wrapper alone is still something to publish", () => {
+  const changes = publishChanges(
+    { steps: [{ id: "flow", steps: [brief] }] },
+    { steps: [{ id: "flow", if: "$inputs.go", steps: [brief] }] },
+    t,
+  );
+  assertEquals([changes.changed, changes.settings], [[], true]);
 });

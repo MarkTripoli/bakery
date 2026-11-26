@@ -1,5 +1,6 @@
 import type { MessageKey } from "@bakery/i18n";
 import { ACTION_TITLES } from "./workflow-state.ts";
+import { type BlockKind, blockKindOf } from "./workflow-tree.ts";
 
 export type PublishChanges = {
   readonly added: readonly string[];
@@ -11,16 +12,29 @@ export type PublishChanges = {
 
 type Held = Record<string, unknown>;
 
-const BLOCK_WORDS: Readonly<Record<string, MessageKey>> = {
+const BLOCK_WORDS: Readonly<
+  Record<Exclude<BlockKind, "approval" | "sequence">, MessageKey>
+> = {
+  if: "library.editor.group.if",
+  fix: "library.editor.group.fixUntilPasses",
   repeat: "library.editor.group.repeat",
-  parallel: "library.editor.group.together",
-  forEach: "library.editor.group.each",
-  branch: "library.editor.group.if",
-  wait: "library.editor.group.wait",
+  together: "library.editor.group.together",
+  each: "library.editor.group.each",
   call: "library.editor.group.call",
+  wait: "library.editor.group.wait",
 };
 
-const NODE_MARKS = ["uses", "steps", "kind", ...Object.keys(BLOCK_WORDS)];
+const NODE_MARKS = [
+  "uses",
+  "steps",
+  "kind",
+  "repeat",
+  "parallel",
+  "forEach",
+  "branch",
+  "wait",
+  "call",
+];
 
 function isObject(value: unknown): value is Held {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -47,6 +61,10 @@ function walk(value: unknown, at: string, found: Walked): unknown {
   }
   if (!isObject(value)) return value;
   const key = isNode(value) ? value.id : at;
+  if (isNode(value)) {
+    found.own.set(value.id, "");
+    found.node.set(value.id, value);
+  }
   const own = Object.fromEntries(
     Object.keys(value).sort().map((name) => [
       name,
@@ -55,7 +73,6 @@ function walk(value: unknown, at: string, found: Walked): unknown {
   );
   if (!isNode(value)) return own;
   found.own.set(value.id, JSON.stringify(own));
-  found.node.set(value.id, value);
   return { ref: value.id };
 }
 
@@ -77,43 +94,47 @@ export function publishChanges(
 ): PublishChanges {
   const held = read(before);
   const next = read(after);
+  const actionName = (uses: string): string => {
+    const key = ACTION_TITLES[uses];
+    return key === undefined ? uses : translate(key);
+  };
   const name = (node: Held | undefined): string => {
     if (node === undefined) return "";
     if (typeof node.name === "string" && node.name !== "") return node.name;
-    if (typeof node.uses === "string") {
-      const key = ACTION_TITLES[node.uses];
-      return key === undefined ? node.uses : translate(key);
-    }
-    const block = Object.keys(BLOCK_WORDS).find((one) =>
-      node[one] !== undefined || node.kind === one
-    );
-    return block === undefined
+    if (typeof node.uses === "string") return actionName(node.uses);
+    const block = blockKindOf(node);
+    if (block === "approval") return actionName("human.approval");
+    return block === null || block === "sequence"
       ? String(node.id)
       : translate(BLOCK_WORDS[block]);
   };
+  const drawn = (node: Held | undefined) =>
+    node !== undefined &&
+    (node.uses !== undefined || blockKindOf(node) !== "sequence");
   const named = (ids: Iterable<string>, from: Map<string, Held>) =>
-    [...ids].map((id) => name(from.get(id)));
+    [...ids].filter((id) => drawn(from.get(id))).map((id) =>
+      name(from.get(id))
+    );
   const ids = [...next.own.keys()];
   const reordered = [...next.lists].some(([at, list]) => {
     const kept = list.filter((id) => held.own.has(id));
     const earlier = (held.lists.get(at) ?? []).filter((id) => next.own.has(id));
     return kept.length > 1 && earlier.join() !== kept.join();
   });
+  const edited = ids.filter((id) =>
+    held.own.has(id) && held.own.get(id) !== next.own.get(id)
+  );
+  const wrapperEdited = edited.some((id) => !drawn(next.node.get(id)));
   return {
     added: named(ids.filter((id) => !held.own.has(id)), next.node),
-    changed: named(
-      ids.filter((id) =>
-        held.own.has(id) && held.own.get(id) !== next.own.get(id)
-      ),
-      next.node,
-    ),
+    changed: named(edited, next.node),
     removed: named(
       [...held.own.keys()].filter((id) => !next.own.has(id)),
       held.node,
     ),
     reordered,
     settings: before !== null && before !== undefined &&
-      held.rest !== next.rest,
+      (held.rest !== next.rest || wrapperEdited),
   };
 }
 
