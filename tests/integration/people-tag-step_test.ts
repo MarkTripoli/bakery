@@ -375,6 +375,81 @@ Deno.test("a step whose first and next asks both run out completes expired and r
   }
 });
 
+async function seedGroup(
+  fixture: Awaited<ReturnType<typeof open>>["fixture"],
+  members: readonly string[],
+): Promise<string> {
+  const groupId = crypto.randomUUID();
+  const name = `next-${groupId.slice(0, 8)}`;
+  await fixture.pgDatabase.query(
+    `insert into bakery.organization_groups
+       (id, organization_id, name, mention_name)
+     values ($1, $2, $3, $3)`,
+    [groupId, fixture.organizationId, name],
+  );
+  for (const principalId of members) {
+    await fixture.pgDatabase.query(
+      `insert into bakery.organization_group_members
+         (organization_id, group_id, principal_id)
+       values ($1, $2, $3)`,
+      [fixture.organizationId, groupId, principalId],
+    );
+  }
+  return groupId;
+}
+
+async function pollsAfterTheNextAsk(
+  o: Awaited<ReturnType<typeof openWithNextPerson>>,
+  ifNobodyAnswers: Record<string, unknown>,
+  firstAsk: Record<string, unknown> = { recipientId: o.guest.principalId },
+) {
+  const request = o.step({
+    intent: "review",
+    ...firstAsk,
+    artifactVersionId: o.version,
+    wait: true,
+    ifNobodyAnswers: { afterHours: 1, ...ifNobodyAnswers },
+  });
+  assertEquals(await o.runner.run(request), { kind: "pending" });
+  await o.askedAgo(2);
+  assertEquals(await o.runner.run(request), { kind: "pending" });
+  const afterNextAsk = [await o.tags(), await o.ledgerKinds()];
+  for (let poll = 0; poll < 3; poll++) {
+    assertEquals(await o.runner.run(request), { kind: "pending" });
+  }
+  assertEquals([await o.tags(), await o.ledgerKinds()], afterNextAsk);
+  const marks = await o.fixture.pgDatabase.query(
+    `select 1 from bakery.person_request_next_asks
+      where organization_id = $1 and run_id = $2`,
+    [o.fixture.organizationId, o.run.runId],
+  );
+  assertEquals(marks.rows.length, 1);
+}
+
+Deno.test("a next ask that only reaches someone already asked is made once, not every minute", async () => {
+  const o = await openWithNextPerson();
+  try {
+    const groupId = await seedGroup(o.fixture, [o.guest.principalId]);
+    await pollsAfterTheNextAsk(o, { recipientGroupId: groupId });
+    assertEquals((await o.tags()).length, 1);
+  } finally {
+    await o.finishAll();
+  }
+});
+
+Deno.test("a next ask that falls back to the run's owner is made once, not every minute", async () => {
+  const o = await openWithNextPerson();
+  try {
+    await pollsAfterTheNextAsk(
+      o,
+      { recipientId: crypto.randomUUID() },
+      { recipientRunRole: "starter" },
+    );
+  } finally {
+    await o.finishAll();
+  }
+});
+
 Deno.test("asking someone next needs a waiting step and exactly one person", async () => {
   const o = await openWithNextPerson();
   try {

@@ -130,12 +130,29 @@ export function escalationDue(
   const firstAskedAt = Math.min(
     ...tags.map((tag) => tag.created_at.getTime()),
   );
-  const alreadyAskedNext = tags.some((tag) =>
-    tag.created_at.getTime() > firstAskedAt
-  );
   const afterMs = (escalation.afterHours ?? DEFAULT_ESCALATION_HOURS) *
     3_600_000;
-  return !alreadyAskedNext && now >= firstAskedAt + afterMs;
+  return now >= firstAskedAt + afterMs;
+}
+
+async function claimNextAsk(
+  transaction: PgTransactionClient,
+  request: EngineStepRequest,
+): Promise<boolean> {
+  const claimed = await transaction.query(
+    `insert into bakery.person_request_next_asks
+       (organization_id, run_id, step_key, step_iteration)
+     values ($1, $2, $3, $4)
+     on conflict do nothing
+     returning 1`,
+    [
+      request.organizationId,
+      request.runId,
+      request.stepKey,
+      request.iteration,
+    ],
+  );
+  return claimed.rows.length === 1;
 }
 
 async function markOwnTagsExpired(
@@ -316,6 +333,7 @@ export function createPeopleTagStepRunner(
       const outcome = await withPgTransaction(deps.database, async (tx) => {
         const tags = await ownTags(tx, request);
         if (!escalationDue(tags, escalation, Date.now())) return null;
+        if (!await claimNextAsk(tx, request)) return null;
         const actor = await liveActor(
           tx,
           request.organizationId,
