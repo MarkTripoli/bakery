@@ -243,8 +243,8 @@ Deno.test("a start with the smallest positive amount is accepted and stored with
   ]);
 });
 
-Deno.test("a start names a built-in workflow, and a missing or unknown one is refused before anything is stored", async () => {
-  for (const presetId of [undefined, "", "no-such-workflow"]) {
+Deno.test("a start names a built-in workflow, and an unknown one is refused before anything is stored", async () => {
+  for (const presetId of ["", "no-such-workflow"]) {
     const { context, writes } = stand();
     await refusedWith(
       () => createBatch(context, { ...valid, presetId } as never),
@@ -253,6 +253,16 @@ Deno.test("a start names a built-in workflow, and a missing or unknown one is re
     );
     assertEquals(writes, []);
   }
+});
+
+Deno.test("issue 407: a start without a built-in runs the source's workflow, and is refused when the source names none", async () => {
+  const { context, writes } = stand();
+  await refusedWith(
+    () => createBatch(context, { ...valid, presetId: undefined } as never),
+    "UNPROCESSABLE",
+    "workflow_required",
+  );
+  assertEquals(writes, []);
 });
 
 Deno.test("pause stops new starts, repeats are harmless, and only a running or waiting batch can be paused", async () => {

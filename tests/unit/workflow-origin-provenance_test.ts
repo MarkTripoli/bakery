@@ -31,6 +31,7 @@ function row(overrides: Record<string, unknown> = {}) {
     visibility: "listed",
     origin_conversation_id: null,
     origin_turn_id: null,
+    active_spec: null,
     ...overrides,
   };
 }

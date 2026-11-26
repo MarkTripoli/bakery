@@ -27,6 +27,7 @@ const row = {
   visibility: "listed",
   origin_conversation_id: null,
   origin_turn_id: null,
+  active_spec: null,
 };
 
 Deno.test("an authored definition's read shape satisfies the Workflow contract", () => {
@@ -102,4 +103,20 @@ Deno.test("a read shape without its origin is refused by the contract", () => {
     contractSchemas.Workflow.safeParse(withoutOrigin).success,
     false,
   );
+});
+
+Deno.test("issue 407: needsInputs says whether the version in use declares a required input", () => {
+  const spec = (required: boolean) => ({
+    apiVersion: "bakery.dev/v1",
+    kind: "workflow",
+    name: "written",
+    inputs: { note: { type: "string", required } },
+    steps: [],
+  });
+  const needs = toWorkflowDefinition({ ...row, active_spec: spec(true) });
+  const plain = toWorkflowDefinition({ ...row, active_spec: spec(false) });
+  assertEquals([needs.needsInputs, plain.needsInputs], [true, false]);
+  assertEquals(toWorkflowDefinition(row).needsInputs, false);
+  const parsed = contractSchemas.Workflow.safeParse(needs);
+  assertEquals(parsed.success, true, JSON.stringify(parsed.error?.issues));
 });
