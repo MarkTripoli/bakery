@@ -37,18 +37,17 @@ type Props = Readonly<{
 }>;
 
 export function RequestsForYou(props: Props) {
+  return props.currentRunId === null ? null : <TaskRequests {...props} />;
+}
+
+function TaskRequests(props: Props) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const { translate } = useI18n();
   const copy: Copy = (key, values) =>
     translate(`tasks.requests.${key}`, values);
   const runs = useQuery(taskRunIdsQueryOptions(api, scope, props.taskId));
-  const runIds = [
-    ...new Set([
-      ...(props.currentRunId === null ? [] : [props.currentRunId]),
-      ...(runs.data ?? []),
-    ]),
-  ];
+  const runIds = [...new Set([props.currentRunId!, ...(runs.data ?? [])])];
   const reads = useQueries({
     queries: runIds.map((runId) => ({
       ...myRunRequestsQueryOptions(api, scope, runId),
