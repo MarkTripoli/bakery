@@ -1,0 +1,18 @@
+
+> bakery@ test:integration /home/marktripoli/Development/bakery-wt/_qa/qa1033
+> deno run --allow-env --allow-read --allow-run scripts/run-tests.ts integration tests/integration/qa1033-probe_test.ts
+
+Check tests/integration/qa1033-probe_test.ts
+running 1 test from ./tests/integration/qa1033-probe_test.ts
+qa probe: source goes unavailable on its second read, then recovers ...
+------- output -------
+PROBE first attempt 2 reads: SOURCE_UNAVAILABLE
+PROBE attempt 2 new run true queued
+PROBE attempt 2 with a healthy source: duplicate key value violates unique constraint "skill_versions_digest_unique"
+PROBE attempt 3 new run true queued
+PROBE attempt 3 with a healthy source: duplicate key value violates unique constraint "skill_versions_digest_unique"
+----- output end -----
+qa probe: source goes unavailable on its second read, then recovers ... ok (8s)
+
+ok | 1 passed | 0 failed (8s)
+
