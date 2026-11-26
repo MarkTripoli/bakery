@@ -58,37 +58,32 @@ export function WaitingFor(
       timeStyle: "short",
     });
   const words = (line: WaitingLine) => {
-    const expires = date(line.expiresAt);
     switch (line.kind) {
       case "waiting":
         return translate("tasks.waitingFor.waiting", {
           who: list.format(line.who),
-          date: expires,
         });
       case "next":
         return line.next === null
           ? translate("tasks.waitingFor.nextUnknown", {
             who: list.format(line.who),
             time: moment(line.dueAt),
-            date: expires,
           })
           : translate("tasks.waitingFor.next", {
             who: list.format(line.who),
             time: moment(line.dueAt),
             next: line.next,
-            date: expires,
           });
       case "passedOn":
         return translate("tasks.waitingFor.passedOn", {
           first: list.format(line.first),
           next: list.format(line.next),
           time: moment(line.askedAt),
-          date: expires,
         });
       case "expired":
         return translate(
           `tasks.waitingFor.${expiryOutcome(steps, line.stepKey)}`,
-          { date: expires },
+          { date: date(line.expiresAt) },
         );
     }
   };
@@ -99,20 +94,24 @@ export function WaitingFor(
           {lines.length > 1
             ? <UI.Text variant="caption">{stepName(line.stepKey)}</UI.Text>
             : null}
-          <UI.Text>
-            {words(line)}
+          <UI.Inline gap="compact">
+            <UI.Text>{words(line)}</UI.Text>
             {line.kind === "expired" ? null : (
-              <>
-                {" "}
+              <UI.Inline gap="compact">
+                <UI.Text>
+                  {translate("tasks.waitingFor.expires", {
+                    date: date(line.expiresAt),
+                  })}
+                </UI.Text>
                 <UI.HelpTip
                   closeLabel={translate("core.actions.close")}
                   label={translate("tasks.waitingFor.expiryHelpLabel")}
                 >
                   {translate("tasks.waitingFor.expiryHelp")}
                 </UI.HelpTip>
-              </>
+              </UI.Inline>
             )}
-          </UI.Text>
+          </UI.Inline>
         </UI.Stack>
       ))}
       {fallbacks.map((line) => (
