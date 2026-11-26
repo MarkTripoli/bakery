@@ -7567,5 +7567,7 @@
   "library.skills.add.done": "⟪Added {name}.⟫",
   "library.skills.add.already": "⟪{name} was already added from this.⟫",
   "library.skill.files.of": "⟪The files of version {number}.⟫",
-  "library.skills.add.switchedBack": "⟪{name} already had these files, so version {version} is in use again (was version {previous}).⟫"
+  "library.skills.add.switchedBack": "⟪{name} already had these files, so version {version} is in use again (was version {previous}).⟫",
+  "library.skills.add.happens.forYou": "⟪The skill is added for you only.⟫",
+  "library.skills.add.failure.missingRevision": "⟪{address} has no branch, tag or commit called {revision}.⟫"
 }

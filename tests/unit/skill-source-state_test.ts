@@ -55,6 +55,10 @@ Deno.test("each server code has its own words and unknown ones do not guess", ()
   assertEquals(importFailureKind("SOURCE_INVALID", "skills/a"), "invalid");
   assertEquals(importFailureKind("SOURCE_INVALID", ""), "invalidAtTop");
   assertEquals(importFailureKind("SOURCE_TIMEOUT", ""), "timeout");
+  assertEquals(
+    importFailureKind("SOURCE_REVISION_NOT_FOUND", ""),
+    "missingRevision",
+  );
   assertEquals(importFailureKind("INTERNAL", ""), "other");
   assertEquals(importFailureKind(null, ""), "other");
 });

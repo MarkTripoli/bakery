@@ -7567,5 +7567,7 @@
   "library.skills.add.done": "⟦Àððëð {name}. ŧë⟧",
   "library.skills.add.already": "⟦{name} ŵàš àļŕëàðÿ àððëð ƒŕôɱ ŧĥïš. ŧëšŧ çôþÿŧ⟧",
   "library.skill.files.of": "⟦Ŧĥë ƒïļëš ôƒ ṽëŕšïôñ {number}. ŧëšŧ çôþ⟧",
-  "library.skills.add.switchedBack": "⟦{name} àļŕëàðÿ ĥàð ŧĥëšë ƒïļëš, šô ṽëŕšïôñ {version} ïš ïñ ûšë àĝàïñ (ŵàš ṽëŕšïôñ {previous}). ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
+  "library.skills.add.switchedBack": "⟦{name} àļŕëàðÿ ĥàð ŧĥëšë ƒïļëš, šô ṽëŕšïôñ {version} ïš ïñ ûšë àĝàïñ (ŵàš ṽëŕšïôñ {previous}). ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "library.skills.add.happens.forYou": "⟦Ŧĥë šķïļļ ïš àððëð ƒôŕ ÿôû ôñļÿ. ŧëšŧ çôþÿ⟧",
+  "library.skills.add.failure.missingRevision": "⟦{address} ĥàš ñô ƀŕàñçĥ, ŧàĝ ôŕ çôɱɱïŧ çàļļëð {revision}. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

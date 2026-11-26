@@ -78,6 +78,7 @@ export type ImportFailure =
   | "origin"
   | "limit"
   | "moved"
+  | "missingRevision"
   | "removed"
   | "other";
 
@@ -88,6 +89,7 @@ const FAILURE_KINDS: Readonly<Record<string, ImportFailure>> = {
   SOURCE_ORIGIN_REJECTED: "origin",
   SOURCE_LIMIT_EXCEEDED: "limit",
   SOURCE_REVISION_MISMATCH: "moved",
+  SOURCE_REVISION_NOT_FOUND: "missingRevision",
   RESOURCE_NOT_FOUND: "removed",
   PRECONDITION_FAILED: "removed",
 };

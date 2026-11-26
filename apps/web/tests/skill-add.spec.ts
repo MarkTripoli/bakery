@@ -310,11 +310,12 @@ test.describe("add a skill from a source", () => {
         sourceId: uuid(812),
         revision: "v2.1.0",
         path: "skills/release-notes",
+        scope: "organization",
       }],
     ]);
   });
 
-  test("a saved source is reused, for the organization", async ({ page }) => {
+  test("a saved source is reused, for yourself", async ({ page }) => {
     const { sent } = await addPage(page, { saved: [ACME] });
     await page.getByRole("radio", { name: "A source added before" }).check();
     await expect(page.getByText("1 source. Its address")).toBeVisible();
@@ -324,8 +325,12 @@ test.describe("add a skill from a source", () => {
       page.getByRole("combobox", { name: "Source" }).locator("option:checked"),
     ).toHaveText("Acme skills");
     await box(page, /Branch, tag or commit/).fill("main");
-    await expect(page.getByRole("radio", { name: "Private" })).toHaveCount(0);
     await expect(page.getByText("The skill is added for Fixture Org."))
+      .toBeVisible();
+    await expect(page.getByRole("radio", { name: "Organization" }))
+      .toBeChecked();
+    await page.getByRole("radio", { name: "Private" }).check();
+    await expect(page.getByText("The skill is added for you only."))
       .toBeVisible();
     await still(page, "skill-add-saved");
     await submit(page).click();
@@ -334,8 +339,19 @@ test.describe("add a skill from a source", () => {
       ["/v1/skill-imports", {
         sourceId: ACME.id,
         revision: "main",
+        scope: "personal",
       }],
     ]);
+  });
+
+  test("a branch or tag that is not there is named", async ({ page }) => {
+    await addPage(page, { failureCode: "SOURCE_REVISION_NOT_FOUND" });
+    await fillRepository(page);
+    await submit(page).click();
+    await expect(page.getByRole("alert")).toContainText(
+      "https://example.test/acme/release has no branch, tag or commit called v2.1.0.",
+    );
+    await still(page, "skill-add-missing-revision");
   });
 
   test("a failure keeps the work, names the fix and keeps the saved source", async ({ page }) => {
@@ -365,6 +381,7 @@ test.describe("add a skill from a source", () => {
       sourceId: uuid(812),
       revision: "v2.1.1",
       path: "skills/release-notes",
+      scope: "organization",
     });
   });
 
