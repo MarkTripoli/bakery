@@ -26,11 +26,14 @@ const locator = "https://example.com/retry-skills.tar.gz";
 
 type Harness = Awaited<ReturnType<typeof openHarness>>;
 
-async function openHarness() {
+async function openHarness(skillSourceAdapter?: SkillSourceAdapter) {
   const root = await Deno.makeTempDir({ prefix: "bakery-import-retry-" });
   const store = new SkillFileStore(root);
   await store.initialize();
-  const fixture = await openAuthFixture({ skillFileStore: store });
+  const fixture = await openAuthFixture({
+    skillFileStore: store,
+    skillSourceAdapter,
+  });
   const suffix = crypto.randomUUID();
   const email = `skill-retry-${suffix}@example.test`;
   const password = `SkillRetry-${suffix}`;
@@ -84,7 +87,32 @@ async function openHarness() {
     await fixture.close();
     await Deno.remove(root, { recursive: true });
   };
-  return { fixture, store, organizationId, source, admit, close };
+  const checkUpdate = async (skillId: string) => {
+    const response = await fixture.app.fetch(authRequest(
+      `/v1/skills/${skillId}/source-update`,
+      undefined,
+      {
+        cookie,
+        headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+      },
+    ));
+    assertEquals(response.status, 200, await response.clone().text());
+    return await response.json() as {
+      status: string;
+      installedRevision: string;
+      latestRevision: string | null;
+      changes: { path: string; change: string }[];
+    };
+  };
+  return {
+    fixture,
+    store,
+    organizationId,
+    source,
+    admit,
+    checkUpdate,
+    close,
+  };
 }
 
 async function workingSource(): Promise<SkillSourceAdapter> {
@@ -518,6 +546,50 @@ Deno.test("a new revision whose files did not change completes onto the existing
         status,
       })),
       [{ revision: 1, status: "published" }],
+    );
+  } finally {
+    await h.close();
+  }
+});
+
+Deno.test("after an unchanged revision lands on the existing version, the update check offers only a real change", async () => {
+  const live = { revision: two, body: "# same\n" };
+  const checked: SkillSourceAdapter = {
+    fetchPinnedSource: async (request) =>
+      (await sourceAt(live.revision, live.body)).fetchPinnedSource(request),
+  };
+  const h = await openHarness(checked);
+  try {
+    const first = await importAt(h, one, "# same\n");
+    const second = await importAt(h, two, "# same\n");
+    assertEquals(second.skillVersionId, first.skillVersionId);
+    const skill = await h.fixture.pgDatabase.query<{ id: string }>(
+      `select id from bakery.skills
+        where organization_id = $1 and source_id = $2`,
+      [h.organizationId, h.source.id],
+    );
+    const skillId = skill.rows[0]?.id;
+    if (!skillId) throw new Error("TEST_SKILL_MISSING");
+
+    const unchanged = await h.checkUpdate(skillId);
+    assertEquals(
+      [unchanged.status, unchanged.latestRevision, unchanged.changes],
+      ["current", two, []],
+    );
+
+    live.revision = '"fixture-revision-3"';
+    live.body = "# changed\n";
+    const changed = await h.checkUpdate(skillId);
+    assertEquals(
+      [
+        changed.status,
+        changed.latestRevision,
+        changed.changes.map(({ path, change }) => ({ path, change })),
+      ],
+      ["update_available", live.revision, [{
+        path: "SKILL.md",
+        change: "changed",
+      }]],
     );
   } finally {
     await h.close();
