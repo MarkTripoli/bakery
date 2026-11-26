@@ -393,9 +393,7 @@ Deno.test("a published version that only mentions a skill's id is not reported a
       {
         definition: {
           kind: "fixed",
-          // Carries the skill id in a skills list but names no action, so no step
-          // uses it: the id appears in the published text only.
-          steps: [{ id: "first", uses: "workflow.noop", skills: [w.sv] }],
+          steps: [{ id: "first", uses: "workflow.noop", with: { note: w.sv } }],
         },
       },
       "pw-mention-edit",

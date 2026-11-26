@@ -509,10 +509,11 @@ Deno.test("publish and read immutable organization rule versions through the mou
       assertEquals(postgresErrorCode(error), POSTGRES_UNIQUE_VIOLATION);
     });
 
-    await test.step("a role removed while a publication waits for the lock is refused", async () => {
+    await test.step("a demotion waits for a publication already authorized, then refuses the next one", async () => {
       const expected = await maxRevision(organizationAId);
-      const before = await ruleFactCounts(runtime, organizationAId);
       let pending: Promise<Response> | Response;
+      let demotion: Promise<unknown> | undefined;
+      let demoted = false;
       await withPgTransaction(runtime, async (transaction) => {
         await transaction.query(
           `select pg_advisory_xact_lock(
@@ -527,13 +528,35 @@ Deno.test("publish and read immutable organization rule versions through the mou
           body: { expectedRevision: expected, entries: [titleEntry(66)] },
         });
         await new Promise((resolve) => setTimeout(resolve, 400));
-        await f.owner`
+        demotion = f.owner`
           update bakery.organization_memberships
              set role = 'developer'
            where organization_id = ${organizationAId}
-             and principal_id = ${f.demotableA.principalId}`;
+             and principal_id = ${f.demotableA.principalId}`.execute();
+        demotion.then(() => {
+          demoted = true;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        assertEquals(demoted, false);
       });
-      assertEquals((await pending!).status, 403);
+      assertEquals((await pending!).status, 201);
+      await demotion;
+      const role = await f.owner`
+        select role from bakery.organization_memberships
+         where organization_id = ${organizationAId}
+           and principal_id = ${f.demotableA.principalId}`;
+      assertEquals(role[0]?.role, "developer");
+      const before = await ruleFactCounts(runtime, organizationAId);
+      const refused = await send("POST", versionsA, {
+        cookie: f.cookies.demotableA,
+        organizationId: organizationAId,
+        idempotencyKey: crypto.randomUUID(),
+        body: {
+          expectedRevision: await maxRevision(organizationAId),
+          entries: [titleEntry(67)],
+        },
+      });
+      assertEquals(refused.status, 403);
       assertEquals(await ruleFactCounts(runtime, organizationAId), before);
     });
 

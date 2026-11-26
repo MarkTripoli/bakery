@@ -102,6 +102,21 @@ async function metadataSnapshot(
 ): Promise<MetadataSnapshot> {
   const list = await getJson(server, "/v1/workflow-actions", cookie);
   assertEquals(list.response.status, 200);
+  const listed = list.body as {
+    items: unknown[];
+    nextCursor: string | null;
+  };
+  while (listed.nextCursor !== null) {
+    const next = await getJson(
+      server,
+      `/v1/workflow-actions?cursor=${encodeURIComponent(listed.nextCursor)}`,
+      cookie,
+    );
+    assertEquals(next.response.status, 200);
+    const page = next.body as { items: unknown[]; nextCursor: string | null };
+    listed.items.push(...page.items);
+    listed.nextCursor = page.nextCursor;
+  }
 
   const firstPage = await getJson(
     server,

@@ -331,7 +331,8 @@ Deno.test("another organization cannot read an entry; another member cannot see 
           "/v1/storage/files/" + mine.id + "/versions",
           "/v1/storage/files/" + mine.id + "/uses",
           "/v1/storage/files/" + mine.id + "/content",
-          "/v1/storage/files/" + mine.id + "/probe",
+          "/v1/storage/files/" + mine.id + "/probe?organizationId=" +
+          foreign.organizationId,
         ]
       ) {
         await status(
@@ -362,7 +363,8 @@ Deno.test("another organization cannot read an entry; another member cannot see 
           "/v1/storage/folders/" + personal.rows[0].id + "/entries",
           "/v1/storage/files/" + mine.id + "/versions",
           "/v1/storage/files/" + mine.id + "/content",
-          "/v1/storage/files/" + mine.id + "/probe",
+          "/v1/storage/files/" + mine.id + "/probe?organizationId=" +
+          fixture.organizationId,
         ]
       ) {
         await status(await call(fixture, "GET", path, as), 404);
