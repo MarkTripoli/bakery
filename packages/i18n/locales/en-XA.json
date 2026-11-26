@@ -7437,7 +7437,6 @@
   "library.workflow.action.humanApproval": "⟦Àšķ à þëŕšôñ ŧë⟧",
   "library.workflow.actionLine.humanApproval": "⟦Ŧĥë ŕûñ ŵàïŧš ûñŧïļ šôɱëôñë àþþŕôṽëš. ŧëšŧ çôþÿŧ⟧",
   "library.editor.start.title": "⟦Ĥôŵ ïŧ šŧàŕŧš ŧë⟧",
-  "library.editor.start.card": "⟦{events, plural, =0 {{schedules, plural, one {# schedule that does not run} other {# schedules that do not run}}} one {From a task · # automatic start} other {From a task · # automatic starts}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.editor.start.heading": "⟦Àûŧôɱàŧïç šŧàŕŧ {number} ŧëšŧ ç⟧",
   "library.editor.start.add": "⟦Àðð àñ àûŧôɱàŧïç šŧàŕŧ ŧëšŧŧ⟧",
   "library.editor.start.remove": "⟦Ŕëɱôṽë…⟧",
@@ -7483,5 +7482,6 @@
   "library.editor.start.event.change_request.closed": "⟦À þûļļ ŕëǫûëšŧ ïš çļôšëð ŧëšŧ ç⟧",
   "library.editor.start.event.change_request.reopened": "⟦À þûļļ ŕëǫûëšŧ ïš ŕëôþëñëð ŧëšŧ çô⟧",
   "library.editor.start.event.change_request.ready": "⟦À þûļļ ŕëǫûëšŧ ïš ŕëàðÿ ƒôŕ ŕëṽïëŵ ŧëšŧ çôþÿ⟧",
-  "library.editor.start.event.check.completed": "⟦À çĥëçķ ƒïñïšĥëš ŧëš⟧"
+  "library.editor.start.event.check.completed": "⟦À çĥëçķ ƒïñïšĥëš ŧëš⟧",
+  "library.editor.start.card": "⟦Ƒŕôɱ à ŧàšķ{events, plural, =0 {} one { · # automatic start} other { · # automatic starts}}{schedules, plural, =0 {} one { · # schedule does not run} other { · # schedules do not run}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧"
 }

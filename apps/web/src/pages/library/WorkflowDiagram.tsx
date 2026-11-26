@@ -691,10 +691,10 @@ export function WorkflowDiagram(
         icon={<UI.IconGlyph name="lightning" size="small" />}
         onSelect={() => onSelect("start")}
         selected={selectedId === "start"}
-        summary={problems.get("start") === undefined
-          ? start?.line ??
-            translate("library.editor.howItStartsLine" as never)
-          : translate("library.editor.card.needsSetup" as never)}
+        needsSetup={problems.get("start") !== undefined}
+        needsSetupLabel={translate("library.editor.card.needsSetup" as never)}
+        summary={start?.line ??
+          translate("library.editor.howItStartsLine" as never)}
         title={start?.title ??
           translate("library.editor.howItStarts" as never)}
       />

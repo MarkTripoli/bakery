@@ -226,7 +226,9 @@ test.describe("workflow editor: how it starts", () => {
 
   test("a scheduled start says it does not run, and removing it can be undone", async ({ page }) => {
     const server = await editor(page, { starts: [SCHEDULE] });
-    await expect(startCard(page)).toContainText("1 schedule that does not run");
+    await expect(startCard(page)).toContainText(
+      "From a task · 1 schedule does not run",
+    );
     await startCard(page).click();
     await expect(page.getByText("On a schedule: 0 2 * * * (Europe/London)"))
       .toBeVisible();

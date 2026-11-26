@@ -6145,7 +6145,7 @@
   "library.editor.ask.card.many": "{first} and {others, plural, one {# other} other {# others}}",
   "library.editor.startsByHand": "Someone picks this workflow when they start a task.",
   "library.editor.start.title": "How it starts",
-  "library.editor.start.card": "{events, plural, =0 {{schedules, plural, one {# schedule that does not run} other {# schedules that do not run}}} one {From a task · # automatic start} other {From a task · # automatic starts}}",
+  "library.editor.start.card": "From a task{events, plural, =0 {} one { · # automatic start} other { · # automatic starts}}{schedules, plural, =0 {} one { · # schedule does not run} other { · # schedules do not run}}",
   "library.editor.start.heading": "Automatic start {number}",
   "library.editor.start.add": "Add an automatic start",
   "library.editor.start.remove": "Remove",
