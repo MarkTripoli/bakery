@@ -1,0 +1,54 @@
+From: "Bakery" <bakery@example.test>
+To: <ana@example.test>
+Subject: José Núñez asked you to review in Bakery
+Date: Thu, 26 Nov 2026 17:06:01 GMT
+Message-ID: <1d82cbdf-a0f2-4c71-838a-de57502d5897@bakery.local>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+José Núñez asked you to review work in Zeta rollout.
+
+Open in Bakery: http://127.0.0.1:57227/tasks/755e6031-e810-48fe-9d17-86cff43ba35c
+
+You will need to sign in. This email has no details on purpose: they stay in Bakery.
+
+You are getting this because the request has not been opened in Bakery.
+
+-----
+
+From: "Bakery" <bakery@example.test>
+To: <ana@example.test>
+Subject: José Núñez asked you to answer a question in Bakery
+Date: Thu, 26 Nov 2026 17:06:01 GMT
+Message-ID: <c02a20e7-030e-498b-8052-9f360df9fe5e@bakery.local>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+José Núñez asked you to answer a question about 漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢…(500 characters).
+
+Open in Bakery: http://127.0.0.1:57227/tasks/e6319f44-4a05-4e37-b363-8ea9fb3451a5
+
+You will need to sign in. This email has no details on purpose: they stay in Bakery.
+
+You are getting this because the request has not been opened in Bakery.
+
+-----
+
+From: "Bakery" <bakery@example.test>
+To: <ana@example.test>
+Subject: José Núñez asked you to approve in Bakery
+Date: Thu, 26 Nov 2026 17:06:01 GMT
+Message-ID: <b50f0234-2af7-49c8-b2cb-8754febacc9b@bakery.local>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+José Núñez asked you to approve a step of Release plan.
+
+Open in Bakery: http://127.0.0.1:57227/tasks/5ef634a0-9b20-4eb6-881b-7ef57786f7f2
+
+You will need to sign in. This email has no details on purpose: they stay in Bakery.
+
+You are getting this because the request has not been opened in Bakery.
