@@ -5,8 +5,8 @@
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:da4035dd8f9ce9c81d3e76cfed168fb7b03535cafc013c4c9dc86377a83a2c72",
-  "reason": "#458 contract bounds by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main 3b78d91be1112f11894eec624cc990b0bf94d344: the generator now honours bounds spelled minimum/maximum, so BlobUploadStart.sizeBytes is bounded 0..5368709120 and WorkerMaintenanceCreate.expectedInventoryRevision and WorkerMaintenanceReport.sequence are at least 1. Values outside them were never valid, and the server already refused oversized uploads. Response schemas also gain the bounds their definitions declared (SkillFileManifestEntry path and size, ValidationIssue lengths, Problem title and detail, PinnedContextInput and StepContextInput size, CommentContext bytes, IntegrationCapability permissions and schema bytes); every producer already stays inside them.",
+  "targetCompatibilityDigest": "sha256:b05b8384739e523de64d139cd89482d6ed12641554612527bac37367ec8d6719",
+  "reason": "#458 contract bounds by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main 3b78d91be1112f11894eec624cc990b0bf94d344: the generator now honours bounds spelled minimum/maximum, so BlobUploadStart.sizeBytes is bounded 0..5368709120 and WorkerMaintenanceCreate.expectedInventoryRevision and WorkerMaintenanceReport.sequence are at least 1. Values outside them were never valid, and the server already refused oversized uploads. Response schemas also gain the bounds their definitions declared (SkillFileManifestEntry path and size, ValidationIssue lengths, Problem title and detail, PinnedContextInput and StepContextInput size, CommentContext bytes, IntegrationCapability permissions and schema bytes); every producer already stays inside them, and the worker trims fault text to the Problem limits before it sends a result. Decimal amounts (budgetLimitUsd 0..200) gain the range they declared, which the server already enforced.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",

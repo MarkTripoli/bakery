@@ -653,12 +653,20 @@ export function assertKnownBounds(
       : ARRAY_ONLY_BOUND_KEYS.has(key)
       ? kind === "array"
       : NUMBER_BOUND_KEYS.has(key)
-      ? kind === "number" || kind === "string"
+      ? kind === "number"
+      : key === "maxDepth"
+      ? kind !== "number" && kind !== "string" && kind !== "boolean"
       : true;
     if (!fits) {
       throw new Error(`${path} bound ${key} does not apply to a ${kind}`);
     }
   }
+}
+
+function withoutNumberBounds(bounds: JsonObject): JsonObject {
+  return Object.fromEntries(
+    Object.entries(bounds).filter(([key]) => !NUMBER_BOUND_KEYS.has(key)),
+  );
 }
 
 function numericBound(
@@ -1334,10 +1342,16 @@ function primitive(
     );
   }
   if (path === "AgentVersionCreate.config") opaqueChildren.add(schema);
-  schema = bounded(schema, {
-    ...embedded,
-    ...(record(field.bounds) ? field.bounds : {}),
-  }, path);
+  schema = bounded(
+    schema,
+    base === "decimalString" || base === "decimal"
+      ? withoutNumberBounds({
+        ...embedded,
+        ...(record(field.bounds) ? field.bounds : {}),
+      })
+      : { ...embedded, ...(record(field.bounds) ? field.bounds : {}) },
+    path,
+  );
   if (base === "decimalString" && record(field.bounds)) {
     const lowest = numericBound(field.bounds, "min", "minimum");
     const highest = numericBound(field.bounds, "max", "maximum");
@@ -1358,6 +1372,30 @@ function primitive(
         ...(upper === undefined ? {} : { "x-bigint-maximum": String(upper) }),
       });
       schema = described(refined, `${path} is a bounded decimal string.`);
+    }
+  }
+  if (base === "decimal" && record(field.bounds)) {
+    const lower = numericBound(field.bounds, "min", "minimum");
+    const upper = numericBound(field.bounds, "max", "maximum");
+    if (lower !== undefined || upper !== undefined) {
+      const refined = schema.refine((value) => {
+        const parsed = Number(value as string);
+        return Number.isFinite(parsed) &&
+          (lower === undefined || parsed >= lower) &&
+          (upper === undefined || parsed <= upper);
+      });
+      z.globalRegistry.add(refined, {
+        ...(lower === undefined ? {} : { "x-decimal-minimum": String(lower) }),
+        ...(upper === undefined ? {} : { "x-decimal-maximum": String(upper) }),
+      });
+      schema = described(
+        refined,
+        lower !== undefined && upper !== undefined
+          ? `${path} must be between ${lower} and ${upper}.`
+          : lower !== undefined
+          ? `${path} must be at least ${lower}.`
+          : `${path} must be at most ${upper}.`,
+      );
     }
   }
   if (exclusiveMin && typeof embedded.min === "number") {
@@ -2727,6 +2765,12 @@ function pageSchema(
   if (!text(definition.pageOf)) throw new Error(`malformed page: ${name}`);
   const item = definition.pageOf;
   const envelope = record(source.pageEnvelope) ? source.pageEnvelope : {};
+  assertDefinitionBoundsUsed(definition, name, ["items", "nextCursor"]);
+  assertDefinitionBoundsUsed(
+    envelope,
+    "pageEnvelope",
+    fieldList(envelope, "pageEnvelope").map((field) => field.name as string),
+  );
   const shape: Record<string, Schema> = {
     items: bounded(
       described(
@@ -2922,6 +2966,18 @@ function unionSchema(
   if (!Array.isArray(definition.union) || !record(definition.fieldTypes)) {
     throw new Error(`malformed union: ${name}`);
   }
+  assertDefinitionBoundsUsed(
+    definition,
+    name,
+    [
+      ...Object.keys(definition.fieldTypes),
+      ...definition.union.flatMap((entry) =>
+        record(entry) && Array.isArray(entry.fields)
+          ? entry.fields.filter(text)
+          : []
+      ),
+    ],
+  );
   const variants = definition.union.map((entry) => {
     if (!record(entry) || !text(entry.type)) {
       throw new Error(`malformed union variant: ${name}`);

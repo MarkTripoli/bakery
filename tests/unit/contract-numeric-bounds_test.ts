@@ -104,3 +104,63 @@ Deno.test("a misspelled, unusable or misplaced bound stops generation", () => {
     "does not apply to a number",
   );
 });
+
+Deno.test("unions, pages, the page envelope, plain strings and integers refuse bounds they cannot use", () => {
+  type Loose = Record<string, Record<string, Record<string, unknown>>> & {
+    pageEnvelope: Record<string, unknown>;
+  };
+  const generate = (edit: (source: Loose) => void) => () => {
+    const source = structuredClone(transport) as unknown as Loose;
+    edit(source);
+    return generateContracts(source as unknown as typeof transport);
+  };
+  const inputField = (source: Loose, schema: string, name: string) =>
+    (source.inputs[schema].fields as { name: string; bounds?: object }[])
+      .find((field) => field.name === name)!;
+  assertThrows(
+    generate((source) => {
+      source.outputs.WebSocketFrame.bounds = { framesMaxItemz: 3 };
+    }),
+    Error,
+    "unknown bound: framesMaxItemz",
+  );
+  assertThrows(
+    generate((source) => {
+      source.outputs["Page<CoordinationPlan>"].bounds = { itemsMaxItemz: 3 };
+    }),
+    Error,
+    "unknown bound: itemsMaxItemz",
+  );
+  assertThrows(
+    generate((source) => {
+      source.pageEnvelope.bounds = { cursorMaxLenght: 3 };
+    }),
+    Error,
+    "unknown bound: cursorMaxLenght",
+  );
+  assertThrows(
+    generate((source) => {
+      inputField(source, "CoordinationPlanCreateFromWorkflow", "nodeId")
+        .bounds = { max: 3 };
+    }),
+    Error,
+    "does not apply to a string",
+  );
+  assertThrows(
+    generate((source) => {
+      inputField(source, "CoordinationPlanListQuery", "limit").bounds = {
+        maxDepth: 3,
+      };
+    }),
+    Error,
+    "does not apply to a number",
+  );
+});
+
+Deno.test("a decimal string keeps its declared range", () => {
+  const budget = (contractSchemas as unknown as Record<string, Shaped>)
+    .RunCreate.shape.budgetLimitUsd;
+  assertEquals(budget.safeParse("200").success, true);
+  assertEquals(budget.safeParse("200.01").success, false);
+  assertEquals(budget.safeParse("-1").success, false);
+});
