@@ -1,4 +1,7 @@
-import type { RunRequestResponse } from "../../api/client.ts";
+import type {
+  RunRequestResponse,
+  RunStepListResponse,
+} from "../../api/client.ts";
 
 export type WaitingLine =
   & Readonly<{ stepKey: string; expiresAt: string }>
@@ -94,6 +97,24 @@ export function waitingLines(
     const line = lineOf(stepKey, held);
     return line === null ? [] : [line];
   });
+}
+
+export type StepProgress = Pick<
+  RunStepListResponse["items"][number],
+  "stepKey" | "iteration" | "status"
+>;
+
+export function expiryOutcome(
+  steps: readonly StepProgress[],
+  stepKey: string,
+): "expired" | "expiredContinued" | "expiredStuck" {
+  const latestStep = steps
+    .filter((step) => step.stepKey === stepKey)
+    .sort((a, b) => b.iteration - a.iteration)[0];
+  if (latestStep === undefined) return "expired";
+  return latestStep.status === "completed"
+    ? "expiredContinued"
+    : "expiredStuck";
 }
 
 export function fallbackLines(

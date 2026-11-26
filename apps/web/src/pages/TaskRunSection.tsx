@@ -601,7 +601,13 @@ export function TaskRunSection(
           </UI.Inline>
           {activeRun && run.data !== undefined &&
               !["completed", "canceled"].includes(run.data.status)
-            ? <WaitingFor runId={runId} />
+            ? (
+              <WaitingFor
+                runFailed={run.data.status === "failed"}
+                runId={runId}
+                steps={steps.data?.items ?? []}
+              />
+            )
             : null}
           {steeringUnsupported && (
             <UI.InlineNotice

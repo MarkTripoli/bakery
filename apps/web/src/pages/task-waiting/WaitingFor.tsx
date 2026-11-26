@@ -8,12 +8,20 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { stepName } from "../task-step-approval/model.ts";
 import {
+  expiryOutcome,
   fallbackLines,
+  type StepProgress,
   type WaitingLine,
   waitingLines,
 } from "./waiting-for-model.ts";
 
-export function WaitingFor({ runId }: { readonly runId: string }) {
+export function WaitingFor(
+  { runId, steps, runFailed }: Readonly<{
+    runId: string;
+    steps: readonly StepProgress[];
+    runFailed: boolean;
+  }>,
+) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const { translate, locale, timeZone } = useI18n();
@@ -35,8 +43,10 @@ export function WaitingFor({ runId }: { readonly runId: string }) {
       );
   }
   const requests = read.data?.requests ?? [];
-  const lines = waitingLines(requests);
-  const fallbacks = fallbackLines(requests);
+  const lines = waitingLines(requests).filter((line) =>
+    !runFailed || line.kind === "expired"
+  );
+  const fallbacks = runFailed ? [] : fallbackLines(requests);
   if (lines.length === 0 && fallbacks.length === 0) return null;
   const list = new Intl.ListFormat(locale);
   const date = (iso: string) =>
@@ -76,7 +86,10 @@ export function WaitingFor({ runId }: { readonly runId: string }) {
           date: expires,
         });
       case "expired":
-        return translate("tasks.waitingFor.expired", { date: expires });
+        return translate(
+          `tasks.waitingFor.${expiryOutcome(steps, line.stepKey)}`,
+          { date: expires },
+        );
     }
   };
   return (
@@ -86,7 +99,17 @@ export function WaitingFor({ runId }: { readonly runId: string }) {
           {lines.length > 1
             ? <UI.Text variant="caption">{stepName(line.stepKey)}</UI.Text>
             : null}
-          <UI.Text>{words(line)}</UI.Text>
+          <UI.Inline gap="compact">
+            <UI.Text>{words(line)}</UI.Text>
+            {line.kind === "expired" ? null : (
+              <UI.HelpTip
+                closeLabel={translate("core.actions.close")}
+                label={translate("tasks.waitingFor.expiryHelpLabel")}
+              >
+                {translate("tasks.waitingFor.expiryHelp")}
+              </UI.HelpTip>
+            )}
+          </UI.Inline>
         </UI.Stack>
       ))}
       {fallbacks.map((line) => (

@@ -4738,6 +4738,10 @@ test.describe("who a run is waiting for", () => {
     await expect(waiting).toContainText("Administrators will be asked.");
     await expect(waiting).toContainText("Expires Feb 8, 2026.");
     await still(page, "run-waiting-next");
+    await waiting.getByRole("button", { name: "About expiry" }).click();
+    await expect(
+      page.getByText("Bakery never treats silence as approval."),
+    ).toBeVisible();
   });
 
   test("a passed on request and a missing name are both said", async ({ page }) => {
@@ -4772,7 +4776,7 @@ test.describe("who a run is waiting for", () => {
       waitingRequest({ status: "expired" }),
     ]);
     await expect(waiting).toContainText(
-      "Expired: nobody answered by Feb 8, 2026. This run needs a person.",
+      /Expired: nobody answered by Feb 8, 2026\./,
     );
   });
 

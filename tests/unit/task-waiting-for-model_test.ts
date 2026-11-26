@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import {
+  expiryOutcome,
   fallbackLines,
   waitingLines,
 } from "../../apps/web/src/pages/task-waiting/waiting-for-model.ts";
@@ -94,5 +95,19 @@ Deno.test("an earlier round of the same step does not speak for the latest", () 
       ask("Dana", { createdAt: later }),
     ]).map((l) => l.kind),
     ["waiting"],
+  );
+});
+
+Deno.test("expiry says whether the workflow went on", () => {
+  const step = (status: "completed" | "waiting", iteration = 0) => ({
+    stepKey: "build.ask",
+    iteration,
+    status,
+  });
+  assertEquals(expiryOutcome([], "build.ask"), "expired");
+  assertEquals(expiryOutcome([step("waiting")], "build.ask"), "expiredStuck");
+  assertEquals(
+    expiryOutcome([step("waiting"), step("completed", 1)], "build.ask"),
+    "expiredContinued",
   );
 });
