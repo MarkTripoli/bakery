@@ -157,6 +157,20 @@ export async function openAutomationFixture() {
         return routes[0].id;
       },
 
+      async deliverRoutes(
+        number: number,
+        action = "labeled",
+      ): Promise<Record<string, string>> {
+        const accepted = await receipt({ f: fx.f, secret }, {
+          event: "issues",
+          payload: issuesPayload(target, number, action),
+        });
+        const routes = await routeRows(fx.f, accepted.eventId);
+        return Object.fromEntries(
+          routes.map((route) => [route.purpose, route.id]),
+        );
+      },
+
       /** Runs the intake function body for the `intake.received` event of a route. */
       intake(routeId: string, overrides: Partial<TicketWorkflowDeps> = {}) {
         const fn = captureFunction((client) =>

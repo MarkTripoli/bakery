@@ -33322,12 +33322,12 @@ export const clientManifest = {
           "description": "The repository the batch works through. It must be taking issues (an enabled ticket source), and no other batch may be live in it."
         },
         "presetId": {
+          "description": "The built-in workflow every issue in this batch runs: fixed-coding or fixed-coding-reviewed. Omit it to run the workflow the repository's issue source names, written or built-in; a source that names none is refused with workflow_required, so no one is given a workflow they did not choose. Each issue is admitted with it; a workflow the repository cannot run stops the batch with the pause reason workflow_cannot_start.",
           "type": "string",
           "enum": [
             "fixed-coding",
             "fixed-coding-reviewed"
-          ],
-          "description": "The built-in workflow every issue in this batch runs: fixed-coding or fixed-coding-reviewed. Required: a batch is never started without a workflow chosen, so no one is given a workflow they did not choose. Each issue is admitted with it; a workflow the repository cannot run stops the batch with the pause reason workflow_cannot_start."
+          ]
         },
         "maxIssues": {
           "type": "integer",
@@ -33357,7 +33357,6 @@ export const clientManifest = {
       },
       "required": [
         "repositoryId",
-        "presetId",
         "maxIssues",
         "maxHours",
         "maxSpendUsd",
@@ -45151,6 +45150,10 @@ export const clientManifest = {
                 ],
                 "description": "Workflow.activeVersionId may be null in this transport value."
               },
+              "needsInputs": {
+                "type": "boolean",
+                "description": "Whether the version in use declares a required input. A start that supplies no inputs, as a ticket source starting work on an issue does, cannot run it, so issue settings do not offer it and a source policy naming it is refused with workflow_needs_inputs. False when no version is in use."
+              },
               "enabled": {
                 "type": "boolean",
                 "description": "Whether new runs may start from this workflow definition. Disabling rejects only new starts; runs already pinned to a published revision keep executing."
@@ -45315,6 +45318,7 @@ export const clientManifest = {
               "slug",
               "name",
               "activeVersionId",
+              "needsInputs",
               "enabled",
               "createdAt",
               "updatedAt",
@@ -65542,6 +65546,10 @@ export const clientManifest = {
           ],
           "description": "Workflow.activeVersionId may be null in this transport value."
         },
+        "needsInputs": {
+          "type": "boolean",
+          "description": "Whether the version in use declares a required input. A start that supplies no inputs, as a ticket source starting work on an issue does, cannot run it, so issue settings do not offer it and a source policy naming it is refused with workflow_needs_inputs. False when no version is in use."
+        },
         "enabled": {
           "type": "boolean",
           "description": "Whether new runs may start from this workflow definition. Disabling rejects only new starts; runs already pinned to a published revision keep executing."
@@ -65706,6 +65714,7 @@ export const clientManifest = {
         "slug",
         "name",
         "activeVersionId",
+        "needsInputs",
         "enabled",
         "createdAt",
         "updatedAt",

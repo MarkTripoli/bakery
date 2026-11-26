@@ -3,7 +3,10 @@ import type { ActionContext } from "@bakery/contracts/action-registry";
 import type { contractSchemas } from "@bakery/contracts/contracts";
 import { BatchImplementedAction } from "@bakery/contracts/implemented-actions";
 import { StandardError, unprocessable } from "@bakery/contracts/http";
-import { workflowPresetById } from "@bakery/contracts/workflow-presets";
+import {
+  workflowPresetById,
+  type WorkflowPresetDefinition,
+} from "@bakery/contracts/workflow-presets";
 import { appendAudit } from "@bakery/persistence";
 import {
   type CursorBinding,
@@ -436,6 +439,38 @@ export function createBatchHandler(
     createBatch(context, input, dependencies.budget);
 }
 
+async function batchPresetOf(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  repositoryId: string,
+  presetId: string | undefined,
+): Promise<WorkflowPresetDefinition | null> {
+  if (presetId !== undefined) {
+    const named = workflowPresetById(presetId);
+    if (named === undefined) {
+      throw unprocessable(["presetId"], "workflow_unknown");
+    }
+    return named;
+  }
+  const source = await transaction.query<
+    { workflow_id: string | null; built_in: string | null }
+  >(
+    `select policy -> 'workflow' ->> 'workflowId' as workflow_id,
+            policy -> 'workflow' ->> 'builtIn' as built_in
+       from bakery.ticket_sources
+      where organization_id = $1 and repository_id = $2 and enabled
+      order by id limit 1`,
+    [organizationId, repositoryId],
+  );
+  const named = source.rows[0];
+  if (named?.workflow_id == null) {
+    throw unprocessable(["presetId"], "workflow_required");
+  }
+  return named.built_in === null
+    ? null
+    : workflowPresetById(named.built_in) ?? null;
+}
+
 export async function createBatch(
   context: ActionContext,
   input: BatchCreate,
@@ -468,11 +503,13 @@ export async function createBatch(
   // Below the smallest spend that can start one issue, the batch could never start
   // anything. When the repository cannot run work now there is no smallest amount to
   // judge by, and the supervisor says why when it tries to start.
-  const preset = workflowPresetById(input.presetId);
-  if (preset === undefined) {
-    throw unprocessable(["presetId"], "workflow_unknown");
-  }
-  const smallest = await smallestBatchSpend(
+  const preset = await batchPresetOf(
+    transaction,
+    organizationId,
+    input.repositoryId,
+    input.presetId,
+  );
+  const smallest = preset === null ? null : await smallestBatchSpend(
     transaction,
     organizationId,
     input.repositoryId,
@@ -493,7 +530,7 @@ export async function createBatch(
       [
         organizationId,
         input.repositoryId,
-        input.presetId,
+        input.presetId ?? null,
         principalId,
         input.maxIssues,
         input.maxHours,

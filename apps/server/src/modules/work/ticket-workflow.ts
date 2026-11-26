@@ -18,6 +18,7 @@ import type {
   SourceWorkflowResolver,
 } from "./ticket-policy.ts";
 import { ensurePresetWorkflowVersion } from "./workflow-presets.ts";
+import { needsInputs } from "../workflow-adapter/plan-admission.ts";
 
 export type TicketWorkflow =
   | Readonly<{
@@ -35,7 +36,25 @@ type DefinitionRow = {
   active_version_id: string | null;
 };
 
-type VersionRow = { id: string; digest: string; status: string };
+type VersionRow = {
+  id: string;
+  digest: string;
+  status: string;
+  normalized_spec: unknown;
+};
+
+async function activeSpecOf(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  row: DefinitionRow,
+): Promise<unknown> {
+  const result = await transaction.query<{ normalized_spec: unknown }>(
+    `select normalized_spec from bakery.workflow_versions
+      where organization_id = $1 and workflow_id = $2 and id = $3`,
+    [organizationId, row.id, row.active_version_id],
+  );
+  return result.rows[0]?.normalized_spec ?? null;
+}
 
 function ticketPresetOf(key: string | null): TicketPresetId | null {
   return TICKET_PRESET_IDS.find((id) => id === key) ?? null;
@@ -134,6 +153,15 @@ export async function sourceWorkflowOf(
       "workflow_built_in_mismatch",
     );
   }
+  if (
+    builtIn === null &&
+    needsInputs(await activeSpecOf(transaction, organizationId, row))
+  ) {
+    throw unprocessable(
+      ["policy", "workflow", "workflowId"],
+      "workflow_needs_inputs",
+    );
+  }
   return builtIn === null
     ? { workflowId: row.id }
     : { workflowId: row.id, builtIn };
@@ -156,9 +184,9 @@ async function versionRow(
 ): Promise<VersionRow | null> {
   const result = await transaction.query<VersionRow>(
     builtIn === null
-      ? `select id, digest, status from bakery.workflow_versions
+      ? `select id, digest, status, normalized_spec from bakery.workflow_versions
           where organization_id = $1 and workflow_id = $2 and id = $3`
-      : `select id, digest, status from bakery.workflow_versions
+      : `select id, digest, status, normalized_spec from bakery.workflow_versions
           where organization_id = $1 and workflow_id = $2
           order by (revision = $4) desc, (id = $3) desc, revision desc
           limit 1`,
@@ -182,6 +210,10 @@ export async function ticketWorkflowOf(
   const builtIn = key === null ? null : builtInDefinition(key);
   const version = await versionRow(transaction, organizationId, row, builtIn);
   if (version === null || version.status !== "published") return unavailable;
+  if (
+    builtIn === null &&
+    needsInputs(version.normalized_spec)
+  ) return unavailable;
   return {
     kind: "ready",
     pin: { workflowId: row.id, versionId: version.id, digest: version.digest },

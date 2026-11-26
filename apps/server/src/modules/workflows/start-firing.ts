@@ -21,7 +21,11 @@ import { contractSchemas } from "@bakery/contracts/contracts";
 import { StandardError, unprocessable } from "@bakery/contracts/http";
 import { WorkflowStartsSchema } from "@bakery/contracts/workflow-starts";
 import type { PgTransactionClient } from "../../platform/database.ts";
-import type { NeutralEvent } from "../integrations/neutral-events.ts";
+import { IntakeProjectionSchema } from "../integrations/intake-events.ts";
+import {
+  type NeutralEvent,
+  neutralEventOf,
+} from "../integrations/neutral-events.ts";
 import { createTaskCommand } from "../work/postgres.ts";
 import { createRunCommand } from "../work/run-command.ts";
 import { inSavepoint } from "../work/ticket-sync.ts";
@@ -49,7 +53,8 @@ export type StartFiringOutcome = Readonly<{
     | "failed"
     | "skipped_rate"
     | "superseded"
-    | "duplicate";
+    | "duplicate"
+    | "left_to_ticket_source";
   /** The stable code of a failed firing. */
   code?: string;
 }>;
@@ -73,22 +78,22 @@ export async function fireStartsFor(
   event: NeutralEvent,
 ): Promise<StartFiringOutcome[]> {
   const live = await liveStartsFor(transaction, route.organizationId, event);
-  const admitted = await ticketAdmittedWorkflows(
-    transaction,
-    route.organizationId,
-    repository,
-    event,
-  );
+  const ticketSide = event.kind.startsWith(WORK_ITEM_EVENT_PREFIX)
+    ? await ticketSourceWorkflows(
+      transaction,
+      route.organizationId,
+      repository,
+    )
+    : new Set<string>();
   const outcomes: StartFiringOutcome[] = [];
   for (const start of live) {
     outcomes.push(
-      admitted.has(start.workflowId)
+      ticketSide.has(start.workflowId)
         ? {
           workflowId: start.workflowId,
           versionId: start.versionId,
           startId: start.startId,
-          result: "duplicate",
-          code: "ticket_source_admits",
+          result: "left_to_ticket_source",
         }
         : await fireLiveStart(transaction, route, repository, start),
     );
@@ -96,15 +101,13 @@ export async function fireStartsFor(
   return outcomes;
 }
 
-const TICKET_ADMISSION_EVENT = "work_item.labeled";
+const WORK_ITEM_EVENT_PREFIX = "work_item.";
 
-async function ticketAdmittedWorkflows(
+export async function ticketSourceWorkflows(
   transaction: PgTransactionClient,
   organizationId: string,
   repository: { id: string },
-  event: NeutralEvent,
 ): Promise<ReadonlySet<string>> {
-  if (event.kind !== TICKET_ADMISSION_EVENT) return new Set();
   const result = await transaction.query<{ workflow_id: string }>(
     `select distinct policy -> 'workflow' ->> 'workflowId' as workflow_id
        from bakery.ticket_sources
@@ -365,4 +368,51 @@ async function authorOf(
     [firing.organizationId, firing.versionId],
   );
   return author.rows[0]!.created_by;
+}
+
+type RouteEvent = {
+  organization_id: string;
+  inbound_event_id: string;
+  provider: string;
+  event_kind: string;
+  projection: unknown;
+};
+
+export async function fireRouteStartsOf(
+  transaction: PgTransactionClient,
+  routeId: string,
+  repository: { id: string },
+  workflowId: string,
+): Promise<StartFiringOutcome[]> {
+  const found = await transaction.query<RouteEvent>(
+    `select route.organization_id, route.inbound_event_id, event.provider,
+            event.event_kind, event.normalized_projection as projection
+       from bakery.inbound_event_routes as route
+       join bakery.inbound_events as event on event.id = route.inbound_event_id
+      where route.id = $1`,
+    [routeId],
+  );
+  const row = found.rows[0];
+  if (row === undefined) return [];
+  const projection = IntakeProjectionSchema.safeParse(row.projection);
+  if (!projection.success) return [];
+  const event = neutralEventOf(row.provider, {
+    kind: row.event_kind,
+    action: projection.data.action,
+    number: projection.data.number,
+    headSha: projection.data.headSha,
+    repositoryId: projection.data.repositoryId,
+  });
+  if (event === null) return [];
+  const route = {
+    organizationId: row.organization_id,
+    inboundEventId: row.inbound_event_id,
+  };
+  const live = await liveStartsFor(transaction, route.organizationId, event);
+  const outcomes: StartFiringOutcome[] = [];
+  for (const start of live) {
+    if (start.workflowId !== workflowId) continue;
+    outcomes.push(await fireLiveStart(transaction, route, repository, start));
+  }
+  return outcomes;
 }

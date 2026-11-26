@@ -5,6 +5,7 @@ import type { Inngest } from "inngest";
 import { type PgDatabase, withPgTransaction } from "../../platform/database.ts";
 import { eventRouteId } from "../integrations/intake-workflow.ts";
 import { readIssueRouteTarget } from "../integrations/ticket-reads.ts";
+import { fireRouteStartsOf } from "../workflows/start-firing.ts";
 import {
   type AdmissionDeps,
   type AdmissionKind,
@@ -132,20 +133,51 @@ export async function processTicketIntake(
   }
   const outcomes: TicketIntakeSourceOutcome[] = [];
   for (const { id } of sources.rows) {
-    outcomes.push(
-      await intakeSource(
-        deps,
-        {
-          routeId,
-          organizationId: target.organizationId,
-          number: target.number,
-        },
-        id,
-        signal,
-      ),
-    );
+    const issue = {
+      routeId,
+      organizationId: target.organizationId,
+      number: target.number,
+    };
+    outcomes.push(await intakeSource(deps, issue, id, signal));
+    await fireStartsLeftToSource(deps, issue, id, signal);
   }
   return { kind: "processed", sources: outcomes };
+}
+
+async function fireStartsLeftToSource(
+  deps: TicketWorkflowDeps,
+  issue: { routeId: string; organizationId: string; number: number },
+  sourceId: string,
+  signal: AbortSignal,
+): Promise<void> {
+  await withPgTransaction(deps.database, async (transaction) => {
+    const named = await transaction.query<
+      { repository_id: string; workflow_id: string }
+    >(
+      `select repository_id, policy -> 'workflow' ->> 'workflowId' as workflow_id
+         from bakery.ticket_sources
+        where organization_id = $1 and id = $2 and enabled
+          and repository_id is not null
+          and (policy -> 'automatic' ->> 'enabled')::boolean
+          and policy -> 'workflow' ->> 'workflowId' is not null`,
+      [issue.organizationId, sourceId],
+    );
+    const source = named.rows[0];
+    if (source === undefined) return;
+    const found = await findTicketForNumber(
+      transaction,
+      issue.organizationId,
+      sourceId,
+      issue.number,
+    );
+    if (found?.requestId != null) return;
+    await fireRouteStartsOf(
+      transaction,
+      issue.routeId,
+      { id: source.repository_id },
+      source.workflow_id,
+    );
+  }, signal);
 }
 
 async function intakeSource(

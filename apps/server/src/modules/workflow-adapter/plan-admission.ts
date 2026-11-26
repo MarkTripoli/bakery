@@ -38,6 +38,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isRequiredInput(declared: unknown): boolean {
+  return isRecord(declared) && declared.required === true;
+}
+
+export function needsInputs(spec: unknown): boolean {
+  const inputs = isRecord(spec) && isRecord(spec.inputs) ? spec.inputs : {};
+  return Object.values(inputs).some(isRequiredInput);
+}
+
 /**
  * The inputs the run starts with, checked against what the plan declares: each
  * declared input present (an optional one frozen as `null`), each of the right
@@ -60,7 +69,7 @@ export function planRunInputs(
   const frozen: Record<string, JsonValue> = {};
   for (const name of Object.keys(document.inputs).sort()) {
     if (!Object.hasOwn(given, name)) {
-      if (document.inputs[name]!.required) {
+      if (isRequiredInput(document.inputs[name])) {
         throw unprocessable(["inputs", name], "input_required");
       }
       frozen[name] = null;

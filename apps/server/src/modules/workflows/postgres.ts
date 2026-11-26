@@ -1,4 +1,5 @@
 import { boundedPostgresMutation } from "../../platform/bounded-mutation.ts";
+import { needsInputs } from "../workflow-adapter/plan-admission.ts";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { WorkflowStartsSchema } from "@bakery/contracts/workflow-starts";
 import type { JsonValue } from "@bakery/contracts/contracts";
@@ -73,7 +74,7 @@ import {
 const DEFINITIONS_ORDERING = "createdAt:desc,id:desc";
 const VERSIONS_ORDERING = "revision:desc,id:desc";
 const DEFINITION_COLUMNS =
-  "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version, origin_kind, origin_catalog_key, origin_catalog_version, origin_source_workflow_id, origin_source_version_id, origin_source_digest, visibility, origin_conversation_id, origin_turn_id";
+  "id, slug, name, description, active_version_id, enabled, created_at, updated_at, version, origin_kind, origin_catalog_key, origin_catalog_version, origin_source_workflow_id, origin_source_version_id, origin_source_digest, visibility, origin_conversation_id, origin_turn_id, (select active.normalized_spec from bakery.workflow_versions active where active.organization_id = workflow_definitions.organization_id and active.id = workflow_definitions.active_version_id) as active_spec";
 
 export type WorkflowDefinitionRow = {
   id: string;
@@ -94,6 +95,7 @@ export type WorkflowDefinitionRow = {
   visibility: string;
   origin_conversation_id: string | null;
   origin_turn_id: string | null;
+  active_spec: unknown;
 };
 
 /** Library visibility of a definition (chapter 25 primitive 2). */
@@ -172,6 +174,7 @@ export function toWorkflowDefinition(row: WorkflowDefinitionRow) {
     name: row.name,
     description: row.description,
     activeVersionId: row.active_version_id,
+    needsInputs: needsInputs(row.active_spec),
     enabled: row.enabled,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),

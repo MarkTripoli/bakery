@@ -3,15 +3,17 @@ import {
   type TicketPin,
 } from "../../packages/contracts/src/ticket-admission.ts";
 import { assert, assertEquals } from "@std/assert";
+import { publishWrittenWorkflow } from "../helpers/ticket-admission/written-workflow.ts";
+import { withAutomation } from "../helpers/ticket-admission/automation-fixtures.ts";
 import {
+  automaticPolicy,
   EXECUTE_LABEL,
   recordOpenIssues,
   type TicketFixture,
   withTicketFixture,
 } from "../helpers/ticket-admission/fixtures.ts";
 import { FIXED_CODING_PRESET } from "../../packages/contracts/src/workflow-presets.ts";
-import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
-import { fireStartsFor } from "../../apps/server/src/modules/workflows/start-firing.ts";
+import { processAutomationRoute } from "../../apps/server/src/modules/workflows/automations/event-intake.ts";
 import {
   read,
   ticketCall,
@@ -65,19 +67,6 @@ async function runsOfOrganization(fx: TicketFixture): Promise<number> {
     [fx.organizationId],
   );
   return Number(result.rows[0]?.count ?? 0);
-}
-
-async function receivedEvent(fx: TicketFixture): Promise<string> {
-  const id = crypto.randomUUID();
-  await fx.owner.query(
-    `insert into bakery.inbound_events (
-       id, provider, registration_id, external_delivery_id, payload_digest,
-       event_kind, event_action, status, expires_at
-     ) values ($1, 'provider_neutral', null, $2, 'digest', 'issues',
-       'labeled', 'accepted', now() + interval '1 day')`,
-    [id, crypto.randomUUID()],
-  );
-  return id;
 }
 
 async function firingsOfOrganization(fx: TicketFixture): Promise<number> {
@@ -231,8 +220,9 @@ Deno.test("issue 61: a ready reviewed workflow is admitted and its run is that w
     assertEquals(await runPreset(fx, runId), "preset:fixed-coding-reviewed");
   }, { budget: true, reviewed: true }));
 
-Deno.test("issue 407: admission starts the source's workflow once, and that workflow's own start does not start it again", () =>
-  withTicketFixture(async (fx) => {
+Deno.test("issue 407: starts on the source's workflow are left to the ticket source, which fires them only for an issue it did not admit", () =>
+  withAutomation(async (a) => {
+    const { fx } = a;
     const workflow = fx.builtInWorkflow("fixed-coding");
     const active = await fx.owner.query<{ active_version_id: string }>(
       `select active_version_id from bakery.workflow_definitions
@@ -246,73 +236,66 @@ Deno.test("issue 407: admission starts the source's workflow once, and that work
       [
         fx.organizationId,
         versionId,
-        JSON.stringify([{
-          id: "on-label",
+        JSON.stringify(["labeled", "opened"].map((action) => ({
+          id: `on-${action}`,
           budgetUsd: 5,
           inputs: {},
-          on: { kind: "event", eventKind: "work_item.labeled", filter: {} },
-        }, {
-          id: "on-close",
-          budgetUsd: 5,
-          inputs: {},
-          on: { kind: "event", eventKind: "work_item.closed", filter: {} },
-        }]),
+          on: { kind: "event", eventKind: `work_item.${action}`, filter: {} },
+        }))),
       ],
     );
-    const sourceId = await fx.insertSource({
-      policy: fx.policy({
-        delegation: true,
-        automatic: { enabled: true, since: "2026-01-01T00:00:00.000Z" },
-      }),
-    });
-    fx.reader.setIssue({ number: 617, labels: [EXECUTE_LABEL] });
-    const before = await runsOfOrganization(fx);
-    const admitted = await fx.admit(sourceId, { number: 617, intent: "start" });
-    const request = admitted.request;
-    assert(request, JSON.stringify(admitted.report.checks));
-    assertEquals(request.pinnedPreset, {
-      workflowId: workflow.workflowId,
-      versionId,
-      digest: (request.pinnedPreset as { digest: string }).digest,
-    });
-    assertEquals(await runsOfOrganization(fx), before + 1);
-    assertEquals(
-      await runVersion(fx, request.workflowRunId!),
-      versionId,
-      "the run starts the pinned version",
-    );
-
-    const fire = async (kind: string, number: number) => {
-      const inboundEventId = await receivedEvent(fx);
-      return await withPgTransaction(
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    a.seedLabeler();
+    const automationSide = async (routes: Record<string, string>) => {
+      const settled = await processAutomationRoute(
         fx.runtime,
-        (transaction) =>
-          fireStartsFor(
-            transaction,
-            { organizationId: fx.organizationId, inboundEventId },
-            { id: fx.repositoryId },
-            { kind, fields: { number } },
-          ),
+        routes.automation,
       );
+      assert(settled.kind === "settled", JSON.stringify(settled));
+      return settled.starts;
     };
-    const labeled = await fire("work_item.labeled", 617);
+    const before = await runsOfOrganization(fx);
+
+    a.issue(617);
+    const admittedRoutes = await a.deliverRoutes(617);
     assertEquals(
-      labeled.map((outcome) => [outcome.startId, outcome.result, outcome.code]),
-      [["on-label", "duplicate", "ticket_source_admits"]],
+      (await automationSide(admittedRoutes)).map((
+        outcome,
+      ) => [outcome.startId, outcome.result]),
+      [["on-labeled", "left_to_ticket_source"]],
     );
+    const admitted = await a.intake(admittedRoutes.fact_refresh);
+    assert(admitted.kind === "processed", JSON.stringify(admitted));
+    assertEquals(admitted.sources[0].admission, "admitted");
     assertEquals(await firingsOfOrganization(fx), 0);
-    assertEquals(await runsOfOrganization(fx), before + 1);
-    const closed = await fire("work_item.closed", 999);
-    assertEquals(closed.map((outcome) => outcome.startId), ["on-close"]);
-    assert(
-      closed[0].result !== "duplicate",
-      `another event's start still fires: ${JSON.stringify(closed)}`,
+    assertEquals(await runsOfOrganization(fx), before + 1, "one run for 617");
+
+    a.issue(620);
+    const openedRoutes = await a.deliverRoutes(620, "opened");
+    assertEquals(
+      (await automationSide(openedRoutes)).map((outcome) => outcome.result),
+      ["left_to_ticket_source"],
     );
-    assertEquals(await firingsOfOrganization(fx), 1);
-    const again = await fx.admit(sourceId, { number: 617, intent: "start" });
-    assertEquals(again.kind, "existing");
-    assertEquals(await runsOfOrganization(fx), before + 1, "exactly one run");
-  }, { budget: true }));
+    const opened = await a.intake(openedRoutes.fact_refresh);
+    assert(opened.kind === "processed", JSON.stringify(opened));
+    assertEquals(opened.sources[0].admission, "admitted");
+    assertEquals(await firingsOfOrganization(fx), 0);
+    assertEquals(await runsOfOrganization(fx), before + 2, "one run for 620");
+
+    a.issue(999, ["triage"]);
+    const unrelatedRoutes = await a.deliverRoutes(999);
+    assertEquals(
+      (await automationSide(unrelatedRoutes)).map((outcome) => outcome.result),
+      ["left_to_ticket_source"],
+    );
+    const unrelated = await a.intake(unrelatedRoutes.fact_refresh);
+    assert(unrelated.kind === "processed", JSON.stringify(unrelated));
+    assertEquals(unrelated.sources[0].action, "none");
+    assertEquals(await firingsOfOrganization(fx), 1, "999's start fired");
+    await a.intake(unrelatedRoutes.fact_refresh);
+    assertEquals(await firingsOfOrganization(fx), 1, "a replay fires nothing");
+    assertEquals((await fx.counts(sourceId)).requests, 2);
+  }));
 
 Deno.test("issue 407: a request pinned before policy v2 keeps its old pin and starts one run of that built-in", () =>
   withTicketFixture(async (fx) => {
@@ -391,4 +374,84 @@ Deno.test("issue 407: a run started by a built-in's version id with inputs answe
     const text = await response.text();
     assertEquals(response.status, 422, text);
     assert(!text.includes("inputs_not_allowed_with_preset"), text);
+  }, { budget: true }));
+
+Deno.test("issue 407: a written workflow that needs an input is flagged, is refused as a source's workflow, and leaves readiness waiting", () =>
+  withTicketFixture(async (fx) => {
+    const needs = await publishWrittenWorkflow(fx, "needs-a-note", {
+      requiredInput: true,
+    });
+    const plain = await publishWrittenWorkflow(fx, "plain-written");
+    const listed = await read<
+      { items: { id: string; needsInputs: boolean }[] }
+    >(await ticketCall(fx, "GET", "/v1/workflows?limit=100"), 200);
+    const flag = (id: string) =>
+      listed.items.find((item) => item.id === id)?.needsInputs;
+    assertEquals([flag(needs.workflowId), flag(plain.workflowId)], [
+      true,
+      false,
+    ]);
+
+    const sourceId = await fx.insertSource();
+    const refused = await ticketCall(
+      fx,
+      "PATCH",
+      `/v1/ticket-sources/${sourceId}`,
+      {
+        ifMatch: 1,
+        body: {
+          policy: {
+            ...fx.policy(),
+            workflow: { workflowId: needs.workflowId },
+          },
+        },
+      },
+    );
+    const text = await refused.text();
+    assertEquals(refused.status, 422, text);
+    assert(text.includes("workflow_needs_inputs"), text);
+
+    await fx.owner.query(
+      `update bakery.ticket_sources set policy = $2::jsonb where id = $1`,
+      [
+        sourceId,
+        JSON.stringify({
+          ...fx.policy(),
+          workflow: { workflowId: needs.workflowId },
+        }),
+      ],
+    );
+    fx.reader.setIssue({ number: 640, labels: [EXECUTE_LABEL] });
+    const waiting = await fx.admit(sourceId, { number: 640, intent: "start" });
+    assertEquals(waiting.request, null);
+    const check = waiting.report.checks.find((entry) =>
+      entry.id === "preset_ready"
+    )!;
+    assertEquals([check.status, check.reason], [
+      "wait",
+      "preset_setup_required",
+    ]);
+  }, { budget: true }));
+
+Deno.test("issue 407: a source naming a written workflow admits an issue on that workflow's version", () =>
+  withTicketFixture(async (fx) => {
+    const written = await publishWrittenWorkflow(fx, "written-start");
+    const sourceId = await fx.insertSource({
+      policy: { ...fx.policy(), workflow: { workflowId: written.workflowId } },
+    });
+    fx.reader.setIssue({ number: 641, labels: [EXECUTE_LABEL] });
+    const admitted = await fx.admit(sourceId, { number: 641, intent: "start" });
+    const request = admitted.request;
+    assert(request, JSON.stringify(admitted.report.checks));
+    assertEquals(
+      [
+        (request.pinnedPreset as { workflowId: string }).workflowId,
+        (request.pinnedPreset as { versionId: string }).versionId,
+      ],
+      [written.workflowId, written.versionId],
+    );
+    assertEquals(
+      await runVersion(fx, request.workflowRunId!),
+      written.versionId,
+    );
   }, { budget: true }));

@@ -44,6 +44,7 @@ import {
   type TicketFixture,
   withTicketFixture,
 } from "../helpers/ticket-admission/fixtures.ts";
+import { publishWrittenWorkflow } from "../helpers/ticket-admission/written-workflow.ts";
 
 /**
  * A ticket fixture whose batch rows are removed before it closes. Batch issues point
@@ -1466,4 +1467,45 @@ Deno.test("batches: an item the viewer may see is found behind more than a page 
         [fx.organizationId, PROMPT_TEXT],
       );
     }
+  }));
+
+Deno.test("issue 407: a batch started on the source's written workflow pins that workflow's version", () =>
+  withBatches(async (fx) => {
+    const written = await publishWrittenWorkflow(fx, "batch-written");
+    const sourceId = await fx.insertSource({
+      policy: {
+        ...automaticPolicy(fx),
+        workflow: { workflowId: written.workflowId },
+      },
+    });
+    seedLabeler(fx);
+    fx.reader.setIssue({ number: 1, title: "First", body: ACCEPTANCE_BODY });
+    await recordOpenIssues(fx, sourceId);
+    const batch = await createBatchHandler({ budget: presetBudgetPolicy })(
+      actionContext(fx),
+      {
+        repositoryId: fx.repositoryId,
+        maxIssues: 1,
+        maxHours: 8,
+        maxSpendUsd: "50",
+        continueMode: "carry_on",
+      } as never,
+    );
+    assertEquals(batch.presetId, null);
+
+    await superviseBatches(fx.runtime, { startNext: realStartPort(fx) });
+    const issues = await issueRows(fx, batch.id);
+    assertEquals(issues.map((issue) => issue.state), ["started"]);
+    const pinned = await fx.owner.query<{ pinned_preset: unknown }>(
+      `select pinned_preset from bakery.ticket_requests where id = $1`,
+      [issues[0].ticket_request_id],
+    );
+    const pin = pinned.rows[0]?.pinned_preset as {
+      workflowId: string;
+      versionId: string;
+    };
+    assertEquals([pin.workflowId, pin.versionId], [
+      written.workflowId,
+      written.versionId,
+    ]);
   }));
