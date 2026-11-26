@@ -5285,6 +5285,13 @@
       "frames": []
     },
     {
+      "routeId": "library-skill-edit",
+      "path": "/library/skills/$skillId/edit",
+      "status": "no-mock",
+      "rationale": "Editing one skill (its files, saved by themselves, the check that names problems, Publish) is designed by design-ux on #74 (revisions 2 to 4 and the slice 3 build sheet, mocks at design-74/v2/editing.png); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "library-evaluation",
       "path": "/library/evaluations/$batchId",
       "status": "no-mock",

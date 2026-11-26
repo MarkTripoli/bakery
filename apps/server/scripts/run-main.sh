@@ -83,7 +83,7 @@ for name in "${allowed_names[@]}"; do
   fi
 done
 
-read_permissions=()
+read_permissions=("--allow-read=src/modules/catalog/bundled-skills")
 write_permissions=()
 if declare -p BAKERY_SKILL_FILE_ROOT &>/dev/null; then
   if [[
