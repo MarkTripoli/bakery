@@ -10,7 +10,12 @@ import {
   automationVersionInputs,
   setUpAutomation,
 } from "../helpers/automation-fixtures.ts";
-import { apiCall, expectJson } from "../helpers/fixed-coding-preset.ts";
+import {
+  apiCall,
+  expectJson,
+  seedPresetRepository,
+} from "../helpers/fixed-coding-preset.ts";
+import { fireDueScheduleStarts } from "../../apps/server/src/modules/workflows/start-clock.ts";
 
 // #406 slice 3. A start answers an event by starting a run of the version in
 // use, as the principal who used that version. That principal is not trusted
@@ -520,4 +525,92 @@ Deno.test("two events racing at the hourly limit start one run and skip the othe
       "started",
     ]);
     assertEquals(Number((await s.counts()).runs), Number(before.runs) + 1);
+  }));
+
+Deno.test("an event start runs on the repository the event arrived on when it takes the repository from the event", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      on: {
+        kind: "event",
+        eventKind: "change_request.opened",
+        filter: {},
+        inputsFromEvent: { repositoryId: "repositoryId" },
+      },
+    });
+    const other = await seedPresetRepository(fixture.pgDatabase, fixture, {
+      agentVersionId: s.agent,
+    });
+    const [outcome] = await withPgTransaction(
+      fixture.runtimePgDatabase,
+      async (transaction) =>
+        await fireStartsFor(
+          transaction,
+          {
+            organizationId: fixture.organizationId,
+            inboundEventId: await s.receive(),
+          },
+          { id: other.repositoryId },
+          EVENT,
+        ),
+    );
+    assertEquals(outcome.result, "started", JSON.stringify(outcome));
+    const run = (await fixture.pgDatabase.query<{ repositoryId: string }>(
+      `select task.repository_id as "repositoryId"
+         from bakery.workflow_start_firings firing
+         join bakery.workflow_runs run on run.id = firing.run_id
+         join bakery.tasks task on task.id = run.task_id
+        where firing.organization_id = $1`,
+      [fixture.organizationId],
+    )).rows;
+    assertEquals(run, [{ repositoryId: other.repositoryId }]);
+  }));
+
+Deno.test("a schedule start fires the version in use once per tick, however often the clock wakes", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      id: "hourly",
+      on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
+    });
+    const before = await s.counts();
+    const tick = async (at: string) =>
+      (await fireDueScheduleStarts({
+        database: fixture.runtimePgDatabase,
+        now: new Date(at),
+      })).filter((outcome) => outcome.workflowId === s.workflowId)
+        .map((outcome) => [outcome.startId, outcome.result, outcome.code]);
+
+    assertEquals(await tick("2026-11-25T09:30:00Z"), []);
+    assertEquals(await tick("2026-11-25T10:00:20Z"), [
+      ["hourly", "started", undefined],
+    ]);
+    const [firing] = await s.firings();
+    assertEquals(
+      [firing.status, firing.triggerEventId, firing.actorId],
+      ["started", null, fixture.principalId],
+    );
+    assertEquals(await tick("2026-11-25T10:01:00Z"), [
+      ["hourly", "duplicate", undefined],
+    ]);
+    assertEquals(Number((await s.counts()).runs), Number(before.runs) + 1);
+  }));
+
+Deno.test("two clocks waking on one tick start exactly one run", () =>
+  withWorkerFixture(async (fixture) => {
+    const s = await setUp(fixture, {
+      id: "hourly",
+      on: { kind: "schedule", cron: "0 * * * *", timezone: "UTC" },
+    });
+    const before = await s.counts();
+    const now = new Date("2026-11-25T10:00:20Z");
+    const results = await Promise.all([
+      fireDueScheduleStarts({ database: fixture.runtimePgDatabase, now }),
+      fireDueScheduleStarts({ database: fixture.runtimePgDatabase, now }),
+    ]);
+    assertEquals(
+      results.flat().filter((outcome) => outcome.workflowId === s.workflowId)
+        .map((outcome) => outcome.result).sort(),
+      ["duplicate", "started"],
+    );
+    assertEquals(Number((await s.counts()).runs), Number(before.runs) + 1);
+    assertEquals((await s.firings()).length, 1);
   }));

@@ -35,6 +35,10 @@ const startId = z.string().min(1).max(64).regex(/^[a-z0-9][a-z0-9-]*$/)
     "Stable identifier of the start within its version, lowercase letters, digits and hyphens.",
   );
 
+export const WorkflowStartEventValueSchema = z.enum(["repositoryId"]).describe(
+  "Value the firing event supplies: repositoryId is the Bakery repository the event arrived on.",
+);
+
 const eventStartSchema = z.object({
   kind: z.literal("event").describe(
     "This start fires when a matching event arrives.",
@@ -57,6 +61,24 @@ const eventStartSchema = z.object({
     )
     .describe(
       "Equality filters on fields of the neutral event projection; an empty object matches every event of the kind.",
+    ),
+  inputsFromEvent: z.record(
+    z.string().min(1).max(120).describe(
+      "Name of one workflow input the event supplies.",
+    ),
+    WorkflowStartEventValueSchema,
+  )
+    .refine(
+      (inputs) =>
+        Object.keys(inputs).length <= WORKFLOW_START_FILTER_MAX_FIELDS,
+      {
+        message:
+          `At most ${WORKFLOW_START_FILTER_MAX_FIELDS} inputs from the event.`,
+      },
+    )
+    .optional()
+    .describe(
+      "Inputs of each run this start fires that take their value from the event that fired it, by input name. They are set over the start's static inputs. Omitted means none.",
     ),
 }).strict().describe(
   "An event matcher: fire this version when an event of the named kind matches every filter.",

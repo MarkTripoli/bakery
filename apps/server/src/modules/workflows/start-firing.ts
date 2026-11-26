@@ -19,7 +19,10 @@
  */
 import { contractSchemas } from "@bakery/contracts/contracts";
 import { StandardError, unprocessable } from "@bakery/contracts/http";
-import { WorkflowStartsSchema } from "@bakery/contracts/workflow-starts";
+import {
+  type WorkflowStart,
+  WorkflowStartsSchema,
+} from "@bakery/contracts/workflow-starts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import type { NeutralEvent } from "../integrations/neutral-events.ts";
 import { createTaskCommand } from "../work/postgres.ts";
@@ -92,6 +95,30 @@ export async function fireLiveStart(
   repository: { id: string },
   start: LiveStart,
 ): Promise<StartFiringOutcome> {
+  return await fireStart(
+    transaction,
+    route.organizationId,
+    { inboundEventId: route.inboundEventId },
+    repository,
+    start,
+  );
+}
+
+export type StartTrigger =
+  | Readonly<{ inboundEventId: string }>
+  | Readonly<{ scheduledAt: Date }>;
+
+export async function fireStart(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  trigger: StartTrigger,
+  repository: { id: string },
+  start: LiveStart,
+): Promise<StartFiringOutcome> {
+  const route = {
+    organizationId,
+    inboundEventId: "inboundEventId" in trigger ? trigger.inboundEventId : null,
+  };
   const outcome = (
     result: StartFiringOutcome["result"],
     code?: string,
@@ -126,6 +153,23 @@ export async function fireLiveStart(
   );
   const applicationId = application.rows[0]?.application_id;
   if (applicationId === undefined) return outcome("superseded");
+
+  if ("scheduledAt" in trigger) {
+    const fired = await transaction.query(
+      `select 1 from bakery.workflow_start_firings
+        where organization_id = $1 and workflow_version_id = $2
+          and start_id = $3 and trigger_event_id is null
+          and created_at >= $4
+        limit 1`,
+      [
+        organizationId,
+        start.versionId,
+        start.startId,
+        trigger.scheduledAt.toISOString(),
+      ],
+    );
+    if (fired.rows.length > 0) return outcome("duplicate");
+  }
 
   const recent = await transaction.query<{ count: string }>(
     `select count(*)::text as count from bakery.workflow_start_firings
@@ -271,7 +315,7 @@ async function startFiringIn(
           ? {}
           : { repositoryProfileId: task.repositoryProfileId }),
         budgetLimitUsd: String(start.budgetUsd ?? 0),
-        inputs: start.inputs ?? {},
+        inputs: startRunInputs(start, firing.repositoryId),
       });
       if (!runInput.success) {
         throw unprocessable(["inputs"], "run_input_invalid", runInput.error);
@@ -316,6 +360,22 @@ async function startFiringIn(
     }
     throw error;
   }
+}
+
+export function startRunInputs(
+  start: WorkflowStart,
+  repositoryId: string,
+): Record<string, unknown> {
+  const event = { repositoryId };
+  const fromEvent = start.on.kind === "event"
+    ? start.on.inputsFromEvent ?? {}
+    : {};
+  return {
+    ...(start.inputs ?? {}),
+    ...Object.fromEntries(
+      Object.entries(fromEvent).map(([name, value]) => [name, event[value]]),
+    ),
+  };
 }
 
 /** The version's author, the audit row's stand-in when no actor was recorded. */
