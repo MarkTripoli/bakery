@@ -388,6 +388,8 @@
   }
 }
 .ui-artifact-discussion textarea,
+.ui-comment-rail textarea,
+.ui-comment-sheet textarea,
 .ui-send-to-agent-dialog textarea {
   border: var(--border-default) solid var(--color-control-border);
   border-radius: var(--radius-control);

@@ -25,6 +25,7 @@ type Channel = {
   socket: WebSocket | null;
   state: LiveState;
   subscribed: string;
+  greeted: boolean;
   requests: Set<string>;
   everLive: boolean;
   retries: number;
@@ -88,12 +89,10 @@ function subscribe(channel: Channel, socket: WebSocket, scopes: LiveScope[]) {
 
 function connect(channel: Channel) {
   if (channel.listeners.size === 0 || channel.terminal) return;
-  const wanted = sharedScopes(channel);
-  const subscribed = scopeKey(wanted);
-  if (subscribed === "") return;
+  if (sharedScopes(channel).length === 0) return;
   const socket = new WebSocket(channel.socketUrl);
   channel.socket = socket;
-  channel.subscribed = subscribed;
+  channel.greeted = false;
   channel.requests = new Set();
   publish(channel, "connecting");
   socket.onmessage = (event) => {
@@ -108,6 +107,9 @@ function connect(channel: Channel) {
     if (!parsed.success) return;
     const frame = parsed.data;
     if (frame.type === "hello") {
+      const wanted = sharedScopes(channel);
+      channel.greeted = true;
+      channel.subscribed = scopeKey(wanted);
       subscribe(channel, socket, wanted);
       return;
     }
@@ -179,6 +181,7 @@ function applyScopes(channel: Channel) {
     if (channel.timer === null) connect(channel);
     return;
   }
+  if (!channel.greeted) return;
   const subscribed = scopeKey(next);
   if (channel.subscribed === subscribed) return;
   const nextKeys = new Set(next.map((scope) => `${scope.type}:${scope.id}`));
@@ -213,6 +216,7 @@ function channelFor(socketUrl: string): Channel {
     socketUrl,
     state: "idle",
     subscribed: "",
+    greeted: false,
     terminal: false,
     timer: null,
   };
