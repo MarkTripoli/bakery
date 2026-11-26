@@ -320,6 +320,30 @@ export function organizationMembersQueryOptions(
   });
 }
 
+export function allOrganizationMembersQueryOptions(
+  client: Pick<BakeryApiClient, "access">,
+  scope: ApiScope,
+) {
+  return queryOptions<MembershipPage, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "organizationMemberships.list", {
+      pages: "all",
+    }),
+    queryFn: ({ signal }) =>
+      allPages<MembershipPage>(async (cursor) =>
+        unwrap(
+          await client.access.members.list({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        )
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 /** The work started from one issue, newest first: progress, who started it, the repositories it went to. */
 export function ticketRequestsQueryOptions(
   client: Pick<BakeryApiClient, "tickets">,

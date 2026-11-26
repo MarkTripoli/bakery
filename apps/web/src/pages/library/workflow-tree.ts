@@ -1,3 +1,4 @@
+import { APPROVAL_ACTION, approvalOfNode } from "./approval-step.ts";
 import { ACTION_TITLES, PICKER_STEPS } from "./workflow-state.ts";
 
 /**
@@ -59,6 +60,7 @@ export type GroupLabel =
   | "repeat"
   | "fix"
   | "each"
+  | "call"
   | "wait";
 
 export type TreeNode = TreeStep | TreeGroup;
@@ -101,14 +103,26 @@ function withKind(node: Record<string, unknown>): Record<string, unknown> {
     return {
       ...node,
       kind: "repeat",
+      min: repeat.min,
       max: repeat.max,
+      allow: repeat.allow,
       seed: repeat.seed,
       steps: repeat.steps,
     };
   }
   if (node.parallel !== undefined) {
-    return { ...node, kind: "parallel", lanes: record(node.parallel).lanes };
+    const parallel = record(node.parallel);
+    return {
+      ...node,
+      kind: "parallel",
+      lanes: parallel.branches ?? parallel.lanes,
+    };
   }
+  if (node.forEach !== undefined) {
+    const each = record(node.forEach);
+    return { ...node, kind: "forEach", max: each.max, steps: each.steps };
+  }
+  if (node.call !== undefined) return { ...node, kind: "call" };
   if (node.wait !== undefined) return { ...node, kind: "wait" };
   if (Array.isArray(node.steps)) return { ...node, kind: "sequence" };
   return node;
@@ -158,6 +172,7 @@ const DEFAULT_RETRY = { maxAttempts: 1, backoffMs: 0, on: [] as unknown[] };
 function isCodeOnly(node: Record<string, unknown>, uses: string): boolean {
   if (!KNOWN_ACTIONS.has(uses)) return false;
   if (!ADDABLE_ACTIONS.has(uses)) return true;
+  if (uses === APPROVAL_ACTION && approvalOfNode(node) === null) return true;
   if (node.if !== undefined) return true;
   if (node.retry !== undefined) {
     const retry = record(node.retry);
@@ -416,11 +431,11 @@ function drawNode(
       editedInCode: true,
     }];
   }
-  if (kind === "wait") {
+  if (kind === "call" || kind === "wait") {
     return [{
       kind: "group",
       id: anonymousId(counter, "group"),
-      label: "wait",
+      label: kind,
       children: [],
       editedInCode: true,
     }];

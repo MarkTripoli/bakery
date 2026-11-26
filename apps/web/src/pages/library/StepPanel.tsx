@@ -1,7 +1,12 @@
 import * as UI from "@bakery/ui";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { ACTION_LINES } from "./workflow-state.ts";
+
+import {
+  ApprovalPanelBody,
+  type ApprovalPanelProps,
+} from "./ApprovalPanel.tsx";
 
 /**
  * The panel beside the diagram (#67, slice 1): what the person selected, and
@@ -87,12 +92,14 @@ export type PanelTarget =
   | { readonly kind: "start" }
   | {
     readonly kind: "loop";
+    readonly at: string;
     readonly name: string;
     readonly fix: boolean;
     readonly values: LoopValues;
     readonly cap: number;
     readonly help?: string | undefined;
     readonly onCommit: (values: LoopValues) => void;
+    readonly onPending: (pending: boolean) => void;
   }
   | {
     readonly kind: "codeOnly";
@@ -117,6 +124,7 @@ export type PanelTarget =
     readonly code: string | undefined;
     readonly problem: string | undefined;
     readonly agentFromSetup?: boolean;
+    readonly approval?: ApprovalPanelProps | undefined;
     /** The skills the step names (#431). */
     readonly skills: StepSkills;
     /** The picker that attaches a skill; null when the page cannot edit. */
@@ -158,7 +166,13 @@ export function StepPanel(
   }
 
   if (target.kind === "loop") {
-    return <LoopPanel onViewAsCode={onViewAsCode} target={target} />;
+    return (
+      <LoopPanel
+        key={target.at}
+        onViewAsCode={onViewAsCode}
+        target={target}
+      />
+    );
   }
 
   if (target.kind === "codeOnly") {
@@ -207,7 +221,9 @@ export function StepPanel(
     );
   }
 
-  const lineKey = ACTION_LINES[target.uses];
+  const lineKey = target.approval === undefined
+    ? ACTION_LINES[target.uses]
+    : "library.editor.ask.panelLine";
   const line = lineKey === undefined ? undefined : translate(lineKey as never);
 
   return (
@@ -268,6 +284,12 @@ export function StepPanel(
             })}
           </UI.Text>
         )}
+        {target.approval === undefined ? null : (
+          <ApprovalPanelBody
+            key={target.approval.stepId}
+            {...target.approval}
+          />
+        )}
         {target.skills.kind === "hidden"
           ? null
           : <Skills attach={target.attach} skills={target.skills} />}
@@ -310,6 +332,8 @@ function loopProblem(
   return null;
 }
 
+const LOOP_PAUSE_MS = 400;
+
 function LoopPanel(
   { target, onViewAsCode }: {
     readonly target: Extract<PanelTarget, { readonly kind: "loop" }>;
@@ -334,14 +358,30 @@ function LoopPanel(
     setDraft(asDraft(target.values));
     setShown(null);
   }
+  const typed = (): LoopValues => ({
+    min: draft.min.trim() === "" ? null : wholeNumber(draft.min),
+    max: wholeNumber(draft.max) as number,
+    allow: draft.allow.trim() === "" ? null : wholeNumber(draft.allow),
+  });
   const commit = () => {
     const problem = loopProblem(draft, target.cap, t);
     setShown(problem);
-    if (problem !== null) return;
-    const min = draft.min.trim() === "" ? null : wholeNumber(draft.min);
-    const allow = draft.allow.trim() === "" ? null : wholeNumber(draft.allow);
-    target.onCommit({ min, max: wholeNumber(draft.max) as number, allow });
+    if (problem === null) target.onCommit(typed());
   };
+  useEffect(() => {
+    if (loopProblem(draft, target.cap, t) !== null) return;
+    const next = typed();
+    if (`${next.min}/${next.max}/${next.allow}` === committed) return;
+    target.onPending(true);
+    const timer = setTimeout(() => {
+      target.onPending(false);
+      target.onCommit(next);
+    }, LOOP_PAUSE_MS);
+    return () => {
+      clearTimeout(timer);
+      target.onPending(false);
+    };
+  }, [draft]);
   const hintFor = (field: LoopField): string => {
     if (field === "min") {
       if (draft.min.trim() !== "") {
