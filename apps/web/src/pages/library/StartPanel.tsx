@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import * as UI from "@bakery/ui";
 import {
   WORKFLOW_START_EVENT_KINDS,
@@ -196,6 +196,7 @@ function EventStartFields(
     },
 ) {
   const copy = useStartCopy();
+  const settledBudget = useRef(start.budgetUsd);
   if (start.on.kind !== "event") return null;
   const on = start.on;
   const kinds: readonly string[] = WORKFLOW_START_EVENT_KINDS;
@@ -254,18 +255,29 @@ function EventStartFields(
           start={start}
         />
       ))}
-      <CommittedText
-        error={start.budgetTyped === undefined
-          ? undefined
-          : copy("problem.budget", { max: WORKFLOW_START_MAX_BUDGET_USD })}
-        hint={copy("budgetHelp")}
-        id={`${base}-budget`}
-        inputMode="decimal"
-        label={copy("budget")}
-        onCommit={(value) => onChange(withBudget(start, value), "budget")}
-        shows={shownBudget}
-        value={budgetText(start)}
-      />
+      <UI.Stack
+        gap="none"
+        onFocus={() => {
+          settledBudget.current = start.budgetUsd;
+        }}
+      >
+        <CommittedText
+          error={start.budgetTyped === undefined
+            ? undefined
+            : copy("problem.budget", { max: WORKFLOW_START_MAX_BUDGET_USD })}
+          hint={copy("budgetHelp")}
+          id={`${base}-budget`}
+          inputMode="decimal"
+          label={copy("budget")}
+          onCommit={(value) =>
+            onChange(
+              withBudget(start, value, settledBudget.current),
+              "budget",
+            )}
+          shows={shownBudget}
+          value={budgetText(start)}
+        />
+      </UI.Stack>
     </>
   );
 }

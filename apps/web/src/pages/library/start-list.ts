@@ -147,14 +147,18 @@ export function savedStart(start: DraftStart): WorkflowStart {
   return saved;
 }
 
-export function withBudget(start: DraftStart, text: string): DraftStart {
-  const { budgetTyped: _typed, ...held } = start;
-  const { budgetUsd: _budget, ...rest } = held;
+export function withBudget(
+  start: DraftStart,
+  text: string,
+  settled: number | undefined = start.budgetUsd,
+): DraftStart {
+  const { budgetTyped: _typed, budgetUsd: _budget, ...rest } = start;
   if (text.trim() === "") return rest;
   const value = amount(text);
-  return value === null
-    ? { ...held, budgetTyped: text }
-    : { ...rest, budgetUsd: value };
+  if (value !== null) return { ...rest, budgetUsd: value };
+  return settled === undefined
+    ? { ...rest, budgetTyped: text }
+    : { ...rest, budgetUsd: settled, budgetTyped: text };
 }
 
 export function startProblems(

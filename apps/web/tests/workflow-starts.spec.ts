@@ -68,13 +68,16 @@ async function editor(page: Page, setup: Setup = {}) {
     saves: [] as (Start[] | undefined)[],
     repositoriesStatus: setup.repositoriesStatus ?? 200,
     status: "draft",
+    id: uuid(1002),
+    revision: 2,
+    older: [] as unknown[],
     publishes: 0,
     activations: seen.activations,
   };
   const draft = () => ({
-    id: uuid(1002),
+    id: server.id,
     workflowId: WORKFLOW.id,
-    revision: 2,
+    revision: server.revision,
     sourceYaml: "",
     normalizedSpec: {
       inputs: setup.inputs ?? {},
@@ -90,25 +93,32 @@ async function editor(page: Page, setup: Setup = {}) {
   });
   await page.route(
     (url) => url.pathname === `/v1/workflows/${WORKFLOW.id}/versions`,
-    (route) =>
-      route.request().method() === "GET"
-        ? route.fulfill(json({
-          items: setup.inUse === "listed"
-            ? [draft(), {
-              ...draft(),
-              id: uuid(1001),
-              revision: 1,
-              status: "published",
-              starts: [],
-            }]
-            : [draft()],
-          nextCursor: null,
-        }))
-        : route.fallback(),
+    (route) => {
+      if (route.request().method() === "POST") {
+        server.older = [draft()];
+        server.id = uuid(1003);
+        server.revision = 3;
+        server.status = "draft";
+        server.version = 1;
+        return route.fulfill(json(draft(), 201));
+      }
+      return route.fulfill(json({
+        items: setup.inUse === "listed"
+          ? [draft(), {
+            ...draft(),
+            id: uuid(1001),
+            revision: 1,
+            status: "published",
+            starts: [],
+          }]
+          : [draft(), ...server.older],
+        nextCursor: null,
+      }));
+    },
   );
   await page.route(
     (url) =>
-      url.pathname === `/v1/workflows/${WORKFLOW.id}/versions/${uuid(1002)}`,
+      url.pathname === `/v1/workflows/${WORKFLOW.id}/versions/${server.id}`,
     async (route) => {
       const sent = route.request().postDataJSON() as { starts?: Start[] };
       server.saves.push(sent.starts);
@@ -478,4 +488,43 @@ test.describe("workflow editor: a published workflow", () => {
       expect(server.publishes).toBe(1);
     });
   }
+
+  test("a limit typed past what can be saved leaves the earlier limit saved", async ({ page }) => {
+    const server = await editor(page);
+    await startCard(page).click();
+    await add(page).click();
+    const limit = page.getByRole("textbox", { name: /Spend limit/ });
+    const saved = () => server.saves.at(-1)?.[0]?.budgetUsd;
+    await expect.poll(saved).toBe(5);
+    for (const typed of ["20000", "1e3"]) {
+      await limit.fill("");
+      await limit.blur();
+      await limit.fill("5");
+      await limit.blur();
+      await expect.poll(saved).toBe(5);
+      await limit.focus();
+      await limit.press("ControlOrMeta+a");
+      await limit.pressSequentially(typed, { delay: 800 });
+      await expect(limit).toHaveAttribute("aria-invalid", "true");
+      await expect.poll(saved).toBe(5);
+    }
+  });
+
+  test("after Publish only, the next edit is offered as the next version", async ({ page }) => {
+    const server = await editor(page, { inUse: "none" });
+    await startCard(page).click();
+    await add(page).click();
+    await expect.poll(() => server.saves.length).toBeGreaterThan(0);
+    const publish = page.getByRole("button", { name: "Publish", exact: true });
+    const dialog = page.getByRole("alertdialog");
+    await publish.click();
+    await expect(dialog).toContainText("Publish version 2");
+    await dialog.getByRole("button", { name: "Publish only" }).click();
+    await expect(dialog).toHaveCount(0);
+    const before = server.saves.length;
+    await field(page, "When").selectOption("work_item.labeled");
+    await expect.poll(() => server.saves.length).toBeGreaterThan(before);
+    await publish.click();
+    await expect(dialog).toContainText("Publish version 3");
+  });
 });

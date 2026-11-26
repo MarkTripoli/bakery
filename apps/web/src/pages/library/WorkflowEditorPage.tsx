@@ -511,6 +511,10 @@ export function WorkflowEditorPage(
   );
   const publishedUnused = draft !== null && draft.status === "published" &&
     draft.id !== workflow.data?.activeVersionId && writeTarget() === null;
+  const publishRevision = draft?.status === "draft" ? draft.revision : Math.max(
+    0,
+    ...(versions.data?.items ?? []).map((item) => item.revision),
+  ) + 1;
   const draftDiffers = draft !== null &&
     (publishedUnused ||
       JSON.stringify(steps) !== JSON.stringify(inUseSteps) ||
@@ -1783,8 +1787,8 @@ export function WorkflowEditorPage(
                 version: String(draft.revision),
               })
               : draftDiffers
-              ? translate("library.editor.publish.title" as never, {
-                version: String((inUse?.revision ?? 0) + 1),
+              ? translate("library.editor.publish.title", {
+                version: String(publishRevision),
               })
               : translate("library.editor.publish.nothing" as never)}
             state={publish.isPending ? "confirming" : "open"}

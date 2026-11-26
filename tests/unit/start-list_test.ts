@@ -154,3 +154,10 @@ Deno.test("a spend limit that is not an amount is kept as typed, not saved", () 
   assertEquals(withBudget(withBudget(start, "$"), "2.50").budgetUsd, 2.5);
   assertEquals("budgetTyped" in withBudget(withBudget(start, "$"), ""), false);
 });
+
+Deno.test("a refused amount restores the limit the field started with", () => {
+  const typing = withBudget(newStart([]), "2000", 5);
+  assertEquals(withBudget(typing, "20000", 5).budgetUsd, 5);
+  const none = withBudget(typing, "", 5);
+  assertEquals(withBudget(none, "20000").budgetUsd, undefined);
+});
