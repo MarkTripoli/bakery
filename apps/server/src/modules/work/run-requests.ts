@@ -163,6 +163,8 @@ type RequestRow = {
   next_asked_name: string | null;
   next_role_key: string | null;
   next_planned_name: string | null;
+  next_already_asked: boolean | null;
+  next_ask_claimed: boolean;
 };
 
 const DEFAULT_NEXT_ASK_HOURS = 24;
@@ -187,7 +189,10 @@ const REQUEST_SELECT = `
          next_request.name as next_asked_name,
          step.input #>> '{ifNobodyAnswers,recipientRoleKey}' as next_role_key,
          coalesce(next_person.display_name, next_group.name, next_role.name,
-                  next_run_person.display_name) as next_planned_name
+                  next_run_person.display_name) as next_planned_name,
+         coalesce(next_person.id, next_run_person.id) = any(first_round.ids)
+           as next_already_asked,
+         next_claim.asked_at is not null as next_ask_claimed
     from bakery.person_requests as request
     join bakery.principals as recipient on recipient.id = request.recipient_id
     left join bakery.principals as asker on asker.id = request.asked_by
@@ -206,6 +211,22 @@ const REQUEST_SELECT = `
          and sibling.step_iteration = request.step_iteration
     ) as first_ask on true
     left join lateral (
+      select array_agg(first.recipient_id) as ids
+        from bakery.person_requests as first
+       where step.id is not null
+         and first.organization_id = request.organization_id
+         and first.run_id = request.run_id
+         and first.step_key = request.step_key
+         and first.step_iteration = request.step_iteration
+         and first.created_at = first_ask.first_asked_at
+    ) as first_round on true
+    left join bakery.person_request_next_asks as next_claim
+      on step.id is not null
+     and next_claim.organization_id = request.organization_id
+     and next_claim.run_id = request.run_id
+     and next_claim.step_key = request.step_key
+     and next_claim.step_iteration = request.step_iteration
+    left join lateral (
       select later.created_at,
              coalesce(later.audience_name, later_recipient.display_name) as name
         from bakery.person_requests as later
@@ -221,7 +242,7 @@ const REQUEST_SELECT = `
        limit 1
     ) as next_request on true
     left join lateral (
-      select principal.display_name
+      select principal.id, principal.display_name
         from bakery.principals as principal
         join bakery.organization_memberships as membership
           on membership.principal_id = principal.id
@@ -244,7 +265,7 @@ const REQUEST_SELECT = `
       on next_task.organization_id = next_run.organization_id
      and next_task.id = next_run.task_id
     left join lateral (
-      select principal.display_name
+      select principal.id, principal.display_name
         from bakery.principals as principal
         join bakery.organization_memberships as membership
           on membership.principal_id = principal.id
@@ -319,6 +340,9 @@ function nextAskOf(row: RequestRow) {
   if (new Date(iso(row.created_at)).getTime() > firstAskedAt) {
     return { nextAsk: null, passedOn: true };
   }
+  const reachesNobodyNew = row.next_already_asked === true ||
+    (row.next_ask_claimed && row.next_asked_at === null);
+  if (reachesNobodyNew) return { nextAsk: null, passedOn: false };
   return {
     nextAsk: {
       dueAt: new Date(firstAskedAt + row.next_ask_hours * 3_600_000)

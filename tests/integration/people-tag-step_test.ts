@@ -471,7 +471,7 @@ Deno.test("who is asked next is named only from this organization, as the ask it
   }
 });
 
-Deno.test("a next ask that reaches nobody new is not read as asked", async () => {
+Deno.test("a next ask that reaches nobody new is not shown, before or after it is due", async () => {
   const o = await openWithNextPerson();
   try {
     const again = o.step({
@@ -484,6 +484,17 @@ Deno.test("a next ask that reaches nobody new is not read as asked", async () =>
       [o.fixture.organizationId, o.run.runId, JSON.stringify(again.input)],
     );
     assertEquals(await o.runner.run(again), { kind: "pending" });
+    const before = await api(
+      o.fixture,
+      o.fixture.cookie,
+      "GET",
+      `/v1/runs/${o.run.runId}/requests`,
+    );
+    assertEquals(
+      ((await before.json()) as { requests: { nextAsk: unknown }[] })
+        .requests[0]!.nextAsk,
+      null,
+    );
     await o.askedAgo(25);
     assertEquals(await o.runner.run(again), { kind: "pending" });
     assertEquals((await o.tags()).length, 1);
@@ -496,7 +507,7 @@ Deno.test("a next ask that reaches nobody new is not read as asked", async () =>
     const body = await response.json() as {
       requests: { nextAsk: { askedAt: string | null } | null }[];
     };
-    assertEquals(body.requests[0]!.nextAsk?.askedAt, null);
+    assertEquals(body.requests[0]!.nextAsk, null);
   } finally {
     await o.finishAll();
   }
