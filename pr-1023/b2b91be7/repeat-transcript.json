@@ -1,0 +1,63 @@
+[
+  {
+    "at": "6.3",
+    "event": "import dialog",
+    "text": "Import a workflow × Definition file Choose a file A workflow definition file exported from Bakery (.yaml). Or paste the definition Looks good: 1 step. Name* Importing creates a draft. Nothing runs. Cancel Import as draft"
+  },
+  {
+    "at": "6.3",
+    "event": "POST /v1/workflows",
+    "status": 201
+  },
+  {
+    "at": "6.4",
+    "event": "POST /v1/workflows/:id/versions",
+    "status": 201
+  },
+  {
+    "at": "12.2",
+    "event": "opened",
+    "card": "Repeat At most 3 tries",
+    "most": "3"
+  },
+  {
+    "at": "13.3",
+    "event": "PATCH /v1/workflows/:id/versions/:id",
+    "status": 200
+  },
+  {
+    "at": "14.4",
+    "event": "PATCH /v1/workflows/:id/versions/:id",
+    "status": 200
+  },
+  {
+    "at": "16.4",
+    "event": "changed twice",
+    "card": "Repeat At most 6 tries"
+  },
+  {
+    "at": "18.0",
+    "event": "publish dialog",
+    "text": "Publish version 1 This saves the steps as a new version and makes it the one new tasks get. A version never changes after it is published. Tasks keep the version they started with. Keep editing Publish only Publish and use"
+  },
+  {
+    "at": "18.0",
+    "event": "POST /v1/workflows/:id/versions/:id/publish",
+    "status": 200
+  },
+  {
+    "at": "18.0",
+    "event": "POST /v1/workflows/:id/activations",
+    "status": 200
+  },
+  {
+    "at": "20.0",
+    "event": "published"
+  },
+  {
+    "at": "26.1",
+    "event": "reloaded",
+    "card": "Repeat At most 6 tries",
+    "most": "6"
+  }
+]
