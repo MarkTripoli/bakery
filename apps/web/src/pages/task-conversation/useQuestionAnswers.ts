@@ -12,6 +12,8 @@ export const TASK_READS = new Set([
   "conversationTurns.list",
   "planRevisions.list",
   "approvals.list",
+  "runRequests.mine",
+  "runRequests.runs",
   "questions.list",
   "tasks.get",
   "tasks.list",

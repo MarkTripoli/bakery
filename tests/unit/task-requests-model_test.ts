@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import {
   actionOf,
   orderedRequests,
+  visibleRequests,
 } from "../../apps/web/src/pages/task-requests/model.ts";
 import type { RunRequestResponse } from "../../apps/web/src/api/client.ts";
 
@@ -80,4 +81,18 @@ Deno.test("what needs doing comes first, then news, then closed", () => {
     }),
   ]).map((one) => one.id);
   assertEquals(ids, ["new-open", "old-open", "news", "closed"]);
+});
+
+Deno.test("every open request shows and only the latest closed ones", () => {
+  const open = Array.from(
+    { length: 8 },
+    (_, at) => request({ id: `open-${at}` }),
+  );
+  const closed = Array.from(
+    { length: 7 },
+    (_, at) => request({ id: `closed-${at}`, status: "expired" }),
+  );
+  const shown = visibleRequests([...closed, ...open]);
+  assertEquals(shown.filter((one) => one.status === "open").length, 8);
+  assertEquals(shown.length, 13);
 });

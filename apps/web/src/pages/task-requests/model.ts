@@ -34,6 +34,16 @@ export function orderedRequests(
   );
 }
 
+const CLOSED_SHOWN = 5;
+
+export function visibleRequests(
+  requests: readonly RunRequestResponse[],
+): RunRequestResponse[] {
+  const ordered = orderedRequests(requests);
+  const open = ordered.filter((request) => request.status === "open");
+  return [...open, ...ordered.slice(open.length, open.length + CLOSED_SHOWN)];
+}
+
 export function stepWords(request: RunRequestResponse): string | null {
   return request.stepKey === null ? null : stepName(request.stepKey);
 }

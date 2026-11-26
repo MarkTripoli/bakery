@@ -13,14 +13,12 @@ import {
   artifactsListQueryOptions,
   artifactVersionsQueryOptions,
   myRunRequestsQueryOptions,
-  runsListQueryOptions,
+  taskRunIdsQueryOptions,
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { RouterLink } from "../../app/router-link.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { actionOf, orderedRequests, stepWords } from "./model.ts";
-
-const RUNS_READ = 5;
+import { actionOf, stepWords, visibleRequests } from "./model.ts";
 
 type RequestKey = MessageKey extends infer Key
   ? Key extends `tasks.requests.${infer Suffix}` ? Suffix : never
@@ -42,13 +40,11 @@ export function RequestsForYou(props: Props) {
   const { translate } = useI18n();
   const copy: Copy = (key, values) =>
     translate(`tasks.requests.${key}`, values);
-  const runs = useQuery(
-    runsListQueryOptions(api, scope, props.taskId, { limit: RUNS_READ }),
-  );
+  const runs = useQuery(taskRunIdsQueryOptions(api, scope, props.taskId));
   const runIds = [
     ...new Set([
       ...(props.currentRunId === null ? [] : [props.currentRunId]),
-      ...(runs.data?.items ?? []).map((run) => run.id),
+      ...(runs.data ?? []),
     ]),
   ];
   const reads = useQueries({
@@ -56,11 +52,11 @@ export function RequestsForYou(props: Props) {
       myRunRequestsQueryOptions(api, scope, runId)
     ),
   });
-  const requests = orderedRequests(
+  const requests = visibleRequests(
     reads.flatMap((read) => read.data?.requests ?? []),
   );
-  if (reads.some((read) => read.isError)) {
-    return (
+  const failed = reads.some((read) => read.isError)
+    ? (
       <UI.InlineNotice tone="warning">
         <UI.Stack gap="compact">
           <UI.Text>{copy("loadFailed")}</UI.Text>
@@ -74,9 +70,9 @@ export function RequestsForYou(props: Props) {
           </UI.Inline>
         </UI.Stack>
       </UI.InlineNotice>
-    );
-  }
-  if (requests.length === 0) return null;
+    )
+    : null;
+  if (requests.length === 0) return failed;
   return (
     <UI.Stack
       aria-label={copy("heading")}
@@ -85,6 +81,7 @@ export function RequestsForYou(props: Props) {
       role="region"
     >
       <UI.Heading level="section">{copy("heading")}</UI.Heading>
+      {failed}
       {requests.map((request) => (
         <RequestItem
           {...props}
@@ -134,7 +131,9 @@ function RequestItem(
           {copy("ownerFallback", { name: request.fallbackForName })}
         </UI.Text>
       )}
-      {request.status === "open"
+      {action === "fyi"
+        ? null
+        : request.status === "open"
         ? <UI.Text variant="hint">{copy("expires", { date })}</UI.Text>
         : (
           <UI.Text variant="muted">

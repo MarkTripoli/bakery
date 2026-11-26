@@ -4410,11 +4410,16 @@ const requestFixture = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
+const OLDER_RUN = "00000000-0000-4000-8000-000000000077";
+
 async function openRequests(
   page: Page,
   requests: Record<string, unknown>[],
   overrides: Partial<World> = {},
-  setup: { readonly runListStatus?: number } = {},
+  setup: {
+    readonly runListStatus?: number;
+    readonly olderRun?: Record<string, unknown>;
+  } = {},
 ) {
   const restarts: unknown[] = [];
   const state = world({
@@ -4437,12 +4442,25 @@ async function openRequests(
     (url) => url.pathname === `/v1/tasks/${taskId}/runs`,
     (route) =>
       setup.runListStatus === undefined
-        ? route.fulfill({ json: page_([runFixture("running")]) })
+        ? route.fulfill({
+          json: setup.olderRun === undefined
+            ? page_([runFixture("running")])
+            : new URL(route.request().url()).searchParams.has("cursor")
+            ? page_([{ ...runFixture("completed"), id: OLDER_RUN }])
+            : { items: [runFixture("running")], nextCursor: "older" },
+        })
         : route.fulfill({
           status: setup.runListStatus,
           contentType: "application/problem+json",
           json: problem(setup.runListStatus, "AUTH_FORBIDDEN"),
         }),
+  );
+  await page.route(
+    `**/v1/runs/${OLDER_RUN}/requests/mine`,
+    (route) =>
+      route.fulfill({
+        json: { requests: setup.olderRun ? [setup.olderRun] : [] },
+      }),
   );
   await page.route(
     `**/v1/runs/${runId}/requests/mine`,
@@ -4529,6 +4547,69 @@ test.describe("what someone was asked, on the task page", () => {
     await expect(asked).toContainText("Dana Teammate wants you to see this");
     await expect(page.getByText("What you were asked did not load."))
       .toHaveCount(0);
+  });
+
+  test("answering closes the request without a reload", async ({ page }) => {
+    const request = requestFixture({
+      intent: "answer",
+      questionId: question().id,
+    });
+    const { asked } = await openRequests(page, [request], {
+      questions: [question()],
+    });
+    await asked.getByRole("button", { name: "Go to the question" }).click();
+    const card = page.locator(
+      `[data-ui-component="questionCard"][data-question-id="${question().id}"]`,
+    );
+    await card.getByRole("radio", { name: "Bakery only" }).check();
+    request.status = "answered";
+    await card.getByRole("button", { name: "Send answer" }).click();
+    await hidePlan(page);
+    await expect(asked).toContainText("You answered this.");
+    await expect(asked.getByRole("button", { name: "Go to the question" }))
+      .toHaveCount(0);
+  });
+
+  test("approving closes the request without a reload", async ({ page }) => {
+    const request = requestFixture({
+      intent: "approve",
+      questionId: approval(1).id,
+    });
+    const { asked } = await openRequests(page, [request], {
+      approvals: [
+        approval(1, {
+          subjectType: "run_step",
+          subjectId: runId,
+          runId,
+          scope: { stage: "step" },
+        }),
+      ],
+    });
+    await asked.getByRole("button", { name: "Review and decide" }).click();
+    const pane = page.locator('[data-ui-region="step-approval"]');
+    await expect(pane).toBeVisible();
+    request.status = "answered";
+    await page.getByRole("button", { name: "Approve", exact: true }).click();
+    await expect(asked).toContainText("You answered this.");
+  });
+
+  test("a request on an older run is still shown", async ({ page }) => {
+    const { asked } = await openRequests(page, [requestFixture()], {}, {
+      olderRun: requestFixture({
+        id: "00000000-0000-4000-8000-000000000709",
+        runId: OLDER_RUN,
+        intent: "review",
+        artifactVersionId: patchArtifact.currentVersionId,
+        note: "From last week.",
+      }),
+    });
+    await expect(asked).toContainText("From last week.");
+  });
+
+  test("information only asks nothing, so it names no deadline", async ({ page }) => {
+    const { asked } = await openRequests(page, [requestFixture()]);
+    await expect(asked).toContainText("Nothing to do.");
+    await expect(asked).not.toContainText("Silence is never approval.");
   });
 
   test("an FYI and the closed states say where things stand", async ({ page }) => {

@@ -65,6 +65,9 @@ export function useStepApproval(taskId: string, runId: string | null) {
     refresh: async () => {
       await approvals.refetch();
       await steps.refetch();
+      await cache.invalidateQueries({
+        predicate: ({ queryKey }) => queryKey[3] === "runRequests.mine",
+      });
       if (runId !== null) {
         await cache.invalidateQueries({
           queryKey: runQueryOptions(api, scope, runId).queryKey,
