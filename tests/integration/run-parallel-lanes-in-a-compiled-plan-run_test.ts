@@ -42,6 +42,7 @@ const check = (id: string, extra: Step = {}): Step => ({
   uses: "quality.check",
   with: { repositoryId: "$input.repo", revision: "abc" },
   checks: ["fmt"],
+  files: { read: ["inputs"], write: ["outputs"] },
   ...extra,
 });
 
