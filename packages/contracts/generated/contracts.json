@@ -282524,7 +282524,7 @@
                 {
                   "type": "string",
                   "maxLength": 65536,
-                  "description": "When status is unreachable, why in one code (SOURCE_TIMEOUT, SOURCE_UNAVAILABLE, SOURCE_ORIGIN_REJECTED, SOURCE_INVALID, SOURCE_LIMIT_EXCEEDED or SOURCE_REVISION_MISMATCH); null otherwise."
+                  "description": "When status is unreachable, why in one code (SOURCE_TIMEOUT, SOURCE_UNAVAILABLE, SOURCE_ORIGIN_REJECTED, SOURCE_INVALID, SOURCE_LIMIT_EXCEEDED, SOURCE_REVISION_MISMATCH or SOURCE_REVISION_NOT_FOUND); null otherwise."
                 },
                 {
                   "type": "null",
@@ -526522,7 +526522,7 @@
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "When status is unreachable, why in one code (SOURCE_TIMEOUT, SOURCE_UNAVAILABLE, SOURCE_ORIGIN_REJECTED, SOURCE_INVALID, SOURCE_LIMIT_EXCEEDED or SOURCE_REVISION_MISMATCH); null otherwise."
+              "description": "When status is unreachable, why in one code (SOURCE_TIMEOUT, SOURCE_UNAVAILABLE, SOURCE_ORIGIN_REJECTED, SOURCE_INVALID, SOURCE_LIMIT_EXCEEDED, SOURCE_REVISION_MISMATCH or SOURCE_REVISION_NOT_FOUND); null otherwise."
             },
             {
               "type": "null",
