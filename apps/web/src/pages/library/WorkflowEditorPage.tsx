@@ -323,7 +323,7 @@ export function WorkflowEditorPage(
       organizationId: scope.organizationId as string,
       workflowId,
       input: {
-        definition: draft.normalizedSpec as never,
+        definition: draft.normalizedSpec,
         ...(confirmed.current.size === 0 ? {} : {
           confirmPersonalSkillUse: [...confirmed.current].slice(0, 32),
         }),
@@ -391,7 +391,7 @@ export function WorkflowEditorPage(
             return savedStarts.current.length === 0 &&
                 editor.starts.length === 0
               ? {}
-              : { starts: editor.starts as never };
+              : { starts: editor.starts };
           })(),
           // Slots the person settled, so the server drops their placeholders with this save.
           ...(() => {
@@ -793,19 +793,19 @@ export function WorkflowEditorPage(
       startProblems(editor.starts, needs).map((problem) => ({
         ...problem,
         sentence: translate(
-          `library.editor.start.problem.row.${problem.kind}` as never,
-          { number: problem.number, name: problem.name } as never,
+          `library.editor.start.problem.row.${problem.kind}`,
+          { number: problem.number, name: problem.name },
         ),
       })),
     [editor.starts, needs, translate],
   );
   const automatic = automaticStarts(editor.starts);
   const startCard = editor.starts.length === 0 ? undefined : {
-    title: translate("library.editor.start.title" as never),
-    line: translate("library.editor.start.card" as never, {
+    title: translate("library.editor.start.title"),
+    line: translate("library.editor.start.card", {
       events: automatic.events,
       schedules: automatic.schedules,
-    } as never),
+    }),
   };
   const problemsByStep = useMemo<ReadonlyMap<string, string>>(() => {
     const merged = new Map(checker.byStep);
@@ -832,7 +832,7 @@ export function WorkflowEditorPage(
   const rows = useMemo<readonly ProblemRow[]>(() => {
     const out: ProblemRow[] = startIssues.map((issue) => ({
       key: `start-${issue.startId}-${issue.name}`,
-      name: translate("library.editor.howItStarts" as never),
+      name: translate("library.editor.howItStarts"),
       sentence: issue.sentence,
       stepId: START_ID,
       field: "start" as const,
@@ -1025,9 +1025,9 @@ export function WorkflowEditorPage(
               });
               if (removed >= 0) {
                 setDeleted(
-                  translate("library.editor.start.heading" as never, {
+                  translate("library.editor.start.heading", {
                     number: removed + 1,
-                  } as never),
+                  }),
                 );
               }
             }
@@ -1807,9 +1807,9 @@ export function WorkflowEditorPage(
                   </UI.Text>
                   {blocked || automatic.events === 0 ? null : (
                     <UI.Text>
-                      {translate("library.editor.start.publishNote" as never, {
+                      {translate("library.editor.start.publishNote", {
                         count: automatic.events,
-                      } as never)}
+                      })}
                     </UI.Text>
                   )}
                   {publish.isError

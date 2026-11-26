@@ -5,6 +5,7 @@ import {
   WORKFLOW_START_MAX,
   type WorkflowStart,
 } from "@bakery/contracts/workflow-starts";
+import type { MessageKey } from "@bakery/i18n";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import {
   briefInput,
@@ -38,19 +39,29 @@ export type StartPanelProps = {
   readonly focus: number | null;
 };
 
+type StartKey = MessageKey extends infer Key
+  ? Key extends `library.editor.start.${infer Suffix}` ? Suffix : never
+  : never;
+
 function useStartCopy() {
   const { translate } = useI18n();
-  return (key: string, values?: Record<string, string | number>) =>
-    translate(`library.editor.start.${key}` as never, values as never);
+  return (key: StartKey, values?: Record<string, string | number>) =>
+    translate(`library.editor.start.${key}`, values);
 }
 
 type Copy = ReturnType<typeof useStartCopy>;
 
+type EventKind =
+  | (typeof WORKFLOW_START_EVENT_KINDS)[number]
+  | "work_item.ready";
+
+function isEventKind(kind: string): kind is EventKind {
+  return (WORKFLOW_START_EVENT_KINDS as readonly string[]).includes(kind) ||
+    kind === "work_item.ready";
+}
+
 function eventName(kind: string, copy: Copy): string {
-  const known = (WORKFLOW_START_EVENT_KINDS as readonly string[]).includes(
-    kind,
-  ) || kind === "work_item.ready";
-  return known ? copy(`event.${kind}`) : kind;
+  return isEventKind(kind) ? copy(`event.${kind}`) : kind;
 }
 
 export function StartPanelBody(props: StartPanelProps) {
@@ -72,7 +83,7 @@ export function StartPanelBody(props: StartPanelProps) {
   return (
     <UI.Stack gap="standard" data-testid="start-fields">
       <UI.Text>
-        {translate("library.editor.startsByHand" as never)}
+        {translate("library.editor.startsByHand")}
       </UI.Text>
       {starts.map((start, index) => (
         <UI.Stack gap="compact" key={start.id} data-testid="start-row">

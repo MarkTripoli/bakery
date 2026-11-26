@@ -155,7 +155,7 @@ export function StepPanel(
         variant="column"
         header={
           <UI.Text variant="strong">
-            {translate("library.editor.start.title" as never)}
+            {translate("library.editor.start.title")}
           </UI.Text>
         }
       >

@@ -397,11 +397,11 @@ export function WorkflowDiagram(
       <UI.StepCard
         icon={<UI.IconGlyph name="lightning" size="small" />}
         title={start?.title ??
-          translate("library.editor.howItStarts" as never)}
+          translate("library.editor.howItStarts")}
         summary={start?.line ??
-          translate("library.editor.howItStartsLine" as never)}
+          translate("library.editor.howItStartsLine")}
         needsSetup={problems.get("start") !== undefined}
-        needsSetupLabel={translate("library.editor.card.needsSetup" as never)}
+        needsSetupLabel={translate("library.editor.card.needsSetup")}
         selected={selectedId === "start"}
         controls="editor-step-panel"
         onClick={() => onSelect("start")}
@@ -692,11 +692,11 @@ export function WorkflowDiagram(
         onSelect={() => onSelect("start")}
         selected={selectedId === "start"}
         needsSetup={problems.get("start") !== undefined}
-        needsSetupLabel={translate("library.editor.card.needsSetup" as never)}
+        needsSetupLabel={translate("library.editor.card.needsSetup")}
         summary={start?.line ??
-          translate("library.editor.howItStartsLine" as never)}
+          translate("library.editor.howItStartsLine")}
         title={start?.title ??
-          translate("library.editor.howItStarts" as never)}
+          translate("library.editor.howItStarts")}
       />
       {tree.unreadable ? null : outlineRows(drawn.nodes, false)}
     </UI.OutlineList>
