@@ -7509,5 +7509,9 @@
   "library.editor.publish.starts": "⟦Àûŧôɱàŧïç šŧàŕŧš çĥàñĝëð. ŧëšŧ ç⟧",
   "library.editor.publish.noProblems": "⟦Ñô þŕôƀļëɱš ƒôûñð. ŧëšŧ⟧",
   "library.editor.publish.stale": "⟦Ŧĥïš ðŕàƒŧ çĥàñĝëð šïñçë ÿôû ôþëñëð ïŧ. Ɓàķëŕÿ ĥàš ŕëàð ïŧ àĝàïñ: çĥëçķ ŧĥë çĥàñĝëš, ŧĥëñ þûƀļïšĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
-  "library.editor.publish.notUsed": "⟦Ṽëŕšïôñ {version} ŵàš þûƀļïšĥëð ƀûŧ ïš ñôŧ ïñ ûšë ÿëŧ. Çĥôôšë Ûšë ŧĥïš ṽëŕšïôñ ôñ ŧĥë ŵôŕķƒļôŵ þàĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧"
+  "library.editor.publish.limitTries": "⟦{name}: àŧ ɱôšŧ {max, plural, one {# try} other {# tries}}, ŵàš {was} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "library.editor.publish.limitItems": "⟦{name}: àŧ ɱôšŧ {max, plural, one {# item} other {# items}}, ŵàš {was} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "library.editor.publish.grouped": "⟦Ĥôŵ šŧëþš àŕë ĝŕôûþëð ôŕ ŵĥëñ ŧĥëÿ ŕûñ çĥàñĝëð. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "library.editor.publish.other": "⟦Šôɱëŧĥïñĝ ëļšë ïñ ŧĥë ðëƒïñïŧïôñ çĥàñĝëð. Ṽïëŵ àš çôðë ŧô šëë ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "library.editor.publish.notUsed": "⟦Ṽëŕšïôñ {version} ŵàš þûƀļïšĥëð ƀûŧ ïš ñôŧ ïñ ûšë ÿëŧ. Çĥôôšë Ûšë ŧĥïš ṽëŕšïôñ ŧô ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
 }

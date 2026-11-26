@@ -209,6 +209,13 @@ export type BlockKind =
   | "wait"
   | "sequence";
 
+export function planGateOf(
+  raw: unknown,
+): Record<string, unknown> | undefined {
+  const node = withKind(record(raw));
+  return text(node.kind) === "branch" ? planGateApproval(node) : undefined;
+}
+
 export function blockKindOf(raw: unknown): BlockKind | null {
   const node = withKind(record(raw));
   const kind = text(node.kind);

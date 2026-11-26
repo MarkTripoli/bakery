@@ -38,7 +38,18 @@ export function PublishSummary(
           </UI.Text>
         )
       )}
+      {changes.limits.map((limit, index) => (
+        <UI.Text key={index}>
+          {copy(limit.unit === "tries" ? "limitTries" : "limitItems", {
+            name: limit.name,
+            max: limit.max,
+            was: limit.was,
+          })}
+        </UI.Text>
+      ))}
       {changes.reordered ? <UI.Text>{copy("reordered")}</UI.Text> : null}
+      {changes.grouped ? <UI.Text>{copy("grouped")}</UI.Text> : null}
+      {changes.other ? <UI.Text>{copy("other")}</UI.Text> : null}
       {changes.settings ? <UI.Text>{copy("settings")}</UI.Text> : null}
       {startsChanged ? <UI.Text>{copy("starts")}</UI.Text> : null}
       {blocked || problemCount > 0

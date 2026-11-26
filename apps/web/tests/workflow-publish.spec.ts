@@ -31,6 +31,7 @@ type Setup = {
   readonly draftSteps: readonly unknown[];
   readonly publishStatus?: number;
   readonly activateStatus?: number;
+  readonly inUseSteps?: readonly unknown[];
 };
 
 async function editor(page: Page, setup: Setup) {
@@ -62,7 +63,16 @@ async function editor(page: Page, setup: Setup) {
     (url) => url.pathname === `/v1/workflows/${WORKFLOW.id}/versions`,
     (route) =>
       route.fulfill(json({
-        items: [draft(), version(uuid(1001), 1, "published", IN_USE, 1)],
+        items: [
+          draft(),
+          version(
+            uuid(1001),
+            1,
+            "published",
+            setup.inUseSteps ?? IN_USE,
+            1,
+          ),
+        ],
         nextCursor: null,
       })),
   );
@@ -98,7 +108,8 @@ test.describe("workflow editor: what publishing changes", () => {
     await editor(page, { draftSteps: [IN_USE[0], repeat(5)] });
     const dialog = await openPublish(page);
     await expect(dialog).toContainText("Changes since version 1");
-    await expect(dialog).toContainText("Changed: Repeat");
+    await expect(dialog).toContainText("Repeat: at most 5 tries, was 3");
+    await expect(dialog).not.toContainText("Changed:");
     await expect(dialog).toContainText("No problems found.");
     await expect(dialog.getByRole("button", { name: "Publish and use" }))
       .toBeVisible();
@@ -132,7 +143,7 @@ test.describe("workflow editor: what publishing changes", () => {
       "This draft changed since you opened it.",
     );
     await expect(dialog).toContainText("New: Review");
-    await expect(dialog).not.toContainText("Changed: Repeat");
+    await expect(dialog).not.toContainText("at most 5 tries");
     await still(page, "publish-stale");
   });
 
@@ -148,5 +159,32 @@ test.describe("workflow editor: what publishing changes", () => {
     await expect(dialog.getByRole("button", { name: "Use this version" }))
       .toBeVisible();
     await still(page, "publish-not-used");
+  });
+  test("a group removed around a step can still be published", async ({ page }) => {
+    await editor(page, {
+      inUseSteps: [{ id: "g", steps: [IN_USE[0]] }, repeat(3)],
+      draftSteps: IN_USE,
+    });
+    const dialog = await openPublish(page);
+    await expect(dialog).toContainText(
+      "How steps are grouped or when they run changed.",
+    );
+    await expect(dialog.getByRole("button", { name: "Publish and use" }))
+      .toBeVisible();
+    await still(page, "publish-grouped");
+  });
+
+  test("a change to the first of two steps sharing an id is named", async ({ page }) => {
+    const held = (group: string, name: string) => ({
+      id: group,
+      steps: [{ id: "brief", uses: "task.brief", name }],
+    });
+    await editor(page, {
+      inUseSteps: [held("a", "Old brief"), held("b", "Second brief")],
+      draftSteps: [held("a", "New brief"), held("b", "Second brief")],
+    });
+    const dialog = await openPublish(page);
+    await expect(dialog).toContainText("Changed: New brief");
+    await expect(dialog).not.toContainText("Second brief");
   });
 });

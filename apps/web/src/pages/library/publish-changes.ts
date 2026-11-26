@@ -1,13 +1,24 @@
 import type { MessageKey } from "@bakery/i18n";
 import { ACTION_TITLES } from "./workflow-state.ts";
-import { type BlockKind, blockKindOf } from "./workflow-tree.ts";
+import { type BlockKind, blockKindOf, planGateOf } from "./workflow-tree.ts";
+
+export type LimitChange = {
+  readonly name: string;
+  readonly unit: "tries" | "items";
+  readonly max: number;
+  readonly was: number;
+};
 
 export type PublishChanges = {
   readonly added: readonly string[];
   readonly changed: readonly string[];
   readonly removed: readonly string[];
+  readonly limits: readonly LimitChange[];
   readonly reordered: boolean;
+  readonly grouped: boolean;
   readonly settings: boolean;
+  readonly other: boolean;
+  readonly differs: boolean;
 };
 
 type Held = Record<string, unknown>;
@@ -34,57 +45,148 @@ const NODE_MARKS = [
   "branch",
   "wait",
   "call",
+  "when",
+  "then",
 ];
+
+const STOP = "workflow.stop";
 
 function isObject(value: unknown): value is Held {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isNode(value: Held): value is Held & { id: string } {
-  return typeof value.id === "string" &&
+function isNode(value: unknown): value is Held & { id: string } {
+  return isObject(value) && typeof value.id === "string" &&
     NODE_MARKS.some((mark) => value[mark] !== undefined);
 }
 
-type Walked = {
-  readonly own: Map<string, string>;
-  readonly node: Map<string, Held>;
-  readonly lists: Map<string, readonly string[]>;
-};
-
-function walk(value: unknown, at: string, found: Walked): unknown {
-  if (Array.isArray(value)) {
-    const ids = value.flatMap((item) =>
-      isObject(item) && isNode(item) ? [item.id] : []
-    );
-    if (ids.length > 0) found.lists.set(at, ids);
-    return value.map((item, index) => walk(item, `${at}/${index}`, found));
-  }
-  if (!isObject(value)) return value;
-  const key = isNode(value) ? value.id : at;
-  if (isNode(value)) {
-    found.own.set(value.id, "");
-    found.node.set(value.id, value);
-  }
-  const own = Object.fromEntries(
-    Object.keys(value).sort().map((name) => [
-      name,
-      walk(value[name], `${key}/${name}`, found),
-    ]),
-  );
-  if (!isNode(value)) return own;
-  found.own.set(value.id, JSON.stringify(own));
-  return { ref: value.id };
+function canonical(value: unknown): string {
+  const ordered = (held: unknown): unknown =>
+    Array.isArray(held)
+      ? held.map(ordered)
+      : isObject(held)
+      ? Object.fromEntries(
+        Object.keys(held).sort().map((key) => [key, ordered(held[key])]),
+      )
+      : held;
+  return JSON.stringify(ordered(value)) ?? "";
 }
 
-function read(definition: unknown) {
-  const found: Walked = {
-    own: new Map(),
-    node: new Map(),
-    lists: new Map(),
+function isWrapper(node: Held): boolean {
+  return node.uses === undefined && planGateOf(node) === undefined &&
+    blockKindOf(node) === "sequence";
+}
+
+type Card = {
+  readonly path: string;
+  readonly drawnPath: string;
+  readonly parent: string;
+  readonly node: Held;
+  own: unknown;
+  readonly end: boolean;
+};
+
+type Read = {
+  readonly cards: Card[];
+  readonly wrappers: string[];
+  readonly rest: string;
+  readonly whole: string;
+};
+
+function read(definition: unknown): Read {
+  const spec = isObject(definition) ? definition : {};
+  const { steps, ...rest } = spec;
+  const top = Array.isArray(steps) ? steps : [];
+  const cards: Card[] = [];
+  const wrappers: string[] = [];
+  const seen = new Map<string, number>();
+  const unique = (path: string) => {
+    const count = seen.get(path) ?? 0;
+    seen.set(path, count + 1);
+    return count === 0 ? path : `${path}#${count}`;
   };
-  const { steps, ...rest } = isObject(definition) ? definition : {};
-  walk(steps ?? [], "steps", found);
-  return { ...found, rest: JSON.stringify(walk(rest, "", found)) };
+  const walk = (value: unknown, path: string, drawn: string): unknown => {
+    if (Array.isArray(value)) {
+      return value.map((item) => walk(item, path, drawn));
+    }
+    if (!isObject(value)) return value;
+    if (!isNode(value)) {
+      return Object.fromEntries(
+        Object.entries(value).map((
+          [key, held],
+        ) => [key, walk(held, path, drawn)]),
+      );
+    }
+    const full = unique(`${path}/${value.id}`);
+    const inside = (parent: string) =>
+      Object.fromEntries(
+        Object.entries(value).map((
+          [key, held],
+        ) => [key, key === "id" ? held : walk(held, full, parent)]),
+      );
+    if (isWrapper(value)) {
+      const { steps: held, ...own } = value;
+      wrappers.push(canonical([full, own]));
+      walk(held, full, drawn);
+      return { ref: value.id };
+    }
+    const card: Card = {
+      path: full,
+      drawnPath: `${drawn}/${value.id}`,
+      parent: drawn,
+      node: value,
+      own: undefined,
+      end: value.uses === STOP && value === top.at(-1),
+    };
+    cards.push(card);
+    card.own = planGateOf(value) === undefined ? inside(card.drawnPath) : value;
+    return { ref: value.id };
+  };
+  walk(top, "", "");
+  return {
+    cards,
+    wrappers,
+    rest: canonical(rest),
+    whole: canonical(spec),
+  };
+}
+
+function pair(before: readonly Card[], after: readonly Card[]) {
+  const matched = new Map<Card, Card>();
+  const free = new Set(before);
+  for (const key of ["path", "drawnPath"] as const) {
+    for (const card of after) {
+      if (matched.has(card)) continue;
+      const earlier = [...free].find((one) => one[key] === card[key]);
+      if (earlier === undefined) continue;
+      matched.set(card, earlier);
+      free.delete(earlier);
+    }
+  }
+  return { matched, removed: [...free] };
+}
+
+function limitOf(card: Card): number | null {
+  for (const block of ["repeat", "forEach"] as const) {
+    const held = card.node[block];
+    if (isObject(held) && typeof held.max === "number") return held.max;
+  }
+  return typeof card.node.max === "number" ? card.node.max : null;
+}
+
+function withoutLimit(card: Card): string {
+  const strip = (held: unknown): unknown =>
+    isObject(held)
+      ? Object.fromEntries(
+        Object.entries(held).filter(([key]) => key !== "max"),
+      )
+      : held;
+  const own = card.own as Held;
+  return canonical(strip({
+    ...own,
+    ...(own.repeat === undefined ? {} : { repeat: strip(own.repeat) }),
+    ...(own.forEach === undefined ? {} : { forEach: strip(own.forEach) }),
+  }));
 }
 
 export function publishChanges(
@@ -98,47 +200,63 @@ export function publishChanges(
     const key = ACTION_TITLES[uses];
     return key === undefined ? uses : translate(key);
   };
-  const name = (node: Held | undefined): string => {
-    if (node === undefined) return "";
+  const name = (card: Card): string => {
+    const node = planGateOf(card.node) ?? card.node;
     if (typeof node.name === "string" && node.name !== "") return node.name;
+    if (card.end) return translate("library.editor.pathEnd");
     if (typeof node.uses === "string") return actionName(node.uses);
-    const block = blockKindOf(node);
-    if (block === "approval") return actionName("human.approval");
-    return block === null || block === "sequence"
-      ? String(node.id)
+    const block = blockKindOf(card.node);
+    return block === null || block === "sequence" || block === "approval"
+      ? String(card.node.id)
       : translate(BLOCK_WORDS[block]);
   };
-  const drawn = (node: Held | undefined) =>
-    node !== undefined &&
-    (node.uses !== undefined || blockKindOf(node) !== "sequence");
-  const named = (ids: Iterable<string>, from: Map<string, Held>) =>
-    [...ids].filter((id) => drawn(from.get(id))).map((id) =>
-      name(from.get(id))
-    );
-  const ids = [...next.own.keys()];
-  const reordered = [...next.lists].some(([at, list]) => {
-    const kept = list.filter((id) => held.own.has(id));
-    const earlier = (held.lists.get(at) ?? []).filter((id) => next.own.has(id));
-    return kept.length > 1 && earlier.join() !== kept.join();
-  });
-  const edited = ids.filter((id) =>
-    held.own.has(id) && held.own.get(id) !== next.own.get(id)
+  const { matched, removed } = pair(held.cards, next.cards);
+  const changed: string[] = [];
+  const limits: LimitChange[] = [];
+  for (const [card, earlier] of matched) {
+    if (canonical(card.own) === canonical(earlier.own)) continue;
+    const max = limitOf(card);
+    const was = limitOf(earlier);
+    if (max !== null && was !== null && max !== was) {
+      limits.push({
+        name: name(card),
+        unit: blockKindOf(card.node) === "each" ? "items" : "tries",
+        max,
+        was,
+      });
+      if (withoutLimit(card) === withoutLimit(earlier)) continue;
+    }
+    changed.push(name(card));
+  }
+  const kept = next.cards.filter((card) => matched.has(card));
+  const reordered = kept.some((card, index) =>
+    kept.slice(index + 1).some((later) =>
+      later.parent === card.parent &&
+      held.cards.indexOf(matched.get(later)!) <
+        held.cards.indexOf(matched.get(card)!)
+    )
   );
-  const wrapperEdited = edited.some((id) => !drawn(next.node.get(id)));
+  const added = next.cards.filter((card) => !matched.has(card)).map(name);
+  const grouped = [...held.wrappers].sort().join() !==
+    [...next.wrappers].sort().join();
+  const first = before === null || before === undefined;
+  const settings = !first && held.rest !== next.rest;
+  const differs = first || held.whole !== next.whole;
+  const listed = added.length + changed.length + removed.length +
+          limits.length > 0 || reordered || grouped || settings;
   return {
-    added: named(ids.filter((id) => !held.own.has(id)), next.node),
-    changed: named(edited, next.node),
-    removed: named(
-      [...held.own.keys()].filter((id) => !next.own.has(id)),
-      held.node,
-    ),
+    added,
+    changed,
+    removed: removed.map(name),
+    limits,
     reordered,
-    settings: before !== null && before !== undefined &&
-      (held.rest !== next.rest || wrapperEdited),
+    grouped: !first && grouped,
+    settings,
+    other: differs && !first && !listed,
+    differs,
   };
 }
 
 export function anyChange(changes: PublishChanges): boolean {
-  return changes.added.length > 0 || changes.changed.length > 0 ||
-    changes.removed.length > 0 || changes.reordered || changes.settings;
+  return changes.differs;
 }
