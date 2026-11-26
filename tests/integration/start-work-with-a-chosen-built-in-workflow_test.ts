@@ -276,3 +276,46 @@ Deno.test("issue 407: admission starts the source's workflow once, and that work
     assertEquals(again.kind, "existing");
     assertEquals(await runsOfOrganization(fx), before + 1, "exactly one run");
   }, { budget: true }));
+
+Deno.test("issue 407: a request pinned before policy v2 keeps its old pin and starts one run of that built-in", () =>
+  withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource();
+    fx.reader.setIssue({ number: 618, labels: [EXECUTE_LABEL] });
+    const planned = await fx.admit(sourceId, { number: 618, intent: "plan" });
+    const request = planned.request;
+    assert(request, JSON.stringify(planned.report.checks));
+    assertEquals(request.workflowRunId, null);
+    const legacy = {
+      id: "fixed-coding" as const,
+      revision: FIXED_CODING_PRESET.revision,
+      digest: FIXED_CODING_PRESET.digest,
+    };
+    await fx.owner.query(
+      `update bakery.ticket_requests set pinned_preset = $3::jsonb
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, request.id, JSON.stringify(legacy)],
+    );
+    const before = await runsOfOrganization(fx);
+
+    const started = await fx.admit(sourceId, { number: 618, intent: "start" });
+    assertEquals(started.kind, "upgraded", JSON.stringify(started.report));
+    assertEquals(started.request?.pinnedPreset, legacy);
+    assertEquals(
+      pinnedWorkflowId(started.report.preset),
+      fx.builtInWorkflow("fixed-coding").workflowId,
+      "readiness judges the built-in the old pin names",
+    );
+    assertEquals(await runsOfOrganization(fx), before + 1, "exactly one run");
+    const runId = started.request?.workflowRunId;
+    assert(runId, "the upgraded request started a run");
+    assertEquals(await runPreset(fx, runId), "preset:fixed-coding");
+    const stored = await fx.owner.query<{ pinned_preset: unknown }>(
+      `select pinned_preset from bakery.ticket_requests where id = $1`,
+      [request.id],
+    );
+    assertEquals(
+      stored.rows[0]?.pinned_preset,
+      legacy,
+      "the pin is not rewritten",
+    );
+  }, { budget: true }));
