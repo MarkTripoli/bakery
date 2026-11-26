@@ -181,6 +181,9 @@ export type Options = {
   workflows?: Readonly<
     Record<string, "fixed-coding" | "fixed-coding-reviewed">
   >;
+  writtenWorkflows?: Readonly<
+    Record<string, { id: string; name: string; description: string }>
+  >;
   presetAvailability?: Readonly<
     Partial<
       Record<
@@ -247,6 +250,35 @@ const json = (body: unknown, status = 200) => ({
 
 /** Stubs the session, access, repositories, issues and the eight batches actions; returns what it saw. */
 export async function batchesFixture(page: Page, options: Options = {}) {
+  for (const written of Object.values(options.writtenWorkflows ?? {})) {
+    await page.route(
+      (url) => url.pathname === `/v1/workflows/${written.id}`,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ...written,
+            slug: "written",
+            activeVersionId: uuid(960),
+            needsInputs: false,
+            enabled: true,
+            createdAt: STAMP,
+            updatedAt: STAMP,
+            version: 1,
+            origin: {
+              kind: "authored",
+              catalogKey: null,
+              catalogVersion: null,
+              sourceWorkflowId: null,
+              sourceVersionId: null,
+              sourceDigest: null,
+            },
+            visibility: "listed",
+          }),
+        }),
+    );
+  }
   await projectsFixture(page, {
     applications: [APP],
     repositories: [WEB, STOREFRONT],
@@ -309,9 +341,18 @@ export async function batchesFixture(page: Page, options: Options = {}) {
     repositoryId,
     externalContainerId: name,
     enabled: true,
-    policy: options.workflows?.[repositoryId] === undefined
+    policy: options.writtenWorkflows?.[repositoryId] !== undefined
+      ? {
+        workflow: { workflowId: options.writtenWorkflows[repositoryId].id },
+      }
+      : options.workflows?.[repositoryId] === undefined
       ? {}
-      : { preset: options.workflows[repositoryId] },
+      : {
+        workflow: {
+          workflowId: uuid(950 + n),
+          builtIn: options.workflows[repositoryId],
+        },
+      },
     policyRevision: 1,
     syncHealth: "healthy",
     lastSyncedAt: STAMP,

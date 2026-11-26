@@ -443,6 +443,33 @@ for (
       ]);
     });
 
+    test("a repository set to a workflow the organization wrote has it chosen by name, and the batch sends no built-in", async ({ page }) => {
+      const { seen } = await batchesFixture(page, {
+        writtenWorkflows: {
+          [STOREFRONT.id]: {
+            id: uuid(970),
+            name: "Triage and fix",
+            description: "Reads the issue, fixes it and opens a pull request.",
+          },
+        },
+      });
+      await page.goto(`/issues/batches/new?repository=${STOREFRONT.id}`);
+      const field = page.getByLabel("Workflow for every issue in this batch");
+      await expect(field).toHaveValue("source");
+      await expect(field.getByRole("option", { name: "Triage and fix" }))
+        .toHaveCount(1);
+      await expect(page.getByTestId("batch-plan")).toContainText(
+        "Each issue runs Triage and fix.",
+      );
+      await still(page, "batch-new-written-workflow");
+      await page.getByLabel("Spend").fill("40");
+      await page.getByRole("radio", { name: "Carry on by itself" }).check();
+      await page.getByRole("button", { name: "Start batch" }).click();
+      await expect(page).toHaveURL(/\/issues\/batches\/[0-9a-f-]{36}$/);
+      expect(seen.created).toHaveLength(1);
+      expect("presetId" in seen.created[0]!).toBe(false);
+    });
+
     test("Start batch with nothing chosen asks for a workflow under its field, focuses it and sends nothing", async ({ page }) => {
       const { seen } = await batchesFixture(page);
       await page.goto(`/issues/batches/new?repository=${WEB.id}`);
