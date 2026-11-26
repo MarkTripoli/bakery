@@ -33,6 +33,7 @@ import {
   storeSkillVersionPublication,
 } from "./publication.ts";
 import {
+  assertSkillInventory,
   type SkillSourceAdapter,
   type SkillSourceProof,
   validatePinnedSkillSource,
@@ -408,6 +409,7 @@ export async function executeSkillImport(
 
   let proof = await fetchProof(execution);
   assertProof(execution, proof);
+  await assertSkillInventory(proof);
   execution = await withPgTransaction(
     options.database,
     (transaction) =>

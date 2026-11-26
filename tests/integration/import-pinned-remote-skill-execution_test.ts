@@ -1,6 +1,9 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertRejects } from "@std/assert";
 import { createSuperuser } from "../../apps/server/src/modules/auth/index.ts";
 import { executeSkillImport } from "../../apps/server/src/modules/catalog/import-workflow.ts";
+import {
+  SkillSourceAdapterError,
+} from "../../apps/server/src/modules/catalog/source-adapters.ts";
 import type {
   SkillSourceAdapter,
   SkillSourceFetchRequest,
@@ -325,6 +328,59 @@ Deno.test("a SKILL.md folder with scripts and no manifest.json imports through P
     ]);
   } finally {
     await close();
+  }
+});
+
+Deno.test("a missing or skill-less folder fails before any skill is made", async () => {
+  const encoder = new TextEncoder();
+  const inventories = [
+    [],
+    [{
+      path: "README.md",
+      content: encoder.encode("# Not a skill\n"),
+      isExecutable: false,
+    }],
+    [{
+      path: "SKILL.md",
+      content: encoder.encode("# No front matter\n"),
+      isExecutable: false,
+    }],
+  ];
+  for (const files of inventories) {
+    const { store, fixture, organizationId, run, etag, locator, close } =
+      await openImport();
+    try {
+      const { sourceAdapter } = adapterFor(Object.freeze({
+        sourceType: "url",
+        normalizedLocator: locator,
+        requestedRevision: etag,
+        sourceRevision: etag,
+        sourceProofDigest: "d".repeat(64),
+        normalizedPath: "",
+        inventory: Object.freeze({
+          manifest: Object.freeze({}),
+          manifestBytes: new Uint8Array(),
+          files: Object.freeze(files),
+        }),
+      }));
+      const error = await assertRejects(
+        () =>
+          executeSkillImport(run.id, {
+            database: fixture.runtimePgDatabase,
+            sourceAdapter,
+            skillFileStore: store,
+          }),
+        SkillSourceAdapterError,
+      );
+      assertEquals(error.code, "SOURCE_INVALID");
+      const skills = await fixture.pgDatabase.query(
+        "select 1 from bakery.skills where organization_id = $1 and source_id is not null",
+        [organizationId],
+      );
+      assertEquals(skills.rows.length, 0);
+    } finally {
+      await close();
+    }
   }
 });
 

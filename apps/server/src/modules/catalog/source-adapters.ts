@@ -979,6 +979,14 @@ function encodeBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+const UNCHECKED_LICENSE = "unchecked";
+
+export async function assertSkillInventory(
+  proof: SkillSourceProof,
+): Promise<void> {
+  await sourceManifest(proof, UNCHECKED_LICENSE);
+}
+
 async function sourceManifest(
   proof: SkillSourceProof,
   registeredLicense: string,
