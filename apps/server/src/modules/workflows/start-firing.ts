@@ -19,7 +19,10 @@
  */
 import { contractSchemas } from "@bakery/contracts/contracts";
 import { StandardError, unprocessable } from "@bakery/contracts/http";
-import { WorkflowStartsSchema } from "@bakery/contracts/workflow-starts";
+import {
+  type WorkflowStart,
+  WorkflowStartsSchema,
+} from "@bakery/contracts/workflow-starts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import type { NeutralEvent } from "../integrations/neutral-events.ts";
 import { createTaskCommand } from "../work/postgres.ts";
@@ -57,6 +60,8 @@ export type StartFiringOutcome = Readonly<{
 type Definition = {
   active_version_id: string | null;
   active_version_set_by: string | null;
+  active_version_set_at: Date | null;
+  enabled_at: Date | null;
   enabled: boolean;
   name: string;
 };
@@ -92,6 +97,40 @@ export async function fireLiveStart(
   repository: { id: string },
   start: LiveStart,
 ): Promise<StartFiringOutcome> {
+  return await fireStart(
+    transaction,
+    route.organizationId,
+    { inboundEventId: route.inboundEventId },
+    repository,
+    start,
+  );
+}
+
+function tickPrecedesLiveUse(
+  scheduledFor: Date,
+  definition: Definition,
+): boolean {
+  const usedAt = definition.active_version_set_at;
+  if (usedAt === null || scheduledFor.getTime() < usedAt.getTime()) return true;
+  const enabledAt = definition.enabled_at;
+  return enabledAt !== null && scheduledFor.getTime() < enabledAt.getTime();
+}
+
+export type StartTrigger =
+  | Readonly<{ inboundEventId: string }>
+  | Readonly<{ scheduledAt: Date }>;
+
+export async function fireStart(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  trigger: StartTrigger,
+  repository: { id: string },
+  start: LiveStart,
+): Promise<StartFiringOutcome> {
+  const route = {
+    organizationId,
+    inboundEventId: "inboundEventId" in trigger ? trigger.inboundEventId : null,
+  };
   const outcome = (
     result: StartFiringOutcome["result"],
     code?: string,
@@ -103,11 +142,9 @@ export async function fireLiveStart(
     ...(code === undefined ? {} : { code }),
   });
 
-  // The definition is locked, then read again: the match ran before the lock,
-  // and a person may have used another version in between. A start answers
-  // only for the version in use at the moment it fires.
   const locked = await transaction.query<Definition>(
-    `select active_version_id, active_version_set_by, enabled, name
+    `select active_version_id, active_version_set_by, active_version_set_at,
+            enabled_at, enabled, name
        from bakery.workflow_definitions
       where organization_id = $1 and id = $2
         for update`,
@@ -127,6 +164,13 @@ export async function fireLiveStart(
   const applicationId = application.rows[0]?.application_id;
   if (applicationId === undefined) return outcome("superseded");
 
+  const scheduledFor = "scheduledAt" in trigger ? trigger.scheduledAt : null;
+  if (
+    scheduledFor !== null && tickPrecedesLiveUse(scheduledFor, definition)
+  ) {
+    return outcome("superseded");
+  }
+
   const recent = await transaction.query<{ count: string }>(
     `select count(*)::text as count from bakery.workflow_start_firings
       where organization_id = $1 and workflow_id = $2
@@ -140,8 +184,8 @@ export async function fireLiveStart(
     `insert into bakery.workflow_start_firings (
        organization_id, workflow_id, workflow_version_id, start_id,
        trigger_event_id, application_id, repository_id, actor_id, status,
-       failure_code
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       failure_code, scheduled_for
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      on conflict do nothing
      returning id, version`,
     [
@@ -155,6 +199,7 @@ export async function fireLiveStart(
       definition.active_version_set_by,
       overRate ? "skipped" : "queued",
       overRate ? "rate_limited" : null,
+      scheduledFor?.toISOString() ?? null,
     ],
   );
   const firing = inserted.rows[0];
@@ -271,7 +316,7 @@ async function startFiringIn(
           ? {}
           : { repositoryProfileId: task.repositoryProfileId }),
         budgetLimitUsd: String(start.budgetUsd ?? 0),
-        inputs: start.inputs ?? {},
+        inputs: startRunInputs(start, firing.repositoryId),
       });
       if (!runInput.success) {
         throw unprocessable(["inputs"], "run_input_invalid", runInput.error);
@@ -316,6 +361,22 @@ async function startFiringIn(
     }
     throw error;
   }
+}
+
+export function startRunInputs(
+  start: WorkflowStart,
+  repositoryId: string,
+): Record<string, unknown> {
+  const event = { repositoryId };
+  const fromEvent = start.on.kind === "event"
+    ? start.on.inputsFromEvent ?? {}
+    : {};
+  return {
+    ...(start.inputs ?? {}),
+    ...Object.fromEntries(
+      Object.entries(fromEvent).map(([name, value]) => [name, event[value]]),
+    ),
+  };
 }
 
 /** The version's author, the audit row's stand-in when no actor was recorded. */

@@ -59,7 +59,7 @@ Deno.test("default Inngest registration keeps workflow and budget recovery handl
     skillImport: { sourceAdapter, skillFileStore },
   });
 
-  assertEquals(functions.length, 16);
+  assertEquals(functions.length, 17);
   assertEquals(captured.map(({ config }) => config.id), [
     "bakery-fixed-workflow",
     "bakery-workflow-recovery",
@@ -76,6 +76,7 @@ Deno.test("default Inngest registration keeps workflow and budget recovery handl
     "bakery-automation-intake",
     "bakery-dependency-release",
     "bakery-coordination-lane-dispatch",
+    "bakery-workflow-start-clock",
     "batch-supervisor",
   ]);
   assertEquals(captured[5].config.triggers, [{ cron: "* * * * *" }]);
@@ -99,6 +100,8 @@ Deno.test("default Inngest registration keeps workflow and budget recovery handl
   assertEquals(captured[14].config.triggers, [
     { event: "bakery/coordination.lanes_dispatch_requested.v1" },
   ]);
+  assertEquals(captured[15].config.triggers, [{ cron: "* * * * *" }]);
+  assertEquals(captured[15].config.concurrency, [{ limit: 1 }]);
 });
 
 Deno.test("import workflow accepts only the import event payload and stores no bytes in step output", async () => {

@@ -1,4 +1,7 @@
-import type { WorkflowStart } from "@bakery/contracts/workflow-starts";
+import type {
+  WorkflowStart,
+  WorkflowStartRefusalReason,
+} from "@bakery/contracts/workflow-starts";
 import { canonicalTimeZone, parseCron } from "./automations/schedule.ts";
 import { StandardError } from "@bakery/contracts/http";
 
@@ -35,7 +38,10 @@ export function readStartSchedules(
   });
 }
 
-function scheduleRefused(reason: string, startId: string): StandardError {
+function scheduleRefused(
+  reason: WorkflowStartRefusalReason,
+  startId: string,
+): StandardError {
   return new StandardError({
     code: "VALIDATION_FAILED",
     params: { reason, startId },
