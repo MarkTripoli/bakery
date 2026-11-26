@@ -22131,7 +22131,7 @@ const transportSchemas = {
       ],
       "description": "The stable, task-owned identity of one artifact: its type and display name, and a pointer to its current version, which is null before the first version is published.",
       "fieldDescriptions": {
-        "taskTitle": "Title of the artifact's task, shown to every reader who can open the artifact, including a reader with a grant to the document alone.",
+        "taskTitle": "Title of the artifact's task, present only for a reader who can see the task; absent for a reader with a grant to the document alone.",
         "id": "Stable UUID identifying the artifact record.",
         "taskId": "Stable UUID linking this record to the related task entity.",
         "artifactType": "Classification of artifact content.",

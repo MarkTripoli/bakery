@@ -40945,7 +40945,7 @@ export const clientManifest = {
                   {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "Title of the artifact's task, shown to every reader who can open the artifact, including a reader with a grant to the document alone."
+                    "description": "Title of the artifact's task, present only for a reader who can see the task; absent for a reader with a grant to the document alone."
                   },
                   {
                     "type": "null",
@@ -59304,7 +59304,7 @@ export const clientManifest = {
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Title of the artifact's task, shown to every reader who can open the artifact, including a reader with a grant to the document alone."
+              "description": "Title of the artifact's task, present only for a reader who can see the task; absent for a reader with a grant to the document alone."
             },
             {
               "type": "null",
