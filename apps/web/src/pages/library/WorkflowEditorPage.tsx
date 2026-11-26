@@ -49,7 +49,11 @@ import {
   type StepSkillRow,
   type StepSkills,
 } from "./StepPanel.tsx";
-import type { SkillResponse, WorkflowVersionSkills } from "../../api/client.ts";
+import type {
+  SkillResponse,
+  WorkflowVersionResponse,
+  WorkflowVersionSkills,
+} from "../../api/client.ts";
 import { WorkflowDiagram } from "./WorkflowDiagram.tsx";
 import { DiagramViewSwitch, useDiagramView } from "./diagram-view.tsx";
 import { versionSource } from "./copy-workflow.ts";
@@ -477,8 +481,22 @@ export function WorkflowEditorPage(
     },
   });
 
-  // Publishing the draft, and optionally making it the version in use: two
-  // forms of one action, decided by the button the person presses.
+  const rebaseLeftoverDraft = async (used: WorkflowVersionResponse) => {
+    const target = draft?.status === "draft" ? writeTarget() : null;
+    if (target === null) return;
+    await api.updateWorkflowVersion({
+      organizationId: scope.organizationId as string,
+      workflowId,
+      versionId: target.id,
+      version: target.version,
+      input: {
+        definition: used.normalizedSpec,
+        starts: startsOfVersion(used.starts).map(savedStart),
+      },
+      idempotencyKey: crypto.randomUUID(),
+    });
+  };
+
   const publish = useMutation({
     mutationKey: ["workflowVersions.publish"],
     mutationFn: async (alsoUse: boolean) => {
@@ -508,6 +526,7 @@ export function WorkflowEditorPage(
         idempotencyKey: crypto.randomUUID(),
       });
       if (!used.ok) throw new ActivationFailed(versionId, revision);
+      if (otherUnused !== undefined) await rebaseLeftoverDraft(otherUnused);
       return versionId;
     },
     onError: (error) => {
@@ -1035,7 +1054,7 @@ export function WorkflowEditorPage(
   const cleanWord = unused !== undefined
     ? translate("library.editor.publishedUnused", { version: unused.revision })
     : draftDiffers
-    ? translate("library.editor.ready" as never)
+    ? translate("library.editor.ready")
     : translate("library.editor.noChanges");
   const problemWord = problemCount === 0
     ? cleanWord

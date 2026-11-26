@@ -34,6 +34,7 @@ type Setup = {
   readonly inUseSteps?: readonly unknown[];
   readonly publishedAlready?: boolean;
   readonly activations?: unknown[];
+  readonly leftoverDraft?: unknown[];
 };
 
 async function editor(page: Page, setup: Setup) {
@@ -65,11 +66,31 @@ async function editor(page: Page, setup: Setup) {
   });
   const draft = () =>
     version(uuid(1002), 2, server.status, server.steps, server.version);
+  const leftover = { steps: IN_USE as readonly unknown[], held: 1 };
+  if (setup.leftoverDraft !== undefined) {
+    await page.route(
+      (url) => url.pathname.endsWith(`/versions/${uuid(1003)}`),
+      (route) => {
+        const body = route.request().postDataJSON() as {
+          definition: { steps: unknown[] };
+        };
+        setup.leftoverDraft?.push(body);
+        leftover.steps = body.definition.steps;
+        leftover.held += 1;
+        return route.fulfill(
+          json(version(uuid(1003), 3, "draft", leftover.steps, leftover.held)),
+        );
+      },
+    );
+  }
   await page.route(
     (url) => url.pathname === `/v1/workflows/${WORKFLOW.id}/versions`,
     (route) =>
       route.fulfill(json({
         items: [
+          ...(setup.leftoverDraft === undefined ? [] : [
+            version(uuid(1003), 3, "draft", leftover.steps, leftover.held),
+          ]),
           draft(),
           version(
             uuid(1001),
@@ -99,6 +120,7 @@ async function editor(page: Page, setup: Setup) {
     (url) => url.pathname.endsWith("/activations"),
     (route) => {
       setup.activations?.push(route.request().postDataJSON());
+      if (setup.leftoverDraft !== undefined) return route.fallback();
       return route.fulfill(json(conflict, setup.activateStatus ?? 412));
     },
   );
@@ -195,6 +217,25 @@ test.describe("workflow editor: what publishing changes", () => {
     await dialog.getByRole("button", { name: "Use this version" }).click();
     await expect.poll(() => activations.length).toBe(1);
     expect(activations[0]).toMatchObject({ versionId: uuid(1002) });
+  });
+
+  test("using the newer version does not leave an undone draft behind", async ({ page }) => {
+    const rewrites: unknown[] = [];
+    await editor(page, {
+      draftSteps: [IN_USE[0], repeat(5)],
+      publishedAlready: true,
+      leftoverDraft: rewrites,
+    });
+    await expect(page.getByTestId("editor-problems"))
+      .toHaveText("Version 2 published, not in use");
+    const dialog = await openPublish(page);
+    await dialog.getByRole("button", { name: "Use this version" }).click();
+    await expect(page.getByTestId("editor-problems"))
+      .toHaveText("No changes to publish");
+    expect(rewrites).toHaveLength(1);
+    expect(rewrites[0]).toMatchObject({
+      definition: { steps: [IN_USE[0], repeat(5)] },
+    });
   });
 
   test("a group removed around a step can still be published", async ({ page }) => {
