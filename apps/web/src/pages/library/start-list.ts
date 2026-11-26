@@ -1,7 +1,10 @@
 import {
+  WORKFLOW_START_MAX_BUDGET_USD,
   type WorkflowStart,
   WorkflowStartsSchema,
 } from "@bakery/contracts/workflow-starts";
+
+export type DraftStart = WorkflowStart & { readonly budgetTyped?: string };
 
 export type StartNeed = {
   readonly name: string;
@@ -11,7 +14,7 @@ export type StartNeed = {
 export type StartProblem = {
   readonly startId: string;
   readonly number: number;
-  readonly kind: "repository" | "title" | "text" | "unsupported";
+  readonly kind: "repository" | "title" | "text" | "unsupported" | "budget";
   readonly name: string;
 };
 
@@ -118,21 +121,57 @@ export function withBriefInput(
   );
 }
 
-export function withBudget(start: WorkflowStart, text: string): WorkflowStart {
-  const { budgetUsd: _held, ...rest } = start;
-  const value = Number(text);
-  return text.trim() === "" || !Number.isFinite(value) || value < 0
-    ? rest
-    : { ...rest, budgetUsd: Math.min(value, 10_000) };
+const AMOUNT = /^(\d+(\.\d*)?|\.\d+)$/;
+const BUDGET_PROBLEM_NAME = "@budget";
+
+function amount(text: string): number | null {
+  const trimmed = text.trim();
+  if (!AMOUNT.test(trimmed)) return null;
+  const value = Number(trimmed);
+  return value <= WORKFLOW_START_MAX_BUDGET_USD ? value : null;
+}
+
+export function shownBudget(text: string): string {
+  if (text.trim() === "") return "";
+  const value = amount(text);
+  return value === null ? text : String(value);
+}
+
+export function budgetText(start: DraftStart): string {
+  return start.budgetTyped ??
+    (start.budgetUsd === undefined ? "" : String(start.budgetUsd));
+}
+
+export function savedStart(start: DraftStart): WorkflowStart {
+  const { budgetTyped: _typed, ...saved } = start;
+  return saved;
+}
+
+export function withBudget(start: DraftStart, text: string): DraftStart {
+  const { budgetTyped: _typed, ...held } = start;
+  const { budgetUsd: _budget, ...rest } = held;
+  if (text.trim() === "") return rest;
+  const value = amount(text);
+  return value === null
+    ? { ...held, budgetTyped: text }
+    : { ...rest, budgetUsd: value };
 }
 
 export function startProblems(
-  starts: readonly WorkflowStart[],
+  starts: readonly DraftStart[],
   needs: readonly StartNeed[],
 ): readonly StartProblem[] {
   return starts.flatMap((start, index) => {
     if (start.on.kind !== "event") return [];
-    return needs.flatMap((need): readonly StartProblem[] => {
+    const budget: readonly StartProblem[] = start.budgetTyped === undefined
+      ? []
+      : [{
+        startId: start.id,
+        number: index + 1,
+        kind: "budget",
+        name: BUDGET_PROBLEM_NAME,
+      }];
+    const missingInputs = needs.flatMap((need): readonly StartProblem[] => {
       const missing = need.kind === "brief"
         ? briefInput(start, need.name).title.trim() === ""
         : need.kind === "unsupported"
@@ -147,6 +186,7 @@ export function startProblems(
         }]
         : [];
     });
+    return [...missingInputs, ...budget];
   });
 }
 

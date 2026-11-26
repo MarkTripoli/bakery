@@ -7493,5 +7493,10 @@
   "library.editor.start.event.change_request.closed": "⟪A pull request is closed⟫",
   "library.editor.start.event.change_request.reopened": "⟪A pull request is reopened⟫",
   "library.editor.start.event.change_request.ready": "⟪A pull request is ready for review⟫",
-  "library.editor.start.event.check.completed": "⟪A check finishes⟫"
+  "library.editor.start.event.check.completed": "⟪A check finishes⟫",
+  "library.editor.publish.useTitle": "⟪Use version {version}⟫",
+  "library.editor.publish.useBody": "⟪Version {version} is already published. Using it makes it the one new tasks get.⟫",
+  "library.editor.start.useNote": "⟪{count, plural, one {Using it also switches on # automatic start.} other {Using it also switches on # automatic starts.}}⟫",
+  "library.editor.start.problem.budget": "⟪Write an amount from 0 to {max}, in digits, such as 2.50.⟫",
+  "library.editor.start.problem.row.budget": "⟪Automatic start {number}: fix the spend limit.⟫"
 }

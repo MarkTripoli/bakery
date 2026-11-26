@@ -7493,5 +7493,10 @@
   "library.editor.start.event.change_request.closed": "⟦À þûļļ ŕëǫûëšŧ ïš çļôšëð ŧëšŧ ç⟧",
   "library.editor.start.event.change_request.reopened": "⟦À þûļļ ŕëǫûëšŧ ïš ŕëôþëñëð ŧëšŧ çô⟧",
   "library.editor.start.event.change_request.ready": "⟦À þûļļ ŕëǫûëšŧ ïš ŕëàðÿ ƒôŕ ŕëṽïëŵ ŧëšŧ çôþÿ⟧",
-  "library.editor.start.event.check.completed": "⟦À çĥëçķ ƒïñïšĥëš ŧëš⟧"
+  "library.editor.start.event.check.completed": "⟦À çĥëçķ ƒïñïšĥëš ŧëš⟧",
+  "library.editor.publish.useTitle": "⟦Ûšë ṽëŕšïôñ {version} ŧëšŧŧ⟧",
+  "library.editor.publish.useBody": "⟦Ṽëŕšïôñ {version} ïš àļŕëàðÿ þûƀļïšĥëð. Ûšïñĝ ïŧ ɱàķëš ïŧ ŧĥë ôñë ñëŵ ŧàšķš ĝëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.editor.start.useNote": "⟦{count, plural, one {Using it also switches on # automatic start.} other {Using it also switches on # automatic starts.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "library.editor.start.problem.budget": "⟦Ŵŕïŧë àñ àɱôûñŧ ƒŕôɱ 0 ŧô {max}, ïñ ðïĝïŧš, šûçĥ àš 2.50. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "library.editor.start.problem.row.budget": "⟦Àûŧôɱàŧïç šŧàŕŧ {number}: ƒïẋ ŧĥë šþëñð ļïɱïŧ. ŧëšŧ çôþÿ ŧëšŧ⟧"
 }

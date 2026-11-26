@@ -32,6 +32,7 @@ type Setup = {
   readonly inputs?: Record<string, unknown>;
   readonly starts?: readonly Start[];
   readonly repositoriesStatus?: number;
+  readonly inUse?: "listed" | "none";
 };
 
 const json = (body: unknown, status = 200) => ({
@@ -41,8 +42,11 @@ const json = (body: unknown, status = 200) => ({
 });
 
 async function editor(page: Page, setup: Setup = {}) {
+  const workflow = setup.inUse === "none"
+    ? { ...WORKFLOW, activeVersionId: null }
+    : { ...WORKFLOW };
   const options: Options = {
-    workflows: [WORKFLOW],
+    workflows: [workflow],
     versions: [{
       id: uuid(1001),
       workflowId: WORKFLOW.id,
@@ -57,12 +61,15 @@ async function editor(page: Page, setup: Setup = {}) {
       steps: [{ id: "brief", uses: "task.brief" }],
     }],
   };
-  await libraryFixture(page, options);
+  const seen = await libraryFixture(page, options);
   const server = {
     starts: [...(setup.starts ?? [])] as Start[],
     version: 1,
     saves: [] as (Start[] | undefined)[],
     repositoriesStatus: setup.repositoriesStatus ?? 200,
+    status: "draft",
+    publishes: 0,
+    activations: seen.activations,
   };
   const draft = () => ({
     id: uuid(1002),
@@ -74,7 +81,7 @@ async function editor(page: Page, setup: Setup = {}) {
       steps: [{ id: "brief", uses: "task.brief" }],
     },
     digest: String(server.version).padStart(2, "0").repeat(32),
-    status: "draft",
+    status: server.status,
     createdBy: uuid(1),
     createdAt: "2026-02-02T10:00:00.000Z",
     updatedAt: "2026-02-02T10:00:00.000Z",
@@ -85,7 +92,18 @@ async function editor(page: Page, setup: Setup = {}) {
     (url) => url.pathname === `/v1/workflows/${WORKFLOW.id}/versions`,
     (route) =>
       route.request().method() === "GET"
-        ? route.fulfill(json({ items: [draft()], nextCursor: null }))
+        ? route.fulfill(json({
+          items: setup.inUse === "listed"
+            ? [draft(), {
+              ...draft(),
+              id: uuid(1001),
+              revision: 1,
+              status: "published",
+              starts: [],
+            }]
+            : [draft()],
+          nextCursor: null,
+        }))
         : route.fallback(),
   );
   await page.route(
@@ -114,6 +132,25 @@ async function editor(page: Page, setup: Setup = {}) {
             code: "INTERNAL_ERROR",
           }, server.repositoriesStatus),
         ),
+  );
+  await page.route(
+    (url) => url.pathname.endsWith("/publish"),
+    (route) => {
+      server.publishes += 1;
+      if (server.status !== "draft") {
+        return route.fulfill(
+          json({
+            type: "about:blank",
+            title: "x",
+            status: 409,
+            code: "STATE_CONFLICT",
+          }, 409),
+        );
+      }
+      server.status = "published";
+      server.version += 1;
+      return route.fulfill(json(draft()));
+    },
   );
   await page.goto(EDIT);
   await expect(startCard(page)).toBeVisible();
@@ -348,4 +385,97 @@ test.describe("workflow editor: a published workflow", () => {
     await expect(page.getByText("Saved", { exact: true })).toBeVisible();
     await expect(page.locator("[data-card]")).toHaveCount(3);
   });
+
+  test("a spend limit that cannot be saved as typed blocks publishing", async ({ page }) => {
+    const server = await editor(page);
+    await startCard(page).click();
+    await add(page).click();
+    const limit = page.getByRole("textbox", { name: /Spend limit/ });
+    for (const typed of ["$25", "5,00", "-1", "abc", "20000"]) {
+      await limit.fill(typed);
+      await expect(limit).toHaveValue(typed);
+      await expect(limit).toHaveAttribute("aria-invalid", "true");
+      await expect(page.getByText("Write an amount from 0 to 10000"))
+        .toBeVisible();
+      await expect(startCard(page)).toContainText("Needs setup");
+    }
+    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toContainText(
+      "Automatic start 1: fix the spend limit.",
+    );
+    await expect(dialog).toContainText("How it starts");
+    await expect(dialog).not.toContainText("Started by hand");
+    await expect(dialog.getByRole("button", { name: "Publish and use" }))
+      .toHaveCount(0);
+    await still(page, "starts-budget-blocked");
+    await dialog.getByRole("button", { name: "Show me" }).click();
+    await expect(limit).toBeFocused();
+    await limit.fill("2.50");
+    await expect(page.getByText("Write an amount from 0 to 10000"))
+      .toHaveCount(0);
+    await expect.poll(() => server.saves.at(-1)?.[0]?.budgetUsd).toBe(2.5);
+    expect(JSON.stringify(server.saves)).not.toContain("budgetTyped");
+  });
+
+  test("Show me puts the cursor in the field each problem names", async ({ page }) => {
+    await editor(page, {
+      inputs: {
+        ...NEEDS,
+        goal: { type: "string", required: true },
+        retries: { type: "number", required: true },
+      },
+    });
+    await startCard(page).click();
+    await add(page).click();
+    const show = async (sentence: string) => {
+      await page.getByRole("button", { name: "Publish", exact: true }).click();
+      await page.getByRole("alertdialog")
+        .locator("[data-problem-row]", { hasText: sentence })
+        .getByRole("button", { name: "Show me" }).click();
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    };
+    await show("write a value for goal");
+    await expect(page.getByRole("textbox", { name: /^goal/ })).toBeFocused();
+    await show("write a task title");
+    await expect(page.getByRole("textbox", { name: /Task title/ }))
+      .toBeFocused();
+    await show("retries cannot be filled in here");
+    await expect(page.locator(":focus")).toContainText(
+      "This workflow asks for retries",
+    );
+    await show("choose a repository");
+    await expect(field(page, "Repository")).toBeFocused();
+  });
+
+  for (const inUse of ["none", "listed"] as const) {
+    test(`a version published but not used can be put in use, in use before: ${inUse}`, async ({ page }) => {
+      const server = await editor(page, { inUse });
+      await startCard(page).click();
+      await add(page).click();
+      await expect.poll(() => server.saves.length).toBeGreaterThan(0);
+      const publish = page.getByRole("button", {
+        name: "Publish",
+        exact: true,
+      });
+      const dialog = page.getByRole("alertdialog");
+      await publish.click();
+      await dialog.getByRole("button", { name: "Publish only" }).click();
+      await expect(dialog).toHaveCount(0);
+      await publish.click();
+      await expect(dialog).toContainText("Use version 2");
+      await expect(dialog).toContainText(
+        "Using it also switches on 1 automatic start.",
+      );
+      await expect(dialog.getByRole("button", { name: "Publish only" }))
+        .toHaveCount(0);
+      await still(page, "starts-use-published");
+      await dialog.getByRole("button", { name: "Use this version" }).click();
+      await expect(dialog).toHaveCount(0);
+      expect(server.activations.map((one) => one.body.versionId)).toEqual([
+        uuid(1002),
+      ]);
+      expect(server.publishes).toBe(1);
+    });
+  }
 });

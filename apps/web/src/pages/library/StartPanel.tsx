@@ -3,15 +3,19 @@ import * as UI from "@bakery/ui";
 import {
   WORKFLOW_START_EVENT_KINDS,
   WORKFLOW_START_MAX,
+  WORKFLOW_START_MAX_BUDGET_USD,
   type WorkflowStart,
 } from "@bakery/contracts/workflow-starts";
 import type { MessageKey } from "@bakery/i18n";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import {
   briefInput,
+  budgetText,
   chosenRepository,
+  type DraftStart,
   newStart,
   otherFilters,
+  shownBudget,
   type StartNeed,
   type StartProblem,
   type StartRepository,
@@ -36,8 +40,19 @@ export type StartPanelProps = {
   readonly onChange:
     | ((starts: readonly WorkflowStart[], typing?: string) => void)
     | undefined;
-  readonly focus: number | null;
+  readonly focus: StartFocus | null;
 };
+
+export type StartFocus = Pick<StartProblem, "startId" | "kind" | "name"> & {
+  readonly request: number;
+};
+
+function problemField(base: string, focus: StartFocus): string {
+  const field = focus.kind === "repository" || focus.kind === "budget"
+    ? focus.kind
+    : `input-${focus.name}`;
+  return `${base}-${focus.startId}-${field}`;
+}
 
 type StartKey = MessageKey extends infer Key
   ? Key extends `library.editor.start.${infer Suffix}` ? Suffix : never
@@ -70,11 +85,9 @@ export function StartPanelBody(props: StartPanelProps) {
   const { starts, onChange, focus } = props;
   const base = useId();
   useEffect(() => {
-    if (focus === null) return;
-    globalThis.document.querySelector<HTMLElement>(
-      "[data-testid=start-fields] [aria-invalid=true]",
-    )?.focus();
-  }, [focus]);
+    if (focus === null || props.repositories.state === "loading") return;
+    globalThis.document.getElementById(problemField(base, focus))?.focus();
+  }, [focus, base, props.repositories.state]);
   const replace = (next: WorkflowStart, typing?: string) =>
     onChange?.(
       starts.map((one) => one.id === next.id ? next : one),
@@ -177,7 +190,7 @@ function EventStartFields(
   { start, base, needs, problems, repositories, onChange }:
     & Omit<StartPanelProps, "onChange">
     & {
-      readonly start: WorkflowStart;
+      readonly start: DraftStart;
       readonly base: string;
       readonly onChange: (start: WorkflowStart, typing?: string) => void;
     },
@@ -242,13 +255,16 @@ function EventStartFields(
         />
       ))}
       <CommittedText
+        error={start.budgetTyped === undefined
+          ? undefined
+          : copy("problem.budget", { max: WORKFLOW_START_MAX_BUDGET_USD })}
         hint={copy("budgetHelp")}
         id={`${base}-budget`}
         inputMode="decimal"
         label={copy("budget")}
         onCommit={(value) => onChange(withBudget(start, value), "budget")}
         shows={shownBudget}
-        value={start.budgetUsd === undefined ? "" : String(start.budgetUsd)}
+        value={budgetText(start)}
       />
     </>
   );
@@ -334,9 +350,11 @@ function NeedField(
     ? undefined
     : copy(`problem.${problem.kind}`, { name: need.name });
   if (need.kind === "unsupported") {
-    return error === undefined
-      ? null
-      : <UI.InlineNotice tone="error">{error}</UI.InlineNotice>;
+    return error === undefined ? null : (
+      <UI.Stack id={id} tabIndex={-1}>
+        <UI.InlineNotice tone="error">{error}</UI.InlineNotice>
+      </UI.Stack>
+    );
   }
   if (need.kind === "brief") {
     const brief = briefInput(start, need.name);
@@ -388,13 +406,6 @@ function shownText(draft: string): string {
   return draft.trim() === "" ? "" : draft;
 }
 
-function shownBudget(draft: string): string {
-  const value = Number(draft);
-  return draft.trim() === "" || !Number.isFinite(value) || value < 0
-    ? ""
-    : String(Math.min(value, 10_000));
-}
-
 function CommittedText(
   props: {
     readonly id: string;
@@ -434,6 +445,7 @@ function CommittedText(
       {props.multiline === true
         ? (
           <textarea
+            aria-invalid={props.error !== undefined || undefined}
             id={props.id}
             maxLength={props.maxLength}
             onChange={(event) => change(event.target.value)}
@@ -446,6 +458,7 @@ function CommittedText(
             autoComplete="off"
             id={props.id}
             inputMode={props.inputMode}
+            invalid={props.error !== undefined || undefined}
             name={props.id}
             onChange={change}
             type="text"
