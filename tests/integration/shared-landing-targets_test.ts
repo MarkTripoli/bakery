@@ -318,7 +318,7 @@ Deno.test("a grant-only reader lands on the shared page and nowhere else", async
             status: "available",
             targetKind: "conversation_message",
             path: `/tasks/${f.taskId}`,
-            anchor: null,
+            anchor: `message:${sharedMessage}`,
           },
         );
       },

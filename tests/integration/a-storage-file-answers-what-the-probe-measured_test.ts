@@ -60,7 +60,8 @@ Deno.test("a storage file answers what the probe measured, and nothing before it
     });
     assertEquals(put.status, 200);
     const file = await put.json() as { id: string };
-    const probe = "/v1/storage/files/" + file.id + "/probe";
+    const probe = "/v1/storage/files/" + file.id + "/probe?organizationId=" +
+      fixture.organizationId;
 
     // Nothing has asked about these bytes yet.
     const before = await call(fixture, "GET", probe);
@@ -116,11 +117,11 @@ Deno.test("a storage file answers what the probe measured, and nothing before it
 
     // A revision the file does not have is not found, the same as the bytes.
     assertEquals(
-      (await call(fixture, "GET", probe + "?revision=9")).status,
+      (await call(fixture, "GET", probe + "&revision=9")).status,
       404,
     );
     // The current revision answers the same thing.
-    const current = await call(fixture, "GET", probe + "?revision=1");
+    const current = await call(fixture, "GET", probe + "&revision=1");
     assertEquals(current.status, 200);
     assertEquals((await current.json() as { kind: string }).kind, "text");
   }));

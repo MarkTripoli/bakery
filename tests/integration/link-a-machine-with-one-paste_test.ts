@@ -167,7 +167,10 @@ Deno.test("a link code in the command adds one machine and mints its own credent
       slots: 2,
       capabilities: ["git"],
       supported: true,
-      supportedSystems: [{ os: "linux", architecture: "arm64" }],
+      supportedSystems: [
+        { os: "linux", architecture: "arm64" },
+        { os: "linux", architecture: "x64" },
+      ],
       expiresAt: preview.expiresAt,
     });
 

@@ -77,7 +77,8 @@ Deno.test("writing a file queues one probe for that version, and nothing is prob
     const probe = await call(
       fixture,
       "GET",
-      "/v1/storage/files/" + file.id + "/probe",
+      "/v1/storage/files/" + file.id + "/probe?organizationId=" +
+        fixture.organizationId,
     );
     assertEquals(probe.status, 200);
     assertEquals((await probe.json() as { status: unknown }).status, null);
