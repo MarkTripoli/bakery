@@ -295,9 +295,9 @@ export function WorkflowDiagram(
     const open = pickerAt !== undefined && pickerAt === afterId;
     const next = addBefore?.get(afterId);
     const addLabel = next === undefined
-      ? translate("library.editor.addHere" as never, {
+      ? translate("library.editor.addHere", {
         after: afterId === null
-          ? translate("library.editor.startsHere" as never)
+          ? translate("library.editor.startsHere")
           : title(treeStepUses(tree, afterId) ?? afterId),
       })
       : translate("library.editor.addBefore", { before: title(next) });

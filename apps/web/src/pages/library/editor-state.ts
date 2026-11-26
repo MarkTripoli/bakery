@@ -206,7 +206,6 @@ function stepNodes(
       ...(step.agentVersionId === null
         ? {}
         : { agentVersionId: step.agentVersionId }),
-      // A step with no skills carries no `skills` key, as an authored one does.
       ...(step.skills.length === 0 ? {} : { skills: [...step.skills] }),
     };
   });
