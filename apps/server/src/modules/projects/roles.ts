@@ -1,3 +1,4 @@
+import { boundedPostgresMutation } from "../../platform/bounded-mutation.ts";
 import { StandardError, unprocessable } from "@bakery/contracts/http";
 import {
   type CursorBinding,
@@ -5,10 +6,6 @@ import {
   encodeCursor,
 } from "../../platform/cursor.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
-import {
-  POSTGRES_UNIQUE_VIOLATION,
-  postgresErrorCode,
-} from "../../platform/postgres-errors.ts";
 
 const ROLE_KEY_PATTERN = /^[a-z0-9][a-z0-9._-]{0,199}$/;
 const UUID_PATTERN =
@@ -167,20 +164,8 @@ function normalizeListLimit(value: unknown): number {
   return limit;
 }
 
-async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
-  try {
-    return await work();
-  } catch (error) {
-    if (error instanceof StandardError) throw error;
-    const code = postgresErrorCode(error);
-    if (code === POSTGRES_UNIQUE_VIOLATION) {
-      throw new StandardError({ code: "STATE_CONFLICT", cause: error });
-    }
-    if (["22001", "22P02", "23502", "23503", "23514"].includes(code ?? "")) {
-      throw new StandardError({ code: "UNPROCESSABLE", cause: error });
-    }
-    throw error;
-  }
+function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
+  return boundedPostgresMutation(work, { checkViolationIsUnprocessable: true });
 }
 
 async function assertActiveApplication(

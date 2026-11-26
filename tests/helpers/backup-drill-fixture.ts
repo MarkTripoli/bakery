@@ -24,7 +24,7 @@ import {
 
 export const CUTOFF_AT = "2026-11-21T03:00:05.000Z";
 export const KEY_BYTES = new TextEncoder().encode("test-secrets-key-material");
-export const POSTGRES = "postgres:16-alpine@sha256:" + "a".repeat(64);
+export const POSTGRES = "postgres:18-alpine@sha256:" + "a".repeat(64);
 export const REDIS = "redis:7.4-alpine@sha256:" + "b".repeat(64);
 export const SKILL_KEY =
   "organizations/11111111-1111-4111-8111-111111111111/skill-versions/22222222-2222-4222-8222-222222222222/sha256/abc";

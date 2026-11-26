@@ -1,3 +1,4 @@
+import { boundedPostgresMutation } from "../../../platform/bounded-mutation.ts";
 import { assertAnotherAdminRemains } from "./last-admin-postgres.ts";
 import {
   isMembershipStatus,
@@ -14,10 +15,6 @@ import {
   encodeCursor,
 } from "../../../platform/cursor.ts";
 import type { PgTransactionClient } from "../../../platform/database.ts";
-import {
-  POSTGRES_UNIQUE_VIOLATION,
-  postgresErrorCode,
-} from "../../../platform/postgres-errors.ts";
 import type { OrganizationActor } from "../application/authority.ts";
 import { organizationPermissions } from "../application/authorize.ts";
 import type { AuthenticatedSubject } from "../application/identity.ts";
@@ -263,20 +260,8 @@ function invitationPreview(row: OrganizationInvitationPreviewRow) {
   };
 }
 
-async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
-  try {
-    return await work();
-  } catch (error) {
-    if (error instanceof StandardError) throw error;
-    const code = postgresErrorCode(error);
-    if (code === POSTGRES_UNIQUE_VIOLATION) {
-      throw new StandardError({ code: "STATE_CONFLICT", cause: error });
-    }
-    if (["22001", "22P02", "23502", "23503", "23514"].includes(code ?? "")) {
-      throw new StandardError({ code: "UNPROCESSABLE", cause: error });
-    }
-    throw error;
-  }
+function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
+  return boundedPostgresMutation(work, { checkViolationIsUnprocessable: true });
 }
 
 function binding(
