@@ -53,7 +53,13 @@ type SourceRow = {
   enabled: boolean;
 };
 
-type SkillIdentity = Readonly<{ skillId: string; ordinal: number }>;
+type AbandonedDraft = Readonly<{ revision: number; digest: string }>;
+
+type SkillIdentity = Readonly<{
+  skillId: string;
+  ordinal: number;
+  abandonedDraft?: AbandonedDraft;
+}>;
 
 export type SkillImportExecutionResult = Readonly<{
   runId: string;
@@ -218,16 +224,61 @@ async function ensureSkillIdentity(
       ],
     );
   }
-  const latest = await transaction.query<{ revision: number }>(
-    `select revision from bakery.skill_versions
-      where organization_id = $1 and skill_id = $2
-      order by revision desc limit 1`,
+  const latest = await transaction.query<{
+    revision: number;
+    digest: string;
+    abandoned: boolean;
+  }>(
+    `select version.revision, version.digest,
+            version.status = 'draft' and not exists (
+              select 1 from bakery.skill_imports as import
+               where import.organization_id = version.organization_id
+                 and import.skill_version_id = version.id
+                 and import.state <> 'failed'
+            ) as abandoned
+       from bakery.skill_versions as version
+      where version.organization_id = $1 and version.skill_id = $2
+      order by version.revision desc limit 1`,
     [checkpoint.organization_id, skillId],
   );
+  const top = latest.rows[0];
   return Object.freeze({
     skillId,
-    ordinal: (latest.rows[0]?.revision ?? 0) + 1,
+    ordinal: (top?.revision ?? 0) + 1,
+    ...(top?.abandoned
+      ? { abandonedDraft: { revision: top.revision, digest: top.digest } }
+      : {}),
   });
+}
+
+async function validateForIdentity(
+  proof: SkillSourceProof,
+  identity: SkillIdentity,
+  registeredLicense: string,
+) {
+  const next = await validatePinnedSkillSource({
+    proof,
+    skillId: identity.skillId,
+    revision: identity.ordinal,
+    registeredLicense,
+  });
+  const draft = identity.abandonedDraft;
+  if (draft === undefined || draft.digest !== next.version.digest) {
+    return { identity, validated: next };
+  }
+  const reused = Object.freeze({
+    skillId: identity.skillId,
+    ordinal: draft.revision,
+  });
+  return {
+    identity: reused,
+    validated: await validatePinnedSkillSource({
+      proof,
+      skillId: reused.skillId,
+      revision: reused.ordinal,
+      registeredLicense,
+    }),
+  };
 }
 
 function reservationInventory(preparation: SkillVersionPublicationPreparation) {
@@ -384,12 +435,12 @@ export async function executeSkillImport(
         execution.requested_by,
       ),
   );
-  let validated = await validatePinnedSkillSource({
+  const admitted = await validateForIdentity(
     proof,
-    skillId: identity.skillId,
-    revision: identity.ordinal,
-    registeredLicense: execution.registered_license,
-  });
+    identity,
+    execution.registered_license,
+  );
+  let validated = admitted.validated;
   let preparation = await withPgTransaction(
     options.database,
     (transaction) =>
@@ -399,7 +450,7 @@ export async function executeSkillImport(
         execution.requested_by,
         validated.version,
         proof.sourceRevision,
-        identity,
+        admitted.identity,
       ),
   );
   execution = await withPgTransaction(

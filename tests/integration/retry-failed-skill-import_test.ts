@@ -2,6 +2,7 @@ import { assertEquals, assertNotEquals } from "@std/assert";
 import { createSuperuser } from "../../apps/server/src/modules/auth/index.ts";
 import { failSkillImportExecution } from "../../apps/server/src/modules/catalog/import-persistence.ts";
 import { executeSkillImport } from "../../apps/server/src/modules/catalog/import-workflow.ts";
+import type { SkillImportCheckpointBoundary } from "../../apps/server/src/modules/catalog/import-workflow.ts";
 import {
   type SkillSourceAdapter,
   SkillSourceAdapterError,
@@ -233,6 +234,132 @@ Deno.test("two concurrent repeats of a failed import start exactly one new attem
     assertEquals(await importRuns(h), [
       { runId: first.id, state: "failed", runStatus: "failed" },
       { runId: a.id, state: "queued", runStatus: "queued" },
+    ]);
+  } finally {
+    await h.close();
+  }
+});
+
+async function skillVersions(h: Harness) {
+  const result = await h.fixture.pgDatabase.query<{
+    revision: number;
+    status: string;
+  }>(
+    `select version.revision, version.status
+       from bakery.skill_versions as version
+       join bakery.skills as skill
+         on skill.organization_id = version.organization_id
+        and skill.id = version.skill_id
+      where skill.organization_id = $1 and skill.source_id = $2
+      order by version.revision`,
+    [h.organizationId, h.source.id],
+  );
+  return result.rows;
+}
+
+for (
+  const boundary of [
+    "reserved",
+    "stored",
+  ] satisfies SkillImportCheckpointBoundary[]
+) {
+  Deno.test(`an import that failed after its version was ${boundary} is retried into that one version`, async () => {
+    const h = await openHarness();
+    try {
+      const source = await workingSource();
+      const first = await h.admit();
+      let thrown: unknown;
+      try {
+        await executeSkillImport(first.id, {
+          database: h.fixture.runtimePgDatabase,
+          sourceAdapter: source,
+          skillFileStore: h.store,
+          processHooks: {
+            afterCheckpoint: (reached) => {
+              if (reached === boundary) {
+                throw new SkillSourceAdapterError("SOURCE_UNAVAILABLE");
+              }
+            },
+          },
+        });
+      } catch (error) {
+        thrown = error;
+      }
+      assertEquals(
+        thrown instanceof SkillSourceAdapterError ? thrown.code : thrown,
+        "SOURCE_UNAVAILABLE",
+      );
+      await withPgTransaction(
+        h.fixture.runtimePgDatabase,
+        (transaction) =>
+          failSkillImportExecution(transaction, first.id, "SOURCE_UNAVAILABLE"),
+      );
+      assertEquals(await skillVersions(h), [{ revision: 1, status: "draft" }]);
+
+      const retry = await h.admit();
+      assertNotEquals(retry.id, first.id);
+      const result = await executeSkillImport(retry.id, {
+        database: h.fixture.runtimePgDatabase,
+        sourceAdapter: source,
+        skillFileStore: h.store,
+      });
+      assertEquals(result.state, "completed");
+      assertEquals(await skillVersions(h), [
+        { revision: 1, status: "published" },
+      ]);
+      assertEquals(await importRuns(h), [
+        { runId: first.id, state: "failed", runStatus: "failed" },
+        { runId: retry.id, state: "completed", runStatus: "completed" },
+      ]);
+    } finally {
+      await h.close();
+    }
+  });
+}
+
+Deno.test("an import whose source drops on its second read is retried to completion", async () => {
+  const h = await openHarness();
+  try {
+    const good = await workingSource();
+    let reads = 0;
+    const flaky: SkillSourceAdapter = {
+      fetchPinnedSource: (request) => {
+        reads += 1;
+        return reads === 1
+          ? good.fetchPinnedSource(request)
+          : Promise.reject(new SkillSourceAdapterError("SOURCE_UNAVAILABLE"));
+      },
+    };
+    const first = await h.admit();
+    let thrown: unknown;
+    try {
+      await executeSkillImport(first.id, {
+        database: h.fixture.runtimePgDatabase,
+        sourceAdapter: flaky,
+        skillFileStore: h.store,
+      });
+    } catch (error) {
+      thrown = error;
+    }
+    assertEquals(reads, 2);
+    assertEquals(
+      thrown instanceof SkillSourceAdapterError ? thrown.code : thrown,
+      "SOURCE_UNAVAILABLE",
+    );
+    await withPgTransaction(
+      h.fixture.runtimePgDatabase,
+      (transaction) =>
+        failSkillImportExecution(transaction, first.id, "SOURCE_UNAVAILABLE"),
+    );
+    const retry = await h.admit();
+    const result = await executeSkillImport(retry.id, {
+      database: h.fixture.runtimePgDatabase,
+      sourceAdapter: good,
+      skillFileStore: h.store,
+    });
+    assertEquals(result.state, "completed");
+    assertEquals(await skillVersions(h), [
+      { revision: 1, status: "published" },
     ]);
   } finally {
     await h.close();
