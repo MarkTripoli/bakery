@@ -874,7 +874,10 @@ export function requireDraftDefinition(definition: unknown): string {
  * stored list is kept). A list the contract refuses, or a schedule the
  * scheduler cannot read, is refused here, where the author can fix it.
  */
-function readDraftStarts(starts: unknown): string | null {
+function readDraftStarts(
+  starts: unknown,
+  definition: unknown,
+): string | null {
   if (starts === undefined) return null;
   const parsed = WorkflowStartsSchema.safeParse(starts);
   if (!parsed.success) {
@@ -884,7 +887,7 @@ function readDraftStarts(starts: unknown): string | null {
       "start_invalid",
     );
   }
-  return canonicalJson(readStarts(parsed.data));
+  return canonicalJson(readStarts(parsed.data, definition));
 }
 
 const DRAFT_RETURNING =
@@ -1059,7 +1062,7 @@ export async function updateWorkflowDraft(
   const { organizationId, principalId } = facts;
   const { workflowId, versionId, expectedVersion } = target;
   const canonical = requireDraftDefinition(value.definition);
-  const starts = readDraftStarts(value.starts);
+  const starts = readDraftStarts(value.starts, value.definition);
   await lockAuthoringDefinition(transaction, organizationId, workflowId);
   await settlePersonalSkillUse(transaction, facts, workflowId, value);
   const draft = await transaction.query(
@@ -1353,7 +1356,7 @@ export async function publishWorkflowVersion(
     // can say nothing about its shape: a version that published a start the
     // contract refuses would be one no matcher could ever read back.
     starts: canonicalJson(
-      readStarts(WorkflowStartsSchema.parse(draft.starts)),
+      readStarts(WorkflowStartsSchema.parse(draft.starts), draft.definition),
     ),
   });
   await writeToolCallBindings(transaction, {

@@ -1,5 +1,8 @@
 import { StandardError } from "@bakery/contracts/http";
-import type { WorkflowStart } from "@bakery/contracts/workflow-starts";
+import type {
+  WorkflowStart,
+  WorkflowStartRefusalReason,
+} from "@bakery/contracts/workflow-starts";
 import { neutralFieldsOf } from "../integrations/neutral-events.ts";
 import { readStartSchedules } from "./start-schedules.ts";
 
@@ -14,9 +17,16 @@ import { readStartSchedules } from "./start-schedules.ts";
  */
 export function readStarts(
   starts: readonly WorkflowStart[],
+  definition: unknown,
 ): WorkflowStart[] {
+  const needsRepository = requiresRepository(definition);
   for (const start of starts) {
-    if (start.on.kind !== "event") continue;
+    if (start.on.kind === "schedule") {
+      if (needsRepository && !namesRepository(start.inputs)) {
+        throw refused("start_schedule_repository_missing", start.id);
+      }
+      continue;
+    }
     const declared = neutralFieldsOf(start.on.eventKind);
     if (declared === undefined) {
       throw refused("start_event_kind_unknown", start.id);
@@ -35,7 +45,27 @@ export function readStarts(
   return readStartSchedules(starts);
 }
 
-function refused(reason: string, startId: string): StandardError {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requiresRepository(definition: unknown): boolean {
+  if (!isRecord(definition) || !isRecord(definition.inputs)) return false;
+  const input = definition.inputs.repositoryId;
+  return isRecord(input) && input.required === true;
+}
+
+function namesRepository(inputs: WorkflowStart["inputs"]): boolean {
+  const repositoryId = inputs?.repositoryId;
+  return typeof repositoryId === "string" && UUID.test(repositoryId);
+}
+
+function refused(
+  reason: WorkflowStartRefusalReason,
+  startId: string,
+): StandardError {
   return new StandardError({
     code: "VALIDATION_FAILED",
     params: { reason, startId },

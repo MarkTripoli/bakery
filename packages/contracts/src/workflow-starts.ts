@@ -134,6 +134,20 @@ export const WorkflowStartSchema = z.object({
 );
 export type WorkflowStart = z.output<typeof WorkflowStartSchema>;
 
+export const WorkflowStartRefusalReasonSchema = z.enum([
+  "start_event_kind_unknown",
+  "start_filter_key_unsupported",
+  "start_filter_value_type",
+  "start_schedule_cron_invalid",
+  "start_schedule_timezone_invalid",
+  "start_schedule_repository_missing",
+]).describe(
+  "Why a start was refused on save or publish: an event kind no source emits, a filter field the kind does not declare or of the wrong type, a schedule the scheduler cannot read, or a schedule start of a workflow that requires repositoryId whose static inputs name no repository UUID.",
+);
+export type WorkflowStartRefusalReason = z.output<
+  typeof WorkflowStartRefusalReasonSchema
+>;
+
 export const WorkflowStartsSchema = z.array(WorkflowStartSchema).max(
   WORKFLOW_START_MAX,
 ).refine(
