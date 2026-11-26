@@ -1,0 +1,89 @@
+[
+  {
+    "at": "7.4",
+    "event": "import dialog",
+    "text": "Import a workflow × Definition file Choose a file A workflow definition file exported from Bakery (.yaml). Or paste the definition Looks good: 1 step. Name* Importing creates a draft. Nothing runs. Cancel Import as draft"
+  },
+  {
+    "at": "7.6",
+    "event": "POST /v1/workflows",
+    "status": 201
+  },
+  {
+    "at": "7.6",
+    "event": "POST /v1/workflows/:id/versions",
+    "status": 201
+  },
+  {
+    "at": "10.5",
+    "event": "after import",
+    "path": "/library/workflows/a17dc834-b62e-4c7a-b80e-b7047251152e",
+    "text": "Skip to content Bakery Personal Work Issues Projects Delivery Sessions Soon Machines Library Files Automations Soon Settings BA Browser Admin Workspace Library release-sign-off Edit More actions for release-sign-off release-sign-off No version in use To use this workflow, publish a version in the editor. Steps in version 1 Diagram Outline Started by hand From a task Write the task brief Writes down what the task is, for the steps after it. End React Flow Versions A version never changes after it is published. Tasks keep the version they started with. Version 1 Draft Changed Nov 25, 2026 Shown "
+  },
+  {
+    "at": "14.2",
+    "event": "PATCH /v1/workflows/:id/versions/:id",
+    "status": 200
+  },
+  {
+    "at": "15.6",
+    "event": "added",
+    "card": "Ask a person Needs setup"
+  },
+  {
+    "at": "17.7",
+    "event": "blocked",
+    "text": "Publish version 1 Fix these first. The workflow cannot be published until you do. A version never changes after it is published. Tasks keep the version they started with. Ask a person Write what you are asking. The workflow cannot be published without it. Show me Keep editing"
+  },
+  {
+    "at": "21.0",
+    "event": "leave asked",
+    "text": "Leave the editor? Your last change may be lost. Stay Leave anyway"
+  },
+  {
+    "at": "21.6",
+    "event": "PATCH /v1/workflows/:id/versions/:id",
+    "status": 200
+  },
+  {
+    "at": "24.1",
+    "event": "kept",
+    "question": "Ship this release to customers?"
+  },
+  {
+    "at": "24.7",
+    "event": "PATCH /v1/workflows/:id/versions/:id",
+    "status": 200
+  },
+  {
+    "at": "26.0",
+    "event": "PATCH /v1/workflows/:id/versions/:id",
+    "status": 200
+  },
+  {
+    "at": "27.4",
+    "event": "filled",
+    "card": "Ask a person Asks Browser Admin to approve"
+  },
+  {
+    "at": "29.6",
+    "event": "POST /v1/workflows/:id/versions/:id/publish",
+    "status": 200
+  },
+  {
+    "at": "29.7",
+    "event": "POST /v1/workflows/:id/activations",
+    "status": 200
+  },
+  {
+    "at": "32.2",
+    "event": "published"
+  },
+  {
+    "at": "39.0",
+    "event": "reloaded",
+    "header": "release-sign-off |  | Version 1 is in use | ",
+    "card": "Ask a person Asks Browser Admin to approve",
+    "question": "Ship this release to customers?"
+  }
+]
