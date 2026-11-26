@@ -427,3 +427,58 @@ Deno.test("a reconnect whose connection is gone stores nothing and leaves the in
     await o.finish();
   }
 });
+
+Deno.test("a connected Slack workspace reads back through the connection list, get and its auth attempt", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    const attempt = await startAttempt(o.fixture);
+    const connected = await slackCallback(o.fixture, {
+      code: "slack-code-list",
+      state: attempt.url.searchParams.get("state")!,
+    });
+    assertEquals(outcome(connected), "connected");
+    const connectionId = new URL(
+      connected.headers.get("location")!,
+      "https://x",
+    ).searchParams.get("connectionId")!;
+    const headers = { "Bakery-Organization-Id": o.fixture.organizationId };
+    const listed = await call(
+      o.fixture,
+      "GET",
+      "/v1/integration-connections",
+      o.fixture.adminCookie,
+      { headers },
+    );
+    assertEquals(listed.status, 200, await listed.clone().text());
+    const list = await listed.json() as {
+      items: { id: string; provider: string }[];
+    };
+    assertEquals(
+      list.items.filter((item) => item.id === connectionId).map((item) =>
+        item.provider
+      ),
+      ["slack"],
+    );
+    const one = await call(
+      o.fixture,
+      "GET",
+      `/v1/integration-connections/${connectionId}`,
+      o.fixture.adminCookie,
+      { headers },
+    );
+    assertEquals(one.status, 200, await one.clone().text());
+    assertEquals((await one.json() as { provider: string }).provider, "slack");
+    const read = await call(
+      o.fixture,
+      "GET",
+      `/v1/integration-auth-attempts/${attempt.id}`,
+      o.fixture.adminCookie,
+      { headers },
+    );
+    assertEquals(read.status, 200, await read.clone().text());
+    assertEquals((await read.json() as { provider: string }).provider, "slack");
+  } finally {
+    await o.finish();
+  }
+});

@@ -49024,9 +49024,11 @@ export const clientManifest = {
               "provider": {
                 "type": "string",
                 "enum": [
-                  "github"
+                  "github",
+                  "linear",
+                  "slack"
                 ],
-                "description": "Integration provider this connection binds; only github is supported."
+                "description": "Integration provider this connection binds: github, linear or slack, each a provider registered in this Bakery build."
               },
               "label": {
                 "type": "string",
@@ -72292,9 +72294,11 @@ export const clientManifest = {
         "provider": {
           "type": "string",
           "enum": [
-            "github"
+            "github",
+            "linear",
+            "slack"
           ],
-          "description": "Integration provider this connection binds; only github is supported."
+          "description": "Integration provider this connection binds: github, linear or slack, each a provider registered in this Bakery build."
         },
         "label": {
           "type": "string",
@@ -86828,9 +86832,11 @@ export const clientManifest = {
         "provider": {
           "type": "string",
           "enum": [
-            "github"
+            "github",
+            "linear",
+            "slack"
           ],
-          "description": "Integration provider this attempt authorizes against; only github is supported."
+          "description": "Integration provider this attempt authorizes against: github, linear or slack, each a provider registered in this Bakery build."
         },
         "reconnectConnectionId": {
           "anyOf": [
