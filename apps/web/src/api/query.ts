@@ -125,6 +125,8 @@ import type {
   RunStepListResponse,
   SavedDataPage,
   ScimConnection,
+  SkillDraftFileResponse,
+  SkillDraftResponse,
   SkillListResponse,
   SkillResponse,
   SkillScope,
@@ -3280,6 +3282,50 @@ export function skillQueryOptions(
       ),
     enabled: Boolean(scope.organizationId) && id !== "",
     retry: retryNetworkOnce,
+  });
+}
+
+export function skillDraftQueryOptions(
+  client: Pick<BakeryApiClient, "getSkillDraft">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<SkillDraftResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skillDrafts.get", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getSkillDraft({
+          organizationId: requireOrganization(scope),
+          id,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
+    retry: retryNetworkOnce,
+    staleTime: Infinity,
+  });
+}
+
+export function skillDraftFileQueryOptions(
+  client: Pick<BakeryApiClient, "getSkillDraftFile">,
+  scope: ApiScope,
+  id: string,
+  fileId: string,
+) {
+  return queryOptions<SkillDraftFileResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skillDraftFiles.get", { id, fileId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getSkillDraftFile({
+          organizationId: requireOrganization(scope),
+          id,
+          fileId,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "" && fileId !== "",
+    retry: retryNetworkOnce,
+    staleTime: Infinity,
   });
 }
 

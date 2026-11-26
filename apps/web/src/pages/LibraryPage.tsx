@@ -44,6 +44,7 @@ import { EvaluationsTab } from "./library/EvaluationsTab.tsx";
 import { SkillsTab } from "./library/SkillsTab.tsx";
 import { type LibraryRow, LibraryRows } from "./library/LibraryRows.tsx";
 import { ImportDialog } from "./library/ImportDialog.tsx";
+import { SkillNewDialog } from "./library/SkillNewDialog.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
 import {
   memoryBadgeTone,
@@ -112,6 +113,7 @@ export function LibraryPage() {
   const memoryStale = tab === "memory" && (offlineNow || live === "lost");
   const [copying, setCopying] = useState<WorkflowPresetResponse | null>(null);
   const [importing, setImporting] = useState(false);
+  const [newSkill, setNewSkill] = useState(false);
   const importOpener = useRef<HTMLElement | null>(null);
   const active = tab === "workflows"
     ? [workflows, presets]
@@ -457,23 +459,39 @@ export function LibraryPage() {
       </UI.Stack>
     );
 
-  // Import is the Workflows tab's, for an administrator.
-  const importButton = canManage && tab === "workflows"
+  const newSkillButton = tab === "skills"
     ? (
       <UI.Button
-        variant="secondary"
+        variant="primary"
         disabled={offlineNow}
         onClick={() => {
           importOpener.current = document.activeElement instanceof HTMLElement
             ? document.activeElement
             : null;
-          setImporting(true);
+          setNewSkill(true);
         }}
       >
-        {translate("library.workflow.import" as never)}
+        {translate("library.skills.new" as never)}
       </UI.Button>
     )
     : null;
+  const importButton = newSkillButton ??
+    (canManage && tab === "workflows"
+      ? (
+        <UI.Button
+          variant="secondary"
+          disabled={offlineNow}
+          onClick={() => {
+            importOpener.current = document.activeElement instanceof HTMLElement
+              ? document.activeElement
+              : null;
+            setImporting(true);
+          }}
+        >
+          {translate("library.workflow.import" as never)}
+        </UI.Button>
+      )
+      : null);
 
   return (
     <>
@@ -581,6 +599,16 @@ export function LibraryPage() {
           onRetry={() => void fetchedFact.refetch()}
         />
       )}
+      {newSkill
+        ? (
+          <SkillNewDialog
+            onClose={() => {
+              setNewSkill(false);
+              focusAfterPaint(() => importOpener.current);
+            }}
+          />
+        )
+        : null}
       {importing
         ? (
           <ImportDialog

@@ -74,6 +74,7 @@ Deno.test("production launcher preserves only validated scoped skill storage", a
     assertEquals(await Deno.readTextFile(capture.unrelatedPath), "absent");
     assert(args.includes(`--allow-read=${skillRoot}`));
     assert(args.includes(`--allow-write=${skillRoot}`));
+    assert(args.includes("--allow-read=src/modules/catalog/bundled-skills"));
     assert(args.includes(`--allow-read=${secretsKeyFile}`));
     assert(args.includes(`--allow-read=${providerFixtureFile}`));
     assert(!args.includes(`--allow-write=${secretsKeyFile}`));
@@ -112,11 +113,9 @@ Deno.test("production launcher preserves only validated scoped skill storage", a
     const absentArgs = await capturedArgs(capture.argsPath);
     assertEquals(await Deno.readTextFile(capture.rootPath), "");
     assertEquals(await Deno.readTextFile(capture.unrelatedPath), "absent");
-    // Without a skill root there is no read grant: never a skill, storage or
-    // unrelated path.
     assertEquals(
       absentArgs.filter((argument) => argument.startsWith("--allow-read=")),
-      [],
+      ["--allow-read=src/modules/catalog/bundled-skills"],
     );
     assert(
       !absentArgs.some((argument) => argument.startsWith("--allow-write=")),
