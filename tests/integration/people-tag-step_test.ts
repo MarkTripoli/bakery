@@ -445,7 +445,7 @@ Deno.test("who is asked next is named only from this organization, as the ask it
       "Administrators",
     );
     assertEquals(
-      (await whoWith({ recipientRoleKey: "release-managers" }))?.who,
+      await whoWith({ recipientRoleKey: "release-managers" }),
       null,
     );
     await o.fixture.pgDatabase.query(
@@ -508,6 +508,43 @@ Deno.test("a next ask that reaches nobody new is not shown, before or after it i
       requests: { nextAsk: { askedAt: string | null } | null }[];
     };
     assertEquals(body.requests[0]!.nextAsk, null);
+  } finally {
+    await o.finishAll();
+  }
+});
+
+Deno.test("a next group whose members were all asked already is not shown from the start", async () => {
+  const o = await openWithNextPerson();
+  try {
+    const groupId = await seedGroup(o.fixture, [o.guest.principalId]);
+    const again = o.step({
+      ...o.request.input as Record<string, unknown>,
+      ifNobodyAnswers: { afterHours: 24, recipientGroupId: groupId },
+    });
+    await o.fixture.pgDatabase.query(
+      `update bakery.run_steps set input = $3::jsonb
+        where organization_id = $1 and run_id = $2 and step_key = 'notify'`,
+      [o.fixture.organizationId, o.run.runId, JSON.stringify(again.input)],
+    );
+    assertEquals(await o.runner.run(again), { kind: "pending" });
+    const read = async () => {
+      const response = await api(
+        o.fixture,
+        o.fixture.cookie,
+        "GET",
+        `/v1/runs/${o.run.runId}/requests`,
+      );
+      return ((await response.json()) as { requests: { nextAsk: unknown }[] })
+        .requests[0]!.nextAsk;
+    };
+    assertEquals(await read(), null);
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.organization_group_members
+         (organization_id, group_id, principal_id)
+       values ($1, $2, $3)`,
+      [o.fixture.organizationId, groupId, o.next.principalId],
+    );
+    assert(await read() !== null);
   } finally {
     await o.finishAll();
   }

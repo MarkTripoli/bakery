@@ -165,6 +165,7 @@ type RequestRow = {
   next_planned_name: string | null;
   next_already_asked: boolean | null;
   next_ask_claimed: boolean;
+  next_audience_has_new: boolean | null;
 };
 
 const DEFAULT_NEXT_ASK_HOURS = 24;
@@ -192,7 +193,8 @@ const REQUEST_SELECT = `
                   next_run_person.display_name) as next_planned_name,
          coalesce(next_person.id, next_run_person.id) = any(first_round.ids)
            as next_already_asked,
-         next_claim.asked_at is not null as next_ask_claimed
+         next_claim.asked_at is not null as next_ask_claimed,
+         next_audience.has_new as next_audience_has_new
     from bakery.person_requests as request
     join bakery.principals as recipient on recipient.id = request.recipient_id
     left join bakery.principals as asker on asker.id = request.asked_by
@@ -276,7 +278,35 @@ const REQUEST_SELECT = `
            when 'starter' then next_run.requested_by
            when 'task_owner' then next_task.created_by
          end
-    ) as next_run_person on true`;
+    ) as next_run_person on true
+    left join lateral (
+      select exists (
+        select 1
+          from bakery.organization_memberships as membership
+          join bakery.principals as principal
+            on principal.id = membership.principal_id
+         where membership.organization_id = request.organization_id
+           and membership.status = 'active'
+           and principal.principal_type = 'human'
+           and principal.disabled_at is null
+           and membership.principal_id <> all(coalesce(first_round.ids, '{}'))
+           and (
+             exists (
+               select 1 from bakery.organization_group_members as member
+                where member.organization_id = request.organization_id
+                  and member.group_id = next_group.id
+                  and member.principal_id = membership.principal_id
+             )
+             or (membership.custom_role_id is null
+                 and membership.role in ('admin', 'developer')
+                 and membership.role
+                   = step.input #>> '{ifNobodyAnswers,recipientRoleKey}')
+             or membership.custom_role_id = next_role.id
+           )
+      ) as has_new
+       where next_group.id is not null
+          or step.input #>> '{ifNobodyAnswers,recipientRoleKey}' is not null
+    ) as next_audience on true`;
 
 function iso(value: Date | string): string {
   return (value instanceof Date ? value : new Date(value)).toISOString();
@@ -341,6 +371,7 @@ function nextAskOf(row: RequestRow) {
     return { nextAsk: null, passedOn: true };
   }
   const reachesNobodyNew = row.next_already_asked === true ||
+    row.next_audience_has_new === false ||
     (row.next_ask_claimed && row.next_asked_at === null);
   if (reachesNobodyNew) return { nextAsk: null, passedOn: false };
   return {
