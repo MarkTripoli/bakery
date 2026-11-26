@@ -7237,9 +7237,10 @@ const transportSchemas = {
           "type": "enum",
           "required": true,
           "enum": [
-            "github"
+            "github",
+            "slack"
           ],
-          "description": "Integration provider to authorize against; only github is supported. The server builds the authorization URL from the provider app registered for this Bakery installation, never from request data."
+          "description": "Integration provider to authorize against: github through its registered App, or slack through the OAuth2 client credentials saved for this Bakery installation. The server builds the authorization URL from that registration, never from request data."
         },
         {
           "name": "reconnectConnectionId",

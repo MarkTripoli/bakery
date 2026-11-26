@@ -116,6 +116,8 @@ const oauth2: OAuth2Profile = {
   authorizeUrl: AUTHORIZE_URL,
   tokenUrl: TOKEN_URL,
   scopes: SCOPES,
+  scopeDelimiter: " ",
+  apiBaseUrl: new URL("https://api.linear.app"),
   tokenResponse,
   async identify(ctx: DriverContext) {
     const response = await ctx.provider.send({

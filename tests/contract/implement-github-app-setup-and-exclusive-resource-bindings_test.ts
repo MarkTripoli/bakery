@@ -37,6 +37,7 @@ const implementedIntegrationActions = [
   "integrationAuthAttempts.get",
   "integrationAuth.setup",
   "integrationAuth.authorizationCallback",
+  "integrationAuth.providerCallback",
   "integrationConnections.create",
   "integrationConnections.get",
   "integrationConnections.list",

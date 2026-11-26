@@ -368,6 +368,8 @@ export const IntegrationsImplementedAction = Object.freeze(
     IntegrationAuthAttemptsGet: "integrationAuthAttempts.get",
     IntegrationSetup: "integrationAuth.setup",
     IntegrationAuthorizationCallback: "integrationAuth.authorizationCallback",
+    IntegrationProviderAuthorizationCallback:
+      "integrationAuth.providerCallback",
     IntegrationConnectionsGet: "integrationConnections.get",
     IntegrationConnectionsCreate: "integrationConnections.create",
     IntegrationConnectionsList: "integrationConnections.list",

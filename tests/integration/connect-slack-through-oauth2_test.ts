@@ -1,0 +1,325 @@
+import { assert, assertEquals } from "@std/assert";
+import {
+  call,
+  openInstallationFixture,
+} from "../helpers/installation-settings.ts";
+import { pkceChallenge } from "../../apps/server/src/modules/integrations/auth-attempts.ts";
+import { decodeSecretSlots } from "../../apps/server/src/modules/integrations/provider-credential-port.ts";
+import { openInstallationSecret } from "../../apps/server/src/modules/secrets/installation-secrets.ts";
+import { SLACK_BOT_SCOPES } from "../../packages/integration-slack/src/server/provider.ts";
+
+const BOT_TOKEN = "xoxb-test-bot-token";
+const CLIENT_SECRET = "slack-client-secret-one";
+const TEAM_ID = "T0TESTTEAM";
+
+type SlackCall = { url: string; body: string; authorization: string | null };
+
+function fakeSlack(options: { tokenOk?: boolean } = {}) {
+  const calls: SlackCall[] = [];
+  const respond = (input: URL, init: RequestInit): Response => {
+    const headers = new Headers(init.headers);
+    const body = init.body instanceof URLSearchParams
+      ? init.body.toString()
+      : init.body === undefined || init.body === null
+      ? ""
+      : new TextDecoder().decode(init.body as Uint8Array);
+    calls.push({
+      url: input.href,
+      body,
+      authorization: headers.get("authorization"),
+    });
+    if (input.href === "https://slack.com/api/oauth.v2.access") {
+      if (options.tokenOk === false) {
+        return Response.json({ ok: false, error: "invalid_code" });
+      }
+      return Response.json({
+        ok: true,
+        access_token: BOT_TOKEN,
+        token_type: "bot",
+        scope: SLACK_BOT_SCOPES.join(","),
+        bot_user_id: "U0TESTBOT",
+        app_id: "A0TESTAPP",
+        team: { id: TEAM_ID, name: "Test Workspace" },
+        enterprise: null,
+        authed_user: { id: "U0TESTUSER" },
+      });
+    }
+    if (input.href === "https://slack.com/api/auth.test") {
+      return Response.json({
+        ok: headers.get("authorization") === `Bearer ${BOT_TOKEN}`,
+        team_id: TEAM_ID,
+        team: "Test Workspace",
+        bot_id: "B0TESTBOT",
+      });
+    }
+    return new Response("not found", { status: 404 });
+  };
+  const fetch = (input: URL, init: RequestInit) =>
+    Promise.resolve(respond(input, init));
+  return { calls, fetch };
+}
+
+async function open(slack: ReturnType<typeof fakeSlack>) {
+  const directory = await Deno.makeTempDir({ prefix: "bakery-slack-connect-" });
+  const file = `${directory}/key`;
+  await Deno.writeFile(file, crypto.getRandomValues(new Uint8Array(32)), {
+    mode: 0o600,
+  });
+  const secretsKey = { file, keyId: "slack-connect-key-v1" };
+  const fixture = await openInstallationFixture(true, {
+    secretsKey,
+    oauth2Fetch: slack.fetch,
+  });
+  await clear(fixture);
+  const saved = await call(
+    fixture,
+    "PUT",
+    "/v1/integration-client-credentials/slack",
+    fixture.adminCookie,
+    {
+      body: { clientId: "1234.5678", clientSecret: CLIENT_SECRET },
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+    },
+  );
+  assertEquals(saved.status, 200, await saved.clone().text());
+  return {
+    fixture,
+    secretsKey,
+    finish: async () => {
+      try {
+        await clear(fixture);
+      } finally {
+        try {
+          await fixture.finish();
+        } finally {
+          await Deno.remove(directory, { recursive: true });
+        }
+      }
+    },
+  };
+}
+
+type Fixture = Awaited<ReturnType<typeof openInstallationFixture>>;
+
+async function clear(fixture: Fixture) {
+  const pg = fixture.pgDatabase;
+  await pg.query(
+    "delete from bakery.integration_auth_attempts where provider = 'slack'",
+  );
+  await pg.query(
+    "delete from bakery.integration_connections where provider = 'slack'",
+  );
+  await pg.query(
+    "delete from bakery.integration_installations where provider = 'slack'",
+  );
+  await pg.query(
+    "delete from bakery.integration_app_registrations where provider = 'slack'",
+  );
+  await pg.query(
+    "update bakery.secrets set active_version_id = null where provider = 'slack'",
+  );
+  await pg.query(
+    `delete from bakery.secret_versions where secret_id in
+       (select id from bakery.secrets where provider = 'slack')`,
+  );
+  await pg.query("delete from bakery.secrets where provider = 'slack'");
+}
+
+async function startAttempt(fixture: Fixture) {
+  const response = await call(
+    fixture,
+    "POST",
+    "/v1/integration-auth-attempts",
+    fixture.adminCookie,
+    {
+      body: { provider: "slack" },
+      headers: {
+        "Bakery-Organization-Id": fixture.organizationId,
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+    },
+  );
+  assertEquals(response.status, 201, await response.clone().text());
+  const created = await response.json() as {
+    id: string;
+    authorizationUrl: string;
+    installationUrl?: string;
+  };
+  return { ...created, url: new URL(created.authorizationUrl) };
+}
+
+function slackCallback(fixture: Fixture, query: Record<string, string>) {
+  return call(
+    fixture,
+    "GET",
+    `/v1/integration-auth/slack/callback?${new URLSearchParams(query)}`,
+    fixture.adminCookie,
+  );
+}
+
+Deno.test("connecting Slack sends the admin to Slack's authorize page with the bot scopes and this callback", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    const attempt = await startAttempt(o.fixture);
+    assertEquals(attempt.installationUrl, undefined);
+    assertEquals(
+      `${attempt.url.origin}${attempt.url.pathname}`,
+      "https://slack.com/oauth/v2/authorize",
+    );
+    const query = attempt.url.searchParams;
+    assertEquals(query.get("client_id"), "1234.5678");
+    assertEquals(query.get("scope"), SLACK_BOT_SCOPES.join(","));
+    assert(
+      query.get("redirect_uri")!.endsWith(
+        "/v1/integration-auth/slack/callback",
+      ),
+    );
+    assertEquals(query.get("code_challenge_method"), "S256");
+    assert((query.get("state") ?? "").length >= 43);
+    assertEquals(slack.calls.length, 0);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("the Slack callback stores the bot token sealed and enables one connection for the workspace", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    const attempt = await startAttempt(o.fixture);
+    const state = attempt.url.searchParams.get("state")!;
+    const response = await slackCallback(o.fixture, {
+      code: "slack-code-1",
+      state,
+    });
+    assertEquals(response.status, 303);
+    const location = new URL(response.headers.get("location")!, "https://x");
+    assertEquals(location.searchParams.get("slackConnection"), "connected");
+    const connectionId = location.searchParams.get("connectionId")!;
+
+    const exchange = new URLSearchParams(slack.calls[0]!.body);
+    assertEquals(slack.calls[0]!.url, "https://slack.com/api/oauth.v2.access");
+    assertEquals(exchange.get("code"), "slack-code-1");
+    assertEquals(exchange.get("client_secret"), CLIENT_SECRET);
+    assertEquals(
+      await pkceChallenge(exchange.get("code_verifier")!),
+      attempt.url.searchParams.get("code_challenge"),
+    );
+    assertEquals(slack.calls[1]!.url, "https://slack.com/api/auth.test");
+    assertEquals(slack.calls[1]!.authorization, `Bearer ${BOT_TOKEN}`);
+
+    const pg = o.fixture.pgDatabase;
+    const connection = (await pg.query<{
+      organization_id: string;
+      status: string;
+      external_account_id: string;
+      label: string;
+      secret_id: string;
+    }>(
+      `select connection.organization_id, connection.status,
+         connection.external_account_id, connection.label,
+         installation.credential_secret_id as secret_id
+         from bakery.integration_connections connection
+         join bakery.integration_installations installation
+           on installation.id = connection.installation_id
+        where connection.id = $1 and connection.provider = 'slack'`,
+      [connectionId],
+    )).rows[0]!;
+    assertEquals(connection.organization_id, o.fixture.organizationId);
+    assertEquals(connection.status, "enabled");
+    assertEquals(connection.external_account_id, TEAM_ID);
+    assertEquals(connection.label, "Test Workspace");
+
+    const stored = await openInstallationSecret(
+      pg,
+      o.secretsKey,
+      connection.secret_id,
+    );
+    const slots = decodeSecretSlots(stored, ["access_token"]);
+    assertEquals(new TextDecoder().decode(slots.access_token), BOT_TOKEN);
+    const raw = await pg.query<{ text: string }>(
+      `select encode(ciphertext, 'escape') as text from bakery.secret_versions
+        where secret_id = $1`,
+      [connection.secret_id],
+    );
+    assert(!raw.rows[0]!.text.includes(BOT_TOKEN));
+
+    const attemptRow = (await pg.query<{
+      status: string;
+      result_connection_id: string;
+    }>(
+      `select status, result_connection_id from bakery.integration_auth_attempts
+        where id = $1`,
+      [attempt.id],
+    )).rows[0]!;
+    assertEquals(attemptRow, {
+      status: "completed",
+      result_connection_id: connectionId,
+    });
+    const audits = await pg.query<{ details: string }>(
+      `select details::text from bakery.audit_events
+        where operation = 'integrationAuth.providerCallback'
+          and resource_id = $1`,
+      [connectionId],
+    );
+    assertEquals(audits.rows.length, 1);
+    assert(!audits.rows[0]!.details.includes(BOT_TOKEN));
+    assert(!audits.rows[0]!.details.includes(CLIENT_SECRET));
+
+    const replay = await slackCallback(o.fixture, {
+      code: "slack-code-1",
+      state,
+    });
+    assertEquals(
+      new URL(replay.headers.get("location")!, "https://x").searchParams.get(
+        "slackConnection",
+      ),
+      "state_rejected",
+    );
+    assertEquals(slack.calls.length, 2);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a refused Slack exchange or a denied authorization stores no connection and no token", async () => {
+  const slack = fakeSlack({ tokenOk: false });
+  const o = await open(slack);
+  try {
+    const refused = await startAttempt(o.fixture);
+    const failed = await slackCallback(o.fixture, {
+      code: "slack-code-bad",
+      state: refused.url.searchParams.get("state")!,
+    });
+    assertEquals(
+      new URL(failed.headers.get("location")!, "https://x").searchParams.get(
+        "slackConnection",
+      ),
+      "exchange_failed",
+    );
+    const denied = await startAttempt(o.fixture);
+    const cancelled = await slackCallback(o.fixture, {
+      error: "access_denied",
+      state: denied.url.searchParams.get("state")!,
+    });
+    assertEquals(
+      new URL(cancelled.headers.get("location")!, "https://x").searchParams
+        .get("slackConnection"),
+      "authorization_denied",
+    );
+    assertEquals(slack.calls.length, 1);
+    const pg = o.fixture.pgDatabase;
+    const counts =
+      (await pg.query<{ connections: number; installations: number }>(
+        `select
+         (select count(*)::int from bakery.integration_connections
+           where provider = 'slack') as connections,
+         (select count(*)::int from bakery.integration_installations
+           where provider = 'slack') as installations`,
+      )).rows[0]!;
+    assertEquals(counts, { connections: 0, installations: 0 });
+  } finally {
+    await o.finish();
+  }
+});

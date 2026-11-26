@@ -10017,6 +10017,33 @@
     {
       "group": "Integration setup",
       "method": "GET",
+      "path": "/v1/integration-auth/:provider/callback",
+      "action": "integrationAuth.providerCallback",
+      "access": "Bound browser auth attempt",
+      "permission": null,
+      "input": "OAuthCallback",
+      "output": "AuthRedirect",
+      "event": "integration.auth_attempt_changed",
+      "mcp": "",
+      "idempotency": "single-use state hash + provider code; no Idempotency-Key",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "INTERNAL"
+      ],
+      "organizationContext": "derived_bound_auth_attempt",
+      "implemented": true
+    },
+    {
+      "group": "Integration setup",
+      "method": "GET",
       "path": "/v1/integration-auth/github/setup",
       "action": "integrationAuth.setup",
       "access": "Bound browser auth attempt",
@@ -15646,6 +15673,7 @@
     "integrationAuthAttempts.get",
     "integrationAuth.setup",
     "integrationAuth.authorizationCallback",
+    "integrationAuth.providerCallback",
     "integrationConnections.get",
     "integrationConnections.create",
     "integrationConnections.list",
@@ -44809,6 +44837,86 @@
           }
         }
       },
+      "/v1/integration-auth/:provider/callback": {
+        "get": {
+          "operationId": "integrationAuth.providerCallback",
+          "parameters": [
+            {
+              "name": "code",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Provider-issued authorization code to exchange for the pending auth attempt's result; absent when the provider instead returned error. OAuthCallback.code must contain at most 4096 characters.",
+                "type": "string",
+                "maxLength": 4096
+              }
+            },
+            {
+              "name": "state",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "maxLength": 4096,
+                "description": "Single-use, session-bound state value matching the auth or identity-link attempt that started this flow; claimed atomically before exchange to reject replay. OAuthCallback.state must contain at most 4096 characters."
+              }
+            },
+            {
+              "name": "error",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Provider-reported error code returned when the user denied authorization or the flow failed before a code was issued. OAuthCallback.error must contain at most 200 characters.",
+                "type": "string",
+                "maxLength": 200
+              }
+            },
+            {
+              "name": "errorDescription",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Provider-supplied human-readable detail accompanying error; both fields are diagnostic only and never authorize a connection or grant. OAuthCallback.errorDescription must contain at most 1000 characters.",
+                "type": "string",
+                "maxLength": 1000
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/AuthRedirect"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED, AUTH_INVALID, AUTH_EXPIRED, AUTH_FACTOR_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (SESSION_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT)."
+            },
+            "500": {
+              "description": "Internal server error (INTERNAL)."
+            },
+            "503": {
+              "description": "Service unavailable (DEPENDENCY_UNAVAILABLE)."
+            }
+          }
+        }
+      },
       "/v1/integration-auth/github/setup": {
         "get": {
           "operationId": "integrationAuth.setup",
@@ -66947,6 +67055,7 @@
                 "integrationAuthAttempts.create",
                 "integrationAuthAttempts.get",
                 "integrationAuth.authorizationCallback",
+                "integrationAuth.providerCallback",
                 "integrationAuth.setup",
                 "integrationAuth.slackIdentityCallback",
                 "integrationInstallations.list",
@@ -120411,6 +120520,7 @@
                 "integrationAuthAttempts.create",
                 "integrationAuthAttempts.get",
                 "integrationAuth.authorizationCallback",
+                "integrationAuth.providerCallback",
                 "integrationAuth.setup",
                 "integrationAuth.slackIdentityCallback",
                 "integrationInstallations.list",
@@ -121133,6 +121243,7 @@
                 "integrationAuthAttempts.create",
                 "integrationAuthAttempts.get",
                 "integrationAuth.authorizationCallback",
+                "integrationAuth.providerCallback",
                 "integrationAuth.setup",
                 "integrationAuth.slackIdentityCallback",
                 "integrationInstallations.list",
@@ -121855,6 +121966,7 @@
                 "integrationAuthAttempts.create",
                 "integrationAuthAttempts.get",
                 "integrationAuth.authorizationCallback",
+                "integrationAuth.providerCallback",
                 "integrationAuth.setup",
                 "integrationAuth.slackIdentityCallback",
                 "integrationInstallations.list",
@@ -169040,6 +169152,7 @@
                       "integrationAuthAttempts.create",
                       "integrationAuthAttempts.get",
                       "integrationAuth.authorizationCallback",
+                      "integrationAuth.providerCallback",
                       "integrationAuth.setup",
                       "integrationAuth.slackIdentityCallback",
                       "integrationInstallations.list",
@@ -310478,6 +310591,7 @@
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
             "integrationAuth.authorizationCallback",
+            "integrationAuth.providerCallback",
             "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
@@ -364126,6 +364240,7 @@
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
             "integrationAuth.authorizationCallback",
+            "integrationAuth.providerCallback",
             "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
@@ -364848,6 +364963,7 @@
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
             "integrationAuth.authorizationCallback",
+            "integrationAuth.providerCallback",
             "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
@@ -365570,6 +365686,7 @@
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
             "integrationAuth.authorizationCallback",
+            "integrationAuth.providerCallback",
             "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
@@ -412905,6 +413022,7 @@
                   "integrationAuthAttempts.create",
                   "integrationAuthAttempts.get",
                   "integrationAuth.authorizationCallback",
+                  "integrationAuth.providerCallback",
                   "integrationAuth.setup",
                   "integrationAuth.slackIdentityCallback",
                   "integrationInstallations.list",

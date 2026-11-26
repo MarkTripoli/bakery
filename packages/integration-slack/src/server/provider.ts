@@ -124,6 +124,8 @@ const oauth2: OAuth2Profile = {
   authorizeUrl: new URL("https://slack.com/oauth/v2/authorize"),
   tokenUrl: new URL("https://slack.com/api/oauth.v2.access"),
   scopes: BOT_SCOPES,
+  scopeDelimiter: ",",
+  apiBaseUrl: new URL(API_ORIGIN),
   tokenResponse: slackTokenResponseSchema,
   async identify(ctx: DriverContext) {
     const response = await ctx.provider.send({

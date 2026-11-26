@@ -75,9 +75,20 @@ const githubApp: HostAuthProfile = Object.freeze({
   }),
 });
 
+const slackBot: HostAuthProfile = Object.freeze({
+  id: "slack-bot",
+  origin: "https://slack.com",
+  credentialPlacement: "authorization-bearer",
+  fixedHeaders: Object.freeze({}),
+  providerPermissions: Object.freeze({
+    chat: Object.freeze(["write"] as const),
+  }),
+  resourceKinds: Object.freeze({}),
+});
+
 /** Frozen registry of host authentication profiles; the only source of origins and credential placement. */
 export const HOST_AUTH_PROFILES: Readonly<Record<string, HostAuthProfile>> =
-  Object.freeze({ "github-app": githubApp });
+  Object.freeze({ "github-app": githubApp, "slack-bot": slackBot });
 
 /** Returns the host profile for an id, or undefined. Own-property lookup only. */
 export function getHostProfile(id: string): HostAuthProfile | undefined {
