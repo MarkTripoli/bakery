@@ -22101,6 +22101,7 @@ const transportSchemas = {
       "fields": [
         "id",
         "taskId",
+        "taskTitle",
         "artifactType",
         "name",
         "currentVersionId",
@@ -22112,6 +22113,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
+        "taskTitle": "string|null",
         "taskId": "uuid",
         "artifactType": "enum(research|plan|design|check|review|log|image|patch|other)",
         "name": "string",
@@ -22129,6 +22131,7 @@ const transportSchemas = {
       ],
       "description": "The stable, task-owned identity of one artifact: its type and display name, and a pointer to its current version, which is null before the first version is published.",
       "fieldDescriptions": {
+        "taskTitle": "Title of the artifact's task, present only for a reader who can see the task; absent for a reader with a grant to the document alone.",
         "id": "Stable UUID identifying the artifact record.",
         "taskId": "Stable UUID linking this record to the related task entity.",
         "artifactType": "Classification of artifact content.",
@@ -22141,6 +22144,7 @@ const transportSchemas = {
         "pinnedBy": "Principal who pinned the artifact, null when unpinned."
       },
       "optionalFields": [
+        "taskTitle",
         "pinnedAt",
         "pinnedBy"
       ]
@@ -22202,6 +22206,7 @@ const transportSchemas = {
         "id",
         "artifactVersionId",
         "authorId",
+        "authorName",
         "body",
         "anchor",
         "status",
@@ -22218,6 +22223,7 @@ const transportSchemas = {
         "id": "uuid",
         "artifactVersionId": "uuid",
         "authorId": "uuid",
+        "authorName": "string|null",
         "body": "string|null",
         "anchor": "CommentAnchor|null",
         "status": "enum(open|resolved)|null",
@@ -22241,12 +22247,14 @@ const transportSchemas = {
       ],
       "description": "placement is derived only when viewVersionId is requested and never changes the stored anchor. Deleted rows expose body:null and redact quote/context text from both original and placement anchors, retaining their kind and position.",
       "optionalFields": [
+        "authorName",
         "placement"
       ],
       "fieldDescriptions": {
         "id": "Stable UUID identifying the artifact comment record.",
         "artifactVersionId": "Stable UUID linking this record to the related artifact version entity.",
         "authorId": "Stable UUID linking this record to the related author entity.",
+        "authorName": "Display name of the comment's author, shown to every reader who can see the comment, including a reader with a grant to the document alone; null when the author has no display name.",
         "body": "User-visible body content carried by the record.",
         "anchor": "Source location anchored by the comment.",
         "status": "Current lifecycle status of the record.",
@@ -22303,6 +22311,7 @@ const transportSchemas = {
         "revision",
         "runStepId",
         "authorId",
+        "authorName",
         "mediaType",
         "sizeBytes",
         "sha256",
@@ -22325,6 +22334,7 @@ const transportSchemas = {
         "artifactId": "uuid",
         "revision": "integer",
         "runStepId": "uuid|null",
+        "authorName": "string|null",
         "authorId": "uuid",
         "mediaType": "string",
         "sizeBytes": "integer",
@@ -22355,6 +22365,7 @@ const transportSchemas = {
       ],
       "description": "Metadata for one immutable artifact version published by a worker through its attempt lease: media type, size, server-computed digest, the run step that produced it, optional subject head/base commit SHAs, and validated metadata. Content bytes are not included.",
       "fieldDescriptions": {
+        "authorName": "Display name of the version's publisher, shown to every reader who can see the version, including a reader with a grant to the document alone; null when the publisher has no display name.",
         "id": "Stable UUID identifying the artifact version record.",
         "artifactId": "Stable UUID linking this record to the related artifact entity.",
         "revision": "Monotonic revision number used to order updates to the record.",
@@ -22378,6 +22389,7 @@ const transportSchemas = {
         "refusedReason": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
       },
       "optionalFields": [
+        "authorName",
         "retentionClass",
         "expiresAt",
         "purgedAt",
@@ -22395,6 +22407,7 @@ const transportSchemas = {
         "revision",
         "runStepId",
         "authorId",
+        "authorName",
         "mediaType",
         "sizeBytes",
         "sha256",
@@ -22417,6 +22430,7 @@ const transportSchemas = {
         "artifactId": "uuid",
         "revision": "integer",
         "runStepId": "uuid|null",
+        "authorName": "string|null",
         "authorId": "uuid",
         "mediaType": "string",
         "sizeBytes": "integer",
@@ -22447,6 +22461,7 @@ const transportSchemas = {
       ],
       "description": "Metadata for one immutable artifact version returned to the developer after artifactVersions.create or artifactVersions.import: digest, size, media type, and server-verified provenance without content bytes.",
       "fieldDescriptions": {
+        "authorName": "Display name of the version's publisher, shown to every reader who can see the version, including a reader with a grant to the document alone; null when the publisher has no display name.",
         "id": "Stable UUID identifying the artifact version metadata record.",
         "artifactId": "Stable UUID linking this record to the related artifact entity.",
         "revision": "Monotonic revision number used to order updates to the record.",
@@ -22470,6 +22485,7 @@ const transportSchemas = {
         "refusedReason": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
       },
       "optionalFields": [
+        "authorName",
         "retentionClass",
         "expiresAt",
         "purgedAt",

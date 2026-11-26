@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import * as UI from "@bakery/ui";
+import { focusAfterPaint } from "../../app/focus.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import {
   APPROVAL_LABEL_MAX,
@@ -17,7 +18,9 @@ export type ApprovalFocus = {
 export type ApprovalPanelProps = {
   readonly stepId: string;
   readonly fields: ApprovalFields;
-  readonly onChange: ((fields: ApprovalFields) => void) | undefined;
+  readonly onChange:
+    | ((fields: ApprovalFields, typing?: string) => void)
+    | undefined;
   readonly people: {
     readonly state: "loading" | "failed" | "ready";
     readonly list: readonly ApprovalPerson[];
@@ -92,7 +95,7 @@ function ReadOnlyApproval({ fields, people }: ApprovalPanelProps) {
 
 function EditableApproval(
   props: ApprovalPanelProps & {
-    readonly onChange: (fields: ApprovalFields) => void;
+    readonly onChange: (fields: ApprovalFields, typing?: string) => void;
   },
 ) {
   const { fields, onChange, people, focus } = props;
@@ -112,13 +115,11 @@ function EditableApproval(
       focus.field === "prompt" ? promptId : audienceId,
     )?.focus();
   }, [focus, promptId, audienceId]);
-  const commit = (field: TextField) => {
-    if (draft[field] !== fields[field]) {
-      onChange({ ...fields, [field]: draft[field] });
-    }
+  const type = (field: TextField, value: string, max: number) => {
+    const next = value.slice(0, max);
+    setDraft((held) => ({ ...held, [field]: next }));
+    onChange({ ...fields, [field]: next }, field);
   };
-  const type = (field: TextField, value: string, max: number) =>
-    setDraft((held) => ({ ...held, [field]: value.slice(0, max) }));
   const free = people.list.filter((one) =>
     one.active && !fields.audience.includes(one.principalId)
   );
@@ -131,11 +132,7 @@ function EditableApproval(
         autoComplete="off"
         id={`${base}-${field}`}
         name={field}
-        onBlur={() => commit(field)}
         onChange={(value) => type(field, value, APPROVAL_LABEL_MAX)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") commit(field);
-        }}
         placeholder={copy(`${name}Placeholder`)}
         type="text"
         value={draft[field]}
@@ -200,11 +197,15 @@ function EditableApproval(
                   <UI.Badge tone="neutral" title={name}>{name}</UI.Badge>
                   <UI.Button
                     aria-label={copy("removeNamed", { name })}
-                    onClick={() =>
+                    onClick={() => {
                       onChange({
                         ...fields,
                         audience: fields.audience.filter((one) => one !== id),
-                      })}
+                      });
+                      focusAfterPaint(() =>
+                        globalThis.document.getElementById(audienceId)
+                      );
+                    }}
                     variant="text"
                   >
                     {copy("remove")}
@@ -226,7 +227,6 @@ function EditableApproval(
         <textarea
           id={promptId}
           maxLength={APPROVAL_PROMPT_MAX}
-          onBlur={() => commit("prompt")}
           onChange={(event) =>
             type("prompt", event.target.value, APPROVAL_PROMPT_MAX)}
           required

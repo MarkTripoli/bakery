@@ -3041,6 +3041,141 @@ for (
       expect(written.steps[1]).toMatchObject({ min: 3, max: 5, allow: 3 });
     });
 
+    const AUTHORED_REPEAT = {
+      ...WORLD,
+      versions: [
+        ...VERSIONS.filter((row) => row.status !== "draft"),
+        {
+          ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+          spec: [
+            { id: "brief", uses: "task.brief" },
+            {
+              id: "again",
+              repeat: {
+                max: 3,
+                seed: { form: "prepared" },
+                steps: [{ id: "fix", uses: "harness.implement" }],
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    test("a number of a repeat: block is saved inside repeat and the card says it", async ({ page }) => {
+      const seen = await libraryFixture(page, AUTHORED_REPEAT);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const block = page.locator("[data-group=repeat]");
+      await block.getByRole("button", { name: /Repeat/ }).first().click();
+      const most = page.locator("#editor-step-panel").getByRole("spinbutton", {
+        name: "Most tries",
+      });
+      await expect(most).toHaveValue("3");
+      await most.fill("5");
+      await expect(block).toContainText("At most 5 tries");
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBeGreaterThan(0);
+      await expect(most).toBeFocused();
+      const written = seen.draftSaves.at(-1)!.body.definition as {
+        steps: { max?: number; repeat?: { max: number } }[];
+      };
+      expect(written.steps[1]!.repeat!.max).toBe(5);
+      expect(written.steps[1]).not.toHaveProperty("max");
+    });
+
+    test("a second loop change made while the first is saving is sent too", async ({ page }) => {
+      const seen = await libraryFixture(page, {
+        ...AUTHORED_REPEAT,
+        saveDelayMs: 1500,
+      });
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const block = page.locator("[data-group=repeat]");
+      await block.getByRole("button", { name: /Repeat/ }).first().click();
+      const most = page.locator("#editor-step-panel").getByRole("spinbutton", {
+        name: "Most tries",
+      });
+      await most.fill("5");
+      await expect.poll(() => seen.draftSaves.length).toBe(1);
+      await most.fill("6");
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBe(2);
+      const written = seen.draftSaves[1]!.body.definition as {
+        steps: { repeat?: { max: number } }[];
+      };
+      expect(written.steps[1]!.repeat!.max).toBe(6);
+    });
+
+    test("authored parallel:, forEach: and call: blocks draw what they hold", async ({ page }) => {
+      await libraryFixture(page, {
+        ...WORLD,
+        versions: [
+          ...VERSIONS.filter((row) => row.status !== "draft"),
+          {
+            ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+            spec: [
+              {
+                id: "fan",
+                parallel: {
+                  branches: [
+                    {
+                      id: "a",
+                      steps: [{ id: "one", uses: "harness.implement" }],
+                    },
+                    { id: "b", steps: [{ id: "two", uses: "agent.review" }] },
+                  ],
+                },
+              },
+              {
+                id: "each",
+                forEach: {
+                  max: 3,
+                  steps: [{ id: "item_step", uses: "harness.implement" }],
+                },
+              },
+              { id: "sub", call: { workflow: uuid(9001) } },
+            ],
+          },
+        ],
+      });
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      for (const id of ["one", "two", "item_step"]) {
+        await expect(page.locator(`[data-card='${id}']`)).toBeVisible();
+      }
+      await expect(page.locator("[data-group=together]"))
+        .not.toContainText("No steps");
+      await expect(page.locator("[data-group=each]"))
+        .toContainText("At most 3 items");
+      const call = page.locator("[data-group=call]");
+      await expect(call).toContainText("Run another workflow");
+      await expect(call).toContainText("Its steps are in that workflow");
+      await still(page, "workflow-authored-blocks");
+    });
+
+    test("browser Back before a typed Repeat number is saved asks first", async ({ page }) => {
+      const seen = await libraryFixture(page, AUTHORED_REPEAT);
+      await page.goto(`/library/workflows/${WORKFLOW.id}`);
+      if ((page.viewportSize()?.width ?? 1440) < 744) {
+        await page.getByRole("button", { name: /More actions/ }).click();
+        await page.getByRole("button", { name: "Edit", exact: true }).click();
+      } else {
+        await page.getByRole("link", { name: "Edit" }).click();
+      }
+      await expect(page).toHaveURL(/\/edit$/);
+      const block = page.locator("[data-group=repeat]");
+      await block.getByRole("button", { name: /Repeat/ }).first().click();
+      const most = page.locator("#editor-step-panel").getByRole("spinbutton", {
+        name: "Most tries",
+      });
+      await most.fill("5");
+      await page.evaluate(() => history.back());
+      const leave = page.getByRole("alertdialog");
+      await expect(leave).toContainText("Leave the editor?");
+      expect(seen.draftSaves).toHaveLength(0);
+      await leave.getByRole("button", { name: "Stay" }).click();
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBeGreaterThan(0);
+    });
+
     test("a block whose Fewest equals its Most says Exactly on the card", async ({ page }) => {
       await libraryFixture(page, FIXING);
       await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);

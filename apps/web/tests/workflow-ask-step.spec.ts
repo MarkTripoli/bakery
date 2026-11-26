@@ -313,6 +313,84 @@ test.describe("workflow editor: Ask a person", () => {
     ).not.toBeChecked();
   });
 
+  test("a save that lands while the question is being typed takes nothing from it", async ({ page }) => {
+    const server = await editor(page, {
+      steps: [ask({ prompt: "Ship it?" })],
+      saveDelayMs: 900,
+    });
+    await card(page).click();
+    await page.getByRole("checkbox", { name: "Let them request changes" })
+      .uncheck();
+    await expect.poll(() => server.saves.length).toBe(1);
+    const question = "Ship the release to every customer this Friday night?";
+    await prompt(page).fill("");
+    await prompt(page).pressSequentially(question, { delay: 40 });
+    await expect(prompt(page)).toHaveValue(question);
+    await expect(prompt(page)).toBeFocused();
+    await expect.poll(() => savedInput(server.saves.at(-1)), {
+      timeout: 10_000,
+    }).toEqual({ prompt: question, allowRequestChanges: false });
+    await expect(prompt(page)).toHaveValue(question);
+  });
+
+  test("typing is saved without leaving the box", async ({ page }) => {
+    const server = await editor(page, { steps: [ask({ prompt: "Ship it?" })] });
+    await card(page).click();
+    await prompt(page).fill("Ship it on Friday?");
+    await expect.poll(() => savedInput(server.saves.at(-1))).toEqual({
+      prompt: "Ship it on Friday?",
+    });
+    await expect(prompt(page)).toBeFocused();
+  });
+
+  test("leaving before the change is saved asks, and Stay keeps it", async ({ page }) => {
+    const server = await editor(page, {
+      steps: [ask({ prompt: "Ship it?" })],
+      saveDelayMs: 3000,
+    });
+    await page.goto(`/library/workflows/${WORKFLOW.id}`);
+    if ((page.viewportSize()?.width ?? 1440) < 744) {
+      await page.getByRole("button", { name: "More" }).click();
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
+    } else {
+      await page.getByRole("link", { name: "Edit" }).click();
+    }
+    await expect(page).toHaveURL(new RegExp(`${EDIT}$`));
+    await card(page).click();
+    await prompt(page).fill("Ship it on Friday?");
+    await page.evaluate(() => history.back());
+    const leave = page.getByRole("alertdialog");
+    await expect(leave).toContainText("Your last change may be lost.");
+    await still(page, "ask-step-leave");
+    await leave.getByRole("button", { name: "Stay" }).click();
+    await expect(prompt(page)).toHaveValue("Ship it on Friday?");
+    await expect.poll(() => savedInput(server.saves.at(-1)), {
+      timeout: 10_000,
+    }).toEqual({ prompt: "Ship it on Friday?" });
+  });
+
+  test("a deleted step comes back with Undo after the save has landed", async ({ page }) => {
+    const server = await editor(page, {
+      steps: [{ id: "brief", uses: "task.brief" }, ask({ prompt: "Ok?" })],
+    });
+    await card(page).click();
+    await page.getByRole("button", { name: "Delete" }).click();
+    await expect.poll(() => server.saves.length).toBe(1);
+    await expect(card(page)).toHaveCount(0);
+    await page.waitForTimeout(1500);
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(card(page)).toHaveCount(1);
+  });
+
+  test("removing a person leaves focus on Who is asked", async ({ page }) => {
+    await editor(page, {
+      steps: [ask({ prompt: "Ok?", audience: [DANA] })],
+    });
+    await card(page).click();
+    await page.getByRole("button", { name: "Remove Dana Okafor" }).click();
+    await expect(who(page)).toBeFocused();
+  });
+
   test("a step asking a group is left to the code view", async ({ page }) => {
     await editor(page, {
       steps: [ask({ prompt: "Ok?", audience: ["@design-reviewers"] })],

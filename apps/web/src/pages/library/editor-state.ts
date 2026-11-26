@@ -41,6 +41,7 @@ export type EditorState = EditorSnapshot & {
   readonly past: readonly EditorSnapshot[];
   /** States undone and not yet redone, newest first. */
   readonly future: readonly EditorSnapshot[];
+  readonly typing?: string;
 };
 
 export type EditorAction =
@@ -66,6 +67,7 @@ export type EditorAction =
     readonly kind: "approval";
     readonly id: string;
     readonly approval: ApprovalFields;
+    readonly typing?: string;
   }
   | { readonly kind: "starts"; readonly starts: readonly WorkflowStart[] }
   | {
@@ -157,13 +159,46 @@ export function applyLoops(
   for (const loop of loops) {
     const node = nodeAt(copy, loop.path);
     if (node === null) continue;
-    if (loop.min === null) delete node.min;
-    else node.min = loop.min;
-    node.max = loop.max;
-    if (loop.allow === null) delete node.allow;
-    else node.allow = loop.allow;
+    const held = loopBodyOf(node);
+    if (held !== node) {
+      delete node.min;
+      delete node.max;
+      delete node.allow;
+    }
+    if (loop.min === null) delete held.min;
+    else held.min = loop.min;
+    held.max = loop.max;
+    if (loop.allow === null) delete held.allow;
+    else held.allow = loop.allow;
   }
   return copy;
+}
+
+const AUTHORED_WRAPPERS = [
+  "repeat",
+  "branch",
+  "parallel",
+  "forEach",
+] as const;
+
+function objectOf(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function loopBodyOf(node: Record<string, unknown>): Record<string, unknown> {
+  return objectOf(node.repeat) ?? node;
+}
+
+function childOf(node: Record<string, unknown>, key: string): unknown {
+  if (node[key] !== undefined) return node[key];
+  for (const wrapper of AUTHORED_WRAPPERS) {
+    const held = objectOf(node[wrapper]);
+    const inner = held?.[key] ?? (key === "lanes" ? held?.branches : undefined);
+    if (inner !== undefined) return inner;
+  }
+  return undefined;
 }
 
 function nodeAt(
@@ -176,15 +211,12 @@ function nodeAt(
       if (!Array.isArray(held)) return null;
       held = held[segment];
     } else {
-      if (typeof held !== "object" || held === null || Array.isArray(held)) {
-        return null;
-      }
-      held = (held as Record<string, unknown>)[segment];
+      const holder = objectOf(held);
+      if (holder === null) return null;
+      held = childOf(holder, segment);
     }
   }
-  return typeof held === "object" && held !== null && !Array.isArray(held)
-    ? held as Record<string, unknown>
-    : null;
+  return objectOf(held);
 }
 
 /** The skill version ids an authored step names; anything else is no skills. */
@@ -322,12 +354,17 @@ export function editorReducer(
       if (held === undefined || sameApproval(held, action.approval)) {
         return state;
       }
-      return changed(
+      const next = changed(
         state,
         state.steps.map((step, index) =>
           index === at ? { ...step, approval: action.approval } : step
         ),
       );
+      if (action.typing === undefined) return next;
+      const typing = `${action.id}/${action.typing}`;
+      return state.typing === typing
+        ? { ...next, past: state.past, typing }
+        : { ...next, typing };
     }
     case "loop": {
       const key = action.path.join("/");

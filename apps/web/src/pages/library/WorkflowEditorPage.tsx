@@ -19,7 +19,6 @@ import {
   startProblems,
   startsOfVersion,
 } from "./start-list.ts";
-import { sameJson } from "./same-json.ts";
 import { useBakeryApi } from "../../api/context.tsx";
 import { asyncKindForError, failureStatus } from "../../app/async-state.ts";
 
@@ -49,8 +48,10 @@ import {
   editorStateOf,
   type EditorStep,
   freeStepId,
+  type LoopEdit,
   skillsOfNode,
 } from "./editor-state.ts";
+import { LeaveGuard } from "../repository-rules/leave-guard.tsx";
 import {
   problemSentence,
   problemsOf,
@@ -146,6 +147,7 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   repeat: "library.editor.group.repeat",
   fix: "library.editor.group.fixUntilPasses",
   each: "library.editor.group.each",
+  call: "library.editor.group.call",
   wait: "library.editor.group.wait",
 };
 
@@ -296,6 +298,8 @@ export function WorkflowEditorPage(
   >(null);
   // The slots the last write sent, so only those are cleared when it lands.
   const sentSlots = useRef<string[]>([]);
+  const sentLoops = useRef<readonly LoopEdit[]>([]);
+  const [loopPending, setLoopPending] = useState(false);
   // Slots the person settled (by choosing a skill or removing the placeholder) and the
   // draft has not saved yet: the save tells the server, and the row is gone at once.
   const [resolving, setResolving] = useState<ReadonlySet<string>>(new Set());
@@ -305,13 +309,10 @@ export function WorkflowEditorPage(
   useEffect(() => {
     const unsavedHere = resetFor.current === draft?.id &&
       lastSaved.current !== null && editedRef.current !== lastSaved.current;
-    if (unsavedHere) return;
-    const echoed = resetFor.current === draft?.id &&
-      sameJson(
-        { steps: versionSteps, starts: versionStarts },
-        { steps: editor.steps, starts: editor.starts },
-      );
-    if (echoed) return;
+    const ownEcho = draft !== null && resetFor.current === draft.id &&
+      savedVersion.current?.id === draft.id &&
+      draft.version <= savedVersion.current.version;
+    if (unsavedHere || ownEcho) return;
     resetFor.current = draft?.id;
     dispatch({ kind: "reset", steps: versionSteps, starts: versionStarts });
     savedStarts.current = versionStarts;
@@ -337,6 +338,7 @@ export function WorkflowEditorPage(
     mutationKey: ["workflowVersions.update"],
     mutationFn: async (steps: readonly EditorStep[]) => {
       if (draft === null) throw new Error("no draft version");
+      sentLoops.current = editor.loops;
       const result = await api.updateWorkflowVersion({
         organizationId: scope.organizationId as string,
         workflowId,
@@ -392,7 +394,7 @@ export function WorkflowEditorPage(
       savedStarts.current = sentStarts.current;
       lastSaved.current = JSON.stringify({
         steps: written,
-        loops: editor.loops,
+        loops: sentLoops.current,
         starts: sentStarts.current,
       });
       // The slots this save settled are done; one settled meanwhile is still to save.
@@ -637,14 +639,19 @@ export function WorkflowEditorPage(
 
   // Leaving while the latest change is not saved asks first.
   useEffect(() => {
-    if (saveState.kind === "saved" && !changed) return;
+    if (saveState.kind === "saved" && !changed && !loopPending) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     globalThis.addEventListener("beforeunload", warn);
     return () => globalThis.removeEventListener("beforeunload", warn);
-  }, [saveState.kind, changed]);
+  }, [saveState.kind, changed, loopPending]);
+
+  const unsaved = changed || loopPending || save.isPending ||
+      saveState.kind !== "saved"
+    ? 1
+    : 0;
 
   const shownSave: SaveState = forcedSaveState() ?? saveState;
   const stateWord = shownSave.kind === "saving"
@@ -1000,6 +1007,7 @@ export function WorkflowEditorPage(
         const loop = group.loop;
         return {
           kind: "loop",
+          at: loop.path.join("/"),
           name: translate(GROUP_LABEL[group.label] as never),
           fix: loop.fix,
           values: { min: loop.min, max: loop.max, allow: loop.allow },
@@ -1010,6 +1018,7 @@ export function WorkflowEditorPage(
           onCommit: (values) => {
             dispatch({ kind: "loop", path: loop.path, ...values });
           },
+          onPending: setLoopPending,
         };
       }
       return {
@@ -1138,8 +1147,13 @@ export function WorkflowEditorPage(
       stepId: live.id,
       fields: live.approval,
       onChange: editable
-        ? (fields: NonNullable<EditorStep["approval"]>) =>
-          dispatch({ kind: "approval", id: live.id, approval: fields })
+        ? (fields: NonNullable<EditorStep["approval"]>, typing?: string) =>
+          dispatch({
+            kind: "approval",
+            id: live.id,
+            approval: fields,
+            ...(typing === undefined ? {} : { typing }),
+          })
         : undefined,
       people: {
         state: members.isError
@@ -1519,6 +1533,17 @@ export function WorkflowEditorPage(
         actionsLayout="row"
       />
       {breadcrumbs}
+      <LeaveGuard
+        count={unsaved}
+        copy={{
+          title: "library.editor.leave.title",
+          body: "library.editor.leave.body",
+          stay: "library.editor.leave.stay",
+          confirm: "library.editor.leave.confirm",
+        }}
+        discard={() => {}}
+        path={`/library/workflows/${workflowId}/edit`}
+      />
       {body}
       {deleted === null ? null : (
         <UI.Toast

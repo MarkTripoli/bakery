@@ -155,3 +155,20 @@ Deno.test("the card names one person, the first and the rest, or the owner", () 
   });
   assertEquals(askedWho([DANA, LEE], null), { kind: "count", count: 2 });
 });
+
+Deno.test("a run of typing in one field is one step to undo", () => {
+  let state = editorStateOf([ask()]);
+  for (const prompt of ["S", "Sh", "Ship"]) {
+    state = editorReducer(state, {
+      kind: "approval",
+      id: "ask",
+      approval: { ...NEW_APPROVAL, prompt },
+      typing: "prompt",
+    });
+  }
+  assertEquals(state.past.length, 1);
+  assertEquals(
+    editorReducer(state, { kind: "undo" }).steps[0]!.approval!.prompt,
+    "",
+  );
+});
