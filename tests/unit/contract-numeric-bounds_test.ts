@@ -1,0 +1,232 @@
+import { assert, assertEquals, assertThrows } from "@std/assert";
+import transport from "../../docs/technical-design/transport-schemas.json" with {
+  type: "json",
+};
+import {
+  assertKnownBounds,
+  contractSchemas,
+  generateContracts,
+} from "../../packages/contracts/src/contracts.ts";
+
+type Shaped = {
+  shape: Record<string, { safeParse(value: unknown): { success: boolean } }>;
+};
+
+const field = (schema: string, name: string) =>
+  (contractSchemas as unknown as Record<string, Shaped>)[schema].shape[name];
+
+Deno.test("bounds spelled minimum and maximum are enforced like min and max", () => {
+  const size = field("BlobUploadStart", "sizeBytes");
+  assertEquals(size.safeParse(0).success, true);
+  assertEquals(size.safeParse(-1).success, false);
+  const source = structuredClone(transport) as unknown as {
+    inputs: Record<
+      string,
+      { fields: { name: string; bounds: Record<string, unknown> }[] }
+    >;
+  };
+  source.inputs.BlobUploadStart.fields.find((entry) =>
+    entry.name === "sizeBytes"
+  )!.bounds.maximum = 7;
+  const capped = (generateContracts(
+    source as unknown as typeof transport,
+  ).schemas as unknown as Record<string, Shaped>).BlobUploadStart.shape
+    .sizeBytes;
+  assertEquals(capped.safeParse(7).success, true);
+  assertEquals(capped.safeParse(8).success, false);
+  assertEquals(
+    field("WorkerMaintenanceReport", "sequence").safeParse(0).success,
+    false,
+  );
+  assertEquals(
+    field("WorkerMaintenanceReport", "sequence").safeParse(1).success,
+    true,
+  );
+});
+
+Deno.test("a bound key the generator does not know is refused loudly", () => {
+  const error = assertThrows(
+    () => assertKnownBounds({ maximumm: 3 }, "Example.count"),
+    Error,
+  );
+  assertEquals(error.message, "Example.count names an unknown bound: maximumm");
+  assertKnownBounds(
+    { min: 1, max: 2, minimum: 1, maximum: 2 },
+    "Example.count",
+  );
+});
+
+Deno.test("bounds declared beside a schema's fields are applied to those fields", () => {
+  const entry = (contractSchemas as unknown as Record<string, Shaped>)
+    .SkillFileManifestEntry.shape;
+  assertEquals(entry.path.safeParse("a".repeat(501)).success, false);
+  assertEquals(entry.sizeBytes.safeParse(10_485_761).success, false);
+  const issue = (contractSchemas as unknown as Record<string, Shaped>)
+    .ValidationIssue.shape;
+  assertEquals(issue.path.safeParse("p".repeat(501)).success, false);
+  assertEquals(issue.code.safeParse("c".repeat(101)).success, false);
+  assertEquals(issue.message.safeParse("m".repeat(501)).success, false);
+  const problem = (contractSchemas as unknown as Record<string, Shaped>)
+    .Problem.shape;
+  assertEquals(problem.title.safeParse("t".repeat(201)).success, false);
+  assertEquals(problem.detail.safeParse("d".repeat(2001)).success, false);
+  const capability = (contractSchemas as unknown as Record<string, Shaped>)
+    .IntegrationCapability.shape;
+  assertEquals(
+    capability.requiredProviderPermissions.safeParse(
+      Array.from({ length: 101 }, (_, index) => `p${index}`),
+    ).success,
+    false,
+  );
+});
+
+Deno.test("an upload declared over 5 GiB reaches the handler, which answers 413 BODY_TOO_LARGE", () => {
+  assertEquals(
+    field("BlobUploadStart", "sizeBytes").safeParse(5_368_709_121).success,
+    true,
+  );
+});
+
+Deno.test("a misspelled, unusable or misplaced bound stops generation", () => {
+  type Field = { name: string; bounds: Record<string, unknown> };
+  type Source = {
+    inputs: Record<string, { fields: Field[] }>;
+    outputs: Record<string, { bounds: Record<string, unknown> }>;
+  };
+  const withBound = (edit: (source: Source) => void) => {
+    const source = structuredClone(transport) as unknown as Source;
+    edit(source);
+    return () => generateContracts(source as unknown as typeof transport);
+  };
+  const sizeBytes = (source: Source) =>
+    source.inputs.BlobUploadStart.fields.find((field) =>
+      field.name === "sizeBytes"
+    )!;
+  assertThrows(
+    withBound((source) => {
+      source.outputs.SkillFileManifestEntry.bounds.pathMaximumLenght = 5;
+    }),
+    Error,
+    "names an unknown bound: pathMaximumLenght",
+  );
+  assertThrows(
+    withBound((source) => {
+      sizeBytes(source).bounds.maximum = "3";
+    }),
+    Error,
+    "has an unusable value",
+  );
+  assertThrows(
+    withBound((source) => {
+      sizeBytes(source).bounds.maxLength = 3;
+    }),
+    Error,
+    "does not apply to a number",
+  );
+});
+
+Deno.test("unions, pages, the page envelope, plain strings and integers refuse bounds they cannot use", () => {
+  type Loose = Record<string, Record<string, Record<string, unknown>>> & {
+    pageEnvelope: Record<string, unknown>;
+  };
+  const generate = (edit: (source: Loose) => void) => () => {
+    const source = structuredClone(transport) as unknown as Loose;
+    edit(source);
+    return generateContracts(source as unknown as typeof transport);
+  };
+  const inputField = (source: Loose, schema: string, name: string) =>
+    (source.inputs[schema].fields as { name: string; bounds?: object }[])
+      .find((field) => field.name === name)!;
+  assertThrows(
+    generate((source) => {
+      source.outputs.WebSocketFrame.bounds = { framesMaxItemz: 3 };
+    }),
+    Error,
+    "unknown bound: framesMaxItemz",
+  );
+  assertThrows(
+    generate((source) => {
+      source.outputs["Page<CoordinationPlan>"].bounds = { itemsMaxItemz: 3 };
+    }),
+    Error,
+    "unknown bound: itemsMaxItemz",
+  );
+  assertThrows(
+    generate((source) => {
+      source.pageEnvelope.bounds = { cursorMaxLenght: 3 };
+    }),
+    Error,
+    "unknown bound: cursorMaxLenght",
+  );
+  assertThrows(
+    generate((source) => {
+      inputField(source, "CoordinationPlanCreateFromWorkflow", "nodeId")
+        .bounds = { max: 3 };
+    }),
+    Error,
+    "does not apply to a string",
+  );
+  assertThrows(
+    generate((source) => {
+      inputField(source, "CoordinationPlanListQuery", "limit").bounds = {
+        maxDepth: 3,
+      };
+    }),
+    Error,
+    "does not apply to a number",
+  );
+});
+
+Deno.test("a decimal amount's range is left to its handler, and named in its description", () => {
+  const budget = (contractSchemas as unknown as Record<string, Shaped>)
+    .RunCreate.shape.budgetLimitUsd as unknown as {
+      safeParse(value: unknown): { success: boolean };
+      description?: string;
+    };
+  assertEquals(budget.safeParse("201").success, true);
+  assert(
+    (budget.description ?? "").includes(
+      "is checked by its handler to be between 0 and 200",
+    ),
+  );
+  assert((budget.description ?? "").includes("BUDGET_CAP_EXCEEDED"));
+  const automation = (contractSchemas as unknown as Record<string, Shaped>)
+    .AutomationVersionCreate.shape.budgetLimitUsd as unknown as {
+      description?: string;
+    };
+  assert(
+    (automation.description ?? "").length >
+      "AutomationVersionCreate.budgetLimitUsd is checked by its handler to be between 0 and 200."
+        .length,
+  );
+});
+
+Deno.test("bounds on a definition kind that never reads them stop generation", () => {
+  type Loose = Record<string, Record<string, Record<string, unknown>>>;
+  const generate = (section: string, name: string) => () => {
+    const source = structuredClone(transport) as unknown as Loose;
+    source[section][name].bounds = { anythingMaxItems: 3 };
+    return generateContracts(source as unknown as typeof transport);
+  };
+  for (
+    const [section, name] of [
+      ["inputs", "RepositoryBindingSelector"],
+      ["inputs", "WorkerResult"],
+      ["outputs", "BinaryArtifactBytes"],
+      ["outputs", "WebSocketFrames"],
+      ["outputs", "SecretIdentityToolResult"],
+    ]
+  ) {
+    assertThrows(generate(section, name), Error, "never reads");
+  }
+  const variantBound = () => {
+    const source = structuredClone(transport) as unknown as Loose;
+    const oneOf = source.inputs.RepositoryBindingSelector.oneOf as Record<
+      string,
+      unknown
+    >[];
+    oneOf[0].bounds = { maxItems: 3 };
+    return generateContracts(source as unknown as typeof transport);
+  };
+  assertThrows(variantBound, Error, "on a variant");
+});

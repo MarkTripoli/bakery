@@ -846,6 +846,8 @@ Deno.test("authored field enums are enforced regardless of primitive type", () =
 Deno.test("compatibility digest changes for nested wire contract changes", () => {
   const mutated = structuredClone(transport) as unknown as typeof transport;
   mutated.inputs.ApplicationCreate.fields[1].type = "integer";
+  delete (mutated.inputs.ApplicationCreate.fields[1] as { bounds?: unknown })
+    .bounds;
   assert(
     generateContracts().compatibilityDigest !==
       generateContracts(mutated).compatibilityDigest,
@@ -882,11 +884,12 @@ Deno.test("CheckOutput field descriptions say what each field means before they 
 
 Deno.test("compatibility migration approves only its exact generated delta", () => {
   const approvedBases = [
-    "f12807319179f32b96bb509a4b61cfa2beb76eb1",
+    "3b78d91be1112f11894eec624cc990b0bf94d344",
   ];
   const approvedDigest =
-    "sha256:923ae300943dcf274794156ecb4f89223c16bbaf682f0b7703ec72b480450558";
+    "sha256:4263d62fe87eff3bef2a814da4aa73e6153d1653c6003b969d47e9f4b64c8492";
   const rejectedPriorDigests = [
+    "sha256:923ae300943dcf274794156ecb4f89223c16bbaf682f0b7703ec72b480450558",
     "sha256:a3e493119604f361c23da81f325627e5828c3db4aeda7a041762f8261063242d",
     "sha256:e892eef376c870b79b8210829a682fe4e86b972d76769e2235fc5611823953f9",
     "sha256:da4e6483b255d84e1026de9d528ed29eec7f66cbf2c91a13ee098fae305b27d4",
@@ -1298,6 +1301,8 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
   };
   const mutated = structuredClone(transport) as unknown as typeof transport;
   mutated.inputs.ApplicationCreate.fields[1].type = "integer";
+  delete (mutated.inputs.ApplicationCreate.fields[1] as { bounds?: unknown })
+    .bounds;
   const alteredDigest = generateContracts(mutated).compatibilityDigest;
 
   assertEquals(migration.targetCompatibilityDigest, approvedDigest);
