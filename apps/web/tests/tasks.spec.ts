@@ -204,6 +204,10 @@ const controlProblem = (status: number, retryable = false) => ({
 test.beforeEach(async ({ page }) => {
   await mockAuthenticatedSession(page);
   await page.route(
+    (url) => /^\/v1\/runs\/[^/]+\/requests$/.test(url.pathname),
+    (route) => route.fulfill({ json: { requests: [] } }),
+  );
+  await page.route(
     `**/v1/runs/${runId}/controls`,
     (route) => route.fulfill({ json: controlSnapshot(true) }),
   );

@@ -83,6 +83,8 @@ export type WorkflowDraftUpdate = ClientInputMap["WorkflowDraftUpdate"];
 export type ValidationReportResponse = ClientOutputMap["ValidationReport"];
 export type TaskResponse = ClientOutputMap["Task"];
 export type RunListResponse = ClientOutputMap["Page<Run>"];
+export type RunRequestListResponse = ClientOutputMap["RunRequests"];
+export type RunRequestListItem = RunRequestListResponse["requests"][number];
 export type RunResponse = ClientOutputMap["Run"];
 export type RunControlCapabilities = ClientOutputMap["RunControlCapabilities"];
 export type RouteContinuationOffersResponse =
@@ -1976,6 +1978,11 @@ export type BakeryApiClient = {
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RunResponse>>;
+  readonly listRunRequests: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RunRequestListResponse>>;
   readonly listRuns: (options: {
     readonly organizationId: string;
     readonly taskId: string;
@@ -6644,6 +6651,21 @@ export function createBakeryApiClient({
               ? {}
               : { idempotencyKey: options.idempotencyKey }),
           },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listRunRequests(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["runRequests.list"](
+          { id: options.runId },
+          { signal: options.signal },
         );
         return { ok: true, data };
       } catch (error) {

@@ -7589,5 +7589,13 @@
   "library.skills.add.failure.missingRevision": "⟦{address} ĥàš ñô ƀŕàñçĥ, ŧàĝ ôŕ çôɱɱïŧ çàļļëð {revision}. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "library.skills.add.failure.shortCommit": "⟦{address} ĥàš ñô ƀŕàñçĥ ôŕ ŧàĝ çàļļëð {revision}. Ïƒ ïŧ ïš à çôɱɱïŧ, ëñŧëŕ àļļ 40 çĥàŕàçŧëŕš ôƒ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "library.editor.addBefore": "⟦Àðð à šŧëþ ƀëƒôŕë {before} ŧëšŧ çô⟧",
-  "library.editor.picker.limited": "⟦Ôŧĥëŕ šŧëþ ŧÿþëš ñëëð šëŧŧïñĝš ŧĥïš þàĝë çàññôŧ ƒïļļ ïñ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
+  "library.editor.picker.limited": "⟦Ôŧĥëŕ šŧëþ ŧÿþëš ñëëð šëŧŧïñĝš ŧĥïš þàĝë çàññôŧ ƒïļļ ïñ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "tasks.waitingFor.loadFailed": "⟦Ŵĥô ŧĥïš ŕûñ ïš ŵàïŧïñĝ ƒôŕ ðïð ñôŧ ļôàð. ŧëšŧ çôþÿ ŧë⟧",
+  "tasks.waitingFor.waiting": "⟦Ŵàïŧïñĝ ƒôŕ {who}. Ëẋþïŕëš {date}. ŧëšŧ çôþÿ⟧",
+  "tasks.waitingFor.next": "⟦Ŵàïŧïñĝ ƒôŕ {who}. Ïƒ ñôƀôðÿ àñšŵëŕš ƀÿ {time}, {next} ïš àšķëð. Ëẋþïŕëš {date}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "tasks.waitingFor.nextUnknown": "⟦Ŵàïŧïñĝ ƒôŕ {who}. Ïƒ ñôƀôðÿ àñšŵëŕš ƀÿ {time}, šôɱëôñë ëļšë ïš àšķëð. Ëẋþïŕëš {date}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "tasks.waitingFor.passedOn": "⟦{first} ðïð ñôŧ àñšŵëŕ. {next} ŵàš àšķëð àŧ {time}. Ëẋþïŕëš {date}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "tasks.waitingFor.expired": "⟦Ëẋþïŕëð: ñôƀôðÿ àñšŵëŕëð ƀÿ {date}. Ŧĥïš ŕûñ ñëëðš à þëŕšôñ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "tasks.waitingFor.fallback": "⟦{name} çôûļð ñôŧ ƀë ƒôûñð, šô ŧĥë ŵôŕķƒļôŵ ôŵñëŕ, {owner}, ŵàš àšķëð ïñšŧëàð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "tasks.waitingFor.retry": "⟦Ļôàð ïŧ àĝàïñ ŧë⟧"
 }

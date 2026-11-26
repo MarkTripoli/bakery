@@ -121,6 +121,7 @@ import type {
   RunControlCapabilities,
   RunListResponse,
   RunPreviewResponse,
+  RunRequestListResponse,
   RunResponse,
   RunStepListResponse,
   SavedDataPage,
@@ -1208,6 +1209,26 @@ export function notificationTargetQueryOptions(
     retry: retryNetworkOnce,
     staleTime: 0,
     gcTime: 0,
+  });
+}
+
+export function runRequestsQueryOptions(
+  client: Pick<BakeryApiClient, "listRunRequests">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<RunRequestListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "runRequests.list", { id: runId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listRunRequests({
+          organizationId: requireOrganization(scope),
+          runId,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
   });
 }
 
