@@ -104,10 +104,27 @@ Deno.test("a request still open after 15 minutes is emailed once, as a link only
     ]);
     const data = o.smtp.received.filter((line) => line.startsWith("DATA:"));
     const mail = data.find((line) => line.includes(o.run.taskId));
-    assert(mail !== undefined, "the email names the request in its link");
+    assert(mail !== undefined, "the email links the task");
+    assert(mail.includes(`https://bakery.example.test/tasks/${o.run.taskId}`));
+    const names = await o.fixture.pgDatabase.query<
+      { asker: string; title: string }
+    >(
+      `select principal.display_name as asker, task.title
+         from bakery.principals principal, bakery.tasks task
+        where principal.id = $1 and task.id = $2`,
+      [o.fixture.principalId, o.run.taskId],
+    );
+    const { asker, title } = names.rows[0];
+    assert(mail.includes(`Subject: ${asker} asked you to review in Bakery`));
+    assert(mail.includes(`${asker} asked you to review work in ${title}.`));
     assert(
       mail.includes(
-        `https://bakery.example.test/runs/${o.run.runId}?request=${id}`,
+        "You will need to sign in. This email has no details on purpose: they stay in Bakery.",
+      ),
+    );
+    assert(
+      mail.includes(
+        "You are getting this because the request has not been opened in Bakery.",
       ),
     );
     assert(!mail.includes(NOTE), "the email never carries the note");
