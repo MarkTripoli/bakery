@@ -669,10 +669,6 @@ async function open(page: Page, state: World = world()) {
 
 test.beforeEach(async ({ page }) => {
   await mockAuthenticatedSession(page);
-  await page.route(
-    (url) => /^\/v1\/runs\/[^/]+\/requests$/.test(url.pathname),
-    (route) => route.fulfill({ json: { requests: [] } }),
-  );
 });
 
 for (const width of [1024, 1280]) {
