@@ -1,0 +1,86 @@
+[
+  {
+    "at": "8.1",
+    "event": "POST /v1/workflows",
+    "status": 201
+  },
+  {
+    "at": "8.1",
+    "event": "POST /v1/workflows/:id/versions",
+    "status": 201
+  },
+  {
+    "at": "12.6",
+    "event": "PATCH /v1/workflows/:id/versions/:id",
+    "status": 200
+  },
+  {
+    "at": "13.4",
+    "event": "added",
+    "card": "How it starts Needs setup"
+  },
+  {
+    "at": "14.2",
+    "event": "PATCH /v1/workflows/:id/versions/:id",
+    "status": 200
+  },
+  {
+    "at": "15.0",
+    "event": "PATCH /v1/workflows/:id/versions/:id",
+    "status": 200
+  },
+  {
+    "at": "15.8",
+    "event": "PATCH /v1/workflows/:id/versions/:id",
+    "status": 200
+  },
+  {
+    "at": "17.7",
+    "event": "filled",
+    "card": "How it starts From a task · 1 automatic start",
+    "title": "Look at the labelled issue"
+  },
+  {
+    "at": "19.9",
+    "event": "publish dialog",
+    "text": "Publish version 1 This saves the steps as a new version and makes it the one new tasks get. A version never changes after it is published. Tasks keep the version they started with. Publish and use also switches on 1 automatic start. Keep editing Publish only Publish and use"
+  },
+  {
+    "at": "20.0",
+    "event": "POST /v1/workflows/:id/versions/:id/publish",
+    "status": 200
+  },
+  {
+    "at": "20.1",
+    "event": "POST /v1/workflows/:id/activations",
+    "status": 200
+  },
+  {
+    "at": "28.8",
+    "event": "reloaded",
+    "card": "How it starts From a task · 1 automatic start",
+    "title": "Look at the labelled issue",
+    "budget": "2.5"
+  },
+  {
+    "at": "29.5",
+    "event": "POST /v1/workflows/:id/versions",
+    "status": 201
+  },
+  {
+    "at": "29.5",
+    "event": "PATCH /v1/workflows/:id/versions/:id",
+    "status": 200
+  },
+  {
+    "at": "31.8",
+    "event": "edited published",
+    "state": "saved"
+  },
+  {
+    "at": "38.4",
+    "event": "draft after reload",
+    "budget": "4",
+    "title": "Look at the labelled issue"
+  }
+]
