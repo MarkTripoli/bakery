@@ -169,8 +169,8 @@ async function editor(page: Page, setup: Setup = {}) {
 
 const startCard = (page: Page) => page.locator("[data-card='start']");
 const rows = (page: Page) => page.getByTestId("start-row");
-const field = (page: Page, name: string) =>
-  rows(page).first().getByRole("combobox", { name });
+const field = (page: Page, name: string, exact = false) =>
+  rows(page).first().getByRole("combobox", { name, exact });
 const add = (page: Page) =>
   page.getByRole("button", { name: "Add an automatic start" });
 
@@ -271,17 +271,22 @@ test.describe("workflow editor: how it starts", () => {
     await expect.poll(() => server.saves.at(-1)?.[0]?.budgetUsd).toBe(12.5);
   });
 
-  test("a scheduled start says it does not run, and removing it can be undone", async ({ page }) => {
-    const server = await editor(page, { starts: [SCHEDULE] });
+  test("a hand-written schedule is shown as written, and removing it can be undone", async ({ page }) => {
+    const written = {
+      ...SCHEDULE,
+      on: { ...SCHEDULE.on, cron: "*/15 2 * * *" },
+      inputs: { repositoryId: API.id },
+    };
+    const server = await editor(page, { starts: [written] });
     await expect(startCard(page)).toContainText(
-      "From a task · 1 schedule does not run",
+      "From a task · 1 automatic start",
     );
     await startCard(page).click();
-    await expect(page.getByText("On a schedule: 0 2 * * * (Europe/London)"))
-      .toBeVisible();
-    await expect(page.getByText("Bakery does not run scheduled starts yet."))
-      .toBeVisible();
-    await still(page, "starts-schedule");
+    await expect(field(page, "Repeats")).toHaveValue("custom");
+    await expect(field(page, "Repeats").locator("option:checked"))
+      .toHaveText("As written: */15 2 * * *");
+    await expect(field(page, "Time", true)).toHaveCount(0);
+    await expect(field(page, "Time zone")).toHaveValue("Europe/London");
     await page.getByRole("button", { name: "Remove automatic start 1" })
       .click();
     await expect.poll(() => server.saves.at(-1)).toEqual([]);
@@ -289,7 +294,60 @@ test.describe("workflow editor: how it starts", () => {
     await expect(page.getByText("Automatic start 1 deleted")).toBeVisible();
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(rows(page)).toHaveCount(1);
-    await expect.poll(() => server.saves.at(-1)).toEqual([SCHEDULE]);
+    await expect.poll(() => server.saves.at(-1)).toEqual([written]);
+  });
+
+  test("a start is put on a schedule, with its next starts listed", async ({ page }) => {
+    await page.clock.setFixedTime(new Date("2026-11-27T10:30:00.000Z"));
+    const server = await editor(page);
+    await startCard(page).click();
+    await add(page).click();
+    await field(page, "When").selectOption({ label: "On a schedule" });
+    await expect(field(page, "Repeats")).toHaveValue("weekdays");
+    await expect(field(page, "Time", true)).toHaveValue("09:00");
+    await expect(field(page, "Repository")).toHaveValue(API.id);
+    await expect.poll(() => server.saves.at(-1)?.[0]).toMatchObject({
+      inputs: { repositoryId: API.id },
+      on: { kind: "schedule", cron: "0 9 * * 1-5" },
+    });
+    await field(page, "Repeats").selectOption("mon");
+    await field(page, "Time", true).selectOption("07:30");
+    await field(page, "Time zone").selectOption("Europe/London");
+    await field(page, "Repository").selectOption(WEB.id);
+    await expect.poll(() => server.saves.at(-1)?.[0]).toMatchObject({
+      inputs: { repositoryId: WEB.id },
+      on: { kind: "schedule", cron: "30 7 * * 1", timezone: "Europe/London" },
+    });
+    const next = page.getByTestId("start-next");
+    await expect(next).toContainText("Mon, Nov 30 07:30");
+    await expect(next).toContainText("Mon, Dec 28 07:30");
+    await expect(page.getByText("If the clocks skip this time")).toBeVisible();
+    await still(page, "starts-schedule");
+    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    await expect(page.getByRole("alertdialog")).toContainText(
+      "Publish and use also switches on 1 automatic start.",
+    );
+    await expect(page.getByRole("alertdialog")).not.toContainText(
+      "Automatic starts changed.",
+    );
+    await page.getByRole("button", { name: "Keep editing" }).click();
+    await field(page, "When").selectOption("work_item.opened");
+    await expect(field(page, "Repeats")).toHaveCount(0);
+    await expect.poll(() => server.saves.at(-1)?.[0]?.on).toMatchObject({
+      kind: "event",
+      eventKind: "work_item.opened",
+    });
+  });
+
+  test("a schedule written without a repository asks for one", async ({ page }) => {
+    await editor(page, { starts: [SCHEDULE] });
+    await expect(startCard(page)).toContainText("Needs setup");
+    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    await page.getByRole("alertdialog")
+      .getByRole("button", { name: "Show me" }).click();
+    await expect(field(page, "Repository")).toBeFocused();
+    await expect(page.getByText("Choose the repository this start runs in."))
+      .toBeVisible();
   });
 
   test("repositories that cannot be loaded say so, and Try again loads them", async ({ page }) => {
@@ -445,14 +503,14 @@ test.describe("workflow editor: a published workflow", () => {
         .getByRole("button", { name: "Show me" }).click();
       await expect(page.getByRole("alertdialog")).toHaveCount(0);
     };
-    await show("write a value for goal");
-    await expect(page.getByRole("textbox", { name: /^goal/ })).toBeFocused();
+    await show("write a value for Goal");
+    await expect(page.getByRole("textbox", { name: /^Goal/ })).toBeFocused();
     await show("write a task title");
     await expect(page.getByRole("textbox", { name: /Task title/ }))
       .toBeFocused();
-    await show("retries cannot be filled in here");
+    await show("Retries cannot be filled in here");
     await expect(page.locator(":focus")).toContainText(
-      "This workflow asks for retries",
+      "This workflow asks for Retries",
     );
     await show("choose a repository");
     await expect(field(page, "Repository")).toBeFocused();
@@ -526,5 +584,14 @@ test.describe("workflow editor: a published workflow", () => {
     await expect.poll(() => server.saves.length).toBeGreaterThan(before);
     await publish.click();
     await expect(dialog).toContainText("Publish version 3");
+  });
+
+  test("the workflow page says a version with a start also starts by itself", async ({ page }) => {
+    await editor(page, { starts: [SCHEDULE], inUse: "none" });
+    await page.goto(`/library/workflows/${WORKFLOW.id}`);
+    await expect(startCard(page)).toContainText("How it starts");
+    await expect(startCard(page)).toContainText("1 automatic start");
+    await expect(page.getByText("Started by hand")).toHaveCount(0);
+    await still(page, "starts-workflow-page");
   });
 });
