@@ -23,10 +23,10 @@ export async function bindConnectedResource(
   transaction: PgTransactionClient,
   input: ConnectedResourceBinding,
 ): Promise<BoundConnectedResource> {
-  const resourceId = await upsertResource(transaction, input);
-  const servicePrincipal = await ensureServicePrincipal(transaction, input);
-  const servicePrincipalId = servicePrincipal.principalId;
-  if (!servicePrincipal.created) {
+  const resource = await upsertResource(transaction, input);
+  const resourceId = resource.id;
+  const servicePrincipalId = await ensureServicePrincipal(transaction, input);
+  if (!resource.created) {
     return { resourceId, servicePrincipalId };
   }
   for (const grant of input.resource.serviceGrants) {
@@ -56,9 +56,9 @@ export async function bindConnectedResource(
 async function upsertResource(
   transaction: PgTransactionClient,
   input: ConnectedResourceBinding,
-): Promise<string> {
+): Promise<{ id: string; created: boolean }> {
   const { resource } = input;
-  const result = await transaction.query<{ id: string }>(
+  const result = await transaction.query<{ id: string; created: boolean }>(
     `insert into bakery.integration_resources (
        id, organization_id, connection_id, installation_id, kind,
        external_id, display_name, selected, available, capability_snapshot,
@@ -71,7 +71,7 @@ async function upsertResource(
            selected = true, available = true, archived_at = null,
            updated_at = now(),
            version = bakery.integration_resources.version + 1
-     returning id`,
+     returning id, (xmax = 0) as created`,
     [
       crypto.randomUUID(),
       input.organizationId,
@@ -83,13 +83,13 @@ async function upsertResource(
       JSON.stringify(resource.binding),
     ],
   );
-  return result.rows[0]!.id;
+  return result.rows[0]!;
 }
 
 async function ensureServicePrincipal(
   transaction: PgTransactionClient,
   input: ConnectedResourceBinding,
-): Promise<{ principalId: string; created: boolean }> {
+): Promise<string> {
   const purpose = input.resource.servicePurpose;
   await transaction.query(
     `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
@@ -100,7 +100,7 @@ async function ensureServicePrincipal(
     input.organizationId,
     purpose,
   );
-  if (existing !== null) return { principalId: existing, created: false };
+  if (existing !== null) return existing;
   const created = await transaction.query<{ id: string }>(
     `insert into bakery.principals (display_name, principal_type)
      values ($1, 'service') returning id`,
@@ -126,7 +126,7 @@ async function ensureServicePrincipal(
       AUTHORITY_POLICY_REVISION,
     ],
   );
-  return { principalId, created: true };
+  return principalId;
 }
 
 export async function findDeliveryPrincipal(

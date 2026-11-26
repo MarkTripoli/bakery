@@ -269,12 +269,6 @@ export async function revokeGrant(context: ActionContext): Promise<null> {
   );
   const row = current.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  if (
-    row.subjectPrincipalId !== null &&
-    await isDeliveryPrincipal(transaction, row.subjectPrincipalId)
-  ) {
-    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  }
   if (row.version !== expectedVersion) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }

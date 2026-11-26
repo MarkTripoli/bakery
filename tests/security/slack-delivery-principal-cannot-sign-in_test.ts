@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import type {
   OrganizationId,
@@ -134,21 +134,6 @@ Deno.test("an admin cannot enrol, mint a token for, edit, widen or narrow the Sl
       },
     );
     assertEquals(added.status, 422, await added.clone().text());
-    const postGrant = (await f.pgDatabase.query<
-      { id: string; version: number }
-    >(
-      `select id, version from bakery.integration_grants
-        where subject_principal_id = $1 and capability = 'slack.message.post'`,
-      [ids.principalId],
-    )).rows[0]!;
-    const removed = await adminJson(
-      f,
-      "DELETE",
-      `/v1/integration-connections/${connectionId}/grants/${postGrant.id}`,
-      undefined,
-      { "If-Match": `"${postGrant.version}"` },
-    );
-    assertEquals(removed.status, 404, await removed.clone().text());
     assertEquals(await deliveryState(f, ids.principalId), before);
     const stored = await f.pgDatabase.query<
       { tokens: number; capabilities: string[] }
@@ -165,6 +150,26 @@ Deno.test("an admin cannot enrol, mint a token for, edit, widen or narrow the Sl
       tokens: 0,
       capabilities: ["integrationConnections.invoke"],
     });
+    const postGrant = (await f.pgDatabase.query<
+      { id: string; version: number }
+    >(
+      `select id, version from bakery.integration_grants
+        where subject_principal_id = $1 and capability = 'slack.message.post'`,
+      [ids.principalId],
+    )).rows[0]!;
+    const removed = await adminJson(
+      f,
+      "DELETE",
+      `/v1/integration-connections/${connectionId}/grants/${postGrant.id}`,
+      undefined,
+      { "If-Match": `"${postGrant.version}"` },
+    );
+    assert(removed.ok, await removed.clone().text());
+    const revoked = await f.pgDatabase.query<{ revoked: boolean }>(
+      "select revoked_at is not null as revoked from bakery.integration_grants where id = $1",
+      [postGrant.id],
+    );
+    assertEquals(revoked.rows[0], { revoked: true });
     const actor = await withPgTransaction(
       f.runtimePgDatabase,
       (tx) =>
