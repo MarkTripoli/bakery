@@ -1,4 +1,4 @@
-import type { RunRequestListItem } from "../../api/client.ts";
+import type { RunRequestResponse } from "../../api/client.ts";
 
 export type WaitingLine =
   & Readonly<{ stepKey: string; expiresAt: string }>
@@ -21,7 +21,7 @@ export type WaitingLine =
 
 export type FallbackLine = Readonly<{ name: string; owner: string }>;
 
-function namesOf(requests: readonly RunRequestListItem[]): string[] {
+function namesOf(requests: readonly RunRequestResponse[]): string[] {
   return [
     ...new Set(
       requests.map((request) =>
@@ -31,12 +31,12 @@ function namesOf(requests: readonly RunRequestListItem[]): string[] {
   ];
 }
 
-const latest = (requests: readonly RunRequestListItem[]) =>
+const latest = (requests: readonly RunRequestResponse[]) =>
   requests.map((request) => request.expiresAt).sort().at(-1)!;
 
 function lineOf(
   stepKey: string,
-  requests: readonly RunRequestListItem[],
+  requests: readonly RunRequestResponse[],
 ): WaitingLine | null {
   const open = requests.filter((request) => request.status === "open");
   if (open.length === 0) {
@@ -74,9 +74,9 @@ function lineOf(
 }
 
 export function waitingLines(
-  requests: readonly RunRequestListItem[],
+  requests: readonly RunRequestResponse[],
 ): WaitingLine[] {
-  const steps = new Map<string, RunRequestListItem[]>();
+  const steps = new Map<string, RunRequestResponse[]>();
   for (const request of requests) {
     if (request.stepKey === null || request.intent === "fyi") continue;
     if (request.status === "withdrawn") continue;
@@ -91,7 +91,7 @@ export function waitingLines(
 }
 
 export function fallbackLines(
-  requests: readonly RunRequestListItem[],
+  requests: readonly RunRequestResponse[],
 ): FallbackLine[] {
   return requests.flatMap((request) =>
     request.status === "open" && request.fallbackForName !== null

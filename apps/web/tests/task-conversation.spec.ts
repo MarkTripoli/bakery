@@ -4391,6 +4391,303 @@ test("a change to someone's access is said plainly, and the link is for people w
   await reader.close();
 });
 
+const requestFixture = (extra: Record<string, unknown> = {}) => ({
+  id: "00000000-0000-4000-8000-000000000701",
+  runId,
+  stepKey: "build.review",
+  questionId: null,
+  artifactVersionId: null,
+  intent: "fyi",
+  recipient: { principalId, displayName: "Alex Builder" },
+  askedBy: { principalId: otherPrincipalId, displayName: "Dana Teammate" },
+  askedByKind: "person",
+  note: null,
+  neededBy: null,
+  status: "open",
+  expiresAt: "2026-02-08T10:00:00.000Z",
+  ownerFallback: false,
+  fallbackForName: null,
+  audience: null,
+  createdAt: stamp(20),
+  updatedAt: stamp(20),
+  version: 1,
+  nextAsk: null,
+  passedOn: false,
+  ...extra,
+});
+
+const OLDER_RUN = "00000000-0000-4000-8000-000000000077";
+
+async function openRequests(
+  page: Page,
+  requests: Record<string, unknown>[],
+  overrides: Partial<World> = {},
+  setup: {
+    readonly runListStatus?: number;
+    readonly olderRun?: Record<string, unknown>;
+  } = {},
+) {
+  const restarts: unknown[] = [];
+  const reads = { current: 0, older: 0 };
+  const state = world({
+    task: { ...baseTask, status: "active", currentRunId: runId },
+    revisions: [],
+    approvals: [],
+    questions: [],
+    ...overrides,
+  });
+  await mockWorld(page, state);
+  await page.route(
+    `**/v1/runs/${runId}`,
+    (route) => route.fulfill({ json: runFixture("running") }),
+  );
+  await page.route(
+    `**/v1/runs/${runId}/steps*`,
+    (route) => route.fulfill({ json: page_([stepFixture]) }),
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/tasks/${taskId}/runs`,
+    (route) =>
+      setup.runListStatus === undefined
+        ? route.fulfill({
+          json: setup.olderRun === undefined
+            ? page_([runFixture("running")])
+            : new URL(route.request().url()).searchParams.has("cursor")
+            ? page_([{ ...runFixture("completed"), id: OLDER_RUN }])
+            : { items: [runFixture("running")], nextCursor: "older" },
+        })
+        : route.fulfill({
+          status: setup.runListStatus,
+          contentType: "application/problem+json",
+          json: problem(setup.runListStatus, "AUTH_FORBIDDEN"),
+        }),
+  );
+  await page.route(
+    `**/v1/runs/${OLDER_RUN}/requests/mine`,
+    (route) => {
+      reads.older += 1;
+      return route.fulfill({
+        json: { requests: setup.olderRun ? [setup.olderRun] : [] },
+      });
+    },
+  );
+  await page.route(
+    `**/v1/runs/${runId}/requests/mine`,
+    (route) => {
+      reads.current += 1;
+      return route.fulfill({ json: { requests } });
+    },
+  );
+  await page.route(
+    "**/v1/artifacts?*",
+    (route) => route.fulfill({ json: page_([patchArtifact]) }),
+  );
+  await page.route(
+    `**/v1/artifacts/${patchArtifact.id}/versions*`,
+    (route) =>
+      route.fulfill({
+        json: page_([
+          versionFixture(
+            patchArtifact,
+            patchArtifact.currentVersionId,
+            2,
+            "text/x-diff",
+            40,
+          ),
+        ]),
+      }),
+  );
+  await page.route(
+    `**/v1/runs/${runId}/steps/build.review/takeover`,
+    (route) => {
+      restarts.push(route.request().postDataJSON());
+      return route.fulfill({ json: stepFixture });
+    },
+  );
+  await page.goto(`/tasks/${taskId}`);
+  const asked = page.locator('[data-ui-region="requests-for-you"]');
+  await expect(asked).toBeVisible();
+  return { asked, restarts, reads };
+}
+
+test.describe("what someone was asked, on the task page", () => {
+  test("a review request opens the version it asks about", async ({ page }) => {
+    const { asked } = await openRequests(page, [
+      requestFixture({
+        intent: "review",
+        artifactVersionId: patchArtifact.currentVersionId,
+        note: "Please check the retry path.",
+      }),
+    ]);
+    await expect(asked).toContainText("Dana Teammate asked you to review");
+    await expect(asked).toContainText("Please check the retry path.");
+    await expect(asked.getByRole("link", { name: "Open the document" }))
+      .toHaveAttribute(
+        "href",
+        new RegExp(
+          `/tasks/${taskId}/artifacts/${patchArtifact.id}\\?version=${patchArtifact.currentVersionId}`,
+        ),
+      );
+    await still(page, "request-review");
+  });
+
+  test("an answer request goes to the question", async ({ page }) => {
+    const { asked } = await openRequests(page, [
+      requestFixture({ intent: "answer", questionId: question().id }),
+    ], { questions: [question()] });
+    await asked.getByRole("button", { name: "Go to the question" }).click();
+    await expect(page.locator(`[data-question-id="${question().id}"]`).first())
+      .toBeFocused();
+  });
+
+  test("a take over request starts the step again with the note", async ({ page }) => {
+    const { asked, restarts } = await openRequests(page, [
+      requestFixture({ intent: "take_over" }),
+    ]);
+    await asked.getByRole("textbox", { name: /Note for the step/ })
+      .fill("Use the new key.");
+    await asked.getByRole("button", { name: "Start the step again" }).click();
+    await expect.poll(() => restarts).toEqual([
+      { mode: "restart", note: "Use the new key." },
+    ]);
+  });
+
+  test("someone who cannot list runs still sees what they were asked", async ({ page }) => {
+    const { asked } = await openRequests(page, [requestFixture()], {}, {
+      runListStatus: 403,
+    });
+    await expect(asked).toContainText("Dana Teammate wants you to see this");
+    await expect(page.getByText("What you were asked did not load."))
+      .toHaveCount(0);
+  });
+
+  test("answering closes the request without a reload", async ({ page }) => {
+    const request = requestFixture({
+      intent: "answer",
+      questionId: question().id,
+    });
+    const { asked } = await openRequests(page, [request], {
+      questions: [question()],
+    });
+    await asked.getByRole("button", { name: "Go to the question" }).click();
+    const card = page.locator(
+      `[data-ui-component="questionCard"][data-question-id="${question().id}"]`,
+    );
+    await card.getByRole("radio", { name: "Bakery only" }).check();
+    request.status = "answered";
+    await card.getByRole("button", { name: "Send answer" }).click();
+    await hidePlan(page);
+    await expect(asked).toContainText("You answered this.");
+    await expect(asked.getByRole("button", { name: "Go to the question" }))
+      .toHaveCount(0);
+  });
+
+  test("approving closes the request without a reload", async ({ page }) => {
+    const request = requestFixture({
+      intent: "approve",
+      questionId: approval(1).id,
+    });
+    const { asked } = await openRequests(page, [request], {
+      approvals: [
+        approval(1, {
+          subjectType: "run_step",
+          subjectId: runId,
+          runId,
+          scope: { stage: "step" },
+        }),
+      ],
+    });
+    await asked.getByRole("button", { name: "Review and decide" }).click();
+    const pane = page.locator('[data-ui-region="step-approval"]');
+    await expect(pane).toBeVisible();
+    request.status = "answered";
+    await page.getByRole("button", { name: "Approve", exact: true }).click();
+    await expect(asked).toContainText("You answered this.");
+  });
+
+  test("a request on an older run is still shown", async ({ page }) => {
+    const { asked } = await openRequests(page, [requestFixture()], {}, {
+      olderRun: requestFixture({
+        id: "00000000-0000-4000-8000-000000000709",
+        runId: OLDER_RUN,
+        intent: "review",
+        artifactVersionId: patchArtifact.currentVersionId,
+        note: "From last week.",
+      }),
+    });
+    await expect(asked).toContainText("From last week.");
+  });
+
+  test("information only asks nothing, so it names no deadline", async ({ page }) => {
+    const { asked } = await openRequests(page, [requestFixture()]);
+    await expect(asked).toContainText("Nothing to do.");
+    await expect(asked).not.toContainText("Silence is never approval.");
+  });
+
+  test("a run list that fails is said, with a way to try again", async ({ page }) => {
+    const { asked } = await openRequests(page, [requestFixture()], {}, {
+      runListStatus: 500,
+    });
+    await expect(asked).toContainText("Dana Teammate wants you to see this");
+    await expect(page.getByText("What you were asked did not load."))
+      .toBeVisible();
+    await expect(page.getByRole("button", { name: "Try again" }).first())
+      .toBeVisible();
+  });
+
+  test("a chat message re-reads only runs that can have changed", async ({ page }) => {
+    const { asked, reads } = await openRequests(page, [requestFixture()], {}, {
+      olderRun: requestFixture({
+        id: "00000000-0000-4000-8000-000000000709",
+        runId: OLDER_RUN,
+        status: "handled",
+        note: "Done last week.",
+      }),
+    });
+    await expect(asked).toContainText("Done last week.");
+    const before = { ...reads };
+    await page.getByRole("textbox", { name: "Message this task" })
+      .fill("Any news?");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await expect.poll(() => reads.current).toBeGreaterThan(before.current);
+    expect(reads.older).toBe(before.older);
+  });
+
+  test("an FYI and the closed states say where things stand", async ({ page }) => {
+    const { asked } = await openRequests(page, [
+      requestFixture({
+        audience: { roleKey: null, groupId: null, name: "Design reviewers" },
+      }),
+      requestFixture({
+        id: "00000000-0000-4000-8000-000000000702",
+        intent: "approve",
+        status: "expired",
+      }),
+      requestFixture({
+        id: "00000000-0000-4000-8000-000000000703",
+        intent: "review",
+        status: "withdrawn",
+      }),
+      requestFixture({
+        id: "00000000-0000-4000-8000-000000000704",
+        intent: "answer",
+        status: "handled",
+      }),
+    ]);
+    await expect(asked).toContainText(
+      "Dana Teammate wants Design reviewers to see this",
+    );
+    await expect(asked).toContainText("Nothing to do.");
+    await expect(asked).toContainText(
+      "Expired: nobody answered by Feb 8, 2026.",
+    );
+    await expect(asked).toContainText("Dana Teammate withdrew this request.");
+    await expect(asked).toContainText("This has been handled.");
+    await expect(asked.getByRole("button")).toHaveCount(0);
+    await still(page, "request-closed");
+  });
+});
+
 const waitingRequest = (extra: Record<string, unknown> = {}) => ({
   id: "00000000-0000-4000-8000-000000000801",
   runId,

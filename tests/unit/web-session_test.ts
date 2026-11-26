@@ -346,6 +346,8 @@ function fakeApi(
     createRun: rejecting,
     listRuns: rejecting,
     listRunRequests: rejecting,
+    listMyRunRequests: rejecting,
+    restartRunStep: rejecting,
     controlRun: rejecting,
     getRun: rejecting,
     getRunControlCapabilities: rejecting,

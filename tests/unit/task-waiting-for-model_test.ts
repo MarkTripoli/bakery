@@ -3,12 +3,12 @@ import {
   fallbackLines,
   waitingLines,
 } from "../../apps/web/src/pages/task-waiting/waiting-for-model.ts";
-import type { RunRequestListItem } from "../../apps/web/src/api/client.ts";
+import type { RunRequestResponse } from "../../apps/web/src/api/client.ts";
 
 const ask = (
   name: string,
-  extra: Partial<RunRequestListItem> = {},
-): RunRequestListItem => ({
+  extra: Partial<RunRequestResponse> = {},
+): RunRequestResponse => ({
   id: crypto.randomUUID(),
   runId: "00000000-0000-4000-8000-000000000002",
   stepKey: "build.ask",
