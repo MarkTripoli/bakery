@@ -1,4 +1,5 @@
 import { contractSchemas } from "../../../packages/contracts/src/contracts.ts";
+import { fitFaultText } from "./fault-text.ts";
 import {
   type RepositoryInspectionSourceChunk,
   RepositoryInspectionSourceChunkSchema,
@@ -2026,7 +2027,10 @@ export class WorkerApiClient {
     idempotencyKey: string,
     signal?: AbortSignal,
   ): Promise<WorkerResponse<WorkerAck>> {
-    const wireBody = { ...body };
+    const wireBody = {
+      ...body,
+      ...("fault" in body ? { fault: fitFaultText(body.fault) } : {}),
+    } as WorkerResultRequest;
     validateLegacyCompatibleRequest(contractSchemas.WorkerResult, wireBody);
     const response = await this.request<unknown>(
       "POST",
