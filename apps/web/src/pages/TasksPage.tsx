@@ -625,6 +625,7 @@ function Detail(
             </UI.InlineNotice>
           )
           : undefined}
+        onReviewStep={() => setReviewingStep(true)}
         state={syncConnectivity === "reconnecting" ? "reconnecting" : "ready"}
         renderStepReview={(layout) =>
           reviewingStep && task.currentRunId

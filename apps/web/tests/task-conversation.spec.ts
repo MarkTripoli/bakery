@@ -4386,3 +4386,165 @@ test("a change to someone's access is said plainly, and the link is for people w
     .toHaveCount(0);
   await reader.close();
 });
+
+const requestFixture = (extra: Record<string, unknown> = {}) => ({
+  id: "00000000-0000-4000-8000-000000000701",
+  runId,
+  stepKey: "build.review",
+  questionId: null,
+  artifactVersionId: null,
+  intent: "fyi",
+  recipient: { principalId, displayName: "Alex Builder" },
+  askedBy: { principalId: otherPrincipalId, displayName: "Dana Teammate" },
+  askedByKind: "person",
+  note: null,
+  neededBy: null,
+  status: "open",
+  expiresAt: "2026-02-08T10:00:00.000Z",
+  ownerFallback: false,
+  fallbackForName: null,
+  audience: null,
+  createdAt: stamp(20),
+  updatedAt: stamp(20),
+  version: 1,
+  ...extra,
+});
+
+async function openRequests(
+  page: Page,
+  requests: Record<string, unknown>[],
+  overrides: Partial<World> = {},
+) {
+  const restarts: unknown[] = [];
+  const state = world({
+    task: { ...baseTask, status: "active", currentRunId: runId },
+    revisions: [],
+    approvals: [],
+    questions: [],
+    ...overrides,
+  });
+  await mockWorld(page, state);
+  await page.route(
+    `**/v1/runs/${runId}`,
+    (route) => route.fulfill({ json: runFixture("running") }),
+  );
+  await page.route(
+    `**/v1/runs/${runId}/steps*`,
+    (route) => route.fulfill({ json: page_([stepFixture]) }),
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/tasks/${taskId}/runs`,
+    (route) => route.fulfill({ json: page_([runFixture("running")]) }),
+  );
+  await page.route(
+    `**/v1/runs/${runId}/requests/mine`,
+    (route) => route.fulfill({ json: { requests } }),
+  );
+  await page.route(
+    "**/v1/artifacts?*",
+    (route) => route.fulfill({ json: page_([patchArtifact]) }),
+  );
+  await page.route(
+    `**/v1/artifacts/${patchArtifact.id}/versions*`,
+    (route) =>
+      route.fulfill({
+        json: page_([
+          versionFixture(
+            patchArtifact,
+            patchArtifact.currentVersionId,
+            2,
+            "text/x-diff",
+            40,
+          ),
+        ]),
+      }),
+  );
+  await page.route(
+    `**/v1/runs/${runId}/steps/build.review/takeover`,
+    (route) => {
+      restarts.push(route.request().postDataJSON());
+      return route.fulfill({ json: stepFixture });
+    },
+  );
+  await page.goto(`/tasks/${taskId}`);
+  const asked = page.locator('[data-ui-region="requests-for-you"]');
+  await expect(asked).toBeVisible();
+  return { asked, restarts };
+}
+
+test.describe("what someone was asked, on the task page", () => {
+  test("a review request opens the version it asks about", async ({ page }) => {
+    const { asked } = await openRequests(page, [
+      requestFixture({
+        intent: "review",
+        artifactVersionId: patchArtifact.currentVersionId,
+        note: "Please check the retry path.",
+      }),
+    ]);
+    await expect(asked).toContainText("Dana Teammate asked you to review");
+    await expect(asked).toContainText("Please check the retry path.");
+    await expect(asked.getByRole("link", { name: "Open the document" }))
+      .toHaveAttribute(
+        "href",
+        new RegExp(
+          `/tasks/${taskId}/artifacts/${patchArtifact.id}\\?version=${patchArtifact.currentVersionId}`,
+        ),
+      );
+    await still(page, "request-review");
+  });
+
+  test("an answer request goes to the question", async ({ page }) => {
+    const { asked } = await openRequests(page, [
+      requestFixture({ intent: "answer", questionId: question().id }),
+    ], { questions: [question()] });
+    await asked.getByRole("button", { name: "Go to the question" }).click();
+    await expect(page.locator(`[data-question-id="${question().id}"]`).first())
+      .toBeFocused();
+  });
+
+  test("a take over request starts the step again with the note", async ({ page }) => {
+    const { asked, restarts } = await openRequests(page, [
+      requestFixture({ intent: "take_over" }),
+    ]);
+    await asked.getByRole("textbox", { name: /Note for the step/ })
+      .fill("Use the new key.");
+    await asked.getByRole("button", { name: "Start the step again" }).click();
+    await expect.poll(() => restarts).toEqual([
+      { mode: "restart", note: "Use the new key." },
+    ]);
+  });
+
+  test("an FYI and the closed states say where things stand", async ({ page }) => {
+    const { asked } = await openRequests(page, [
+      requestFixture({
+        audience: { roleKey: null, groupId: null, name: "Design reviewers" },
+      }),
+      requestFixture({
+        id: "00000000-0000-4000-8000-000000000702",
+        intent: "approve",
+        status: "expired",
+      }),
+      requestFixture({
+        id: "00000000-0000-4000-8000-000000000703",
+        intent: "review",
+        status: "withdrawn",
+      }),
+      requestFixture({
+        id: "00000000-0000-4000-8000-000000000704",
+        intent: "answer",
+        status: "handled",
+      }),
+    ]);
+    await expect(asked).toContainText(
+      "Dana Teammate wants Design reviewers to see this",
+    );
+    await expect(asked).toContainText("Nothing to do.");
+    await expect(asked).toContainText(
+      "Expired: nobody answered by Feb 8, 2026.",
+    );
+    await expect(asked).toContainText("Dana Teammate withdrew this request.");
+    await expect(asked).toContainText("This has been handled.");
+    await expect(asked.getByRole("button")).toHaveCount(0);
+    await still(page, "request-closed");
+  });
+});

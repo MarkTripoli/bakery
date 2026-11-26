@@ -73,6 +73,9 @@ import {
 } from "./PlanRevisionPanel.tsx";
 import { Participants } from "./Participants.tsx";
 import { QuestionAnswer } from "./QuestionAnswer.tsx";
+import { RequestsForYou } from "../task-requests/RequestsForYou.tsx";
+
+const SHEET_SETTLE_MS = 250;
 import { TASK_READS, useQuestionAnswers } from "./useQuestionAnswers.ts";
 import { StageStrip } from "./StageStrip.tsx";
 import { TurnStatus } from "./TurnStatus.tsx";
@@ -93,6 +96,7 @@ export function TaskConversation(
   {
     aside,
     banner,
+    onReviewStep,
     extras,
     questionDefaults,
     references,
@@ -105,6 +109,7 @@ export function TaskConversation(
     renderStepReview?: (layout: "rail" | "sheet") => ReactNode;
     /** A notice that belongs right under the stages, such as a landing's. */
     banner?: ReactNode;
+    onReviewStep?: () => void;
     /** Transcript-end content: run controls, output and artifacts. */
     extras?: ReactNode;
     /** Option preselected per question id; a design fixture supplies it. */
@@ -573,6 +578,18 @@ export function TaskConversation(
   ].filter((part) => part !== undefined).join(" · ");
   const reference = references?.[task.id] ?? task.id.slice(0, 8);
   const coordinationLink = (coordination.data?.items.length ?? 0) > 0;
+  const showQuestion = (questionId: string) => {
+    if (phone) setPlanOpen(true);
+    globalThis.setTimeout(() => {
+      const card = globalThis.document.querySelector<HTMLElement>(
+        `[data-ui-component="questionCard"][data-question-id="${questionId}"]`,
+      );
+      if (card === null) return;
+      card.tabIndex = -1;
+      card.scrollIntoView({ block: "center" });
+      card.focus();
+    }, phone ? SHEET_SETTLE_MS : 0);
+  };
   const planCard = (
     <UI.PlanSummaryCard
       data-approval-id={approval?.id}
@@ -914,6 +931,13 @@ export function TaskConversation(
             </UI.Stack>
           </UI.InlineNotice>
         )}
+        <RequestsForYou
+          currentRunId={task.currentRunId}
+          online={online}
+          onReviewStep={() => onReviewStep?.()}
+          onShowQuestion={showQuestion}
+          taskId={task.id}
+        />
         {task.description && (
           <UI.Stack gap="compact" data-ui-region="task-brief">
             <UI.Text variant="caption">
