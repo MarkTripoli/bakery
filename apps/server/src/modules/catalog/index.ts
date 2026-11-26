@@ -37,6 +37,7 @@ export {
   deployedIntegrations,
   deployedProviderByIntegrationId,
   deployedProviderBySlug,
+  deployedProviderGates,
   deployedProviders,
 } from "./integration-gate-registry.ts";
 export {

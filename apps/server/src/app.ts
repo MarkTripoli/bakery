@@ -79,6 +79,7 @@ import {
   type InstallationTokenBroker,
 } from "./modules/integrations/index.ts";
 import { createProviderRequestPort } from "./modules/integrations/credential-port.ts";
+import { PROVIDERS } from "./modules/integrations/registry.ts";
 import { GITHUB_PROVIDER } from "./modules/integrations/registry.ts";
 import { selectTicketSourceReader } from "./modules/work/ticket-reader-selection.ts";
 import { readAppCredentials } from "./modules/integrations/callbacks.ts";
@@ -91,6 +92,7 @@ import {
   activateDeployedIntegrations,
   createCatalogRoutes,
   deployedIntegrations,
+  deployedProviderGates,
   deployedProviders,
 } from "./modules/catalog/index.ts";
 import {
@@ -333,6 +335,7 @@ export function createApp(options: {
     deployedIntegrations,
     undefined,
     deployedProviders,
+    deployedProviderGates,
   );
   if (!options.config.auth) throw new Error(AuthErrorCode.ConfigRequired);
   const installationSettings = options.installationSettings ??
@@ -368,6 +371,8 @@ export function createApp(options: {
   // store and the sender are created together or not at all.
   const providerRequests = createProviderRequestPort({
     database: options.pgDatabase,
+    secretsKey: options.config.secretsKey,
+    providers: PROVIDERS,
     broker: installationTokenBroker,
     readAppCredentials,
     // The same broker the port mints through, so the counter the broker compares
@@ -818,6 +823,8 @@ export function createApp(options: {
       ...(skillFileStore
         ? { storageBlobStore: new ScopedOrganizationBlobStore(skillFileStore) }
         : {}),
+      allowPlainLoopbackEmail: options.config.environment === "test",
+      emailSend: options.emailSend,
       integrations,
       ticketNoteWriter,
       ticketLabelWriter,
