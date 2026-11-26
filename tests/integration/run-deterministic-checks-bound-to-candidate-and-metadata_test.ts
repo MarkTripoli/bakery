@@ -92,7 +92,7 @@ Deno.test("migration 0142 creates an insert-only check_runs table with named con
       { conname: string; contype: string }
     >(
       `select conname, contype from pg_constraint
-        where conrelid = 'bakery.check_runs'::regclass order by conname`,
+        where conrelid = 'bakery.check_runs'::regclass and contype <> 'n' order by conname`,
     );
     assertEquals(constraints.rows.map((row) => row.conname), [
       "check_runs_evidence_version_fk",
