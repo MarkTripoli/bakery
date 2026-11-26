@@ -9,6 +9,7 @@ import {
 import "../controls.css";
 
 export type Tab = {
+  badge?: ReactNode;
   content: ReactNode;
   disabled?: boolean;
   id: string;
@@ -155,6 +156,7 @@ export function Tabs(
               type="button"
             >
               {tab.label}
+              {tab.badge}
             </button>
           ))}
         </div>

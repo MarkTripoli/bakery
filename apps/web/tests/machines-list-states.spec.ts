@@ -148,10 +148,15 @@ test.describe("machines list states", () => {
         [
           "build-linux-01",
           "Ready",
-          "Linux · Claude Code, Codex · 2 slots",
+          "Linux · Claude Code, Codex · 0 of 2 tasks",
           "Open",
         ],
-        ["build-mac-01", "Ready", "macOS · Claude Code, Pi · 1 slot", "Open"],
+        [
+          "build-mac-01",
+          "Ready",
+          "macOS · Claude Code, Pi · 0 of 1 tasks",
+          "Open",
+        ],
         ["ci-linux-02", "Needs attention", "2 checks failed.", "Fix"],
         [
           "ci-linux-03",
@@ -175,7 +180,7 @@ test.describe("machines list states", () => {
         [
           "new-linux-07",
           "Checking",
-          "Linux · Claude Code, Codex · 2 slots",
+          "Linux · Claude Code, Codex · 0 of 2 tasks",
           "Open",
         ],
         ["old-mac-08", "Retired", "It no longer takes work.", "Open"],
@@ -188,7 +193,7 @@ test.describe("machines list states", () => {
           const [system, agents, slots] = line.split(" · ");
           await expect(row, name).toContainText(system!);
           await expect(row, name).toContainText(agents!);
-          await expect(row, name).toContainText(slots!.replace(/ slots?$/, ""));
+          await expect(row, name).toContainText(slots!.replace(/ tasks$/, ""));
         } else {
           await expect(row, name).toContainText(line);
         }
@@ -496,5 +501,32 @@ test.describe("machines list states", () => {
     // Back at the top, the capture is what a person sees on arrival.
     await page.evaluate(() => globalThis.scrollTo(0, 0));
     await shot(page, "machines-list-finishing-paged");
+  });
+});
+
+test.describe("machines list: tasks running on each machine", () => {
+  test("a busy machine says how many run, and a silent one says what may be lost", async ({ page }) => {
+    await open(page, {
+      workers: [
+        machine("busy-linux-01", { slots: 4, activeAttemptCount: 3 }),
+        machine("quiet-linux-02", {
+          connectivity: "offline",
+          unsettledAttemptCount: 2,
+        }),
+        machine("idle-linux-03", { connectivity: "stale" }),
+      ],
+    });
+    await expect(rowOf(page, "busy-linux-01")).toContainText("3 of 4");
+    await expect(rowOf(page, "quiet-linux-02")).toContainText(
+      "2 tasks may be lost.",
+    );
+    await expect(rowOf(page, "busy-linux-01")).not.toContainText(
+      "may be lost",
+    );
+    await expect(rowOf(page, "idle-linux-03")).not.toContainText(
+      "may be lost",
+    );
+    await page.mouse.move(700, 700);
+    await still(page, "machines-list-tasks");
   });
 });
