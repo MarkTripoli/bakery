@@ -96,7 +96,7 @@ export async function fireStartsFor(
   return outcomes;
 }
 
-const TICKET_EVENT_PREFIX = "work_item.";
+const TICKET_ADMISSION_EVENT = "work_item.labeled";
 
 async function ticketAdmittedWorkflows(
   transaction: PgTransactionClient,
@@ -104,7 +104,7 @@ async function ticketAdmittedWorkflows(
   repository: { id: string },
   event: NeutralEvent,
 ): Promise<ReadonlySet<string>> {
-  if (!event.kind.startsWith(TICKET_EVENT_PREFIX)) return new Set();
+  if (event.kind !== TICKET_ADMISSION_EVENT) return new Set();
   const result = await transaction.query<{ workflow_id: string }>(
     `select distinct policy -> 'workflow' ->> 'workflowId' as workflow_id
        from bakery.ticket_sources

@@ -979,6 +979,7 @@ export async function createRunCommand(
   options: {
     placement?: RunPlacement;
     storageConnections?: StorageConnectionDeps;
+    versionRunsAsBuiltIn?: boolean;
   } = {},
 ): Promise<RunOutput> {
   const { transaction, organizationId, principalId } = requireWorkTransaction(
@@ -1047,7 +1048,7 @@ export async function createRunCommand(
     throw unprocessable(["presetId"], "preset_unknown");
   }
   const preset = namedPreset ??
-    (input.workflowVersionId === undefined
+    (input.workflowVersionId === undefined || !options.versionRunsAsBuiltIn
       ? undefined
       : await catalogPresetOfVersion(
         transaction,

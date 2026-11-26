@@ -67,6 +67,28 @@ async function runsOfOrganization(fx: TicketFixture): Promise<number> {
   return Number(result.rows[0]?.count ?? 0);
 }
 
+async function receivedEvent(fx: TicketFixture): Promise<string> {
+  const id = crypto.randomUUID();
+  await fx.owner.query(
+    `insert into bakery.inbound_events (
+       id, provider, registration_id, external_delivery_id, payload_digest,
+       event_kind, event_action, status, expires_at
+     ) values ($1, 'provider_neutral', null, $2, 'digest', 'issues',
+       'labeled', 'accepted', now() + interval '1 day')`,
+    [id, crypto.randomUUID()],
+  );
+  return id;
+}
+
+async function firingsOfOrganization(fx: TicketFixture): Promise<number> {
+  const result = await fx.owner.query<{ count: string }>(
+    `select count(*)::text as count from bakery.workflow_start_firings
+      where organization_id = $1`,
+    [fx.organizationId],
+  );
+  return Number(result.rows[0]?.count ?? 0);
+}
+
 /** The preset a run's workflow version was materialized from. */
 async function runPreset(fx: TicketFixture, runId: string): Promise<string> {
   const result = await fx.owner.query<{ slug: string }>(
@@ -229,6 +251,11 @@ Deno.test("issue 407: admission starts the source's workflow once, and that work
           budgetUsd: 5,
           inputs: {},
           on: { kind: "event", eventKind: "work_item.labeled", filter: {} },
+        }, {
+          id: "on-close",
+          budgetUsd: 5,
+          inputs: {},
+          on: { kind: "event", eventKind: "work_item.closed", filter: {} },
         }]),
       ],
     );
@@ -255,23 +282,33 @@ Deno.test("issue 407: admission starts the source's workflow once, and that work
       "the run starts the pinned version",
     );
 
-    const outcomes = await withPgTransaction(
-      fx.runtime,
-      (transaction) =>
-        fireStartsFor(
-          transaction,
-          {
-            organizationId: fx.organizationId,
-            inboundEventId: crypto.randomUUID(),
-          },
-          { id: fx.repositoryId },
-          { kind: "work_item.labeled", fields: { number: 617 } },
-        ),
-    );
+    const fire = async (kind: string, number: number) => {
+      const inboundEventId = await receivedEvent(fx);
+      return await withPgTransaction(
+        fx.runtime,
+        (transaction) =>
+          fireStartsFor(
+            transaction,
+            { organizationId: fx.organizationId, inboundEventId },
+            { id: fx.repositoryId },
+            { kind, fields: { number } },
+          ),
+      );
+    };
+    const labeled = await fire("work_item.labeled", 617);
     assertEquals(
-      outcomes.map((outcome) => [outcome.result, outcome.code]),
-      [["duplicate", "ticket_source_admits"]],
+      labeled.map((outcome) => [outcome.startId, outcome.result, outcome.code]),
+      [["on-label", "duplicate", "ticket_source_admits"]],
     );
+    assertEquals(await firingsOfOrganization(fx), 0);
+    assertEquals(await runsOfOrganization(fx), before + 1);
+    const closed = await fire("work_item.closed", 999);
+    assertEquals(closed.map((outcome) => outcome.startId), ["on-close"]);
+    assert(
+      closed[0].result !== "duplicate",
+      `another event's start still fires: ${JSON.stringify(closed)}`,
+    );
+    assertEquals(await firingsOfOrganization(fx), 1);
     const again = await fx.admit(sourceId, { number: 617, intent: "start" });
     assertEquals(again.kind, "existing");
     assertEquals(await runsOfOrganization(fx), before + 1, "exactly one run");
@@ -318,4 +355,40 @@ Deno.test("issue 407: a request pinned before policy v2 keeps its old pin and st
       legacy,
       "the pin is not rewritten",
     );
+  }, { budget: true }));
+
+Deno.test("issue 407: a run started by a built-in's version id with inputs answers as on main", () =>
+  withTicketFixture(async (fx) => {
+    const task = await read<{ id: string }>(
+      await ticketCall(fx, "POST", "/v1/tasks", {
+        body: {
+          applicationId: fx.applicationId,
+          repositoryId: fx.repositoryId,
+          taskType: "feature",
+          title: "Run a built-in by its version",
+          description: "A direct run of a built-in workflow version.",
+        },
+      }),
+      201,
+    );
+    const active = await fx.owner.query<{ active_version_id: string }>(
+      `select active_version_id from bakery.workflow_definitions
+        where organization_id = $1 and id = $2`,
+      [fx.organizationId, fx.builtInWorkflow("fixed-coding").workflowId],
+    );
+    const response = await ticketCall(
+      fx,
+      "POST",
+      `/v1/tasks/${task.id}/runs`,
+      {
+        body: {
+          workflowVersionId: active.rows[0].active_version_id,
+          executionMode: "repository",
+          inputs: {},
+        },
+      },
+    );
+    const text = await response.text();
+    assertEquals(response.status, 422, text);
+    assert(!text.includes("inputs_not_allowed_with_preset"), text);
   }, { budget: true }));

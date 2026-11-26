@@ -12,6 +12,13 @@ import {
   readAgeOf,
   type SettingsForm,
 } from "../../apps/web/src/pages/issues/settings-model.ts";
+import {
+  hasWorkflow,
+  workflowOptionsOf,
+  workflowValueOf,
+  writtenWorkflowIdOf,
+  writtenWorkflowsOf,
+} from "../../apps/web/src/pages/issues/workflow-choice.ts";
 import type { TicketSourceResponse } from "../../apps/web/src/api/client.ts";
 
 const source = (
@@ -249,4 +256,60 @@ Deno.test("the counts come from each issue's own verdict, and say when they were
     labeledBeforeWindow: 0,
     evaluatedAt: null,
   });
+});
+
+Deno.test("issue 407: the workflow choice lists written workflows, selects the saved one and keeps Start automatically possible", () => {
+  const written = writtenWorkflowsOf(
+    [
+      {
+        id: "w-1",
+        name: "Triage",
+        description: "Fixes it.",
+        enabled: true,
+        activeVersionId: "v-1",
+        origin: { kind: "authored" },
+      },
+      {
+        id: "w-2",
+        name: "Built in",
+        description: null,
+        enabled: true,
+        activeVersionId: "v-2",
+        origin: { kind: "catalog" },
+      },
+      {
+        id: "w-3",
+        name: "Off",
+        description: null,
+        enabled: false,
+        activeVersionId: "v-3",
+        origin: { kind: "authored" },
+      },
+    ] as unknown as Parameters<typeof writtenWorkflowsOf>[0],
+  );
+  assertEquals(written, [{
+    id: "w-1",
+    name: "Triage",
+    description: "Fixes it.",
+  }]);
+  const chosen = formOf(source(policy({ workflow: { workflowId: "w-1" } })));
+  assertEquals(workflowValueOf(chosen), "workflow:w-1");
+  assertEquals(hasWorkflow(chosen), true);
+  assertEquals(workflowOptionsOf(written, chosen.keptWorkflowId), [
+    { label: "Triage", value: "workflow:w-1" },
+  ]);
+  assertEquals(workflowOptionsOf([], "w-9"), [
+    { label: "w-9", value: "workflow:w-9" },
+  ]);
+  assertEquals(writtenWorkflowIdOf("workflow:w-1"), "w-1");
+  assertEquals(writtenWorkflowIdOf("fixed-coding"), null);
+  assertEquals(
+    policyOfForm({ ...chosen, keptWorkflowId: "w-2" }).workflow,
+    { workflowId: "w-2" },
+  );
+  assertEquals(workflowValueOf(formOf(source(policy()))), "fixed-coding");
+  assertEquals(
+    hasWorkflow(formOf(source(policy({ workflow: undefined })))),
+    false,
+  );
 });

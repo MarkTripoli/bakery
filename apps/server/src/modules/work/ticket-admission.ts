@@ -1525,6 +1525,7 @@ async function startRun(
       target: `/v1/tasks/${task.id}/runs`,
     }),
     input.data,
+    { versionRunsAsBuiltIn: true },
   );
   return run.id;
 }

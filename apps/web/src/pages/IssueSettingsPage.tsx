@@ -2,6 +2,7 @@ import { useId, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
+import type { Translator } from "@bakery/i18n";
 import type {
   TicketSourcePersonResponse,
   TicketSourceResponse,
@@ -10,6 +11,7 @@ import { useBakeryApi } from "../api/context.tsx";
 import {
   applicationRepositoryRolesQueryOptions,
   effectiveAccessQueryOptions,
+  libraryWorkflowsQueryOptions,
   projectRepositoriesQueryOptions,
   ticketRoutingRulesQueryOptions,
   ticketSourceLabelsQueryOptions,
@@ -44,6 +46,15 @@ import {
 import { RoutingRules } from "./issues/RoutingRules.tsx";
 import { TICKET_PRESETS } from "./issue-sources.ts";
 import { presetCopy } from "./task-composer-labels.ts";
+import {
+  hasWorkflow,
+  workflowOptionsOf,
+  workflowValueOf,
+  type WrittenWorkflow,
+  writtenWorkflowIdOf,
+  writtenWorkflowOf,
+  writtenWorkflowsOf,
+} from "./issues/workflow-choice.ts";
 
 /** The pages that share one repository's draft. */
 const SETTINGS_PATH = "/issues/settings";
@@ -108,6 +119,11 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
   });
   const repositoriesRead = useQuery(
     projectRepositoriesQueryOptions(api, scope),
+  );
+  const workflowsRead = useQuery(libraryWorkflowsQueryOptions(api, scope));
+  const writtenWorkflows = useMemo(
+    () => writtenWorkflowsOf(workflowsRead.data?.items ?? []),
+    [workflowsRead.data],
   );
   const savedRows = useMemo(() => rowsOf(rulesRead.data), [rulesRead.data]);
   const [rulesDraft, setRulesDraft] = useState<RuleRow[] | null>(null);
@@ -608,11 +624,16 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                         label={translate("issues.settings.workflow.title")}
                         labelHidden
                         onChange={(event) => {
+                          const value = event.currentTarget.value;
                           const chosen =
-                            TICKET_PRESETS.find((id) =>
-                              id === event.currentTarget.value
-                            ) ?? null;
+                            TICKET_PRESETS.find((id) => id === value) ?? null;
+                          const written = writtenWorkflowIdOf(value);
                           setWorkflowError(false);
+                          if (written !== null) {
+                            setTurnedOff(false);
+                            edit({ preset: null, keptWorkflowId: written });
+                            return;
+                          }
                           if (chosen === null && shown.automatic) {
                             setTurnedOff(true);
                             edit({
@@ -634,22 +655,30 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                             label: presetCopy(translate, id).title,
                             value: id,
                           })),
+                          ...workflowOptionsOf(
+                            writtenWorkflows,
+                            shown.keptWorkflowId,
+                          ),
                         ]}
-                        value={shown.preset ?? ""}
+                        value={workflowValueOf(shown)}
                       />
                       <UI.Text variant="hint">
-                        {shown.preset === null
-                          ? translate("issues.settings.workflow.noneHint")
-                          : presetCopy(translate, shown.preset).description}
+                        {workflowHintOf(shown, writtenWorkflows, translate)}
                       </UI.Text>
                     </>
                   )
                   : (
                     <UI.Text variant="muted">
-                      {shown.preset === null
+                      {workflowNameOf(shown, writtenWorkflows, translate) ===
+                          null
                         ? translate("issues.settings.workflow.runsNone")
                         : translate("issues.settings.workflow.runs", {
-                          workflow: presetCopy(translate, shown.preset).title,
+                          workflow: workflowNameOf(
+                            shown,
+                            writtenWorkflows,
+                            translate,
+                          ) ??
+                            "",
                         })}
                     </UI.Text>
                   )}
@@ -660,14 +689,14 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                   {translate("issues.settings.automatic.title")}
                 </UI.Heading>
                 <UI.Switch
-                  aria-describedby={workflowError && shown.preset === null
+                  aria-describedby={workflowError && !hasWorkflow(shown)
                     ? needsWorkflowId
                     : undefined}
                   checked={shown.automatic}
                   disabled={labelsDisabled}
                   onChange={(event) => {
                     if (event.currentTarget.checked) {
-                      if (shown.preset === null) {
+                      if (!hasWorkflow(shown)) {
                         setWorkflowError(true);
                         return;
                       }
@@ -681,7 +710,7 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                     label: shown.start,
                   })}
                 </UI.Switch>
-                {workflowError && shown.preset === null
+                {workflowError && !hasWorkflow(shown)
                   ? (
                     <UI.InlineNotice
                       id={needsWorkflowId}
@@ -1045,4 +1074,28 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
         : null}
     </>
   );
+}
+
+function workflowNameOf(
+  form: SettingsForm,
+  written: readonly WrittenWorkflow[],
+  translate: Translator,
+): string | null {
+  if (form.preset !== null) return presetCopy(translate, form.preset).title;
+  if (form.keptWorkflowId === null) return null;
+  return writtenWorkflowOf(form, written)?.name ?? form.keptWorkflowId;
+}
+
+function workflowHintOf(
+  form: SettingsForm,
+  written: readonly WrittenWorkflow[],
+  translate: Translator,
+): string {
+  if (form.preset !== null) {
+    return presetCopy(translate, form.preset).description ?? "";
+  }
+  if (form.keptWorkflowId === null) {
+    return translate("issues.settings.workflow.noneHint");
+  }
+  return writtenWorkflowOf(form, written)?.description ?? "";
 }

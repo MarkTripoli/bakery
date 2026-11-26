@@ -127,7 +127,30 @@ type SettingsOptions = {
   archivedApi?: boolean;
   /** The api repository has no role in the application. */
   noRoleApi?: boolean;
+  /** Workflows the organization wrote, as the workflow list returns them. */
+  workflows?: { id: string; name: string; description: string }[];
 };
+
+const writtenWorkflow = (
+  workflow: { id: string; name: string; description: string },
+) => ({
+  ...workflow,
+  slug: workflow.name.toLowerCase().replaceAll(" ", "-"),
+  activeVersionId: uuid(960),
+  enabled: true,
+  createdAt: STAMP,
+  updatedAt: STAMP,
+  version: 1,
+  origin: {
+    kind: "authored",
+    catalogKey: null,
+    catalogVersion: null,
+    sourceWorkflowId: null,
+    sourceVersionId: null,
+    sourceDigest: null,
+  },
+  visibility: "listed",
+});
 
 /** The Issues fixture plus the settings routes; returns what the page asked for. */
 async function settingsFixture(page: Page, options: SettingsOptions = {}) {
@@ -143,6 +166,15 @@ async function settingsFixture(page: Page, options: SettingsOptions = {}) {
     replaces: [] as { rules: Record<string, string>[] }[],
   };
   let saved = options.saved === null ? null : source(options.saved ?? {});
+
+  await page.route(
+    (url) => url.pathname === "/v1/workflows",
+    (route) =>
+      route.fulfill(json({
+        items: (options.workflows ?? []).map(writtenWorkflow),
+        nextCursor: null,
+      })),
+  );
 
   await page.route(
     (url) => url.pathname === "/v1/repositories",
@@ -609,6 +641,39 @@ for (
       expect(seen.patches).toHaveLength(1);
       const sent = seen.patches[0].policy as Record<string, unknown>;
       expect(sent.workflow).toEqual({ builtIn: "fixed-coding-reviewed" });
+    });
+
+    test("a workflow the organization wrote is listed, shown chosen, and saved by its id", async ({ page }) => {
+      const triage = {
+        id: uuid(970),
+        name: "Triage and fix",
+        description: "Reads the issue, fixes it and opens a pull request.",
+      };
+      const release = {
+        id: uuid(971),
+        name: "Release notes",
+        description: "Writes the release notes for the issue.",
+      };
+      const seen = await settingsFixture(page, {
+        saved: { policy: policy({ workflow: { workflowId: triage.id } }) },
+        workflows: [triage, release],
+      });
+      await openSettings(page);
+      const choice = workflowBox(page).getByLabel("Workflow");
+      await expect(choice).toHaveValue(`workflow:${triage.id}`);
+      await expect(choice.getByRole("option")).toHaveCount(5);
+      await expect(workflowBox(page)).toContainText(triage.description);
+      await expect(workflowBox(page)).not.toContainText(
+        "People choose a workflow each time they start work.",
+      );
+      await still(page, "issue-settings-workflow-written", undefined, {
+        scrollTo: workflowBox(page),
+      });
+      await choice.selectOption(`workflow:${release.id}`);
+      await page.getByRole("button", { name: "Save" }).click();
+      await expect(page.getByText("Settings saved.")).toBeVisible();
+      const sent = seen.patches[0].policy as Record<string, unknown>;
+      expect(sent.workflow).toEqual({ workflowId: release.id });
     });
 
     test("a repository set to the reviewed workflow shows it chosen", async ({ page }) => {
