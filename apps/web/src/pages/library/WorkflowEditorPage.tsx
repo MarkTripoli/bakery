@@ -2,8 +2,10 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import {
+  allOrganizationMembersQueryOptions,
   attachableSkillsQueryOptions,
   effectiveAccessQueryOptions,
+  organizationQueryOptions,
   workflowQueryOptions,
   workflowVersionSkillsQueryOptions,
   workflowVersionsQueryOptions,
@@ -37,8 +39,10 @@ import {
   editorStateOf,
   type EditorStep,
   freeStepId,
+  type LoopEdit,
   skillsOfNode,
 } from "./editor-state.ts";
+import { LeaveGuard } from "../repository-rules/leave-guard.tsx";
 import {
   problemSentence,
   problemsOf,
@@ -48,6 +52,16 @@ import {
   unboundActionsOf,
   withoutUnboundAgent,
 } from "./editor-validation.ts";
+import {
+  APPROVAL_ACTION,
+  approvalOfNode,
+  type ApprovalPerson,
+  type ApprovalProblem,
+  approvalProblems,
+  askedWho,
+  NEW_APPROVAL,
+} from "./approval-step.ts";
+import type { ApprovalFocus } from "./ApprovalPanel.tsx";
 import { stepName } from "./workflow-state.ts";
 import {
   type GroupLabel,
@@ -96,11 +110,18 @@ type SaveState =
  */
 type ProblemRow = {
   readonly key: string;
+  readonly field?: ApprovalProblem["field"];
+  readonly blocking?: boolean;
   /** The step or group's name; empty for a problem that has no place in the drawing. */
   readonly name: string;
   readonly sentence: string;
   readonly stepId: string | null;
 };
+
+function approvalPart(uses: string, node: Record<string, unknown>) {
+  const approval = uses === APPROVAL_ACTION ? approvalOfNode(node) : null;
+  return approval === null ? {} : { approval };
+}
 
 function repeatCap(spec: Readonly<Record<string, unknown>> | null): number {
   const limits = record(spec?.limits);
@@ -118,6 +139,7 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
   repeat: "library.editor.group.repeat",
   fix: "library.editor.group.fixUntilPasses",
   each: "library.editor.group.each",
+  call: "library.editor.group.call",
   wait: "library.editor.group.wait",
 };
 
@@ -182,6 +204,7 @@ export function WorkflowEditorPage(
           ? step.agentVersionId
           : null,
         skills: skillsOfNode(step),
+        ...approvalPart(uses, step),
       }];
     });
   }, [draft]);
@@ -258,12 +281,22 @@ export function WorkflowEditorPage(
   >(null);
   // The slots the last write sent, so only those are cleared when it lands.
   const sentSlots = useRef<string[]>([]);
+  const sentLoops = useRef<readonly LoopEdit[]>([]);
+  const [loopPending, setLoopPending] = useState(false);
   // Slots the person settled (by choosing a skill or removing the placeholder) and the
   // draft has not saved yet: the save tells the server, and the row is gone at once.
   const [resolving, setResolving] = useState<ReadonlySet<string>>(new Set());
 
-  // A different version being edited starts the editor again.
+  const editedRef = useRef("");
+  const resetFor = useRef<string | undefined>(undefined);
   useEffect(() => {
+    const unsavedHere = resetFor.current === draft?.id &&
+      lastSaved.current !== null && editedRef.current !== lastSaved.current;
+    const ownEcho = draft !== null && resetFor.current === draft.id &&
+      savedVersion.current?.id === draft.id &&
+      draft.version <= savedVersion.current.version;
+    if (unsavedHere || ownEcho) return;
+    resetFor.current = draft?.id;
     dispatch({ kind: "reset", steps: versionSteps });
     lastSaved.current = JSON.stringify({ steps: versionSteps, loops: [] });
     setSaveState({ kind: "saved" });
@@ -283,6 +316,7 @@ export function WorkflowEditorPage(
     mutationKey: ["workflowVersions.update"],
     mutationFn: async (steps: readonly EditorStep[]) => {
       if (draft === null) throw new Error("no draft version");
+      sentLoops.current = editor.loops;
       const result = await api.updateWorkflowVersion({
         organizationId: scope.organizationId as string,
         workflowId,
@@ -330,7 +364,7 @@ export function WorkflowEditorPage(
       // What was written is what is saved: an edit made meanwhile is still to save.
       lastSaved.current = JSON.stringify({
         steps: written,
-        loops: editor.loops,
+        loops: sentLoops.current,
       });
       // The slots this save settled are done; one settled meanwhile is still to save.
       setResolving((previous) =>
@@ -392,6 +426,7 @@ export function WorkflowEditorPage(
         uses: typeof step.uses === "string" ? step.uses : "",
         agentVersionId: null,
         skills: skillsOfNode(step),
+        ...approvalPart(typeof step.uses === "string" ? step.uses : "", step),
       }];
     });
   }, [inUse]);
@@ -521,6 +556,7 @@ export function WorkflowEditorPage(
   }, [steps, editor.loops]);
 
   const edited = JSON.stringify({ steps, loops: editor.loops });
+  editedRef.current = edited;
   const changed = lastSaved.current !== null &&
     (edited !== lastSaved.current || resolving.size > 0);
 
@@ -563,14 +599,19 @@ export function WorkflowEditorPage(
 
   // Leaving while the latest change is not saved asks first.
   useEffect(() => {
-    if (saveState.kind === "saved" && !changed) return;
+    if (saveState.kind === "saved" && !changed && !loopPending) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     globalThis.addEventListener("beforeunload", warn);
     return () => globalThis.removeEventListener("beforeunload", warn);
-  }, [saveState.kind, changed]);
+  }, [saveState.kind, changed, loopPending]);
+
+  const unsaved = changed || loopPending || save.isPending ||
+      saveState.kind !== "saved"
+    ? 1
+    : 0;
 
   const shownSave: SaveState = forcedSaveState() ?? saveState;
   const stateWord = shownSave.kind === "saving"
@@ -597,13 +638,85 @@ export function WorkflowEditorPage(
     }
     return open;
   }, [skillsRead.data, stepPaths, editor.steps, resolving]);
+  const asks = steps.some((step) => step.approval !== undefined);
+  const members = useQuery({
+    ...allOrganizationMembersQueryOptions(api, scope),
+    enabled: asks && scope.organizationId !== null,
+  });
+  const organization = useQuery({
+    ...organizationQueryOptions(api, scope),
+    enabled: asks && scope.organizationId !== null,
+  });
+  const people = useMemo<readonly ApprovalPerson[]>(
+    () =>
+      (members.data?.items ?? []).map((member) => ({
+        principalId: member.principalId,
+        displayName: member.displayName,
+        active: member.status === "active",
+      })),
+    [members.data],
+  );
+  const everyone = members.data !== undefined && !members.data.nextCursor
+    ? people
+    : null;
+  const approvalIssues = useMemo(() => {
+    const found = new Map<
+      string,
+      readonly (ApprovalProblem & { readonly sentence: string })[]
+    >();
+    for (const step of steps) {
+      if (step.approval === undefined) continue;
+      const issues = approvalProblems(step.approval, everyone).map(
+        (problem) => ({
+          ...problem,
+          sentence: translate(
+            `library.editor.ask.problem.${
+              problem.kind === "notMember" && problem.name === ""
+                ? "unknownMember"
+                : problem.kind
+            }` as never,
+            {
+              name: problem.name,
+              organization: organization.data?.name ?? "",
+            } as never,
+          ),
+        }),
+      );
+      if (issues.length > 0) found.set(step.id, issues);
+    }
+    return found;
+  }, [steps, everyone, organization.data?.name, translate]);
+  const cardLines = useMemo<ReadonlyMap<string, string>>(() => {
+    const lines = new Map<string, string>();
+    for (const step of steps) {
+      if (step.approval === undefined) continue;
+      const who = askedWho(
+        step.approval.audience,
+        members.data ? people : null,
+      );
+      const named = who.kind === "one" ? who.name : translate(
+        `library.editor.ask.card.${who.kind}` as never,
+        who as never,
+      );
+      lines.set(
+        step.id,
+        translate("library.editor.ask.card.line" as never, {
+          who: named,
+        } as never),
+      );
+    }
+    return lines;
+  }, [steps, people, members.data, translate]);
   const problemsByStep = useMemo<ReadonlyMap<string, string>>(() => {
     const merged = new Map(checker.byStep);
+    for (const [id, issues] of approvalIssues) {
+      merged.set(id, issues[0].sentence);
+    }
     for (const id of skillProblemSteps) {
       if (!merged.has(id)) merged.set(id, SKILL_PROBLEM_SENTENCE);
     }
     return merged;
-  }, [checker.byStep, skillProblemSteps]);
+  }, [checker.byStep, approvalIssues, skillProblemSteps]);
   // Steps whose only problem is a skill: the Skills section carries it, not a notice above it.
   const skillOnlySteps = useMemo<ReadonlySet<string>>(() => {
     const only = new Set(checker.skillOnly);
@@ -638,6 +751,18 @@ export function WorkflowEditorPage(
       });
     }
     const drawnIds = new Set(drawn.map((step) => step.id));
+    for (const step of drawn) {
+      for (const issue of approvalIssues.get(step.id) ?? []) {
+        out.push({
+          key: `ask-${step.id}-${issue.field}-${issue.name}`,
+          name: stepName(step, translate),
+          sentence: issue.sentence,
+          stepId: step.id,
+          field: issue.field,
+          blocking: true,
+        });
+      }
+    }
     for (const [id, sentence] of problemsByStep) {
       if (out.some((row) => row.stepId === id)) continue;
       const step = drawn.find((drawnStep) => drawnStep.id === id);
@@ -675,7 +800,11 @@ export function WorkflowEditorPage(
       });
     });
     return out;
-  }, [tree, checker, problemsByStep, translate]);
+  }, [tree, checker, problemsByStep, approvalIssues, translate]);
+  const blocked = rows.some((row) => row.blocking === true);
+  const [focusRequest, setFocusRequest] = useState<
+    (ApprovalFocus & { readonly stepId: string }) | null
+  >(null);
 
   const problemCount = rows.length;
   const problemWord = problemCount === 0
@@ -759,6 +888,7 @@ export function WorkflowEditorPage(
         const loop = group.loop;
         return {
           kind: "loop",
+          at: loop.path.join("/"),
           name: translate(GROUP_LABEL[group.label] as never),
           fix: loop.fix,
           values: { min: loop.min, max: loop.max, allow: loop.allow },
@@ -769,6 +899,7 @@ export function WorkflowEditorPage(
           onCommit: (values) => {
             dispatch({ kind: "loop", path: loop.path, ...values });
           },
+          onPending: setLoopPending,
         };
       }
       return {
@@ -892,11 +1023,39 @@ export function WorkflowEditorPage(
     }
     const live = steps.find((held) => held.id === selectedId);
     const index = live === undefined ? -1 : steps.indexOf(live);
+    const issues = approvalIssues.get(step.id) ?? [];
+    const approval = live?.approval === undefined ? undefined : {
+      stepId: live.id,
+      fields: live.approval,
+      onChange: editable
+        ? (fields: NonNullable<EditorStep["approval"]>, typing?: string) =>
+          dispatch({
+            kind: "approval",
+            id: live.id,
+            approval: fields,
+            ...(typing === undefined ? {} : { typing }),
+          })
+        : undefined,
+      people: {
+        state: members.isError
+          ? "failed" as const
+          : members.data === undefined
+          ? "loading" as const
+          : "ready" as const,
+        list: people,
+        onRetry: () => void members.refetch(),
+      },
+      promptProblem: issues.find((issue) => issue.field === "prompt")?.sentence,
+      audienceProblems: issues.filter((issue) => issue.field === "audience")
+        .map((issue) => issue.sentence),
+      focus: focusRequest?.stepId === live.id ? focusRequest : null,
+    };
     return {
       kind: "step",
       name: stepName(step, translate),
       deletable: editable,
       uses: step.uses,
+      approval,
       agentFromSetup: checker.unboundActions.has(step.uses),
       code: step.code,
       problem: step.problem === undefined
@@ -941,6 +1100,10 @@ export function WorkflowEditorPage(
     problemsByStep,
     skillOnlySteps,
     checker.unboundActions,
+    approvalIssues,
+    people,
+    members.status,
+    focusRequest,
   ]);
 
   const breadcrumbs = (
@@ -998,7 +1161,15 @@ export function WorkflowEditorPage(
                   variant="secondary"
                   onClick={() => {
                     setProblemsOpen(false);
+                    setPublishOpen(false);
                     setSelectedId(row.stepId);
+                    if (row.field !== undefined && row.stepId !== null) {
+                      setFocusRequest({
+                        stepId: row.stepId,
+                        field: row.field,
+                        request: Date.now(),
+                      });
+                    }
                   }}
                 >
                   {translate("library.editor.problem.showMe" as never)}
@@ -1058,6 +1229,7 @@ export function WorkflowEditorPage(
             tree={tree}
             selectedId={selectedId}
             problems={problemsByStep}
+            lines={cardLines}
             canManage={canManage}
             editable={editable}
             onAdd={(afterId) => setPickerAfter(afterId)}
@@ -1066,8 +1238,14 @@ export function WorkflowEditorPage(
             pickerAt={pickerAfter}
             onPick={(uses) => {
               const afterId = pickerAfter ?? null;
-              const id = freeStepId(editor, uses.replaceAll(".", "-"));
-              const step = { id, uses, agentVersionId: null, skills: [] };
+              const id = freeStepId(editor, uses);
+              const step = {
+                id,
+                uses,
+                agentVersionId: null,
+                skills: [],
+                ...(uses === APPROVAL_ACTION ? { approval: NEW_APPROVAL } : {}),
+              };
               dispatch({ kind: "add", step });
               // Put the new step where the "+" was pressed.
               if (afterId !== null) {
@@ -1138,6 +1316,7 @@ export function WorkflowEditorPage(
     if (changed || save.isPending || shownSave.kind === "saving") {
       setPublishAfterSave(true);
     } else setPublishOpen(true);
+    publish.reset();
   };
   const publishButton = (
     <UI.Button
@@ -1225,6 +1404,17 @@ export function WorkflowEditorPage(
         actionsLayout="row"
       />
       {breadcrumbs}
+      <LeaveGuard
+        count={unsaved}
+        copy={{
+          title: "library.editor.leave.title",
+          body: "library.editor.leave.body",
+          stay: "library.editor.leave.stay",
+          confirm: "library.editor.leave.confirm",
+        }}
+        discard={() => {}}
+        path={`/library/workflows/${workflowId}/edit`}
+      />
       {body}
       {deleted === null ? null : (
         <UI.Toast
@@ -1414,7 +1604,7 @@ export function WorkflowEditorPage(
                   : translate("library.editor.publish.close" as never)}
               </UI.Button>
             }
-            confirmAction={draftDiffers
+            confirmAction={draftDiffers && !blocked
               ? (
                 <UI.Inline gap="compact">
                   <UI.Button
@@ -1440,12 +1630,22 @@ export function WorkflowEditorPage(
               ? (
                 <UI.Stack gap="tight">
                   <UI.Text>
-                    {translate("library.editor.publish.body" as never)}
+                    {translate(
+                      (blocked
+                        ? "library.editor.publish.blocked"
+                        : "library.editor.publish.body") as never,
+                    )}
                   </UI.Text>
                   <UI.Text variant="muted">
                     {translate("library.workflow.steps.never" as never)}
                   </UI.Text>
-                  {/* Pressed with problems, publishing shows the same list. */}
+                  {publish.isError
+                    ? (
+                      <UI.InlineNotice tone="error" role="alert">
+                        {translate("library.editor.publish.failed" as never)}
+                      </UI.InlineNotice>
+                    )
+                    : null}
                   {problemCount === 0 ? null : problemList}
                 </UI.Stack>
               )
