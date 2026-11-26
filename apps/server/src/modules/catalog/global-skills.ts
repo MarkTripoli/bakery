@@ -3,7 +3,6 @@ import type {
   ActionContext,
 } from "@bakery/contracts/action-registry";
 import { CatalogImplementedAction } from "@bakery/contracts/implemented-actions";
-import { appendAudit } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import type { CatalogActionHandlers } from "./actions.ts";
@@ -21,6 +20,7 @@ import {
   type LocalSkillVersionPublicationPreparation,
   type LocalSkillVersionPublicationProof,
   prepareLocalSkillVersionPublication,
+  reactivatePublishedSkillVersion,
   storeLocalSkillVersionPublication,
 } from "./publication.ts";
 import {
@@ -207,25 +207,12 @@ export async function reactivateGlobalSkillVersions(options: {
 }): Promise<void> {
   const { transaction, preparation } = options;
   for (const reactivation of preparation.reactivations) {
-    const moved = await transaction.query<{ id: string }>(
-      `update bakery.skills
-          set active_version_id = $3, updated_at = now(), version = version + 1
-        where organization_id = $1 and id = $2
-          and active_version_id is distinct from $3
-        returning id`,
-      [
-        preparation.organizationId,
-        reactivation.skillId,
-        reactivation.versionId,
-      ],
-    );
-    if (moved.rows.length === 0) continue;
-    await appendAudit(transaction, {
+    await reactivatePublishedSkillVersion(transaction, {
       organizationId: preparation.organizationId,
       principalId: BAKERY_PRINCIPAL_ID,
+      skillId: reactivation.skillId,
+      versionId: reactivation.versionId,
       operation: "skillVersions.install",
-      resourceType: "skill_version",
-      resourceId: reactivation.versionId,
       requestId: options.requestId,
       traceId: options.traceId,
     });

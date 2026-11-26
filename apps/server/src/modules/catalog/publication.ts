@@ -683,6 +683,36 @@ async function activateSkillVersion(
   return row.version;
 }
 
+export async function reactivatePublishedSkillVersion(
+  transaction: PgTransactionClient,
+  options: Readonly<{
+    organizationId: string;
+    principalId: string;
+    skillId: string;
+    versionId: string;
+    operation: string;
+    requestId: string;
+    traceId: string;
+  }>,
+): Promise<void> {
+  const reactivated = await activateSkillVersion(transaction, {
+    ...options,
+    onlyWhenInactive: true,
+  });
+  if (reactivated === null) return;
+  await appendDomainEvent(transaction, {
+    organizationId: options.organizationId,
+    eventType: "skills.updated",
+    aggregateId: options.skillId,
+    aggregateVersion: reactivated,
+    payload: {
+      resourceId: options.skillId,
+      resourceVersion: reactivated,
+    },
+    traceId: options.traceId,
+  });
+}
+
 /** Finalizes shared local or reserved remote publication under live authority. */
 export async function finalizeSkillVersionPublication(options: {
   transaction: PgTransactionClient;
@@ -733,29 +763,15 @@ export async function finalizeSkillVersionPublication(options: {
   );
   const replay = assertRevisionAvailable(final.rows[0], preparation);
   if (replay?.status === "published") {
-    const reactivated = await activateSkillVersion(transaction, {
+    await reactivatePublishedSkillVersion(transaction, {
       organizationId,
       principalId,
       skillId: validated.skillId,
       versionId: replay.id,
-      onlyWhenInactive: true,
       operation: options.operation,
       requestId: options.requestId,
       traceId: options.traceId,
     });
-    if (reactivated !== null) {
-      await appendDomainEvent(transaction, {
-        organizationId,
-        eventType: "skills.updated",
-        aggregateId: validated.skillId,
-        aggregateVersion: reactivated,
-        payload: {
-          resourceId: validated.skillId,
-          resourceVersion: reactivated,
-        },
-        traceId: options.traceId,
-      });
-    }
     return replay;
   }
 

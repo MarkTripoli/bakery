@@ -306,14 +306,24 @@ Deno.test("rolling Bakery's skill back to an earlier package after an upgrade li
     assertEquals(upgradedVersion.revision, 2);
     assert(upgradedVersion.digest !== shippedDigest);
 
+    const updatedEvents = async () =>
+      (await f.fixture.pgDatabase.query<{ aggregate_version: number }>(
+        `select aggregate_version from bakery.domain_events
+          where organization_id = $1 and aggregate_id = $2
+            and event_type = 'skills.updated'`,
+        [f.organizationId, skill.id],
+      )).rows.length;
+    const eventsBeforeRollback = await updatedEvents();
     assertEquals((await list()).items.map((s) => [s.id, s.slug]), [
       [skill.id, "bakery-authoring"],
     ]);
+    assertEquals(await updatedEvents(), eventsBeforeRollback + 1);
     assertEquals(await activeVersion(), [{
       revision: 1,
       digest: shippedDigest,
     }]);
     assertEquals((await list()).items.map((s) => s.slug), ["bakery-authoring"]);
+    assertEquals(await updatedEvents(), eventsBeforeRollback + 1);
   } finally {
     await f.close();
     await Deno.remove(root, { recursive: true });
