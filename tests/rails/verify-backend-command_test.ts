@@ -28,7 +28,7 @@ const REVISION: VerifyBackendRevision = {
   dirty: false,
   pnpmLockSha256: "b".repeat(64),
   denoLockSha256: "c".repeat(64),
-  images: ["postgres:16-alpine@sha256:" + "d".repeat(64)],
+  images: ["postgres:18-alpine@sha256:" + "d".repeat(64)],
   migrations: { count: 3, checksum: "e".repeat(64) },
 };
 
@@ -199,7 +199,7 @@ Deno.test("the manifest schema rejects an image without a digest", () => {
     schema: "bakery.verify-backend/v1",
     startedAt: new Date(0).toISOString(),
     outcome: "passed",
-    revision: { ...REVISION, images: ["postgres:16-alpine"] },
+    revision: { ...REVISION, images: ["postgres:18-alpine"] },
     toolchain: { deno: "2.9.1", node: null },
     requestedSteps: ["rails"],
     steps: [],

@@ -58,6 +58,8 @@ import {
 } from "../../apps/server/src/platform/database.ts";
 import { readTestDatabaseConfig } from "../../packages/config/src/env.ts";
 
+const FOREIGN_KEY_REFUSED_CODES: readonly string[] = ["23503", "23001"];
+
 type Page = {
   items: Array<Record<string, unknown>>;
   nextCursor: string | null;
@@ -1506,7 +1508,7 @@ Deno.test("non-owner transactions isolate grants, clean one pooled connection, a
   };
   const expectPostgresError = async (
     work: () => Promise<unknown>,
-    code: string,
+    code: string | readonly string[],
   ) => {
     let caught: unknown;
     try {
@@ -1515,7 +1517,9 @@ Deno.test("non-owner transactions isolate grants, clean one pooled connection, a
       caught = error;
     }
     assert(caught && typeof caught === "object" && "code" in caught);
-    assertEquals((caught as { code: string }).code, code);
+    const caughtCode = (caught as { code: string }).code;
+    if (typeof code === "string") assertEquals(caughtCode, code);
+    else assert(code.includes(caughtCode), caughtCode);
   };
 
   try {
@@ -2183,7 +2187,7 @@ Deno.test("non-owner transactions isolate grants, clean one pooled connection, a
            where "organizationId" = $1 and id = $2`,
           [organizationA, adminMembershipA],
         ),
-      "23503",
+      FOREIGN_KEY_REFUSED_CODES,
     );
     assertEquals(
       (await fixture.pgDatabase.query<{

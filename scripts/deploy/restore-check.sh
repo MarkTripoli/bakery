@@ -48,9 +48,9 @@ cleanup() {
 trap cleanup EXIT
 (cd "$snapshot" && sha256sum --check --status SHA256SUMS)
 docker run --detach --name "$container" --network none \
-  --env POSTGRES_HOST_AUTH_METHOD=trust \
+  --env POSTGRES_HOST_AUTH_METHOD=trust --env PGDATA=/var/lib/postgresql/data \
   --mount "type=bind,source=$temporary,target=/var/lib/postgresql/data" \
-  postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685 > /dev/null
+  postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71 > /dev/null
 ready=false
 for attempt in $(seq 1 30); do
   if docker exec "$container" pg_isready -U postgres > /dev/null 2>&1; then ready=true; break; fi

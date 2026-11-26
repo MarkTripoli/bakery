@@ -27,11 +27,11 @@ hold them. The three sockets stay open until all three ports are read, so they d
 
 ## 2. A database
 
-Any PostgreSQL 16. A throwaway container named for the worktree:
+Any PostgreSQL 18. A throwaway container named for the worktree:
 
 ```bash
 docker run -d --name "$STACK-pg" -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=bakery-ci-postgres -p "127.0.0.1:$PG:5432" postgres:16-alpine
+  -e POSTGRES_PASSWORD=bakery-ci-postgres -p "127.0.0.1:$PG:5432" postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
 until docker exec "$STACK-pg" psql -U postgres -Atqc 'select 1' >/dev/null 2>&1; do sleep 1; done
 docker exec "$STACK-pg" psql -U postgres -Atq \
   -c "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'" \
