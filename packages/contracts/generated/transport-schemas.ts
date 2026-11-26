@@ -22407,6 +22407,7 @@ const transportSchemas = {
         "revision",
         "runStepId",
         "authorId",
+        "authorName",
         "mediaType",
         "sizeBytes",
         "sha256",
@@ -22429,6 +22430,7 @@ const transportSchemas = {
         "artifactId": "uuid",
         "revision": "integer",
         "runStepId": "uuid|null",
+        "authorName": "string|null",
         "authorId": "uuid",
         "mediaType": "string",
         "sizeBytes": "integer",
@@ -22459,6 +22461,7 @@ const transportSchemas = {
       ],
       "description": "Metadata for one immutable artifact version returned to the developer after artifactVersions.create or artifactVersions.import: digest, size, media type, and server-verified provenance without content bytes.",
       "fieldDescriptions": {
+        "authorName": "Display name of the version's publisher, shown to every reader who can see the version, including a reader with a grant to the document alone; null when the publisher has no display name.",
         "id": "Stable UUID identifying the artifact version metadata record.",
         "artifactId": "Stable UUID linking this record to the related artifact entity.",
         "revision": "Monotonic revision number used to order updates to the record.",
@@ -22482,6 +22485,7 @@ const transportSchemas = {
         "refusedReason": "Why the version was refused: the failing rule's message, the probe refusal code (too-large, malformed, unreadable), probe-abandoned when the probe failed on the host until the runner gave up, or bytes-missing when the bytes were gone before the probe could read them. Null unless publicationStatus is refused."
       },
       "optionalFields": [
+        "authorName",
         "retentionClass",
         "expiresAt",
         "purgedAt",
