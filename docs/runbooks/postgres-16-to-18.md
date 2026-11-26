@@ -37,13 +37,16 @@ Both: nothing but this session may be connected, then dump every database and ro
 ```bash
 sessions=$("${compose[@]}" exec -T postgres psql -U postgres -Atc \
   "select count(*) from pg_stat_activity where backend_type = 'client backend' and pid <> pg_backend_pid()")
-[ "$sessions" = 0 ] || { echo "writers still connected: $sessions"; exit 1; }
-"${compose[@]}" exec -T postgres pg_dumpall -U postgres --globals-only > globals-16.sql
-for db in $("${compose[@]}" exec -T postgres psql -U postgres -Atc \
-  "select datname from pg_database where not datistemplate and datname <> 'postgres' order by 1"); do
-  "${compose[@]}" exec -T postgres pg_dump -U postgres -Fc "$db" > "db-16-$db.dump"
-  test -s "db-16-$db.dump"
-done
+if [ "$sessions" != 0 ]; then
+  echo "writers still connected: $sessions; stop them and run this block again"
+else
+  "${compose[@]}" exec -T postgres pg_dumpall -U postgres --globals-only > globals-16.sql
+  for db in $("${compose[@]}" exec -T postgres psql -U postgres -Atc \
+    "select datname from pg_database where not datistemplate and datname <> 'postgres' order by 1"); do
+    "${compose[@]}" exec -T postgres pg_dump -U postgres -Fc "$db" > "db-16-$db.dump"
+    test -s "db-16-$db.dump" || echo "empty dump: $db"
+  done
+fi
 "${compose[@]}" exec -T postgres psql -U postgres -Atc \
   "select datname, pg_database_size(datname) from pg_database where not datistemplate order by 1" > sizes-16.txt
 ```
