@@ -15,10 +15,12 @@ import {
   myRunRequestsQueryOptions,
   taskRunIdsQueryOptions,
 } from "../../api/query.ts";
+import { failureStatus } from "../../app/async-state.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { RouterLink } from "../../app/router-link.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { actionOf, stepWords, visibleRequests } from "./model.ts";
+import { rereadRequests } from "./reread.ts";
 
 type RequestKey = MessageKey extends infer Key
   ? Key extends `tasks.requests.${infer Suffix}` ? Suffix : never
@@ -48,14 +50,17 @@ export function RequestsForYou(props: Props) {
     ]),
   ];
   const reads = useQueries({
-    queries: runIds.map((runId) =>
-      myRunRequestsQueryOptions(api, scope, runId)
-    ),
+    queries: runIds.map((runId) => ({
+      ...myRunRequestsQueryOptions(api, scope, runId),
+      refetchOnWindowFocus: runId === props.currentRunId,
+      refetchOnReconnect: runId === props.currentRunId,
+    })),
   });
   const requests = visibleRequests(
     reads.flatMap((read) => read.data?.requests ?? []),
   );
-  const failed = reads.some((read) => read.isError)
+  const runsFailed = runs.isError && failureStatus(runs.error) !== 403;
+  const failed = runsFailed || reads.some((read) => read.isError)
     ? (
       <UI.InlineNotice tone="warning">
         <UI.Stack gap="compact">
@@ -63,7 +68,10 @@ export function RequestsForYou(props: Props) {
           <UI.Inline gap="compact">
             <UI.Button
               variant="outline"
-              onClick={() => reads.forEach((read) => void read.refetch())}
+              onClick={() => {
+                void runs.refetch();
+                reads.forEach((read) => void read.refetch());
+              }}
             >
               {translate("tasks.conversation.retry")}
             </UI.Button>
@@ -248,8 +256,13 @@ function TakeOver(
       });
       if (!result.ok) throw result.error;
     },
-    onSettled: () =>
-      void queryClient.invalidateQueries({ queryKey: ["protected"] }),
+    onSettled: () => {
+      void rereadRequests(queryClient, scope.organizationId, request.runId);
+      void queryClient.invalidateQueries({
+        predicate: ({ queryKey }) =>
+          queryKey[3] === "runSteps.list" || queryKey[3] === "runs.get",
+      });
+    },
   });
   const id = `request-note-${request.id}`;
   return (

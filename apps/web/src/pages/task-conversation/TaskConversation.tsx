@@ -74,6 +74,7 @@ import {
 import { Participants } from "./Participants.tsx";
 import { QuestionAnswer } from "./QuestionAnswer.tsx";
 import { RequestsForYou } from "../task-requests/RequestsForYou.tsx";
+import { rereadRequests } from "../task-requests/reread.ts";
 
 const SHEET_SETTLE_MS = 250;
 import { TASK_READS, useQuestionAnswers } from "./useQuestionAnswers.ts";
@@ -178,12 +179,14 @@ export function TaskConversation(
     refetchInterval: poll,
   });
 
-  const refresh = () =>
-    cache.invalidateQueries({
+  const refresh = () => {
+    void rereadRequests(cache, organizationId, task.currentRunId);
+    return cache.invalidateQueries({
       predicate: ({ queryKey }) =>
         queryKey[0] === "protected" && queryKey[2] === organizationId &&
         TASK_READS.has(String(queryKey[3])),
     });
+  };
   refreshRef.current = () => void refresh();
 
   // ---- draft -------------------------------------------------------------

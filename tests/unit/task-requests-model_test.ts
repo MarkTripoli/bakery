@@ -96,3 +96,23 @@ Deno.test("every open request shows and only the latest closed ones", () => {
   assertEquals(shown.filter((one) => one.status === "open").length, 8);
   assertEquals(shown.length, 13);
 });
+
+Deno.test("the closed ones kept are the ones closed last", () => {
+  const closed = Array.from({ length: 6 }, (_, at) =>
+    request({
+      id: `closed-${at}`,
+      status: "handled",
+      createdAt: `2026-01-0${at + 2}T00:00:00.000Z`,
+      updatedAt: `2026-01-0${at + 2}T00:00:00.000Z`,
+    }));
+  const justAnswered = request({
+    id: "old-ask",
+    status: "answered",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-20T00:00:00.000Z",
+  });
+  assertEquals(
+    visibleRequests([...closed, justAnswered]).map((one) => one.id)[0],
+    "old-ask",
+  );
+});

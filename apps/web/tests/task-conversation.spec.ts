@@ -4422,6 +4422,7 @@ async function openRequests(
   } = {},
 ) {
   const restarts: unknown[] = [];
+  const reads = { current: 0, older: 0 };
   const state = world({
     task: { ...baseTask, status: "active", currentRunId: runId },
     revisions: [],
@@ -4457,14 +4458,19 @@ async function openRequests(
   );
   await page.route(
     `**/v1/runs/${OLDER_RUN}/requests/mine`,
-    (route) =>
-      route.fulfill({
+    (route) => {
+      reads.older += 1;
+      return route.fulfill({
         json: { requests: setup.olderRun ? [setup.olderRun] : [] },
-      }),
+      });
+    },
   );
   await page.route(
     `**/v1/runs/${runId}/requests/mine`,
-    (route) => route.fulfill({ json: { requests } }),
+    (route) => {
+      reads.current += 1;
+      return route.fulfill({ json: { requests } });
+    },
   );
   await page.route(
     "**/v1/artifacts?*",
@@ -4495,7 +4501,7 @@ async function openRequests(
   await page.goto(`/tasks/${taskId}`);
   const asked = page.locator('[data-ui-region="requests-for-you"]');
   await expect(asked).toBeVisible();
-  return { asked, restarts };
+  return { asked, restarts, reads };
 }
 
 test.describe("what someone was asked, on the task page", () => {
@@ -4610,6 +4616,35 @@ test.describe("what someone was asked, on the task page", () => {
     const { asked } = await openRequests(page, [requestFixture()]);
     await expect(asked).toContainText("Nothing to do.");
     await expect(asked).not.toContainText("Silence is never approval.");
+  });
+
+  test("a run list that fails is said, with a way to try again", async ({ page }) => {
+    const { asked } = await openRequests(page, [requestFixture()], {}, {
+      runListStatus: 500,
+    });
+    await expect(asked).toContainText("Dana Teammate wants you to see this");
+    await expect(page.getByText("What you were asked did not load."))
+      .toBeVisible();
+    await expect(page.getByRole("button", { name: "Try again" }).first())
+      .toBeVisible();
+  });
+
+  test("a chat message re-reads only runs that can have changed", async ({ page }) => {
+    const { asked, reads } = await openRequests(page, [requestFixture()], {}, {
+      olderRun: requestFixture({
+        id: "00000000-0000-4000-8000-000000000709",
+        runId: OLDER_RUN,
+        status: "handled",
+        note: "Done last week.",
+      }),
+    });
+    await expect(asked).toContainText("Done last week.");
+    const before = { ...reads };
+    await page.getByRole("textbox", { name: "Message this task" })
+      .fill("Any news?");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await expect.poll(() => reads.current).toBeGreaterThan(before.current);
+    expect(reads.older).toBe(before.older);
   });
 
   test("an FYI and the closed states say where things stand", async ({ page }) => {

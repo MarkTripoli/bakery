@@ -7,6 +7,7 @@ import {
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { runQueryOptions } from "../../api/query.ts";
+import { rereadRequests } from "../task-requests/reread.ts";
 import { approvalStep, latestStepApproval, openStepApproval } from "./model.ts";
 
 export function useStepApproval(taskId: string, runId: string | null) {
@@ -65,9 +66,7 @@ export function useStepApproval(taskId: string, runId: string | null) {
     refresh: async () => {
       await approvals.refetch();
       await steps.refetch();
-      await cache.invalidateQueries({
-        predicate: ({ queryKey }) => queryKey[3] === "runRequests.mine",
-      });
+      await rereadRequests(cache, scope.organizationId, runId);
       if (runId !== null) {
         await cache.invalidateQueries({
           queryKey: runQueryOptions(api, scope, runId).queryKey,

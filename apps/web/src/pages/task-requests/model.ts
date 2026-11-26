@@ -29,8 +29,14 @@ export function orderedRequests(
     const action = actionOf(request);
     return action === null ? 2 : action === "fyi" ? 1 : 0;
   };
+  const when = (request: RunRequestResponse) =>
+    request.status === "open"
+      ? request.createdAt
+      : request.status === "expired"
+      ? request.expiresAt
+      : request.updatedAt;
   return [...requests].sort((a, b) =>
-    rank(a) - rank(b) || b.createdAt.localeCompare(a.createdAt)
+    rank(a) - rank(b) || when(b).localeCompare(when(a))
   );
 }
 
