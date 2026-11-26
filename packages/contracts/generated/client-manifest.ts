@@ -40939,6 +40939,20 @@ export const clientManifest = {
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Stable UUID linking this record to the related task entity."
               },
+              "taskTitle": {
+                "description": "Artifact.taskTitle may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Title of the artifact's task, present only for a reader who can see the task; absent for a reader with a grant to the document alone."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
               "artifactType": {
                 "type": "string",
                 "enum": [
@@ -41117,6 +41131,20 @@ export const clientManifest = {
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Stable UUID linking this record to the related author entity."
+              },
+              "authorName": {
+                "description": "ArtifactComment.authorName may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the comment's author, shown to every reader who can see the comment, including a reader with a grant to the document alone; null when the author has no display name."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
               },
               "body": {
                 "anyOf": [
@@ -41840,6 +41868,20 @@ export const clientManifest = {
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Stable UUID linking this record to the related author entity."
+              },
+              "authorName": {
+                "description": "ArtifactVersionMetadata.authorName may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of the version's publisher, shown to every reader who can see the version, including a reader with a grant to the document alone; null when the publisher has no display name."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
               },
               "mediaType": {
                 "type": "string",
@@ -59256,6 +59298,20 @@ export const clientManifest = {
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Stable UUID linking this record to the related task entity."
         },
+        "taskTitle": {
+          "description": "Artifact.taskTitle may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Title of the artifact's task, present only for a reader who can see the task; absent for a reader with a grant to the document alone."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
         "artifactType": {
           "type": "string",
           "enum": [
@@ -59374,6 +59430,20 @@ export const clientManifest = {
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Stable UUID linking this record to the related author entity."
+        },
+        "authorName": {
+          "description": "ArtifactComment.authorName may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the comment's author, shown to every reader who can see the comment, including a reader with a grant to the document alone; null when the author has no display name."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         },
         "body": {
           "anyOf": [
@@ -60093,6 +60163,20 @@ export const clientManifest = {
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Stable UUID linking this record to the related author entity."
+        },
+        "authorName": {
+          "description": "ArtifactVersionMetadata.authorName may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of the version's publisher, shown to every reader who can see the version, including a reader with a grant to the document alone; null when the publisher has no display name."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
         },
         "mediaType": {
           "type": "string",
