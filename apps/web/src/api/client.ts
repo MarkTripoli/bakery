@@ -416,6 +416,10 @@ export type SkillScope = SkillResponse["scope"];
 /** One revision of a skill, draft, published or retired, with its file manifest. */
 export type SkillVersionResponse = ClientOutputMap["SkillVersion"];
 export type SkillCreate = ClientInputMap["SkillCreate"];
+export type SkillSourceCreate = ClientInputMap["SkillSourceCreate"];
+export type SkillImport = ClientInputMap["SkillImport"];
+export type SkillImportResult = ClientOutputMap["SkillImportResult"];
+export type SkillImportRun = ClientOutputMap["Run"];
 export type SkillDraftResponse = ClientOutputMap["SkillDraft"];
 export type SkillDraftFileResponse = ClientOutputMap["SkillDraftFile"];
 export type SkillDraftCheckResponse = ClientOutputMap["SkillDraftCheck"];
@@ -2269,6 +2273,29 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<SkillResponse>>;
+  readonly listSkillSources: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ClientOutputMap["Page<SkillSource>"]>>;
+  readonly createSkillSource: (options: {
+    readonly organizationId: string;
+    readonly input: SkillSourceCreate;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillSource>>;
+  readonly importSkill: (options: {
+    readonly organizationId: string;
+    readonly input: SkillImport;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillImportRun>>;
+  readonly getSkillImport: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillImportResult>>;
   readonly createSkill: (options: {
     readonly organizationId: string;
     readonly input: SkillCreate;
@@ -7528,6 +7555,66 @@ export function createBakeryApiClient({
         if (data.id !== options.id) {
           throw new ApiTransportError("protocol", 200);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listSkillSources(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillSources.list"](
+          { cursor: options.cursor, limit: options.limit },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createSkillSource(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillSources.create"](
+          options.input,
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async importSkill(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.import"](
+          options.input,
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getSkillImport(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skillImports.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
         return { ok: true, data };
       } catch (error) {
         return failed(error);

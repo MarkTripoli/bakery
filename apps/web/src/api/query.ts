@@ -3455,6 +3455,40 @@ export function skillUseGrantsQueryOptions(
   });
 }
 
+export function gitSkillSourcesQueryOptions(
+  client: Pick<BakeryApiClient, "listSkillSources">,
+  scope: ApiScope,
+) {
+  return queryOptions<SkillSource[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skillSources.git", {}),
+    queryFn: async ({ signal }) => {
+      const items: SkillSource[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listSkillSources({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(
+          ...read.items.filter((source) =>
+            source.sourceType === "git" && source.enabled &&
+            source.license !== null
+          ),
+        );
+        if (!read.nextCursor) break;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 /** Where a skill came from, when it was added from a source. */
 export function skillSourceQueryOptions(
   client: Pick<BakeryApiClient, "getSkillSource">,

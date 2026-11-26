@@ -52,6 +52,10 @@
     "path": "/library/agents/$agentId"
   },
   {
+    "id": "library-skill-add",
+    "path": "/library/skills/add"
+  },
+  {
     "id": "library-skill",
     "path": "/library/skills/$skillId"
   },
