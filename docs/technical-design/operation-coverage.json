@@ -773,6 +773,10 @@
         "module": "auth",
         "migration": "apps/server/src/modules/auth/migrations/bakery/0240_password_reset_links.sql"
       },
+      "person_request_deliveries": {
+        "module": "work",
+        "migration": "apps/server/src/modules/work/migrations/bakery/0377_person_request_deliveries.sql"
+      },
       "person_request_next_asks": {
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0375_person_request_next_asks.sql"

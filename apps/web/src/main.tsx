@@ -14,10 +14,13 @@ import {
 import { I18nProvider, useI18n } from "./i18n/I18nProvider.tsx";
 import { router } from "./router.tsx";
 import { createReportedQueryClient } from "./app/query-client.ts";
+import { rememberLinkedOrganization } from "./app/organization-selection.ts";
 import {
   initializeBrowserMonitoring,
   reportApplicationError,
 } from "./telemetry.ts";
+
+rememberLinkedOrganization(globalThis.location.search);
 
 const queryClient = createReportedQueryClient((failure) =>
   reportApplicationError(failure.error, {

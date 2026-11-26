@@ -61,6 +61,10 @@ import { createAutomationIntakeFunction } from "../workflows/automations/event-i
 import { createAutomationPromoteFunction } from "../workflows/automations/promote.ts";
 import { createAutomationTickFunction } from "../workflows/automations/tick.ts";
 import { createStartClockFunction } from "../workflows/start-clock.ts";
+import {
+  createRequestEmailFunction,
+  type RequestEmailDependencies,
+} from "../work/request-email.ts";
 
 import { createOutputArchiveWorkflow } from "./output-archive.ts";
 import {
@@ -148,6 +152,7 @@ export function createDefaultInngestFunctions(options: {
   engineSteps?: EngineStepRunner;
   storageLocalRoot?: string;
   storageBlobStore?: OrganizationBlobStore;
+  requestEmail?: RequestEmailDependencies;
 }): readonly unknown[] {
   const storage = defaultStorageConnections({
     storageLocalRoot: options.storageLocalRoot,
@@ -312,6 +317,13 @@ export function createDefaultInngestFunctions(options: {
       client: options.client,
       database: options.database,
     }),
+    ...(options.requestEmail === undefined ? [] : [
+      createRequestEmailFunction({
+        ...options.requestEmail,
+        client: options.client,
+        database: options.database,
+      }),
+    ]),
     // The batch supervisor: a supervisor over ordinary requests, not an engine. It
     // starts an issue only through the existing admission, with the same live reader
     // and budget policy as the ticket functions, so it is wired where they are; with no
@@ -391,6 +403,7 @@ export function createInngestHttpHandler(options: {
   engineSteps?: EngineStepRunner;
   storageLocalRoot?: string;
   storageBlobStore?: OrganizationBlobStore;
+  requestEmail?: RequestEmailDependencies;
 }): (context: unknown) => Promise<Response> {
   const client = (options.client ?? new Inngest({
     id: "bakery-server",
@@ -414,6 +427,7 @@ export function createInngestHttpHandler(options: {
         engineSteps: options.engineSteps,
         storageLocalRoot: options.storageLocalRoot,
         storageBlobStore: options.storageBlobStore,
+        requestEmail: options.requestEmail,
       })
       : [])) as ServeOptions["functions"];
   const officialHandler = serve({

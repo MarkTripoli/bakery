@@ -1,3 +1,4 @@
+import type { SecretsKeyConfig } from "@bakery/config";
 import { StandardError } from "@bakery/contracts/http";
 import {
   type PgDatabase,
@@ -15,6 +16,13 @@ import {
   createBroker,
 } from "../catalog/integration-gate-broker.ts";
 import type { ProviderRequestPort } from "../catalog/integration-gate.ts";
+import {
+  createProviderCredentialPort,
+  postgresStoredSlotReader,
+  type ProviderCredentialPortDeps,
+  providerGateProfiles,
+  routeCredentialsByProfile,
+} from "./provider-credential-port.ts";
 import {
   type InstallationTokenBroker,
   type TokenTarget,
@@ -110,9 +118,9 @@ async function readTokenAuthority(
     const install = await transaction.query<
       { status: string; externalId: string }
     >(
-      `select status, external_id as "externalId"
+      `select status, external_authorization_id as "externalId"
          from bakery.integration_installations
-        where id = $1 and archived_at is null`,
+        where id = $1`,
       [connectionRow.installationId],
     );
     const installRow = install.rows[0];
@@ -273,6 +281,10 @@ export function createProviderRequestPort(
   deps:
     & CredentialStoreDeps
     & Readonly<{
+      secretsKey: SecretsKeyConfig | undefined;
+      providers: ProviderCredentialPortDeps["providers"];
+    }>
+    & Readonly<{
       registry: BrokerDeps["registry"];
       fetch: typeof fetch;
       snapshotPort: BrokerDeps["snapshotPort"];
@@ -282,7 +294,17 @@ export function createProviderRequestPort(
 ): ProviderRequestPort {
   return createBroker({
     registry: deps.registry,
-    credentials: createInstallationCredentialPort(deps),
+    credentials: routeCredentialsByProfile(
+      createInstallationCredentialPort(deps),
+      createProviderCredentialPort({
+        providers: deps.providers,
+        readStoredSlots: postgresStoredSlotReader(
+          deps.database,
+          deps.secretsKey,
+        ),
+      }),
+      providerGateProfiles(deps.providers),
+    ),
     fetch: deps.fetch,
     snapshotPort: deps.snapshotPort,
     generationOf: deps.generationOf,

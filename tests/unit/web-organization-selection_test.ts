@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import type {
   BakeryApiClient,
   OrganizationAccess,
@@ -636,4 +636,15 @@ Deno.test("restore: remembered organization wins over choosing", async () => {
   );
   assertEquals(outcome, "selected");
   assertEquals(scope.getSnapshot().organizationId, "b");
+});
+
+Deno.test("the app remembers an emailed link's organization before it renders or picks one", async () => {
+  const main = await Deno.readTextFile(
+    new URL("../../apps/web/src/main.tsx", import.meta.url),
+  );
+  const call = main.indexOf(
+    "\nrememberLinkedOrganization(globalThis.location.search);",
+  );
+  assert(call > 0, "main.tsx calls rememberLinkedOrganization at startup");
+  assert(call < main.indexOf("createRoot("), "before the app renders");
 });

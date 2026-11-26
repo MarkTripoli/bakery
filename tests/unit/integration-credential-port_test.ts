@@ -398,6 +398,8 @@ Deno.test("the provider request port is assembled WITH a credential store", () =
     fetch: (() =>
       Promise.reject(new Error("unused"))) as unknown as typeof fetch,
     snapshotPort: { snapshot: () => Promise.resolve(null) } as never,
+    secretsKey: undefined,
+    providers: { providers: [] },
   });
   assertEquals(typeof port.request, "function");
 });

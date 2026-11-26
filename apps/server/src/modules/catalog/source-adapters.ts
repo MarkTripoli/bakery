@@ -30,6 +30,25 @@ const MAX_GIT_TEXT_BYTES = 256 * 1024;
 const MAX_GIT_HASH_BYTES = 129;
 const GIT_OBJECT_ID = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 const DIGEST = /^[0-9a-f]{64}$/;
+export const MAX_GIT_ERROR_BYTES = 16 * 1024;
+const GIT_REF_NOT_FOUND =
+  /not our ref|couldn't find remote ref|no such remote ref/;
+
+export async function readBoundedText(
+  stream: ReadableStream<Uint8Array>,
+  limit: number,
+): Promise<string> {
+  const kept: Uint8Array[] = [];
+  let size = 0;
+  for await (const chunk of stream) {
+    if (size >= limit) continue;
+    const room = limit - size;
+    const piece = chunk.byteLength > room ? chunk.subarray(0, room) : chunk;
+    kept.push(piece);
+    size += piece.byteLength;
+  }
+  return new TextDecoder().decode(concatenate(kept, size));
+}
 
 export const SKILL_SOURCE_GIT_ENVIRONMENT = Object.freeze({
   PATH: "/usr/bin:/bin",
@@ -137,7 +156,7 @@ export type GitCommandInvocation = Readonly<{
   env: Readonly<Record<string, string>>;
   stdin: "null";
   stdout: "piped";
-  stderr: "null";
+  stderr: "piped";
   stdoutLimit: number;
   signal: AbortSignal;
 }>;
@@ -381,17 +400,29 @@ const productionHttpFetch: HttpSourceFetch = async (url, init) => {
   };
 };
 
+const GIT_STOP_GRACE_MS = 2_000;
+
+function signal(child: Deno.ChildProcess, name: Deno.Signal): void {
+  try {
+    child.kill(name);
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+  }
+}
+
 async function killAndReap(child: Deno.ChildProcess): Promise<void> {
-  try {
-    child.kill("SIGKILL");
-  } catch {
-    // Process may already have exited.
-  }
-  try {
-    await child.status;
-  } catch {
-    // Status can reject after forced termination.
-  }
+  signal(child, "SIGTERM");
+  let grace: ReturnType<typeof setTimeout> | undefined;
+  const stopped = await Promise.race([
+    child.status.then(() => true, () => true),
+    new Promise<false>((resolve) => {
+      grace = setTimeout(() => resolve(false), GIT_STOP_GRACE_MS);
+    }),
+  ]);
+  clearTimeout(grace);
+  if (stopped) return;
+  signal(child, "SIGKILL");
+  await child.status.catch(() => undefined);
 }
 
 const productionGitRunner: GitCommandRunner = {
@@ -415,6 +446,9 @@ const productionGitRunner: GitCommandRunner = {
     }
     const terminate = () => void killAndReap(child);
     invocation.signal.addEventListener("abort", terminate, { once: true });
+    const errors = readBoundedText(child.stderr, MAX_GIT_ERROR_BYTES).catch(
+      () => "",
+    );
     try {
       const reader = child.stdout.getReader();
       const chunks: Uint8Array[] = [];
@@ -435,7 +469,14 @@ const productionGitRunner: GitCommandRunner = {
         reader.releaseLock();
       }
       const status = await abortable(child.status, invocation.signal);
-      if (!status.success) fail("SOURCE_UNAVAILABLE");
+      if (!status.success) {
+        const text = await abortable(errors, invocation.signal);
+        fail(
+          GIT_REF_NOT_FOUND.test(text)
+            ? "SOURCE_REVISION_NOT_FOUND"
+            : "SOURCE_UNAVAILABLE",
+        );
+      }
       return concatenate(chunks, total);
     } catch (error) {
       await killAndReap(child);
@@ -465,7 +506,7 @@ async function runGit(
         : SKILL_SOURCE_GIT_ENVIRONMENT,
       stdin: "null",
       stdout: "piped",
-      stderr: "null",
+      stderr: "piped",
       stdoutLimit,
       signal: budget.signal,
     });
