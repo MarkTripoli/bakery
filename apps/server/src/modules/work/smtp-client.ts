@@ -53,6 +53,7 @@ export type SmtpMessage = Readonly<{
   to: string;
   subject: string;
   text: string;
+  html?: string;
 }>;
 
 export type SmtpOptions = Readonly<{
@@ -157,6 +158,68 @@ function displayName(name: string): string {
   return `"${
     headerSafe(name).replaceAll("\\", "\\\\").replaceAll('"', '\\"')
   }"`;
+}
+
+const PRINTABLE_ASCII = /^[\x20-\x7e]*$/;
+const ENCODED_WORD_BYTES = 45;
+const BODY_LINE_CHARS = 76;
+
+export function encodedHeaderText(value: string): string {
+  if (PRINTABLE_ASCII.test(value)) return value;
+  const words: string[] = [];
+  let chunk = "";
+  for (const character of value) {
+    const grown = chunk + character;
+    if (Buffer.byteLength(grown, "utf8") > ENCODED_WORD_BYTES) {
+      words.push(chunk);
+      chunk = character;
+    } else {
+      chunk = grown;
+    }
+  }
+  if (chunk !== "") words.push(chunk);
+  return words.map((word) => `=?UTF-8?B?${utf8Base64(word)}?=`).join("\r\n ");
+}
+
+function fromHeader(name: string, address: string): string {
+  const safe = headerSafe(name);
+  const shown = PRINTABLE_ASCII.test(safe)
+    ? displayName(safe)
+    : encodedHeaderText(safe);
+  return `From: ${shown} <${address}>`;
+}
+
+function base64Lines(value: string): string {
+  const encoded = utf8Base64(
+    value.replaceAll("\r\n", "\n").replaceAll("\n", "\r\n"),
+  );
+  const lines: string[] = [];
+  for (let start = 0; start < encoded.length; start += BODY_LINE_CHARS) {
+    lines.push(encoded.slice(start, start + BODY_LINE_CHARS));
+  }
+  return lines.join("\r\n");
+}
+
+export function mimeBody(
+  message: Pick<SmtpMessage, "text" | "html">,
+  boundary: string = `bakery-${crypto.randomUUID()}`,
+): string[] {
+  const part = (type: string, content: string) => [
+    `Content-Type: ${type}; charset=utf-8`,
+    "Content-Transfer-Encoding: base64",
+    "",
+    base64Lines(content),
+  ];
+  if (message.html === undefined) return part("text/plain", message.text);
+  return [
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    ...part("text/plain", message.text),
+    `--${boundary}`,
+    ...part("text/html", message.html),
+    `--${boundary}--`,
+  ];
 }
 
 /** Base64 of the UTF-8 bytes, so a password with é or an emoji is sent as is. */
@@ -453,22 +516,14 @@ export async function sendMail(
       SmtpOutcome.ServerError,
     );
     expect(await session.command("DATA"), [354], SmtpOutcome.ServerError);
-    const body = message.text
-      .replaceAll("\r\n", "\n")
-      .split("\n")
-      .map((line) => line.startsWith(".") ? `.${line}` : line)
-      .join("\r\n");
     const raw = [
-      `From: ${displayName(message.fromName)} <${message.fromAddress}>`,
+      fromHeader(message.fromName, message.fromAddress),
       `To: <${message.to}>`,
-      `Subject: ${headerSafe(message.subject)}`,
+      `Subject: ${encodedHeaderText(headerSafe(message.subject))}`,
       `Date: ${new Date().toUTCString()}`,
       `Message-ID: <${crypto.randomUUID()}@bakery.local>`,
       "MIME-Version: 1.0",
-      "Content-Type: text/plain; charset=utf-8",
-      "Content-Transfer-Encoding: 8bit",
-      "",
-      body,
+      ...mimeBody(message),
     ].join("\r\n");
     await session.send(`${raw}\r\n.`);
     expect(await session.reply(), [250], SmtpOutcome.ServerError);

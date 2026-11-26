@@ -6,7 +6,7 @@ import {
   type SmtpConnection,
   type SmtpMessage,
 } from "../../apps/server/src/modules/work/smtp-client.ts";
-import { serveSmtp } from "../helpers/smtp-loopback.ts";
+import { readMail, serveSmtp } from "../helpers/smtp-loopback.ts";
 
 /**
  * The SMTP submission client against a scripted loopback server. Every mail
@@ -37,7 +37,7 @@ function connection(port: number, extra: Partial<SmtpConnection> = {}) {
 
 const fixture = { allowPlainLoopback: true, timeoutMs: 800 };
 
-Deno.test("a message is delivered with the login, the envelope and a dot-stuffed body", async () => {
+Deno.test("a message is delivered with the login, the envelope and an encoded body", async () => {
   const server = serveSmtp({});
   try {
     assertEquals(
@@ -50,7 +50,57 @@ Deno.test("a message is delivered with the login, the envelope and a dot-stuffed
     assert(server.received.includes("RCPT TO:<sam@example.com>"));
     const data = server.received.find((line) => line.startsWith("DATA:"))!;
     assert(data.includes('From: "Bakery" <bakery@example.com>'));
-    assert(data.includes("\r\n..leading dot line\r\n"));
+    assert(readMail(data).text?.includes("\n.leading dot line"));
+    assert(!data.split("\r\n").some((line) => line.startsWith(".")));
+  } finally {
+    await server.close();
+  }
+});
+
+Deno.test("a non-ASCII name and subject are encoded, and a long line is wrapped under 998", async () => {
+  const server = serveSmtp({});
+  try {
+    const subject = "José Núñez asked you to review in Bakery";
+    const text = "任".repeat(500);
+    assertEquals(
+      await sendMail(
+        connection(server.port),
+        { ...message, fromName: "Bäkery", subject, text },
+        fixture,
+      ),
+      "delivered",
+    );
+    const data = server.received.find((line) => line.startsWith("DATA:"))!;
+    assert(
+      [...data].every((character) => character.charCodeAt(0) < 0x80),
+      "every header and body byte is ASCII",
+    );
+    const mail = readMail(data);
+    assertEquals(mail.subject, subject);
+    assertEquals(mail.text, text);
+    assert(mail.longestLine <= 998);
+    assert(data.includes("From: =?UTF-8?B?"));
+  } finally {
+    await server.close();
+  }
+});
+
+Deno.test("a message with an HTML part is sent as multipart/alternative with both parts", async () => {
+  const server = serveSmtp({});
+  try {
+    assertEquals(
+      await sendMail(
+        connection(server.port),
+        { ...message, text: "plain words", html: "<p>html words</p>" },
+        fixture,
+      ),
+      "delivered",
+    );
+    const data = server.received.find((line) => line.startsWith("DATA:"))!;
+    assert(data.includes("Content-Type: multipart/alternative; boundary="));
+    const mail = readMail(data);
+    assertEquals(mail.text, "plain words");
+    assertEquals(mail.html, "<p>html words</p>");
   } finally {
     await server.close();
   }

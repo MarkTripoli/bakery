@@ -65,7 +65,23 @@ const INTENT_ASK: Readonly<Record<string, string>> = {
   take_over: "take over a step of",
 };
 
+export const EMAIL_LINK_ORGANIZATION_PARAM = "organization";
+const SIGN_IN_LINE =
+  "You will need to sign in. This email has no details on purpose: they stay in Bakery.";
+const WHY_LINE =
+  "You are getting this because the request has not been opened in Bakery for 15 minutes.";
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 export type RequestEmailFacts = Readonly<{
+  organizationId: string;
   taskId: string;
   intent: string;
   askerName: string | null;
@@ -78,7 +94,9 @@ export function requestEmailMessage(
   facts: RequestEmailFacts,
   from: Readonly<{ fromAddress: string; fromName: string; to: string }>,
 ): SmtpMessage {
-  const link = new URL(`/tasks/${facts.taskId}`, publicBaseUrl).toString();
+  const address = new URL(`/tasks/${facts.taskId}`, publicBaseUrl);
+  address.searchParams.set(EMAIL_LINK_ORGANIZATION_PARAM, facts.organizationId);
+  const link = address.toString();
   const asker = facts.askerName ?? "A workflow";
   const audience = facts.groupName ?? "you";
   const verb = INTENT_VERB[facts.intent];
@@ -97,9 +115,20 @@ export function requestEmailMessage(
       "",
       `Open in Bakery: ${link}`,
       "",
-      "You will need to sign in. This email has no details on purpose: they stay in Bakery.",
+      SIGN_IN_LINE,
       "",
-      "You are getting this because the request has not been opened in Bakery.",
+      WHY_LINE,
+    ].join("\n"),
+    html: [
+      "<!doctype html>",
+      '<html><body style="font-family:sans-serif;line-height:1.5">',
+      `<p>${escapeHtml(opening)}</p>`,
+      `<p><a href="${
+        escapeHtml(link)
+      }" style="display:inline-block;padding:10px 16px;border-radius:6px;background:#1f2937;color:#ffffff;text-decoration:none">Open in Bakery</a></p>`,
+      `<p>${escapeHtml(SIGN_IN_LINE)}</p>`,
+      `<p style="color:#6b7280">${escapeHtml(WHY_LINE)}</p>`,
+      "</body></html>",
     ].join("\n"),
   };
 }
@@ -226,6 +255,7 @@ export async function sendDueRequestEmails(
       requestEmailMessage(
         options.publicBaseUrl,
         {
+          organizationId: request.organization_id,
           taskId: request.task_id,
           intent: request.intent,
           askerName: request.asker_name,

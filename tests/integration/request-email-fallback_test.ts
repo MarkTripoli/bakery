@@ -1,9 +1,22 @@
 import { assert, assertEquals } from "@std/assert";
-import { sendDueRequestEmails } from "../../apps/server/src/modules/work/request-email.ts";
+import {
+  EMAIL_LINK_ORGANIZATION_PARAM,
+  requestEmailMessage,
+  sendDueRequestEmails,
+} from "../../apps/server/src/modules/work/request-email.ts";
+import { landingRoute } from "../../apps/web/src/notifications/landing.ts";
+import {
+  ORGANIZATION_PREFERENCE_KEY,
+  rememberLinkedOrganization,
+} from "../../apps/web/src/app/organization-selection.ts";
 import { cleanupAuthFixture } from "../helpers/auth.ts";
 import { openSocketFixture } from "../helpers/events-socket.ts";
 import { addMember, seedRun } from "../helpers/run-requests.ts";
-import { serveSmtp, type SmtpScript } from "../helpers/smtp-loopback.ts";
+import {
+  readMail,
+  serveSmtp,
+  type SmtpScript,
+} from "../helpers/smtp-loopback.ts";
 
 const NOTE = "Please check the migration numbers in the plan";
 
@@ -103,9 +116,16 @@ Deno.test("a request still open after 15 minutes is emailed once, as a link only
       { channel: "email", state: "delivered", attempts: 1 },
     ]);
     const data = o.smtp.received.filter((line) => line.startsWith("DATA:"));
-    const mail = data.find((line) => line.includes(o.run.taskId));
-    assert(mail !== undefined, "the email links the task");
-    assert(mail.includes(`https://bakery.example.test/tasks/${o.run.taskId}`));
+    const sent = data.map(readMail).find((entry) =>
+      entry.text?.includes(o.run.taskId)
+    );
+    assert(sent !== undefined, "the email links the task");
+    const link =
+      `https://bakery.example.test/tasks/${o.run.taskId}?organization=${o.fixture.organizationId}`;
+    const mail = sent.text!;
+    assert(mail.includes(`Open in Bakery: ${link}`));
+    assert(sent.html?.includes(`href="${link.replaceAll("&", "&amp;")}"`));
+    assert(sent.html?.includes(">Open in Bakery</a>"));
     const names = await o.fixture.pgDatabase.query<
       { asker: string; title: string }
     >(
@@ -115,7 +135,7 @@ Deno.test("a request still open after 15 minutes is emailed once, as a link only
       [o.fixture.principalId, o.run.taskId],
     );
     const { asker, title } = names.rows[0];
-    assert(mail.includes(`Subject: ${asker} asked you to review in Bakery`));
+    assertEquals(sent.subject, `${asker} asked you to review in Bakery`);
     assert(mail.includes(`${asker} asked you to review work in ${title}.`));
     assert(
       mail.includes(
@@ -124,7 +144,7 @@ Deno.test("a request still open after 15 minutes is emailed once, as a link only
     );
     assert(
       mail.includes(
-        "You are getting this because the request has not been opened in Bakery.",
+        "You are getting this because the request has not been opened in Bakery for 15 minutes.",
       ),
     );
     assert(!mail.includes(NOTE), "the email never carries the note");
@@ -208,9 +228,37 @@ Deno.test("nobody whose membership is inactive, or whose account is disabled, is
   }
 });
 
-Deno.test("the emailed link is a page the web app serves", async () => {
-  const router = await Deno.readTextFile(
-    new URL("../../apps/web/src/router.tsx", import.meta.url),
+Deno.test("the emailed link is a task page the web app routes, in the asker's organization", () => {
+  const organizationId = crypto.randomUUID();
+  const taskId = crypto.randomUUID();
+  const message = requestEmailMessage(
+    "https://bakery.example.test",
+    {
+      organizationId,
+      taskId,
+      intent: "approve",
+      askerName: "Ada",
+      groupName: null,
+      workItem: "Release",
+    },
+    {
+      fromAddress: "bakery@example.test",
+      fromName: "Bakery",
+      to: "x@example.test",
+    },
   );
-  assert(router.includes('path: "/tasks/$taskId"'));
+  const link = new URL(/Open in Bakery: (\S+)/.exec(message.text)![1]);
+  assertEquals(landingRoute(link.pathname), {
+    to: "/tasks/$taskId",
+    params: { taskId },
+  });
+  assertEquals(
+    link.searchParams.get(EMAIL_LINK_ORGANIZATION_PARAM),
+    organizationId,
+  );
+  const storage = new Map<string, string>();
+  rememberLinkedOrganization(link.search, {
+    setItem: (key, value) => storage.set(key, value),
+  });
+  assertEquals(storage.get(ORGANIZATION_PREFERENCE_KEY), organizationId);
 });
