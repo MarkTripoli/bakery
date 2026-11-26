@@ -60,7 +60,7 @@ echo "gate ok, load $(cut -d' ' -f1 /proc/loadavg)"
 
 read PG SERVER < <(node -e 'const n=require("net");const a=n.createServer(),b=n.createServer();a.listen(0,"127.0.0.1",()=>b.listen(0,"127.0.0.1",()=>{console.log(a.address().port+" "+b.address().port);a.close();b.close()}))')
 docker run -d --name "$STACK-pg" -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=bakery-ci-postgres \
-  -p "127.0.0.1:$PG:5432" postgres:16-alpine >/dev/null
+  -p "127.0.0.1:$PG:5432" postgres:18-alpine@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71 >/dev/null
 until docker exec "$STACK-pg" psql -U postgres -Atqc 'select 1' >/dev/null 2>&1; do sleep 1; done
 sleep 4
 for attempt in 1 2 3 4 5 6 7 8; do

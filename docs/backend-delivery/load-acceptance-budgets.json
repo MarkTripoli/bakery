@@ -4,7 +4,7 @@
     "description": "Single developer host, one throwaway Postgres container, server in-process.",
     "cpu": "AMD Ryzen 5 7640HS, 12 threads",
     "memoryGiB": 25,
-    "postgres": "postgres:16-alpine, default settings",
+    "postgres": "postgres:18-alpine, default settings",
     "note": "CI nightly runners must be at least this size; a slower host that misses a budget is a failure, not a reason to raise the budget."
   },
   "workload": {

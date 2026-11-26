@@ -241,7 +241,7 @@ step_build() {
 step_bringup() {
   heavy dc up -d --wait --wait-timeout 180 postgres redis > "$evidence/outputs/bringup.log" 2>&1
   expect_eq "postgres and redis healthy (up --wait exit)" "$?" 0
-  expect_match "postgres 17 template" "$(pg -tAc 'show server_version')" '^17'
+  expect_match "postgres 18 template" "$(pg -tAc 'show server_version')" '^18'
 }
 
 ledger_counts() {
