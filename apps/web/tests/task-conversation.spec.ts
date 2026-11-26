@@ -2251,7 +2251,7 @@ const shellAndConversationScopes = () =>
     `inbox:${principalId}`,
     `task:${taskId}`,
   ].sort();
-async function mockStream(page: Page): Promise<Stream> {
+async function mockStream(page: Page, openAfterMs = 0): Promise<Stream> {
   const connections: WebSocketRoute[] = [];
   const requests = new Map<WebSocketRoute, string>();
   const stream: Stream = {
@@ -2270,7 +2270,8 @@ async function mockStream(page: Page): Promise<Stream> {
       highwater: String(sequence),
     }));
   };
-  await page.routeWebSocket(/\/v1\/events/, (socket) => {
+  await page.routeWebSocket(/\/v1\/events/, async (socket) => {
+    await new Promise((done) => setTimeout(done, openAfterMs));
     connections.push(socket);
     socket.send(JSON.stringify({
       type: "hello",
@@ -2370,6 +2371,16 @@ test.describe("participants and live updates", () => {
     await expect(page.getByText("Answered by Dana Teammate")).toBeVisible();
     await expect(page.getByRole("switch", { name: "Planning only" }))
       .toBeChecked();
+  });
+
+  test("scopes learnt while the live socket is still connecting are all subscribed", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    const stream = await mockStream(page, 2500);
+    await open(page, world({ participants: [teammate, me] }));
+    await expect.poll(() => scopesByConnection(stream), { timeout: 10_000 })
+      .toEqual([shellAndConversationScopes()]);
+    expect(errors).toEqual([]);
   });
 
   test("a second participant's planning-only change shows live and survives a reconnect", async ({ page }) => {

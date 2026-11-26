@@ -24,6 +24,7 @@ const timestamp = "2026-01-01T00:00:00.000Z";
 export const ARTIFACT: ArtifactResponse = {
   id: ARTIFACT_ID,
   taskId: TASK_ID,
+  taskTitle: "Artifact review",
   artifactType: "plan",
   name: "Reviewable artifact",
   currentVersionId: VERSION_ID,
