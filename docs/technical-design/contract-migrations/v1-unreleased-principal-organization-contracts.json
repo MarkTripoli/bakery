@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "48cc87c494483b4bed6f31997da56227b0f9ebe1"
+    "abc1009cf78de2b4e7e43b52380eab1a935a6a47"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:69dc7039ce4346b5f82d2c89a7b45be58d3a300179d75760d33cfabcb07708f2",
-  "reason": "#458 run-page lines by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main 48cc87c494483b4bed6f31997da56227b0f9ebe1: RunRequest gains nextAsk (RunRequestNextAsk: dueAt, askedAt, who) and passedOn, read-only fields that say whom a waiting step asks next and when, and mark the request that next ask made.",
+  "reason": "#458 run-page lines by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main abc1009cf78de2b4e7e43b52380eab1a935a6a47: RunRequest gains nextAsk (RunRequestNextAsk: dueAt, askedAt, who) and passedOn, read-only fields that say whom a waiting step asks next and when, and mark the request that next ask made.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
