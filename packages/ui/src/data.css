@@ -1465,6 +1465,16 @@
 .ui-inline[data-controls="filters"] {
   align-items: flex-end;
 }
+.ui-inline[data-controls="file-row"] {
+  align-items: center;
+  border-block-start: var(--border-default) solid var(--color-border);
+  flex-wrap: nowrap;
+}
+.ui-inline[data-controls="file-row"] > .ui-list-row {
+  border-block: var(--border-none);
+  flex: 1;
+  min-inline-size: 0;
+}
 .ui-inline[data-controls="figures"] > .ui-stat-tile {
   flex: 0 0 auto;
 }

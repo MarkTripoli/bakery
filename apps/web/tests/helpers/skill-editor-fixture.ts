@@ -39,6 +39,7 @@ export type EditOptions = {
   readonly draftStatus?: number;
   readonly createStatus?: number;
   readonly saveStatus?: number;
+  readonly sourceId?: string;
 };
 
 export type Call = {
@@ -88,6 +89,22 @@ export async function skillEditorFixture(
       }),
   );
   const calls: Call[] = [];
+  const published = (revision: number) => ({
+    id: revision === 2 ? EDIT.version : uuid(710 + revision),
+    skillId: EDIT.skill,
+    revision,
+    sourceRevision: "draft",
+    digest: "sha256:abcdef",
+    entryPath: "SKILL.md",
+    manifest: { schemaVersion: 1, entryPath: "SKILL.md", files: [] },
+    status: "published",
+    createdBy: MOCK_PRINCIPAL_ID,
+    createdAt: STAMP,
+    updatedAt: STAMP,
+    version: 1,
+    publishedAt: STAMP,
+    label: null,
+  });
   const state = {
     open: options.hasDraft ?? true,
     version: 1,
@@ -126,7 +143,7 @@ export async function skillEditorFixture(
   });
   const skill = (id: string, name: string) => ({
     id,
-    sourceId: null,
+    sourceId: options.sourceId ?? null,
     slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
     name,
     description: null,
@@ -234,22 +251,7 @@ export async function skillEditorFixture(
     if (path === `${draftBase}/publish`) {
       state.activeRevision += 1;
       state.open = false;
-      return json(route, {
-        id: uuid(712),
-        skillId: EDIT.skill,
-        revision: state.activeRevision,
-        sourceRevision: "draft",
-        digest: "sha256:abcdef",
-        entryPath: state.entryPath,
-        manifest: { schemaVersion: 1, entryPath: state.entryPath, files: [] },
-        status: "published",
-        createdBy: MOCK_PRINCIPAL_ID,
-        createdAt: STAMP,
-        updatedAt: STAMP,
-        version: 1,
-        publishedAt: STAMP,
-        label: null,
-      });
+      return json(route, published(state.activeRevision));
     }
     if (path === `${draftBase}/files` && method === "POST") {
       if (options.saveStatus !== undefined || state.conflictOnce) {
@@ -304,6 +306,14 @@ export async function skillEditorFixture(
         sizeBytes: file.content.length,
         sha256: HASH,
         contentBase64: file.content.toString("base64"),
+      });
+    }
+    if (path === `/v1/skills/${EDIT.skill}/versions`) {
+      return json(route, {
+        items: state.activeRevision === 0
+          ? []
+          : [published(state.activeRevision)],
+        nextCursor: null,
       });
     }
     if (path.endsWith("/versions") || path.endsWith("/used-by")) {

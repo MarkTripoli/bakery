@@ -11,6 +11,11 @@ const SKILL = `/library/skills/${EDIT.skill}`;
 const decode = (value: unknown) =>
   Buffer.from(String(value), "base64").toString("utf8");
 
+const rowMenu = async (page: Page, name: string, action: string) => {
+  await page.getByRole("button", { name: `Actions for ${name}` }).click();
+  await page.getByRole("button", { name: action, exact: true }).click();
+};
+
 const openFile = async (page: Page, name: string) => {
   await page.getByRole("button", { name: `Open ${name}` }).click();
   await expect(
@@ -119,16 +124,11 @@ for (
     test("Remove is undone from the toast, and the instructions file is not removed", async ({ page }) => {
       const { calls } = await skillEditorFixture(page);
       await page.goto(EDITOR);
-      await openFile(page, "SKILL.md");
-      await page.getByRole("button", { name: "Remove", exact: true }).click();
+      await rowMenu(page, "SKILL.md", "Remove");
       await expect(page.getByText("Choose another instructions file first."))
         .toBeVisible();
       expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(0);
-      if (viewport.phone) {
-        await page.getByRole("button", { name: "Back to files" }).click();
-      }
-      await openFile(page, "examples/good-answer.md");
-      await page.getByRole("button", { name: "Remove", exact: true }).click();
+      await rowMenu(page, "examples/good-answer.md", "Remove");
       await expect(page.getByTestId("skill-editor-removed")).toContainText(
         "Removed examples/good-answer.md.",
       );
@@ -148,7 +148,10 @@ for (
       const { calls } = await skillEditorFixture(page);
       await page.goto(EDITOR);
       await openFile(page, "examples/good-answer.md");
-      await page.getByRole("button", { name: "Rename" }).click();
+      if (viewport.phone) {
+        await page.getByRole("button", { name: "Back to files" }).click();
+      }
+      await rowMenu(page, "examples/good-answer.md", "Rename");
       const dialog = page.getByRole("dialog");
       await dialog.getByLabel("File name").fill("examples/best-answer.md");
       await dialog.getByRole("button", { name: "Rename" }).click();
@@ -158,6 +161,127 @@ for (
         path: "examples/good-answer.md",
         newPath: "examples/best-answer.md",
       });
+      await expect(
+        page.getByRole("textbox", { name: "Text of examples/best-answer.md" }),
+      ).toBeFocused();
+    });
+
+    test("leaving with a file not saved yet asks, and Stay keeps the text", async ({ page }) => {
+      const { calls } = await skillEditorFixture(page);
+      await page.goto(SKILL);
+      await page.getByRole("button", { name: "Continue editing" }).click();
+      await openFile(page, "SKILL.md");
+      await typeInto(page, "SKILL.md", "Typed and left");
+      await page.evaluate(() => history.back());
+      const ask = page.getByRole("alertdialog");
+      await expect(ask).toContainText("Leave without saving?");
+      await ask.getByRole("button", { name: "Stay" }).click();
+      await expect(page).toHaveURL(new RegExp(`${EDITOR}$`));
+      await expect(page.getByTestId("skill-editor-save")).toContainText(
+        "Saved",
+      );
+      expect(
+        calls.some((call) =>
+          decode(call.body?.contentBase64) ===
+            "Typed and left"
+        ),
+      ).toBe(true);
+    });
+
+    test("after Publish the skill page shows the new version and no draft", async ({ page }) => {
+      await skillEditorFixture(page);
+      await page.goto(SKILL);
+      await expect(page.getByText("Version 2").first()).toBeVisible();
+      await page.getByRole("button", { name: "Continue editing" }).click();
+      await page.getByRole("button", { name: "Publish" }).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Publish",
+      }).click();
+      await expect(page).toHaveURL(new RegExp(`${SKILL}$`));
+      await expect(page.getByRole("button", { name: "Edit", exact: true }))
+        .toBeVisible();
+      await expect(page.getByRole("button", { name: "Continue editing" }))
+        .toHaveCount(0);
+      await expect(page.getByText("Version 3").first()).toBeVisible();
+    });
+
+    test("choosing a problem puts the caret on its line", async ({ page }) => {
+      await skillEditorFixture(page, {
+        files: [{ path: "SKILL.md", text: "one\ntwo\nthree\nfour\n" }],
+        problems: [{
+          file: "SKILL.md",
+          line: 3,
+          code: "missing_file",
+          message: "Something on line three.",
+        }],
+      });
+      await page.goto(EDITOR);
+      await page.getByRole("button", { name: "Check", exact: true }).click();
+      await page.getByRole("button", {
+        name: "SKILL.md · line 3: Something on line three.",
+      }).click();
+      const box = page.getByRole("textbox", { name: "Text of SKILL.md" });
+      await expect(box).toBeFocused();
+      await page.keyboard.type("HERE ");
+      await expect(box).toContainText("HERE three");
+    });
+
+    test("changing the licence after a check keeps the result and says it is old", async ({ page }) => {
+      await skillEditorFixture(page);
+      await page.goto(EDITOR);
+      await page.getByRole("button", { name: "Check", exact: true }).click();
+      await expect(page.getByText("No problems found.")).toBeVisible();
+      await page.getByRole("textbox", { name: "Licence" }).fill("MIT");
+      await page.getByRole("textbox", { name: "Licence" }).blur();
+      await expect(page.getByText("Checked before your last change."))
+        .toBeVisible();
+      await expect(page.getByText("No problems found.")).toBeVisible();
+    });
+
+    test("a file that is not text is replaced with a chosen one", async ({ page }) => {
+      const { calls } = await skillEditorFixture(page);
+      await page.goto(EDITOR);
+      await page.getByRole("button", { name: "Open assets/logo.bin" }).click();
+      const chooser = page.waitForEvent("filechooser");
+      await page.getByRole("button", { name: "Replace" }).click();
+      await (await chooser).setFiles({
+        name: "new.bin",
+        mimeType: "application/octet-stream",
+        buffer: Buffer.from([1, 2, 3]),
+      });
+      await expect.poll(() =>
+        calls.find((call) => call.path.endsWith("/draft/files"))?.body
+      ).toMatchObject({ path: "assets/logo.bin", contentBase64: "AQID" });
+    });
+
+    test("a skill published here says it was written here, with its licence", async ({ page }) => {
+      const source = "00000000-0000-4000-8000-000000000799";
+      await skillEditorFixture(page, { sourceId: source });
+      await page.route(
+        `**/v1/skill-sources/${source}`,
+        (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              id: source,
+              name: "Quarterly release notes",
+              sourceType: "local_bundle",
+              locator: `bakery://organizations/x/skills/${EDIT.skill}`,
+              publisher: null,
+              license: "MIT",
+              lastCheckedAt: null,
+              enabled: true,
+              createdAt: "2026-11-01T00:00:00.000Z",
+              updatedAt: "2026-11-01T00:00:00.000Z",
+              version: 1,
+            }),
+          }),
+      );
+      await page.goto(SKILL);
+      await expect(page.getByText("Written here")).toBeVisible();
+      await expect(page.getByText(/bakery:\/\//)).toHaveCount(0);
+      await expect(page.getByText("MIT")).toBeVisible();
     });
 
     test("Publish checks first and, with problems, publishes nothing and moves focus to the list", async ({ page }) => {
@@ -310,6 +434,7 @@ for (
       const { calls } = await skillEditorFixture(page, { files: [] });
       await page.goto(EDITOR);
       await expect(page.getByText("Start with the instructions")).toBeVisible();
+      await expect(page.getByLabel("Instructions file")).toHaveCount(0);
       await still(page, "skill-editor-empty");
       await page.getByRole("button", { name: "Add SKILL.md" }).click();
       await expect.poll(() =>

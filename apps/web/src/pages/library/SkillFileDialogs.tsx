@@ -24,9 +24,10 @@ function problemText(
 }
 
 export function AddFileDialog(
-  { files, busy, onClose, onAdd, suggestion }: Common & {
+  { files, busy, onClose, onAdd, onUpload, suggestion }: Common & {
     readonly suggestion: string;
     readonly onAdd: (path: string, runnable: boolean) => void;
+    readonly onUpload: () => void;
   },
 ) {
   const { translate } = useI18n();
@@ -84,6 +85,9 @@ export function AddFileDialog(
           <UI.Inline gap="compact">
             <UI.Button variant="secondary" disabled={busy} onClick={onClose}>
               {translate("core.actions.cancel")}
+            </UI.Button>
+            <UI.Button variant="secondary" disabled={busy} onClick={onUpload}>
+              {translate("library.skills.editor.addFile.upload")}
             </UI.Button>
             <UI.Button type="submit" variant="primary" disabled={busy}>
               {translate("library.skills.editor.addFile.submit")}

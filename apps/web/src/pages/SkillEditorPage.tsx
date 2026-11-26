@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useInfiniteQuery,
   useQuery,
@@ -25,6 +25,8 @@ import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
+import { LeaveGuard } from "./repository-rules/leave-guard.tsx";
+import { pickFiles } from "./library/pick-files.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { sayAboutSkill, SkillToast } from "./library/SkillActions.tsx";
 import {
@@ -32,10 +34,14 @@ import {
   RenameFileDialog,
 } from "./library/SkillFileDialogs.tsx";
 import {
+  bytesToBase64,
   type DraftFailure,
   type DraftFile,
+  type DraftProblem,
   groupFiles,
+  pathProblem,
   problemWords,
+  shortName,
   sizeWords,
   SKILL_ENTRY_FILE,
 } from "./library/skill-draft-state.ts";
@@ -80,6 +86,63 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
   const [showProblems, setShowProblems] = useState(false);
   const [entryNote, setEntryNote] = useState(false);
   const [license, setLicense] = useState<string | null>(null);
+  const [skipped, setSkipped] = useState<readonly string[]>([]);
+  const [renaming, setRenaming] = useState<DraftFile | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [left, setLeft] = useState(false);
+  const [pendingFocus, setPendingFocus] = useState<
+    {
+      readonly fileId: string;
+      readonly path: string;
+      readonly line: number | null;
+    } | null
+  >(null);
+  const editorView = useRef<
+    | {
+      readonly view: EditorView;
+      readonly fileId: string;
+      readonly path: string;
+    }
+    | null
+  >(null);
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const held = editorView.current;
+    if (
+      pendingFocus === null || held?.fileId !== pendingFocus.fileId ||
+      held.path !== pendingFocus.path
+    ) {
+      return;
+    }
+    const { line: wanted } = pendingFocus;
+    requestAnimationFrame(() => {
+      const view = editorView.current?.view;
+      if (view === undefined) return;
+      if (wanted !== null) {
+        const line = view.state.doc.line(
+          Math.min(Math.max(wanted, 1), view.state.doc.lines),
+        );
+        view.dispatch({
+          selection: { anchor: line.from },
+          scrollIntoView: true,
+        });
+      }
+      view.focus();
+    });
+    setPendingFocus(null);
+  });
+  useEffect(() => {
+    if (!left) return;
+    void navigate({
+      to: "/library/skills/$skillId",
+      params: { skillId: skill.id },
+    }).then(() => {
+      queryClient.removeQueries({
+        queryKey: skillDraftQueryOptions(api, scope, skill.id).queryKey,
+      });
+      return queryClient.invalidateQueries({ queryKey: ["protected"] });
+    });
+  }, [left]);
   const problemsHeading = useRef<HTMLHeadingElement | null>(null);
   const opener = useRef<HTMLElement | null>(null);
 
@@ -101,12 +164,6 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
     setDialog(null);
     focusAfterPaint(() => opener.current);
   };
-  const leave = () =>
-    void navigate({
-      to: "/library/skills/$skillId",
-      params: { skillId: skill.id },
-    });
-
   const when = (at: number) =>
     new Intl.DateTimeFormat(locale, { timeStyle: "short", timeZone }).format(
       new Date(at),
@@ -125,12 +182,27 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
     state.select(file.id);
     setView("file");
   };
-  const openProblem = (file: string | null) => {
-    const target = file === null
-      ? null
-      : draft.files.find((item) => item.path === file) ?? null;
-    if (target !== null) chooseFile(target);
+  const focusEditor = (
+    file: Pick<DraftFile, "id" | "path">,
+    line: number | null = null,
+  ) => {
+    setPendingFocus({ fileId: file.id, path: file.path, line });
   };
+  const openProblem = (problem: DraftProblem) => {
+    const target = problem.file === null
+      ? null
+      : draft.files.find((item) => item.path === problem.file) ?? null;
+    if (target === null) return;
+    chooseFile(target);
+    focusEditor(target, problem.line);
+  };
+  const focusRow = (index: number) =>
+    focusAfterPaint(() => {
+      const rows = document.querySelectorAll<HTMLElement>(
+        '[data-testid="skill-editor-files"] [data-file] button.ui-list-row__control',
+      );
+      return rows[Math.min(index, rows.length - 1)] ?? null;
+    });
 
   const run = async (task: () => Promise<unknown>) => {
     setWorking(true);
@@ -163,15 +235,42 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
         translate("library.skills.editor.published", { number: made.revision }),
       );
       setDialog(null);
-      leave();
+      setLeft(true);
     });
   const confirmDiscard = () =>
     void run(async () => {
-      if (await state.discard()) leave();
-      else setDialog(null);
+      if (await state.discard()) setLeft(true);
+      setDialog(null);
+    });
+  const upload = () =>
+    pickFiles(true, (picked) =>
+      void run(async () => {
+        setDialog(null);
+        const taken: string[] = [];
+        for (const one of picked) {
+          if (pathProblem(draft.files, one.name) !== null) {
+            taken.push(one.name);
+            continue;
+          }
+          await state.addFile(one.name, false, bytesToBase64(one.bytes));
+        }
+        setSkipped(taken);
+      }));
+  const replace = (file: DraftFile) =>
+    pickFiles(
+      false,
+      ([picked]) =>
+        void run(() => state.replaceFile(file, bytesToBase64(picked!.bytes))),
+    );
+  const loadLatest = () =>
+    void run(async () => {
+      const fileId = await state.loadLatest();
+      const file = draft.files.find((item) => item.id === fileId);
+      if (file !== undefined) focusEditor(file);
     });
   const remove = (file: DraftFile) =>
     void run(async () => {
+      const index = draft.files.findIndex((item) => item.id === file.id);
       if (file.path === draft.entryPath) {
         setEntryNote(true);
         return;
@@ -179,6 +278,7 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
       setEntryNote(false);
       const gone = await state.removeFile(file);
       if (gone === null) return;
+      focusRow(index);
       setRemoved({
         path: gone.path,
         mediaType: gone.mediaType,
@@ -240,15 +340,60 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
       controlLabel={translate("library.skills.editor.files.openLabel", {
         file: file.path,
       })}
-      data-file={file.id}
       data-selected={state.selectedId === file.id ? "true" : undefined}
       detail={fileSize(file.sizeBytes, locale)}
-      key={file.id}
       onSelect={() => chooseFile(file)}
-      role="listitem"
-      title={file.path}
+      title={shortName(file.path)}
     />
   );
+  const fileItem = (file: DraftFile) => {
+    const actionsFor = translate("library.skills.editor.file.actions", {
+      file: file.path,
+    });
+    return (
+      <UI.Inline
+        data-controls="file-row"
+        data-file={file.id}
+        gap="compact"
+        key={file.id}
+        role="listitem"
+      >
+        {fileRow(file)}
+        <UI.Popover
+          align="end"
+          label={actionsFor}
+          onOpenChange={(next) => setMenuFor(next ? file.id : null)}
+          open={menuFor === file.id}
+          trigger={translate("library.skill.actions.more")}
+          triggerAppearance="toolbar"
+          triggerLabel={actionsFor}
+          variant="interactive"
+        >
+          <UI.Menu
+            aria-label={actionsFor}
+            items={[
+              {
+                id: "rename",
+                label: translate("library.skills.editor.file.rename"),
+              },
+              {
+                id: "remove",
+                label: translate("library.skills.editor.file.remove"),
+              },
+            ]}
+            onSelect={(id) => {
+              setMenuFor(null);
+              if (id === "remove") remove(file);
+              else {
+                setRenaming(file);
+                open("rename");
+              }
+            }}
+          />
+        </UI.Popover>
+      </UI.Inline>
+    );
+  };
   const fileList = (
     <UI.Stack gap="standard" data-testid="skill-editor-files">
       <UI.Heading level="subsection" rank={2}>
@@ -268,7 +413,7 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
                 gap="none"
                 role="list"
               >
-                {fileRow(entry)}
+                {fileItem(entry)}
               </UI.Stack>
             </UI.Stack>
           )}
@@ -282,11 +427,25 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
                 gap="none"
                 role="list"
               >
-                {others.map(fileRow)}
+                {others.map(fileItem)}
               </UI.Stack>
             </UI.Stack>
           )}
         </UI.Stack>
+      )}
+      {entryNote
+        ? (
+          <UI.InlineNotice tone="warning">
+            {translate("library.skills.editor.file.entryRemove")}
+          </UI.InlineNotice>
+        )
+        : null}
+      {skipped.length === 0 ? null : (
+        <UI.InlineNotice tone="warning">
+          {translate("library.skills.editor.addFile.skipped", {
+            names: skipped.join(", "),
+          })}
+        </UI.InlineNotice>
       )}
       <UI.Button
         variant="secondary"
@@ -305,27 +464,29 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
   );
   const settings = (
     <UI.Stack gap="standard" data-testid="skill-editor-settings">
-      <UI.Stack gap="tight">
-        <UI.Combobox
-          label={translate("library.skills.editor.settings.entry")}
-          name="skill-entry-path"
-          value={draft.entryPath}
-          disabled={working || draft.files.length === 0}
-          options={draft.files.map((file) => ({
-            label: file.path,
-            value: file.path,
-          }))}
-          onChange={(event) => {
-            const value = event.target.value;
-            if (value !== draft.entryPath) {
-              void run(() => state.changeSettings({ entryPath: value }));
-            }
-          }}
-        />
-        <UI.Text variant="caption">
-          {translate("library.skills.editor.settings.entryHelp")}
-        </UI.Text>
-      </UI.Stack>
+      {draft.files.length === 0 ? null : (
+        <UI.Stack gap="tight">
+          <UI.Combobox
+            label={translate("library.skills.editor.settings.entry")}
+            name="skill-entry-path"
+            value={draft.entryPath}
+            disabled={working}
+            options={draft.files.map((file) => ({
+              label: file.path,
+              value: file.path,
+            }))}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value !== draft.entryPath) {
+                void run(() => state.changeSettings({ entryPath: value }));
+              }
+            }}
+          />
+          <UI.Text variant="caption">
+            {translate("library.skills.editor.settings.entryHelp")}
+          </UI.Text>
+        </UI.Stack>
+      )}
       <UI.Field
         label={translate("library.skills.editor.settings.license")}
         htmlFor="skill-license"
@@ -376,32 +537,7 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
             </UI.Button>
           )
           : null}
-        <UI.Inline gap="compact" variant="between">
-          <UI.DataText>{selected.path}</UI.DataText>
-          <UI.Inline gap="compact">
-            <UI.Button
-              variant="secondary"
-              disabled={working}
-              onClick={() => open("rename")}
-            >
-              {translate("library.skills.editor.file.rename")}
-            </UI.Button>
-            <UI.Button
-              variant="secondary"
-              disabled={working}
-              onClick={() => remove(selected)}
-            >
-              {translate("library.skills.editor.file.remove")}
-            </UI.Button>
-          </UI.Inline>
-        </UI.Inline>
-        {entryNote
-          ? (
-            <UI.InlineNotice tone="warning">
-              {translate("library.skills.editor.file.entryRemove")}
-            </UI.InlineNotice>
-          )
-          : null}
+        <UI.DataText>{selected.path}</UI.DataText>
         {state.text && selected.path !== "" && /\.(sh|bash|py|js|mjs|ts|rb)$/i
             .test(selected.path)
           ? (
@@ -419,7 +555,27 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
           : null}
         {!state.text
           ? (
-            <UI.InlineNotice tone="information">
+            <UI.InlineNotice
+              tone="information"
+              action={
+                <UI.Inline gap="compact">
+                  <UI.Button
+                    variant="secondary"
+                    disabled={working}
+                    onClick={() => replace(selected)}
+                  >
+                    {translate("library.skills.editor.file.replace")}
+                  </UI.Button>
+                  <UI.Button
+                    variant="secondary"
+                    disabled={working}
+                    onClick={() => remove(selected)}
+                  >
+                    {translate("library.skills.editor.file.remove")}
+                  </UI.Button>
+                </UI.Inline>
+              }
+            >
               {translate("library.skills.editor.file.notText")}
             </UI.InlineNotice>
           )
@@ -452,7 +608,14 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
                 }),
               ]}
               initialText={state.body}
-              key={`${selected.id}:${state.reloads[selected.id] ?? 0}`}
+              onViewChange={(view) => {
+                editorView.current = view === null
+                  ? null
+                  : { view, fileId: selected.id, path: selected.path };
+              }}
+              key={`${selected.id}:${selected.path}:${
+                state.reloads[selected.id] ?? 0
+              }`}
             />
           )}
         {saveLine === null
@@ -506,7 +669,7 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
                         words.values,
                       )}
                       key={index}
-                      onSelect={() => openProblem(problem.file)}
+                      onSelect={() => openProblem(problem)}
                       role="listitem"
                       title={translate(words.key, words.values)}
                     />
@@ -552,7 +715,7 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
           action={
             <UI.Button
               variant="secondary"
-              onClick={() => void state.loadLatest()}
+              onClick={loadLatest}
             >
               {translate("library.skills.editor.conflict.load")}
             </UI.Button>
@@ -614,6 +777,7 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
     )
     : (
       <UI.FormWithSummary
+        asideAt="start"
         aside={
           <UI.Stack gap="spacious">
             {fileList}
@@ -632,6 +796,17 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
   return (
     <>
       <SkillToast />
+      <LeaveGuard
+        count={left ? 0 : state.unsavedFiles}
+        discard={state.drop}
+        path={`/library/skills/${skill.id}/edit`}
+        copy={{
+          title: "library.skills.editor.leave.title",
+          body: "library.skills.editor.leave.body",
+          stay: "library.skills.editor.leave.stay",
+          confirm: "library.skills.editor.leave.confirm",
+        }}
+      />
       {removed === null ? null : (
         <UI.Toast
           data-testid="skill-editor-removed"
@@ -664,6 +839,7 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
             busy={working}
             suggestion={draft.files.length === 0 ? SKILL_ENTRY_FILE : ""}
             onClose={close}
+            onUpload={upload}
             onAdd={(path, runnable) =>
               void run(async () => {
                 const added = await state.addFile(path, runnable);
@@ -675,17 +851,20 @@ function SkillEditor({ skill }: { readonly skill: SkillResponse }) {
           />
         )
         : null}
-      {dialog === "rename" && selected !== null
+      {dialog === "rename" && renaming !== null
         ? (
           <RenameFileDialog
             files={draft.files}
-            file={selected}
+            file={renaming}
             busy={working}
             onClose={close}
             onRename={(newPath) =>
               void run(async () => {
-                await state.renameFile(selected, newPath);
+                const renamed = await state.renameFile(renaming, newPath);
                 setDialog(null);
+                if (renamed === null) return;
+                if (phone) setView("file");
+                focusEditor(renamed);
               })}
           />
         )

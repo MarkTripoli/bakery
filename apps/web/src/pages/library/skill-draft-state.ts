@@ -202,6 +202,20 @@ export function pathProblem(
   return null;
 }
 
+const SHOWN_NAME_LIMIT = 34;
+
+export function shortName(path: string): string {
+  return path.length <= SHOWN_NAME_LIMIT
+    ? path
+    : `${path.slice(0, 16)}…${path.slice(-17)}`;
+}
+
+export function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
 export function sizeWords(
   draft: Pick<TypedDraft, "files" | "totalBytes">,
   locale: string,

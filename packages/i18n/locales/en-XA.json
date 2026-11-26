@@ -7380,5 +7380,13 @@
   "library.skills.editor.failure.offline": "⟦Ÿôû àŕë ôƒƒļïñë. Ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ ŵĥëñ ÿôû àŕë ƀàçķ ôñļïñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "library.skills.editor.failure.failed": "⟦Ŧĥàŧ ðïð ñôŧ ŵôŕķ àñð ñôŧĥïñĝ çĥàñĝëð. Ŧŕÿ àĝàïñ ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "library.skills.editor.settings.licenseHelp": "⟦Ŧĥë ļïçëñçë ŧĥïš ṽëŕšïôñ ðëçļàŕëš. Ñëëðëð ŧô þûƀļïšĥ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
-  "library.skills.editor.problems.licence": "⟦Ļïçëñçë: àðð ôñë ƀëƒôŕë þûƀļïšĥïñĝ, ûþ ŧô 200 þļàïñ çĥàŕàçŧëŕš. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
+  "library.skills.editor.problems.licence": "⟦Ļïçëñçë: àðð ôñë ƀëƒôŕë þûƀļïšĥïñĝ, ûþ ŧô 200 þļàïñ çĥàŕàçŧëŕš. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "library.skills.editor.leave.title": "⟦Ļëàṽë ŵïŧĥôûŧ šàṽïñĝ? ŧëšŧŧ⟧",
+  "library.skills.editor.leave.body": "⟦{count, plural, one {Your last change to # file is not saved yet.} other {Your last changes to # files are not saved yet.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "library.skills.editor.leave.stay": "⟦Šŧàÿ⟧",
+  "library.skills.editor.leave.confirm": "⟦Ļëàṽë ŵïŧĥôûŧ šàṽïñĝ ŧëšŧ⟧",
+  "library.skills.editor.file.actions": "⟦Àçŧïôñš ƒôŕ {file} ŧëšŧ⟧",
+  "library.skills.editor.file.replace": "⟦Ŕëþļàçë…⟧",
+  "library.skills.editor.addFile.upload": "⟦Ûþļôàð ƒïļëš ŧë⟧",
+  "library.skills.editor.addFile.skipped": "⟦Ñôŧ àððëð, ƀëçàûšë à ƒïļë ŵïŧĥ ŧĥàŧ ñàɱë àļŕëàðÿ ëẋïšŧš ôŕ ŧĥë ñàɱë çàññôŧ ƀë ûšëð: {names} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
 }

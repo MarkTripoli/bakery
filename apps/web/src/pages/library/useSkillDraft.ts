@@ -179,7 +179,6 @@ export function useSkillDraft(
         return null;
       }
       putDraft(result.data);
-      setChecked(null);
       return typedDraft(result.data);
     });
   }, [enqueue, flush, putDraft]);
@@ -187,7 +186,7 @@ export function useSkillDraft(
   const addFile = async (
     path: string,
     runnable = false,
-    body = "",
+    contentBase64 = textToBase64(""),
   ): Promise<DraftFile | null> => {
     const next = await apply((current) =>
       api.saveSkillDraftFile({
@@ -197,7 +196,7 @@ export function useSkillDraft(
           path,
           mediaType: mediaTypeOf(path),
           isExecutable: isScript(path) ? runnable : undefined,
-          contentBase64: textToBase64(body),
+          contentBase64,
         },
         version: current.version,
         idempotencyKey: crypto.randomUUID(),
@@ -245,7 +244,34 @@ export function useSkillDraft(
         idempotencyKey: crypto.randomUUID(),
       })
     );
+    const renamed = next?.files.find((item) => item.path === newPath) ?? null;
+    if (renamed !== null) setSelectedId(renamed.id);
+    return renamed;
+  };
+
+  const replaceFile = async (file: DraftFile, contentBase64: string) => {
+    delete buffered.current[file.id];
+    const next = await apply((current) =>
+      api.saveSkillDraftFile({
+        organizationId,
+        id: skill.id,
+        input: {
+          path: file.path,
+          mediaType: file.mediaType,
+          isExecutable: file.isExecutable,
+          contentBase64,
+        },
+        version: current.version,
+        idempotencyKey: crypto.randomUUID(),
+      })
+    );
     return next !== null;
+  };
+
+  const drop = () => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    buffered.current = {};
+    setBuffers({});
   };
 
   const removeFile = async (file: DraftFile) => {
@@ -388,6 +414,7 @@ export function useSkillDraft(
     }
     await read.refetch();
     setSave({ kind: "idle" });
+    return fileId;
   };
 
   const retrySave = () => {
@@ -418,6 +445,9 @@ export function useSkillDraft(
     reloads,
     edit,
     dirty,
+    unsavedFiles: Object.keys(buffers).length,
+    drop,
+    replaceFile,
     save,
     checked,
     writeFailure,
