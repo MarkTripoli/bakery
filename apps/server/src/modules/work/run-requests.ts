@@ -157,7 +157,18 @@ type RequestRow = {
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
+  first_asked_at: Date | string | null;
+  next_ask_hours: number | null;
+  next_asked_at: Date | string | null;
+  next_asked_name: string | null;
+  next_role_key: string | null;
+  next_planned_name: string | null;
+  next_already_asked: boolean | null;
+  next_ask_claimed: boolean;
+  next_audience_has_new: boolean | null;
 };
+
+const DEFAULT_NEXT_ASK_HOURS = 24;
 
 const REQUEST_SELECT = `
   select request.id, request.run_id, request.step_key, request.target_id,
@@ -169,10 +180,133 @@ const REQUEST_SELECT = `
               then 'expired' else request.status end as status,
          request.expires_at, request.fallback_for_name,
          request.audience_role_key, request.audience_group_id,
-         request.audience_name, request.created_at, request.updated_at, request.version
+         request.audience_name, request.created_at, request.updated_at, request.version,
+         first_ask.first_asked_at,
+         case when step.input ? 'ifNobodyAnswers'
+              then coalesce((step.input #>> '{ifNobodyAnswers,afterHours}')::int,
+                            ${DEFAULT_NEXT_ASK_HOURS})
+         end as next_ask_hours,
+         next_request.created_at as next_asked_at,
+         next_request.name as next_asked_name,
+         step.input #>> '{ifNobodyAnswers,recipientRoleKey}' as next_role_key,
+         coalesce(next_person.display_name, next_group.name, next_role.name,
+                  next_run_person.display_name) as next_planned_name,
+         coalesce(next_person.id, next_run_person.id) = any(first_round.ids)
+           as next_already_asked,
+         next_claim.asked_at is not null as next_ask_claimed,
+         next_audience.has_new as next_audience_has_new
     from bakery.person_requests as request
     join bakery.principals as recipient on recipient.id = request.recipient_id
-    left join bakery.principals as asker on asker.id = request.asked_by`;
+    left join bakery.principals as asker on asker.id = request.asked_by
+    left join bakery.run_steps as step
+      on step.organization_id = request.organization_id
+     and step.run_id = request.run_id and step.step_key = request.step_key
+     and step.iteration = request.step_iteration
+     and jsonb_typeof(step.input -> 'ifNobodyAnswers') = 'object'
+    left join lateral (
+      select min(sibling.created_at) as first_asked_at
+        from bakery.person_requests as sibling
+       where step.id is not null
+         and sibling.organization_id = request.organization_id
+         and sibling.run_id = request.run_id
+         and sibling.step_key = request.step_key
+         and sibling.step_iteration = request.step_iteration
+    ) as first_ask on true
+    left join lateral (
+      select array_agg(first.recipient_id) as ids
+        from bakery.person_requests as first
+       where step.id is not null
+         and first.organization_id = request.organization_id
+         and first.run_id = request.run_id
+         and first.step_key = request.step_key
+         and first.step_iteration = request.step_iteration
+         and first.created_at = first_ask.first_asked_at
+    ) as first_round on true
+    left join bakery.person_request_next_asks as next_claim
+      on step.id is not null
+     and next_claim.organization_id = request.organization_id
+     and next_claim.run_id = request.run_id
+     and next_claim.step_key = request.step_key
+     and next_claim.step_iteration = request.step_iteration
+    left join lateral (
+      select later.created_at,
+             coalesce(later.audience_name, later_recipient.display_name) as name
+        from bakery.person_requests as later
+        join bakery.principals as later_recipient
+          on later_recipient.id = later.recipient_id
+       where step.id is not null
+         and later.organization_id = request.organization_id
+         and later.run_id = request.run_id
+         and later.step_key = request.step_key
+         and later.step_iteration = request.step_iteration
+         and later.created_at > first_ask.first_asked_at
+       order by later.created_at, later.id
+       limit 1
+    ) as next_request on true
+    left join lateral (
+      select principal.id, principal.display_name
+        from bakery.principals as principal
+        join bakery.organization_memberships as membership
+          on membership.principal_id = principal.id
+         and membership.organization_id = request.organization_id
+         and membership.status = 'active'
+       where principal.id::text = step.input #>> '{ifNobodyAnswers,recipientId}'
+         and principal.disabled_at is null
+    ) as next_person on true
+    left join bakery.organization_groups as next_group
+      on next_group.organization_id = request.organization_id
+     and next_group.id::text = step.input #>> '{ifNobodyAnswers,recipientGroupId}'
+    left join bakery.organization_roles as next_role
+      on next_role.organization_id = request.organization_id
+     and next_role.key = step.input #>> '{ifNobodyAnswers,recipientRoleKey}'
+    left join bakery.workflow_runs as next_run
+      on step.input #>> '{ifNobodyAnswers,recipientRunRole}' is not null
+     and next_run.organization_id = request.organization_id
+     and next_run.id = request.run_id
+    left join bakery.tasks as next_task
+      on next_task.organization_id = next_run.organization_id
+     and next_task.id = next_run.task_id
+    left join lateral (
+      select principal.id, principal.display_name
+        from bakery.principals as principal
+        join bakery.organization_memberships as membership
+          on membership.principal_id = principal.id
+         and membership.organization_id = request.organization_id
+         and membership.status = 'active'
+       where principal.disabled_at is null
+         and principal.id = case step.input #>> '{ifNobodyAnswers,recipientRunRole}'
+           when 'starter' then next_run.requested_by
+           when 'task_owner' then next_task.created_by
+         end
+    ) as next_run_person on true
+    left join lateral (
+      select exists (
+        select 1
+          from bakery.organization_memberships as membership
+          join bakery.principals as principal
+            on principal.id = membership.principal_id
+         where membership.organization_id = request.organization_id
+           and membership.status = 'active'
+           and principal.principal_type = 'human'
+           and principal.disabled_at is null
+           and membership.principal_id <> all(coalesce(first_round.ids, '{}'))
+           and (
+             exists (
+               select 1 from bakery.organization_group_members as member
+                where member.organization_id = request.organization_id
+                  and member.group_id = next_group.id
+                  and member.principal_id = membership.principal_id
+             )
+             or (membership.custom_role_id is null
+                 and membership.role in ('admin', 'developer')
+                 and membership.role
+                   = step.input #>> '{ifNobodyAnswers,recipientRoleKey}')
+             or membership.custom_role_id = next_role.id
+           )
+      ) as has_new
+       where next_group.id is not null
+          or step.input #>> '{ifNobodyAnswers,recipientRoleKey}' is not null
+    ) as next_audience on true`;
 
 function iso(value: Date | string): string {
   return (value instanceof Date ? value : new Date(value)).toISOString();
@@ -217,6 +351,39 @@ function toRunRequest(row: RequestRow) {
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: row.version,
+    ...nextAskOf(row),
+  };
+}
+
+function plannedNextName(row: RequestRow): string | null {
+  const systemRole = row.next_role_key === null
+    ? undefined
+    : SYSTEM_ROLE_NAMES[row.next_role_key];
+  return systemRole ?? row.next_planned_name;
+}
+
+function nextAskOf(row: RequestRow) {
+  if (row.next_ask_hours === null || row.first_asked_at === null) {
+    return { nextAsk: null, passedOn: false };
+  }
+  const firstAskedAt = new Date(iso(row.first_asked_at)).getTime();
+  if (new Date(iso(row.created_at)).getTime() > firstAskedAt) {
+    return { nextAsk: null, passedOn: true };
+  }
+  const reachesNobodyNew = row.next_already_asked === true ||
+    row.next_audience_has_new === false ||
+    (row.next_ask_claimed && row.next_asked_at === null);
+  if (reachesNobodyNew) return { nextAsk: null, passedOn: false };
+  return {
+    nextAsk: {
+      dueAt: new Date(firstAskedAt + row.next_ask_hours * 3_600_000)
+        .toISOString(),
+      askedAt: row.next_asked_at === null ? null : iso(row.next_asked_at),
+      who: row.next_asked_at === null
+        ? plannedNextName(row)
+        : row.next_asked_name,
+    },
+    passedOn: false,
   };
 }
 
@@ -685,8 +852,12 @@ async function requestOnRun(
       const meant = meantId === null
         ? unresolvedName
         : (await transaction.query<{ display_name: string }>(
-          "select display_name from bakery.principals where id = $1",
-          [meantId],
+          `select principal.display_name from bakery.principals as principal
+             join bakery.organization_memberships as membership
+               on membership.principal_id = principal.id
+              and membership.organization_id = $2
+            where principal.id = $1`,
+          [meantId, organizationId],
         )).rows[0]?.display_name ?? null;
       const owner = await fallbackOwner(
         transaction,
