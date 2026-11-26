@@ -7336,5 +7336,9 @@
   "library.editor.ask.card.owner": "⟦ŧĥë ŵôŕķƒļôŵ'š ôŵñëŕ ŧëšŧ⟧",
   "library.editor.ask.card.count": "⟦{count, plural, one {# person} other {# people}} ŧëšŧ çôþÿ ŧëšŧ⟧",
   "library.editor.ask.card.many": "⟦{first} àñð {others, plural, one {# other} other {# others}} ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "library.editor.publish.failed": "⟦Þûƀļïšĥïñĝ ðïð ñôŧ ŵôŕķ, šô ñôŧĥïñĝ çĥàñĝëð. Çĥëçķ ŧĥë þŕôƀļëɱš àñð ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "library.editor.publish.failed": "⟦Þûƀļïšĥïñĝ ðïð ñôŧ ŵôŕķ, šô ñôŧĥïñĝ çĥàñĝëð. Çĥëçķ ŧĥë þŕôƀļëɱš àñð ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.editor.leave.title": "⟦Ļëàṽë ŧĥë ëðïŧôŕ? ŧëš⟧",
+  "library.editor.leave.stay": "⟦Šŧàÿ⟧",
+  "library.editor.leave.confirm": "⟦Ļëàṽë àñÿŵàÿ ŧë⟧",
+  "library.editor.leave.body": "⟦Ÿôûŕ ļàšŧ çĥàñĝë ɱàÿ ƀë ļôšŧ. ŧëšŧ çôþ⟧"
 }

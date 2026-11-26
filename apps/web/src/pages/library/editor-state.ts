@@ -39,6 +39,7 @@ export type EditorState = EditorSnapshot & {
   readonly past: readonly EditorSnapshot[];
   /** States undone and not yet redone, newest first. */
   readonly future: readonly EditorSnapshot[];
+  readonly typing?: string;
 };
 
 export type EditorAction =
@@ -64,6 +65,7 @@ export type EditorAction =
     readonly kind: "approval";
     readonly id: string;
     readonly approval: ApprovalFields;
+    readonly typing?: string;
   }
   | { readonly kind: "reset"; readonly steps: readonly EditorStep[] }
   | { readonly kind: "undo" }
@@ -306,12 +308,17 @@ export function editorReducer(
       if (held === undefined || sameApproval(held, action.approval)) {
         return state;
       }
-      return changed(
+      const next = changed(
         state,
         state.steps.map((step, index) =>
           index === at ? { ...step, approval: action.approval } : step
         ),
       );
+      if (action.typing === undefined) return next;
+      const typing = `${action.id}/${action.typing}`;
+      return state.typing === typing
+        ? { ...next, past: state.past, typing }
+        : { ...next, typing };
     }
     case "loop": {
       const key = action.path.join("/");

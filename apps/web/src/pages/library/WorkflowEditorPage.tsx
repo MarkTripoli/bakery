@@ -41,6 +41,7 @@ import {
   freeStepId,
   skillsOfNode,
 } from "./editor-state.ts";
+import { LeaveGuard } from "../repository-rules/leave-guard.tsx";
 import {
   problemSentence,
   problemsOf,
@@ -287,7 +288,10 @@ export function WorkflowEditorPage(
   useEffect(() => {
     const unsavedHere = resetFor.current === draft?.id &&
       lastSaved.current !== null && editedRef.current !== lastSaved.current;
-    if (unsavedHere) return;
+    const ownEcho = draft !== null && resetFor.current === draft.id &&
+      savedVersion.current?.id === draft.id &&
+      draft.version <= savedVersion.current.version;
+    if (unsavedHere || ownEcho) return;
     resetFor.current = draft?.id;
     dispatch({ kind: "reset", steps: versionSteps });
     lastSaved.current = JSON.stringify({ steps: versionSteps, loops: [] });
@@ -598,6 +602,10 @@ export function WorkflowEditorPage(
     globalThis.addEventListener("beforeunload", warn);
     return () => globalThis.removeEventListener("beforeunload", warn);
   }, [saveState.kind, changed]);
+
+  const unsaved = changed || save.isPending || saveState.kind !== "saved"
+    ? 1
+    : 0;
 
   const shownSave: SaveState = forcedSaveState() ?? saveState;
   const stateWord = shownSave.kind === "saving"
@@ -1012,8 +1020,13 @@ export function WorkflowEditorPage(
       stepId: live.id,
       fields: live.approval,
       onChange: editable
-        ? (fields: NonNullable<EditorStep["approval"]>) =>
-          dispatch({ kind: "approval", id: live.id, approval: fields })
+        ? (fields: NonNullable<EditorStep["approval"]>, typing?: string) =>
+          dispatch({
+            kind: "approval",
+            id: live.id,
+            approval: fields,
+            ...(typing === undefined ? {} : { typing }),
+          })
         : undefined,
       people: {
         state: members.isError
@@ -1383,6 +1396,17 @@ export function WorkflowEditorPage(
         actionsLayout="row"
       />
       {breadcrumbs}
+      <LeaveGuard
+        count={unsaved}
+        copy={{
+          title: "library.editor.leave.title",
+          body: "library.editor.leave.body",
+          stay: "library.editor.leave.stay",
+          confirm: "library.editor.leave.confirm",
+        }}
+        discard={() => {}}
+        path={`/library/workflows/${workflowId}/edit`}
+      />
       {body}
       {deleted === null ? null : (
         <UI.Toast

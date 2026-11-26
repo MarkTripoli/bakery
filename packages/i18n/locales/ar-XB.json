@@ -7336,5 +7336,9 @@
   "library.editor.ask.card.owner": "⟪the workflow's owner⟫",
   "library.editor.ask.card.count": "⟪{count, plural, one {# person} other {# people}}⟫",
   "library.editor.ask.card.many": "⟪{first} and {others, plural, one {# other} other {# others}}⟫",
-  "library.editor.publish.failed": "⟪Publishing did not work, so nothing changed. Check the problems and try again.⟫"
+  "library.editor.publish.failed": "⟪Publishing did not work, so nothing changed. Check the problems and try again.⟫",
+  "library.editor.leave.title": "⟪Leave the editor?⟫",
+  "library.editor.leave.stay": "⟪Stay⟫",
+  "library.editor.leave.confirm": "⟪Leave anyway⟫",
+  "library.editor.leave.body": "⟪Your last change may be lost.⟫"
 }
