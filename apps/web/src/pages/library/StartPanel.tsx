@@ -33,7 +33,7 @@ export type StartPanelProps = {
   readonly problems: readonly StartProblem[];
   readonly repositories: StartRepositories;
   readonly onChange:
-    | ((starts: readonly WorkflowStart[]) => void)
+    | ((starts: readonly WorkflowStart[], typing?: string) => void)
     | undefined;
   readonly focus: number | null;
 };
@@ -64,8 +64,11 @@ export function StartPanelBody(props: StartPanelProps) {
       "[data-testid=start-fields] [aria-invalid=true]",
     )?.focus();
   }, [focus]);
-  const replace = (next: WorkflowStart) =>
-    onChange?.(starts.map((one) => one.id === next.id ? next : one));
+  const replace = (next: WorkflowStart, typing?: string) =>
+    onChange?.(
+      starts.map((one) => one.id === next.id ? next : one),
+      typing === undefined ? undefined : `${next.id}/${typing}`,
+    );
   return (
     <UI.Stack gap="standard" data-testid="start-fields">
       <UI.Text>
@@ -165,7 +168,7 @@ function EventStartFields(
     & {
       readonly start: WorkflowStart;
       readonly base: string;
-      readonly onChange: (start: WorkflowStart) => void;
+      readonly onChange: (start: WorkflowStart, typing?: string) => void;
     },
 ) {
   const copy = useStartCopy();
@@ -232,7 +235,8 @@ function EventStartFields(
         id={`${base}-budget`}
         inputMode="decimal"
         label={copy("budget")}
-        onCommit={(value) => onChange(withBudget(start, value))}
+        onCommit={(value) => onChange(withBudget(start, value), "budget")}
+        shows={shownBudget}
         value={start.budgetUsd === undefined ? "" : String(start.budgetUsd)}
       />
     </>
@@ -310,7 +314,7 @@ function NeedField(
     readonly need: StartNeed;
     readonly start: WorkflowStart;
     readonly problem: StartProblem | undefined;
-    readonly onChange: (start: WorkflowStart) => void;
+    readonly onChange: (start: WorkflowStart, typing?: string) => void;
   },
 ) {
   const copy = useStartCopy();
@@ -333,7 +337,10 @@ function NeedField(
           label={copy("title.field")}
           maxLength={500}
           onCommit={(title) =>
-            onChange(withBriefInput(start, need.name, { ...brief, title }))}
+            onChange(
+              withBriefInput(start, need.name, { ...brief, title }),
+              `${need.name}.title`,
+            )}
           required
           value={brief.title}
         />
@@ -345,6 +352,7 @@ function NeedField(
           onCommit={(description) =>
             onChange(
               withBriefInput(start, need.name, { ...brief, description }),
+              `${need.name}.description`,
             )}
           value={brief.description}
         />
@@ -357,11 +365,23 @@ function NeedField(
       id={id}
       label={need.name}
       maxLength={4000}
-      onCommit={(value) => onChange(withTextInput(start, need.name, value))}
+      onCommit={(value) =>
+        onChange(withTextInput(start, need.name, value), need.name)}
       required
       value={textInput(start, need.name)}
     />
   );
+}
+
+function shownText(draft: string): string {
+  return draft.trim() === "" ? "" : draft;
+}
+
+function shownBudget(draft: string): string {
+  const value = Number(draft);
+  return draft.trim() === "" || !Number.isFinite(value) || value < 0
+    ? ""
+    : String(Math.min(value, 10_000));
 }
 
 function CommittedText(
@@ -370,6 +390,7 @@ function CommittedText(
     readonly label: string;
     readonly value: string;
     readonly onCommit: (value: string) => void;
+    readonly shows?: (draft: string) => string;
     readonly error?: string | undefined;
     readonly hint?: string;
     readonly maxLength?: number;
@@ -382,14 +403,17 @@ function CommittedText(
   const [seen, setSeen] = useState(props.value);
   if (seen !== props.value) {
     setSeen(props.value);
-    setDraft(props.value);
+    if (props.value !== (props.shows ?? shownText)(draft)) {
+      setDraft(props.value);
+    }
   }
-  const commit = () => {
-    if (draft !== props.value) props.onCommit(draft);
+  const change = (next: string) => {
+    setDraft(next);
+    props.onCommit(next);
   };
   return (
     <UI.Field
-      error={draft === props.value ? props.error : undefined}
+      error={props.error}
       hint={props.hint}
       htmlFor={props.id}
       label={props.label}
@@ -401,8 +425,7 @@ function CommittedText(
           <textarea
             id={props.id}
             maxLength={props.maxLength}
-            onBlur={commit}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => change(event.target.value)}
             rows={3}
             value={draft}
           />
@@ -413,11 +436,7 @@ function CommittedText(
             id={props.id}
             inputMode={props.inputMode}
             name={props.id}
-            onBlur={commit}
-            onChange={setDraft}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") commit();
-            }}
+            onChange={change}
             type="text"
             value={draft}
           />

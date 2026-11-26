@@ -69,7 +69,11 @@ export type EditorAction =
     readonly approval: ApprovalFields;
     readonly typing?: string;
   }
-  | { readonly kind: "starts"; readonly starts: readonly WorkflowStart[] }
+  | {
+    readonly kind: "starts";
+    readonly starts: readonly WorkflowStart[];
+    readonly typing?: string;
+  }
   | {
     readonly kind: "reset";
     readonly steps: readonly EditorStep[];
@@ -397,12 +401,17 @@ export function editorReducer(
       if (JSON.stringify(state.starts) === JSON.stringify(action.starts)) {
         return state;
       }
-      return {
+      const next: EditorState = {
         ...snapshot(state),
         starts: [...action.starts],
         past: [...state.past, snapshot(state)],
         future: [],
       };
+      if (action.typing === undefined) return next;
+      const typing = `start/${action.typing}`;
+      return state.typing === typing
+        ? { ...next, past: state.past, typing }
+        : { ...next, typing };
     }
     case "reset":
       return editorStateOf(action.steps, action.starts);

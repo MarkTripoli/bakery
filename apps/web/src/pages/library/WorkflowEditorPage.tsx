@@ -306,6 +306,41 @@ export function WorkflowEditorPage(
 
   const editedRef = useRef("");
   const resetFor = useRef<string | undefined>(undefined);
+  const openedFrom = useRef<string | null>(null);
+  const writeTarget = () => {
+    if (draft === null) return null;
+    const saved = savedVersion.current;
+    if (draft.status !== "draft") {
+      return openedFrom.current === draft.id ? saved : null;
+    }
+    return saved?.id === draft.id && saved.version > draft.version
+      ? saved
+      : { id: draft.id, version: draft.version, digest: draft.digest };
+  };
+  const openDraft = async () => {
+    if (draft === null) throw new Error("no draft version");
+    const created = await api.createWorkflowVersion({
+      organizationId: scope.organizationId as string,
+      workflowId,
+      input: {
+        definition: draft.normalizedSpec as never,
+        ...(confirmed.current.size === 0 ? {} : {
+          confirmPersonalSkillUse: [...confirmed.current].slice(0, 32),
+        }),
+      },
+      idempotencyKey: crypto.randomUUID(),
+    });
+    if (!created.ok) throw created.error;
+    const opened = {
+      id: created.data.id,
+      version: created.data.version,
+      digest: created.data.digest,
+    };
+    openedFrom.current = draft.id;
+    resetFor.current = created.data.id;
+    savedVersion.current = opened;
+    return opened;
+  };
   useEffect(() => {
     const unsavedHere = resetFor.current === draft?.id &&
       lastSaved.current !== null && editedRef.current !== lastSaved.current;
@@ -339,14 +374,12 @@ export function WorkflowEditorPage(
     mutationFn: async (steps: readonly EditorStep[]) => {
       if (draft === null) throw new Error("no draft version");
       sentLoops.current = editor.loops;
+      const target = writeTarget() ?? await openDraft();
       const result = await api.updateWorkflowVersion({
         organizationId: scope.organizationId as string,
         workflowId,
-        versionId: draft.id,
-        version: savedVersion.current?.id === draft.id &&
-            savedVersion.current.version > draft.version
-          ? savedVersion.current.version
-          : draft.version,
+        versionId: target.id,
+        version: target.version,
         input: {
           definition: definitionOf(
             record(draft.normalizedSpec),
@@ -382,7 +415,7 @@ export function WorkflowEditorPage(
       });
       if (!result.ok) throw result.error;
       savedVersion.current = {
-        id: draft.id,
+        id: target.id,
         version: result.data.version,
         digest: result.data.digest,
       };
@@ -406,7 +439,10 @@ export function WorkflowEditorPage(
       setSaveState({ kind: "saved" });
       void queryClient.invalidateQueries({ queryKey: ["protected"] });
     },
-    onError: () => setSaveState({ kind: "failed" }),
+    onError: () => {
+      setSaveState({ kind: "failed" });
+      void queryClient.invalidateQueries({ queryKey: ["protected"] });
+    },
   });
 
   // Publishing the draft, and optionally making it the version in use: two
@@ -414,15 +450,12 @@ export function WorkflowEditorPage(
   const publish = useMutation({
     mutationKey: ["workflowVersions.publish"],
     mutationFn: async (alsoUse: boolean) => {
-      if (draft === null) throw new Error("no draft version");
-      const latest = savedVersion.current?.id === draft.id &&
-          savedVersion.current.version > draft.version
-        ? savedVersion.current
-        : { version: draft.version, digest: draft.digest };
+      const latest = writeTarget();
+      if (latest === null) throw new Error("no draft version");
       const published = await api.publishWorkflowVersion({
         organizationId: scope.organizationId as string,
         workflowId,
-        versionId: draft.id,
+        versionId: latest.id,
         version: latest.version,
         expectedDigest: latest.digest,
         idempotencyKey: crypto.randomUUID(),
@@ -981,11 +1014,15 @@ export function WorkflowEditorPage(
             onRetry: () => void repositories.refetch(),
           },
           onChange: canManage
-            ? (starts) => {
+            ? (starts, typing) => {
               const removed = editor.starts.findIndex((one) =>
                 !starts.some((kept) => kept.id === one.id)
               );
-              dispatch({ kind: "starts", starts });
+              dispatch({
+                kind: "starts",
+                starts,
+                ...(typing === undefined ? {} : { typing }),
+              });
               if (removed >= 0) {
                 setDeleted(
                   translate("library.editor.start.heading" as never, {

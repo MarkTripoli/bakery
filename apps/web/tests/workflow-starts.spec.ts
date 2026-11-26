@@ -203,6 +203,27 @@ test.describe("workflow editor: how it starts", () => {
     await still(page, "starts-publish");
   });
 
+  test("what is typed in a start is saved without leaving the box", async ({ page }) => {
+    const server = await editor(page, { inputs: NEEDS });
+    await startCard(page).click();
+    await add(page).click();
+    const title = page.getByRole("textbox", { name: /Task title/ });
+    await title.pressSequentially("Triage the new issue", { delay: 60 });
+    await expect.poll(
+      () =>
+        (server.saves.at(-1)?.[0]?.inputs as { brief?: { title: string } })
+          ?.brief?.title,
+      { timeout: 10_000 },
+    ).toBe("Triage the new issue");
+    await expect(title).toBeFocused();
+    await expect(title).toHaveValue("Triage the new issue");
+    const budget = page.getByRole("textbox", { name: /Spend limit/ });
+    await budget.fill("");
+    await budget.pressSequentially("12.5", { delay: 60 });
+    await expect(budget).toHaveValue("12.5");
+    await expect.poll(() => server.saves.at(-1)?.[0]?.budgetUsd).toBe(12.5);
+  });
+
   test("a scheduled start says it does not run, and removing it can be undone", async ({ page }) => {
     const server = await editor(page, { starts: [SCHEDULE] });
     await expect(startCard(page)).toContainText("1 schedule that does not run");
@@ -232,5 +253,97 @@ test.describe("workflow editor: how it starts", () => {
     server.repositoriesStatus = 200;
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(field(page, "Repository")).toBeEnabled();
+  });
+});
+
+test.describe("workflow editor: a published workflow", () => {
+  test("an edit opens a draft first and is saved into it with the starts", async ({ page }) => {
+    await libraryFixture(page, {
+      workflows: [WORKFLOW],
+      versions: [{
+        id: uuid(1001),
+        workflowId: WORKFLOW.id,
+        revision: 1,
+        status: "published",
+        steps: [{ id: "brief", uses: "task.brief" }],
+      }],
+    });
+    const writes: string[] = [];
+    const published = {
+      id: uuid(1001),
+      workflowId: WORKFLOW.id,
+      revision: 1,
+      sourceYaml: "",
+      normalizedSpec: { steps: [{ id: "brief", uses: "task.brief" }] },
+      digest: "01".repeat(32),
+      status: "published",
+      createdBy: uuid(1),
+      createdAt: "2026-02-02T10:00:00.000Z",
+      updatedAt: "2026-02-02T10:00:00.000Z",
+      version: 3,
+      starts: [SCHEDULE],
+    };
+    let draft: Record<string, unknown> | null = null;
+    let sentStarts: unknown;
+    await page.route(
+      (url) => url.pathname === `/v1/workflows/${WORKFLOW.id}/versions`,
+      (route) => {
+        if (route.request().method() === "GET") {
+          return route.fulfill(json({
+            items: draft === null ? [published] : [draft, published],
+            nextCursor: null,
+          }));
+        }
+        writes.push("create");
+        draft = {
+          ...published,
+          id: uuid(1002),
+          revision: 2,
+          status: "draft",
+          version: 1,
+          starts: [],
+        };
+        return route.fulfill(json(draft, 201));
+      },
+    );
+    await page.route(
+      (url) =>
+        /\/versions\/[^/]+$/.test(url.pathname) &&
+        url.pathname.includes(WORKFLOW.id),
+      (route) => {
+        const id = new URL(route.request().url()).pathname.split("/").at(-1);
+        writes.push(id === uuid(1002) ? "save draft" : "save published");
+        if (id !== uuid(1002)) {
+          return route.fulfill(
+            json({
+              type: "about:blank",
+              title: "x",
+              status: 409,
+              code: "STATE_CONFLICT",
+            }, 409),
+          );
+        }
+        const body = route.request().postDataJSON() as {
+          definition: Record<string, unknown>;
+          starts?: unknown;
+        };
+        sentStarts = body.starts;
+        draft = {
+          ...draft,
+          normalizedSpec: body.definition,
+          starts: body.starts ?? [],
+          version: 2,
+        };
+        return route.fulfill(json(draft));
+      },
+    );
+    await page.goto(EDIT);
+    await page.getByRole("button", { name: /Add a step after/ }).last().click();
+    await page.getByTestId("step-picker")
+      .locator("[data-pick-step='review.independent']").click();
+    await expect.poll(() => writes).toEqual(["create", "save draft"]);
+    expect(sentStarts).toEqual([SCHEDULE]);
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(page.locator("[data-card]")).toHaveCount(3);
   });
 });
