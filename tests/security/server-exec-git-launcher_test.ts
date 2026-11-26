@@ -5,11 +5,34 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
   gitLauncherArgs,
+  MAX_FETCH_BLOB_OBJECTS,
   SERVER_GIT_LAUNCHER,
   UnsupportedGitInvocationError,
 } from "../../apps/server/src/platform/server-exec.ts";
 
 const decoder = new TextDecoder();
+
+function fetchBlobs(objects: string[]) {
+  return [
+    "-c",
+    "credential.helper=",
+    "-c",
+    "core.askPass=",
+    "-c",
+    "http.followRedirects=false",
+    "-c",
+    "protocol.version=2",
+    "-c",
+    "fetch.negotiationAlgorithm=noop",
+    "fetch",
+    "--no-tags",
+    "--no-write-fetch-head",
+    "--filter=blob:none",
+    "--",
+    "https://example.test/r.git",
+    ...objects,
+  ];
+}
 
 async function launch(
   args: string[],
@@ -114,6 +137,35 @@ Deno.test("every git command the server issues maps onto a launcher operation", 
       ],
       ["fetch", dir, "https://example.test/r.git", "main"],
     ],
+    [
+      [
+        "-c",
+        "credential.helper=",
+        "-c",
+        "core.askPass=",
+        "-c",
+        "http.followRedirects=false",
+        "-c",
+        "protocol.version=2",
+        "-c",
+        "fetch.negotiationAlgorithm=noop",
+        "fetch",
+        "--no-tags",
+        "--no-write-fetch-head",
+        "--filter=blob:none",
+        "--",
+        "https://example.test/r.git",
+        oid,
+        "b".repeat(64),
+      ],
+      [
+        "fetch-blobs",
+        dir,
+        "https://example.test/r.git",
+        oid,
+        "b".repeat(64),
+      ],
+    ],
   ];
   for (const [args, expected] of cases) {
     assertEquals(gitLauncherArgs(dir, args), expected, args.join(" "));
@@ -126,6 +178,12 @@ Deno.test("every git command the server issues maps onto a launcher operation", 
       ["fetch", "--upload-pack=sh", "https://example.test/r.git"],
       ["rev-parse", "HEAD"],
       ["ls-tree", "-r", "HEAD"],
+      fetchBlobs([]),
+      fetchBlobs(["A".repeat(40)]),
+      fetchBlobs(["a".repeat(41)]),
+      fetchBlobs(["main"]),
+      fetchBlobs(["--upload-pack=sh"]),
+      fetchBlobs(Array(MAX_FETCH_BLOB_OBJECTS + 1).fill(oid)),
     ]
   ) {
     assertThrows(
@@ -210,6 +268,21 @@ Deno.test("the git launcher refuses every argument list it does not define", asy
         ["fetch", dir, "https://example.test/r.git", "a..b"],
         ["fetch", dir, "https://example.test/r .git", "main"],
         ["fetch", dir, "https://example.test/r.git"],
+        ["fetch-blobs", dir, "https://example.test/r.git"],
+        ["fetch-blobs", dir, "https://example.test/r.git", blob.toUpperCase()],
+        ["fetch-blobs", dir, "https://example.test/r.git", `${blob}0`],
+        ["fetch-blobs", dir, "https://example.test/r.git", "main"],
+        ["fetch-blobs", dir, "https://example.test/r.git", "--upload-pack=sh"],
+        ["fetch-blobs", dir, "https://example.test/r.git", blob, "-c"],
+        ["fetch-blobs", dir, "file:///etc", blob],
+        ["fetch-blobs", dir, "ext::sh -c id", blob],
+        ["fetch-blobs", dir, "http://example.test/r.git", blob],
+        [
+          "fetch-blobs",
+          dir,
+          "https://example.test/r.git",
+          ...Array(MAX_FETCH_BLOB_OBJECTS + 1).fill(blob),
+        ],
       ]
     ) {
       assertEquals((await launch(args)).code, 64, JSON.stringify(args));
