@@ -11,7 +11,9 @@ export type ArtifactEvidence = {
   readonly base: string;
   readonly head: string;
   readonly digest: string;
-  readonly taskAction: { readonly label: string; readonly onClick: () => void };
+  readonly taskAction?:
+    | { readonly label: string; readonly onClick: () => void }
+    | undefined;
   readonly details: {
     readonly label: string;
     readonly content: ReactNode;
@@ -123,17 +125,21 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
             <UI.Heading rank={2} level="subsection">
               {evidence.title}
             </UI.Heading>
-            <UI.Text variant="caption">{evidence.context}</UI.Text>
+            {evidence.context === ""
+              ? null
+              : <UI.Text variant="caption">{evidence.context}</UI.Text>}
             <UI.CodeBlock
               code={`${evidence.baseLabel} ${evidence.base}  →  ${evidence.headLabel} ${evidence.head}\nsha256 ${evidence.digest}`}
             />
             <UI.Inline>
-              <UI.Button
-                variant="outline"
-                onClick={evidence.taskAction.onClick}
-              >
-                {evidence.taskAction.label}
-              </UI.Button>
+              {evidence.taskAction === undefined ? null : (
+                <UI.Button
+                  variant="outline"
+                  onClick={evidence.taskAction.onClick}
+                >
+                  {evidence.taskAction.label}
+                </UI.Button>
+              )}
               <UI.Button
                 id="artifact-revision-details-toggle"
                 data-testid="artifact-retrieval-details-toggle"

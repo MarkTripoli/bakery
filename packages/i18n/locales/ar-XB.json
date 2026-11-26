@@ -1309,7 +1309,6 @@
   "artifact.storage.unavailable.title": "⟪Publishing paused · storage unavailable⟫",
   "artifact.storage.usage": "⟪Retained: {retained} bytes · Pinned: {pinned} bytes⟫",
   "artifact.view.evidence": "⟪Evidence context⟫",
-  "artifact.view.context": "⟪Task {task} / Step {step}⟫",
   "artifact.view.openTask": "⟪Open task⟫",
   "artifact.view.eyebrow": "⟪ARTIFACT⟫",
   "artifact.view.base": "⟪base⟫",
@@ -5284,7 +5283,6 @@
   "artifact.retrieval.sizeValue": "⟪{size}⟫",
   "artifact.retrieval.versionSummary": "⟪{mediaType} · {size}⟫",
   "tasks.artifactPane.preview": "⟪Preview⟫",
-  "artifact.view.description": "⟪Published by {author} · Step {step} · {size}⟫",
   "delivery.time.blockedUnknown.text": "⟪Bakery does not record when a task was blocked yet.⟫",
   "files.preview.facts.image": "⟪Image⟫",
   "files.preview.facts.video": "⟪Video⟫",
@@ -7389,6 +7387,7 @@
   "library.skills.editor.leave.title": "⟪Leave the editor?⟫",
   "library.skills.editor.leave.body": "⟪What you just typed may not be saved yet.⟫",
   "library.skills.editor.leave.confirm": "⟪Leave anyway⟫",
-  "artifact.view.contextStep": "⟪Step {step}⟫",
-  "artifact.author.unknown": "⟪Someone⟫"
+  "artifact.author.unknown": "⟪Someone⟫",
+  "artifact.view.description": "⟪Published by {author} · {size}⟫",
+  "artifact.view.context": "⟪Task {task}⟫"
 }

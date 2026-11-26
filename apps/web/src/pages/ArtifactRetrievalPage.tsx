@@ -1010,8 +1010,6 @@ export function ArtifactRetrievalPage(
             ? translate("artifact.view.description", {
               author: selectedVersion.authorName ??
                 translate("artifact.author.unknown" as never),
-              step: selectedVersion.runStepId ??
-                translate("artifact.retrieval.notAvailable"),
               // One formatter for every size on the page: the sentence must not
               // say "317705 bytes" above a facts line saying "310.3 KB" (#437).
               size: formatFileSize(selectedVersion.sizeBytes, locale, sizeText),
@@ -1105,28 +1103,25 @@ export function ArtifactRetrievalPage(
             title: translate("artifact.view.evidence"),
             baseLabel: translate("artifact.view.base"),
             headLabel: translate("artifact.view.head"),
-            context: translate(
-              (view.artifact.taskTitle
-                ? "artifact.view.context"
-                : "artifact.view.contextStep") as never,
-              {
-                task: view.artifact.taskTitle ?? "",
-                step: selectedVersion?.runStepId ??
-                  translate("artifact.retrieval.notAvailable"),
-              } as never,
-            ),
+            context: view.artifact.taskTitle
+              ? translate("artifact.view.context", {
+                task: view.artifact.taskTitle,
+              })
+              : "",
             base: selectedVersion?.subjectBaseSha ??
               translate("artifact.retrieval.notAvailable"),
             head: selectedVersion?.subjectHeadSha ??
               translate("artifact.retrieval.notAvailable"),
             digest: selectedVersion?.sha256 ??
               translate("artifact.retrieval.notAvailable"),
-            taskAction: {
-              label: translate("artifact.view.openTask"),
-              onClick: () => {
-                void navigate({ to: "/tasks/$taskId", params: { taskId } });
-              },
-            },
+            taskAction: view.artifact.taskTitle
+              ? {
+                label: translate("artifact.view.openTask"),
+                onClick: () => {
+                  void navigate({ to: "/tasks/$taskId", params: { taskId } });
+                },
+              }
+              : undefined,
             details: {
               label: translate("artifact.view.details"),
               open: detailsOpen,
@@ -1194,15 +1189,19 @@ export function ArtifactRetrievalPage(
                       ? "artifact.retrieval.description"
                       : "artifact.retrieval.missingVersionDescription",
                   ),
-                  action: {
-                    label: translate("artifact.view.openTask"),
-                    onClick: () => {
-                      void navigate({
-                        to: "/tasks/$taskId",
-                        params: { taskId },
-                      });
-                    },
-                  },
+                  ...(view.artifact.taskTitle
+                    ? {
+                      action: {
+                        label: translate("artifact.view.openTask"),
+                        onClick: () => {
+                          void navigate({
+                            to: "/tasks/$taskId",
+                            params: { taskId },
+                          });
+                        },
+                      },
+                    }
+                    : {}),
                 }}
               />
             )}

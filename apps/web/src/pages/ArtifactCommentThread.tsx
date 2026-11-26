@@ -48,7 +48,7 @@ export function ArtifactCommentThread(
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
-  const { translate: t } = useI18n();
+  const { translate: t, locale, timeZone } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const authorOf = (name: string | null | undefined) =>
     name ?? t("artifact.author.unknown" as never);
@@ -97,7 +97,11 @@ export function ArtifactCommentThread(
         title={t("artifact.comments.discussion")}
         author={authorOf(root.authorName)}
         initials={initialsOf(authorOf(root.authorName))}
-        timestamp={root.createdAt}
+        timestamp={new Intl.DateTimeFormat(locale, {
+          dateStyle: "medium",
+          timeStyle: "short",
+          timeZone,
+        }).format(new Date(root.createdAt))}
         body={root.deletedAt ? t("artifact.comments.deleted") : root.body}
         location={root.artifactVersionId !== viewVersionId
           ? t("artifact.comments.fromRevision")
@@ -164,9 +168,6 @@ export function ArtifactCommentThread(
       {canEdit(root)
         ? <ArtifactCommentEditor comment={root} onUpdated={onUpdated} />
         : null}
-      {root.placement?.status === "outdated"
-        ? <UI.Text>{t("artifact.comments.outdated")}</UI.Text>
-        : null}
       <UI.Link
         href={`/tasks/${artifact.taskId}/artifacts/${artifact.id}?version=${
           encodeURIComponent(root.artifactVersionId)
@@ -179,7 +180,7 @@ export function ArtifactCommentThread(
           {t("artifact.comments.replies")}
         </UI.Button>
       </UI.Inline>
-      {!root.deletedAt
+      {!root.deletedAt && artifact.taskTitle
         ? (
           <UI.Checkbox
             checked={selected}

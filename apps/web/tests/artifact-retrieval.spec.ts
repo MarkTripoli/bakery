@@ -229,6 +229,7 @@ const ORGANIZATION_STUB = {
 const ARTIFACT = {
   id: ARTIFACT_ID,
   taskId: TASK_ID,
+  taskTitle: "Retrieval task",
   artifactType: "log",
   name: "Bounded retrieval stub",
   currentVersionId: VERSION_ID,
