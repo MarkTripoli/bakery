@@ -594,6 +594,90 @@ function constrained<T extends Schema>(schema: T, sentence: string): T {
   );
 }
 
+const KNOWN_BOUND_KEYS = new Set([
+  "default",
+  "max",
+  "maxBytes",
+  "maxDepth",
+  "maxItems",
+  "maxLength",
+  "maximum",
+  "min",
+  "minBytes",
+  "minItems",
+  "minLength",
+  "minimum",
+  "pattern",
+  "uniqueItems",
+]);
+
+const NUMERIC_BOUND_KEYS = new Set([
+  "max",
+  "maxBytes",
+  "maxDepth",
+  "maxItems",
+  "maxLength",
+  "maximum",
+  "min",
+  "minBytes",
+  "minItems",
+  "minLength",
+  "minimum",
+]);
+const STRING_ONLY_BOUND_KEYS = new Set(["maxLength", "minLength", "pattern"]);
+const ARRAY_ONLY_BOUND_KEYS = new Set(["maxItems", "minItems", "uniqueItems"]);
+const NUMBER_BOUND_KEYS = new Set(["max", "maximum", "min", "minimum"]);
+
+export function assertKnownBounds(
+  bounds: JsonObject,
+  path: string,
+  kind?: string,
+): void {
+  for (const [key, value] of Object.entries(bounds)) {
+    if (!KNOWN_BOUND_KEYS.has(key)) {
+      throw new Error(`${path} names an unknown bound: ${key}`);
+    }
+    const usable = NUMERIC_BOUND_KEYS.has(key)
+      ? typeof value === "number" && Number.isFinite(value)
+      : key === "pattern"
+      ? typeof value === "string"
+      : key === "uniqueItems"
+      ? typeof value === "boolean"
+      : true;
+    if (!usable) {
+      throw new Error(`${path} bound ${key} has an unusable value`);
+    }
+    if (kind === undefined) continue;
+    const fits = STRING_ONLY_BOUND_KEYS.has(key)
+      ? kind === "string"
+      : ARRAY_ONLY_BOUND_KEYS.has(key)
+      ? kind === "array"
+      : NUMBER_BOUND_KEYS.has(key)
+      ? kind === "number"
+      : key === "maxDepth"
+      ? kind !== "number" && kind !== "string" && kind !== "boolean"
+      : true;
+    if (!fits) {
+      throw new Error(`${path} bound ${key} does not apply to a ${kind}`);
+    }
+  }
+}
+
+function withoutNumberBounds(bounds: JsonObject): JsonObject {
+  return Object.fromEntries(
+    Object.entries(bounds).filter(([key]) => !NUMBER_BOUND_KEYS.has(key)),
+  );
+}
+
+function numericBound(
+  bounds: JsonObject,
+  short: "min" | "max",
+  long: "minimum" | "maximum",
+): number | undefined {
+  const value = bounds[short] ?? bounds[long];
+  return typeof value === "number" ? value : undefined;
+}
+
 function bounded<T extends Schema>(
   schema: T,
   bounds: JsonObject,
@@ -601,6 +685,7 @@ function bounded<T extends Schema>(
 ): T {
   let result: Schema = schema;
   const kind = (result as unknown as Node)._def?.type;
+  assertKnownBounds(bounds, path);
   if (kind === "nullable" || kind === "optional") {
     const inner = (result as unknown as Node)._def?.innerType as Schema;
     const boundedInner = bounded(inner, bounds, path);
@@ -611,6 +696,11 @@ function bounded<T extends Schema>(
   const boundedKind = kind === "nullable" || kind === "optional"
     ? ((result as unknown as Node)._def?.innerType as Node)?._def?.type
     : kind;
+  assertKnownBounds(
+    bounds,
+    path,
+    typeof boundedKind === "string" ? boundedKind : undefined,
+  );
   if (boundedKind === "string" && typeof bounds.minLength === "number") {
     result = constrained(
       (result as z.ZodString).min(bounds.minLength),
@@ -693,22 +783,18 @@ function bounded<T extends Schema>(
       `${path} must contain unique items.`,
     );
   }
-  if (
-    boundedKind === "number" &&
-    typeof bounds.min === "number"
-  ) {
+  const lower = numericBound(bounds, "min", "minimum");
+  if (boundedKind === "number" && lower !== undefined) {
     result = constrained(
-      (result as z.ZodNumber).min(bounds.min),
-      `${path} must be at least ${bounds.min}.`,
+      (result as z.ZodNumber).min(lower),
+      `${path} must be at least ${lower}.`,
     );
   }
-  if (
-    boundedKind === "number" &&
-    typeof bounds.max === "number"
-  ) {
+  const upper = numericBound(bounds, "max", "maximum");
+  if (boundedKind === "number" && upper !== undefined) {
     result = constrained(
-      (result as z.ZodNumber).max(bounds.max),
-      `${path} must be at most ${bounds.max}.`,
+      (result as z.ZodNumber).max(upper),
+      `${path} must be at most ${upper}.`,
     );
   }
   return result as T;
@@ -1256,17 +1342,21 @@ function primitive(
     );
   }
   if (path === "AgentVersionCreate.config") opaqueChildren.add(schema);
-  schema = bounded(schema, {
-    ...embedded,
-    ...(record(field.bounds) ? field.bounds : {}),
-  }, path);
+  schema = bounded(
+    schema,
+    base === "decimalString" || base === "decimal"
+      ? withoutNumberBounds({
+        ...embedded,
+        ...(record(field.bounds) ? field.bounds : {}),
+      })
+      : { ...embedded, ...(record(field.bounds) ? field.bounds : {}) },
+    path,
+  );
   if (base === "decimalString" && record(field.bounds)) {
-    const lower = typeof field.bounds.min === "number"
-      ? BigInt(field.bounds.min)
-      : undefined;
-    const upper = typeof field.bounds.max === "number"
-      ? BigInt(field.bounds.max)
-      : undefined;
+    const lowest = numericBound(field.bounds, "min", "minimum");
+    const highest = numericBound(field.bounds, "max", "maximum");
+    const lower = lowest === undefined ? undefined : BigInt(lowest);
+    const upper = highest === undefined ? undefined : BigInt(highest);
     if (lower !== undefined || upper !== undefined) {
       const refined = schema.refine((value) => {
         try {
@@ -1282,6 +1372,21 @@ function primitive(
         ...(upper === undefined ? {} : { "x-bigint-maximum": String(upper) }),
       });
       schema = described(refined, `${path} is a bounded decimal string.`);
+    }
+  }
+  if (base === "decimal" && record(field.bounds)) {
+    const lower = numericBound(field.bounds, "min", "minimum");
+    const upper = numericBound(field.bounds, "max", "maximum");
+    if (lower !== undefined || upper !== undefined) {
+      const range = lower !== undefined && upper !== undefined
+        ? `${path} is checked by its handler to be between ${lower} and ${upper}.`
+        : lower !== undefined
+        ? `${path} is checked by its handler to be at least ${lower}.`
+        : `${path} is checked by its handler to be at most ${upper}.`;
+      schema = described(
+        schema,
+        [schema.description, range].filter(Boolean).join(" "),
+      );
     }
   }
   if (exclusiveMin && typeof embedded.min === "number") {
@@ -1349,16 +1454,67 @@ function fieldList(definition: Definition, name: string): Field[] {
   });
 }
 
+const FIELD_BOUND_SUFFIXES: Readonly<Record<string, string>> = {
+  MaxBytes: "maxBytes",
+  MinBytes: "minBytes",
+  MaxItems: "maxItems",
+  MinItems: "minItems",
+  MaxLength: "maxLength",
+  MinLength: "minLength",
+  Max: "max",
+  Min: "min",
+};
+
+function capitalized(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+function boundKeyFor(key: string, field: string): string | undefined {
+  for (const [suffix, bound] of Object.entries(FIELD_BOUND_SUFFIXES)) {
+    if (key === `${field}${suffix}`) return bound;
+  }
+  const name = capitalized(field);
+  if (key === `max${name}Length`) return "maxLength";
+  if (key === `min${name}Length`) return "minLength";
+  return undefined;
+}
+
 function definitionBounds(definition: Definition, field: string): JsonObject {
-  const bounds: JsonObject = {};
   const source = record(definition.bounds) ? definition.bounds : {};
+  const bounds: JsonObject = record(source[field]) ? { ...source[field] } : {};
   for (const [key, value] of Object.entries(source)) {
-    if (key === `${field}MaxBytes`) bounds.maxBytes = value;
-    if (key === `${field}MinBytes`) bounds.minBytes = value;
-    if (key === `${field}MaxItems`) bounds.maxItems = value;
-    if (key === `${field}MinItems`) bounds.minItems = value;
+    const bound = boundKeyFor(key, field);
+    if (bound !== undefined) bounds[bound] = value;
   }
   return bounds;
+}
+
+const OBJECT_BOUND_KEYS = new Set(["maxBytes"]);
+
+function assertDefinitionBoundsUsed(
+  definition: Definition,
+  name: string,
+  fields: readonly string[],
+): void {
+  if (!record(definition.bounds)) return;
+  for (const key of Object.keys(definition.bounds)) {
+    const used = OBJECT_BOUND_KEYS.has(key) ||
+      fields.some((field) =>
+        key === field || boundKeyFor(key, field) !== undefined
+      );
+    if (!used) throw new Error(`${name} names an unknown bound: ${key}`);
+  }
+}
+
+function objectBounded(
+  schema: Schema,
+  definition: Definition,
+  name: string,
+): Schema {
+  if (!record(definition.bounds)) return schema;
+  const maxBytes = definition.bounds.maxBytes;
+  if (maxBytes === undefined) return schema;
+  return bounded(schema, { maxBytes }, name);
 }
 
 function withRepositoryContext(input: Schema): Schema {
@@ -1498,7 +1654,13 @@ function fieldsSchema(
   stack: string[],
 ): Schema {
   const shape: Record<string, Schema> = {};
-  for (const field of fieldList(definition, name)) {
+  const fields = fieldList(definition, name);
+  assertDefinitionBoundsUsed(
+    definition,
+    name,
+    fields.map((field) => field.name as string),
+  );
+  for (const field of fields) {
     const fieldName = field.name as string;
     const bounds = definitionBounds(definition, fieldName);
     let schema = primitive(
@@ -1536,7 +1698,7 @@ function fieldsSchema(
     }
     shape[fieldName] = schema;
   }
-  let result: Schema = strictObject(shape);
+  let result: Schema = objectBounded(strictObject(shape), definition, name);
   if (name === "JobAssignment") {
     result = refineJobAssignment(result, source);
   }
@@ -2448,6 +2610,35 @@ function oneOfSchema(
   );
 }
 
+function entriesOf(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  return record(value) ? Object.values(value) : [];
+}
+
+function assertBoundsAreRead(definition: Definition, name: string): void {
+  const read = definition.union !== undefined ||
+    definition.pageOf !== undefined ||
+    (Array.isArray(definition.fields) && definition.oneOf === undefined &&
+      definition.variants === undefined);
+  if (record(definition.bounds) && !read) {
+    throw new Error(
+      `${name} declares bounds its kind of definition never reads`,
+    );
+  }
+  for (
+    const entry of [
+      ...entriesOf(definition.oneOf),
+      ...entriesOf(definition.variants),
+    ]
+  ) {
+    if (record(entry) && entry.bounds !== undefined) {
+      throw new Error(
+        `${name} declares bounds on a variant, which are never read`,
+      );
+    }
+  }
+}
+
 function buildInput(
   name: string,
   definition: unknown,
@@ -2457,6 +2648,7 @@ function buildInput(
   if (!record(definition)) {
     throw new Error(`malformed input definition: ${name}`);
   }
+  assertBoundsAreRead(definition, name);
   if (name === "RepositoryInspectionInput") {
     return RepositoryInspectionJobInputSchema;
   }
@@ -2529,6 +2721,11 @@ function projection(
     !record(definition.fieldTypes)
   ) throw new Error(`malformed projection: ${name}`);
   const shape: Record<string, Schema> = {};
+  assertDefinitionBoundsUsed(
+    definition,
+    name,
+    definition.fields.filter(text),
+  );
   for (const field of definition.fields) {
     if (!text(field) || denied.has(field)) {
       throw new Error(
@@ -2575,7 +2772,7 @@ function projection(
     shape[field] = schema;
   }
   return described(
-    strictObject(shape),
+    objectBounded(strictObject(shape), definition, name),
     schemaDescription(definition.description, name, "safe projection"),
   );
 }
@@ -2589,6 +2786,12 @@ function pageSchema(
   if (!text(definition.pageOf)) throw new Error(`malformed page: ${name}`);
   const item = definition.pageOf;
   const envelope = record(source.pageEnvelope) ? source.pageEnvelope : {};
+  assertDefinitionBoundsUsed(definition, name, ["items", "nextCursor"]);
+  assertDefinitionBoundsUsed(
+    envelope,
+    "pageEnvelope",
+    fieldList(envelope, "pageEnvelope").map((field) => field.name as string),
+  );
   const shape: Record<string, Schema> = {
     items: bounded(
       described(
@@ -2635,6 +2838,7 @@ function buildOutput(
   if (!record(definition)) {
     throw new Error(`unsupported output definition: ${name}`);
   }
+  assertBoundsAreRead(definition, name);
   if (name === "RepositoryProfileObservationPayload") {
     return RepositoryProfileObservationPayloadSchema;
   }
@@ -2784,6 +2988,18 @@ function unionSchema(
   if (!Array.isArray(definition.union) || !record(definition.fieldTypes)) {
     throw new Error(`malformed union: ${name}`);
   }
+  assertDefinitionBoundsUsed(
+    definition,
+    name,
+    [
+      ...Object.keys(definition.fieldTypes),
+      ...definition.union.flatMap((entry) =>
+        record(entry) && Array.isArray(entry.fields)
+          ? entry.fields.filter(text)
+          : []
+      ),
+    ],
+  );
   const variants = definition.union.map((entry) => {
     if (!record(entry) || !text(entry.type)) {
       throw new Error(`malformed union variant: ${name}`);
