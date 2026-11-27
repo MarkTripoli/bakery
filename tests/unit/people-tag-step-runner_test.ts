@@ -35,6 +35,8 @@ Deno.test("a tag step input is refused before anything is read", async () => {
       { intent: "fyi", recipientId: person, wait: true },
       { intent: "approve", recipientId: person },
       { intent: "fyi", recipientRunRole: "seat_owner" },
+      { intent: "review", recipientId: person, onExpiry: "continue" },
+      { intent: "review", recipientId: person, wait: true, onExpiry: "later" },
     ]
   ) {
     const result = await runner.run(request(input));

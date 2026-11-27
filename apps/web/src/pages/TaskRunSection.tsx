@@ -95,6 +95,7 @@ const RUN_TONES = {
   completed: "success",
   failed: "danger",
   blocked: "warning",
+  needs_human: "warning",
 } as const;
 
 /** Where the server caps the tasks a blocked run names (work/run-query.ts). */
@@ -267,7 +268,8 @@ export function TaskRunSection(
         | "completed"
         | "failed"
         | "skipped"
-        | "canceled";
+        | "canceled"
+        | "needs_human";
     } | null
   >(null);
   const cursor = cursors.at(-1);
@@ -537,7 +539,9 @@ export function TaskRunSection(
       ].reverse()
       : null;
   const folds = stepEvents !== null && run.data !== undefined &&
-    ["completed", "failed", "canceled", "paused"].includes(run.data.status) &&
+    ["completed", "failed", "canceled", "needs_human", "paused"].includes(
+      run.data.status,
+    ) &&
     stepEvents.length > 3;
   const timelineProps = {
     label: t("tasks.run.timeline"),

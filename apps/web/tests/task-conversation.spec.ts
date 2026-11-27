@@ -4807,6 +4807,55 @@ test.describe("who a run is waiting for", () => {
     await still(page, "run-waiting-expired");
   });
 
+  test("a run nobody answered in time ends needing a person", async ({ page }) => {
+    await page.route(
+      `**/v1/runs/${runId}/requests`,
+      (route) =>
+        route.fulfill({
+          json: { requests: [waitingRequest({ status: "expired" })] },
+        }),
+    );
+    await page.route(
+      (url) => url.pathname === `/v1/tasks/${taskId}/runs`,
+      (route) => route.fulfill({ json: page_([runFixture("needs_human")]) }),
+    );
+    for (
+      const pattern of [
+        "**/v1/runs/*/delivery-decisions*",
+        "**/v1/runs/*/reviews*",
+        "**/v1/runs/*/checks*",
+        "**/v1/approvals?*",
+        "**/v1/pull-requests?*",
+      ]
+    ) {
+      await page.route(pattern, (route) => route.fulfill({ json: page_([]) }));
+    }
+    await openRun(page, "needs_human", {
+      capabilities: ["pause", "resume", "cancel", "interrupt"].map((
+        action,
+      ) => ({
+        action,
+        canRequest: false,
+        reason: "already_terminal",
+      })),
+    }, [{
+      ...stepFixture,
+      stepKey: "build.ask",
+      iteration: 0,
+      status: "needs_human",
+      output: { outcome: "expired", asked: 1 },
+    }], { finishedAt: "2026-02-08T10:00:00.000Z" });
+    await expect(page.getByText("Needs input", { exact: true }).first())
+      .toBeVisible();
+    await expect(page.locator('[data-ui-region="waiting-for"]')).toContainText(
+      "Expired: nobody answered by Feb 8, 2026. This run needs a person.",
+    );
+    await expect(page.locator('[data-ui-region="steering-unsupported"]'))
+      .toHaveCount(0);
+    await expect(page.getByText("A run is in progress.")).toHaveCount(0);
+    await still(page, "run-needs-human");
+  });
+
   for (const status of [403, 404]) {
     test(`a reader refused with ${status} sees nothing and no error`, async ({ page }) => {
       const refused = page.waitForResponse((response) =>

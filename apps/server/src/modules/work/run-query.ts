@@ -64,6 +64,7 @@ const runStepStatuses: Record<RunStepOutput["status"], true> = {
   completed: true,
   failed: true,
   skipped: true,
+  needs_human: true,
   canceled: true,
 };
 const terminalRunStatuses: Record<RunOutput["status"], boolean> = {
@@ -77,6 +78,7 @@ const terminalRunStatuses: Record<RunOutput["status"], boolean> = {
   completed: true,
   failed: true,
   blocked: false,
+  needs_human: true,
 };
 const terminalRunStepStatuses: Record<RunStepOutput["status"], boolean> = {
   pending: false,
@@ -86,6 +88,7 @@ const terminalRunStepStatuses: Record<RunStepOutput["status"], boolean> = {
   completed: true,
   failed: true,
   skipped: true,
+  needs_human: true,
 };
 
 function isRunStepStatus(value: string): value is RunStepOutput["status"] {

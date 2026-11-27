@@ -259,6 +259,7 @@ const runStatuses: Record<RunOutput["status"], true> = {
   completed: true,
   failed: true,
   blocked: true,
+  needs_human: true,
 };
 
 function isRunStatus(value: string): value is RunOutput["status"] {

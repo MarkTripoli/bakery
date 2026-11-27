@@ -173,7 +173,13 @@ export function evaluateRunControlCapabilities(
     : "attemptStatus" in attempts
     ? [attempts]
     : attempts;
-  const terminalRun = ["completed", "failed", "canceled", "blocked"].includes(
+  const terminalRun = [
+    "completed",
+    "failed",
+    "canceled",
+    "blocked",
+    "needs_human",
+  ].includes(
     runStatus,
   );
   if (live.length === 0) {
@@ -412,7 +418,11 @@ export async function runControlAction(
   // control reaches every one of them, not only the first.
   const attempts = attemptResult.rows;
   if (attempts.length === 0) {
-    if (["completed", "failed", "canceled", "blocked"].includes(run.status)) {
+    if (
+      ["completed", "failed", "canceled", "blocked", "needs_human"].includes(
+        run.status,
+      )
+    ) {
       throw new StandardError({ code: "ALREADY_TERMINAL" });
     }
     // A run waiting for a retry or for admission has no worker to command.
