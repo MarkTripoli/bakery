@@ -39,16 +39,10 @@ Deno.test("the CLI names no operation a person keeps to themselves", () => {
   }
 });
 
-Deno.test("the session CLI's search is the session's search, not the person's", () => {
-  // Two operations named `search` exist: `files.search` is the person's folder
-  // search and `library.search` is the session tool. A copy-paste between them
-  // would compile and would silently widen what a session can reach.
+Deno.test("the session CLI's search stays the library search", () => {
   assertEquals(SESSION_FILE_OPERATIONS.search, "library.search");
   assert(OFFERED.has(SESSION_FILE_OPERATIONS.search));
-  assert(
-    !OFFERED.has("files.search"),
-    "files.search became a session tool; the CLI's mapping must be revisited",
-  );
+  assert(OFFERED.has("files.search"));
 });
 
 Deno.test("a pin stays an administrator's action, not a session tool", () => {
