@@ -24,7 +24,6 @@ import {
   type RequestSlackDependencies,
   rewriteClosedRequestSlackMessages,
   sendRequestSlackEphemeral,
-  type SlackBlock,
 } from "./request-slack.ts";
 
 export const SLACK_PRESS_NOT_LINKED =
@@ -323,7 +322,6 @@ export function slackAlreadyDecided(name: string): string {
 
 export type SlackPressReply = Readonly<{
   text: string;
-  blocks?: readonly SlackBlock[];
 }>;
 
 export function slackPressReply(
@@ -364,7 +362,6 @@ export async function answerSlackPress(
     channelId: press.channelId,
     userId: press.userId,
     text: reply.text,
-    ...(reply.blocks === undefined ? {} : { blocks: reply.blocks }),
     idempotencyKey:
       `slack-press:${press.appId}:${press.teamId}:${press.userId}:${press.actionTs}`,
   });
