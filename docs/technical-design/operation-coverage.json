@@ -100,9 +100,15 @@
       }
     },
     "intake.slack.interactions": {
-      "state": "unbuilt",
-      "owner": "#27",
-      "reason": "Slack interaction intake arrives with the shared coordinator."
+      "state": "served-outside-registry",
+      "route": {
+        "file": "apps/server/src/modules/integrations/slack-intake-routes.ts",
+        "literal": "/v1/webhooks/slack/interactions"
+      },
+      "test": {
+        "file": "tests/integration/decide-slack-approve-requests-from-buttons_test.ts",
+        "contains": "SLACK_INTERACTIONS_PATH"
+      }
     },
     "integrationCapabilities.list": {
       "state": "unbuilt",

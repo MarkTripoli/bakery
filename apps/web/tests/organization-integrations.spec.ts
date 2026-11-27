@@ -5,6 +5,7 @@ import {
   mockAuthenticatedSession,
 } from "./helpers/mock-session.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
+import { still } from "./helpers/stills.ts";
 
 /**
  * Mocked proof of the organization Integrations pages: the list that every
@@ -1182,3 +1183,12 @@ for (const scenario of STILL_SCENARIOS) {
     }
   }
 }
+
+test("a workspace another organization holds gets its own plain message", async ({ page }) => {
+  await fixture(page, newWorld());
+  await page.goto(`${PAGE_PATH}?githubConnection=held_elsewhere`);
+  await expect(outcomeBanner(page)).toContainText(
+    "Another organization in Bakery already holds this connection, so nothing was connected. It can be connected here once that organization removes it.",
+  );
+  await still(page, "connection-outcome-held-elsewhere");
+});
