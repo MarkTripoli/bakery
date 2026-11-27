@@ -31,9 +31,9 @@ import { EMAIL_LINK_ORGANIZATION_PARAM } from "./request-email.ts";
 
 export const SLACK_PRESS_NOT_LINKED =
   "Nothing was decided. Your Slack account is not linked to a Bakery account, so Bakery cannot tell who is deciding. Link your account, then press the button again.";
-export const SLACK_LINK_ACCOUNT_LABEL = "Link your account";
-export const SLACK_LINK_ACCOUNT_PATH = "/settings/security";
-export const SLACK_LINK_ACCOUNT_SECTION = "slack";
+const SLACK_LINK_ACCOUNT_LABEL = "Link your account";
+const SLACK_LINK_ACCOUNT_PATH = "/settings/security";
+const SLACK_LINK_ACCOUNT_SECTION = "slack";
 const LINK_ACCOUNT_ACTION = "link_account";
 const LINK_ACCOUNT_BLOCK = "link";
 export const SLACK_PRESS_NO_PERMISSION =
@@ -328,7 +328,7 @@ export function slackAlreadyDecided(name: string): string {
   return `Nothing changed. ${escapeSlack(name)} already decided this.`;
 }
 
-export function slackLinkAccountUrl(
+function slackLinkAccountUrl(
   publicBaseUrl: string,
   organizationId: string,
 ): string {
