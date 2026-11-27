@@ -81,6 +81,10 @@ import {
   skillsOfNode,
 } from "./editor-state.ts";
 import { LeaveGuard } from "../repository-rules/leave-guard.tsx";
+import { useConnectivity } from "../../app/connectivity.ts";
+import { focusAfterPaint } from "../../app/focus.ts";
+import { authoredYaml } from "./authored-yaml.ts";
+import { useStepKeys } from "./use-step-keys.ts";
 import {
   problemSentence,
   problemsOf,
@@ -165,7 +169,12 @@ function forcedSaveState(): SaveState | null {
 type SaveState =
   | { readonly kind: "saved" }
   | { readonly kind: "saving" }
-  | { readonly kind: "failed" };
+  | { readonly kind: "failed" }
+  | { readonly kind: "conflict" }
+  | { readonly kind: "offline" };
+
+const waits = (kind: SaveState["kind"]) =>
+  kind === "failed" || kind === "conflict" || kind === "offline";
 
 /**
  * One line of the problems list (design-ux's ruling, comment 6917906748): what
@@ -376,8 +385,11 @@ export function WorkflowEditorPage(
   // The version the last save returned: a second edit made while the draft is
   // still being read again must send this one, not the one it last read.
   const savedVersion = useRef<
-    { id: string; version: number; digest: string } | null
+    | { id: string; version: number; digest: string; sourceYaml?: string }
+    | null
   >(null);
+  const [reloads, setReloads] = useState(0);
+  const away = useConnectivity() === "offline";
   // The slots the last write sent, so only those are cleared when it lands.
   const sentSlots = useRef<string[]>([]);
   const sentLoops = useRef<readonly LoopEdit[]>([]);
@@ -395,9 +407,12 @@ export function WorkflowEditorPage(
     if (draft.status !== "draft") {
       return openedFrom.current === draft.id ? saved : null;
     }
-    return saved?.id === draft.id && saved.version > draft.version
-      ? saved
-      : { id: draft.id, version: draft.version, digest: draft.digest };
+    return saved?.id === draft.id && saved.version > draft.version ? saved : {
+      id: draft.id,
+      version: draft.version,
+      digest: draft.digest,
+      sourceYaml: draft.sourceYaml,
+    };
   };
   const openDraft = async () => {
     if (draft === null) throw new Error("no draft version");
@@ -406,6 +421,7 @@ export function WorkflowEditorPage(
       workflowId,
       input: {
         definition: draft.normalizedSpec,
+        ...await authoredYaml(draft.sourceYaml, draft.normalizedSpec),
         ...(confirmed.current.size === 0 ? {} : {
           confirmPersonalSkillUse: [...confirmed.current].slice(0, 32),
         }),
@@ -417,6 +433,7 @@ export function WorkflowEditorPage(
       id: created.data.id,
       version: created.data.version,
       digest: created.data.digest,
+      sourceYaml: created.data.sourceYaml,
     };
     openedFrom.current = draft.id;
     resetFor.current = created.data.id;
@@ -439,7 +456,23 @@ export function WorkflowEditorPage(
       starts: versionStarts,
     });
     setSaveState({ kind: "saved" });
-  }, [draft?.id, versionSteps, versionStarts]);
+  }, [draft?.id, versionSteps, versionStarts, reloads]);
+
+  const reloadDraft = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["protected"] });
+    resetFor.current = undefined;
+    savedVersion.current = null;
+    lastSaved.current = null;
+    setResolving(new Set());
+    setSelectedId(null);
+    setReloads((count) => count + 1);
+  };
+
+  useEffect(() => {
+    if (!away && saveState.kind === "offline") {
+      setSaveState({ kind: "saved" });
+    }
+  }, [away, saveState.kind]);
 
   const failure = workflow.error ?? versions.error;
   const status = failureStatus(failure);
@@ -457,17 +490,20 @@ export function WorkflowEditorPage(
       if (draft === null) throw new Error("no draft version");
       sentLoops.current = editor.loops;
       const target = writeTarget() ?? await openDraft();
+      const definition = definitionOf(
+        record(draft.normalizedSpec),
+        steps,
+        editor.loops,
+      );
+      const authored = await authoredYaml(target.sourceYaml, definition);
       const result = await api.updateWorkflowVersion({
         organizationId: scope.organizationId as string,
         workflowId,
         versionId: target.id,
         version: target.version,
         input: {
-          definition: definitionOf(
-            record(draft.normalizedSpec),
-            steps,
-            editor.loops,
-          ) as never,
+          definition: definition as never,
+          ...authored,
           ...(() => {
             sentStarts.current = editor.starts;
             return savedStarts.current.length === 0 &&
@@ -500,6 +536,7 @@ export function WorkflowEditorPage(
         id: target.id,
         version: result.data.version,
         digest: result.data.digest,
+        sourceYaml: result.data.sourceYaml,
       };
       return result.data;
     },
@@ -521,8 +558,14 @@ export function WorkflowEditorPage(
       setSaveState({ kind: "saved" });
       void queryClient.invalidateQueries({ queryKey: ["protected"] });
     },
-    onError: () => {
-      setSaveState({ kind: "failed" });
+    onError: (error) => {
+      setSaveState({
+        kind: isConflictFailure(error)
+          ? "conflict"
+          : away
+          ? "offline"
+          : "failed",
+      });
       void queryClient.invalidateQueries({ queryKey: ["protected"] });
     },
   });
@@ -559,6 +602,9 @@ export function WorkflowEditorPage(
     void rebaseLeftoverDraft(kept.used);
   };
 
+  const [published, setPublished] = useState<
+    { readonly revision: number; readonly used: boolean } | null
+  >(null);
   const publish = useMutation({
     mutationKey: ["workflowVersions.publish"],
     mutationFn: async (alsoUse: boolean) => {
@@ -577,7 +623,7 @@ export function WorkflowEditorPage(
         if (!published.ok) throw published.error;
         versionId = published.data.id;
         revision = published.data.revision;
-        if (!alsoUse) return versionId;
+        if (!alsoUse) return { versionId, revision };
       }
       if (!alsoUse || versionId === "") throw new Error("no draft version");
       const used = await api.activateWorkflowVersion({
@@ -589,20 +635,23 @@ export function WorkflowEditorPage(
       });
       if (!used.ok) throw new ActivationFailed(versionId, revision);
       if (otherUnused !== undefined) await rebaseLeftoverDraft(otherUnused);
-      return versionId;
+      return { versionId, revision };
     },
     onError: (error) => {
       if (error instanceof ActivationFailed) {
         setPublishedOnly(error.versionId);
+        setPublished(null);
+        setPublishOpen(true);
       }
       if (error instanceof ActivationFailed || isConflictFailure(error)) {
         void queryClient.invalidateQueries({ queryKey: ["protected"] });
       }
     },
-    onSuccess: async (versionId, alsoUse) => {
+    onSuccess: async ({ versionId, revision }, alsoUse) => {
       setPublishedOnly(alsoUse ? null : versionId);
       await queryClient.invalidateQueries({ queryKey: ["protected"] });
       setPublishOpen(false);
+      setPublished({ revision, used: alsoUse });
     },
   });
 
@@ -688,6 +737,38 @@ export function WorkflowEditorPage(
   const editable = canManage && (plainList || grouped);
   const canChange = (step: EditorStep | undefined) =>
     editable && step !== undefined && (plainList || step.list !== undefined);
+  const deletable = (step: EditorStep | undefined) =>
+    canChange(step) &&
+    (!grouped || steps.filter((one) => one.list === step?.list).length > 1);
+  const moveStep = (id: string, by: -1 | 1) => {
+    const index = steps.findIndex((one) => one.id === id);
+    const other = steps[index + by];
+    if (
+      !canChange(steps[index]) || other === undefined ||
+      other.list !== steps[index].list
+    ) return;
+    dispatch({ kind: "move", id, index: index + by });
+    focusAfterPaint(() =>
+      document.querySelector<HTMLElement>(
+        `[data-card="${CSS.escape(id)}"] button`,
+      )
+    );
+  };
+  const removeStep = (id: string) => {
+    const drawn = stepsOfTree(tree).find((one) => one.id === id);
+    if (!deletable(steps.find((one) => one.id === id)) || drawn === undefined) {
+      return;
+    }
+    setDeleted(stepName(drawn, translate));
+    dispatch({ kind: "remove", id });
+    setSelectedId(null);
+  };
+  useStepKeys(editable, {
+    move: moveStep,
+    remove: removeStep,
+    undo: () => dispatch({ kind: "undo" }),
+    redo: () => dispatch({ kind: "redo" }),
+  });
   const groupStarts = useMemo(
     () => grouped ? groupStartsOf(tree, steps) : new Map(),
     [grouped, tree, steps],
@@ -801,7 +882,7 @@ export function WorkflowEditorPage(
   // A change saves itself once the person stops typing; a failed save waits for
   // "Try again" rather than looping.
   useEffect(() => {
-    if (!canManage || draft === null || saveState.kind === "failed") return;
+    if (!canManage || draft === null || waits(saveState.kind) || away) return;
     // One write at a time: the next waits for this one, then saves what changed since.
     if (!changed || save.isPending) return;
     const timer = setTimeout(
@@ -819,11 +900,12 @@ export function WorkflowEditorPage(
     saveState.kind,
     save.isPending,
     resolving,
+    away,
   ]);
 
   useEffect(() => {
     if (!publishAfterSave) return;
-    if (saveState.kind === "failed") {
+    if (waits(saveState.kind)) {
       setPublishAfterSave(false);
       globalThis.document.querySelector<HTMLElement>("[data-retry-save]")
         ?.focus();
@@ -857,9 +939,10 @@ export function WorkflowEditorPage(
     : 0;
 
   const shownSave: SaveState = forcedSaveState() ?? saveState;
+  const unsent = waits(shownSave.kind) || away && changed;
   const stateWord = shownSave.kind === "saving"
     ? translate("library.editor.save.saving" as never)
-    : shownSave.kind === "failed"
+    : unsent
     ? translate("library.editor.save.failed" as never)
     : translate("library.editor.save.saved" as never);
 
@@ -1559,8 +1642,7 @@ export function WorkflowEditorPage(
     return {
       kind: "step",
       name: stepName(step, translate),
-      deletable: canChange(live) &&
-        (!grouped || steps.filter((one) => one.list === live?.list).length > 1),
+      deletable: deletable(live),
       uses: step.uses,
       approval,
       notify: live?.notify === undefined ? undefined : {
@@ -1647,12 +1729,7 @@ export function WorkflowEditorPage(
         dispatch({ kind: "move", id: live.id, index: index + 1 });
       },
       onRemove: () => {
-        if (live === undefined) return;
-        // The toast names what went, so Undo reads as "put that back" rather
-        // than as a word under a card (#67 UX ruling 6932934119 fix 5).
-        setDeleted(stepName(step, translate));
-        dispatch({ kind: "remove", id: live.id });
-        setSelectedId(null);
+        if (live !== undefined) removeStep(live.id);
       },
     };
   }, [
@@ -1884,7 +1961,7 @@ export function WorkflowEditorPage(
       )
       : null
   );
-  const notSaved = shownSave.kind === "failed";
+  const notSaved = unsent;
   const problems = problemCount === 0
     ? notSaved ? null : (
       <span data-testid="editor-problems">
@@ -1909,6 +1986,7 @@ export function WorkflowEditorPage(
     </UI.Button>
   );
   const pressPublish = () => {
+    if (saveState.kind === "conflict" || away) return;
     if (notSaved) {
       setSaveState({ kind: "saving" });
       setPublishAfterSave(true);
@@ -1972,6 +2050,28 @@ export function WorkflowEditorPage(
                   version: inUse.revision,
                 })}
             </UI.Text>
+            {shownSave.kind !== "conflict" ? null : (
+              <UI.AlertBanner
+                action={
+                  <UI.Button
+                    onClick={() => void reloadDraft()}
+                    variant="secondary"
+                  >
+                    {translate("library.editor.conflictReload")}
+                  </UI.Button>
+                }
+                tone="warning"
+              >
+                {translate("library.editor.conflict")}
+              </UI.AlertBanner>
+            )}
+            {!away || !canManage
+              ? null
+              : (
+                <UI.InlineNotice tone="warning" role="status">
+                  {translate("library.editor.offlineEditing")}
+                </UI.InlineNotice>
+              )}
             {draftKept === null ? null : (
               <DraftKeptNotice
                 onRetry={() => retryRebase(draftKept)}
@@ -2041,6 +2141,32 @@ export function WorkflowEditorPage(
           {translate("library.editor.deleted" as never, {
             name: deleted,
           })}
+        </UI.Toast>
+      )}
+      {published === null ? null : (
+        <UI.Toast
+          tone="success"
+          {...(published.used ? {} : {
+            action: (
+              <UI.Button
+                variant="secondary"
+                onClick={() => {
+                  setPublished(null);
+                  publish.mutate(true);
+                }}
+              >
+                {translate("library.workflow.versions.use")}
+              </UI.Button>
+            ),
+          })}
+          onDismiss={() => setPublished(null)}
+        >
+          {translate(
+            published.used
+              ? "library.editor.published.used"
+              : "library.editor.published.notUsed",
+            { version: String(published.revision) },
+          )}
         </UI.Toast>
       )}
       {skillToast === null ? null : (
@@ -2232,7 +2358,9 @@ export function WorkflowEditorPage(
                     disabled={publish.isPending}
                     onClick={() => publish.mutate(true)}
                   >
-                    {unused !== undefined
+                    {publish.error instanceof ActivationFailed
+                      ? translate("library.editor.save.tryAgain")
+                      : unused !== undefined
                       ? translate("library.workflow.versions.use")
                       : translate("library.editor.publish.andUse")}
                   </UI.Button>

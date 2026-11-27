@@ -7504,7 +7504,6 @@
   "library.editor.publish.limitItems": "⟪{name}: at most {max, plural, one {# item} other {# items}}, was {was}⟫",
   "library.editor.publish.grouped": "⟪How steps are grouped or when they run changed.⟫",
   "library.editor.publish.other": "⟪Something else in the definition changed. View as code to see it.⟫",
-  "library.editor.publish.notUsed": "⟪Version {version} was published but is not in use yet. Choose Use this version to try again.⟫",
   "library.skills.add.title": "⟪Add a skill from a source⟫",
   "library.skills.add.back": "⟪Back to skills⟫",
   "library.skills.add.unchanged": "⟪{name} already had these files.⟫",
@@ -7870,5 +7869,11 @@
   "integrations.slack.can.scopeLine": "⟪{ability}: {scopes}⟫",
   "integrations.slack.banner.accessRefused": "⟪Slack no longer accepts Bakery's access. Nothing is posted, and approvals and messages from Slack do not work. Reconnect to continue.⟫",
   "integrations.slack.banner.limited": "⟪Slack did not grant everything Bakery asks for, so part of this does not work. See “What Bakery can do” below, then reconnect and approve it.⟫",
-  "integrations.slack.banner.removed": "⟪Bakery is no longer connected to this Slack workspace. Nothing is posted, and approvals and messages from Slack do not work. People's links are kept and work again when you connect again.⟫"
+  "integrations.slack.banner.removed": "⟪Bakery is no longer connected to this Slack workspace. Nothing is posted, and approvals and messages from Slack do not work. People's links are kept and work again when you connect again.⟫",
+  "library.editor.publish.notUsed": "⟪Version {version} is published, but Bakery could not start using it. Try again.⟫",
+  "library.editor.published.used": "⟪Version {version} is published and in use.⟫",
+  "library.editor.published.notUsed": "⟪Version {version} is published. It is not used until you choose Use this version.⟫",
+  "library.editor.conflict": "⟪Someone else changed this draft. Reload to see their changes.⟫",
+  "library.editor.conflictReload": "⟪Reload⟫",
+  "library.editor.offlineEditing": "⟪You are offline. Changes are kept on this page and saved when you are back.⟫"
 }

@@ -2,6 +2,7 @@ import type {
   BakeryApiClient,
   WorkflowVersionResponse,
 } from "../../api/client.ts";
+import { authoredYaml } from "./authored-yaml.ts";
 import { publishChanges } from "./publish-changes.ts";
 import { sameStarts, savedStart, startsOfVersion } from "./start-list.ts";
 
@@ -40,6 +41,7 @@ export async function rewriteDraft(
     version: target.version,
     input: {
       definition: used.normalizedSpec,
+      ...await authoredYaml(used.sourceYaml, used.normalizedSpec),
       starts: startsOfVersion(used.starts).map(savedStart),
     },
     idempotencyKey: crypto.randomUUID(),

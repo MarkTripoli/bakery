@@ -31,6 +31,7 @@ type Setup = {
   readonly draftSteps: readonly unknown[];
   readonly publishStatus?: number;
   readonly activateStatus?: number;
+  readonly activationWorks?: boolean;
   readonly inUseSteps?: readonly unknown[];
   readonly publishedAlready?: boolean;
   readonly activations?: unknown[];
@@ -137,7 +138,9 @@ async function editor(page: Page, setup: Setup) {
     (url) => url.pathname.endsWith("/activations"),
     (route) => {
       setup.activations?.push(route.request().postDataJSON());
-      if (setup.leftoverDraft !== undefined) return route.fallback();
+      if (setup.leftoverDraft !== undefined || setup.activationWorks) {
+        return route.fallback();
+      }
       return route.fulfill(json(conflict, setup.activateStatus ?? 412));
     },
   );
@@ -214,17 +217,36 @@ test.describe("workflow editor: what publishing changes", () => {
     const dialog = await openPublish(page);
     await dialog.getByRole("button", { name: "Publish and use" }).click();
     await expect(dialog.getByRole("alert")).toContainText(
-      "Version 2 was published but is not in use yet.",
+      "Version 2 is published, but Bakery could not start using it. Try again.",
     );
     await expect(dialog.getByRole("heading", { name: "Use version 2" }))
       .toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Use this version" }))
+    await expect(dialog.getByRole("button", { name: "Try again" }))
       .toBeVisible();
     await expect(dialog).not.toContainText("is already published");
     await still(page, "publish-not-used");
     await expect(page.getByTestId("editor-problems"))
       .toHaveText("Version 2 published, not in use");
   });
+  test("after Publish only a message offers Use this version, and using it says so", async ({ page }) => {
+    const activations: unknown[] = [];
+    await editor(page, {
+      draftSteps: [IN_USE[0], repeat(5)],
+      activations,
+      activationWorks: true,
+    });
+    const dialog = await openPublish(page);
+    await dialog.getByRole("button", { name: "Publish only" }).click();
+    const message = page.locator('[data-ui-component="toast"]');
+    await expect(message).toContainText(
+      "Version 2 is published. It is not used until you choose Use this version.",
+    );
+    await still(page, "publish-only-message");
+    await message.getByRole("button", { name: "Use this version" }).click();
+    await expect(message).toContainText("Version 2 is published and in use.");
+    expect(activations).toHaveLength(1);
+  });
+
   test("a newer published version not in use can still be used on a fresh visit", async ({ page }) => {
     const activations: unknown[] = [];
     await editor(page, {

@@ -5,6 +5,7 @@ import {
   isMap,
   isScalar,
   isSeq,
+  parseDocument,
   Parser,
   Scalar,
   visit,
@@ -374,4 +375,79 @@ export function encodeWorkflowYaml(value: unknown): WorkflowYamlEncodeResult {
 
 function isPlainObject(value: WorkflowJsonValue): boolean {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function rewriteWorkflowYaml(
+  source: string,
+  definition: unknown,
+): string | null {
+  const plain = encodeWorkflowYaml(definition);
+  if (!plain.ok) return null;
+  const wanted = decodeWorkflowYaml(plain.text);
+  if (!wanted.ok) return null;
+  if (!decodeWorkflowYaml(source).ok) return plain.text;
+  const document = parseDocument(source, PARSE_OPTIONS) as Document;
+  document.contents = reconciled(
+    document,
+    document.contents,
+    wanted.value,
+  ) as Document["contents"];
+  const text = document.toString({ lineWidth: 0 });
+  const written = decodeWorkflowYaml(text);
+  return written.ok &&
+      canonicalJson(written.value) === canonicalJson(wanted.value)
+    ? text
+    : plain.text;
+}
+
+function reconciled(
+  document: Document,
+  node: unknown,
+  value: WorkflowJsonValue,
+): unknown {
+  if (isMap(node) && value !== null && isPlainObject(value)) {
+    const record = value as { readonly [key: string]: WorkflowJsonValue };
+    const keyOf = (key: unknown) => String(isScalar(key) ? key.value : key);
+    node.items = node.items.filter((pair) =>
+      Object.hasOwn(record, keyOf(pair.key))
+    );
+    for (const [key, next] of Object.entries(record)) {
+      const held = node.items.find((pair) => keyOf(pair.key) === key);
+      if (held === undefined) node.items.push(document.createPair(key, next));
+      else held.value = reconciled(document, held.value, next);
+    }
+    return node;
+  }
+  if (isSeq(node) && Array.isArray(value)) {
+    const first = node.items[0];
+    if (node.commentBefore && (isMap(first) || isScalar(first))) {
+      first.commentBefore = node.commentBefore;
+      node.commentBefore = null;
+    }
+    const spare = node.items.map((item) => ({
+      item,
+      name: nameOf(isMap(item) ? item.toJSON() : item),
+    }));
+    node.items = value.map((next) => {
+      const at = spare.findIndex((held) => held.name === nameOf(next));
+      if (at === -1) return document.createNode(next);
+      return reconciled(document, spare.splice(at, 1)[0]!.item, next);
+    });
+    return node;
+  }
+  if (isScalar(node) && node.value === value) return node;
+  const fresh = document.createNode(value);
+  if (isScalar(node) && isScalar(fresh)) {
+    fresh.comment = node.comment;
+    fresh.commentBefore = node.commentBefore;
+  }
+  return fresh;
+}
+
+function nameOf(value: unknown): string {
+  const plain = isScalar(value) ? value.value : value;
+  const id = typeof plain === "object" && plain !== null
+    ? (plain as { readonly id?: unknown }).id
+    : undefined;
+  return typeof id === "string" ? `id:${id}` : `value:${JSON.stringify(plain)}`;
 }
