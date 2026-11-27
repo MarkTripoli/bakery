@@ -768,6 +768,10 @@ input.ui-password-input__field {
   list-style: none;
   min-block-size: max(var(--size-control), var(--target-min));
 }
+.ui-disclosure[data-variant="row"] > .ui-disclosure__summary {
+  display: flex;
+  justify-content: space-between;
+}
 .ui-disclosure__summary::-webkit-details-marker {
   display: none;
 }

@@ -426,6 +426,9 @@ function fakeApi(
     publishWorkflowVersion: rejecting,
     updateSkill: rejecting,
     copySkill: rejecting,
+    checkSkillSource: rejecting,
+    takeSkillSourceUpdate: rejecting,
+    setSkillActiveVersion: rejecting,
     deleteSkillUseGrant: rejecting,
     validateWorkflow: rejecting,
   };
