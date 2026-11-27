@@ -135,7 +135,7 @@ const NOTHING: Omit<
   createdAt: "",
   lastCheckedAt: null,
   outcome: null,
-  outcomeProvider: "github",
+  outcomeProvider: "",
   continuing: false,
   connectStatus: "idle",
   checkStatus: "idle",
