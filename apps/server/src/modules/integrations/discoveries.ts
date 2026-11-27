@@ -75,6 +75,8 @@ function connectionPath(context: ActionContext): string {
   return parsed.data.id;
 }
 
+const DISCOVERED_PROVIDER = GITHUB_PROVIDER;
+
 /**
  * integrationDiscoveries.create: queues one bounded rescan of the caller's
  * connection. The connection and then its installation are locked, so two
@@ -95,8 +97,9 @@ export async function createDiscovery(
       `select status, installation_id as "installationId"
          from bakery.integration_connections
         where organization_id = $1 and id = $2 and archived_at is null
+          and provider = $3
         ${lock ? "for update" : ""}`,
-      [actor.organizationId, connectionId],
+      [actor.organizationId, connectionId, DISCOVERED_PROVIDER],
     )).rows[0];
   const unlocked = await readConnection(false);
   if (unlocked === undefined) {
@@ -143,7 +146,7 @@ export async function createDiscovery(
     operation: Action.IntegrationDiscoveriesCreate,
     resourceType: "integration_discovery",
     resourceId: discoveryId,
-    details: { provider: GITHUB_PROVIDER, connectionId },
+    details: { provider: DISCOVERED_PROVIDER, connectionId },
   });
   return contractSchemas.IntegrationDiscoveryReceipt.parse({
     discoveryId,

@@ -478,6 +478,14 @@ Deno.test("a connected Slack workspace reads back through the connection list, g
     );
     assertEquals(read.status, 200, await read.clone().text());
     assertEquals((await read.json() as { provider: string }).provider, "slack");
+    const scan = await call(
+      o.fixture,
+      "POST",
+      `/v1/integration-connections/${connectionId}/discoveries`,
+      o.fixture.adminCookie,
+      { headers: { ...headers, "Idempotency-Key": crypto.randomUUID() } },
+    );
+    assertEquals(scan.status, 404, await scan.clone().text());
     const current = await call(
       o.fixture,
       "GET",
