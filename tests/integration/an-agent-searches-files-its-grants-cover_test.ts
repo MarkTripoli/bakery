@@ -117,4 +117,17 @@ Deno.test("an agent's file search shows only files its step's grants cover", () 
       [200, ["needle-report.txt"], null],
       single.text,
     );
+    const recorded = await fixture.pgDatabase.query<{ name: string }>(
+      `select e.name from bakery.step_read_set r
+         join bakery.storage_entries e
+           on e.organization_id = r.organization_id and e.id = r.entry_id
+        where r.organization_id = $1 and r.attempt_id = $2
+          and r.version_id is null and r.artifact_version_id is null`,
+      [fixture.organizationId, assignment.attemptId],
+    );
+    assertEquals(
+      recorded.rows.map((row) => row.name),
+      ["needle-report.txt", "needle-report.txt"],
+      "each search that showed the file is on the step; refused files are not",
+    );
   }));
