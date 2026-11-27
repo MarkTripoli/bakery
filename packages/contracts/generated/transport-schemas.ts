@@ -17702,7 +17702,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "provider": "enum(github)",
+        "provider": "enum(github|linear|slack)",
         "label": "string",
         "externalAccountId": "string",
         "config": "json",
@@ -17735,7 +17735,7 @@ const transportSchemas = {
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the integration connection record.",
-        "provider": "Integration provider this connection binds; only github is supported.",
+        "provider": "Integration provider this connection binds: github, linear or slack, each a provider registered in this Bakery build.",
         "label": "Human-readable label for the connection; the provider account login when Bakery creates it.",
         "externalAccountId": "Immutable provider account id the connection is bound to, such as the numeric GitHub account id of the installation owner, as a string.",
         "config": "Validated provider configuration for the connection; an empty object until an Admin configures it.",
@@ -25318,7 +25318,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "provider": "enum(github)",
+        "provider": "enum(github|linear|slack)",
         "label": "string",
         "externalAccountId": "string",
         "config": "json",
@@ -25338,7 +25338,7 @@ const transportSchemas = {
       "description": "An organization's binding to one host-verified provider installation, such as a GitHub App installation or Slack workspace: label, validated config, granted provider permissions, and lifecycle status (`pending`/`enabled`/`disabled`/`degraded`/`revoked`), where `degraded` reflects a failed health check rather than an Admin action. Read via GET /v1/integration-connections/{id}; Admins create and update it.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the integration connection record.",
-        "provider": "Integration provider this connection binds; only github is supported.",
+        "provider": "Integration provider this connection binds: github, linear or slack, each a provider registered in this Bakery build.",
         "label": "Human-readable label for the connection; the provider account login when Bakery creates it.",
         "externalAccountId": "Immutable provider account id the connection is bound to, such as the numeric GitHub account id of the installation owner, as a string.",
         "config": "Validated provider configuration for the connection; an empty object until an Admin configures it.",
@@ -29790,7 +29790,7 @@ const transportSchemas = {
         "id": "uuid",
         "organizationId": "uuid",
         "initiatingPrincipalId": "uuid",
-        "provider": "enum(github)",
+        "provider": "enum(github|linear|slack)",
         "reconnectConnectionId": "uuid|null",
         "returnPath": "string|null",
         "expiresAt": "timestamp",
@@ -29814,7 +29814,7 @@ const transportSchemas = {
         "id": "Stable UUID identifying this integration auth attempt record.",
         "organizationId": "UUID of the organization that owns this record.",
         "initiatingPrincipalId": "UUID of the principal associated with this integration auth attempt record.",
-        "provider": "Integration provider this attempt authorizes against; only github is supported.",
+        "provider": "Integration provider this attempt authorizes against: github, linear or slack, each a provider registered in this Bakery build.",
         "reconnectConnectionId": "UUID identifying the related reconnect connection resource. May be null when unavailable.",
         "returnPath": "Bakery path the browser returns to after the flow, or null when the caller gave none.",
         "expiresAt": "Timestamp recording when the expire event occurred for this integration auth attempt record.",

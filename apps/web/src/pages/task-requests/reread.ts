@@ -11,7 +11,7 @@ export function rereadRequests(
       const [root, , organization, name, input] = queryKey;
       if (
         root !== "protected" || organization !== organizationId ||
-        name !== "runRequests.mine"
+        (name !== "runRequests.mine" && name !== "runRequests.list")
       ) {
         return false;
       }

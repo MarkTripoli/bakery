@@ -7624,5 +7624,18 @@
   "tasks.requests.restart": "⟪Start the step again⟫",
   "tasks.requests.restartFailed": "⟪The step could not be started again. It may have moved on.⟫",
   "tasks.requests.nothingToDo": "⟪Nothing to do. This is for your information.⟫",
+  "tasks.waitingFor.retry": "⟪Load it again⟫",
+  "tasks.waitingFor.loadFailed": "⟪Who this run is waiting for did not load.⟫",
+  "tasks.waitingFor.fallback": "⟪{name} could not be found, so the workflow owner, {owner}, was asked instead.⟫",
+  "tasks.waitingFor.expired": "⟪Expired: nobody answered by {date}.⟫",
+  "tasks.waitingFor.expiredContinued": "⟪Expired: nobody answered by {date}. The workflow continued without an answer.⟫",
+  "tasks.waitingFor.expiredStuck": "⟪Expired: nobody answered by {date}. This run needs a person.⟫",
+  "tasks.waitingFor.expiryHelpLabel": "⟪About expiry⟫",
+  "tasks.waitingFor.expiryHelp": "⟪A request expires 7 days after it is sent. Bakery never treats silence as approval. When a request expires, the step ends without an answer.⟫",
+  "tasks.waitingFor.waiting": "⟪Waiting for {who}.⟫",
+  "tasks.waitingFor.next": "⟪Waiting for {who}. If nobody answers by {time}, {next} will be asked.⟫",
+  "tasks.waitingFor.nextUnknown": "⟪Waiting for {who}. If nobody answers by {time}, someone else will be asked.⟫",
+  "tasks.waitingFor.passedOn": "⟪{first} did not answer. The request went to {next} at {time}.⟫",
+  "tasks.waitingFor.expires": "⟪Expires {date}.⟫",
   "library.editor.group.lane": "⟪Lane {n}⟫"
 }

@@ -412,7 +412,7 @@ test(
     await expect(page.getByText("This step has no agent session."))
       .toBeVisible();
     const line = now(page);
-    await expect(line).toContainText("implement: Running run_tests…");
+    await expect(line).toContainText("Implement: Running run_tests…");
     await still(page, "run-section-other-step-now", undefined, {
       scrollTo: thread(page).or(
         page.getByText("This step has no agent session."),

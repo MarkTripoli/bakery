@@ -4683,3 +4683,149 @@ test.describe("what someone was asked, on the task page", () => {
     await still(page, "request-closed");
   });
 });
+
+const waitingRequest = (extra: Record<string, unknown> = {}) => ({
+  id: "00000000-0000-4000-8000-000000000801",
+  runId,
+  stepKey: "build.ask",
+  questionId: null,
+  artifactVersionId: null,
+  intent: "review",
+  recipient: { principalId: otherPrincipalId, displayName: "Dana Teammate" },
+  askedBy: null,
+  askedByKind: "workflow",
+  note: null,
+  neededBy: null,
+  status: "open",
+  expiresAt: "2026-02-08T10:00:00.000Z",
+  ownerFallback: false,
+  fallbackForName: null,
+  audience: null,
+  createdAt: stamp(20),
+  updatedAt: stamp(20),
+  version: 1,
+  nextAsk: null,
+  passedOn: false,
+  ...extra,
+});
+
+async function openWaiting(page: Page, requests: unknown[], status = 200) {
+  await page.route(
+    `**/v1/runs/${runId}/requests`,
+    (route) =>
+      status === 200 ? route.fulfill({ json: { requests } }) : route.fulfill({
+        status,
+        contentType: "application/problem+json",
+        json: problem(status, "INTERNAL_ERROR"),
+      }),
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/tasks/${taskId}/runs`,
+    (route) => route.fulfill({ json: page_([runFixture("running")]) }),
+  );
+  await openRun(page, "running");
+  return page.locator('[data-ui-region="waiting-for"]');
+}
+
+test.describe("who a run is waiting for", () => {
+  test("the run says who is asked, who is next and when it expires", async ({ page }) => {
+    const waiting = await openWaiting(page, [
+      waitingRequest({
+        nextAsk: {
+          dueAt: "2026-02-02T12:00:00.000Z",
+          askedAt: null,
+          who: "Administrators",
+        },
+      }),
+    ]);
+    await expect(waiting).toContainText("Waiting for Dana Teammate.");
+    await expect(waiting).toContainText("Administrators will be asked.");
+    await expect(waiting).toContainText("Expires Feb 8, 2026.");
+    await still(page, "run-waiting-next");
+    const help = waiting.getByRole("button", { name: "About expiry" });
+    await help.scrollIntoViewIfNeeded();
+    await page.evaluate(() =>
+      new Promise((settled) =>
+        requestAnimationFrame(() => requestAnimationFrame(settled))
+      )
+    );
+    await help.click();
+    await expect(
+      page.getByText("Bakery never treats silence as approval."),
+    ).toBeVisible();
+  });
+
+  test("a passed on request and a missing name are both said", async ({ page }) => {
+    const waiting = await openWaiting(page, [
+      waitingRequest({
+        nextAsk: {
+          dueAt: "2026-02-02T12:00:00.000Z",
+          askedAt: "2026-02-02T12:01:00.000Z",
+          who: "Lee Reviewer",
+        },
+      }),
+      waitingRequest({
+        id: "00000000-0000-4000-8000-000000000802",
+        recipient: {
+          principalId: principalId,
+          displayName: "Lee Reviewer",
+        },
+        passedOn: true,
+        createdAt: "2026-02-02T12:01:00.000Z",
+        fallbackForName: "Design reviewers",
+      }),
+    ]);
+    await expect(waiting).toContainText("Dana Teammate did not answer.");
+    await expect(waiting).toContainText("The request went to Lee Reviewer at");
+    await expect(waiting).toContainText(
+      "Design reviewers could not be found, so the workflow owner, Lee Reviewer, was asked instead.",
+    );
+    await still(page, "run-waiting-passed");
+  });
+
+  test("an expired request says the run needs a person", async ({ page }) => {
+    const waiting = await openWaiting(page, [
+      waitingRequest({ status: "expired" }),
+    ]);
+    await expect(waiting).toContainText(
+      /Expired: nobody answered by Feb 8, 2026\./,
+    );
+    await still(page, "run-waiting-expired");
+  });
+
+  for (const status of [403, 404]) {
+    test(`a reader refused with ${status} sees nothing and no error`, async ({ page }) => {
+      const refused = page.waitForResponse((response) =>
+        response.url().endsWith(`/v1/runs/${runId}/requests`)
+      );
+      const waiting = await openWaiting(page, [], status);
+      expect((await refused).status()).toBe(status);
+      await expect(page.getByRole("heading", { name: "Current run" }))
+        .toBeVisible();
+      await expect(waiting).toHaveCount(0);
+      await expect(page.getByText("Who this run is waiting for did not load."))
+        .toHaveCount(0);
+    });
+  }
+
+  test("two waiting steps are captioned like the step list", async ({ page }) => {
+    const waiting = await openWaiting(page, [
+      waitingRequest({ stepKey: "plan.ask" }),
+      waitingRequest({
+        id: "00000000-0000-4000-8000-000000000803",
+        stepKey: "implement",
+      }),
+    ]);
+    await expect(waiting).toContainText("Plan ask");
+    await expect(waiting).toContainText("Implement");
+  });
+
+  test("a failed read is said with its own way to load it again", async ({ page }) => {
+    await openWaiting(page, [], 500);
+    await expect(
+      page.getByText("Who this run is waiting for did not load."),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Load it again" }))
+      .toBeVisible();
+  });
+});
