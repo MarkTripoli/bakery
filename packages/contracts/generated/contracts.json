@@ -5900,6 +5900,29 @@
     },
     {
       "group": "Workers",
+      "method": "GET",
+      "path": "/v1/workers/{id}/models",
+      "action": "machines.models",
+      "access": "Developer",
+      "permission": "worker:read",
+      "input": "CursorQuery",
+      "output": "Page<MachineModel>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
       "method": "POST",
       "path": "/v1/worker-enrollments",
       "action": "workers.enroll",
@@ -15673,6 +15696,7 @@
     "workerEnrollments.cancel",
     "workerEnrollments.replace",
     "machines.dispatchBlockers",
+    "machines.models",
     "worker.inspectEnrollment",
     "worker.reportInventory",
     "workerComponents.list",
@@ -22619,6 +22643,7 @@
                   "coordination.split",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
+                  "delivery.openPullRequest",
                   "delivery.merge",
                   "delivery.deploy",
                   "delivery.health",
@@ -32746,6 +32771,85 @@
                 "application/json": {
                   "schema": {
                     "$ref": "#/components/schemas/Page<WorkerAttemptRead>"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (INVALID_CURSOR, MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/workers/{id}/models": {
+        "get": {
+          "operationId": "machines.models",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "cursor",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Opaque continuation token from a prior page of the same list operation; rejected if replayed against a different operation, principal, or scope. CursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 512
+              }
+            },
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Maximum rows returned per page for whichever list operation this shared query is used with; defaults to 25 and cannot exceed 100. CursorQuery.limit must be at least 1. CursorQuery.limit must be at most 100.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Page<MachineModel>"
                   }
                 }
               }
@@ -67231,6 +67335,7 @@
                 "machines.dispatchBlockers",
                 "workers.get",
                 "workerAttempts.list",
+                "machines.models",
                 "workers.enroll",
                 "workerEnrollments.get",
                 "workerEnrollments.cancel",
@@ -84423,6 +84528,47 @@
           "additionalProperties": false,
           "description": "Input to the rpi.research workflow action: the task to research and the repository whose code the research reads, from which the step produces its research artifact."
         },
+        "OpenPullRequestInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "repositoryId": {
+              "description": "Repository to open the pull request in; omitted, the step's own repository.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "headBranch": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 250,
+              "description": "Branch that holds the changes, already pushed, normally the branch a preceding implement step pushed. OpenPullRequestInput.headBranch must contain at least 1 characters. OpenPullRequestInput.headBranch must contain at most 250 characters."
+            },
+            "baseBranch": {
+              "description": "Branch the changes should merge into; omitted, the repository's default branch. OpenPullRequestInput.baseBranch must contain at least 1 characters. OpenPullRequestInput.baseBranch must contain at most 250 characters.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 250
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "description": "Pull request title GitHub shows. OpenPullRequestInput.title must contain at least 1 characters. OpenPullRequestInput.title must contain at most 256 characters."
+            },
+            "body": {
+              "description": "Pull request description in Markdown; omitted, empty. OpenPullRequestInput.body must contain at most 65536 characters.",
+              "type": "string",
+              "maxLength": 65536
+            }
+          },
+          "required": [
+            "headBranch",
+            "title"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the delivery.openPullRequest workflow action: the pushed branch to open a pull request from, and its title and description. A retried step registers the pull request already open from that branch instead of opening another."
+        },
         "PrepareInput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -85020,6 +85166,7 @@
                 "coordination.split",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
+                "delivery.openPullRequest",
                 "delivery.merge",
                 "delivery.deploy",
                 "delivery.health",
@@ -121028,6 +121175,7 @@
                 "machines.dispatchBlockers",
                 "workers.get",
                 "workerAttempts.list",
+                "machines.models",
                 "workers.enroll",
                 "workerEnrollments.get",
                 "workerEnrollments.cancel",
@@ -121755,6 +121903,7 @@
                 "machines.dispatchBlockers",
                 "workers.get",
                 "workerAttempts.list",
+                "machines.models",
                 "workers.enroll",
                 "workerEnrollments.get",
                 "workerEnrollments.cancel",
@@ -122482,6 +122631,7 @@
                 "machines.dispatchBlockers",
                 "workers.get",
                 "workerAttempts.list",
+                "machines.models",
                 "workers.enroll",
                 "workerEnrollments.get",
                 "workerEnrollments.cancel",
@@ -156395,6 +156545,254 @@
           "additionalProperties": false,
           "description": "Cursor page of WorkerAttemptRead."
         },
+        "MachineModel": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable identity of the model route on this machine."
+            },
+            "provider": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Model provider the route calls, such as anthropic or openai."
+            },
+            "model": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Model name the route sends work to."
+            },
+            "harness": {
+              "type": "string",
+              "enum": [
+                "pi",
+                "claude_code",
+                "codex",
+                "mastra"
+              ],
+              "description": "Coding agent on the machine that runs the model."
+            },
+            "billingRoute": {
+              "type": "string",
+              "enum": [
+                "subscription",
+                "api_metered",
+                "local"
+              ],
+              "description": "How the model's use is paid for: the coding agent's subscription, metered API use, or a local model."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "active",
+                "disabled",
+                "revoked"
+              ],
+              "description": "Whether the model takes work: active, turned off (disabled), or removed for good (revoked)."
+            },
+            "health": {
+              "type": "string",
+              "enum": [
+                "healthy",
+                "degraded",
+                "open",
+                "unverified"
+              ],
+              "description": "Last known health: healthy, degraded, open (paused while it is probed) or unverified."
+            },
+            "inferenceVerifiedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the machine last proved the model answers; null before it has."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "MachineModel.inferenceVerifiedAt may be null in this transport value."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the model was added; stable keyset position."
+            }
+          },
+          "required": [
+            "id",
+            "provider",
+            "model",
+            "harness",
+            "billingRoute",
+            "status",
+            "health",
+            "inferenceVerifiedAt",
+            "createdAt"
+          ],
+          "additionalProperties": false,
+          "description": "One model a machine may send work to, read through the machine itself, with no account, endpoint, credential or incident detail."
+        },
+        "Page<MachineModel>": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "items": {
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable identity of the model route on this machine."
+                  },
+                  "provider": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Model provider the route calls, such as anthropic or openai."
+                  },
+                  "model": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Model name the route sends work to."
+                  },
+                  "harness": {
+                    "type": "string",
+                    "enum": [
+                      "pi",
+                      "claude_code",
+                      "codex",
+                      "mastra"
+                    ],
+                    "description": "Coding agent on the machine that runs the model."
+                  },
+                  "billingRoute": {
+                    "type": "string",
+                    "enum": [
+                      "subscription",
+                      "api_metered",
+                      "local"
+                    ],
+                    "description": "How the model's use is paid for: the coding agent's subscription, metered API use, or a local model."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "disabled",
+                      "revoked"
+                    ],
+                    "description": "Whether the model takes work: active, turned off (disabled), or removed for good (revoked)."
+                  },
+                  "health": {
+                    "type": "string",
+                    "enum": [
+                      "healthy",
+                      "degraded",
+                      "open",
+                      "unverified"
+                    ],
+                    "description": "Last known health: healthy, degraded, open (paused while it is probed) or unverified."
+                  },
+                  "inferenceVerifiedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "When the machine last proved the model answers; null before it has."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "MachineModel.inferenceVerifiedAt may be null in this transport value."
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the model was added; stable keyset position."
+                  }
+                },
+                "required": [
+                  "id",
+                  "provider",
+                  "model",
+                  "harness",
+                  "billingRoute",
+                  "status",
+                  "health",
+                  "inferenceVerifiedAt",
+                  "createdAt"
+                ],
+                "additionalProperties": false,
+                "description": "One model a machine may send work to, read through the machine itself, with no account, endpoint, credential or incident detail."
+              },
+              "description": "MachineModel items in this cursor page. Page<MachineModel>.items must contain at most 100 items."
+            },
+            "nextCursor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "description": "Opaque continuation cursor value."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that no continuation page remains."
+                }
+              ],
+              "description": "Opaque continuation cursor, or null at the end."
+            },
+            "prevCursor": {
+              "description": "Page<MachineModel>.prevCursor may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MachineModel>.prevCursor must contain at most 512 UTF-8 bytes.",
+                  "x-utf8-max-bytes": 512
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "highwater": {
+              "description": "Page<MachineModel>.highwater may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9][0-9]*)$",
+                  "description": "Page<MachineModel>.highwater is a bounded decimal string.",
+                  "x-bigint-minimum": "0"
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            }
+          },
+          "required": [
+            "items",
+            "nextCursor"
+          ],
+          "additionalProperties": false,
+          "description": "Cursor page of MachineModel."
+        },
         "JobAttemptRead": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -169922,6 +170320,7 @@
                       "machines.dispatchBlockers",
                       "workers.get",
                       "workerAttempts.list",
+                      "machines.models",
                       "workers.enroll",
                       "workerEnrollments.get",
                       "workerEnrollments.cancel",
@@ -192233,6 +192632,7 @@
                 "coordination.split",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
+                "delivery.openPullRequest",
                 "delivery.merge",
                 "delivery.deploy",
                 "delivery.health",
@@ -192398,6 +192798,7 @@
                       "coordination.split",
                       "delivery.candidate_evidence",
                       "delivery.prepare",
+                      "delivery.openPullRequest",
                       "delivery.merge",
                       "delivery.deploy",
                       "delivery.health",
@@ -192616,6 +193017,7 @@
                 "coordination.split",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
+                "delivery.openPullRequest",
                 "delivery.merge",
                 "delivery.deploy",
                 "delivery.health",
@@ -192893,6 +193295,7 @@
                       "coordination.split",
                       "delivery.candidate_evidence",
                       "delivery.prepare",
+                      "delivery.openPullRequest",
                       "delivery.merge",
                       "delivery.deploy",
                       "delivery.health",
@@ -311719,6 +312122,7 @@
             "machines.dispatchBlockers",
             "workers.get",
             "workerAttempts.list",
+            "machines.models",
             "workers.enroll",
             "workerEnrollments.get",
             "workerEnrollments.cancel",
@@ -328971,6 +329375,47 @@
       "additionalProperties": false,
       "description": "Input to the rpi.research workflow action: the task to research and the repository whose code the research reads, from which the step produces its research artifact."
     },
+    "OpenPullRequestInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "description": "Repository to open the pull request in; omitted, the step's own repository.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "headBranch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 250,
+          "description": "Branch that holds the changes, already pushed, normally the branch a preceding implement step pushed. OpenPullRequestInput.headBranch must contain at least 1 characters. OpenPullRequestInput.headBranch must contain at most 250 characters."
+        },
+        "baseBranch": {
+          "description": "Branch the changes should merge into; omitted, the repository's default branch. OpenPullRequestInput.baseBranch must contain at least 1 characters. OpenPullRequestInput.baseBranch must contain at most 250 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 250
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Pull request title GitHub shows. OpenPullRequestInput.title must contain at least 1 characters. OpenPullRequestInput.title must contain at most 256 characters."
+        },
+        "body": {
+          "description": "Pull request description in Markdown; omitted, empty. OpenPullRequestInput.body must contain at most 65536 characters.",
+          "type": "string",
+          "maxLength": 65536
+        }
+      },
+      "required": [
+        "headBranch",
+        "title"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the delivery.openPullRequest workflow action: the pushed branch to open a pull request from, and its title and description. A retried step registers the pull request already open from that branch instead of opening another."
+    },
     "PrepareInput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -329570,6 +330015,7 @@
             "coordination.split",
             "delivery.candidate_evidence",
             "delivery.prepare",
+            "delivery.openPullRequest",
             "delivery.merge",
             "delivery.deploy",
             "delivery.health",
@@ -365700,6 +366146,7 @@
             "machines.dispatchBlockers",
             "workers.get",
             "workerAttempts.list",
+            "machines.models",
             "workers.enroll",
             "workerEnrollments.get",
             "workerEnrollments.cancel",
@@ -366427,6 +366874,7 @@
             "machines.dispatchBlockers",
             "workers.get",
             "workerAttempts.list",
+            "machines.models",
             "workers.enroll",
             "workerEnrollments.get",
             "workerEnrollments.cancel",
@@ -367154,6 +367602,7 @@
             "machines.dispatchBlockers",
             "workers.get",
             "workerAttempts.list",
+            "machines.models",
             "workers.enroll",
             "workerEnrollments.get",
             "workerEnrollments.cancel",
@@ -401185,6 +401634,254 @@
       "additionalProperties": false,
       "description": "Cursor page of WorkerAttemptRead."
     },
+    "MachineModel": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable identity of the model route on this machine."
+        },
+        "provider": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Model provider the route calls, such as anthropic or openai."
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Model name the route sends work to."
+        },
+        "harness": {
+          "type": "string",
+          "enum": [
+            "pi",
+            "claude_code",
+            "codex",
+            "mastra"
+          ],
+          "description": "Coding agent on the machine that runs the model."
+        },
+        "billingRoute": {
+          "type": "string",
+          "enum": [
+            "subscription",
+            "api_metered",
+            "local"
+          ],
+          "description": "How the model's use is paid for: the coding agent's subscription, metered API use, or a local model."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "disabled",
+            "revoked"
+          ],
+          "description": "Whether the model takes work: active, turned off (disabled), or removed for good (revoked)."
+        },
+        "health": {
+          "type": "string",
+          "enum": [
+            "healthy",
+            "degraded",
+            "open",
+            "unverified"
+          ],
+          "description": "Last known health: healthy, degraded, open (paused while it is probed) or unverified."
+        },
+        "inferenceVerifiedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the machine last proved the model answers; null before it has."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MachineModel.inferenceVerifiedAt may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the model was added; stable keyset position."
+        }
+      },
+      "required": [
+        "id",
+        "provider",
+        "model",
+        "harness",
+        "billingRoute",
+        "status",
+        "health",
+        "inferenceVerifiedAt",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "One model a machine may send work to, read through the machine itself, with no account, endpoint, credential or incident detail."
+    },
+    "Page<MachineModel>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable identity of the model route on this machine."
+              },
+              "provider": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Model provider the route calls, such as anthropic or openai."
+              },
+              "model": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Model name the route sends work to."
+              },
+              "harness": {
+                "type": "string",
+                "enum": [
+                  "pi",
+                  "claude_code",
+                  "codex",
+                  "mastra"
+                ],
+                "description": "Coding agent on the machine that runs the model."
+              },
+              "billingRoute": {
+                "type": "string",
+                "enum": [
+                  "subscription",
+                  "api_metered",
+                  "local"
+                ],
+                "description": "How the model's use is paid for: the coding agent's subscription, metered API use, or a local model."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "disabled",
+                  "revoked"
+                ],
+                "description": "Whether the model takes work: active, turned off (disabled), or removed for good (revoked)."
+              },
+              "health": {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "degraded",
+                  "open",
+                  "unverified"
+                ],
+                "description": "Last known health: healthy, degraded, open (paused while it is probed) or unverified."
+              },
+              "inferenceVerifiedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the machine last proved the model answers; null before it has."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MachineModel.inferenceVerifiedAt may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the model was added; stable keyset position."
+              }
+            },
+            "required": [
+              "id",
+              "provider",
+              "model",
+              "harness",
+              "billingRoute",
+              "status",
+              "health",
+              "inferenceVerifiedAt",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One model a machine may send work to, read through the machine itself, with no account, endpoint, credential or incident detail."
+          },
+          "description": "MachineModel items in this cursor page. Page<MachineModel>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<MachineModel>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MachineModel>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<MachineModel>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<MachineModel>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of MachineModel."
+    },
     "JobAttemptRead": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -414744,6 +415441,7 @@
                   "machines.dispatchBlockers",
                   "workers.get",
                   "workerAttempts.list",
+                  "machines.models",
                   "workers.enroll",
                   "workerEnrollments.get",
                   "workerEnrollments.cancel",
@@ -437095,6 +437793,7 @@
             "coordination.split",
             "delivery.candidate_evidence",
             "delivery.prepare",
+            "delivery.openPullRequest",
             "delivery.merge",
             "delivery.deploy",
             "delivery.health",
@@ -437260,6 +437959,7 @@
                   "coordination.split",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
+                  "delivery.openPullRequest",
                   "delivery.merge",
                   "delivery.deploy",
                   "delivery.health",
@@ -437478,6 +438178,7 @@
             "coordination.split",
             "delivery.candidate_evidence",
             "delivery.prepare",
+            "delivery.openPullRequest",
             "delivery.merge",
             "delivery.deploy",
             "delivery.health",
@@ -437755,6 +438456,7 @@
                   "coordination.split",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
+                  "delivery.openPullRequest",
                   "delivery.merge",
                   "delivery.deploy",
                   "delivery.health",

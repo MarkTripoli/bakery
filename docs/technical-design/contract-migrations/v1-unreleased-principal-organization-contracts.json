@@ -1,13 +1,33 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "eb0f10f8c8fd97a4e4663efe1b68c3b791e53c96"
+    "73abaa09134da2dd7bc75b6faff32e31a15cf2ba"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:9a4b621950edc9002b59ed5995941988e7de3552225b20f921c43e4d2d072761",
-  "reason": "#67 pullRequests.open by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main eb0f10f8: adds pullRequests.open and PullRequestOpen.",
+  "targetCompatibilityDigest": "sha256:68e2e4f1029d8d60d39772d0e7d5d178c3962a4829be87e2297c5dd5c87c1c4b",
+  "reason": "#70 machine models read by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 73abaa09: adds machines.models and MachineModel.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "dfac7ed348849333360522d9cdba9afc0fd3bb5c"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1ec459bf5ae9d35a0ed8c4b1ee4b7eab3e4ced338a43c23e26263b19131c87a1",
+      "reason": "#67 delivery.openPullRequest by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main dfac7ed3: adds the delivery.openPullRequest workflow action and OpenPullRequestInput."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "eb0f10f8c8fd97a4e4663efe1b68c3b791e53c96"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:9a4b621950edc9002b59ed5995941988e7de3552225b20f921c43e4d2d072761",
+      "reason": "#67 pullRequests.open by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main eb0f10f8: adds pullRequests.open and PullRequestOpen."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
