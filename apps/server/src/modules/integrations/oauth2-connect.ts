@@ -664,7 +664,7 @@ export async function bindOAuth2Connection(
 
   async function refreshConnection(
     connectionId: string,
-    step: "refreshed" | "restored" = "refreshed",
+    step: "refreshed" | "restored",
   ): Promise<AuthRedirect> {
     const installationId = await storeInstallation();
     const refreshed = await transaction.query<
