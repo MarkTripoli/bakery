@@ -24,7 +24,7 @@ export function healthBadge<Tone extends string>(
   return !hasSetupPages(provider) &&
       (health.kind === "notChecked" || health.kind === "working")
     ? {
-      key: "settings.connections.other.connected" as MessageKey,
+      key: "settings.connections.other.connected" satisfies MessageKey,
       tone: "success" as const,
     }
     : {
@@ -56,7 +56,7 @@ export function permissionSentences(provider: string, granted: unknown) {
   const sentences = Object.entries(granted).flatMap(([permission, level]) => {
     const known = level === "read" || level === "write"
       ? level
-      : permission.split(":").at(-1) ?? permission;
+      : permission.slice(permission.lastIndexOf(":") + 1);
     const sentence = describe(permission, known);
     return sentence ? [sentence] : [];
   });
