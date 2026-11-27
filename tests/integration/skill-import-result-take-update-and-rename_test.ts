@@ -491,8 +491,6 @@ Deno.test("taking a reviewed update imports exactly that revision and keeps foll
     );
     assertEquals(source.calls.at(-1)?.requestedRevision, "main");
 
-    // Back on the older version, taking the revision already imported as a
-    // non-active version is refused with a reason, and nothing is admitted.
     const older = await db.query<{ id: string }>(
       `select id from bakery.skill_versions
         where skill_id = $1 and source_revision <> $2`,
