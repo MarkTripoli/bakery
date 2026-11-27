@@ -229,6 +229,30 @@ Deno.test("path-only DELETE is bodyless and NoContent is an empty 204", async ()
   assertEquals(seen, "00000000-0000-4000-8000-000000000001");
 });
 
+Deno.test("a DELETE with no route parameters and no input fields is bodyless too", async () => {
+  let calls = 0;
+  const registry = new ActionRegistry().register({
+    name: "health.delete-self-test" as CatalogActionName,
+    method: HttpMethod.Delete,
+    path: "/v1/health/self",
+    input: contractSchemas.Empty,
+    output: contractSchemas.NoContent,
+    policy: { type: "command", access: "Public" },
+    handler: () => {
+      calls += 1;
+      return null;
+    },
+  });
+  const response = await createApiRouter({ registry }).fetch(
+    new Request("http://test/v1/health/self", {
+      method: "DELETE",
+      headers: { "idempotency-key": "delete-self-1" },
+    }),
+  );
+  assertEquals(response.status, 204);
+  assertEquals(calls, 1);
+});
+
 Deno.test("unknown URLs return resource not found", async () => {
   const response = await app().fetch(new Request("http://test/v1/missing"));
   assertEquals(response.status, 404);

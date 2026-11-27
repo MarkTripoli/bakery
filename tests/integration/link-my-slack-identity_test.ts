@@ -1,4 +1,6 @@
 import { assert, assertEquals, assertMatch } from "@std/assert";
+import { createBakeryClient } from "../../packages/contracts/src/client.ts";
+import { authTestOrigin } from "../helpers/auth.ts";
 import { call, signIn } from "../helpers/installation-settings.ts";
 import { CLIENT_SECRET, TEAM_ID } from "../helpers/slack-connect.ts";
 import {
@@ -617,5 +619,33 @@ Deno.test("a viewer reads, links and unlinks their own Slack account but still c
       String(others.status),
     );
     await others.body?.cancel();
+  });
+});
+
+Deno.test("the generated client unlinks with a body-less DELETE", async () => {
+  await withLinking(async (o) => {
+    await connectWorkspace(o);
+    const cookie = o.fixture.developerCookie;
+    assertEquals(await completeLink(o, cookie), "linked");
+    const sent: { contentType: string | null; body: string }[] = [];
+    const client = createBakeryClient({
+      baseUrl: o.fixture.config.publicBaseUrl,
+      getContext: () => ({ organizationId: o.fixture.organizationId }),
+      fetch: async (input, init) => {
+        const request = new Request(input, init);
+        sent.push({
+          contentType: request.headers.get("content-type"),
+          body: await request.clone().text(),
+        });
+        const headers = new Headers(request.headers);
+        headers.set("cookie", cookie);
+        headers.set("origin", authTestOrigin);
+        return o.fixture.app.fetch(new Request(request, { headers }));
+      },
+    });
+    const unlinked = await client.actions["mySlackLink.delete"]({});
+    assertEquals(unlinked.state, "not_linked");
+    assertEquals(sent.at(-1), { contentType: null, body: "" });
+    assertEquals((await linkRows(o.fixture))[0]!.state, "revoked");
   });
 });
