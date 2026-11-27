@@ -15,7 +15,7 @@ import {
 } from "./storage-tree.ts";
 import { deniedEntriesCte } from "./folder-access-store.ts";
 import { hiddenEntryIds, reviewerIsolationOf } from "./reviewer-isolation.ts";
-import { agentFileReadFor } from "./agent-file-guard.ts";
+import { agentReadableFileIds } from "./agent-file-guard.ts";
 import { FILES_READ_SCOPE } from "./agent-file-scope.ts";
 import type { StoragePolicy } from "./storage-tree.ts";
 
@@ -46,8 +46,7 @@ async function refusedByFileGrants(
   principalId: string,
   entryIds: readonly string[],
 ): Promise<Set<string>> {
-  const refused = new Set<string>();
-  if (entryIds.length === 0) return refused;
+  if (entryIds.length === 0) return new Set();
   const entries = await transaction.query<{
     id: string;
     policy: StoragePolicy;
@@ -58,19 +57,12 @@ async function refusedByFileGrants(
       where organization_id = $1 and id = any($2::uuid[])`,
     [organizationId, entryIds],
   );
-  for (const entry of entries.rows) {
-    try {
-      await agentFileReadFor(transaction, context, {
-        organizationId,
-        principalId,
-        target: entry,
-      });
-    } catch (error) {
-      if (!(error instanceof StandardError)) throw error;
-      refused.add(entry.id);
-    }
-  }
-  return refused;
+  const readable = await agentReadableFileIds(transaction, context, {
+    organizationId,
+    principalId,
+    targets: entries.rows,
+  });
+  return new Set(entryIds.filter((id) => !readable.has(id)));
 }
 
 const PAGE_ORDERING = "createdAt:desc,id:desc";
