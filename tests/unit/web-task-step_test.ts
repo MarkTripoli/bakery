@@ -42,11 +42,27 @@ Deno.test("the tools offered are the ones a worker offers", () => {
 Deno.test("missing instructions and out of range limits are problems", () => {
   assertEquals(taskProblems(filled), []);
   assertEquals(
-    taskProblems({ ...NEW_TASK, turns: "51", cost: "1.234" }).map((one) =>
+    taskProblems({ ...NEW_TASK, turns: "51", cost: "101" }).map((one) =>
       one.field
     ),
-    ["prompt", "turns", "cost"],
+    ["prompt", "cost", "turns"],
   );
+  assertEquals(taskProblems({ ...filled, cost: "0.125" }), []);
+});
+
+Deno.test("a limit or tool list the step does not set is shown as missing, never filled in", () => {
+  for (const node of [{}, { with: { prompt: "Summarise." } }]) {
+    const fields = taskOfNode(node)!;
+    assertEquals([fields.minutes, fields.tools], [null, null]);
+    assertEquals(
+      taskProblems(fields).map((one) => one.field).filter((field) =>
+        field !== "prompt"
+      ),
+      ["minutes", "cost", "turns", "tools"],
+    );
+    assertEquals("timeout" in taskInput(fields), false);
+    assertEquals("allowedTools" in taskInput(fields), false);
+  }
 });
 
 Deno.test("a task nobody edited keeps its authored node, and an edit saves what the field shows", () => {

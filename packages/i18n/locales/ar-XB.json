@@ -7732,5 +7732,9 @@
   "library.editor.task.read.cost": "⟪Spend limit: {cost} US dollars⟫",
   "library.editor.task.read.turns": "⟪Turn limit: {turns}⟫",
   "library.editor.task.read.tools": "⟪May use: {tools}⟫",
-  "library.editor.task.read.noTools": "⟪May use no tools.⟫"
+  "library.editor.task.read.noTools": "⟪May use no tools.⟫",
+  "library.editor.task.problem.minutes": "⟪Choose a time limit.⟫",
+  "library.editor.task.problem.tools": "⟪Not set in this step. Tick what the agent may use.⟫",
+  "library.editor.task.chooseTime": "⟪Choose a time limit⟫",
+  "library.editor.task.read.notSet": "⟪not set⟫"
 }

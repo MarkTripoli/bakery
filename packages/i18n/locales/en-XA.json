@@ -7732,5 +7732,9 @@
   "library.editor.task.read.cost": "⟦Šþëñð ļïɱïŧ: {cost} ÛŠ ðôļļàŕš ŧëšŧ çôþ⟧",
   "library.editor.task.read.turns": "⟦Ŧûŕñ ļïɱïŧ: {turns} ŧëšŧ⟧",
   "library.editor.task.read.tools": "⟦Ṁàÿ ûšë: {tools} ŧëš⟧",
-  "library.editor.task.read.noTools": "⟦Ṁàÿ ûšë ñô ŧôôļš. ŧëš⟧"
+  "library.editor.task.read.noTools": "⟦Ṁàÿ ûšë ñô ŧôôļš. ŧëš⟧",
+  "library.editor.task.problem.minutes": "⟦Çĥôôšë à ŧïɱë ļïɱïŧ. ŧëšŧ⟧",
+  "library.editor.task.problem.tools": "⟦Ñôŧ šëŧ ïñ ŧĥïš šŧëþ. Ŧïçķ ŵĥàŧ ŧĥë àĝëñŧ ɱàÿ ûšë. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.editor.task.chooseTime": "⟦Çĥôôšë à ŧïɱë ļïɱïŧ ŧëšŧ⟧",
+  "library.editor.task.read.notSet": "⟦ñôŧ šëŧ…⟧"
 }

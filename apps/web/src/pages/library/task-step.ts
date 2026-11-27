@@ -8,18 +8,18 @@ export const TASK_COST_MAX = 100;
 export type TaskFields = Readonly<{
   prompt: string;
   turns: string;
-  minutes: number;
+  minutes: number | null;
   cost: string;
-  tools: readonly string[];
+  tools: readonly string[] | null;
 }>;
 
-export const NEW_TASK: TaskFields = {
+export const NEW_TASK = {
   prompt: "",
   turns: "20",
   minutes: 30,
   cost: "5",
   tools: TASK_TOOLS,
-};
+} satisfies TaskFields;
 
 const INPUT_KEYS: ReadonlySet<string> = new Set([
   "prompt",
@@ -43,7 +43,6 @@ function textOf(value: unknown): string | null {
 }
 
 function minutesOf(value: unknown): number | null {
-  if (value === undefined) return NEW_TASK.minutes;
   const found = typeof value === "string" ? DURATION.exec(value) : null;
   if (found === null) return null;
   const [, hours, minutes, short, unit] = found;
@@ -56,11 +55,13 @@ function minutesOf(value: unknown): number | null {
 const timeoutOf = (minutes: number): string =>
   minutes % 60 === 0 ? `PT${minutes / 60}H` : `PT${minutes}M`;
 
+const isToolList = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((tool) => TASK_TOOLS.includes(tool));
+
 export function taskOfNode(
   node: Readonly<Record<string, unknown>> | undefined,
 ): TaskFields | null {
-  const input = node?.with;
-  if (input === undefined) return NEW_TASK;
+  const input = node?.with ?? {};
   if (
     !isPlainObject(input) ||
     Object.keys(input).some((key) => !INPUT_KEYS.has(key))
@@ -68,16 +69,15 @@ export function taskOfNode(
     return null;
   }
   const prompt = textOf(input.prompt);
-  const minutes = minutesOf(input.timeout);
+  const minutes = input.timeout === undefined ? null : minutesOf(input.timeout);
   const turns = input.maxTurns ?? "";
   const cost = input.maxCostUsd ?? "";
-  const tools = input.allowedTools ?? NEW_TASK.tools;
+  const tools = input.allowedTools === undefined ? null : input.allowedTools;
   if (
-    prompt === null || minutes === null ||
+    prompt === null || (input.timeout !== undefined && minutes === null) ||
     (turns !== "" && typeof turns !== "number") ||
     (cost !== "" && typeof cost !== "number") ||
-    !Array.isArray(tools) ||
-    !tools.every((tool): tool is string => TASK_TOOLS.includes(tool))
+    !(tools === null || isToolList(tools))
   ) {
     return null;
   }
@@ -96,7 +96,7 @@ export function turnsOf(text: string): number | null {
 }
 
 export function costOf(text: string): number | null {
-  const cost = /^\d+(\.\d{1,2})?$/.test(text.trim()) ? Number(text) : -1;
+  const cost = text.trim() === "" ? -1 : Number(text);
   return cost >= 0 && cost <= TASK_COST_MAX ? cost : null;
 }
 
@@ -108,29 +108,34 @@ export function taskInput(fields: TaskFields): Record<string, unknown> {
         : fields.prompt,
     }),
     ...(fields.turns === "" ? {} : { maxTurns: Number(fields.turns) }),
-    timeout: timeoutOf(fields.minutes),
+    ...(fields.minutes === null ? {} : { timeout: timeoutOf(fields.minutes) }),
     ...(fields.cost === "" ? {} : { maxCostUsd: Number(fields.cost) }),
-    allowedTools: [...fields.tools],
+    ...(fields.tools === null ? {} : { allowedTools: [...fields.tools] }),
   };
 }
 
 export const typedTurns = (text: string): boolean => /^\d{0,4}$/.test(text);
 
 export const typedCost = (text: string): boolean =>
-  /^(\d{1,4}(\.\d{0,2})?)?$/.test(text);
+  /^(\d{1,4}(\.\d*)?)?$/.test(text);
 
 export function sameTask(left: TaskFields, right: TaskFields): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
 export type TaskProblem = Readonly<
-  { field: "prompt" | "turns" | "cost" }
+  { field: "prompt" | "minutes" | "turns" | "cost" | "tools" }
 >;
+
+export const isTaskField = (field: string): field is TaskProblem["field"] =>
+  ["prompt", "minutes", "turns", "cost", "tools"].includes(field);
 
 export function taskProblems(fields: TaskFields): readonly TaskProblem[] {
   const problems: TaskProblem[] = [];
   if (fields.prompt.trim() === "") problems.push({ field: "prompt" });
-  if (turnsOf(fields.turns) === null) problems.push({ field: "turns" });
+  if (fields.minutes === null) problems.push({ field: "minutes" });
   if (costOf(fields.cost) === null) problems.push({ field: "cost" });
+  if (turnsOf(fields.turns) === null) problems.push({ field: "turns" });
+  if (fields.tools === null) problems.push({ field: "tools" });
   return problems;
 }

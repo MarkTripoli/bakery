@@ -112,6 +112,7 @@ import {
   whoName,
 } from "./notify-copy.ts";
 import {
+  isTaskField,
   NEW_TASK,
   TASK_ACTION,
   taskOfNode,
@@ -1544,9 +1545,7 @@ export function WorkflowEditorPage(
           ]),
         ),
         focus: focusRequest?.stepId === live.id &&
-            (focusRequest.field === "prompt" ||
-              focusRequest.field === "turns" ||
-              focusRequest.field === "cost")
+            isTaskField(focusRequest.field)
           ? { field: focusRequest.field, request: focusRequest.request }
           : null,
       },

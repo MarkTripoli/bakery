@@ -59,8 +59,9 @@ function ReadOnlyTask({ fields, stepId }: TaskPanelProps) {
   const { translate, locale } = useI18n();
   const timeName = useTimeName();
   const tools = new Intl.ListFormat(locale).format(
-    fields.tools.map((tool) => translate(TOOL_NAMES[tool])),
+    (fields.tools ?? []).map((tool) => translate(TOOL_NAMES[tool])),
   );
+  const notSet = translate("library.editor.task.read.notSet");
   return (
     <UI.Stack gap="compact" data-testid="task-fields">
       <UI.Text>
@@ -70,7 +71,7 @@ function ReadOnlyTask({ fields, stepId }: TaskPanelProps) {
       </UI.Text>
       <UI.Text>
         {translate("library.editor.task.read.time", {
-          time: timeName(fields.minutes),
+          time: fields.minutes === null ? notSet : timeName(fields.minutes),
         })}
       </UI.Text>
       <UI.Text>
@@ -80,9 +81,11 @@ function ReadOnlyTask({ fields, stepId }: TaskPanelProps) {
         {translate("library.editor.task.read.turns", { turns: fields.turns })}
       </UI.Text>
       <UI.Text>
-        {fields.tools.length === 0
+        {fields.tools?.length === 0
           ? translate("library.editor.task.read.noTools")
-          : translate("library.editor.task.read.tools", { tools })}
+          : translate("library.editor.task.read.tools", {
+            tools: fields.tools === null ? notSet : tools,
+          })}
       </UI.Text>
       <About stepId={stepId} />
     </UI.Stack>
@@ -100,8 +103,10 @@ function EditableTask(
   const base = useId();
   const ids = {
     prompt: `${base}-prompt`,
+    minutes: `${base}-minutes`,
     turns: `${base}-turns`,
     cost: `${base}-cost`,
+    tools: `${base}-tools`,
   };
   const [draft, setDraft] = useState(fields);
   const [seen, setSeen] = useState(fields);
@@ -119,9 +124,14 @@ function EditableTask(
     setDraft((held) => ({ ...held, [field]: value }));
     onChange({ ...fields, [field]: value }, field);
   };
-  const times = TASK_MINUTES.includes(fields.minutes)
+  const times = fields.minutes === null ||
+      TASK_MINUTES.includes(fields.minutes)
     ? TASK_MINUTES
     : [...TASK_MINUTES, fields.minutes];
+  const chosenTools = fields.tools ?? [];
+  const advancedProblem = Object.keys(problems).some((field) =>
+    field !== "prompt"
+  );
   return (
     <UI.Stack gap="standard" data-testid="task-fields">
       <UI.Field
@@ -143,24 +153,35 @@ function EditableTask(
         />
       </UI.Field>
       <UI.Disclosure
-        defaultOpen={advancedFocus || problems.turns !== undefined ||
-          problems.cost !== undefined}
+        defaultOpen={advancedFocus || advancedProblem}
         key={advancedFocus ? focus.request : "closed"}
         summary={translate("library.editor.task.advanced")}
       >
         <UI.Stack gap="standard">
           <UI.Combobox
+            error={problems.minutes}
+            id={ids.minutes}
             label={translate("library.editor.task.time")}
-            onChange={(event) =>
+            onChange={(event) => {
+              if (event.currentTarget.value === "") return;
               onChange({
                 ...fields,
                 minutes: Number(event.currentTarget.value),
-              })}
-            options={times.map((minutes) => ({
-              value: String(minutes),
-              label: timeName(minutes),
-            }))}
-            value={String(fields.minutes)}
+              });
+            }}
+            options={[
+              ...(fields.minutes === null
+                ? [{
+                  value: "",
+                  label: translate("library.editor.task.chooseTime"),
+                }]
+                : []),
+              ...times.map((minutes) => ({
+                value: String(minutes),
+                label: timeName(minutes),
+              })),
+            ]}
+            value={fields.minutes === null ? "" : String(fields.minutes)}
           />
           <UI.Field
             error={problems.cost}
@@ -200,20 +221,27 @@ function EditableTask(
               value={draft.turns}
             />
           </UI.Field>
-          <UI.Stack gap="tight">
+          <UI.Stack gap="tight" id={ids.tools} tabIndex={-1}>
             <UI.Text variant="strong">
               {translate("library.editor.task.tools")}
             </UI.Text>
+            {problems.tools === undefined
+              ? null
+              : (
+                <UI.InlineNotice tone="error">
+                  {problems.tools}
+                </UI.InlineNotice>
+              )}
             {TASK_TOOLS.map((tool) => (
               <UI.Checkbox
-                checked={fields.tools.includes(tool)}
+                checked={chosenTools.includes(tool)}
                 key={tool}
                 onChange={(event) => {
                   const on = event.currentTarget.checked;
                   onChange({
                     ...fields,
                     tools: TASK_TOOLS.filter((one) =>
-                      one === tool ? on : fields.tools.includes(one)
+                      one === tool ? on : chosenTools.includes(one)
                     ),
                   });
                 }}
@@ -221,13 +249,15 @@ function EditableTask(
                 {translate(TOOL_NAMES[tool])}
               </UI.Checkbox>
             ))}
-            <UI.Text variant="caption">
-              {translate(
-                fields.tools.length === 0
-                  ? "library.editor.task.noTools"
-                  : "library.editor.task.toolsHelp",
-              )}
-            </UI.Text>
+            {fields.tools === null ? null : (
+              <UI.Text variant="caption">
+                {translate(
+                  fields.tools.length === 0
+                    ? "library.editor.task.noTools"
+                    : "library.editor.task.toolsHelp",
+                )}
+              </UI.Text>
+            )}
           </UI.Stack>
           <About stepId={props.stepId} />
         </UI.Stack>

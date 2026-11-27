@@ -89,6 +89,39 @@ test.describe("workflow editor: Custom agent task", () => {
     ).toBeFocused();
   });
 
+  test("what an authored task leaves out is marked, not filled in", async ({ page }) => {
+    const server = await stepEditor(page, {
+      steps: [{
+        id: "ask_agent",
+        uses: TASK,
+        with: { prompt: "Summarise.", maxTurns: 5, maxCostUsd: 0.125 },
+      }],
+    });
+    await page.locator("[data-card='ask_agent']").click();
+    const time = page.getByRole("combobox", { name: "Time limit" });
+    await expect(time).toHaveValue("");
+    await expect(page.getByText("Choose a time limit.").first()).toBeVisible();
+    await expect(
+      page.getByText("Not set in this step. Tick what the agent may use.")
+        .first(),
+    ).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "Read files" }))
+      .not.toBeChecked();
+    await expect(page.getByText("Enter an amount from 0 to 100."))
+      .toHaveCount(0);
+    await still(page, "task-missing");
+    await time.selectOption("15");
+    await page.getByRole("checkbox", { name: "Read files" }).check();
+    await expect.poll(() => savedInput(server.saves.at(-1), TASK)).toEqual({
+      prompt: "Summarise.",
+      maxTurns: 5,
+      maxCostUsd: 0.125,
+      timeout: "PT15M",
+      allowedTools: ["Read"],
+    });
+    await expect(lastCard(page)).not.toContainText("Needs setup");
+  });
+
   test("a task written in a way the panel cannot show stays in code", async ({ page }) => {
     await stepEditor(page, { steps: [task({ allowedTools: ["Bash"] })] });
     await page.locator("[data-card='ask_agent']").click();
