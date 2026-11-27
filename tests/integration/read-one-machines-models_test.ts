@@ -93,6 +93,15 @@ Deno.test("a member reads only the models routed to one machine, without operati
     ]);
     assertEquals("endpoint" in page.items[0]!, false);
     assertEquals(page.nextCursor, null);
+    for (const query of ["foo=1", "limit=1e1"]) {
+      const malformed = await fixture.call(
+        await fixture.as(fixture.fx.developer),
+        "GET",
+        `/v1/workers/${machine.hostId}/models?${query}`,
+      );
+      assertEquals(malformed.status, 400, query);
+      await malformed.body?.cancel();
+    }
   } finally {
     await fixture.close();
   }

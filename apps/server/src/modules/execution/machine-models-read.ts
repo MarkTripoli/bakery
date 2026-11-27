@@ -8,27 +8,8 @@ import {
   encodeCursor,
 } from "../../platform/cursor.ts";
 import { jsonResponse } from "./http.ts";
-import { machineTransaction } from "./machines.ts";
+import { machineTransaction, parseCursorQuery } from "./machines.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
-
-function parseQuery(context: Context<{ Variables: AuthVariables }>) {
-  const search = new URL(context.req.url).searchParams;
-  const single = (name: string) => {
-    const values = search.getAll(name);
-    if (values.length > 1) {
-      throw new StandardError({ code: "MALFORMED_REQUEST" });
-    }
-    return values[0];
-  };
-  const limit = single("limit");
-  const cursor = single("cursor");
-  const parsed = contractSchemas.CursorQuery.safeParse({
-    ...(cursor === undefined ? {} : { cursor }),
-    ...(limit === undefined ? {} : { limit: Number(limit) }),
-  });
-  if (!parsed.success) throw new StandardError({ code: "MALFORMED_REQUEST" });
-  return { cursor: parsed.data.cursor, limit: parsed.data.limit ?? 25 };
-}
 
 export async function listMachineModels(
   context: Context<{ Variables: AuthVariables }>,
@@ -49,7 +30,11 @@ export async function listMachineModels(
       if (hosts.rows.length === 0) {
         throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       }
-      const query = parseQuery(context);
+      const parsedQuery = parseCursorQuery(context);
+      const query = {
+        cursor: parsedQuery.cursor,
+        limit: parsedQuery.limit ?? 25,
+      };
       const binding: CursorBinding = {
         action: "machines.models",
         organizationId: organization,
