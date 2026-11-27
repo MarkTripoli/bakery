@@ -170,17 +170,17 @@ export class SlackApiError extends Error {
   }
 }
 
-export function slackShownText(stored: string): string {
-  return stored
-    .replace(/<([^<>|]+)\|([^<>]+)>/g, "$2")
-    .replace(/<([^<>|]+)>/g, "$1")
+const SLACK_LINK_WITH_LABEL =
+  /<((?:https?:\/\/|mailto:|[@#!])[^<>|\s]*)\|([^<>]+)>/g;
+const SLACK_LINK = /<((?:https?:\/\/|mailto:|[@#!])[^<>|\s]*)>/g;
+
+export function slackShownText(text: string): string {
+  return text
+    .replace(SLACK_LINK_WITH_LABEL, "$2")
+    .replace(SLACK_LINK, "$1")
     .replaceAll("&lt;", "<")
     .replaceAll("&gt;", ">")
     .replaceAll("&amp;", "&");
-}
-
-function refuse(method: string, answer: { ok: boolean; error?: string }) {
-  if (!answer.ok) throw new SlackApiError(method, answer.error ?? "unknown");
 }
 
 const dmOpen = defineAction({
@@ -196,7 +196,6 @@ const dmOpen = defineAction({
     const answer = openResponse.parse(
       await ctx.provider.request(OPEN_REQUEST, { users: input.userId }),
     );
-    refuse("conversations.open", answer);
     if (answer.channel === undefined) {
       throw new SlackApiError("conversations.open", "no_channel");
     }
@@ -209,7 +208,6 @@ const dmOpen = defineAction({
         limit: RECONCILE_IM_LIMIT,
       }),
     );
-    refuse("conversations.list", answer);
     const found = (answer.channels ?? []).find((channel) =>
       channel.user === ctx.input.userId
     );
@@ -238,7 +236,6 @@ const messagePost = defineAction({
         text: input.text,
       }),
     );
-    refuse("chat.postMessage", answer);
     if (answer.ts === undefined) {
       throw new SlackApiError("chat.postMessage", "no_ts");
     }
@@ -251,7 +248,6 @@ const messagePost = defineAction({
         limit: RECONCILE_HISTORY_LIMIT,
       }),
     );
-    refuse("conversations.history", answer);
     const found = (answer.messages ?? []).find((message) =>
       message.text?.includes(ctx.input.marker) ?? false
     );
@@ -279,7 +275,6 @@ const messageUpdate = defineAction({
         text: input.text,
       }),
     );
-    refuse("chat.update", answer);
     return {
       channelId: answer.channel ?? input.channelId,
       ts: answer.ts ?? input.ts,
@@ -292,11 +287,10 @@ const messageUpdate = defineAction({
         limit: RECONCILE_HISTORY_LIMIT,
       }),
     );
-    refuse("conversations.history", answer);
     const updated = (answer.messages ?? []).some((message) =>
       message.ts === ctx.input.ts &&
       message.text !== undefined &&
-      slackShownText(message.text) === ctx.input.text
+      slackShownText(message.text) === slackShownText(ctx.input.text)
     );
     return updated
       ? {
@@ -310,7 +304,17 @@ const messageUpdate = defineAction({
 const template = {
   resourceKind: SLACK_WORKSPACE_KIND,
   pathParams: {},
-  refusal: { okField: "ok", codeField: "error" },
+  refusal: {
+    okField: "ok",
+    codeField: "error",
+    uncertainCodes: [
+      "fatal_error",
+      "internal_error",
+      "request_timeout",
+      "service_unavailable",
+      "ratelimited",
+    ],
+  },
   maxResponseBytes: 65_536,
 } as const;
 

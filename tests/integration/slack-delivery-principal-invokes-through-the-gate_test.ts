@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertNotEquals, assertRejects } from "@std/assert";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import { invokeIntegration } from "../../apps/server/src/modules/catalog/integration-invoke.ts";
 import {
@@ -199,6 +199,53 @@ Deno.test("a workspace resource whose stored team is not the installation's acco
     );
     assertEquals(refused.code, "RESOURCE_NOT_FOUND");
     assertEquals(sent.length, 0);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a post Slack answers fatal_error stays uncertain for reconcile, and invalid_auth still fails", async () => {
+  const o = await open(fakeSlack());
+  try {
+    const connectionId = await connectOnce(o);
+    const ids = await deliveryIds(o.fixture, connectionId);
+    let code = "fatal_error";
+    const { deps } = slackGateDeps(
+      o.fixture.runtimePgDatabase,
+      (request) =>
+        request.path === "/api/chat.postMessage"
+          ? { ok: false, error: code }
+          : request.path === "/api/conversations.history"
+          ? { ok: true, messages: [] }
+          : answer(request),
+    );
+    const post = (idempotencyKey: string, marker: string) =>
+      invokeIntegration(deps, {
+        organizationId: o.fixture.organizationId,
+        actorRef: ids.principalId,
+        connectionId,
+        input: {
+          actionId: "slack.message.post",
+          actionVersion: 1,
+          resourceId: ids.resourceId,
+          arguments: {
+            channelId: DM,
+            text: `A request needs you ${marker}`,
+            marker,
+          },
+        },
+        idempotencyKey,
+      });
+    const uncertain = await post("slack-post-fatal", "[bkr-0000000a]");
+    if (uncertain.route !== "ledger") throw new Error("expected the ledger");
+    assertNotEquals(uncertain.run.outcome, "failed");
+    assertEquals(uncertain.run.effect.status, "uncertain");
+    code = "invalid_auth";
+    const refused = await post("slack-post-invalid-auth", "[bkr-0000000b]");
+    if (refused.route !== "ledger") throw new Error("expected the ledger");
+    assertEquals(refused.run.outcome, "failed");
+    assertEquals(refused.run.effect.status, "failed");
+    assertEquals(refused.run.effect.failureCode, "provider_rejected");
   } finally {
     await o.finish();
   }

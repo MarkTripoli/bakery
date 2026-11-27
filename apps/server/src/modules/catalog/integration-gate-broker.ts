@@ -121,16 +121,20 @@ const PROVIDER_CODE = /^[a-zA-Z0-9_.:-]{1,100}$/;
 function bodyRefusal(
   refusal: RequestTemplate["refusal"],
   data: unknown,
-): string | null {
+): { code: string; uncertain: boolean } | null {
   if (refusal === undefined || typeof data !== "object" || data === null) {
     return null;
   }
   const fields = data as Record<string, unknown>;
   if (fields[refusal.okField] !== false) return null;
-  const code = fields[refusal.codeField];
-  return typeof code === "string" && PROVIDER_CODE.test(code)
-    ? code
+  const raw = fields[refusal.codeField];
+  const code = typeof raw === "string" && PROVIDER_CODE.test(raw)
+    ? raw
     : "unknown";
+  return {
+    code,
+    uncertain: refusal.uncertainCodes?.includes(code) ?? false,
+  };
 }
 
 /**
@@ -549,13 +553,14 @@ export function createBrokerWithProfiles(
       ) {
         throw providerFailure();
       }
-      const refusalCode = bodyRefusal(template.refusal, parsedResponse.data);
-      if (refusalCode !== null) {
+      const refusal = bodyRefusal(template.refusal, parsedResponse.data);
+      if (refusal?.uncertain) throw providerFailure();
+      if (refusal) {
         throw markProviderFailure(
           new StandardError({
             code: "UNPROCESSABLE",
             detail: "provider_refused",
-            params: { reason: "provider_refused", providerCode: refusalCode },
+            params: { reason: "provider_refused", providerCode: refusal.code },
           }),
           { kind: "rejected", retryable: false },
         );

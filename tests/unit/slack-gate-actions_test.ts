@@ -368,3 +368,22 @@ Deno.test("an uncertain DM open is confirmed by the bot's direct message with th
   });
   assertEquals(gate.sent[0]!.query, "?types=im&limit=200");
 });
+
+Deno.test("an update whose sent text carries a link label and & < > is confirmed against Slack's stored form", async () => {
+  const update = {
+    channelId: DM,
+    ts: TS,
+    text: "Fish & chips <b> > see <https://x.test|label>",
+  };
+  const gate = setup(() => ({
+    ok: true,
+    messages: [{
+      ts: TS,
+      text: "Fish &amp; chips &lt;b&gt; &gt; see <https://x.test|label>",
+    }],
+  }));
+  assertEquals(await gate.reconcile(SLACK_MESSAGE_UPDATE, update), {
+    status: "confirmed",
+    result: { channelId: DM, ts: TS },
+  });
+});

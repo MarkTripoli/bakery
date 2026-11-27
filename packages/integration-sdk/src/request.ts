@@ -256,6 +256,15 @@ export const requestTemplateSchema = z.strictObject({
     codeField: z.string().regex(/^[a-z][a-zA-Z0-9_]*$/).describe(
       "Top-level string response field that names the provider's refusal reason.",
     ),
+    uncertainCodes: z.array(
+      z.string().regex(/^[a-zA-Z0-9_.:-]{1,100}$/).describe(
+        "One provider reason code that may arrive after the write partly happened.",
+      ),
+    ).max(32).describe(
+      "Reason codes that do not prove the write failed; the broker treats them as an ambiguous outcome and reconciles.",
+    ).optional().describe(
+      "Optional list of reason codes that leave the outcome uncertain instead of a definite refusal.",
+    ),
   }).describe(
     "How a provider that answers HTTP 200 marks a definite refusal in the body.",
   ).optional().describe(

@@ -258,10 +258,9 @@ export async function revokeGrant(context: ActionContext): Promise<null> {
   const { transaction } = value;
   await requireConnection(transaction, actor.organizationId, connectionId);
   const current = await transaction.query<
-    { version: number; revoked: boolean; subjectPrincipalId: string | null }
+    { version: number; revoked: boolean }
   >(
-    `select version, revoked_at is not null as revoked,
-            subject_principal_id as "subjectPrincipalId"
+    `select version, revoked_at is not null as revoked
        from bakery.integration_grants
       where organization_id = $1 and connection_id = $2 and id = $3
       for update`,
