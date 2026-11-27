@@ -271,17 +271,6 @@ export function createDeliveryActionRegistry(
       DeliveryImplementedAction.PullRequestsOpen,
     ),
   });
-  registry.register({
-    name: DeliveryImplementedAction.PullRequestsOpen,
-    method: HttpMethod.Post,
-    path: "/v1/tasks/:id/pull-requests/open",
-    input: contractSchemas.PullRequestOpen,
-    output: contractSchemas.PullRequest,
-    policy: commandPolicy,
-    transactionIsolation: TransactionIsolation.ReadCommitted,
-    explicitIdempotency: "key",
-    handler: createPullRequestRegistrationHandler(),
-  });
 
   registry.register({
     name: DeliveryImplementedAction.MergeEntriesList,
