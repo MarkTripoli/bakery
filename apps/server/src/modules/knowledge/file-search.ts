@@ -75,6 +75,9 @@ async function refusedByFileGrants(
 
 const PAGE_ORDERING = "createdAt:desc,id:desc";
 
+const MAX_FILTERED_ROUNDS = 10;
+const LAST_POSSIBLE_ID = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+
 /** A friendly group for a media type, as SQL over a column. */
 const MEDIA_GROUP_SQL = `case
   when v.media_type is null then null
@@ -393,10 +396,8 @@ export function createFileSearchHandler(
     }
 
     const scopes = context.sessionScopes;
-    const filesByGrant = scopes !== undefined &&
-      !scopes.includes("artifacts.read") && scopes.includes(FILES_READ_SCOPE);
     const includeFiles = scopes === undefined ||
-      scopes.includes("artifacts.read") || filesByGrant;
+      scopes.includes("artifacts.read") || scopes.includes(FILES_READ_SCOPE);
     const includeLibrary = (scopes === undefined ||
       scopes.includes("library.read")) && authorizeLibraryRead(context);
 
@@ -476,6 +477,11 @@ export function createFileSearchHandler(
     const needleParam = p(needle);
     const kindParam = p(input.kind ?? null);
 
+    const afterAt = p(position?.createdAt ?? null);
+    const afterAtIndex = params.length - 1;
+    const afterId = p(position?.id ?? null);
+    const afterIdIndex = params.length - 1;
+    const pageSize = p(limit + 1);
     const branches: string[] = [];
     if (wantFiles) {
       const folder = p(folderId);
@@ -680,40 +686,62 @@ export function createFileSearchHandler(
        where (${prefixParam}::text is null
               or (library_path is not null and starts_with(library_path, ${prefixParam})))
          and (${groupParam}::text is null or media_group = ${groupParam})
-         and (${p(position?.createdAt ?? null)}::timestamptz is null
-              or (created_at, sort_id) < (${
-      p(position?.createdAt ?? null)
-    }::timestamptz,
-                                          ${p(position?.id ?? null)}::uuid))
+         and (${afterAt}::timestamptz is null
+              or (created_at, sort_id) < (${afterAt}::timestamptz, ${afterId}::uuid))
        order by created_at desc, sort_id desc
-       limit ${p(limit + 1)}`;
-    const result = await transaction.query<HitRow>(sql, params);
-    const page = result.rows.slice(0, limit);
-    // A reviewer's search leaves out the files it may not read (O47); the
-    // cursor follows the unfiltered page.
-    const hidden = await hiddenEntryIds(
+       limit ${pageSize}`;
+    const isolation = await reviewerIsolationOf(
       transaction,
-      await reviewerIsolationOf(transaction, context, organizationId),
+      context,
       organizationId,
-      page.filter((row) => row.source === "files").map((row) => row.sort_id),
     );
-    const reviewed = page.filter((row) =>
-      row.source !== "files" || !hidden.has(row.sort_id)
-    );
-    const refused = filesByGrant
-      ? await refusedByFileGrants(
+    const kept: HitRow[] = [];
+    let lastFetched: HitRow | undefined;
+    let more = false;
+    for (let round = 0; round < MAX_FILTERED_ROUNDS; round++) {
+      const result = await transaction.query<HitRow>(sql, params);
+      const page = result.rows.slice(0, limit);
+      more = result.rows.length > limit;
+      lastFetched = page.at(-1) ?? lastFetched;
+      const hidden = await hiddenEntryIds(
         transaction,
-        context,
+        isolation,
         organizationId,
-        principalId,
-        reviewed.filter((row) => row.source === "files").map((row) =>
-          row.sort_id
+        page.filter((row) => row.source === "files").map((row) => row.sort_id),
+      );
+      const reviewed = page.filter((row) =>
+        row.source !== "files" || !hidden.has(row.sort_id)
+      );
+      const refused = context.agentSession === undefined
+        ? new Set<string>()
+        : await refusedByFileGrants(
+          transaction,
+          context,
+          organizationId,
+          principalId,
+          reviewed.filter((row) => row.source === "files").map((row) =>
+            row.sort_id
+          ),
+        );
+      kept.push(
+        ...reviewed.filter((row) =>
+          row.source !== "files" || !refused.has(row.sort_id)
         ),
-      )
-      : new Set<string>();
-    const visible = reviewed.filter((row) =>
-      row.source !== "files" || !refused.has(row.sort_id)
-    );
+      );
+      if (kept.length >= limit || !more || lastFetched === undefined) break;
+      params[afterAtIndex] = lastFetched.cursor_created_at;
+      params[afterIdIndex] = lastFetched.sort_id;
+    }
+    const visible = kept.slice(0, limit);
+    const hasNext = kept.length > limit || more;
+    const lastVisible = visible.at(-1);
+    const cursorPosition = !hasNext
+      ? null
+      : lastVisible !== undefined
+      ? { createdAt: lastVisible.cursor_created_at, id: lastVisible.sort_id }
+      : lastFetched === undefined
+      ? null
+      : { createdAt: lastFetched.cursor_created_at, id: LAST_POSSIBLE_ID };
 
     // Paths of the tree hits, in one query: each entry's ancestors, joined.
     const treeIds = visible.filter((row) => row.source === "files").map((row) =>
@@ -739,7 +767,6 @@ export function createFileSearchHandler(
       for (const row of found.rows) paths.set(row.leaf, row.path);
     }
 
-    const last = page.at(-1);
     return {
       items: visible.map((row) => {
         const match = nameMatch(row.name, input.query);
@@ -781,12 +808,9 @@ export function createFileSearchHandler(
           createdAt: toIso(row.created_at),
         };
       }),
-      nextCursor: result.rows.length > limit && last
-        ? await encodeCursor(secret, binding, {
-          createdAt: last.cursor_created_at,
-          id: last.sort_id,
-        })
-        : null,
+      nextCursor: cursorPosition === null
+        ? null
+        : await encodeCursor(secret, binding, cursorPosition),
     };
   };
 }

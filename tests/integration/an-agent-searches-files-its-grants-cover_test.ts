@@ -62,7 +62,7 @@ Deno.test("an agent's file search shows only files its step's grants cover", () 
     assert(token);
     await fixture.pgDatabase.query(
       `update bakery.session_operation_credentials
-          set scopes = array(select unnest(scopes) except select unnest(array['artifacts.read', 'files.read:shared']))
+          set scopes = array_remove(scopes, 'files.read:shared')
         where organization_id = $1 and attempt_id = $2`,
       [fixture.organizationId, assignment.attemptId],
     );
@@ -76,17 +76,18 @@ Deno.test("an agent's file search shows only files its step's grants cover", () 
       );
       const text = await response.text();
       const body = JSON.parse(text) as {
-        result?: { items?: { name: string }[] };
+        result?: { items?: { name: string }[]; nextCursor?: string | null };
       };
       return {
         status: response.status,
         text,
         names: (body.result?.items ?? []).map((item) => item.name),
+        nextCursor: body.result?.nextCursor ?? null,
       };
     };
     const before = await search();
     assertEquals(before.status, 200, before.text);
-    assertEquals(before.names, []);
+    assertEquals([before.names, before.nextCursor], [[], null]);
     await fixture.pgDatabase.query(
       `insert into bakery.agent_file_grants
          (organization_id, workflow_id, folder_id, access, granted_by, expires_at)
