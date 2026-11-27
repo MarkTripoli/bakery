@@ -185,7 +185,7 @@ export function OrganizationIntegrationsPage(
               replace: true,
             })}
           onConnect={() => void connectFlow.connect()}
-          onConnectProvider={() => void oauthFlow.connect()}
+          onConnectProvider={oauthFlow.connectFor}
           providerConnectStatus={oauthFlow.connectStatus}
           outcomeProvider={outcomeProvider}
           onDismissOutcome={() =>

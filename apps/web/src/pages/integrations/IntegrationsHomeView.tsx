@@ -40,7 +40,7 @@ export type IntegrationsHomeViewProps = {
   readonly removedName?: string | null;
   readonly onDismissRemoved?: () => void;
   readonly providerConnectStatus: ConnectStatus;
-  readonly onConnectProvider: () => void;
+  readonly onConnectProvider: (slug: string) => void;
   /** The page is on its way back to the provider for the attempt's next step. */
   readonly continuing: boolean;
   readonly connectStatus: ConnectStatus;
@@ -128,7 +128,8 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                         disabled={ownOutcome ? busy : providerBusy}
                         onClick={ownOutcome
                           ? props.onConnect
-                          : props.onConnectProvider}
+                          : () =>
+                            props.onConnectProvider(props.outcomeProvider)}
                         type="button"
                         variant="secondary"
                       >
@@ -300,7 +301,8 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                       <ProviderConnectable
                         canManage={canManage}
                         key={module.manifest.slug}
-                        onConnect={props.onConnectProvider}
+                        onConnect={() =>
+                          props.onConnectProvider(module.manifest.slug)}
                         canOpenInstallation={props.canOpenInstallation === true}
                         slug={module.manifest.slug}
                         status={props.providerConnectStatus}

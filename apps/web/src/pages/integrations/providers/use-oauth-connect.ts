@@ -3,6 +3,7 @@ import { useBakeryApi } from "../../../api/context.tsx";
 import { useProtectedScope } from "../../../app/query-scope-context.tsx";
 import { type ConnectStatus, problemReason } from "../connect.ts";
 import type { ConnectOptions } from "./github/use-github-connect.ts";
+import { startFor } from "./start-for.ts";
 
 export type OAuthProvider = "slack";
 
@@ -45,5 +46,7 @@ export function useOAuthConnect(
       connecting.current = false;
     }
   };
-  return { connect, connectStatus };
+  const connectFor = (slug: string, options?: ConnectOptions) =>
+    startFor(provider, slug, () => connect(options));
+  return { connectFor, connectStatus };
 }

@@ -32,6 +32,7 @@ import type { ConnectionOutcome } from "./outcomes.ts";
 import { useConnectionActions } from "./use-connection.ts";
 import { SlackOwnLinkNotice } from "./providers/slack/SlackOwnLinkNotice.tsx";
 import {
+  type ConnectOptions,
   hasHealthCheck,
   hasSetupPages,
   PROVIDER_IDENTITY,
@@ -212,7 +213,12 @@ function Loaded(
     outcome: outcomeProvider === "slack" ? null : outcome,
   });
   const oauthFlow = useOAuthConnect({ organizationId, provider: "slack" });
-  const connectFlow = guided ? ownFlow : { ...oauthFlow, continuing: false };
+  const connectFlow = guided ? ownFlow : {
+    connect: (options?: ConnectOptions) =>
+      oauthFlow.connectFor(connection.provider, options),
+    connectStatus: oauthFlow.connectStatus,
+    continuing: false,
+  };
   const actions = useConnectionActions({
     connection,
     listKey,
