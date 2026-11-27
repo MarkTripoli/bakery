@@ -21,6 +21,12 @@ export const slackProviderManifest = {
         secret: true,
         format: "text",
       },
+      {
+        id: "signing_secret",
+        labelKey: "integrations.slack.fields.signing_secret",
+        secret: true,
+        format: "text",
+      },
     ],
   },
   connect: {

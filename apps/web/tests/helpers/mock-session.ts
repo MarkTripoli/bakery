@@ -171,6 +171,7 @@ export async function mockAuthenticatedSession(page: Page): Promise<void> {
           configured: false,
           clientId: null,
           clientSecretSavedAt: null,
+          signingSecretSavedAt: null,
           callbackUrl:
             "https://bakery.example/v1/integration-auth/linear/callback",
           version: 0,

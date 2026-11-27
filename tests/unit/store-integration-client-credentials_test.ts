@@ -93,6 +93,7 @@ Deno.test("an unregistered provider reads as not configured, with the callback t
     configured: false,
     clientId: null,
     clientSecretSavedAt: null,
+    signingSecretSavedAt: null,
     callbackUrl: `${BASE}/v1/integration-auth/linear/callback`,
     version: 0,
   });
@@ -113,8 +114,10 @@ Deno.test("a registered provider shows its client ID and when the secret was sav
     "clientSecretSavedAt",
     "configured",
     "provider",
+    "signingSecretSavedAt",
     "version",
   ]);
+  assertEquals(result.signingSecretSavedAt, null);
   assertEquals(JSON.stringify(result).includes("secret_id"), false);
 });
 

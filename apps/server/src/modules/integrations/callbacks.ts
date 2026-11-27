@@ -78,6 +78,7 @@ export const ConnectionOutcome = Object.freeze(
     AlreadyConnected: "already_connected",
     Refreshed: "refreshed",
     ReconnectUnavailable: "reconnect_unavailable",
+    HeldElsewhere: "held_elsewhere",
     StorageFailed: "storage_failed",
   } as const,
 );

@@ -370,7 +370,12 @@ Deno.test("connecting Slack records the workspace, one delivery principal and it
     assertEquals(keyed.rows.map((row) => row.principal_id), [principal.id]);
     assertEquals(
       first.grants,
-      ["slack.dm.open", "slack.message.post", "slack.message.update"].map(
+      [
+        "slack.dm.open",
+        "slack.message.ephemeral",
+        "slack.message.post",
+        "slack.message.update",
+      ].map(
         (capability) => ({
           subject_principal_id: principal.id,
           resource_id: resource.id,
@@ -466,6 +471,7 @@ Deno.test("a reconnect leaves an admin's revocation of a delivery grant standing
       revoked.map(({ capability, revoked }) => [capability, revoked]),
       [
         ["slack.dm.open", false],
+        ["slack.message.ephemeral", false],
         ["slack.message.post", true],
         ["slack.message.update", false],
       ],
@@ -701,6 +707,7 @@ Deno.test("a Slack connection turns off and on, and connecting after removal res
     );
     assertEquals(live.rows.map((row) => row.capability), [
       "slack.dm.open",
+      "slack.message.ephemeral",
       "slack.message.post",
       "slack.message.update",
     ]);
@@ -784,6 +791,7 @@ Deno.test("a reconnect that names a removed Slack connection also restores its d
     );
     assertEquals(live.rows.map((row) => row.capability), [
       "slack.dm.open",
+      "slack.message.ephemeral",
       "slack.message.post",
       "slack.message.update",
     ]);

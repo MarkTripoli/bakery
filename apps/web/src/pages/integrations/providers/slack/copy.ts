@@ -44,6 +44,10 @@ export const SLACK_OUTCOMES: Readonly<
     "integrations.slack.outcome.reconnectUnavailable",
     true,
   ),
+  held_elsewhere: said(
+    "warning",
+    "settings.connections.outcome.heldElsewhere",
+  ),
   storage_failed: said(
     "error",
     "settings.connections.outcome.storageFailed",
