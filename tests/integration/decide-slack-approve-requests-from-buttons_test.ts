@@ -401,13 +401,24 @@ Deno.test("an unlinked Slack user gets the not-linked note and nothing is decide
     assertEquals(response.status, 200);
     assertEquals((await w.approval(asked.approvalId)).status, "open");
     const [note] = w.sentTo("/api/chat.postEphemeral");
-    const body = note!.body as Ephemeral & { blocks?: unknown };
+    const body = note!.body as Ephemeral & {
+      blocks?: {
+        type: string;
+        elements?: { url?: string; text?: { text: string } }[];
+      }[];
+    };
     assertEquals([body.channel, body.user, body.text], [
       DM,
       STRANGER,
       SLACK_PRESS_NOT_LINKED,
     ]);
-    assertEquals(body.blocks, undefined);
+    const button = body.blocks?.find((block) => block.type === "actions")
+      ?.elements?.[0];
+    assertEquals(button?.text?.text, "Link your account");
+    assertEquals(
+      button?.url,
+      `${BASE_URL}/settings/security?organization=${w.f.organizationId}#slack`,
+    );
   } finally {
     await w.finish();
   }
