@@ -36,9 +36,10 @@ import {
 } from "../auth/application/run-grants.ts";
 import {
   AgentPower,
-  assertAgentMayExercise,
-  type ExercisedPower,
+  type AttemptOrigin,
+  attemptOrigin,
   grantRefusal,
+  type MatchingGrant,
   matchingGrants,
 } from "../auth/application/agent-power-grants.ts";
 import { passedOnFromJoin } from "./request-passed-on.ts";
@@ -48,6 +49,12 @@ import { requireWorkTransaction } from "./work-transaction.ts";
 export const AGENT_ASK_OWN_RUN_ONLY = "agent_ask_own_run_only";
 /** An agent asked a person, role or group no live ask grant names. */
 export const AGENT_ASK_AUDIENCE_NOT_GRANTED = "agent_ask_audience_not_granted";
+export const AGENT_ASK_NOT_INVOLVED = "agent_ask_not_involved";
+export const AGENT_ASK_POWER_NOT_HELD = "agent_ask_power_not_held";
+export const AGENT_ASK_STEP_LIMIT = "agent_ask_step_limit";
+export const AGENT_ASK_RUN_LIMIT = "agent_ask_run_limit";
+export const AGENT_ASKS_PER_STEP = 3;
+export const AGENT_ASKS_PER_RUN = 10;
 
 export const REQUEST_POWER_NOT_HELD = "request_power_not_held";
 
@@ -885,6 +892,26 @@ async function requestOnRun(
     }
   }
 
+  if (exercised !== null) {
+    if (audience === null) {
+      for (const recipient of recipients) {
+        await guardAgentReach(transaction, exercised, {
+          organizationId,
+          run,
+          recipientId: recipient.principalId,
+          intent: value.intent,
+          targetId,
+        });
+      }
+    }
+    await guardAgentAskLimits(transaction, exercised, {
+      organizationId,
+      runId: run.id,
+      tags: audience === null
+        ? recipients.map((recipient) => recipient.principalId)
+        : [audience.groupId ?? audience.roleKey ?? audience.name],
+    });
+  }
   const actor: Actor = {
     kind: step === null
       ? attributeAction(context, principalId).actorKind
@@ -1296,12 +1323,11 @@ async function audienceMembers(
   };
 }
 
-/**
- * Refuses an agent's ask unless a live ask grant names the role or group it
- * asks, and only on the run its session belongs to (a step asks about its own
- * run). A person passes untouched, and so does a seat agent asking one person,
- * which keeps the rule it always had. Called before anything is written.
- */
+type AgentAsk = Readonly<{
+  origin: AttemptOrigin | null;
+  liveGrants: readonly MatchingGrant[];
+}>;
+
 async function guardAgentAsk(
   transaction: PgTransactionClient,
   context: ActionContext,
@@ -1312,33 +1338,222 @@ async function guardAgentAsk(
     roleKey: string | null;
     groupId: string | null;
   }>,
-): Promise<ExercisedPower | null> {
+): Promise<AgentAsk | null> {
   const attribution = attributeAction(context, scope.principalId);
   if (attribution.actorKind === "person") return null;
   const audienceAsk = scope.roleKey !== null || scope.groupId !== null;
   if (context.agentSession === undefined && !audienceAsk) return null;
-  const exercised = await assertAgentMayExercise(transaction, context, {
+  const origin = context.agentSession === undefined
+    ? null
+    : await attemptOrigin(
+      transaction,
+      scope.organizationId,
+      context.agentSession.attemptId,
+    );
+  const grants = await matchingGrants(transaction, {
     organizationId: scope.organizationId,
-    principalId: scope.principalId,
     power: AgentPower.Ask,
+    workflowId: origin?.workflowId ?? null,
+    accessTokenId: attribution.accessTokenId,
   });
-  if (exercised.origin !== null && exercised.origin.runId !== scope.runId) {
+  if (context.agentSession !== undefined && origin === null) {
+    throw grantRefusal(grants);
+  }
+  if (origin !== null && origin.runId !== scope.runId) {
     forbidden(AGENT_ASK_OWN_RUN_ONLY);
   }
-  if (!audienceAsk) forbidden(AGENT_ASK_AUDIENCE_NOT_GRANTED);
-  const grants = (await matchingGrants(transaction, {
-    organizationId: scope.organizationId,
-    power: AgentPower.Ask,
-    workflowId: exercised.origin?.workflowId ?? null,
-    accessTokenId: attribution.accessTokenId,
-  })).filter((grant) =>
-    scope.roleKey !== null
-      ? grant.roleKey === scope.roleKey
-      : grant.groupId === scope.groupId
+  if (audienceAsk) {
+    const named = grants.filter((grant) =>
+      scope.roleKey !== null
+        ? grant.roleKey === scope.roleKey
+        : grant.groupId === scope.groupId
+    );
+    if (named.length === 0) forbidden(AGENT_ASK_AUDIENCE_NOT_GRANTED);
+    if (!named.some((grant) => !grant.expired)) throw grantRefusal(named);
+  }
+  return {
+    origin,
+    liveGrants: grants.filter((grant) => !grant.expired),
+  };
+}
+
+const INTENT_ACTION: Readonly<
+  Partial<Record<RequestIntent, CatalogActionName>>
+> = {
+  review: "artifactComments.create",
+  approve: "approvals.decide",
+  answer: "questions.answer",
+  take_over: "runSteps.takeOver",
+};
+
+async function involvedInRun(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  run: RunFacts,
+  recipientId: string,
+): Promise<boolean> {
+  if (
+    [run.requested_by, run.task_created_by, run.workflow_owner].includes(
+      recipientId,
+    )
+  ) return true;
+  const named = await transaction.query(
+    `select 1 from bakery.person_requests
+      where organization_id = $1 and run_id = $2 and recipient_id = $3
+     union all
+     select 1 from bakery.questions
+      where organization_id = $1 and run_id = $2
+        and audience->'principalIds' ? $3::text
+     limit 1`,
+    [organizationId, run.id, recipientId],
   );
-  if (grants.length === 0) forbidden(AGENT_ASK_AUDIENCE_NOT_GRANTED);
-  if (!grants.some((grant) => !grant.expired)) throw grantRefusal(grants);
-  return exercised;
+  return named.rows.length > 0;
+}
+
+async function holdsIntentPower(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  recipientId: string,
+  intent: RequestIntent,
+  targetId: string | null,
+): Promise<boolean> {
+  const action = INTENT_ACTION[intent];
+  if (action === undefined) return true;
+  const permission = permissionForAction(action);
+  const member = await transaction.query<
+    { role: string | null; permissions: string[] | null }
+  >(
+    `select membership.role, custom.permissions
+       from bakery.organization_memberships as membership
+       left join bakery.organization_roles as custom
+         on custom.organization_id = membership.organization_id
+        and custom.id = membership.custom_role_id
+      where membership.organization_id = $1 and membership.principal_id = $2
+        and membership.status = 'active'`,
+    [organizationId, recipientId],
+  );
+  const row = member.rows[0];
+  if (!row) return false;
+  const role = SYSTEM_ROLES.find((name) => name === row.role);
+  const allowed = row.permissions !== null
+    ? row.permissions.includes(permission)
+    : role !== undefined && roleHasPermission(role, permission);
+  if (!allowed) return false;
+  if (intent !== "approve" && intent !== "answer") return true;
+  const question = await transaction.query<
+    { audience: QuestionAudience | null }
+  >(
+    `select audience from bakery.questions
+      where organization_id = $1 and id = $2`,
+    [organizationId, targetId],
+  );
+  return decidesItself(question.rows[0]?.audience ?? null, recipientId);
+}
+
+async function grantReaches(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  grants: readonly MatchingGrant[],
+  recipientId: string,
+): Promise<boolean> {
+  const roleKeys = grants.flatMap((grant) =>
+    grant.roleKey === null ? [] : [grant.roleKey]
+  );
+  const groupIds = grants.flatMap((grant) =>
+    grant.groupId === null ? [] : [grant.groupId]
+  );
+  if (roleKeys.length === 0 && groupIds.length === 0) return false;
+  const found = await transaction.query(
+    `select 1 from bakery.organization_memberships
+      where organization_id = $1 and principal_id = $2
+        and status = 'active' and role = any($3::text[])
+     union all
+     select 1 from bakery.organization_group_members
+      where organization_id = $1 and principal_id = $2
+        and group_id = any($4::uuid[])
+     limit 1`,
+    [organizationId, recipientId, roleKeys, groupIds],
+  );
+  return found.rows.length > 0;
+}
+
+async function guardAgentReach(
+  transaction: PgTransactionClient,
+  agent: AgentAsk,
+  scope: Readonly<{
+    organizationId: string;
+    run: RunFacts;
+    recipientId: string;
+    intent: RequestIntent;
+    targetId: string | null;
+  }>,
+): Promise<void> {
+  const involved = await involvedInRun(
+    transaction,
+    scope.organizationId,
+    scope.run,
+    scope.recipientId,
+  );
+  const holds = await holdsIntentPower(
+    transaction,
+    scope.organizationId,
+    scope.recipientId,
+    scope.intent,
+    scope.targetId,
+  );
+  if (involved && holds) return;
+  if (
+    await grantReaches(
+      transaction,
+      scope.organizationId,
+      agent.liveGrants,
+      scope.recipientId,
+    )
+  ) return;
+  forbidden(involved ? AGENT_ASK_POWER_NOT_HELD : AGENT_ASK_NOT_INVOLVED);
+}
+
+async function guardAgentAskLimits(
+  transaction: PgTransactionClient,
+  agent: AgentAsk,
+  scope: Readonly<{ organizationId: string; runId: string; tags: string[] }>,
+): Promise<void> {
+  const tag =
+    "coalesce(audience_group_id::text, audience_role_key, recipient_id::text)";
+  const sessionId = agent.origin?.agentSessionId ?? null;
+  const made = await transaction.query<{ tag: string; from_step: boolean }>(
+    `select distinct ${tag} as tag,
+            coalesce(asked_by_session_id in (
+              select peer.id from bakery.agent_sessions as peer
+                join bakery.agent_sessions as own
+                  on own.organization_id = peer.organization_id
+                 and own.run_step_id = peer.run_step_id
+               where own.organization_id = $1 and own.id = $3
+            ), false) as from_step
+       from bakery.person_requests
+      where organization_id = $1 and run_id = $2 and asked_by_kind = 'agent'`,
+    [scope.organizationId, scope.runId, sessionId],
+  );
+  const onRun = new Set(made.rows.map((row) => row.tag));
+  const onStep = new Set(
+    made.rows.filter((row) => row.from_step).map((row) => row.tag),
+  );
+  const fresh = scope.tags.filter((tag) => !onRun.has(tag));
+  if (onRun.size + fresh.length > AGENT_ASKS_PER_RUN) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: AGENT_ASK_RUN_LIMIT },
+    });
+  }
+  const freshOnStep = scope.tags.filter((tag) => !onStep.has(tag));
+  if (
+    sessionId !== null && onStep.size + freshOnStep.length > AGENT_ASKS_PER_STEP
+  ) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: AGENT_ASK_STEP_LIMIT },
+    });
+  }
 }
 
 function forbidden(reason: string): never {
@@ -1459,9 +1674,9 @@ async function askOne(
        organization_id, run_id, task_id, step_key, intent, recipient_id,
        fallback_for_name, asked_by, asked_by_kind, note, needed_by, expires_at,
        target_id, audience_role_key, audience_group_id, audience_name,
-       step_iteration)
+       step_iteration, asked_by_session_id)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-             now() + make_interval(days => $12), $13, $14, $15, $16, $17)
+             now() + make_interval(days => $12), $13, $14, $15, $16, $17, $18)
      returning id`,
     [
       organizationId,
@@ -1481,6 +1696,7 @@ async function askOne(
       audience?.groupId ?? null,
       audience?.name ?? null,
       ask.stepIteration,
+      actor.sessionId,
     ],
   );
   const requestId = created.rows[0]?.id;

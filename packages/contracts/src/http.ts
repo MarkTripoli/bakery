@@ -280,6 +280,8 @@ export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
       "agent_power_grant_expired",
       "agent_ask_audience_not_granted",
       "agent_ask_own_run_only",
+      "agent_ask_not_involved",
+      "agent_ask_power_not_held",
       // An agent starting a run or creating a task without the run_start power
       // along its spawn chain (#413).
       "spawn_requires_grant",
