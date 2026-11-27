@@ -311,40 +311,27 @@ function underBoundConnection(
   return bound.some((id) => connectionMountKey(id) === mountKey);
 }
 
-/**
- * Judges one agent read, with the layers a write has: storage scoping (an
- * entry from elsewhere is not found), the area axis against the step's files
- * section and the workflow's live grants, and the principal's own authority.
- * Reads are addressed by entry id, so there is no path for the lexical layer
- * to judge; the entry's real chain is what decides.
- */
-export async function assertAgentFileRead(
-  tx: Pick<PgTransactionClient, "query">,
+type ReadDecision = Readonly<{
+  chain: readonly ChainRow[];
+  grants: readonly AgentFileGrant[];
+}>;
+
+function agentReadRefusal(
   scope: AgentFileReadScope,
-): Promise<void> {
-  // Layer 5.
-  const chain = await folderChain(tx, scope.organizationId, scope.target.id);
+  decision: ReadDecision,
+): AgentFileRefusal | "not_found" | undefined {
+  const { chain } = decision;
   if (
     storageScopeRefusal(
       scope.organizationId,
       chain.map((row) => ({ organizationId: row.organization_id })),
     )
-  ) notFound();
+  ) return "not_found";
   const entries = chainEntries(chain);
   const area = agentTreeAreaOf(entries, scope.own);
-  // /trash and /system refuse before any grant is read: nothing opens them.
-  if (area === AgentTreeArea.Trash) forbidden(AgentFileRefusal.TrashArea);
-  if (area === AgentTreeArea.System) forbidden(AgentFileRefusal.SystemArea);
-  // Layer 2: the live grants that cover the entry, read or write, at the
-  // time of this read.
-  const grants = await tx.query<GrantRow>(
-    "select id, organization_id, workflow_id, folder_id, access, granted_by," +
-      " expires_at, revoked_at from bakery.agent_file_grants" +
-      " where organization_id = $1 and workflow_id = $2" +
-      " and folder_id = any($3::uuid[])",
-    [scope.organizationId, scope.workflowId, chain.map((row) => row.id)],
-  );
-  const decision = grantRefusal(grants.rows.map(toAgentFileGrant), {
+  if (area === AgentTreeArea.Trash) return AgentFileRefusal.TrashArea;
+  if (area === AgentTreeArea.System) return AgentFileRefusal.SystemArea;
+  const grant = grantRefusal([...decision.grants], {
     organizationId: scope.organizationId,
     workflowId: scope.workflowId,
     access: AgentFileAccess.Read,
@@ -356,20 +343,151 @@ export async function assertAgentFileRead(
     : agentReadAreaRefusal({
       area,
       declared: scope.declared,
-      liveGrant: decision.grant,
+      liveGrant: grant.grant,
       personalOwnerId: personalOwnerOf(entries),
       boundConnection: area === AgentTreeArea.Connections &&
         underBoundConnection(entries, scope.boundConnections ?? []),
     });
-  if (refusal !== undefined) forbidden(refusal);
-  // Layer 4: never beyond the person the agent acts for.
+  if (refusal !== undefined) return refusal;
   if (
     !isVisibleTo({
       policy: scope.target.policy,
       ownerId: scope.target.owner_id,
       systemKey: scope.target.system_key,
     }, scope.principalId)
-  ) forbidden(AgentFileRefusal.PrincipalCannotRead);
+  ) return AgentFileRefusal.PrincipalCannotRead;
+  return undefined;
+}
+
+async function liveGrantsOn(
+  tx: Pick<PgTransactionClient, "query">,
+  organizationId: string,
+  workflowId: string,
+  folderIds: readonly string[],
+): Promise<AgentFileGrant[]> {
+  const grants = await tx.query<GrantRow>(
+    "select id, organization_id, workflow_id, folder_id, access, granted_by," +
+      " expires_at, revoked_at from bakery.agent_file_grants" +
+      " where organization_id = $1 and workflow_id = $2" +
+      " and folder_id = any($3::uuid[])",
+    [organizationId, workflowId, [...folderIds]],
+  );
+  return grants.rows.map(toAgentFileGrant);
+}
+
+export async function assertAgentFileRead(
+  tx: Pick<PgTransactionClient, "query">,
+  scope: AgentFileReadScope,
+): Promise<void> {
+  const chain = await folderChain(tx, scope.organizationId, scope.target.id);
+  const refusal = agentReadRefusal(scope, {
+    chain,
+    grants: await liveGrantsOn(
+      tx,
+      scope.organizationId,
+      scope.workflowId,
+      chain.map((row) => row.id),
+    ),
+  });
+  if (refusal === "not_found") notFound();
+  if (refusal !== undefined) forbidden(refusal);
+}
+
+async function folderChains(
+  tx: Pick<PgTransactionClient, "query">,
+  organizationId: string,
+  entryIds: readonly string[],
+): Promise<Map<string, ChainRow[]>> {
+  const found = await tx.query<ChainRow & { origin: string; depth: number }>(
+    "with recursive up as (" +
+      " select id as origin, id, parent_id, name, organization_id, system_key," +
+      " policy, owner_id, 0 as depth" +
+      " from bakery.storage_entries" +
+      " where organization_id = $1 and id = any($2::uuid[])" +
+      " union all" +
+      " select up.origin, e.id, e.parent_id, e.name, e.organization_id," +
+      " e.system_key, e.policy, e.owner_id, up.depth + 1" +
+      " from bakery.storage_entries e" +
+      " join up on e.organization_id = $1 and e.id = up.parent_id" +
+      " where up.depth < 64)" +
+      " select origin, id, name, organization_id, system_key, policy, owner_id," +
+      " depth from up order by origin, depth desc",
+    [organizationId, [...entryIds]],
+  );
+  const chains = new Map<string, ChainRow[]>();
+  for (const row of found.rows) {
+    const chain = chains.get(row.origin) ?? [];
+    chain.push(row);
+    chains.set(row.origin, chain);
+  }
+  return chains;
+}
+
+export async function agentReadableFileIds(
+  tx: PgTransactionClient,
+  context: Pick<ActionContext, "agentSession" | "sessionScopes">,
+  scope: Readonly<{
+    organizationId: string;
+    principalId: string;
+    targets: readonly AgentFileTarget[];
+    now?: Date;
+  }>,
+): Promise<ReadonlySet<string>> {
+  const ids = scope.targets.map((target) => target.id);
+  if (context.agentSession === undefined) return new Set(ids);
+  if (ids.length === 0) return new Set();
+  const origin = await attemptOrigin(
+    tx,
+    scope.organizationId,
+    context.agentSession.attemptId,
+  );
+  if (origin === null) return new Set();
+  const chains = await folderChains(tx, scope.organizationId, ids);
+  const grants = await liveGrantsOn(
+    tx,
+    scope.organizationId,
+    origin.workflowId,
+    [...new Set([...chains.values()].flat().map((row) => row.id))],
+  );
+  const own = await ownPlaces(tx, scope.organizationId, origin.taskId);
+  const isolation = await reviewerIsolationOf(
+    tx,
+    context,
+    scope.organizationId,
+  );
+  const now = scope.now ?? new Date();
+  const readable = new Set<string>();
+  for (const target of scope.targets) {
+    const chain = chains.get(target.id);
+    if (chain === undefined) continue;
+    const base = {
+      organizationId: scope.organizationId,
+      principalId: scope.principalId,
+      workflowId: origin.workflowId,
+      target,
+      declared: declaredTreeAreas(context.sessionScopes, AgentFileAccess.Read),
+      boundConnections: boundConnectionsOf(context.sessionScopes),
+      own,
+      now,
+    };
+    let refusal = agentReadRefusal(base, { chain, grants });
+    if (
+      refusal !== undefined && refusal !== "not_found" && isolation !== null &&
+      await reviewerDeclaredOutput(
+        tx,
+        isolation,
+        scope.organizationId,
+        target.id,
+      )
+    ) {
+      refusal = agentReadRefusal({ ...base, reviewedOutput: true }, {
+        chain,
+        grants,
+      });
+    }
+    if (refusal === undefined) readable.add(target.id);
+  }
+  return readable;
 }
 
 /**
