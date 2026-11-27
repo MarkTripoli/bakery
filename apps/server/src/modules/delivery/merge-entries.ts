@@ -64,6 +64,8 @@ export type MergeEntryRead = {
   version: number;
   /** Why the queue stopped it; null unless blocked with a recorded reason. */
   blockedReason: MergeEntryBlockedReason | null;
+  requestedBy: string;
+  requestedByName: string | null;
 };
 
 /** The closed set of reasons the queue records (migration 0259). */
@@ -103,6 +105,8 @@ type EntryRow = {
   updated_at: Date | string;
   version: number;
   blocked_reason: string | null;
+  requested_by_id: string;
+  requested_by_name: string | null;
   cursor_created_at: string;
 };
 
@@ -110,7 +114,9 @@ const ENTRY_COLUMNS = `entry.id,entry.pull_request_id,entry.repository_id,
   entry.target_branch,entry.expected_head_sha,entry.expected_base_sha,
   entry.status,entry.external_effect_id,entry.run_id,entry.policy_digest,
   entry.review_cycle_id,entry.created_at,entry.updated_at,entry.version,
-  entry.blocked_reason,
+  entry.blocked_reason, entry.requested_by_id,
+  (select principal.display_name from bakery.principals as principal
+    where principal.id = entry.requested_by_id) as requested_by_name,
   to_char(entry.created_at at time zone 'UTC', '${TIMESTAMP_SQL}')
     as cursor_created_at`;
 
@@ -147,8 +153,8 @@ function entry(row: EntryRow): MergeEntryRead {
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
     version: row.version,
-    // A reason the read does not know reads as no reason, so the page shows
-    // its "was not told why" card instead of guessing.
+    requestedBy: row.requested_by_id,
+    requestedByName: row.requested_by_name,
     blockedReason: row.blocked_reason !== null &&
         BLOCKED_REASONS.has(row.blocked_reason)
       ? row.blocked_reason as MergeEntryBlockedReason
