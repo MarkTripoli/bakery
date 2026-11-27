@@ -127,6 +127,7 @@ export const PICKER_STEPS: readonly string[] = [
   "review.independent",
   "delivery.merge",
   "human.approval",
+  "people.tag",
 ];
 
 /**
@@ -145,6 +146,7 @@ export const ACTION_TITLES: Readonly<Record<string, MessageKey>> = {
   "review.independent": "library.workflow.action.reviewIndependent",
   "agent.freeform": "library.workflow.action.agentFreeform",
   "human.approval": "library.workflow.action.humanApproval",
+  "people.tag": "library.workflow.action.peopleTag",
   "workflow.stop": "library.workflow.action.workflowStop",
   "quality.check": "library.workflow.action.qualityCheck",
   "delivery.merge": "library.workflow.action.deliveryMerge",
@@ -169,6 +171,7 @@ export const ACTION_ICONS: Readonly<Record<string, string>> = {
   "delivery.merge": "integration",
   "agent.freeform": "document",
   "human.approval": "person",
+  "people.tag": "person",
   "workflow.stop": "close",
 };
 
@@ -183,6 +186,7 @@ export const ACTION_LINES: Readonly<Record<string, string>> = {
   "review.independent": "library.workflow.actionLine.reviewIndependent",
   "agent.freeform": "library.workflow.actionLine.agentFreeform",
   "human.approval": "library.workflow.actionLine.humanApproval",
+  "people.tag": "library.workflow.actionLine.peopleTag",
   "workflow.stop": "library.workflow.actionLine.workflowStop",
   "quality.check": "library.workflow.actionLine.qualityCheck",
   "delivery.merge": "library.workflow.actionLine.deliveryMerge",

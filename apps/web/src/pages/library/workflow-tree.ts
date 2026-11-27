@@ -1,4 +1,5 @@
 import { APPROVAL_ACTION, approvalOfNode } from "./approval-step.ts";
+import { NOTIFY_ACTION, notifyOfNode } from "./notify-step.ts";
 import { ACTION_TITLES, PICKER_STEPS } from "./workflow-state.ts";
 
 /**
@@ -173,6 +174,7 @@ function isCodeOnly(node: Record<string, unknown>, uses: string): boolean {
   if (!KNOWN_ACTIONS.has(uses)) return false;
   if (!ADDABLE_ACTIONS.has(uses)) return true;
   if (uses === APPROVAL_ACTION && approvalOfNode(node) === null) return true;
+  if (uses === NOTIFY_ACTION && notifyOfNode(node) === null) return true;
   if (node.if !== undefined) return true;
   if (node.retry !== undefined) {
     const retry = record(node.retry);

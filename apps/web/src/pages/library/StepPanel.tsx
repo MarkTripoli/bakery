@@ -7,6 +7,7 @@ import {
   ApprovalPanelBody,
   type ApprovalPanelProps,
 } from "./ApprovalPanel.tsx";
+import { NotifyPanelBody, type NotifyPanelProps } from "./NotifyPanel.tsx";
 import { StartPanelBody, type StartPanelProps } from "./StartPanel.tsx";
 
 /**
@@ -126,6 +127,7 @@ export type PanelTarget =
     readonly problem: string | undefined;
     readonly agentFromSetup?: boolean;
     readonly approval?: ApprovalPanelProps | undefined;
+    readonly notify?: NotifyPanelProps | undefined;
     /** The skills the step names (#431). */
     readonly skills: StepSkills;
     /** The picker that attaches a skill; null when the page cannot edit. */
@@ -220,9 +222,11 @@ export function StepPanel(
     );
   }
 
-  const lineKey = target.approval === undefined
-    ? ACTION_LINES[target.uses]
-    : "library.editor.ask.panelLine";
+  const lineKey = target.approval !== undefined
+    ? "library.editor.ask.panelLine"
+    : target.notify !== undefined
+    ? "library.editor.notify.panelLine"
+    : ACTION_LINES[target.uses];
   const line = lineKey === undefined ? undefined : translate(lineKey as never);
 
   return (
@@ -283,6 +287,9 @@ export function StepPanel(
             })}
           </UI.Text>
         )}
+        {target.notify === undefined
+          ? null
+          : <NotifyPanelBody key={target.notify.stepId} {...target.notify} />}
         {target.approval === undefined ? null : (
           <ApprovalPanelBody
             key={target.approval.stepId}
