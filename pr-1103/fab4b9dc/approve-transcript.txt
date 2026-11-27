@@ -1,0 +1,29 @@
+$ bakery-worker link --server http://127.0.0.1:45595
+
+Nothing is installed yet. Ask a Bakery administrator to approve this code:
+
+  PANP-7URE
+
+  http://127.0.0.1:45595/machines/link   (opens on any device)
+
+Waiting for approval… 9 minutes left.
+
+Bakery worker · link this machine
+
+  Organization   Personal
+  Machine        build-box-01
+  Tasks at once  1
+  Coding agent   Claude Code
+  This computer  Linux x86_64
+
+This installs the worker, adds the service bakery-worker
+(asks for your password once) and starts it.
+
+Link this machine? [y/N] y
+
+✓ Installed
+✓ Service started
+✓ Connected to Bakery
+
+build-box-01 is linked. One thing left, in Bakery: sign in to Claude Code.
+[exit 0]
