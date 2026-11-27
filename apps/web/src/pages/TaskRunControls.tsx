@@ -192,6 +192,7 @@ export function TaskRunControls(
       id: action,
       label: t(`tasks.controls.menu.${action}`),
       disabled: busy || (receipt === "unknown" && !unconfirmed),
+      ...(action === "cancel" ? { tone: "danger" as const } : {}),
     })),
     // Only after a request whose outcome is not confirmed, or when what the
     // server allows could not be read.
