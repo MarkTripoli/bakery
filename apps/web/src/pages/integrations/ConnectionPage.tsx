@@ -228,6 +228,13 @@ function Loaded(
       },
     );
   const repositories = actions.repositories;
+  const dismissOutcome = () =>
+    void navigate({
+      to: "/settings/organization/integrations/$connectionId",
+      params: { connectionId: connection.id },
+      search: {},
+      replace: true,
+    });
   return (
     <>
       <Crumbs
@@ -254,19 +261,16 @@ function Loaded(
         health={health}
         lastCheckedAt={connection.lastCheckedAt}
         onCheck={() => void actions.check()}
-        onDismissOutcome={() =>
-          void navigate({
-            to: "/settings/organization/integrations/$connectionId",
-            params: { connectionId: connection.id },
-            search: {},
-            replace: true,
-          })}
+        onDismissOutcome={dismissOutcome}
         onFix={() => {
           if (health.action === "turnOn") void actions.setEnabled(true);
           else reconnect();
         }}
         onReload={() => void repositories.refetch()}
-        onTurnOff={() => void actions.setEnabled(false)}
+        onTurnOff={() => {
+          dismissOutcome();
+          void actions.setEnabled(false);
+        }}
         onTurnOn={() => void actions.setEnabled(true)}
         outcome={outcome}
         outcomeProvider={outcomeProvider}

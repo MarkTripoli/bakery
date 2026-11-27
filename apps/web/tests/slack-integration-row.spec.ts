@@ -36,12 +36,27 @@ const savedSlackCredentials = {
   version: 2,
 };
 
+async function signInAsAdmin(page: Page) {
+  await mockAuthenticatedSession(page);
+  await page.route(
+    "**/v1/organizations/*/effective-access",
+    (route) =>
+      route.fulfill({
+        json: {
+          organizationId: MOCK_ORGANIZATION_ID,
+          role: "admin",
+          capabilities: [],
+        },
+      }),
+  );
+}
+
 async function fixture(
   page: Page,
   credentials: typeof slackCredentials | typeof savedSlackCredentials =
     slackCredentials,
 ): Promise<void> {
-  await mockAuthenticatedSession(page);
+  await signInAsAdmin(page);
   await page.route(
     "**/v1/integration-client-credentials/slack",
     (route) =>
@@ -69,12 +84,15 @@ async function startsConnect(page: Page, sent: unknown[], status = 201) {
         status,
         contentType: "application/problem+json",
         body: JSON.stringify({
-          type: "about:blank",
-          title: "x",
+          type: "https://bakery.example/problems/test",
+          title: "Request refused",
+          detail: "Request refused.",
           status,
           code: "STATE_CONFLICT",
           reason: "provider_unregistered",
           retryable: false,
+          requestId: crypto.randomUUID(),
+          traceId: crypto.randomUUID(),
         }),
       });
     }
@@ -160,6 +178,14 @@ test("a Slack connect that worked lands on the connection and says so", async ({
   await expect(page.getByTestId("github-connection-outcome"))
     .toContainText("Bakery was added to your Slack workspace.");
   await still(page, "slack-outcome-connected");
+  await page.getByRole("button", { name: "Turn off" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Turn off" })
+    .click();
+  await expect(page.getByTestId("github-connection-outcome")).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(CONNECTION_ID + "$"));
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Turn off" })).toBeVisible();
+  await expect(page.getByTestId("github-connection-outcome")).toHaveCount(0);
 });
 
 test("the Slack row on the organization integrations page", async ({ page }) => {
@@ -441,18 +467,7 @@ const slackConnection = (extra: Record<string, unknown> = {}) => ({
 });
 
 async function connected(page: Page, extra: Record<string, unknown> = {}) {
-  await mockAuthenticatedSession(page);
-  await page.route(
-    "**/v1/organizations/*/effective-access",
-    (route) =>
-      route.fulfill({
-        json: {
-          organizationId: MOCK_ORGANIZATION_ID,
-          role: "admin",
-          capabilities: [],
-        },
-      }),
-  );
+  await signInAsAdmin(page);
   const connection = slackConnection(extra);
   await page.route(
     (url) => url.pathname === "/v1/integration-connections",
