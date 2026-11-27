@@ -12127,24 +12127,39 @@
           "name": "headBranch",
           "type": "string",
           "required": true,
-          "description": "Branch that holds the changes, already pushed to the repository; a pull request already open from it into the base is registered instead of a second one."
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 250
+          },
+          "description": "Branch that holds the changes, already pushed to the repository; any name git accepts. A pull request already open from it into the base is registered instead of a second one."
         },
         {
           "name": "baseBranch",
           "type": "string",
           "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 250
+          },
           "description": "Branch the changes should merge into; omitted, the repository's default branch."
         },
         {
           "name": "title",
           "type": "string",
           "required": true,
-          "description": "Pull request title GitHub shows; at most 256 characters."
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "description": "Pull request title GitHub shows; at most 256 characters, and not only spaces."
         },
         {
           "name": "body",
           "type": "string",
           "required": false,
+          "bounds": {
+            "maxLength": 65536
+          },
           "description": "Pull request description in Markdown; omitted, empty."
         },
         {

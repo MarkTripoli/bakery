@@ -125,3 +125,61 @@ Deno.test("a task cannot open a pull request when the App's token cannot write p
     await fixture.finish();
   }
 });
+
+Deno.test("any branch name git accepts opens a pull request; a bad name or title is refused before GitHub", async () => {
+  const fixture = await openGitHubAppFixture();
+  let seed: Awaited<ReturnType<typeof seedTaskAndRepository>> | undefined;
+  try {
+    const connection = await enabledConnection(fixture, { selected: 1 });
+    seed = await seedTaskAndRepository(fixture, connection.selected[0]);
+    const open = (body: Record<string, unknown>) =>
+      call(
+        fixture,
+        "POST",
+        `/v1/tasks/${seed!.taskId}/pull-requests/open`,
+        fixture.developerCookie!,
+        {
+          body: { repositoryId: seed!.repositoryId, title: "Change", ...body },
+          headers: {
+            ...orgHeader(seed!.organizationId),
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+        },
+      );
+    for (
+      const branch of [
+        "fix/#123",
+        "release+1",
+        "dependabot/npm_and_yarn/@types/node-22",
+        "rama/año",
+      ]
+    ) {
+      const opened = await open({ headBranch: branch, baseBranch: "main" });
+      assertEquals(opened.status, 201, `${branch}: ${await opened.text()}`);
+    }
+    assertEquals(fixture.github.openedPullRequests().length, 4);
+    for (
+      const [body, field] of [
+        [{ headBranch: "a..b" }, "headBranch"],
+        [{ headBranch: "feature", baseBranch: "main.lock" }, "baseBranch"],
+        [{ headBranch: "feature", title: "   " }, "title"],
+        [{ headBranch: "feature", title: "x".repeat(300) }, "title"],
+      ] as const
+    ) {
+      const refused = await open(body);
+      const text = await refused.text();
+      assertEquals([400, 422].includes(refused.status), true, text);
+      assertEquals(text.includes(field), true, text);
+    }
+    assertEquals(fixture.github.openedPullRequests().length, 4);
+  } finally {
+    if (seed) {
+      await fixture.pgDatabase.query(
+        "delete from bakery.pull_requests where organization_id = $1",
+        [seed.organizationId],
+      );
+      await removeSeed(fixture, seed);
+    }
+    await fixture.finish();
+  }
+});
