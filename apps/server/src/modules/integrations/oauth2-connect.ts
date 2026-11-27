@@ -48,6 +48,7 @@ import { encodeSecretSlots } from "./provider-credential-port.ts";
 import { bindConnectedResource } from "./connected-resource.ts";
 import { connectSlackInstallation } from "./slack-receipts.ts";
 import { PROVIDERS } from "./registry.ts";
+import { isSelectionTaken } from "./postgres.ts";
 
 type AuthRedirect = z.output<typeof contractSchemas.AuthRedirect>;
 
@@ -544,7 +545,13 @@ export function createOAuth2CallbackRunner(
         )
       ) as AuthRedirect;
     } catch (error) {
-      return await fail("bind", ConnectionOutcome.StorageFailed, error);
+      return await fail(
+        "bind",
+        isSelectionTaken(error)
+          ? ConnectionOutcome.HeldElsewhere
+          : ConnectionOutcome.StorageFailed,
+        error,
+      );
     }
   };
 }

@@ -7749,6 +7749,7 @@
   "integrations.slack.credentials.signingSecretHint": "⟪From your Slack app's Basic Information page. Bakery uses it to check that requests really come from Slack.⟫",
   "integrations.slack.credentials.saveFailedWithSigning": "⟪The details could not be saved. Enter the client secret and the signing secret again, then save.⟫",
   "integrations.slack.credentials.signingSecretRefused": "⟪Bakery could not accept this signing secret. Copy it again from your Slack app's Basic Information page.⟫",
+  "settings.connections.outcome.heldElsewhere": "⟪Another organization in Bakery already holds this connection, so nothing was connected. It can be connected here once that organization removes it.⟫",
   "tasks.run.status.needs_human": "⟪Needs input⟫",
   "tasks.run.step.needs_human": "⟪Needs input⟫"
 }

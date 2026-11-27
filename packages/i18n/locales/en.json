@@ -4175,6 +4175,7 @@
   "settings.connections.outcome.installationSuspended": "The App installation is suspended on GitHub. Unsuspend it on GitHub, then connect again.",
   "settings.connections.outcome.adminRequired": "Only organization Admins can connect GitHub, and you are no longer one. Nothing was connected.",
   "settings.connections.outcome.alreadyConnected": "This organization is already connected to that GitHub installation. Use the connection below.",
+  "settings.connections.outcome.heldElsewhere": "Another organization in Bakery already holds this connection, so nothing was connected. It can be connected here once that organization removes it.",
   "settings.connections.outcome.reconnectUnavailable": "The connection being reconnected was removed or changed meanwhile. Nothing was changed; connect GitHub again.",
   "settings.connections.outcome.storageFailed": "Bakery could not save the connection. Nothing was connected; try again.",
   "settings.connections.lastChecked": "Last checked",
