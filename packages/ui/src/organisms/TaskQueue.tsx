@@ -1,5 +1,6 @@
 import {
   createContext,
+  Fragment,
   type HTMLAttributes,
   type MouseEvent,
   type ReactNode,
@@ -13,7 +14,7 @@ import "../data.css";
 
 export type TaskQueueRow = {
   id: string;
-  reference: ReactNode;
+  reference?: ReactNode;
   title: string;
   href: string;
   application: ReactNode;
@@ -49,7 +50,7 @@ export type TaskQueueProps =
      * Columns the data can fill. A column the caller has no value for in any
      * row is hidden instead of showing a dash in every row.
      */
-    columns?: { application?: boolean; harness?: boolean };
+    columns?: { application?: boolean; harness?: boolean; stage?: boolean };
     variant?: "table" | "list";
     onOpen?: (event: MouseEvent<HTMLAnchorElement>, row: TaskQueueRow) => void;
     /** Preview a row (pointer on the row, or focus on its title link). */
@@ -111,10 +112,6 @@ type QueueBodyProps = Pick<
   "columns" | "groups" | "labels" | "onOpen" | "onPreview" | "selectedId"
 >;
 
-/**
- * Row link named by the task title and described by the rest of the row
- * (reference, age, application, stage), so it reads as one concise link.
- */
 function RowLink(
   { children, row, onOpen, onPreview, selected }: {
     children: ReactNode;
@@ -142,7 +139,6 @@ function RowLink(
 
 const RowIds = createContext("");
 
-/** The row title; `RowLink` names its link with this element. */
 function RowTitle({ children }: { children: ReactNode }) {
   const id = useContext(RowIds);
   return (
@@ -150,10 +146,29 @@ function RowTitle({ children }: { children: ReactNode }) {
   );
 }
 
-/** Row metadata that describes the link (everything but the title). */
-function RowDetails({ children }: { children: ReactNode }) {
+function RowDetails(
+  { columns, row }: {
+    columns: TaskQueueProps["columns"];
+    row: TaskQueueRow;
+  },
+) {
   const id = useContext(RowIds);
-  return <span id={`${id}-details`} hidden>{children}</span>;
+  const parts = [
+    row.reference,
+    columns?.application !== false ? row.application : null,
+    row.stage,
+    row.age,
+  ].filter((part) => part !== null && part !== undefined);
+  return (
+    <span id={`${id}-details`} hidden>
+      {parts.map((part, index) => (
+        <Fragment key={index}>
+          {index > 0 && " · "}
+          {part}
+        </Fragment>
+      ))}
+    </span>
+  );
 }
 
 function TableQueue(
@@ -161,6 +176,7 @@ function TableQueue(
 ) {
   const application = columns?.application !== false;
   const harness = columns?.harness !== false;
+  const stage = columns?.stage !== false;
   return (
     <table className="ui-task-queue__table">
       <caption className="ui-task-queue__caption">{labels.caption}</caption>
@@ -172,7 +188,9 @@ function TableQueue(
               {labels.application}
             </th>
           )}
-          <th className="ui-task-queue__stage" scope="col">{labels.stage}</th>
+          {stage && (
+            <th className="ui-task-queue__stage" scope="col">{labels.stage}</th>
+          )}
           {harness && (
             <th className="ui-task-queue__harness" scope="col">
               {labels.harness}
@@ -185,7 +203,8 @@ function TableQueue(
         <tbody key={group.id}>
           <tr className="ui-task-queue__group">
             <th
-              colSpan={3 + Number(application) + Number(harness)}
+              colSpan={2 + Number(application) + Number(stage) +
+                Number(harness)}
               scope="colgroup"
             >
               {group.label}
@@ -208,17 +227,16 @@ function TableQueue(
                     selected={selected}
                   >
                     <RowTitle>{row.title}</RowTitle>
-                    <span className="ui-task-queue__reference">
-                      {row.reference}
-                    </span>
-                    <RowDetails>
-                      {row.reference} · {row.application} · {row.stage} ·{" "}
-                      {row.age}
-                    </RowDetails>
+                    {row.reference !== undefined && (
+                      <span className="ui-task-queue__reference">
+                        {row.reference}
+                      </span>
+                    )}
+                    <RowDetails columns={columns} row={row} />
                   </RowLink>
                 </td>
                 {application && <td>{row.application}</td>}
-                <td>{row.stage}</td>
+                {stage && <td>{row.stage}</td>}
                 {harness && <td>{row.harness}</td>}
                 <td className="ui-task-queue__age">{row.age}</td>
               </tr>
@@ -268,6 +286,25 @@ function ListGroup(
       <ul hidden={collapsed} id={listId}>
         {group.rows.map((row) => {
           const selected = row.id === selectedId;
+          const age = (
+            <span className="ui-task-queue__age">
+              <span className="ui-task-queue__visually-hidden">
+                {labels.age}
+              </span>
+              {row.age}
+            </span>
+          );
+          const stage = columns?.stage !== false ? row.stage : null;
+          const about = columns?.application !== false
+            ? (
+              <>
+                <span className="ui-task-queue__application">
+                  {row.application}
+                </span>
+                {stage}
+              </>
+            )
+            : stage && <span>{stage}</span>;
           return (
             <li
               className="ui-task-queue__row"
@@ -281,33 +318,25 @@ function ListGroup(
                 selected={selected}
               >
                 <RowTitle>{row.title}</RowTitle>
-                <span className="ui-task-queue__line">
-                  <span className="ui-task-queue__reference">
-                    {row.reference}
-                  </span>
-                  <span className="ui-task-queue__age">
-                    <span className="ui-task-queue__visually-hidden">
-                      {labels.age}
-                    </span>
-                    {row.age}
-                  </span>
-                </span>
-                <RowDetails>
-                  {row.reference} · {row.application} · {row.stage} · {row.age}
-                </RowDetails>
-                <span className="ui-task-queue__line">
-                  {columns?.application !== false
-                    ? (
-                      <>
-                        <span className="ui-task-queue__application">
-                          {row.application}
+                {row.reference !== undefined
+                  ? (
+                    <>
+                      <span className="ui-task-queue__line">
+                        <span className="ui-task-queue__reference">
+                          {row.reference}
                         </span>
-                        {row.stage}
-                      </>
-                    )
-                    // Alone, the badge would take the line's growing first slot.
-                    : <span>{row.stage}</span>}
-                </span>
+                        {age}
+                      </span>
+                      <span className="ui-task-queue__line">{about}</span>
+                    </>
+                  )
+                  : (
+                    <span className="ui-task-queue__line">
+                      {about}
+                      {age}
+                    </span>
+                  )}
+                <RowDetails columns={columns} row={row} />
               </RowLink>
             </li>
           );

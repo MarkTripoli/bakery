@@ -50,7 +50,13 @@ export function TaskInspector(
         {reference || status
           ? (
             <div className="ui-task-inspector__identity">
-              <span className="ui-task-inspector__reference">{reference}</span>
+              {reference
+                ? (
+                  <span className="ui-task-inspector__reference">
+                    {reference}
+                  </span>
+                )
+                : null}
               {status}
             </div>
           )
