@@ -8,9 +8,17 @@ type PublishKey = MessageKey extends infer Key
   : never;
 
 export function PublishSummary(
-  { changes, inUseRevision, startsChanged, problemCount, blocked }: {
+  {
+    changes,
+    inUseRevision,
+    publishedBefore,
+    startsChanged,
+    problemCount,
+    blocked,
+  }: {
     readonly changes: PublishChanges;
     readonly inUseRevision: number | null;
+    readonly publishedBefore: boolean;
     readonly startsChanged: boolean;
     readonly problemCount: number;
     readonly blocked: boolean;
@@ -27,9 +35,11 @@ export function PublishSummary(
   return (
     <UI.Stack gap="tight" data-testid="publish-changes">
       <UI.Text variant="strong">
-        {inUseRevision === null
-          ? copy("firstVersion")
-          : copy("changesSince", { version: inUseRevision })}
+        {inUseRevision !== null
+          ? copy("changesSince", { version: inUseRevision })
+          : publishedBefore
+          ? translate("library.editor.version.draft")
+          : copy("firstVersion")}
       </UI.Text>
       {lists.map(([kind, names]) =>
         names.length === 0 ? null : (
