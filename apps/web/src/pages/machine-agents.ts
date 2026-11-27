@@ -23,7 +23,19 @@ export type BindingFacts = Readonly<{
   safeProblem?: unknown;
 }>;
 
-export type ComponentFacts = Readonly<{ componentKey: string }>;
+type BillingRoute = "subscription" | "api_metered" | "local";
+
+export type ComponentFacts = Readonly<{
+  componentKey: string;
+  paymentMethods?: readonly BillingRoute[];
+}>;
+
+function newSignInRoute(component: ComponentFacts | undefined): BillingRoute {
+  const accepted = component?.paymentMethods ?? [];
+  return accepted.includes("subscription")
+    ? "subscription"
+    : accepted[0] ?? "subscription";
+}
 
 const AGENT_WORDS: Readonly<Record<CodingAgent, readonly string[]>> = {
   claude: ["claude", "anthropic"],
@@ -74,6 +86,7 @@ export type AgentRow = Readonly<{
   state: AgentState;
   /** The component the machine reported for this agent: what a sign-in is attached to. Null when it has not reported one. */
   componentKey: string | null;
+  billingRoute: BillingRoute;
 }>;
 
 /**
@@ -105,6 +118,7 @@ export function agentRows(
       binding,
       state: agentState(binding),
       componentKey: binding?.componentKey ?? component?.componentKey ?? null,
+      billingRoute: newSignInRoute(component),
     };
   });
 }

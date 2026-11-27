@@ -182,7 +182,9 @@ async function open(page: Page, w: World, path = `/machines/${MACHINE_ID}`) {
         items: w.components.map((key, index) => ({
           id: `00000000-0000-4000-8000-0000000000c${index}`,
           componentKey: key,
-          paymentMethods: ["subscription"],
+          paymentMethods: key === "harness.pi"
+            ? ["api_metered", "local"]
+            : ["subscription", "api_metered"],
           kind: "harness",
           actualVersion: "1.0.0",
           actualDigest: null,
@@ -1085,6 +1087,22 @@ test.describe("the sign-in dialog", () => {
     await expect(page.getByRole("button", { name: "Sign in", exact: true }))
       .toHaveCount(0);
     expect(w.createdAttempts).toEqual([]);
+  });
+});
+
+test.describe("how a new sign-in is paid for", () => {
+  test("Pi is signed in under a way of paying it accepts", async ({ page }) => {
+    const w = world({
+      capabilities: ["git", "pi"],
+      components: ["harness.pi"],
+      bindings: [],
+    });
+    await open(page, w);
+    await banner(page).getByRole("button", { name: "Sign in", exact: true })
+      .click();
+    await expect.poll(() => w.createdBindings).toMatchObject([
+      { componentKey: "harness.pi", billingRoute: "api_metered" },
+    ]);
   });
 });
 

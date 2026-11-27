@@ -187,7 +187,7 @@ export function useAgentSignIn(options: {
           input: {
             componentKey: row.componentKey,
             provider: PROVIDER_OF_AGENT[row.agent],
-            billingRoute: "subscription",
+            billingRoute: row.billingRoute,
             authMode: "host_native",
             credentialLocation: "harness_host",
           },
