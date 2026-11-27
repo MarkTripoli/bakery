@@ -18,7 +18,10 @@ import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createIntegrationsActionRegistry } from "./actions.ts";
 import { mountIntakeRoute } from "./intake-routes.ts";
 import { SLACK_IDENTITY_CALLBACK_PATH } from "./slack-identity-flow.ts";
-import { mountSlackIntakeRoute } from "./slack-intake-routes.ts";
+import {
+  mountSlackIntakeRoute,
+  mountSlackInteractionRoute,
+} from "./slack-intake-routes.ts";
 import type { InstallationTokenBroker } from "./token-broker.ts";
 import type { OAuth2Fetch } from "./oauth2-connect.ts";
 import type {
@@ -257,6 +260,15 @@ export function createIntegrationsRoutes(options: {
     database: options.database,
     secretsKey: options.secretsKey,
   });
+  if (options.providerRequests !== undefined) {
+    mountSlackInteractionRoute(app, {
+      database: options.database,
+      secretsKey: options.secretsKey,
+      publicBaseUrl: options.publicBaseUrl,
+      registry: options.integrationRegistry,
+      providerRequests: options.providerRequests,
+    });
+  }
   app.route(
     "/",
     createApiRouter({

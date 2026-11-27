@@ -936,7 +936,7 @@ export function createApiRouter(
           ? inputShape()
           : inputShape;
         const inputPathNames = pathNames.filter((name) => name in fields);
-        const pathOnly = pathNames.length > 0 &&
+        const pathOnly = (pathNames.length > 0 || action.method === "DELETE") &&
           action.input instanceof z.ZodObject &&
           Object.keys(fields).every((name) => pathNames.includes(name));
         const contentType = context.req.header("content-type") ?? "";

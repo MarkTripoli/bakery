@@ -60,6 +60,7 @@ import type {
   FileFactPage,
   FileSearchInput,
   FileSearchPage,
+  GroupsResponse,
   HandoffManifestResponse,
   InstallationCapabilities,
   InstallationRestore,
@@ -1210,6 +1211,24 @@ export function notificationTargetQueryOptions(
     retry: retryNetworkOnce,
     staleTime: 0,
     gcTime: 0,
+  });
+}
+
+export function groupsQueryOptions(
+  client: Pick<BakeryApiClient, "listGroups">,
+  scope: ApiScope,
+) {
+  return queryOptions<GroupsResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "groups.list", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listGroups({
+          organizationId: requireOrganization(scope),
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
   });
 }
 

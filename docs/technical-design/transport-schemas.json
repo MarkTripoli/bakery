@@ -9691,6 +9691,47 @@
         }
       ]
     },
+    "RunLimitStop": {
+      "description": "Where a failed run stopped at a repeat's ask-a-person limit: the repeat, the rounds it ran, the rounds it may run without a decision, and its most. Read live from the run's last plan failure.",
+      "fields": [
+        {
+          "name": "repeatKey",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Step key of the repeat block that stopped."
+        },
+        {
+          "name": "iterations",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 0
+          },
+          "description": "Rounds the repeat ran before it stopped."
+        },
+        {
+          "name": "allowed",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 0
+          },
+          "description": "Rounds allowed before a person must decide, after earlier decisions."
+        },
+        {
+          "name": "max",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "The repeat's most rounds; no decision goes past it."
+        }
+      ]
+    },
     "ReviewInput": {
       "description": "Input to the review.independent workflow action: the repository and exact candidate revision a fresh reviewer session must judge, and the recorded check runs of that same candidate the reviewer may cite as evidence.",
       "fields": [
@@ -13661,12 +13702,19 @@
           "type": "secretString",
           "required": true,
           "description": "The OAuth application's client secret. Write-only: it is sealed under the installation key and never returned; saving always replaces the stored secret with this one."
+        },
+        {
+          "name": "signingSecret",
+          "type": "secretString",
+          "required": false,
+          "description": "The secret the provider's app signs the requests it sends Bakery with (Slack's signing secret), accepted only for a provider whose manifest declares a signing_secret field. Write-only: it is sealed under the installation key as the next revision of one installation secret and never returned. Leaving it out keeps the signing secret already saved."
         }
       ],
       "rules": [
-        "clientSecret is write-only and is never returned by any operation, audit row or log."
+        "clientSecret is write-only and is never returned by any operation, audit row or log.",
+        "signingSecret is write-only and is never returned by any operation, audit row or log."
       ],
-      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. Both fields are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree."
+      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. The client ID and secret are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree. A signing secret is optional and replaced only when sent."
     },
     "McpToolClassificationPut": {
       "fields": [
@@ -23928,7 +23976,8 @@
         "blockedReason",
         "blockingTasks",
         "waitingOnModel",
-        "releaseStep"
+        "releaseStep",
+        "limitStop"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -23957,7 +24006,8 @@
         "blockedReason": "string|null",
         "blockingTasks": "RunBlockingTask[]",
         "waitingOnModel": "boolean",
-        "releaseStep": "enum(yes|no|unknown)"
+        "releaseStep": "enum(yes|no|unknown)",
+        "limitStop": "RunLimitStop|null"
       },
       "description": "Kind-aware safe run projection. Workflow runs retain task and workflow ownership; skill imports expose null workflow owners and one registered source owner.",
       "nullableFields": [
@@ -23974,7 +24024,8 @@
         "inngestRunId",
         "startedAt",
         "finishedAt",
-        "blockedReason"
+        "blockedReason",
+        "limitStop"
       ],
       "optionalFields": [
         "kind",
@@ -23983,7 +24034,8 @@
         "blockedReason",
         "blockingTasks",
         "waitingOnModel",
-        "releaseStep"
+        "releaseStep",
+        "limitStop"
       ],
       "computedFields": {
         "budgetSummary": "Join budget_accounts + outstanding reservations for this run and the applicable installation period under one consistent read snapshot.",
@@ -23991,7 +24043,8 @@
         "blockedReason": "snapshot.admission.reason of the run while status is blocked; null otherwise.",
         "blockingTasks": "task_dependencies of the run's task joined to tasks of the same organization whose status is not completed, only while blockedReason is dependency_incomplete.",
         "waitingOnModel": "True when a live job of a non-terminal run is pinned to an active provider route with an open incident that the step has not been continued past; the same rule as routeContinuations.list.",
-        "releaseStep": "Whether the run's frozen workflow plan runs a release step (delivery.deploy) after its merge step (delivery.merge): yes when one follows, no when none follows or the plan has no merge step, unknown when the plan cannot be read. Served on the run read."
+        "releaseStep": "Whether the run's frozen workflow plan runs a release step (delivery.deploy) after its merge step (delivery.merge): yes when one follows, no when none follows or the plan has no merge step, unknown when the plan cannot be read. Served on the run read.",
+        "limitStop": "The limit stop of a failed run whose last plan failure was a repeat reaching its ask-a-person limit; null otherwise. Served on the run read."
       },
       "fieldDescriptions": {
         "id": "Stable UUID identifying the run record.",
@@ -24020,7 +24073,8 @@
         "blockedReason": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses.",
         "blockingTasks": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses.",
         "waitingOnModel": "True while a step of the run is waiting on a model whose provider route has an open incident (the same steps routeContinuations.list offers a choice for); false otherwise and always false for a finished run. Served by runs.get and runs.list; omitted by other run responses.",
-        "releaseStep": "Whether the run's frozen workflow plan runs a release step after its merge step: yes when a delivery.deploy step follows delivery.merge, no when none follows or the plan has no merge step, and unknown when the plan cannot be read. Served by runs.get; omitted by other run responses."
+        "releaseStep": "Whether the run's frozen workflow plan runs a release step after its merge step: yes when a delivery.deploy step follows delivery.merge, no when none follows or the plan has no merge step, and unknown when the plan cannot be read. Served by runs.get; omitted by other run responses.",
+        "limitStop": "Where the run stopped to ask a person about more tries, or null. Served by runs.get; omitted by other run responses."
       },
       "fieldBounds": {
         "blockingTasks": {
@@ -36054,18 +36108,21 @@
         "configured",
         "clientId",
         "clientSecretSavedAt",
+        "signingSecretSavedAt",
         "callbackUrl",
         "version"
       ],
       "nullableFields": [
         "clientId",
-        "clientSecretSavedAt"
+        "clientSecretSavedAt",
+        "signingSecretSavedAt"
       ],
       "fieldTypes": {
         "provider": "string",
         "configured": "boolean",
         "clientId": "string",
         "clientSecretSavedAt": "timestamp",
+        "signingSecretSavedAt": "timestamp",
         "callbackUrl": "uri",
         "version": "integer"
       },
@@ -36075,6 +36132,7 @@
         "configured": "True once a client ID and secret have been saved for this provider.",
         "clientId": "The registered client ID, or null while nothing is registered.",
         "clientSecretSavedAt": "UTC timestamp at which the current client secret was saved, or null while nothing is registered. A secret is never shown, so this is how an administrator tells it was replaced.",
+        "signingSecretSavedAt": "UTC timestamp at which the current signing secret was saved, or null while none is saved. The signing secret is never shown; this is how an administrator tells one is saved and when it was replaced.",
         "callbackUrl": "The URL to enter in the provider's OAuth application as its callback, derived from this installation's public address.",
         "version": "Registration version: 0 while nothing is registered, then the optimistic-concurrency value to send as If-Match when replacing the credentials."
       }

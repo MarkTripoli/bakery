@@ -38,6 +38,7 @@ import {
   linkSlackIdentity,
   revokeSlackIdentityLink,
   SLACK_LINK_PROVIDER,
+  type SlackLinkRevokeReason,
 } from "./slack-identity-links.ts";
 import {
   SLACK_OIDC_ISSUER,
@@ -243,20 +244,36 @@ export async function getMySlackLink(
   });
 }
 
-export async function unlinkMySlackLink(
-  context: ActionContext,
-): Promise<MySlackLink> {
-  const { context: value, actor } = organizationActor(context);
-  const transaction = value.transaction;
-  const organizationId = actor.organizationId;
-  const principalId = actor.subject.principalId;
+async function revokeMemberSlackLinks(
+  transaction: PgTransactionClient,
+  context: ActionContext & { traceId: string },
+  input: {
+    readonly organizationId: string;
+    readonly principalId: string;
+    readonly reason: SlackLinkRevokeReason;
+    readonly operation: string;
+    readonly workspace?: { readonly appId: string; readonly teamId: string };
+    readonly keepLinkId?: string;
+  },
+): Promise<void> {
+  const { organizationId, principalId, workspace } = input;
   const active = await transaction.query<{ id: string }>(
     `select id from bakery.external_identity_links
       where organization_id = $1 and principal_id = $2 and provider = $3
         and state = 'active'
+        and ($4::text is null or external_app_id = $4)
+        and ($5::text is null or identity_scope = $5)
+        and ($6::uuid is null or id <> $6)
       order by id
       for update`,
-    [organizationId, principalId, SLACK_LINK_PROVIDER],
+    [
+      organizationId,
+      principalId,
+      SLACK_LINK_PROVIDER,
+      workspace?.appId ?? null,
+      workspace?.teamId ?? null,
+      input.keepLinkId ?? null,
+    ],
   );
   const at = new Date();
   for (const row of active.rows) {
@@ -264,19 +281,19 @@ export async function unlinkMySlackLink(
       organizationId,
       linkId: row.id,
       revokedBy: principalId,
-      reason: "unlinked_by_member",
+      reason: input.reason,
       at,
     });
     if (!revoked.ok) throw new StandardError({ code: "INTERNAL" });
-    await recordAuthAudit(transaction, value, {
+    await recordAuthAudit(transaction, context, {
       organizationId,
       principalId,
-      operation: Action.MySlackLinkDelete,
+      operation: input.operation,
       resourceType: "external_identity_link",
       resourceId: row.id,
       details: {
         provider: SLACK_LINK_PROVIDER,
-        reason: "unlinked_by_member",
+        reason: input.reason,
         version: revoked.link.version,
       },
     });
@@ -286,9 +303,24 @@ export async function unlinkMySlackLink(
       aggregateId: row.id,
       aggregateVersion: revoked.link.version,
       payload: { resourceId: row.id, resourceVersion: revoked.link.version },
-      traceId: value.traceId,
+      traceId: context.traceId,
     });
   }
+}
+
+export async function unlinkMySlackLink(
+  context: ActionContext,
+): Promise<MySlackLink> {
+  const { context: value, actor } = organizationActor(context);
+  const transaction = value.transaction;
+  const organizationId = actor.organizationId;
+  const principalId = actor.subject.principalId;
+  await revokeMemberSlackLinks(transaction, value, {
+    organizationId,
+    principalId,
+    reason: "unlinked_by_member",
+    operation: Action.MySlackLinkDelete,
+  });
   return await readMySlackLink(transaction, { organizationId, principalId });
 }
 
@@ -780,6 +812,14 @@ export async function bindSlackIdentity(
   if (!await completeSlackIdentityAttempt(transaction, attempt)) {
     throw new StandardError({ code: "INTERNAL" });
   }
+  await revokeMemberSlackLinks(transaction, context, {
+    organizationId: attempt.organizationId,
+    principalId: attempt.principalId,
+    reason: "replaced_by_new_link",
+    operation: Action.IntegrationSlackIdentityCallback,
+    workspace: { appId: attempt.appId, teamId: identity.teamId },
+    keepLinkId: linked.link.id,
+  });
   await recordAuthAudit(transaction, context, {
     organizationId: attempt.organizationId,
     principalId: attempt.principalId,

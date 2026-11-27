@@ -23,6 +23,7 @@ export const CONNECTION_OUTCOMES = [
   "admin_required",
   "already_connected",
   "reconnect_unavailable",
+  "held_elsewhere",
   "storage_failed",
 ] as const;
 export type ConnectionOutcome = (typeof CONNECTION_OUTCOMES)[number];
@@ -124,6 +125,11 @@ export const OUTCOME_COPY: Readonly<Record<ConnectionOutcome, OutcomeCopy>> = {
     tone: "error",
     body: "settings.connections.outcome.reconnectUnavailable",
     retry: true,
+  },
+  held_elsewhere: {
+    tone: "warning",
+    body: "settings.connections.outcome.heldElsewhere",
+    retry: false,
   },
   storage_failed: {
     tone: "error",

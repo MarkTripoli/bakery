@@ -11,6 +11,7 @@ import type {
 import { slackProviderManifest } from "../manifest.ts";
 import {
   SLACK_DM_OPEN,
+  SLACK_MESSAGE_EPHEMERAL,
   SLACK_MESSAGE_POST,
   SLACK_MESSAGE_UPDATE,
   SLACK_WORKSPACE_KIND,
@@ -170,9 +171,20 @@ const oauth2: OAuth2Profile = {
       externalId: externalAccountId,
       displayName: accountLabel,
       binding: { teamId: externalAccountId, botUserId: token.bot_user_id },
+      signedEventSource: {
+        appId: token.app_id,
+        workspaceId: externalAccountId,
+        ...(token.enterprise ? { enterpriseId: token.enterprise.id } : {}),
+        botUserId: token.bot_user_id,
+      },
       servicePrincipalName: "Slack delivery",
       servicePurpose: "slack.delivery",
-      serviceGrants: [SLACK_DM_OPEN, SLACK_MESSAGE_POST, SLACK_MESSAGE_UPDATE]
+      serviceGrants: [
+        SLACK_DM_OPEN,
+        SLACK_MESSAGE_POST,
+        SLACK_MESSAGE_UPDATE,
+        SLACK_MESSAGE_EPHEMERAL,
+      ]
         .map((action) => ({
           capability: action.id,
           actionVersion: action.version,

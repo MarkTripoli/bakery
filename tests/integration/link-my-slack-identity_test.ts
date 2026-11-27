@@ -1,7 +1,10 @@
 import { assert, assertEquals, assertMatch } from "@std/assert";
+import { createBakeryClient } from "../../packages/contracts/src/client.ts";
+import { authTestOrigin } from "../helpers/auth.ts";
 import { call, signIn } from "../helpers/installation-settings.ts";
 import { CLIENT_SECRET, TEAM_ID } from "../helpers/slack-connect.ts";
 import {
+  APP_ID,
   attemptRow,
   clearLinking,
   CLIENT_ID,
@@ -20,7 +23,10 @@ import {
   startLink,
   unlink,
 } from "../helpers/slack-identity-link.ts";
-import { revokeSlackIdentityLink } from "../../apps/server/src/modules/integrations/slack-identity-links.ts";
+import {
+  findSlackIdentityLink,
+  revokeSlackIdentityLink,
+} from "../../apps/server/src/modules/integrations/slack-identity-links.ts";
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 
 type Linking = Awaited<ReturnType<typeof openLinking>>;
@@ -544,5 +550,102 @@ Deno.test("unlinking revokes the member's link with unlinked_by_member, is audit
     assertEquals(again.status, 200, await again.clone().text());
     assertEquals((await again.json() as { state: string }).state, "not_linked");
     assertEquals((await auditCount(o, "mySlackLink.delete")).length, 1);
+  });
+});
+
+Deno.test("linking a second Slack account replaces the member's first one, and the replacement is audited", async () => {
+  await withLinking(async (o) => {
+    await connectWorkspace(o);
+    const cookie = o.fixture.developerCookie;
+    assertEquals(await completeLink(o, cookie), "linked");
+    assertEquals(await completeLink(o, cookie, { sub: "U0SECOND1" }), "linked");
+    const rows = await linkRows(o.fixture);
+    assertEquals(
+      rows.map((row) => [row.state, row.revoke_reason]),
+      [["revoked", "replaced_by_new_link"], ["active", null]],
+    );
+    const lookup = (userId: string) =>
+      withPgTransaction(
+        o.fixture.runtimePgDatabase,
+        (tx) =>
+          findSlackIdentityLink(tx, {
+            organizationId: o.fixture.organizationId,
+            appId: APP_ID,
+            teamId: TEAM_ID,
+            userId,
+          }),
+      );
+    assertEquals((await lookup(SLACK_USER))?.state, "revoked");
+    assertEquals((await lookup("U0SECOND1"))?.state, "active");
+    const audits = await auditCount(o, "integrationAuth.slackIdentityCallback");
+    assertEquals(
+      audits.filter((row) => row.details.reason === "replaced_by_new_link")
+        .length,
+      1,
+    );
+    assertEquals((await read(o, cookie)).state, "linked");
+  });
+});
+
+Deno.test("a viewer reads, links and unlinks their own Slack account but still cannot list other members' links", async () => {
+  await withLinking(async (o) => {
+    await connectWorkspace(o);
+    await o.fixture.pgDatabase.query(
+      `update bakery.organization_memberships set role = 'viewer'
+        where organization_id = $1 and principal_id = $2`,
+      [o.fixture.organizationId, o.fixture.developerId],
+    );
+    const cookie = o.fixture.developerCookie;
+    assertEquals((await read(o, cookie)).state, "not_linked");
+    assertEquals(await completeLink(o, cookie), "linked");
+    assertEquals((await read(o, cookie)).state, "linked");
+    const unlinked = await unlink(o.fixture, cookie);
+    assertEquals(unlinked.status, 200, await unlinked.clone().text());
+    assertEquals((await read(o, cookie)).state, "not_linked");
+    const connection = await o.fixture.pgDatabase.query<{ id: string }>(
+      `select id from bakery.integration_connections
+        where organization_id = $1 and provider = 'slack'`,
+      [o.fixture.organizationId],
+    );
+    const others = await call(
+      o.fixture,
+      "GET",
+      `/v1/integration-connections/${connection.rows[0]!.id}/identity-links`,
+      cookie,
+      { headers: { "Bakery-Organization-Id": o.fixture.organizationId } },
+    );
+    assert(
+      others.status === 403 || others.status === 404,
+      String(others.status),
+    );
+    await others.body?.cancel();
+  });
+});
+
+Deno.test("the generated client unlinks with a body-less DELETE", async () => {
+  await withLinking(async (o) => {
+    await connectWorkspace(o);
+    const cookie = o.fixture.developerCookie;
+    assertEquals(await completeLink(o, cookie), "linked");
+    const sent: { contentType: string | null; body: string }[] = [];
+    const client = createBakeryClient({
+      baseUrl: o.fixture.config.publicBaseUrl,
+      getContext: () => ({ organizationId: o.fixture.organizationId }),
+      fetch: async (input, init) => {
+        const request = new Request(input, init);
+        sent.push({
+          contentType: request.headers.get("content-type"),
+          body: await request.clone().text(),
+        });
+        const headers = new Headers(request.headers);
+        headers.set("cookie", cookie);
+        headers.set("origin", authTestOrigin);
+        return o.fixture.app.fetch(new Request(request, { headers }));
+      },
+    });
+    const unlinked = await client.actions["mySlackLink.delete"]({});
+    assertEquals(unlinked.state, "not_linked");
+    assertEquals(sent.at(-1), { contentType: null, body: "" });
+    assertEquals((await linkRows(o.fixture))[0]!.state, "revoked");
   });
 });

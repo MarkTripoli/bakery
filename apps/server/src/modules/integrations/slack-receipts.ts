@@ -84,6 +84,7 @@ export type RegisterSlackInstallationResult =
   | {
     readonly ok: true;
     readonly created: boolean;
+    readonly reclaimed?: true;
     readonly installation: SlackInstallationRecord;
   }
   | {
@@ -110,40 +111,157 @@ export async function registerSlackInstallation(
     (signingSecretId !== undefined && !isUuid(signingSecretId))
   ) return { ok: false, reason: "malformed" };
 
-  const inserted = await transaction.query<InstallationRow>(
-    `insert into bakery.slack_installations (
-       id, organization_id, app_id, team_id, enterprise_id, bot_user_id,
-       signing_secret_id, status)
-     values ($1, $2, $3, $4, $5, $6, $7, 'active')
-     on conflict (app_id, team_id) do nothing
-     returning ${INSTALLATION_COLUMNS}`,
-    [
-      crypto.randomUUID(),
-      organizationId,
-      installation.appId,
-      installation.teamId,
-      installation.enterpriseId ?? null,
-      installation.botUserId,
-      signingSecretId ?? null,
-    ],
-  );
-  if (inserted.rows.length === 1) {
-    return {
-      ok: true,
-      created: true,
-      installation: installationRecord(inserted.rows[0]!),
-    };
-  }
+  const insert = () =>
+    transaction.query<InstallationRow>(
+      `insert into bakery.slack_installations (
+         id, organization_id, app_id, team_id, enterprise_id, bot_user_id,
+         signing_secret_id, status)
+       values ($1, $2, $3, $4, $5, $6, $7, 'active')
+       on conflict (app_id, team_id) where status = 'active' do nothing
+       returning ${INSTALLATION_COLUMNS}`,
+      [
+        crypto.randomUUID(),
+        organizationId,
+        installation.appId,
+        installation.teamId,
+        installation.enterpriseId ?? null,
+        installation.botUserId,
+        signingSecretId ?? null,
+      ],
+    );
   const existing = await transaction.query<InstallationRow>(
     `select ${INSTALLATION_COLUMNS} from bakery.slack_installations
-      where app_id = $1 and team_id = $2`,
-    [installation.appId, installation.teamId],
+      where app_id = $1 and team_id = $2
+      order by status = 'active' desc, organization_id = $3 desc
+      for update`,
+    [installation.appId, installation.teamId, organizationId],
   );
-  const row = existing.rows[0]!;
-  if (row.organizationId !== organizationId) {
+  const held = existing.rows[0];
+  if (held?.status === "active" || held?.organizationId === organizationId) {
+    return held.organizationId === organizationId
+      ? { ok: true, created: false, installation: installationRecord(held) }
+      : { ok: false, reason: "claimed_elsewhere" };
+  }
+  if (held !== undefined && await holderStillConnected(transaction, held)) {
     return { ok: false, reason: "claimed_elsewhere" };
   }
-  return { ok: true, created: false, installation: installationRecord(row) };
+  const inserted = await insert();
+  const made = inserted.rows[0];
+  if (made === undefined) {
+    return await registerSlackInstallation(transaction, input);
+  }
+  return {
+    ok: true,
+    created: true,
+    ...(held === undefined ? {} : { reclaimed: true as const }),
+    installation: installationRecord(made),
+  };
+}
+
+async function holderStillConnected(
+  transaction: PgTransactionClient,
+  holder: InstallationRow,
+): Promise<boolean> {
+  const live = await transaction.query(
+    `select 1 from bakery.integration_connections connection
+       join bakery.integration_installations installation
+         on installation.id = connection.installation_id
+      where connection.organization_id = $1
+        and installation.external_authorization_id = $2
+        and connection.status <> 'revoked'
+      limit 1`,
+    [holder.organizationId, holder.teamId],
+  );
+  return live.rows.length > 0;
+}
+
+export async function connectSlackInstallation(
+  transaction: PgTransactionClient,
+  input: {
+    readonly organizationId: string;
+    readonly installation: SlackInstallation;
+    readonly signingSecretId: string | null;
+  },
+): Promise<RegisterSlackInstallationResult> {
+  const registered = await registerSlackInstallation(transaction, {
+    organizationId: input.organizationId,
+    installation: input.installation,
+    ...(input.signingSecretId === null
+      ? {}
+      : { signingSecretId: input.signingSecretId }),
+  });
+  if (!registered.ok || registered.created) return registered;
+  const current = registered.installation;
+  if (
+    current.signingSecretId === input.signingSecretId &&
+    current.status === "active"
+  ) return registered;
+  const updated = await transaction.query<InstallationRow>(
+    `update bakery.slack_installations
+        set signing_secret_id = $3, status = 'active', updated_at = now(),
+            version = version + 1
+      where id = $1 and organization_id = $2
+      returning ${INSTALLATION_COLUMNS}`,
+    [current.installationId, input.organizationId, input.signingSecretId],
+  );
+  return {
+    ok: true,
+    created: false,
+    installation: installationRecord(updated.rows[0]!),
+  };
+}
+
+export async function followConnectionStatus(
+  transaction: PgTransactionClient,
+  input: {
+    readonly organizationId: string;
+    readonly connectionId: string;
+    readonly status: SlackInstallationStatus;
+  },
+): Promise<number> {
+  const updated = await transaction.query(
+    `update bakery.slack_installations as slack
+        set status = $3, updated_at = now(), version = slack.version + 1
+      where slack.organization_id = $1 and slack.status <> $3
+        and not exists (
+          select 1 from bakery.slack_installations other
+           where $3 = 'active' and other.status = 'active'
+             and other.app_id = slack.app_id and other.team_id = slack.team_id
+             and other.id <> slack.id
+        )
+        and exists (
+          select 1 from bakery.integration_connections connection
+           join bakery.integration_installations installation
+             on installation.id = connection.installation_id
+          where connection.organization_id = $1 and connection.id = $2
+            and installation.external_authorization_id = slack.team_id
+        )`,
+    [input.organizationId, input.connectionId, input.status],
+  );
+  return updated.rowCount ?? 0;
+}
+
+export async function adoptRegistrationSigningSecret(
+  transaction: PgTransactionClient,
+  input: { readonly registrationId: string; readonly signingSecretId: string },
+): Promise<number> {
+  const updated = await transaction.query(
+    `update bakery.slack_installations as slack
+        set signing_secret_id = $2, updated_at = now(),
+            version = slack.version + 1
+      where slack.signing_secret_id is null
+        and exists (
+          select 1 from bakery.integration_installations installation
+           join bakery.integration_connections connection
+             on connection.installation_id = installation.id
+          where installation.registration_id = $1
+            and installation.external_authorization_id = slack.team_id
+            and connection.organization_id = slack.organization_id
+            and connection.archived_at is null
+        )`,
+    [input.registrationId, input.signingSecretId],
+  );
+  return updated.rowCount ?? 0;
 }
 
 export async function findSlackInstallation(

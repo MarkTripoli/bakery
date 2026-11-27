@@ -84,6 +84,7 @@ export type ValidationReportResponse = ClientOutputMap["ValidationReport"];
 export type TaskResponse = ClientOutputMap["Task"];
 export type RunListResponse = ClientOutputMap["Page<Run>"];
 export type RunRequestsResponse = ClientOutputMap["RunRequests"];
+export type GroupsResponse = ClientOutputMap["Groups"];
 export type RunRequestResponse = RunRequestsResponse["requests"][number];
 export type RunResponse = ClientOutputMap["Run"];
 export type RunControlCapabilities = ClientOutputMap["RunControlCapabilities"];
@@ -2000,6 +2001,10 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RunListResponse>>;
+  readonly listGroups: (options: {
+    readonly organizationId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<GroupsResponse>>;
   readonly listRunRequests: (options: {
     readonly organizationId: string;
     readonly runId: string;
@@ -6900,6 +6905,20 @@ export function createBakeryApiClient({
         ) {
           throw new ApiTransportError("protocol", 201);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listGroups(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["groups.list"]({}, {
+          signal: options.signal,
+        });
         return { ok: true, data };
       } catch (error) {
         return failed(error);

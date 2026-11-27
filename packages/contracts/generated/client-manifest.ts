@@ -9282,8 +9282,8 @@ export const clientManifest = {
       "method": "GET",
       "path": "/v1/me/slack-link",
       "action": "mySlackLink.get",
-      "access": "Current member linking self",
-      "permission": "externalIdentityLink:read",
+      "access": "Any member linking self",
+      "permission": "ownIdentityLink:read",
       "input": "Empty",
       "output": "MySlackLink",
       "event": "",
@@ -9308,8 +9308,8 @@ export const clientManifest = {
       "method": "POST",
       "path": "/v1/me/slack-link/attempts",
       "action": "mySlackLinkAttempts.create",
-      "access": "Current member linking self",
-      "permission": "externalIdentityLink:write",
+      "access": "Any member linking self",
+      "permission": "ownIdentityLink:write",
       "input": "Empty",
       "output": "MySlackLinkAttemptCreated",
       "event": "",
@@ -9336,8 +9336,8 @@ export const clientManifest = {
       "method": "DELETE",
       "path": "/v1/me/slack-link",
       "action": "mySlackLink.delete",
-      "access": "Current member linking self",
-      "permission": "externalIdentityLink:write",
+      "access": "Any member linking self",
+      "permission": "ownIdentityLink:write",
       "input": "Empty",
       "output": "MySlackLink",
       "event": "integration.identity_link_changed",
@@ -33650,6 +33650,12 @@ export const clientManifest = {
           "minLength": 1,
           "maxLength": 65536,
           "description": "The OAuth application's client secret. Write-only: it is sealed under the installation key and never returned; saving always replaces the stored secret with this one."
+        },
+        "signingSecret": {
+          "description": "The secret the provider's app signs the requests it sends Bakery with (Slack's signing secret), accepted only for a provider whose manifest declares a signing_secret field. Write-only: it is sealed under the installation key as the next revision of one installation secret and never returned. Leaving it out keeps the signing secret already saved.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
         }
       },
       "required": [
@@ -33657,7 +33663,7 @@ export const clientManifest = {
         "clientSecret"
       ],
       "additionalProperties": false,
-      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. Both fields are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree."
+      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. The client ID and secret are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree. A signing secret is optional and replaced only when sent."
     },
     "McpToolClassificationPut": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -42943,6 +42949,52 @@ export const clientManifest = {
                   "yes",
                   "no",
                   "unknown"
+                ]
+              },
+              "limitStop": {
+                "description": "Run.limitStop may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "repeatKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 65536,
+                        "description": "Step key of the repeat block that stopped. RunLimitStop.repeatKey must contain at least 1 characters."
+                      },
+                      "iterations": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "description": "Rounds the repeat ran before it stopped. RunLimitStop.iterations must be at least 0."
+                      },
+                      "allowed": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "description": "Rounds allowed before a person must decide, after earlier decisions. RunLimitStop.allowed must be at least 0."
+                      },
+                      "max": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991,
+                        "description": "The repeat's most rounds; no decision goes past it. RunLimitStop.max must be at least 1."
+                      }
+                    },
+                    "required": [
+                      "repeatKey",
+                      "iterations",
+                      "allowed",
+                      "max"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Where the run stopped to ask a person about more tries, or null. Served by runs.get; omitted by other run responses."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
                 ]
               }
             },
@@ -63841,6 +63893,52 @@ export const clientManifest = {
             "yes",
             "no",
             "unknown"
+          ]
+        },
+        "limitStop": {
+          "description": "Run.limitStop may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "repeatKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 65536,
+                  "description": "Step key of the repeat block that stopped. RunLimitStop.repeatKey must contain at least 1 characters."
+                },
+                "iterations": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Rounds the repeat ran before it stopped. RunLimitStop.iterations must be at least 0."
+                },
+                "allowed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Rounds allowed before a person must decide, after earlier decisions. RunLimitStop.allowed must be at least 0."
+                },
+                "max": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991,
+                  "description": "The repeat's most rounds; no decision goes past it. RunLimitStop.max must be at least 1."
+                }
+              },
+              "required": [
+                "repeatKey",
+                "iterations",
+                "allowed",
+                "max"
+              ],
+              "additionalProperties": false,
+              "description": "Where the run stopped to ask a person about more tries, or null. Served by runs.get; omitted by other run responses."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
           ]
         }
       },
@@ -85460,8 +85558,8 @@ export const clientManifest = {
               "organizationInvitation:manage",
               "integrationAuthAttempt:manage",
               "integrationAuthAttempt:read",
-              "externalIdentityLink:read",
-              "externalIdentityLink:write",
+              "ownIdentityLink:read",
+              "ownIdentityLink:write",
               "integrationInstallation:read",
               "backup:read",
               "backup:manage",
@@ -85480,6 +85578,8 @@ export const clientManifest = {
               "integrationSubscription:read",
               "integrationSubscription:manage",
               "integrationDelivery:read",
+              "externalIdentityLink:read",
+              "externalIdentityLink:write",
               "ticketSource:read",
               "ticketSource:manage",
               "externalTicket:read",
@@ -113758,6 +113858,21 @@ export const clientManifest = {
           ],
           "description": "IntegrationClientCredentials.clientSecretSavedAt may be null in the safe projection."
         },
+        "signingSecretSavedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp at which the current signing secret was saved, or null while none is saved. The signing secret is never shown; this is how an administrator tells one is saved and when it was replaced."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "IntegrationClientCredentials.signingSecretSavedAt may be null in the safe projection."
+        },
         "callbackUrl": {
           "type": "string",
           "format": "uri",
@@ -113775,6 +113890,7 @@ export const clientManifest = {
         "configured",
         "clientId",
         "clientSecretSavedAt",
+        "signingSecretSavedAt",
         "callbackUrl",
         "version"
       ],

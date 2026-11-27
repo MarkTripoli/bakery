@@ -24,6 +24,7 @@ import {
   readAppCredentials,
 } from "./callbacks.ts";
 import { getConnection, resourceColumns } from "./connections.ts";
+import { followConnectionStatus } from "./slack-receipts.ts";
 import type { GitHubAppClient } from "./github-app.ts";
 import { type IntegrationsDependencies, isSelectionTaken } from "./postgres.ts";
 
@@ -276,6 +277,13 @@ export async function updateConnection(
   if (version === undefined) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
+  if (status !== current.status) {
+    await followConnectionStatus(transaction, {
+      organizationId: actor.organizationId,
+      connectionId: id,
+      status: status === "enabled" ? "active" : "disabled",
+    });
+  }
   await recordAuthAudit(transaction, value, {
     organizationId: actor.organizationId,
     principalId: actor.subject.principalId,
@@ -402,6 +410,11 @@ export async function removeConnection(
   if (version === undefined) {
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
+  await followConnectionStatus(transaction, {
+    organizationId: actor.organizationId,
+    connectionId: id,
+    status: "disabled",
+  });
   await recordAuthAudit(transaction, value, {
     organizationId: actor.organizationId,
     principalId: actor.subject.principalId,
