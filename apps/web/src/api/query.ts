@@ -84,6 +84,7 @@ import type {
   MetricSourcePage,
   MetricSourcesQuery,
   MetricsQuery,
+  MySlackLink,
   NotificationCountResponse,
   NotificationCursorQuery,
   NotificationListResponse,
@@ -3045,6 +3046,25 @@ export function effectiveAccessQueryOptions(
           organizationId: scope.organizationId,
           signal,
         }),
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function mySlackLinkQueryOptions(
+  client: Pick<BakeryApiClient, "mySlackLink">,
+  scope: ApiScope,
+) {
+  return queryOptions<MySlackLink, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "mySlackLink.get", {}),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.mySlackLink.get(scope.organizationId, signal),
       );
     },
     enabled: Boolean(scope.organizationId),

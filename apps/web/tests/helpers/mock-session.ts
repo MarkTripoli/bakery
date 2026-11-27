@@ -156,6 +156,13 @@ export async function mockAuthenticatedSession(page: Page): Promise<void> {
     }));
   await mockBootstrappedInstallation(page);
   await mockUserPreferences(page);
+  await page.route(
+    "**/v1/me/slack-link",
+    (route) =>
+      route.fulfill({
+        json: { connection: "none", state: "not_linked" },
+      }),
+  );
   // The installation Integrations page asks for each provider's OAuth client
   // credentials. Unregistered by default, so a spec about something else on that
   // page sees no second error state; a spec about the credentials registers its own
