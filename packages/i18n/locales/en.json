@@ -3734,7 +3734,7 @@
   "tasks.requests.someone": "Someone",
   "tasks.requests.agentBadge": "Agent's action",
   "tasks.requests.agentHelpLabel": "Why an agent's action",
-  "tasks.requests.agentHelp": "An agent working on this run asked you, acting for {asker}. Only people already involved in the run can be asked this way.",
+  "tasks.requests.agentHelp": "An agent working on this run asked you, acting for {asker}.",
   "tasks.requests.title.approve": "{asker} asked you to approve",
   "tasks.requests.title.review": "{asker} asked you to review",
   "tasks.requests.title.answer": "{asker} asked you to answer a question",

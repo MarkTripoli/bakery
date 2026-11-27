@@ -7755,5 +7755,5 @@
   "tasks.delivery.now.stopped.limitBody": "⟦Ïŧ ŧŕïëð {count, plural, one {# time} other {# times}}{findings, plural, =0 {.} one { and # blocking finding remains.} other { and # blocking findings remain.}} Ŧĥïš ŵôŕķƒļôŵ àļļôŵš ûþ ŧô {max} ŧŕïëš, šô ïŧ çàñ ŧŕÿ {room} ɱôŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.requests.agentBadge": "⟦Àĝëñŧ'š àçŧïôñ ŧë⟧",
   "tasks.requests.agentHelpLabel": "⟦Ŵĥÿ àñ àĝëñŧ'š àçŧïôñ ŧëšŧŧ⟧",
-  "tasks.requests.agentHelp": "⟦Àñ àĝëñŧ ŵôŕķïñĝ ôñ ŧĥïš ŕûñ àšķëð ÿôû, àçŧïñĝ ƒôŕ {asker}. Ôñļÿ þëôþļë àļŕëàðÿ ïñṽôļṽëð ïñ ŧĥë ŕûñ çàñ ƀë àšķëð ŧĥïš ŵàÿ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
+  "tasks.requests.agentHelp": "⟦Àñ àĝëñŧ ŵôŕķïñĝ ôñ ŧĥïš ŕûñ àšķëð ÿôû, àçŧïñĝ ƒôŕ {asker}. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }
