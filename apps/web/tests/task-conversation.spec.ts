@@ -904,7 +904,7 @@ test("Start run right after approving still carries the approval id", async ({ p
           status: "ready",
           reasons: [],
         },
-      }].map(presetRead)),
+      }].map((preset) => presetRead(preset))),
     }));
   const runs: Record<string, unknown>[] = [];
   await page.route(`**/v1/tasks/${taskId}/runs`, (route) => {
@@ -3032,7 +3032,7 @@ async function openStartRun(
         steps: [{ id: "implement", uses: "harness.implement" }],
         defaultBudgetLimitUsd: "5.00",
         availability: { minimumBudgetLimitUsd: null, ...availability },
-      }].map(presetRead)),
+      }].map((preset) => presetRead(preset))),
     }));
   await firstRender(
     () => page.goto(`/tasks/${taskId}`),
@@ -3214,7 +3214,7 @@ test("an expired approval hides Start a run, and Approve again brings it back", 
           status: "ready",
           reasons: [],
         },
-      }].map(presetRead)),
+      }].map((preset) => presetRead(preset))),
     }));
   await firstRender(
     () => page.goto(`/tasks/${taskId}`),
@@ -3280,7 +3280,7 @@ test("a Start run press that beats the expiry says the approval expired", async 
           status: "ready",
           reasons: [],
         },
-      }].map(presetRead)),
+      }].map((preset) => presetRead(preset))),
     }));
   const runs: unknown[] = [];
   await page.route(`**/v1/tasks/${taskId}/runs`, (route) => {
