@@ -39992,6 +39992,50 @@ const transportSchemas = {
         "documentsUnchecked": "Documents nothing truthful can be said about, counted but not named."
       },
       "description": "What a step was given: the sourced-memory facts and pinned documents in use when it started, redacted to the reader."
+    },
+    "MySlackLink": {
+      "fields": [
+        "connection",
+        "workspaceName",
+        "state",
+        "linkedAt",
+        "removedAt"
+      ],
+      "fieldTypes": {
+        "connection": "enum(none|setup_unfinished|working|not_working)",
+        "workspaceName": "string",
+        "state": "enum(not_linked|linked|removed_by_admin)",
+        "linkedAt": "timestamp",
+        "removedAt": "timestamp"
+      },
+      "optionalFields": [
+        "workspaceName",
+        "linkedAt",
+        "removedAt"
+      ],
+      "description": "The signed-in member's own Slack link in the organization being viewed, with the state of the organization's Slack connection. It carries no Slack user id, token or email.",
+      "fieldDescriptions": {
+        "connection": "The organization's Slack connection: none when no Slack app credentials are saved and no connection exists; setup_unfinished when credentials are saved or a connection is pending but none has been enabled; working when a connection is enabled and its health is healthy or unknown; not_working when the connection is turned off, removed, or needs reconnecting.",
+        "workspaceName": "Name of the connected Slack workspace; present only when a connection exists and Slack gave it a name.",
+        "state": "not_linked when the member has no link; linked when the member's Slack account is linked in the connected workspace; removed_by_admin when an administrator removed the member's last link.",
+        "linkedAt": "UTC timestamp at which the member proved their Slack account; present only when state is linked.",
+        "removedAt": "UTC timestamp at which an administrator removed the link; present only when state is removed_by_admin."
+      }
+    },
+    "MySlackLinkAttemptCreated": {
+      "fields": [
+        "authorizationUrl",
+        "expiresAt"
+      ],
+      "fieldTypes": {
+        "authorizationUrl": "uri",
+        "expiresAt": "timestamp"
+      },
+      "description": "Returned once to the member's browser to start Sign in with Slack. The address carries an opaque single-use state and nonce only, never a token or the member's identity.",
+      "fieldDescriptions": {
+        "authorizationUrl": "Slack's OpenID Connect sign-in address, built from the organization's Slack app client id, Bakery's fixed identity callback and the connected workspace, carrying the single-use state and nonce; shown only in this response.",
+        "expiresAt": "UTC timestamp fifteen minutes after the attempt was created, after which the state is refused."
+      }
     }
   },
   "pageEnvelope": {
