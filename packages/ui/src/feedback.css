@@ -858,6 +858,17 @@
   z-index: var(--layer-tooltip);
 }
 
+@media (max-width: 743px) {
+  .ui-toast[data-placement="floating"] .ui-toast__content {
+    flex-basis: 0;
+  }
+
+  .ui-toast[data-placement="floating"] .ui-toast__action {
+    flex-basis: 100%;
+    order: 1;
+  }
+}
+
 .ui-toast-room {
   flex: none;
 }

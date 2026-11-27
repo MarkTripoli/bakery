@@ -320,6 +320,28 @@ test.describe("workflow editor: what publishing changes", () => {
     ]);
   });
 
+  for (const width of [360, 430]) {
+    test(`at ${width} wide the message keeps its dismiss beside the words`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await editor(page, { draftSteps: LINE });
+      const dialog = await openPublish(page);
+      await dialog.getByRole("button", { name: "Publish only" }).click();
+      const message = page.locator('[data-ui-component="toast"]');
+      await expect(message).toContainText("Version 2 is published.");
+      const words =
+        (await message.locator(".ui-toast__content").boundingBox())!;
+      const dismiss = (await message.getByRole("button", {
+        name: "Dismiss notification",
+      }).boundingBox())!;
+      const use = (await message.getByRole("button", {
+        name: "Use this version",
+      }).boundingBox())!;
+      expect(dismiss.x).toBeGreaterThanOrEqual(words.x + words.width);
+      expect(dismiss.y).toBeLessThan(words.y + words.height);
+      expect(use.y).toBeGreaterThanOrEqual(words.y + words.height);
+    });
+  }
+
   test("Use this version pressed offline does not run later by itself", async ({ page, context }) => {
     const activations: unknown[] = [];
     await editor(page, {

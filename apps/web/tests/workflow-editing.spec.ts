@@ -222,6 +222,18 @@ test("an undo by key also takes the Undo offer away", async ({ page }) => {
   await expect.poll(saved).toEqual(["research", "implement", "review"]);
 });
 
+test("at 430 wide an open step goes under the list instead of squeezing it", async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 844 });
+  await editor(page, [...STEPS, { id: "ask", uses: "human.approval" }]);
+  await block(page, "ask").click();
+  const panel = page.getByRole("complementary", { name: "The selected step" });
+  await expect(panel).toBeVisible();
+  const card = (await page.locator("[data-card='ask']").boundingBox())!;
+  const open = (await panel.boundingBox())!;
+  expect(card.width).toBeGreaterThan(300);
+  expect(open.y).toBeGreaterThan(card.y + card.height);
+});
+
 test("offline, the change is kept and saved when the connection returns", async ({ page, context }) => {
   const { seen, saved } = await editor(page);
   await context.setOffline(true);
