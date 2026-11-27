@@ -20,12 +20,12 @@ export function hasSetupPages(provider: string): boolean {
 export function healthBadge<Tone extends string>(
   provider: string,
   health: Readonly<{ kind: string; tone: Tone }>,
-) {
+): Readonly<{ key: MessageKey; tone: Tone | "success" }> {
   return !hasSetupPages(provider) &&
       (health.kind === "notChecked" || health.kind === "working")
     ? {
-      key: "settings.connections.other.connected" satisfies MessageKey,
-      tone: "success" as const,
+      key: "settings.connections.other.connected",
+      tone: "success",
     }
     : {
       key: `settings.connections.badge.${health.kind}` as MessageKey,
