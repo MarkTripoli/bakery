@@ -14,7 +14,7 @@ import { authorize } from "../auth/application/authorize.ts";
 import { organizationActor } from "./auth-attempts.ts";
 import { identityForProviderId, providerManifestForId } from "./registry.ts";
 import { oauth2ProviderFor } from "./oauth2-connect.ts";
-import { PROVIDER_REMOVED_PROBLEM } from "./connection-problems.ts";
+import { PROVIDER_REMOVAL_CODES } from "./connection-problems.ts";
 
 type Connection = z.output<typeof contractSchemas.IntegrationConnection>;
 type Resource = z.output<typeof contractSchemas.IntegrationResource>;
@@ -32,7 +32,7 @@ const connectionColumns = `connection.id, connection.provider,
   connection.granted_scope_names as "grantedScopeNames",
   connection.status, connection.health,
   case when connection.status <> 'revoked' then null
-       when connection.last_problem_code = '${PROVIDER_REMOVED_PROBLEM}' then 'provider'
+       when connection.last_problem_code in (${PROVIDER_REMOVAL_CODES}) then 'provider'
        else 'admin' end as "removedBy",
   to_char(connection.last_checked_at at time zone 'UTC', ${TIMESTAMP})
     as "lastCheckedAt",

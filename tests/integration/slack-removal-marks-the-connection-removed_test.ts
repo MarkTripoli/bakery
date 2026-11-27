@@ -5,6 +5,9 @@ import {
   connectOnce,
   fakeSlack,
   open,
+  outcome,
+  slackCallback,
+  startAttempt,
   TEAM_ID,
 } from "../helpers/slack-connect.ts";
 import { postSlackEvent } from "../helpers/slack-events.ts";
@@ -16,13 +19,14 @@ function removal(
   eventId: string,
   event: Record<string, unknown>,
   teamId = TEAM_ID,
+  eventTime = Math.floor(Date.now() / 1000),
 ) {
   return {
     type: "event_callback",
     api_app_id: APP_ID,
     team_id: teamId,
     event_id: eventId,
-    event_time: Math.floor(Date.now() / 1000),
+    event_time: eventTime,
     event,
   };
 }
@@ -162,6 +166,66 @@ Deno.test("a check that Slack answers token_revoked records the connection as re
     assertEquals(response.status, 200, await response.clone().text());
     await response.body?.cancel();
     assertEquals((await state(o, connectionId)).problem, "provider_removed");
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a removal dated before the workspace connected again leaves the new connection", async () => {
+  const o = await open(fakeSlack(), { signingSecret: SIGNING_SECRET });
+  try {
+    const connectionId = await connectOnce(o);
+    const uninstalledAt = Math.floor(Date.now() / 1000) - 5;
+    assertEquals(
+      await send(
+        o,
+        removal("EvLATE1", { type: "app_uninstalled" }, TEAM_ID, uninstalledAt),
+      ),
+      200,
+    );
+    assertEquals((await state(o, connectionId)).status, "revoked");
+    const attempt = await startAttempt(o.fixture);
+    const again = await slackCallback(o.fixture, {
+      code: "slack-code-again",
+      state: attempt.url.searchParams.get("state")!,
+    });
+    assertEquals(outcome(again), "refreshed");
+    assertEquals((await state(o, connectionId)).status, "enabled");
+    assertEquals(
+      await send(
+        o,
+        removal(
+          "EvLATE2",
+          { type: "tokens_revoked", tokens: { bot: ["U0TESTBOT"] } },
+          TEAM_ID,
+          uninstalledAt,
+        ),
+      ),
+      200,
+    );
+    assertEquals((await state(o, connectionId)).status, "enabled");
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a connection the provider's installation removal revoked reads removed by the provider", async () => {
+  const o = await open(fakeSlack(), { signingSecret: SIGNING_SECRET });
+  try {
+    const connectionId = await connectOnce(o);
+    await o.fixture.pgDatabase.query(
+      `update bakery.integration_connections
+          set status = 'revoked', last_problem_code = 'installation_revoked'
+        where organization_id = $1 and id = $2`,
+      [o.fixture.organizationId, connectionId],
+    );
+    assertEquals((await read(o, connectionId)).removedBy, "provider");
+    await o.fixture.pgDatabase.query(
+      `update bakery.integration_connections set last_problem_code = null
+        where organization_id = $1 and id = $2`,
+      [o.fixture.organizationId, connectionId],
+    );
+    assertEquals((await read(o, connectionId)).removedBy, "admin");
   } finally {
     await o.finish();
   }

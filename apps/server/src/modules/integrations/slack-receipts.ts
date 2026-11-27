@@ -333,6 +333,9 @@ const SlackRemovedDecisionSchema = z.object({
   cause: z.enum(SLACK_REMOVAL_CAUSES).describe(
     "Which Slack event removed Bakery: the app was uninstalled or its bot token revoked.",
   ),
+  eventTime: z.number().int().nonnegative().nullable().describe(
+    "Slack's event_time in Unix seconds; a removal dated before the workspace last connected is ignored.",
+  ),
 }).strict().describe(
   "Verified Slack removal that ends the workspace's connections as removed by Slack.",
 );
@@ -368,6 +371,7 @@ export type CommitSlackReceiptResult =
 type ActiveSlackInstallation = {
   readonly organizationId: string;
   readonly teamId: string;
+  readonly connectedAt: Date;
 };
 
 type SlackReceiptWork = Exclude<
@@ -535,7 +539,8 @@ export async function commitSlackReceipt(
     return { kind: "malformed" };
   }
   const found = await transaction.query<ActiveSlackInstallation>(
-    `select organization_id as "organizationId", team_id as "teamId"
+    `select organization_id as "organizationId", team_id as "teamId",
+            updated_at as "connectedAt"
        from bakery.slack_installations
       where app_id = $1 and id = $2 and status = 'active'
       for share`,
@@ -587,13 +592,17 @@ export async function commitSlackReceipt(
   if (work === null) return { kind: "recorded", receiptId, outcome };
   let handedOff = false;
   if (work.kind === "removed") {
-    await markSlackConnectionsRemoved(transaction, {
-      organizationId: active.organizationId,
-      teamId: active.teamId,
-      eventId: input.eventId,
-      cause: work.cause,
-    });
-    handedOff = true;
+    const stale = work.eventTime !== null &&
+      work.eventTime * 1000 < new Date(active.connectedAt).getTime();
+    if (!stale) {
+      await markSlackConnectionsRemoved(transaction, {
+        organizationId: active.organizationId,
+        teamId: active.teamId,
+        eventId: input.eventId,
+        cause: work.cause,
+      });
+    }
+    handedOff = !stale;
   } else {
     try {
       handedOff = await handoffSlackWork(transaction, {

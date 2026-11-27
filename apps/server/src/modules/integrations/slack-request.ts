@@ -150,6 +150,7 @@ export type SlackEventDecision =
     readonly kind: "removed";
     readonly eventId: string;
     readonly cause: SlackRemovalCause;
+    readonly eventTime: number | null;
   }
   | {
     readonly kind: "thread_reply";
@@ -204,7 +205,14 @@ export function readSlackEvent(
   if (removal !== undefined) {
     return removal === null
       ? { kind: "ignore", reason: "unsupported_event" }
-      : { kind: "removed", eventId: body.event_id, cause: removal };
+      : {
+        kind: "removed",
+        eventId: body.event_id,
+        cause: removal,
+        eventTime: Number.isSafeInteger(body.event_time)
+          ? body.event_time as number
+          : null,
+      };
   }
   const authorizations = Array.isArray(body.authorizations)
     ? body.authorizations

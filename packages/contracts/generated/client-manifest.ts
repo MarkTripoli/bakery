@@ -49376,7 +49376,7 @@ export const clientManifest = {
                       "admin",
                       "provider"
                     ],
-                    "description": "Who removed a revoked connection: provider when the provider removed Bakery (for Slack, the app was uninstalled or its bot token revoked), admin when a Bakery Admin removed it; null while the connection is not revoked."
+                    "description": "Who removed a revoked connection: provider when the provider removed Bakery (Slack uninstalled the app or revoked its bot token, or GitHub removed its installation), admin when a Bakery Admin removed it; null while the connection is not revoked."
                   },
                   {
                     "type": "null",
@@ -72895,7 +72895,7 @@ export const clientManifest = {
                 "admin",
                 "provider"
               ],
-              "description": "Who removed a revoked connection: provider when the provider removed Bakery (for Slack, the app was uninstalled or its bot token revoked), admin when a Bakery Admin removed it; null while the connection is not revoked."
+              "description": "Who removed a revoked connection: provider when the provider removed Bakery (Slack uninstalled the app or revoked its bot token, or GitHub removed its installation), admin when a Bakery Admin removed it; null while the connection is not revoked."
             },
             {
               "type": "null",
