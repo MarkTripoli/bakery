@@ -2194,6 +2194,9 @@ export function WorkflowEditorPage(
                     changes={changes}
                     inUseRevision={inUse?.revision ?? null}
                     problemCount={problemCount}
+                    publishedBefore={versions.data?.items.some((item) =>
+                      item.status === "published"
+                    ) ?? false}
                     startsChanged={startsChanged}
                   />
                   {publish.error === null
