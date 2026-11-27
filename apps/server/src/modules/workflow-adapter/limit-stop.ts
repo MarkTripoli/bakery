@@ -13,16 +13,20 @@ export async function readLimitStop(
   organizationId: string,
   runId: string,
 ): Promise<RepeatLimitStop | undefined> {
-  const failure = await transaction.query<
-    { details: Record<string, unknown> | null }
+  const latest = await transaction.query<
+    { operation: string; details: Record<string, unknown> | null }
   >(
-    `select details from bakery.audit_events
-      where organization_id = $1 and operation = 'workflow.plan_failed'
+    `select operation, details from bakery.audit_events
+      where organization_id = $1 and resource_type = 'workflow_run'
         and resource_id = $2
+        and operation in ('workflow.plan_failed', 'runs.reopen')
       order by created_at desc, id desc limit 1`,
     [organizationId, runId],
   );
-  const details = failure.rows[0]?.details;
+  const event = latest.rows[0];
+  const details = event?.operation === "workflow.plan_failed"
+    ? event.details
+    : null;
   if (!details || details.code !== PLAN_LIMIT_REACHED_CODE) return undefined;
   const { repeatKey, iterations, allowed, max } = details;
   if (

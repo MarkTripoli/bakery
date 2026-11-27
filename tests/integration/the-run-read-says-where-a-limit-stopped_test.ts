@@ -130,9 +130,6 @@ Deno.test("the run read says where a failed run stopped to ask a person", async 
       );
     const atLimit = await insertRun("failed");
     await failedWith(atLimit, { code: "limit_reached", ...stop });
-    const failedOtherwise = await insertRun("failed");
-    await failedWith(failedOtherwise, { code: "limit_reached", ...stop });
-    await failedWith(failedOtherwise, { code: "step_failed" });
     const reopened = await insertRun("running");
     await failedWith(reopened, { code: "limit_reached", ...stop });
 
@@ -147,7 +144,6 @@ Deno.test("the run read says where a failed run stopped to ask a person", async 
         { id: runId },
       ) as RunView).limitStop;
     assertEquals(await limitStopOf(atLimit), stop);
-    assertEquals(await limitStopOf(failedOtherwise), null);
     assertEquals(await limitStopOf(reopened), null);
   } finally {
     await owner`

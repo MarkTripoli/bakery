@@ -44,7 +44,8 @@ async function findAnsweredRepeatLimit(
     `with stop as (
        select created_at from bakery.audit_events
         where organization_id = $1 and operation = 'workflow.plan_failed'
-          and resource_id::text = $2::text and details ->> 'code' = $3
+          and resource_type = 'workflow_run' and resource_id = $2::text
+          and details ->> 'code' = $3
         order by created_at desc, id desc limit 1)
      select d.id, d.detail from bakery.decisions_ledger d, stop
       where d.organization_id = $1 and d.subject_kind = $4
@@ -54,7 +55,8 @@ async function findAnsweredRepeatLimit(
           select 1 from bakery.audit_events later
            where later.organization_id = $1
              and later.operation = 'workflow.plan_failed'
-             and later.resource_id::text = $2::text
+             and later.resource_type = 'workflow_run'
+             and later.resource_id = $2::text
              and later.created_at > stop.created_at
              and later.details ->> 'code' <> $3)
       order by d.decided_at desc, d.id desc limit 1`,
@@ -117,11 +119,9 @@ export async function allowMoreRepeatRounds(
   const row = run.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   if (!isPlanRunSnapshot(row.snapshot)) conflict("not_a_plan_run");
-  const answered = await findAnsweredRepeatLimit(
-    transaction,
-    organizationId,
-    runId,
-  );
+  const answered = row.status === "failed"
+    ? undefined
+    : await findAnsweredRepeatLimit(transaction, organizationId, runId);
   if (answered !== undefined) return answered;
   const stop = row.status === "failed"
     ? await readLimitStop(transaction, organizationId, runId)
