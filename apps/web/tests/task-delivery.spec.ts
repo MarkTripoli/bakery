@@ -13,6 +13,7 @@ import {
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { laneBudgetMs } from "./helpers/lane-budget.ts";
 import { expectReferenceCardUsable } from "./helpers/reference-card.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -908,6 +909,68 @@ test("a run that ran out of tries can be given more by an administrator, with th
   expect(posted).toHaveLength(1);
   expect(posted[0].body).toEqual({ tries: 3 });
   expect(posted[0].key).toBeTruthy();
+});
+
+const atLimit = { repeatKey: "fix", iterations: 3, allowed: 3, max: 5 };
+
+async function mockLimitStop(
+  page: Page,
+  role: "admin" | "developer",
+  scenario: Scenario = { ...STOPPED, decisions: [] },
+) {
+  await mockRun(page);
+  await mockDelivery(page, { ...scenario, role });
+  let stop: typeof atLimit | null = atLimit;
+  await page.route(
+    `**/v1/runs/${runId}`,
+    (route) =>
+      route.fulfill({ json: { ...run, status: "failed", limitStop: stop } }),
+  );
+  return () => stop = null;
+}
+
+test("a run stopped at its repeat limit says how many more it can try and gives them", async ({ page }) => {
+  const clear = await mockLimitStop(page, "admin");
+  const posted = await mockMoreTries(page, { status: 200 });
+  await page.goto(`/tasks/${id}`);
+  const now = nowCard(page);
+  await expect(now).toContainText("Bakery stopped to ask you");
+  await expect(now).toContainText(
+    "It tried 3 times and 1 blocking finding remains. This workflow allows up to 5 tries, so it can try 2 more. Nothing was merged.",
+  );
+  await expect(now.getByRole("button")).toHaveCount(1);
+  await still(page, "limit-stop");
+  await button(now, "Give Bakery more tries").click();
+  const dialog = page.getByRole("dialog", { name: "Give Bakery more tries?" });
+  await expect(dialog).toContainText("Bakery tried 3 times and stopped.");
+  await expect(dialog).toContainText("From 1 to 2.");
+  clear();
+  await dialog.getByRole("button", { name: "Give more tries" }).click();
+  await expect(dialog).toBeHidden();
+  expect(posted[0].body).toEqual({ tries: 2 });
+  await expect(page.getByText("Bakery stopped to ask you")).toHaveCount(0);
+});
+
+test("a repeat limit with nothing delivered shows only the banner and one next step", async ({ page }) => {
+  await mockLimitStop(page, "admin", { checks: [] });
+  await page.goto(`/tasks/${id}`);
+  const section = page.getByTestId("delivery-section");
+  await expect(nowCard(page)).toContainText(
+    "It tried 3 times. This workflow allows up to 5 tries, so it can try 2 more.",
+  );
+  await expect(section).not.toContainText("No check results yet");
+  await expect(page.getByText("Send a message to try again.")).toHaveCount(0);
+});
+
+test("someone who cannot give tries at a repeat limit is told who can", async ({ page }) => {
+  await mockLimitStop(page, "developer");
+  await page.goto(`/tasks/${id}`);
+  const now = nowCard(page);
+  await expect(now).toContainText(
+    "An organization administrator can give Bakery more tries.",
+  );
+  await expect(now.getByRole("button")).toHaveCount(0);
+  await still(page, "limit-stop-no-permission");
 });
 
 test("a refused allowance keeps the dialog open and says why", async ({ page }) => {

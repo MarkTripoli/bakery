@@ -7706,5 +7706,7 @@
   "library.editor.notify.warning.next.groupEmpty": "⟪{name} has no members. The step will fail if it has to ask them.⟫",
   "library.editor.notify.who.goneName": "⟪someone who no longer exists⟫",
   "library.editor.notify.who.goneGroup": "⟪A group that no longer exists⟫",
-  "library.editor.notify.who.goneGroupName": "⟪a group that no longer exists⟫"
+  "library.editor.notify.who.goneGroupName": "⟪a group that no longer exists⟫",
+  "tasks.delivery.now.stopped.limitTitle": "⟪Bakery stopped to ask you⟫",
+  "tasks.delivery.now.stopped.limitBody": "⟪It tried {count, plural, one {# time} other {# times}}{findings, plural, =0 {.} one { and # blocking finding remains.} other { and # blocking findings remain.}} This workflow allows up to {max} tries, so it can try {room} more.⟫"
 }

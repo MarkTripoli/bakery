@@ -7706,5 +7706,7 @@
   "library.editor.notify.warning.next.groupEmpty": "⟦{name} ĥàš ñô ɱëɱƀëŕš. Ŧĥë šŧëþ ŵïļļ ƒàïļ ïƒ ïŧ ĥàš ŧô àšķ ŧĥëɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "library.editor.notify.who.goneName": "⟦šôɱëôñë ŵĥô ñô ļôñĝëŕ ëẋïšŧš ŧëšŧ çô⟧",
   "library.editor.notify.who.goneGroup": "⟦À ĝŕôûþ ŧĥàŧ ñô ļôñĝëŕ ëẋïšŧš ŧëšŧ çôþ⟧",
-  "library.editor.notify.who.goneGroupName": "⟦à ĝŕôûþ ŧĥàŧ ñô ļôñĝëŕ ëẋïšŧš ŧëšŧ çôþ⟧"
+  "library.editor.notify.who.goneGroupName": "⟦à ĝŕôûþ ŧĥàŧ ñô ļôñĝëŕ ëẋïšŧš ŧëšŧ çôþ⟧",
+  "tasks.delivery.now.stopped.limitTitle": "⟦Ɓàķëŕÿ šŧôþþëð ŧô àšķ ÿôû ŧëšŧ ç⟧",
+  "tasks.delivery.now.stopped.limitBody": "⟦Ïŧ ŧŕïëð {count, plural, one {# time} other {# times}}{findings, plural, =0 {.} one { and # blocking finding remains.} other { and # blocking findings remain.}} Ŧĥïš ŵôŕķƒļôŵ àļļôŵš ûþ ŧô {max} ŧŕïëš, šô ïŧ çàñ ŧŕÿ {room} ɱôŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

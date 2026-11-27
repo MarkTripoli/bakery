@@ -41,6 +41,7 @@ import { runOutcome, stepName } from "./task-step-approval/model.ts";
 import { useStepApproval } from "./task-step-approval/use-step-approval.ts";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
+import { stoppedAtLimit } from "./task-delivery/model.ts";
 import { focusMessageField } from "./task-delivery/focus-message.ts";
 import { HandOver } from "./task-handover/HandOver.tsx";
 import { useHandoverEvents } from "./task-handover/use-handover-events.ts";
@@ -452,9 +453,13 @@ export function TaskRunSection(
       case "blocked":
         return <BlockedNotice run={current} />;
       case "failed":
-        return (
-          <UI.Text data-placement="line">{t("tasks.run.line.failed")}</UI.Text>
-        );
+        return stoppedAtLimit(current.limitStop)
+          ? null
+          : (
+            <UI.Text data-placement="line">
+              {t("tasks.run.line.failed")}
+            </UI.Text>
+          );
       case "canceled":
         return (
           <UI.Text data-placement="line">
@@ -791,6 +796,7 @@ export function TaskRunSection(
             runId={runId}
             enabled={activeRun}
             baseSha={run.data.workspaceBaseSha ?? run.data.baseSha}
+            limitStop={run.data.limitStop}
             paused={run.data.status === "paused"}
             offline={connectivity === "offline" ||
               connectivity === "reconnecting"}

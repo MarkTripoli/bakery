@@ -1,8 +1,8 @@
 import { useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "@bakery/i18n";
 import { useBakeryApi } from "../../api/context.tsx";
-import type { ApiFailure } from "../../api/client.ts";
+import type { ApiFailure, RunResponse } from "../../api/client.ts";
 import {
   approvalsQueryOptions,
   artifactsListQueryOptions,
@@ -16,6 +16,7 @@ import {
   runDeliveryDecisionsQueryOptions,
   runDeploymentsQueryOptions,
   runOutputStepIdsQueryOptions,
+  runQueryOptions,
   runReviewsQueryOptions,
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
@@ -113,6 +114,7 @@ export function DeliverySection(
   {
     baseSha,
     enabled,
+    limitStop = null,
     offline,
     onOpenRules,
     onTellBakery,
@@ -124,6 +126,7 @@ export function DeliverySection(
     runId: string;
     enabled: boolean;
     baseSha: string | null;
+    limitStop?: RunResponse["limitStop"];
     paused: boolean;
     offline: boolean;
     onTellBakery: () => void;
@@ -131,6 +134,7 @@ export function DeliverySection(
   }>,
 ) {
   const api = useBakeryApi();
+  const queryClient = useQueryClient();
   const scope = useProtectedScope();
   const { locale, timeZone } = useI18n();
   const revisionHeadSha = useRevisionHeadSha(taskId, runId, enabled);
@@ -210,7 +214,7 @@ export function DeliverySection(
     ) ?? false;
   const access = useQuery({
     ...effectiveAccessQueryOptions(api, scope),
-    enabled: enabled && (merged || outOfTries),
+    enabled: enabled && (merged || outOfTries || limitStop !== null),
   });
   const mayDeploy = access.data?.role === "admin" ||
     access.data?.role === "developer";
@@ -258,6 +262,7 @@ export function DeliverySection(
       mayDeploy,
       revisionHeadSha,
       baseSha,
+      limitStop,
       paused,
     })
     : null;
@@ -280,8 +285,19 @@ export function DeliverySection(
       decisions.refetch(),
       checks.refetch(),
       reviews.refetch(),
+      queryClient.invalidateQueries({
+        queryKey: runQueryOptions(api, scope, runId).queryKey,
+      }),
     ]);
-  }, [decisions.refetch, checks.refetch, reviews.refetch]);
+  }, [
+    decisions.refetch,
+    checks.refetch,
+    reviews.refetch,
+    queryClient,
+    api,
+    scope,
+    runId,
+  ]);
   const goBackAction = useGoBack(refreshRelease);
   const moreTriesAction = useMoreTries(runId, refreshTries);
   const decision = useApprovalDecision(

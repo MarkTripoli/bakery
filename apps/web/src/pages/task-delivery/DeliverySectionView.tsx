@@ -89,6 +89,7 @@ type NowCopy = Readonly<{
     | "goBack"
     | "chooseNext"
     | "tellAndMoreTries"
+    | "moreTries"
     | null;
 }>;
 
@@ -239,6 +240,25 @@ function nowCopy(
       };
     case "stopped":
       return stoppedCopy(t, now, next, context.moreTries);
+    case "limit": {
+      const body = [
+        t("tasks.delivery.now.stopped.limitBody", {
+          count: now.tried,
+          findings: now.blocking,
+          max: now.max,
+          room: now.room,
+        }),
+        now.merged ? null : t("tasks.delivery.now.stopped.notMerged"),
+        context.moreTries === "ask"
+          ? t("tasks.delivery.now.stopped.askAdmin")
+          : null,
+      ].filter((part) => part !== null).join(" ");
+      return {
+        title: t("tasks.delivery.now.stopped.limitTitle"),
+        body,
+        action: context.moreTries === "offer" ? "moreTries" : null,
+      };
+    }
   }
 }
 
@@ -356,6 +376,7 @@ function nowTone(
     case "paused":
     case "checksFailed":
     case "stopped":
+    case "limit":
       return "warning";
   }
 }
@@ -533,16 +554,25 @@ function ReadyView(
   const release = model.release;
   const goingBack = goBackPhase === "working";
   const deciding = decisionPhase === "deciding";
-  const triesRoom = model.now.kind === "stopped" &&
-      model.now.reason === "repair_cycles_exhausted"
+  const triesRoom = model.now.kind === "limit"
+    ? model.now.room
+    : model.now.kind === "stopped" &&
+        model.now.reason === "repair_cycles_exhausted"
     ? REVIEW_LOOP_LIMITS.maxRepairCyclesCeiling - model.now.max
     : 0;
+  const triesSpent = model.now.kind === "limit"
+    ? model.now.tried
+    : model.now.kind === "stopped"
+    ? model.now.max
+    : null;
   const moreTries: MoreTriesOffer = triesRoom < 1
     ? "none"
     : mayGiveMoreTries
     ? "offer"
     : "ask";
   const [moreTriesOpen, setMoreTriesOpen] = useState(false);
+  const nothingDelivered = model.headSha === null &&
+    model.checks.total === 0 && model.review === null;
   const copy = model.now.kind === "paused"
     ? null
     : nowCopy(t, model.now, { model, moreTries });
@@ -811,6 +841,8 @@ function ReadyView(
     ? [chooseNextLink]
     : copyAction === "tellAndMoreTries"
     ? [tellOutlineButton, moreTriesButton]
+    : copyAction === "moreTries"
+    ? [moreTriesButton]
     : copyAction === "merge"
     ? [mergeButton("primary")]
     : copyAction === "mergeAgain"
@@ -844,6 +876,8 @@ function ReadyView(
     ? chooseNextLink
     : copyAction === "tellAndMoreTries"
     ? <UI.Inline>{tellOutlineButton}{moreTriesButton}</UI.Inline>
+    : copyAction === "moreTries"
+    ? moreTriesButton
     : copyAction === "merge"
     ? mergeButton("primary")
     : copyAction === "mergeAgain"
@@ -994,14 +1028,16 @@ function ReadyView(
         </UI.InlineNotice>
       )}
       {!noticeAbove && mergeNoticeElement}
-      <DeliveryBody
-        goBackButton={release?.status === "healthy" &&
-            release.goBack === "offer"
-          ? goBackButton("outline")
-          : null}
-        model={model}
-        onOpenRules={onOpenRules}
-      />
+      {nothingDelivered ? null : (
+        <DeliveryBody
+          goBackButton={release?.status === "healthy" &&
+              release.goBack === "offer"
+            ? goBackButton("outline")
+            : null}
+          model={model}
+          onOpenRules={onOpenRules}
+        />
+      )}
       <UI.AlertDialog
         cancelAction={
           <UI.Button
@@ -1182,9 +1218,9 @@ function ReadyView(
         <UI.Text>{t("tasks.delivery.approval.rejectDialog.body")}</UI.Text>
         {dialog === "reject" && dialogNotice}
       </UI.AlertDialog>
-      {model.now.kind === "stopped" && (
+      {triesSpent !== null && (
         <MoreTriesDialog
-          count={model.now.max}
+          count={triesSpent}
           max={triesRoom}
           offline={offline}
           onClose={() => {
