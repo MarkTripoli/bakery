@@ -4805,7 +4805,26 @@ test.describe("who a run is waiting for", () => {
       (url) => url.pathname === `/v1/tasks/${taskId}/runs`,
       (route) => route.fulfill({ json: page_([runFixture("needs_human")]) }),
     );
-    await openRun(page, "needs_human", {}, [{
+    for (
+      const pattern of [
+        "**/v1/runs/*/delivery-decisions*",
+        "**/v1/runs/*/reviews*",
+        "**/v1/runs/*/checks*",
+        "**/v1/approvals?*",
+        "**/v1/pull-requests?*",
+      ]
+    ) {
+      await page.route(pattern, (route) => route.fulfill({ json: page_([]) }));
+    }
+    await openRun(page, "needs_human", {
+      capabilities: ["pause", "resume", "cancel", "interrupt"].map((
+        action,
+      ) => ({
+        action,
+        canRequest: false,
+        reason: "already_terminal",
+      })),
+    }, [{
       ...stepFixture,
       stepKey: "build.ask",
       iteration: 0,
@@ -4817,6 +4836,9 @@ test.describe("who a run is waiting for", () => {
     await expect(page.locator('[data-ui-region="waiting-for"]')).toContainText(
       "Expired: nobody answered by Feb 8, 2026. This run needs a person.",
     );
+    await expect(page.locator('[data-ui-region="steering-unsupported"]'))
+      .toHaveCount(0);
+    await expect(page.getByText("A run is in progress.")).toHaveCount(0);
     await still(page, "run-needs-human");
   });
 
