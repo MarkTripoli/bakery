@@ -78,6 +78,33 @@ async function seedRun(fixture: Fixture, seed: Seed): Promise<string> {
   return ids.run;
 }
 
+async function seedViewer(
+  fixture: Fixture,
+  organizationId: string,
+): Promise<string> {
+  const principalId = crypto.randomUUID();
+  const userId = crypto.randomUUID();
+  await fixture.pgDatabase.query(
+    `insert into public."user" (id, name, email, "emailVerified", "createdAt",
+       "updatedAt")
+     values ($1, 'Viewer', $2, true, now(), now())`,
+    [userId, `viewer-${userId}@example.test`],
+  );
+  await fixture.pgDatabase.query(
+    `insert into bakery.principals (id, provider_user_id, display_name,
+       principal_type)
+     values ($1, $2, 'Viewer', 'human')`,
+    [principalId, userId],
+  );
+  await fixture.pgDatabase.query(
+    `insert into bakery.organization_memberships (id, organization_id,
+       principal_id, role, status, joined_at, created_at, updated_at, version)
+     values ($1, $2, $3, 'viewer', 'active', now(), now(), now(), 1)`,
+    [crypto.randomUUID(), organizationId, principalId],
+  );
+  return principalId;
+}
+
 Deno.test("a delivery.openPullRequest step opens the pull request as the run's principal, once", async () => {
   const fixture = await openGitHubAppFixture();
   let seed: Seed | undefined;
@@ -137,6 +164,29 @@ Deno.test("a delivery.openPullRequest step opens the pull request as the run's p
       [refused.kind, (refused as { message?: string }).message],
       ["failed", "branch_name_invalid"],
     );
+
+    const viewerId = await seedViewer(fixture, seed.organizationId);
+    const opened = fixture.github.openedPullRequests().length;
+    const unpermitted = await runner.run({
+      ...step,
+      stepKey: "deliver.open-viewer",
+      requestedBy: viewerId,
+      input: { headBranch: "bakery/viewer-branch", title: "Viewer" },
+    });
+    assertEquals(
+      [unpermitted.kind, (unpermitted as { code?: string }).code],
+      ["failed", "AUTH_FORBIDDEN"],
+    );
+    assertEquals(fixture.github.openedPullRequests().length, opened);
+
+    fixture.github.failNext("pulls", "server_error", 4);
+    const outage = await runner.run({
+      ...step,
+      stepKey: "deliver.open-outage",
+      input: { headBranch: "bakery/outage-branch", title: "Outage" },
+    });
+    assertEquals(outage.kind, "pending", JSON.stringify(outage));
+    assertEquals(fixture.github.openedPullRequests().length, opened);
   } finally {
     if (seed) {
       for (
@@ -160,6 +210,26 @@ Deno.test("a delivery.openPullRequest step opens the pull request as the run's p
         "delete from bakery.repository_profiles where organization_id = $1",
         [seed.organizationId],
       );
+      const viewers = await fixture.pgDatabase.query<
+        { principal_id: string; provider_user_id: string }
+      >(
+        `delete from bakery.organization_memberships membership
+          using bakery.principals principal
+          where membership.organization_id = $1 and membership.role = 'viewer'
+            and principal.id = membership.principal_id
+          returning membership.principal_id, principal.provider_user_id`,
+        [seed.organizationId],
+      );
+      for (const viewer of viewers.rows) {
+        await fixture.pgDatabase.query(
+          "delete from bakery.principals where id = $1",
+          [viewer.principal_id],
+        );
+        await fixture.pgDatabase.query(
+          'delete from public."user" where id = $1',
+          [viewer.provider_user_id],
+        );
+      }
       await removeSeed(fixture, seed);
     }
     await fixture.finish();
