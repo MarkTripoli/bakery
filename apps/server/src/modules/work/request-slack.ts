@@ -18,6 +18,7 @@ export const REQUEST_SLACK_FUNCTION_ID = "bakery-person-request-slack";
 export const REQUEST_SLACK_MAX_ATTEMPTS = 3;
 export const REQUEST_SLACK_RETRY_BASE_MINUTES = 10;
 export const REQUEST_SLACK_TITLE_LIMIT = 120;
+export const REQUEST_SLACK_LEASE_MINUTES = 10;
 export const SLACK_DELIVERY_PURPOSE = "slack.delivery";
 const REQUEST_SLACK_BATCH = 100;
 const SLACK_CHANNEL = "slack";
@@ -226,7 +227,9 @@ async function dueRequests(
         and (delivery.id is null or
              (delivery.state = 'retrying' and delivery.attempts < $3
               and delivery.updated_at <= $1 - make_interval(
-                mins => $5 * power(3, delivery.attempts - 1)::int)))
+                mins => $5 * power(3, delivery.attempts - 1)::int))
+             or (delivery.state = 'sending'
+              and delivery.updated_at <= $1 - make_interval(mins => $9)))
       order by request.created_at, request.id
       limit $4`,
     [
@@ -238,6 +241,7 @@ async function dueRequests(
       SLACK_WORKSPACE_KIND,
       SLACK_DELIVERY_PURPOSE,
       SLACK_PROVIDER,
+      REQUEST_SLACK_LEASE_MINUTES,
     ],
   );
   return found.rows;
@@ -269,11 +273,15 @@ async function closedDeliveries(
           limit 1
        ) handled on closing.final_status in ('answered', 'handled')
        left join bakery.principals closer on closer.id = handled.decided_by
-      where delivery.channel = $2 and delivery.state = 'delivered'
+      where delivery.channel = $2
         and delivery.external_ref is not null
         and closing.final_status <> 'open'
-        and (delivery.failure_code is null
-             or delivery.updated_at <= $1 - make_interval(mins => $4))
+        and ((delivery.state = 'delivered' and delivery.attempts < $8
+              and (delivery.failure_code is null
+                   or delivery.updated_at <= $1 - make_interval(
+                     mins => $4 * power(3, delivery.attempts - 1)::int)))
+             or (delivery.state = 'rewriting'
+              and delivery.updated_at <= $1 - make_interval(mins => $9)))
       order by delivery.updated_at, delivery.id
       limit $3`,
     [
@@ -284,28 +292,35 @@ async function closedDeliveries(
       SLACK_WORKSPACE_KIND,
       SLACK_DELIVERY_PURPOSE,
       SLACK_PROVIDER,
+      REQUEST_SLACK_MAX_ATTEMPTS,
+      REQUEST_SLACK_LEASE_MINUTES,
     ],
   );
   return found.rows;
 }
 
-async function claim(database: PgDatabase, request: DueRequest) {
+async function claim(database: PgDatabase, request: DueRequest, now: Date) {
   const claimed = await database.query(
     `insert into bakery.person_request_deliveries
        (organization_id, request_id, channel, state)
      values ($1, $2, $3, 'sending')
      on conflict (request_id, channel) do update
        set state = 'sending', attempts = person_request_deliveries.attempts + 1,
-           failure_code = null, updated_at = now(),
+           failure_code = null, updated_at = $5::timestamptz,
            version = person_request_deliveries.version + 1
-       where person_request_deliveries.state = 'retrying'
-         and person_request_deliveries.attempts < $4
+       where (person_request_deliveries.state = 'retrying'
+              and person_request_deliveries.attempts < $4)
+          or (person_request_deliveries.state = 'sending'
+              and person_request_deliveries.updated_at
+                  <= $5::timestamptz - make_interval(mins => $6))
      returning 1`,
     [
       request.organization_id,
       request.id,
       SLACK_CHANNEL,
       REQUEST_SLACK_MAX_ATTEMPTS,
+      now,
+      REQUEST_SLACK_LEASE_MINUTES,
     ],
   );
   return claimed.rows.length === 1;
@@ -324,6 +339,7 @@ async function settleSend(
   await database.query(
     `update bakery.person_request_deliveries
         set state = $3, failure_code = $4, external_ref = $5,
+            attempts = case when $3 = 'delivered' then 0 else attempts end,
             delivered_at = case when $5::text is null then null
                                 else $6::timestamptz end,
             updated_at = $6::timestamptz, version = version + 1
@@ -337,6 +353,25 @@ async function settleSend(
       facts.now,
     ],
   );
+}
+
+async function claimRewrite(
+  database: PgDatabase,
+  requestId: string,
+  now: Date,
+): Promise<number | null> {
+  const claimed = await database.query<{ attempts: number }>(
+    `update bakery.person_request_deliveries
+        set state = 'rewriting', attempts = attempts + 1,
+            updated_at = $3::timestamptz, version = version + 1
+      where request_id = $1 and channel = $2
+        and (state = 'delivered'
+             or (state = 'rewriting'
+                 and updated_at <= $3::timestamptz - make_interval(mins => $4)))
+      returning attempts`,
+    [requestId, SLACK_CHANNEL, now, REQUEST_SLACK_LEASE_MINUTES],
+  );
+  return claimed.rows[0]?.attempts ?? null;
 }
 
 async function moveRewrite(
@@ -473,7 +508,7 @@ export async function sendDueRequestSlackMessages(
         }),
     );
     if (link === undefined) continue;
-    if (!await claim(options.database, request)) continue;
+    if (!await claim(options.database, request, now)) continue;
     const attempts = (await options.database.query<{ attempts: number }>(
       `select attempts from bakery.person_request_deliveries
         where request_id = $1 and channel = $2`,
@@ -549,16 +584,8 @@ export async function rewriteClosedRequestSlackMessages(
   const outcomes: RequestSlackOutcome[] = [];
   for (const delivery of closed) {
     const posted = splitExternalRef(delivery.external_ref);
-    if (
-      !await moveRewrite(
-        options.database,
-        delivery.id,
-        SlackDeliveryState.Delivered,
-        SlackDeliveryState.Rewriting,
-        null,
-        now,
-      )
-    ) continue;
+    const attempts = await claimRewrite(options.database, delivery.id, now);
+    if (attempts === null) continue;
     const updated: SendResult = posted === null
       ? { kind: "failed", code: "external_ref_invalid" }
       : await send(delivery, MESSAGE_UPDATE, {
@@ -597,17 +624,20 @@ export async function rewriteClosedRequestSlackMessages(
       });
       continue;
     }
+    const exhausted = attempts >= REQUEST_SLACK_MAX_ATTEMPTS;
     await moveRewrite(
       options.database,
       delivery.id,
       SlackDeliveryState.Rewriting,
-      SlackDeliveryState.Delivered,
+      exhausted
+        ? SlackDeliveryState.RewriteFailed
+        : SlackDeliveryState.Delivered,
       UNCERTAIN_CODE,
       now,
     );
     outcomes.push({
       requestId: delivery.id,
-      result: "retrying",
+      result: exhausted ? "failed" : "retrying",
       code: UNCERTAIN_CODE,
     });
   }

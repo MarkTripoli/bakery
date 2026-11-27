@@ -271,3 +271,29 @@ Deno.test("the emailed link is a task page the web app routes, in the asker's or
   });
   assertEquals(storage.get(ORGANIZATION_PREFERENCE_KEY), organizationId);
 });
+
+Deno.test("a row stuck in sending past the lease is sent again on the next sweep", async () => {
+  const o = await open();
+  try {
+    const id = await o.request(new Date("2026-11-26T09:00:00Z"));
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.person_request_deliveries
+         (organization_id, request_id, channel, state, attempts, updated_at)
+       values ($1, $2, 'email', 'sending', 1, '2026-11-26T09:16:00Z')`,
+      [o.fixture.organizationId, id],
+    );
+    assertEquals(
+      mine(await o.sweep(new Date("2026-11-26T09:20:00Z")), id),
+      [],
+    );
+    assertEquals(
+      mine(await o.sweep(new Date("2026-11-26T09:27:00Z")), id),
+      [{ requestId: id, result: "delivered" }],
+    );
+    assertEquals(await o.deliveries(id), [
+      { channel: "email", state: "delivered", attempts: 2 },
+    ]);
+  } finally {
+    await o.finish();
+  }
+});

@@ -197,7 +197,7 @@ Deno.test("an open request of a linked recipient is sent as one Slack DM with it
     assert(!post.text.includes(NOTE), "the DM never carries the note");
     assertEquals(await w.deliveries(id), [{
       state: "delivered",
-      attempts: 1,
+      attempts: 0,
       external_ref: `${DM}:1700000000.1`,
       failure_code: null,
       delivered: true,
@@ -275,7 +275,7 @@ Deno.test("an uncertain send is retried after the backoff and then delivered", a
     const retried = w.mine(await w.send(11), id);
     assertEquals(retried.length, 1);
     const [row] = await w.deliveries(id);
-    assertEquals(row!.attempts, 2);
+    assertEquals(row!.attempts, 0);
     assertEquals(row!.state, "delivered");
     assertEquals(retried, [{ requestId: id, result: "delivered" }]);
   } finally {
@@ -355,6 +355,117 @@ Deno.test("handled, expired and withdrawn requests each rewrite their DM once", 
     }
     assertEquals(await w.rewrite(30), []);
     assertEquals(w.sent.length, before + 3);
+  } finally {
+    await w.finish();
+  }
+});
+
+Deno.test("an uncertain rewrite is tried three times with backoff and then recorded as rewrite_failed", async () => {
+  const slack = slackAnswers();
+  let updates = 0;
+  const w = await world((request) => {
+    if (request.path === "/api/chat.update") {
+      updates += 1;
+      return { ok: false, error: "fatal_error" };
+    }
+    return slack.answer(request);
+  });
+  try {
+    assert((await w.linkRecipient()).ok);
+    const id = await w.request();
+    await w.send();
+    await w.f.pgDatabase.query(
+      "update bakery.person_requests set status = 'withdrawn' where id = $1",
+      [id],
+    );
+    const row = async () => {
+      const [found] = await w.deliveries(id);
+      return [found!.state, found!.attempts, found!.failure_code];
+    };
+    assertEquals(w.mine(await w.rewrite(1), id), [
+      { requestId: id, result: "retrying", code: "uncertain" },
+    ]);
+    assertEquals(await row(), ["delivered", 1, "uncertain"]);
+    assertEquals(w.mine(await w.rewrite(5), id), []);
+    assertEquals(w.mine(await w.rewrite(12), id).length, 1);
+    assertEquals(await row(), ["delivered", 2, "uncertain"]);
+    assertEquals(w.mine(await w.rewrite(30), id), []);
+    assertEquals(w.mine(await w.rewrite(43), id), [
+      { requestId: id, result: "failed", code: "uncertain" },
+    ]);
+    assertEquals(await row(), ["rewrite_failed", 3, "uncertain"]);
+    const calls = w.sent.length;
+    assertEquals(w.mine(await w.rewrite(500), id), []);
+    assertEquals(w.sent.length, calls);
+    assert(updates >= 1);
+  } finally {
+    await w.finish();
+  }
+});
+
+Deno.test("a row stuck in sending past the lease is delivered on the next run without a second post", async () => {
+  const slack = slackAnswers();
+  const w = await world(slack.answer);
+  try {
+    assert((await w.linkRecipient()).ok);
+    const id = await w.request();
+    await w.send();
+    assertEquals(slack.posts(), 1);
+    await w.f.pgDatabase.query(
+      `update bakery.person_request_deliveries
+          set state = 'sending', attempts = 1, external_ref = null,
+              delivered_at = null, updated_at = now() - interval '5 minutes'
+        where request_id = $1 and channel = 'slack'`,
+      [id],
+    );
+    assertEquals(w.mine(await w.send(), id), []);
+    assertEquals((await w.deliveries(id))[0]!.state, "sending");
+    assertEquals(w.mine(await w.send(6), id), [
+      { requestId: id, result: "delivered" },
+    ]);
+    const [row] = await w.deliveries(id);
+    assertEquals(row!.state, "delivered");
+    assertEquals(row!.external_ref, `${DM}:1700000000.1`);
+    assertEquals(slack.posts(), 1);
+    assertEquals(
+      w.sent.filter((request) => request.path === "/api/chat.postMessage")
+        .length,
+      1,
+    );
+  } finally {
+    await w.finish();
+  }
+});
+
+Deno.test("a row stuck in rewriting past the lease is rewritten on the next run without a second update", async () => {
+  const slack = slackAnswers();
+  const w = await world(slack.answer);
+  try {
+    assert((await w.linkRecipient()).ok);
+    const id = await w.request();
+    await w.send();
+    await w.f.pgDatabase.query(
+      "update bakery.person_requests set status = 'withdrawn' where id = $1",
+      [id],
+    );
+    assertEquals(w.mine(await w.rewrite(), id), [
+      { requestId: id, result: "rewritten" },
+    ]);
+    await w.f.pgDatabase.query(
+      `update bakery.person_request_deliveries
+          set state = 'rewriting', updated_at = now() - interval '5 minutes'
+        where request_id = $1 and channel = 'slack'`,
+      [id],
+    );
+    assertEquals(w.mine(await w.rewrite(), id), []);
+    assertEquals(w.mine(await w.rewrite(6), id), [
+      { requestId: id, result: "rewritten" },
+    ]);
+    assertEquals((await w.deliveries(id))[0]!.state, "rewritten");
+    assertEquals(
+      w.sent.filter((request) => request.path === "/api/chat.update").length,
+      1,
+    );
   } finally {
     await w.finish();
   }
