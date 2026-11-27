@@ -8,6 +8,7 @@ import { StandardError } from "@bakery/contracts/http";
 import type { SecretsKeyConfig } from "@bakery/config";
 import type {
   ConnectedResource,
+  ConnectRefusal,
   Identity,
   OAuth2Profile,
   ProviderRequestPort,
@@ -172,6 +173,19 @@ export async function readBounded(
 const deadline = (signal: AbortSignal) =>
   AbortSignal.any([signal, AbortSignal.timeout(PROVIDER_DEADLINE_MS)]);
 
+export class ConnectRefused extends Error {
+  constructor(readonly refusal: ConnectRefusal) {
+    super(`connect refused: ${refusal}`);
+  }
+}
+
+function refusalOutcome(refusal: ConnectRefusal): ConnectionOutcome {
+  switch (refusal) {
+    case "enterprise_install":
+      return ConnectionOutcome.EnterpriseInstall;
+  }
+}
+
 export async function exchangeOAuth2Code(
   fetcher: OAuth2Fetch,
   profile: OAuth2Profile,
@@ -205,9 +219,10 @@ export async function exchangeOAuth2Code(
   if (!response.ok) {
     throw new Error(`token endpoint answered ${response.status}`);
   }
-  const parsed = providerSchema(profile).parse(
-    JSON.parse(new TextDecoder().decode(body)),
-  );
+  const raw: unknown = JSON.parse(new TextDecoder().decode(body));
+  const refusal = profile.refusal?.(raw) ?? null;
+  if (refusal !== null) throw new ConnectRefused(refusal);
+  const parsed = providerSchema(profile).parse(raw);
   return { ...GrantedTokensSchema.parse(parsed), providerResponse: parsed };
 }
 
@@ -248,13 +263,20 @@ export function bearerRequestPort(
   };
 }
 
+export function grantedScopeNames(
+  profile: OAuth2Profile,
+  granted: GrantedTokens,
+): string[] {
+  return granted.scope === undefined
+    ? [...profile.scopes]
+    : granted.scope.split(/[ ,]+/).filter((scope) => scope.length > 0);
+}
+
 export function grantedScopes(
   profile: OAuth2Profile,
   granted: GrantedTokens,
 ): Record<string, PermissionLevel> {
-  const scopes = granted.scope === undefined
-    ? [...profile.scopes]
-    : granted.scope.split(/[ ,]+/).filter((scope) => scope.length > 0);
+  const scopes = grantedScopeNames(profile, granted);
   const permissions = new Map<string, PermissionLevel>();
   for (const scope of scopes) {
     const separator = scope.indexOf(":");
@@ -313,6 +335,13 @@ async function recordSignedEventSource(
 ): Promise<Record<string, unknown>> {
   const stored = await readStoredClientCredentials(transaction, input.provider);
   const signingSecretId = stored?.signingSecretId ?? null;
+  await transaction.query(
+    `update bakery.slack_installations
+        set status = 'disabled', updated_at = now(), version = version + 1
+      where organization_id = $1 and team_id = $2 and app_id <> $3
+        and status = 'active'`,
+    [input.organizationId, input.source.workspaceId, input.source.appId],
+  );
   const recorded = await connectSlackInstallation(transaction, {
     organizationId: input.organizationId,
     installation: {
@@ -335,12 +364,31 @@ async function recordSignedEventSource(
   };
 }
 
+async function connectedThroughAnotherApp(
+  transaction: PgTransactionClient,
+  source: SignedEventSource,
+  registrationId: string,
+): Promise<boolean> {
+  const other = await transaction.query(
+    `select 1 from bakery.slack_installations slack
+       join bakery.integration_app_registrations registration
+         on registration.id = $3
+      where slack.team_id = $1 and slack.app_id <> $2
+        and slack.status = 'active'
+        and registration.updated_at <= slack.updated_at
+      limit 1`,
+    [source.workspaceId, source.appId, registrationId],
+  );
+  return other.rows.length > 0;
+}
+
 export type OAuth2BindingPreparation = Readonly<{
   attemptId: string;
   provider: string;
   registrationId: string;
   identity: Pick<Identity, "externalAccountId" | "accountLabel">;
   grantedPermissions: Readonly<Record<string, string>>;
+  grantedScopeNames: readonly string[];
   secretSlots: string;
   connectedResource: ConnectedResource | null;
 }>;
@@ -477,7 +525,13 @@ export function createOAuth2CallbackRunner(
         codeVerifier: await openVerifier(key, claim),
       }, signal);
     } catch (error) {
-      return await fail("exchange", ConnectionOutcome.ExchangeFailed, error);
+      return await fail(
+        "exchange",
+        error instanceof ConnectRefused
+          ? refusalOutcome(error.refusal)
+          : ConnectionOutcome.ExchangeFailed,
+        error,
+      );
     }
     let identity: { externalAccountId: string; accountLabel: string };
     try {
@@ -516,6 +570,15 @@ export function createOAuth2CallbackRunner(
         error,
       );
     }
+    const source = connectedResource?.signedEventSource;
+    if (
+      source !== undefined &&
+      await inTransaction((transaction) =>
+        connectedThroughAnotherApp(transaction, source, client.registrationId)
+      )
+    ) {
+      return await fail("identify", ConnectionOutcome.WrongApp);
+    }
     const prepared: OAuth2BindingPreparation = {
       connectedResource,
       attemptId: claim.id,
@@ -526,6 +589,7 @@ export function createOAuth2CallbackRunner(
         accountLabel: identity.accountLabel,
       },
       grantedPermissions: grantedScopes(provider.profile, granted),
+      grantedScopeNames: grantedScopeNames(provider.profile, granted),
       secretSlots: encodeSecretSlots({
         access_token: granted.access_token,
         ...(granted.refresh_token === undefined
@@ -621,6 +685,7 @@ export async function bindOAuth2Connection(
   const accountId = prepared.identity.externalAccountId;
   const label = prepared.identity.accountLabel;
   const permissions = JSON.stringify(prepared.grantedPermissions);
+  const scopeNames = [...prepared.grantedScopeNames];
 
   if (attempt.reconnectConnectionId !== null) {
     const target = await transaction.query<
@@ -669,9 +734,10 @@ export async function bindOAuth2Connection(
     `insert into bakery.integration_connections (
        id, organization_id, provider, installation_id,
        external_authorization_id, external_account_id, label,
-       adapter_version, granted_permissions, status, health, created_by
-     ) values ($1, $2, $3, $4, $5, $5, $6, $7, $8::jsonb, 'enabled',
-       'unknown', $9)
+       adapter_version, granted_permissions, granted_scope_names, status,
+       health, created_by
+     ) values ($1, $2, $3, $4, $5, $5, $6, $7, $8::jsonb, $10::text[],
+       'enabled', 'unknown', $9)
      on conflict (organization_id, installation_id) where archived_at is null
      do nothing
      returning id`,
@@ -685,6 +751,7 @@ export async function bindOAuth2Connection(
       `${provider}@oauth2`,
       permissions,
       attempt.initiatingPrincipalId,
+      scopeNames,
     ],
   );
   const created = connection.rows[0];
@@ -714,12 +781,19 @@ export async function bindOAuth2Connection(
     >(
       `update bakery.integration_connections
           set label = $3, granted_permissions = $4::jsonb,
+              granted_scope_names = $5::text[],
               authorization_revision = authorization_revision + 1,
               status = 'enabled', health = 'unknown',
               version = version + 1, updated_at = now()
         where organization_id = $1 and id = $2
         returning version, authorization_revision as "authorizationRevision"`,
-      [attempt!.organizationId, connectionId, label, permissions],
+      [
+        attempt!.organizationId,
+        connectionId,
+        label,
+        permissions,
+        scopeNames,
+      ],
     );
     const updated = refreshed.rows[0];
     if (updated === undefined) throw new StandardError({ code: "INTERNAL" });

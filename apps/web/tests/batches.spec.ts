@@ -471,13 +471,17 @@ for (
         },
       });
       await page.goto(`/issues/batches/new?repository=${WEB.id}`);
-      const notice = page.getByTestId("batch-workflow-setup");
+      const notice = page.locator("#batch-workflow-setup");
       await expect(notice).toContainText("This workflow cannot start here yet");
+      await expect(notice.locator("[data-reason='no_active_profile']"))
+        .toBeVisible();
+      await expect(notice.getByRole("listitem")).toHaveCount(0);
       await page.getByLabel("Spend").fill("40");
       await page.getByRole("radio", { name: "Carry on by itself" }).check();
       await still(page, "batch-new-workflow-cannot-start");
       await page.getByRole("button", { name: "Start batch" }).click();
       await expect(notice).toBeFocused();
+      await still(page, "batch-new-workflow-cannot-start-focused");
       expect(seen.created).toEqual([]);
       await page.getByLabel("Workflow for every issue in this batch")
         .selectOption("fixed-coding-reviewed");

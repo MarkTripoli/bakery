@@ -7798,6 +7798,8 @@
   "integrations.slack.credentials.stale": "These details changed since this page loaded. Nothing was saved. Check the current details, then enter yours again.",
   "integrations.slack.credentials.loading": "Loading the Slack details.",
   "integrations.slack.credentials.loadError": "The Slack details could not be loaded.",
+  "integrations.slack.outcome.enterpriseInstall": "Slack was not connected. Bakery was added to a whole Slack organization, and it works with one workspace at a time. Connect again and pick a single workspace.",
+  "integrations.slack.outcome.wrongApp": "Slack was not connected. Slack answered for a different app than the one this Bakery installation uses. An installation administrator should check the Slack app details.",
   "machines.tabs.checks": "Checks and software",
   "machines.software.intro": "What is installed on this machine, and what is available. This page does not install updates. Software that was already on the machine is not changed by Bakery.",
   "machines.software.col.name": "Software",

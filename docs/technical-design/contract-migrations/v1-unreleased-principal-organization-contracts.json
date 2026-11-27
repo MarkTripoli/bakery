@@ -1,13 +1,33 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "d548b750fdd43b8f34e2a472515b22d0bfbebd72"
+    "68987065d92dd1cd08e71d5183bd535941e0993f"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:224dd91d0460f916fbe50dc011dbe58e4350711786c0cec3adac5d49ecc7faf2",
-  "reason": "#409 S4 tasks without an application by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main d548b750fdd43b8f34e2a472515b22d0bfbebd72: Task.applicationId becomes nullable and TaskCreate.applicationId optional, so a provider-neutral ticket source with no application creates tasks; a task with no application names no repository. The web reads the field as nullable in this PR.",
+  "targetCompatibilityDigest": "sha256:37ddd6ede1b7e1bdddfe1cdd46be0f0a1cc0e81f1a28fbd589b6403aab6a8dd4",
+  "reason": "#12 connection health descriptions by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 68987065: IntegrationConnection gains health and grantedScopeNames; status and health descriptions say a missing scope shows only in health.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "46862400c88274fbfbce3ba06695a1cae0919e3d"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:3d408ef1eae1f833ed1bd09b5256aa291120d54d029665a15cd2a8beae7e8db6",
+      "reason": "#12 connection health and exact granted scope names by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 46862400: IntegrationConnection gains health and grantedScopeNames."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "d548b750fdd43b8f34e2a472515b22d0bfbebd72"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:224dd91d0460f916fbe50dc011dbe58e4350711786c0cec3adac5d49ecc7faf2",
+      "reason": "#409 S4 tasks without an application by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main d548b750fdd43b8f34e2a472515b22d0bfbebd72: Task.applicationId becomes nullable and TaskCreate.applicationId optional, so a provider-neutral ticket source with no application creates tasks; a task with no application names no repository. The web reads the field as nullable in this PR."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

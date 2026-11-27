@@ -7787,6 +7787,8 @@
   "tasks.requests.agentBadge": "⟪Agent's action⟫",
   "tasks.requests.agentHelpLabel": "⟪Why an agent's action⟫",
   "tasks.requests.agentHelp": "⟪An agent working on this run asked you, acting for {asker}.⟫",
+  "integrations.slack.outcome.enterpriseInstall": "⟪Slack was not connected. Bakery was added to a whole Slack organization, and it works with one workspace at a time. Connect again and pick a single workspace.⟫",
+  "integrations.slack.outcome.wrongApp": "⟪Slack was not connected. Slack answered for a different app than the one this Bakery installation uses. An installation administrator should check the Slack app details.⟫",
   "library.skill.use.action": "⟪Use this version⟫",
   "library.skill.use.actionNamed": "⟪Use version {number}⟫",
   "library.skill.use.body": "⟪Anything that already uses this skill keeps the version it has. Version {number} is the one given out from now on.⟫",
@@ -7815,6 +7817,9 @@
   "library.skills.update.binary": "⟪This file is not text.⟫",
   "library.skills.update.tooLarge": "⟪This file is too large to show.⟫",
   "library.skills.update.modeOnly": "⟪Only whether it can be run changed.⟫",
+  "library.skills.update.aside.existing": "⟪Version {number} already has these files. Taking it puts version {number} in use.⟫",
+  "library.skills.update.unchanged": "⟪Nothing changed: version {number} is still in use. Review it once more.⟫",
+  "library.skills.update.heldAlready": "⟪These files are already stored as an earlier version. Review it once more to put that version in use.⟫",
   "library.skills.update.aside.title": "⟪If you take it⟫",
   "library.skills.update.aside.version": "⟪Version {number} is added and becomes the one in use.⟫",
   "library.skills.update.aside.unknownVersion": "⟪A new version is added and becomes the one in use.⟫",
@@ -7828,8 +7833,5 @@
   "library.skills.update.skillChanged": "⟪The skill changed while you were reading. Review it once more.⟫",
   "library.skills.update.forbiddenNow": "⟪You can no longer update this skill. Nothing changed.⟫",
   "library.skills.update.offline": "⟪You are offline. Nothing changed. Try again when you are back online.⟫",
-  "library.skills.update.takeFailed": "⟪The update was not taken. Nothing changed. Try again.⟫",
-  "library.skills.update.aside.existing": "⟪Version {number} already has these files. Taking it puts version {number} in use.⟫",
-  "library.skills.update.unchanged": "⟪Nothing changed: version {number} is still in use. Review it once more.⟫",
-  "library.skills.update.heldAlready": "⟪These files are already stored as an earlier version. Review it once more to put that version in use.⟫"
+  "library.skills.update.takeFailed": "⟪The update was not taken. Nothing changed. Try again.⟫"
 }
