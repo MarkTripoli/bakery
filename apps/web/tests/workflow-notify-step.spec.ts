@@ -233,6 +233,29 @@ test.describe("workflow editor: Notify", () => {
     await expect(field(page, "Ask")).toHaveValue(`person:${DANA}`);
   });
 
+  test("an administrator is not told they lack access while it is being read", async ({ page }) => {
+    let answer: () => void = () => {};
+    const held = new Promise<void>((release) => (answer = release));
+    await editor(page);
+    await page.route(
+      "**/v1/organizations/*/effective-access",
+      async (route) => {
+        await held;
+        await route.fallback();
+      },
+    );
+    await page.reload();
+    await expect(page.locator("[data-card='start']")).toBeVisible();
+    const note = page.getByText(
+      "Only organization administrators can change workflows.",
+    );
+    await expect(note).toHaveCount(0);
+    answer();
+    await expect(page.getByRole("button", { name: "Publish", exact: true }))
+      .toBeVisible();
+    await expect(note).toHaveCount(0);
+  });
+
   test("a step written with a document id stays in code", async ({ page }) => {
     await editor(page, {
       steps: [{

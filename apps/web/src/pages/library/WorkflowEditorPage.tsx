@@ -1748,11 +1748,13 @@ export function WorkflowEditorPage(
                 two sentences never run together (#67 UX ruling 6934081003
                 fix 4). */
             }
-            {canManage ? null : (
-              <UI.Text variant="muted">
-                {translate("library.editor.memberOnly" as never)}
-              </UI.Text>
-            )}
+            {access.data === undefined || canManage
+              ? null
+              : (
+                <UI.Text variant="muted">
+                  {translate("library.editor.memberOnly")}
+                </UI.Text>
+              )}
             {editing && phone
               ? (
                 <UI.Inline gap="compact">
