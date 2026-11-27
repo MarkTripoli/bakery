@@ -12,6 +12,7 @@ export type ConnectedResourceBinding = Readonly<{
   installationId: string;
   grantedBy: string;
   resource: ConnectedResource;
+  regrant?: boolean;
 }>;
 
 export type BoundConnectedResource = Readonly<{
@@ -26,7 +27,7 @@ export async function bindConnectedResource(
   const resource = await upsertResource(transaction, input);
   const resourceId = resource.id;
   const servicePrincipalId = await ensureServicePrincipal(transaction, input);
-  if (!resource.created) {
+  if (!resource.created && input.regrant !== true) {
     return { resourceId, servicePrincipalId };
   }
   for (const grant of input.resource.serviceGrants) {
@@ -36,7 +37,14 @@ export async function bindConnectedResource(
          subject_principal_id, direction, capability, action_version,
          resource_id, granted_by
        )
-       values ($1, $2, $3, 'principal', $4, $5, $6, $7, $8, $9)`,
+       select $1, $2, $3, 'principal', $4, $5, $6, $7, $8, $9
+        where not exists (
+          select 1 from bakery.integration_grants
+           where organization_id = $2 and connection_id = $3
+             and subject_type = 'principal' and subject_principal_id = $4
+             and direction = $5 and capability = $6 and action_version = $7
+             and resource_id = $8 and revoked_at is null
+        )`,
       [
         crypto.randomUUID(),
         input.organizationId,
