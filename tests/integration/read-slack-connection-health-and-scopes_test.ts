@@ -98,8 +98,13 @@ Deno.test("a Slack connect missing a requested scope reads degraded, and a healt
     const limited = await read(o, connectionId);
     assertEquals(
       [limited.status, limited.health, limited.grantedScopeNames],
-      ["degraded", "degraded", keptScopes],
+      ["enabled", "degraded", keptScopes],
     );
+    await check(o, connectionId);
+    assertEquals((await read(o, connectionId)).health, "degraded");
+    slack.answers.authTest = () => new Response(null, { status: 503 });
+    await check(o, connectionId);
+    slack.answers.authTest = null;
     await check(o, connectionId);
     assertEquals((await read(o, connectionId)).health, "degraded");
     slack.answers.authTest = () =>
@@ -107,6 +112,21 @@ Deno.test("a Slack connect missing a requested scope reads degraded, and a healt
     await check(o, connectionId);
     assertEquals((await read(o, connectionId)).health, "auth_required");
     slack.answers.authTest = null;
+    await check(o, connectionId);
+    assertEquals((await read(o, connectionId)).health, "degraded");
+    const link = await call(
+      o.fixture,
+      "GET",
+      "/v1/me/slack-link",
+      o.fixture.adminCookie,
+      { headers: { "Bakery-Organization-Id": o.fixture.organizationId } },
+    );
+    const linkBody = await link.json() as Record<string, unknown>;
+    assertEquals(
+      JSON.stringify(linkBody).includes("not_working"),
+      false,
+      JSON.stringify(linkBody),
+    );
     slack.answers.tokenResponse = {};
     assertEquals(await reconnect(o, connectionId), "refreshed");
     await check(o, connectionId);

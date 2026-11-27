@@ -13,6 +13,7 @@ import type { PgTransactionClient } from "../../platform/database.ts";
 import { authorize } from "../auth/application/authorize.ts";
 import { organizationActor } from "./auth-attempts.ts";
 import { identityForProviderId, providerManifestForId } from "./registry.ts";
+import { oauth2ProviderFor } from "./oauth2-connect.ts";
 
 type Connection = z.output<typeof contractSchemas.IntegrationConnection>;
 type Resource = z.output<typeof contractSchemas.IntegrationResource>;
@@ -73,7 +74,19 @@ function toConnection(connection: ConnectionRow): Connection {
   return contractSchemas.IntegrationConnection.parse({
     ...connection,
     status: connectionStatus(connection.status, connection.health),
+    health: scopesMissing(connection) &&
+        (connection.health === "unknown" || connection.health === "healthy")
+      ? "degraded"
+      : connection.health,
   });
+}
+
+function scopesMissing(connection: ConnectionRow): boolean {
+  const granted = connection.grantedScopeNames;
+  if (!Array.isArray(granted)) return false;
+  const requested = oauth2ProviderFor(connection.provider)?.profile.scopes ??
+    [];
+  return requested.some((scope) => !granted.includes(scope));
 }
 
 /**
