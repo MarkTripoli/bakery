@@ -527,13 +527,21 @@ export function WorkflowEditorPage(
     },
   });
 
-  const [draftKept, setDraftKept] = useState<WorkflowVersionResponse | null>(
-    null,
-  );
+  const [draftKept, setDraftKept] = useState<
+    { readonly used: WorkflowVersionResponse; readonly held: string } | null
+  >(null);
   const [rewriting, setRewriting] = useState(false);
+  const draftNow = () =>
+    JSON.stringify([
+      writeTarget()?.version,
+      editor.steps,
+      editor.loops,
+      editor.starts,
+    ]);
   const rebaseLeftoverDraft = async (used: WorkflowVersionResponse) => {
     const target = draft?.status === "draft" ? writeTarget() : null;
     if (target === null) return;
+    const held = draftNow();
     setRewriting(true);
     const written = await rewriteDraft(
       api,
@@ -542,9 +550,13 @@ export function WorkflowEditorPage(
       target,
       used,
     );
-    setDraftKept(written ? null : used);
+    setDraftKept(written ? null : { used, held });
     setRewriting(false);
     void queryClient.invalidateQueries({ queryKey: ["protected"] });
+  };
+  const retryRebase = (kept: NonNullable<typeof draftKept>) => {
+    if (draftNow() !== kept.held) return setDraftKept(null);
+    void rebaseLeftoverDraft(kept.used);
   };
 
   const publish = useMutation({
@@ -1962,9 +1974,9 @@ export function WorkflowEditorPage(
             </UI.Text>
             {draftKept === null ? null : (
               <DraftKeptNotice
-                onRetry={() => void rebaseLeftoverDraft(draftKept)}
+                onRetry={() => retryRebase(draftKept)}
                 pending={rewriting}
-                version={draftKept.revision}
+                version={draftKept.used.revision}
               />
             )}
             {access.data === undefined || canManage

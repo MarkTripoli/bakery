@@ -75,7 +75,10 @@ async function editor(page: Page, setup: Setup) {
   });
   const draft = () =>
     version(uuid(1002), 2, server.status, server.steps, server.version);
-  const leftover = { steps: IN_USE as readonly unknown[], held: 1 };
+  const leftover = {
+    steps: (setup.inUseSteps ?? IN_USE) as readonly unknown[],
+    held: 1,
+  };
   let refusals = setup.refusedRewrites ?? 0;
   if (setup.leftoverDraft !== undefined) {
     await page.route(
@@ -300,6 +303,40 @@ test.describe("workflow editor: what publishing changes", () => {
     await expect(notice).toHaveCount(0);
     await expect(page.getByTestId("editor-problems"))
       .toHaveText("No changes to publish");
+  });
+
+  test("trying again never overwrites an edit made since the failure", async ({ page }) => {
+    const ask = (prompt: string) => ({
+      id: "ask",
+      uses: "human.approval",
+      with: { prompt },
+    });
+    const rewrites: unknown[] = [];
+    await editor(page, {
+      inUseSteps: [ask("Ship it?")],
+      draftSteps: [ask("Ship it to everyone?")],
+      publishedAlready: true,
+      leftoverDraft: rewrites,
+      refusedRewrites: 1,
+    });
+    const dialog = await openPublish(page);
+    await dialog.getByRole("button", { name: "Use this version" }).click();
+    const retry = page.getByRole("button", {
+      name: "Try updating the draft again",
+    });
+    await expect(retry).toBeVisible();
+    await page.locator("[data-card='ask']").click();
+    const prompt = page.getByRole("textbox", { name: /What you are asking/ });
+    await prompt.fill("A question typed since.");
+    await retry.click();
+    await expect(retry).toHaveCount(0);
+    await expect.poll(() => JSON.stringify(rewrites.at(-1)))
+      .toContain("A question typed since.");
+    await page.waitForTimeout(1500);
+    expect(
+      rewrites.filter((body) => JSON.stringify(body).includes("everyone")),
+    ).toHaveLength(1);
+    await expect(prompt).toHaveValue("A question typed since.");
   });
 
   test("a group removed around a step can still be published", async ({ page }) => {
