@@ -65,16 +65,27 @@ async function stat(
   };
 }
 
+export class FilesArgumentError extends Error {}
+
+function entryVersion(value: unknown): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = typeof value === "string" && /^\d+$/.test(value)
+    ? Number(value)
+    : value;
+  if (typeof parsed !== "number" || !Number.isSafeInteger(parsed)) {
+    throw new FilesArgumentError(
+      "version must be the integer bakery_files_stat or the last write gave.",
+    );
+  }
+  return parsed;
+}
+
 async function write(
   session: SessionApi,
   args: Record<string, unknown>,
 ): Promise<unknown> {
   const { version, ...put } = args;
-  return await session.call(
-    "storageFiles.put",
-    put,
-    typeof version === "number" ? version : undefined,
-  );
+  return await session.call("storageFiles.put", put, entryVersion(version));
 }
 
 const FILES_TOOL_SPECS: readonly FilesToolSpec[] = Object.freeze([
@@ -199,10 +210,18 @@ const FILES_TOOL_SPECS: readonly FilesToolSpec[] = Object.freeze([
   },
 ]);
 
+export const BAKERY_FILES_TOOL_NAMES: ReadonlySet<string> = new Set(
+  FILES_TOOL_SPECS.map((spec) => spec.name),
+);
+
 export function filesCallFailure(error: unknown): string {
-  return error instanceof SessionRefusal
-    ? `Bakery refused the file call: ${error.message}`
-    : "The file call failed.";
+  if (error instanceof SessionRefusal) {
+    return `Bakery refused the file call: ${error.message}`;
+  }
+  if (error instanceof FilesArgumentError) {
+    return `The file call was not sent: ${error.message}`;
+  }
+  return "The file call failed.";
 }
 
 export async function bakeryFilesTools(

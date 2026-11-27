@@ -8,6 +8,7 @@ import {
   type StdioMcpServer,
 } from "./stdio-mcp.ts";
 import {
+  BAKERY_FILES_TOOL_NAMES,
   bakeryFilesTools,
   type BuiltinGatewayTool,
 } from "./files-gateway-tools.ts";
@@ -81,20 +82,18 @@ type JsonRpcRequest = {
   params?: unknown;
 };
 
-function readBody(request: IncomingMessage): Promise<string> {
+function readBody(request: IncomingMessage): Promise<string | null> {
   return new Promise((resolve, reject) => {
     const chunks: Uint8Array[] = [];
     let size = 0;
     request.on("data", (chunk: Uint8Array) => {
       size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
-        reject(new Error("TOOL_GATEWAY_BODY_TOO_LARGE"));
-        request.destroy();
-        return;
-      }
-      chunks.push(chunk);
+      if (size <= MAX_BODY_BYTES) chunks.push(chunk);
     });
-    request.on("end", () => resolve(new TextDecoder().decode(concat(chunks))));
+    request.on("end", () =>
+      resolve(
+        size > MAX_BODY_BYTES ? null : new TextDecoder().decode(concat(chunks)),
+      ));
     request.on("error", reject);
   });
 }
@@ -209,7 +208,7 @@ export async function startToolGateway(
 ): Promise<ToolGatewaySession> {
   const builtinTools = await backend.listBuiltinTools?.(signal) ?? [];
   const tools = (await backend.listTools(signal)).filter((tool) =>
-    !builtinTools.some((builtin) => builtin.name === tool.name)
+    !BAKERY_FILES_TOOL_NAMES.has(tool.name)
   );
   const token = randomBytes(32).toString("base64url");
   const server: Server = createServer((request, response) => {
@@ -229,6 +228,17 @@ export async function startToolGateway(
       return;
     }
     readBody(request).then(async (text) => {
+      if (text === null) {
+        send(413, {
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32600,
+            message: `Request larger than ${MAX_BODY_BYTES} bytes.`,
+          },
+        });
+        return;
+      }
       let message: JsonRpcRequest;
       try {
         message = JSON.parse(text) as JsonRpcRequest;

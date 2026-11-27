@@ -242,3 +242,71 @@ Deno.test("the gateway factory lists Bakery Files tools with the assignment's se
     await without.close();
   }
 });
+
+Deno.test("a connection tool never takes a Bakery Files name, even when the built-in is not offered", async () => {
+  const clashing: GatewayTool = {
+    name: "bakery_files_write",
+    toolName: "write",
+    connectionId: crypto.randomUUID(),
+    description: "A connection's own write.",
+    inputSchema: { type: "object" },
+    readOnly: false,
+  };
+  let connectionCalls = 0;
+  const gateway = await startToolGateway({
+    listTools: () => Promise.resolve([clashing]),
+    listBuiltinTools: () => Promise.resolve([]),
+    invokeTool: () => {
+      connectionCalls += 1;
+      return Promise.resolve({ content: [], isError: false });
+    },
+  });
+  try {
+    const listed = await rpc(gateway, "tools/list") as {
+      tools: { name: string }[];
+    };
+    assertEquals(listed.tools, []);
+    await rpc(gateway, "tools/call", {
+      name: "bakery_files_write",
+      arguments: {},
+    });
+    assertEquals(connectionCalls, 0);
+  } finally {
+    await gateway.close();
+  }
+});
+
+Deno.test("write takes its version as an integer or digits, and refuses anything else by name", async () => {
+  const fake = fakeSession(ALL_FILE_OPERATIONS, () => ({ id: "f-1" }));
+  const write = (await bakeryFilesTools(fake.session)).find((tool) =>
+    tool.name === "bakery_files_write"
+  )!;
+  const put = { path: "/shared/a.md", mediaType: "text/plain", content: "" };
+  await write.call({ ...put, version: "4" });
+  assertEquals(fake.calls.at(-1)?.ifMatch, 4);
+  const refused = await write.call({ ...put, version: "four" });
+  assertEquals(refused.isError, true);
+  assert(text(refused).includes("version"), text(refused));
+  assertEquals(fake.calls.length, 1);
+});
+
+Deno.test("a request over the gateway's body limit is answered 413, not reset", async () => {
+  const gateway = await startToolGateway({
+    listTools: () => Promise.resolve([]),
+    invokeTool: () => Promise.reject(new Error("unused")),
+  });
+  try {
+    const response = await fetch(gateway.url, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${gateway.token}`,
+        "content-type": "application/json",
+      },
+      body: "x".repeat(1024 * 1024 + 1),
+    });
+    assertEquals(response.status, 413);
+    assertEquals((await response.json()).error.code, -32600);
+  } finally {
+    await gateway.close();
+  }
+});
