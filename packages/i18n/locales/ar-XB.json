@@ -7636,5 +7636,13 @@
   "tasks.waitingFor.next": "⟪Waiting for {who}. If nobody answers by {time}, {next} will be asked.⟫",
   "tasks.waitingFor.nextUnknown": "⟪Waiting for {who}. If nobody answers by {time}, someone else will be asked.⟫",
   "tasks.waitingFor.passedOn": "⟪{first} did not answer. The request went to {next} at {time}.⟫",
-  "tasks.waitingFor.expires": "⟪Expires {date}.⟫"
+  "tasks.waitingFor.expires": "⟪Expires {date}.⟫",
+  "settings.connections.other.title": "⟪{provider} · {account}⟫",
+  "settings.connections.other.turnedOff": "⟪No work runs against {provider}.⟫",
+  "settings.connections.other.needsAttention": "⟪{provider} is not accepting some of Bakery's access.⟫",
+  "settings.connections.other.removed": "⟪Access to {provider} was removed.⟫",
+  "settings.connections.other.can": "⟪What Bakery can do on {provider}⟫",
+  "settings.connections.other.noPermissions": "⟪{provider} has not reported any permissions for this connection yet.⟫",
+  "settings.connections.other.turnOffExplain": "⟪Turning it off stops all work that needs {provider}. This page cannot turn it back on yet. Nothing is deleted.⟫",
+  "settings.connections.other.connected": "⟪Connected⟫"
 }

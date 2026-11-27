@@ -20,7 +20,12 @@ import type {
   SwitchStatus,
 } from "./use-connection.ts";
 import type { ConnectStatus } from "./connect.ts";
-import { PROVIDER_IDENTITY } from "./providers/index.ts";
+import {
+  hasSetupPages,
+  healthBadge,
+  permissionSentences,
+  providerLook,
+} from "./providers/index.ts";
 
 export type ConnectionViewState =
   | "loading"
@@ -55,6 +60,8 @@ export type RepositoriesProps = {
 export type ConnectionViewProps = {
   readonly state: ConnectionViewState;
   readonly canManage: boolean;
+  readonly provider: string;
+  readonly granted: unknown;
   readonly account: string;
   readonly status: ConnectionStatus;
   readonly health: Health;
@@ -133,14 +140,13 @@ export function ConnectionView(props: ConnectionViewProps) {
   const { translate } = useI18n();
   const phone = useShellViewport() === "phone";
   const { state } = props;
-  const title = translate("settings.connections.row.title", {
-    account: props.account,
-  });
+  const guided = hasSetupPages(props.provider);
+  const title = connectionTitle(props, translate);
   // The page's one secondary action: in the shell's action slot on desktop,
   // under the title on a phone.
   // The server checks only a connection that is on, so Check now is shown only
   // then: not while setup is unfinished, not turned off, not removed.
-  const checkNow = state === "ready" && props.canManage &&
+  const checkNow = state === "ready" && guided && props.canManage &&
       props.status !== "pending" && props.status !== "disabled" &&
       props.status !== "revoked"
     ? (
@@ -163,21 +169,19 @@ export function ConnectionView(props: ConnectionViewProps) {
       <UI.PageHeader
         actions={phone ? checkNow : undefined}
         flush
-        subtitle={state === "ready"
+        subtitle={state === "ready" && guided
           ? translate("settings.connections.page.purpose")
           : undefined}
         summary={state === "ready"
           ? (
-            <UI.Badge tone={props.health.tone}>
-              {translate(
-                `settings.connections.badge.${props.health.kind}` as MessageKey,
-              )}
+            <UI.Badge tone={healthBadge(props.provider, props.health).tone}>
+              {translate(healthBadge(props.provider, props.health).key)}
             </UI.Badge>
           )
           : undefined}
         title={state === "ready"
           ? title
-          : translate(PROVIDER_IDENTITY.headingKey)}
+          : translate("settings.connections.title")}
         variant="list"
       />
       {state === "loading"
@@ -217,11 +221,89 @@ export function ConnectionView(props: ConnectionViewProps) {
               </UI.Button>
             }
             description={translate("settings.connections.loadError")}
-            title={translate(PROVIDER_IDENTITY.headingKey)}
+            title={translate("settings.connections.title")}
           />
         )
-        : <ReadyContent {...props} />}
+        : guided
+        ? <ReadyContent {...props} />
+        : <OtherProviderContent {...props} />}
     </UI.SettingsContent>
+  );
+}
+
+function connectionTitle(
+  props: Pick<ConnectionViewProps, "provider" | "account">,
+  translate: ReturnType<typeof useI18n>["translate"],
+): string {
+  return hasSetupPages(props.provider)
+    ? translate("settings.connections.row.title", { account: props.account })
+    : translate("settings.connections.other.title", {
+      provider: providerLook(props.provider, translate).name,
+      account: props.account,
+    });
+}
+
+const OTHER_BANNER: Readonly<Partial<Record<HealthKind, MessageKey>>> = {
+  needsAttention: "settings.connections.other.needsAttention",
+  authRequired: "settings.connections.other.needsAttention",
+  limited: "settings.connections.other.needsAttention",
+  turnedOff: "settings.connections.banner.turnedOff",
+  removed: "settings.connections.other.removed",
+};
+
+function OtherProviderContent(props: ConnectionViewProps) {
+  const { translate } = useI18n();
+  const provider = providerLook(props.provider, translate).name;
+  const banner = OTHER_BANNER[props.health.kind];
+  const tone = BANNER_TONE[props.health.kind];
+  const switchNotice = SWITCH_NOTICE[props.switchStatus];
+  const sentences = permissionSentences(props.provider, props.granted);
+  return (
+    <>
+      {banner !== undefined && tone !== null
+        ? (
+          <UI.AlertBanner data-testid="connection-problem" tone={tone}>
+            {translate(banner, { provider })}
+          </UI.AlertBanner>
+        )
+        : null}
+      {switchNotice
+        ? (
+          <UI.InlineNotice tone="error">
+            {translate(switchNotice)}
+          </UI.InlineNotice>
+        )
+        : null}
+      <UI.Stack data-testid="permissions" gap="compact">
+        <UI.Heading level="section">
+          {translate("settings.connections.other.can", { provider })}
+          <UI.HelpTip label={translate("settings.connections.can.helpLabel")}>
+            {translate("settings.connections.can.help")}
+          </UI.HelpTip>
+        </UI.Heading>
+        {sentences.length === 0
+          ? (
+            <UI.Text variant="muted">
+              {translate("settings.connections.other.noPermissions", {
+                provider,
+              })}
+            </UI.Text>
+          )
+          : (
+            <UI.Stack gap="tight">
+              {sentences.map((sentence) => (
+                <UI.Text key={JSON.stringify(sentence)}>
+                  {translate(
+                    sentence.key as MessageKey,
+                    sentence.arguments,
+                  )}
+                </UI.Text>
+              ))}
+            </UI.Stack>
+          )}
+      </UI.Stack>
+      <DetailsSection {...props} />
+    </>
   );
 }
 
@@ -623,6 +705,8 @@ function PermissionsSection(
 
 function DetailsSection(props: ConnectionViewProps) {
   const { translate } = useI18n();
+  const guided = hasSetupPages(props.provider);
+  const provider = providerLook(props.provider, translate).name;
   const [confirming, setConfirming] = useState(false);
   const canTurnOff = props.canManage &&
     (props.status === "enabled" || props.status === "degraded");
@@ -636,18 +720,26 @@ function DetailsSection(props: ConnectionViewProps) {
           description={props.formatTime(props.createdAt)}
           title={translate("settings.connections.details.connected")}
         />
-        <UI.DescriptionItem
-          description={props.lastCheckedAt === null
-            ? translate("settings.connections.row.notChecked")
-            : props.formatTime(props.lastCheckedAt)}
-          title={translate("settings.connections.lastChecked")}
-        />
+        {guided
+          ? (
+            <UI.DescriptionItem
+              description={props.lastCheckedAt === null
+                ? translate("settings.connections.row.notChecked")
+                : props.formatTime(props.lastCheckedAt)}
+              title={translate("settings.connections.lastChecked")}
+            />
+          )
+          : null}
       </UI.DescriptionList>
       {canTurnOff
         ? (
           <>
             <UI.Text variant="muted">
-              {translate("settings.connections.turnOff.explain")}
+              {guided
+                ? translate("settings.connections.turnOff.explain")
+                : translate("settings.connections.other.turnOffExplain", {
+                  provider,
+                })}
             </UI.Text>
             <UI.Inline gap="compact">
               <UI.Button
@@ -686,13 +778,15 @@ function DetailsSection(props: ConnectionViewProps) {
               onOpenChange={setConfirming}
               open={confirming}
               title={translate("settings.connections.turnOff.title", {
-                name: translate("settings.connections.row.title", {
-                  account: props.account,
-                }),
+                name: connectionTitle(props, translate),
               })}
             >
               <UI.Text>
-                {translate("settings.connections.turnOff.body")}
+                {guided
+                  ? translate("settings.connections.turnOff.body")
+                  : translate("settings.connections.other.turnOffExplain", {
+                    provider,
+                  })}
               </UI.Text>
             </UI.AlertDialog>
           </>

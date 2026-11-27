@@ -7636,5 +7636,13 @@
   "tasks.waitingFor.next": "⟦Ŵàïŧïñĝ ƒôŕ {who}. Ïƒ ñôƀôðÿ àñšŵëŕš ƀÿ {time}, {next} ŵïļļ ƀë àšķëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "tasks.waitingFor.nextUnknown": "⟦Ŵàïŧïñĝ ƒôŕ {who}. Ïƒ ñôƀôðÿ àñšŵëŕš ƀÿ {time}, šôɱëôñë ëļšë ŵïļļ ƀë àšķëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.waitingFor.passedOn": "⟦{first} ðïð ñôŧ àñšŵëŕ. Ŧĥë ŕëǫûëšŧ ŵëñŧ ŧô {next} àŧ {time}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "tasks.waitingFor.expires": "⟦Ëẋþïŕëš {date}. ŧëš⟧"
+  "tasks.waitingFor.expires": "⟦Ëẋþïŕëš {date}. ŧëš⟧",
+  "settings.connections.other.title": "⟦{provider} · {account} ŧëšŧŧ⟧",
+  "settings.connections.other.turnedOff": "⟦Ñô ŵôŕķ ŕûñš àĝàïñšŧ {provider}. ŧëšŧ çôþÿ⟧",
+  "settings.connections.other.needsAttention": "⟦{provider} ïš ñôŧ àççëþŧïñĝ šôɱë ôƒ Ɓàķëŕÿ'š àççëšš. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "settings.connections.other.removed": "⟦Àççëšš ŧô {provider} ŵàš ŕëɱôṽëð. ŧëšŧ çôþÿ⟧",
+  "settings.connections.other.can": "⟦Ŵĥàŧ Ɓàķëŕÿ çàñ ðô ôñ {provider} ŧëšŧ çôþÿ⟧",
+  "settings.connections.other.noPermissions": "⟦{provider} ĥàš ñôŧ ŕëþôŕŧëð àñÿ þëŕɱïššïôñš ƒôŕ ŧĥïš çôññëçŧïôñ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "settings.connections.other.turnOffExplain": "⟦Ŧûŕñïñĝ ïŧ ôƒƒ šŧôþš àļļ ŵôŕķ ŧĥàŧ ñëëðš {provider}. Ŧĥïš þàĝë çàññôŧ ŧûŕñ ïŧ ƀàçķ ôñ ÿëŧ. Ñôŧĥïñĝ ïš ðëļëŧëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "settings.connections.other.connected": "⟦Çôññëçŧëð ŧ⟧"
 }
