@@ -3,7 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { ApiFailure, IntegrationConnection } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
-import { effectiveAccessQueryOptions } from "../api/query.ts";
+import {
+  effectiveAccessQueryOptions,
+  installationSettingsQueryOptions,
+} from "../api/query.ts";
 import { isForbiddenFailure } from "../app/async-state.ts";
 import * as organizationSelection from "../app/organization-selection.ts";
 import { protectedQueryKey } from "../app/query-scope.ts";
@@ -27,6 +30,7 @@ import {
   type ConnectionOutcome,
 } from "./integrations/outcomes.ts";
 import {
+  providerLook,
   useOAuthConnect,
   useProviderConnect,
 } from "./integrations/providers/index.ts";
@@ -54,7 +58,8 @@ const OUTCOMES_FOR_THE_CONNECTION = new Set<ConnectionOutcome>([
 
 /** The organization's integrations: what is connected and what can be added. */
 export function OrganizationIntegrationsPage(
-  { outcome, outcomeProvider, connectionId }: {
+  { outcome, outcomeProvider, connectionId, removedId }: {
+    readonly removedId: string | null;
     readonly outcome: ConnectionOutcome | null;
     readonly outcomeProvider: string;
     readonly connectionId: string | null;
@@ -63,7 +68,7 @@ export function OrganizationIntegrationsPage(
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const navigate = useNavigate();
-  const { locale, timeZone } = useI18n();
+  const { locale, timeZone, translate } = useI18n();
   useRestoreOrganizationScope();
   const restoring = organizationSelection.hasRemembered();
   const organizationId = scope.organizationId ??
@@ -74,6 +79,11 @@ export function OrganizationIntegrationsPage(
     retry: false,
   });
   const canManage = access.data?.role === "admin";
+  const installation = useQuery({
+    ...installationSettingsQueryOptions(api, scoped),
+    enabled: canManage,
+    retry: false,
+  });
   const connections = useQuery<IntegrationConnection[], ApiFailure>({
     queryKey: protectedQueryKey(scoped, "integrationConnections.list", {}),
     queryFn: async ({ signal }) => {
@@ -126,6 +136,15 @@ export function OrganizationIntegrationsPage(
     health: connectionHealth(connection),
     lastCheckedAt: connection.lastCheckedAt,
   }));
+  const removed = items.find((item) =>
+    item.id === removedId && item.status === "revoked"
+  );
+  const removedName = removed === undefined
+    ? null
+    : translate("settings.connections.other.title", {
+      provider: providerLook(removed.provider, translate).name,
+      account: removed.label,
+    });
   const accessForbidden = access.isError && isForbiddenFailure(access.error);
   const state: IntegrationsHomeState = accessForbidden ||
       (connections.isError && isForbiddenFailure(connections.error))
@@ -158,6 +177,14 @@ export function OrganizationIntegrationsPage(
           connectStatus={connectFlow.connectStatus}
           continuing={connectFlow.continuing}
           formatTime={connectionTimeFormatter(locale, timeZone)}
+          canOpenInstallation={installation.isSuccess}
+          removedName={removedName}
+          onDismissRemoved={() =>
+            void navigate({
+              to: ORGANIZATION_INTEGRATIONS_PATH,
+              search: {},
+              replace: true,
+            })}
           onConnect={() => void connectFlow.connect()}
           onConnectProvider={() => void oauthFlow.connect()}
           providerConnectStatus={oauthFlow.connectStatus}

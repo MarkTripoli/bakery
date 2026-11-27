@@ -1,8 +1,9 @@
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import * as UI from "@bakery/ui";
 import type { MessageKey } from "@bakery/i18n";
 import { RouterLink } from "../../app/router-link.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { focusAfterPaint } from "../../app/focus.ts";
 import type { Health } from "./model.ts";
 import type { ConnectionOutcome } from "./outcomes.ts";
 import type { ConnectStatus } from "./connect.ts";
@@ -35,6 +36,9 @@ export type IntegrationsHomeViewProps = {
   readonly rows: readonly ConnectionRow[];
   readonly outcome: ConnectionOutcome | null;
   readonly outcomeProvider: string;
+  readonly canOpenInstallation?: boolean;
+  readonly removedName?: string | null;
+  readonly onDismissRemoved?: () => void;
   readonly providerConnectStatus: ConnectStatus;
   readonly onConnectProvider: () => void;
   /** The page is on its way back to the provider for the attempt's next step. */
@@ -66,6 +70,11 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
   const providerBusy = props.providerConnectStatus === "starting" ||
     props.providerConnectStatus === "redirecting";
   const failure = CONNECT_FAILURE[connectStatus];
+  const returned = useRef<HTMLDivElement>(null);
+  const announced = copy !== null || (props.removedName ?? null) !== null;
+  useEffect(() => {
+    if (announced) focusAfterPaint(() => returned.current);
+  }, [announced]);
   const connectButton = (
     variant: "primary" | "secondary",
     label: "connect" | "home.connect",
@@ -95,34 +104,55 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
         title={translate("settings.connections.title")}
         variant="list"
       />
-      {copy
+      {announced
         ? (
-          <UI.AlertBanner
-            action={copy.retry && canManage
+          <div data-testid="returned-notice" ref={returned} tabIndex={-1}>
+            {(props.removedName ?? null) !== null
               ? (
-                <UI.Button
-                  disabled={ownOutcome ? busy : providerBusy}
-                  onClick={ownOutcome
-                    ? props.onConnect
-                    : props.onConnectProvider}
-                  type="button"
-                  variant="secondary"
+                <UI.AlertBanner
+                  onDismiss={props.onDismissRemoved}
+                  tone="success"
                 >
-                  {translate(
-                    ownOutcome
-                      ? "settings.connections.connectAgain"
-                      : `integrations.${props.outcomeProvider}.connectAgain` as MessageKey,
-                  )}
-                </UI.Button>
+                  {translate("integrations.slack.remove.done", {
+                    name: props.removedName ?? "",
+                  })}
+                </UI.AlertBanner>
               )
-              : undefined}
-            data-outcome={outcome ?? undefined}
-            data-testid="github-connection-outcome"
-            onDismiss={props.onDismissOutcome}
-            tone={copy.tone}
-          >
-            {translate(copy.body)}
-          </UI.AlertBanner>
+              : null}
+            {copy
+              ? (
+                <UI.AlertBanner
+                  action={copy.retry && canManage
+                    ? (
+                      <UI.Button
+                        disabled={ownOutcome ? busy : providerBusy}
+                        onClick={ownOutcome
+                          ? props.onConnect
+                          : props.onConnectProvider}
+                        type="button"
+                        variant="secondary"
+                      >
+                        {translate(
+                          ownOutcome
+                            ? "settings.connections.connectAgain"
+                            : `integrations.${props.outcomeProvider}.connectAgain` as MessageKey,
+                        )}
+                      </UI.Button>
+                    )
+                    : undefined}
+                  data-outcome={outcome ?? undefined}
+                  data-testid="github-connection-outcome"
+                  onDismiss={props.onDismissOutcome}
+                  tone={copy.tone}
+                >
+                  {translate(copy.body, {
+                    account:
+                      providerLook(props.outcomeProvider, translate).name,
+                  })}
+                </UI.AlertBanner>
+              )
+              : null}
+          </div>
         )
         : null}
       {props.continuing
@@ -271,6 +301,7 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                         canManage={canManage}
                         key={module.manifest.slug}
                         onConnect={props.onConnectProvider}
+                        canOpenInstallation={props.canOpenInstallation === true}
                         slug={module.manifest.slug}
                         status={props.providerConnectStatus}
                       />
@@ -291,12 +322,18 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                     tone="warning"
                   >
                     {translate("settings.connections.connect.unregistered")}
-                    {" "}
-                    <RouterLink to="/settings/installation/integrations">
-                      {translate(
-                        "settings.connections.connect.unregisteredLink",
-                      )}
-                    </RouterLink>
+                    {props.canOpenInstallation === true
+                      ? (
+                        <>
+                          {" "}
+                          <RouterLink to="/settings/installation/integrations">
+                            {translate(
+                              "settings.connections.connect.unregisteredLink",
+                            )}
+                          </RouterLink>
+                        </>
+                      )
+                      : null}
                   </UI.InlineNotice>
                 )
                 : null}
@@ -428,9 +465,10 @@ function rowLine(
 }
 
 function ProviderConnectable(
-  { slug, canManage, status, onConnect }: {
+  { slug, canManage, canOpenInstallation, status, onConnect }: {
     readonly slug: string;
     readonly canManage: boolean;
+    readonly canOpenInstallation: boolean;
     readonly status: ConnectStatus;
     readonly onConnect: () => void;
   },
@@ -477,10 +515,20 @@ function ProviderConnectable(
         : status === "unregistered"
         ? (
           <UI.InlineNotice tone="warning">
-            {say("unregistered")}{" "}
-            <RouterLink hash={slug} to="/settings/installation/integrations">
-              {say("unregisteredLink")}
-            </RouterLink>
+            {say("unregistered")}
+            {canOpenInstallation
+              ? (
+                <>
+                  {" "}
+                  <RouterLink
+                    hash={slug}
+                    to="/settings/installation/integrations"
+                  >
+                    {say("unregisteredLink")}
+                  </RouterLink>
+                </>
+              )
+              : null}
           </UI.InlineNotice>
         )
         : null}

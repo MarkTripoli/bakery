@@ -259,6 +259,39 @@ export function useConnectionActions(
     }
   };
 
+  const [removeStatus, setRemoveStatus] = useState<
+    "idle" | "removing" | "failed"
+  >("idle");
+  const remove = async (): Promise<boolean> => {
+    if (switching.current) return false;
+    switching.current = true;
+    setRemoveStatus("removing");
+    try {
+      const attempt = (version: number) =>
+        api.integrationConnections.remove({
+          organizationId,
+          id: connection.id,
+          version,
+          idempotencyKey: crypto.randomUUID(),
+        });
+      let result = await attempt(connection.version);
+      if (!result.ok && failureStatus(result.error) === 412) {
+        result = await attempt(await currentVersion());
+      }
+      if (!result.ok) {
+        setRemoveStatus("failed");
+        return false;
+      }
+      await refreshConnection();
+      return true;
+    } catch {
+      setRemoveStatus("failed");
+      return false;
+    } finally {
+      switching.current = false;
+    }
+  };
+
   const checking = useRef(false);
   const check = async () => {
     if (checking.current) return;
@@ -310,6 +343,8 @@ export function useConnectionActions(
     changes,
     discard,
     paging,
+    remove,
+    removeStatus,
     repositories,
     resources,
     saveSelection,

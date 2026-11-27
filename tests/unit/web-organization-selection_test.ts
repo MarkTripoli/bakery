@@ -217,6 +217,7 @@ function fakeApi(
       list: rejecting,
       update: rejecting,
       check: rejecting,
+      remove: rejecting,
     },
     integrationResources: { list: rejecting, update: rejecting },
     integrationAuthAttempts: { create: rejecting },

@@ -2350,9 +2350,14 @@ const organizationIntegrationsRoute = createRoute({
     githubConnection?: ReturnType<typeof parseConnectionOutcome>;
     slackConnection?: ReturnType<typeof parseConnectionOutcome>;
     connectionId?: string;
+    removed?: string;
   } => {
     const connectionId = search[CONNECTION_ID_PARAMETER];
+    const removed = search.removed;
     return {
+      removed: typeof removed === "string" && isUuid(removed)
+        ? removed
+        : undefined,
       githubConnection: parseConnectionOutcome(
         search[CONNECTION_OUTCOME_PARAMETER],
       ),
@@ -2365,10 +2370,11 @@ const organizationIntegrationsRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
-    const { githubConnection, slackConnection, connectionId } =
+    const { githubConnection, slackConnection, connectionId, removed } =
       organizationIntegrationsRoute.useSearch();
     return (
       <OrganizationIntegrationsPage
+        removedId={removed ?? null}
         connectionId={connectionId ?? null}
         outcome={githubConnection ?? slackConnection ?? null}
         outcomeProvider={slackConnection === undefined ? "github" : "slack"}

@@ -29,7 +29,9 @@ import {
 } from "./model.ts";
 import type { ConnectionOutcome } from "./outcomes.ts";
 import { useConnectionActions } from "./use-connection.ts";
+import { SlackOwnLinkNotice } from "./providers/slack/SlackOwnLinkNotice.tsx";
 import {
+  hasHealthCheck,
   hasSetupPages,
   PROVIDER_IDENTITY,
   providerLook,
@@ -261,6 +263,20 @@ function Loaded(
         health={health}
         lastCheckedAt={connection.lastCheckedAt}
         onCheck={() => void actions.check()}
+        onRemove={() =>
+          void actions.remove().then((removed) => {
+            if (!removed) return;
+            void navigate({
+              to: INTEGRATIONS_PATH,
+              search: { removed: connection.id },
+            });
+          })}
+        removeStatus={actions.removeStatus}
+        ownLinkNotice={!guided && canManage &&
+            (status === "enabled" || status === "degraded") &&
+            hasHealthCheck(connection.provider)
+          ? <SlackOwnLinkNotice />
+          : null}
         onDismissOutcome={dismissOutcome}
         onFix={() => {
           if (health.action === "turnOn") void actions.setEnabled(true);

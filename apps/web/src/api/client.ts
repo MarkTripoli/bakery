@@ -1837,6 +1837,12 @@ export type BakeryApiClient = {
       readonly idempotencyKey: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<IntegrationConnection>>;
+    readonly remove: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly version: number;
+      readonly idempotencyKey: string;
+    }) => Promise<ApiResult<IntegrationConnection>>;
     /** `POST /v1/integration-connections/:id/checks`: the provider health probe. */
     readonly check: (options: {
       readonly organizationId: string;
@@ -5566,6 +5572,21 @@ export function createBakeryApiClient({
               ifMatch: versionEtag(options.version),
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+      async remove(options) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(options.organizationId).actions[
+              "integrationConnections.remove"
+            ]({ id: options.id }, {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
             }),
           };
         } catch (error) {

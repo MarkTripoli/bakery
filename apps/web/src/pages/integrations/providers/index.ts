@@ -32,6 +32,25 @@ export function providerOutcomeCopy(
     : SLACK_OUTCOMES[outcome] ?? null;
 }
 
+const WITH_OWN_PAGE = "slack";
+
+export function hasHealthCheck(provider: string): boolean {
+  return hasSetupPages(provider) || provider === WITH_OWN_PAGE;
+}
+
+export function canRemove(provider: string): boolean {
+  return provider === WITH_OWN_PAGE;
+}
+
+export function providerBanner(
+  provider: string,
+  health: HealthKind,
+): MessageKey | null {
+  return provider === WITH_OWN_PAGE && health === "turnedOff"
+    ? "integrations.slack.banner.turnedOff"
+    : null;
+}
+
 export function providerFix(
   provider: string,
   health: HealthKind,
@@ -45,8 +64,11 @@ export function providerFix(
 export function healthBadge<Tone extends string>(
   provider: string,
   health: Readonly<{ kind: string; tone: Tone }>,
-): Readonly<{ key: MessageKey; tone: Tone | "success" }> {
-  return !hasSetupPages(provider) &&
+): Readonly<{ key: MessageKey; tone: Tone | "success" | "danger" }> {
+  if (provider === WITH_OWN_PAGE && health.kind === "needsAttention") {
+    return { key: "settings.connections.badge.authRequired", tone: "danger" };
+  }
+  return !hasHealthCheck(provider) &&
       (health.kind === "notChecked" || health.kind === "working")
     ? {
       key: "settings.connections.other.connected",
