@@ -65,6 +65,7 @@ test("a save sends the authored text with its comment and the new order", async 
   await block(page, "implement").focus();
   await page.keyboard.press("Alt+ArrowUp");
   await expect.poll(saved).toEqual(["implement", "research", "review"]);
+  await expect(block(page, "implement")).toBeFocused();
   await page.keyboard.press("Alt+ArrowDown");
   await expect.poll(() => seen.draftSaves.length).toBe(2);
   for (const save of seen.draftSaves) {
