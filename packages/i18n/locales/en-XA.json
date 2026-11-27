@@ -7710,5 +7710,9 @@
   "integrations.slack.fields.signing_secret": "⟦Šïĝñïñĝ šëçŕëŧ ŧë⟧",
   "integrations.slack.credentials.signingSecretSaved": "⟦Šïĝñïñĝ šëçŕëŧ šàṽëð {date} ŧëšŧ çô⟧",
   "integrations.slack.credentials.signingSecretNotSaved": "⟦Ñô šïĝñïñĝ šëçŕëŧ šàṽëð ÿëŧ ŧëšŧ çô⟧",
-  "integrations.slack.credentials.signingSecretHint": "⟦Ƒŕôɱ ÿôûŕ Šļàçķ àþþ'š Ɓàšïç Ïñƒôŕɱàŧïôñ þàĝë. Ɓàķëŕÿ ûšëš ïŧ ŧô çĥëçķ ŧĥàŧ ŕëǫûëšŧš ŕëàļļÿ çôɱë ƒŕôɱ Šļàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
+  "integrations.slack.credentials.signingSecretHint": "⟦Ƒŕôɱ ÿôûŕ Šļàçķ àþþ'š Ɓàšïç Ïñƒôŕɱàŧïôñ þàĝë. Ɓàķëŕÿ ûšëš ïŧ ŧô çĥëçķ ŧĥàŧ ŕëǫûëšŧš ŕëàļļÿ çôɱë ƒŕôɱ Šļàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "settings.integrations.credentials.clientSecretAgain": "⟦Ëñŧëŕ ŧĥë çļïëñŧ šëçŕëŧ àĝàïñ. ŧëšŧ çôþ⟧",
+  "settings.integrations.credentials.signingSecretAgain": "⟦Ëñŧëŕ ŧĥë šïĝñïñĝ šëçŕëŧ àĝàïñ. ŧëšŧ çôþ⟧",
+  "integrations.slack.credentials.saveFailedWithSigning": "⟦Ŧĥë ðëŧàïļš çôûļð ñôŧ ƀë šàṽëð. Ëñŧëŕ ŧĥë çļïëñŧ šëçŕëŧ àñð ŧĥë šïĝñïñĝ šëçŕëŧ àĝàïñ, ŧĥëñ šàṽë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "integrations.slack.credentials.signingSecretRefused": "⟦Ɓàķëŕÿ çôûļð ñôŧ àççëþŧ ŧĥïš šïĝñïñĝ šëçŕëŧ. Çôþÿ ïŧ àĝàïñ ƒŕôɱ ÿôûŕ Šļàçķ àþþ'š Ɓàšïç Ïñƒôŕɱàŧïôñ þàĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
 }

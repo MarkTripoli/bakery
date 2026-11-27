@@ -7,6 +7,8 @@ import { useSingleFlightSubmit } from "../app/auth-form.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import {
   EMPTY_PROVIDER_CREDENTIALS,
+  NO_PROVIDER_CREDENTIALS_FAILURE,
+  type ProviderCredentialsFailure,
   ProviderCredentialsSection,
   type ProviderCredentialsStatus,
   type ProviderCredentialValues,
@@ -40,6 +42,9 @@ export function InstallationProviderCredentials(
   );
   const [status, setStatus] = useState<ProviderCredentialsStatus>("idle");
   const [forbidden, setForbidden] = useState(false);
+  const [failure, setFailure] = useState<ProviderCredentialsFailure>(
+    NO_PROVIDER_CREDENTIALS_FAILURE,
+  );
   useEffect(() => {
     setValues(EMPTY_PROVIDER_CREDENTIALS);
     setStatus("idle");
@@ -50,6 +55,7 @@ export function InstallationProviderCredentials(
     const current = values;
     const signing = current.signingSecret.trim();
     setValues({ ...EMPTY_PROVIDER_CREDENTIALS, clientId: current.clientId });
+    setFailure(NO_PROVIDER_CREDENTIALS_FAILURE);
     setStatus("saving");
     const started = scope.sessionGeneration;
     const result = await api.integrationClientCredentials.put({
@@ -82,6 +88,19 @@ export function InstallationProviderCredentials(
       await credentials.refetch();
       return;
     }
+    const issues = result.error.kind === "problem"
+      ? result.error.problem.issues ?? []
+      : [];
+    setFailure({
+      signingSecretSent: signing !== "",
+      signingSecretRefused: issues.some((issue) =>
+        issue.path.endsWith("signingSecret")
+      ) ||
+        (result.error.kind === "problem" &&
+          (result.error.problem.issueCodes ?? []).includes(
+            "invalid_signing_secret",
+          )),
+    });
     setStatus("failed");
   });
   const view = forbidden || (credentials.isError &&
@@ -106,6 +125,7 @@ export function InstallationProviderCredentials(
       onSubmit={() => void save()}
       provider={provider}
       signingSecret={signingSecret}
+      failure={failure}
       saved={loaded
         ? {
           configured: loaded.configured,
