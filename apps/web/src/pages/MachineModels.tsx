@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { useBakeryApi } from "../api/context.tsx";
 import {
+  machineModelsQueryOptions,
   providerRouteHealthQueryOptions,
   providerRoutesListQueryOptions,
 } from "../api/query.ts";
@@ -77,10 +78,13 @@ export function MachineModels(
   const say: Say = (key, arguments_) =>
     translate(key as MessageKey, arguments_);
   const phone = useShellViewport() === "phone";
-  // Only an administrator reads the list: a member would be shown models that are not this machine's.
   const list = useQuery({
     ...providerRoutesListQueryOptions(api, scope),
     enabled: isAdmin,
+  });
+  const own = useQuery({
+    ...machineModelsQueryOptions(api, scope, machineId),
+    enabled: !isAdmin && Boolean(scope.organizationId),
   });
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState<CodingAgent | "all">("all");
@@ -88,7 +92,13 @@ export function MachineModels(
   const [problem, setProblem] = useState<"changed" | "failed" | null>(null);
 
   const served: readonly RouteFacts[] = list.data?.items ?? [];
-  const all: RouteFacts[] = bindings.state === "ready"
+  const all: RouteFacts[] = !isAdmin
+    ? (own.data?.items ?? []).map((model) => ({
+      ...model,
+      workerBindingId: null,
+      version: 0,
+    }))
+    : bindings.state === "ready"
     ? modelsForMachine(served, bindings.ids)
     : [];
   // A reason is read only for a model that is in trouble: the others have nothing to say.
@@ -110,7 +120,8 @@ export function MachineModels(
   const shown = filtering
     ? filterModels(all, { search, agent: agentFilter })
     : all;
-  const empty = modelsEmpty(agents, all.length);
+  const empty = isAdmin ? modelsEmpty(agents, all.length) : null;
+  const read = isAdmin ? list : own;
   const turnedOff = turnedOffNotice(all);
   const time = (value: string) =>
     formatMachineDate(value, locale, timeZone, say("machines.never"));
@@ -151,23 +162,14 @@ export function MachineModels(
       params: { machineId },
     });
 
-  // A member sees no table: the server cannot yet list one machine's models for them, and the list of
-  // every model of the organization would be wrong for this machine.
-  if (!isAdmin) {
-    return (
-      <UI.Text data-testid="machine-models">
-        {say("machines.models.adminSeeOnly")}
-      </UI.Text>
-    );
-  }
-  if (list.isPending || bindings.state === "loading") {
+  if (read.isPending || isAdmin && bindings.state === "loading") {
     return (
       <UI.AlertBanner tone="information">
         {say("machines.loading")}
       </UI.AlertBanner>
     );
   }
-  if (list.isError || bindings.state === "failed") {
+  if (read.isError || isAdmin && bindings.state === "failed") {
     return (
       <UI.ErrorState
         title={say("machines.models.loadFailed")}
@@ -176,8 +178,8 @@ export function MachineModels(
           <UI.Button
             variant="secondary"
             onClick={() => {
-              void list.refetch();
-              retryBindings();
+              void read.refetch();
+              if (isAdmin) retryBindings();
             }}
           >
             {say("machines.models.retry")}
@@ -195,7 +197,6 @@ export function MachineModels(
       </UI.Badge>
     );
   };
-  // A model removed for good has no switch: one that cannot be pressed is not shown.
   const inUse = (row: RouteFacts) =>
     row.status === "revoked" ? null : (
       <UI.Switch
@@ -229,10 +230,9 @@ export function MachineModels(
 
   return (
     <UI.Stack gap="standard" data-testid="machine-models">
-      {/* The sentence, with the one action at its end (under it on a phone). */}
       <UI.Inline variant="between">
         <UI.Text>{say("machines.models.intro")}</UI.Text>
-        {empty === null
+        {isAdmin && empty === null
           ? (
             <UI.Button variant="primary" onClick={add}>
               {say("machines.models.add")}
@@ -240,7 +240,20 @@ export function MachineModels(
           )
           : null}
       </UI.Inline>
-      {empty === "none"
+      {isAdmin ? null : (
+        <UI.Text variant="muted">
+          {say("machines.models.adminChangeOnly")}
+        </UI.Text>
+      )}
+      {!isAdmin && all.length === 0
+        ? (
+          <UI.EmptyState
+            span="column"
+            title={say("machines.models.empty.title")}
+            description=""
+          />
+        )
+        : empty === "none"
         ? (
           <UI.EmptyState
             span="column"
@@ -328,10 +341,13 @@ export function MachineModels(
                             status={
                               <UI.Stack gap="compact">
                                 {stateBadge(row)}
-                                {/* Under the badge, at its right edge, so every row's switch is in one place. */}
-                                <UI.Inline variant="end">
-                                  {inUse(row)}
-                                </UI.Inline>
+                                {isAdmin
+                                  ? (
+                                    <UI.Inline variant="end">
+                                      {inUse(row)}
+                                    </UI.Inline>
+                                  )
+                                  : null}
                               </UI.Stack>
                             }
                           >
@@ -409,13 +425,15 @@ export function MachineModels(
                       header: say("machines.models.col.state"),
                       cell: (row) => stateBadge(row),
                     },
-                    {
-                      id: "inUse",
-                      width: "8%",
-                      align: "end" as const,
-                      header: say("machines.models.col.inUse"),
-                      cell: (row: RouteFacts) => inUse(row),
-                    },
+                    ...(isAdmin
+                      ? [{
+                        id: "inUse",
+                        width: "8%",
+                        align: "end" as const,
+                        header: say("machines.models.col.inUse"),
+                        cell: (row: RouteFacts) => inUse(row),
+                      }]
+                      : []),
                   ]}
                 />
               )}

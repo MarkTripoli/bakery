@@ -6488,7 +6488,6 @@
   "machines.models.new.submitting": "⟦Àððïñĝ……⟧",
   "machines.models.new.failed": "⟦Ŧĥë ɱôðëļ çôûļð ñôŧ ƀë àððëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
   "machines.models.new.changed": "⟦Šôɱëŧĥïñĝ çĥàñĝëð ŵĥïļë ÿôû ŵëŕë ƒïļļïñĝ ŧĥïš ïñ. Çĥëçķ ïŧ àñð ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "machines.models.adminSeeOnly": "⟦Ôñļÿ àðɱïñïšŧŕàŧôŕš çàñ šëë ŧĥïš ɱàçĥïñë'š ɱôðëļš. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "machines.models.state.revoked": "⟦Ŧûŕñëð ôƒƒ ƒôŕ ĝôôð ŧëšŧ⟧",
   "machines.models.note.revoked": "⟦Ïŧ çàññôŧ ƀë ŧûŕñëð ôñ àĝàïñ. Àðð ïŧ àš à ñëŵ ɱôðëļ ŧô ûšë ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "machines.models.line": "⟦{provider} · {agent} · {payment} ŧëšŧ çôþÿ⟧",
@@ -7872,5 +7871,6 @@
   "library.editor.panel.lastAlready": "⟦Ŧĥïš ïš àļŕëàðÿ ŧĥë ļàšŧ šŧëþ. ŧëšŧ çôþ⟧",
   "library.editor.leave.title": "⟦Ļëàṽë ƀëƒôŕë ÿôûŕ çĥàñĝëš àŕë šàṽëð? ŧëšŧ çôþÿŧ⟧",
   "library.editor.leave.body": "⟦Ÿôûŕ ļàŧëšŧ çĥàñĝëš àŕë ñôŧ šàṽëð ÿëŧ. Ïƒ ÿôû ļëàṽë, ŧĥëÿ àŕë ļôšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
-  "library.editor.leave.confirm": "⟦Ļëàṽë⟧"
+  "library.editor.leave.confirm": "⟦Ļëàṽë⟧",
+  "machines.models.adminChangeOnly": "⟦Ôñļÿ àðɱïñïšŧŕàŧôŕš çàñ çĥàñĝë ɱôðëļš. ŧëšŧ çôþÿ ŧ⟧"
 }

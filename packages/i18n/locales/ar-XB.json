@@ -6488,7 +6488,6 @@
   "machines.models.new.submitting": "⟪Adding…⟫",
   "machines.models.new.failed": "⟪The model could not be added. Try again.⟫",
   "machines.models.new.changed": "⟪Something changed while you were filling this in. Check it and try again.⟫",
-  "machines.models.adminSeeOnly": "⟪Only administrators can see this machine's models.⟫",
   "machines.models.state.revoked": "⟪Turned off for good⟫",
   "machines.models.note.revoked": "⟪It cannot be turned on again. Add it as a new model to use it.⟫",
   "machines.models.line": "⟪{provider} · {agent} · {payment}⟫",
@@ -7872,5 +7871,6 @@
   "library.editor.panel.lastAlready": "⟪This is already the last step.⟫",
   "library.editor.leave.title": "⟪Leave before your changes are saved?⟫",
   "library.editor.leave.body": "⟪Your latest changes are not saved yet. If you leave, they are lost.⟫",
-  "library.editor.leave.confirm": "⟪Leave⟫"
+  "library.editor.leave.confirm": "⟪Leave⟫",
+  "machines.models.adminChangeOnly": "⟪Only administrators can change models.⟫"
 }

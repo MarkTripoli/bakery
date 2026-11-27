@@ -7725,7 +7725,7 @@
   "machines.models.new.submitting": "Adding…",
   "machines.models.new.failed": "The model could not be added. Try again.",
   "machines.models.new.changed": "Something changed while you were filling this in. Check it and try again.",
-  "machines.models.adminSeeOnly": "Only administrators can see this machine's models.",
+  "machines.models.adminChangeOnly": "Only administrators can change models.",
   "machines.models.state.revoked": "Turned off for good",
   "machines.models.note.revoked": "It cannot be turned on again. Add it as a new model to use it.",
   "machines.models.line": "{provider} · {agent} · {payment}",
