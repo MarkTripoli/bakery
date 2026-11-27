@@ -303,6 +303,11 @@ export function InstallationIntegrationsPage(
               guideUrl={module.registrationGuideUrl}
               key={module.manifest.slug}
               provider={module.manifest.slug}
+              signingSecret={module.manifest.appRegistration?.kind ===
+                  "client-credentials" &&
+                module.manifest.appRegistration.fields.some((field) =>
+                  field.id === "signing_secret"
+                )}
             />
           ))}
           storage={<InstallationSkillStorage />}

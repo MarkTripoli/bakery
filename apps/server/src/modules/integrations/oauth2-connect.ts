@@ -11,6 +11,7 @@ import type {
   Identity,
   OAuth2Profile,
   ProviderRequestPort,
+  SignedEventSource,
 } from "@bakery/integration-sdk/provider";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import type { AuthenticatedSubject } from "../auth/application/identity.ts";
@@ -45,6 +46,7 @@ import {
 } from "./client-credentials.ts";
 import { encodeSecretSlots } from "./provider-credential-port.ts";
 import { bindConnectedResource } from "./connected-resource.ts";
+import { connectSlackInstallation } from "./slack-receipts.ts";
 import { PROVIDERS } from "./registry.ts";
 
 type AuthRedirect = z.output<typeof contractSchemas.AuthRedirect>;
@@ -297,6 +299,38 @@ export async function readOAuth2Client(
       secretsKey,
       stored.secretId,
     ),
+  };
+}
+
+async function recordSignedEventSource(
+  transaction: PgTransactionClient,
+  input: Readonly<{
+    organizationId: string;
+    provider: string;
+    source: SignedEventSource;
+  }>,
+): Promise<Record<string, unknown>> {
+  const stored = await readStoredClientCredentials(transaction, input.provider);
+  const signingSecretId = stored?.signingSecretId ?? null;
+  const recorded = await connectSlackInstallation(transaction, {
+    organizationId: input.organizationId,
+    installation: {
+      kind: "workspace",
+      appId: input.source.appId,
+      teamId: input.source.workspaceId,
+      ...(input.source.enterpriseId === undefined
+        ? {}
+        : { enterpriseId: input.source.enterpriseId }),
+      botUserId: input.source.botUserId,
+      scopes: [],
+    },
+    signingSecretId,
+  });
+  return {
+    signedEvents: recorded.ok
+      ? (recorded.reclaimed ? "reclaimed" : "recorded")
+      : recorded.reason,
+    signingSecretSaved: signingSecretId !== null,
   };
 }
 
@@ -653,8 +687,9 @@ export async function bindOAuth2Connection(
       params: { reason: "already_connected" },
     });
   }
-  await bindPreparedResource(created.id, installationId);
+  const signedEvents = await bindPreparedResource(created.id, installationId);
   await completeAttempt(created.id, {
+    ...signedEvents,
     step: "bound",
     status: "enabled",
     accountId,
@@ -681,12 +716,13 @@ export async function bindOAuth2Connection(
     );
     const updated = refreshed.rows[0];
     if (updated === undefined) throw new StandardError({ code: "INTERNAL" });
-    await bindPreparedResource(
+    const signedEvents = await bindPreparedResource(
       connectionId,
       installationId,
       step === "restored",
     );
     await completeAttempt(connectionId, {
+      ...signedEvents,
       step,
       regranted: step === "restored" && prepared.connectedResource !== null,
       accountId,
@@ -700,8 +736,8 @@ export async function bindOAuth2Connection(
     connectionId: string,
     installationId: string,
     regrant = false,
-  ): Promise<void> {
-    if (prepared.connectedResource === null) return;
+  ): Promise<Record<string, unknown>> {
+    if (prepared.connectedResource === null) return {};
     await bindConnectedResource(transaction, {
       organizationId: attempt!.organizationId,
       connectionId,
@@ -709,6 +745,13 @@ export async function bindOAuth2Connection(
       grantedBy: attempt!.initiatingPrincipalId,
       resource: prepared.connectedResource,
       regrant,
+    });
+    const source = prepared.connectedResource.signedEventSource;
+    if (source === undefined) return {};
+    return await recordSignedEventSource(transaction, {
+      organizationId: attempt!.organizationId,
+      provider,
+      source,
     });
   }
 

@@ -102,17 +102,17 @@ Deno.test("Slack's documented plain, rotating and warning responses parse", () =
   assertEquals(slackTokenResponseSchema.parse(warned), warned);
 });
 
-Deno.test("the app registration is exactly the client pair the host stores", () => {
+Deno.test("the app registration is the client pair plus the signing secret the host stores", () => {
   const registration = slackProviderManifest.appRegistration;
   assertEquals(registration?.kind, "client-credentials");
   if (registration?.kind !== "client-credentials") return;
   assertEquals(
     registration.fields.map((field) => field.id),
-    ["client_id", "client_secret"],
+    ["client_id", "client_secret", "signing_secret"],
   );
   assertEquals(
     registration.fields.map((field) => field.secret),
-    [false, true],
+    [false, true, true],
   );
 });
 

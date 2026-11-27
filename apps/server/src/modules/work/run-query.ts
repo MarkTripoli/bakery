@@ -20,6 +20,7 @@ import { isTaskStatus, toIso } from "./postgres.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 import { readRunsWaitingOnModel } from "../execution/route-continuations.ts";
 import { readRunReleaseStep } from "../workflow-adapter/release-step.ts";
+import { readLimitStop } from "../workflow-adapter/limit-stop.ts";
 
 const RUN_ORDERING = "createdAt:desc,id:desc";
 const RUN_STEP_ORDERING = "position:asc,iteration:asc,id:asc";
@@ -385,6 +386,9 @@ export function createRunQueryHandlers(secret: string) {
           organizationId,
           runId: run.id,
         }),
+        limitStop: run.status === "failed"
+          ? await readLimitStop(transaction, organizationId, run.id) ?? null
+          : null,
       };
     },
 
