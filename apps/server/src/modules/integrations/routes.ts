@@ -17,6 +17,7 @@ import type { PgDatabase } from "../../platform/database.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createIntegrationsActionRegistry } from "./actions.ts";
 import { mountIntakeRoute } from "./intake-routes.ts";
+import { SLACK_IDENTITY_CALLBACK_PATH } from "./slack-identity-flow.ts";
 import { mountSlackIntakeRoute } from "./slack-intake-routes.ts";
 import type { InstallationTokenBroker } from "./token-broker.ts";
 import type { OAuth2Fetch } from "./oauth2-connect.ts";
@@ -160,6 +161,9 @@ export function createIntegrationsRoutes(options: {
   app.use(GitHubAppPath.Setup, options.browserSession);
   app.use(GitHubAppPath.OAuthCallback, options.browserSession);
   app.use(PROVIDER_CALLBACK_PATH, options.browserSession);
+  app.use(SLACK_IDENTITY_CALLBACK_PATH, options.browserSession);
+  app.use("/v1/me/slack-link", options.browserSession);
+  app.use("/v1/me/slack-link/*", options.browserSession);
   app.use("/v1/integration-installations", options.browserSession);
   app.use("/v1/integration-installations/*", options.browserSession);
   app.use("/v1/integration-connections", options.browserSession);
@@ -203,6 +207,21 @@ export function createIntegrationsRoutes(options: {
         registry,
         options.publicBaseUrl,
         IntegrationsImplementedAction.IntegrationAuthorizationCallback,
+        (query) =>
+          coerceQueryInput(
+            contractSchemas.OAuthCallback,
+            providerQuery(query, OAUTH_QUERY),
+          ),
+      ),
+  );
+  app.get(
+    SLACK_IDENTITY_CALLBACK_PATH,
+    (context) =>
+      redirectAction(
+        context,
+        registry,
+        options.publicBaseUrl,
+        IntegrationsImplementedAction.IntegrationSlackIdentityCallback,
         (query) =>
           coerceQueryInput(
             contractSchemas.OAuthCallback,

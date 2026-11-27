@@ -56,6 +56,10 @@ const implementedIntegrationActions = [
   "integrationInstallations.list",
   "integrationInstallations.get",
   "intake.webhook",
+  "integrationAuth.slackIdentityCallback",
+  "mySlackLink.get",
+  "mySlackLink.delete",
+  "mySlackLinkAttempts.create",
 ].sort();
 
 Deno.test("integrations registry implements exactly its listed catalog actions with catalog parity", () => {

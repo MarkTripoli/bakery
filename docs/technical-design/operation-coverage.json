@@ -104,11 +104,6 @@
       "owner": "#27",
       "reason": "Slack interaction intake arrives with the shared coordinator."
     },
-    "integrationAuth.slackIdentityCallback": {
-      "state": "unbuilt",
-      "owner": "#12",
-      "reason": "Slack identity linking callback arrives with Slack installation."
-    },
     "integrationCapabilities.list": {
       "state": "unbuilt",
       "owner": "#3",
