@@ -14,6 +14,10 @@ export const SLACK_MESSAGE_UPDATE = {
   id: "slack.message.update",
   version: 1,
 } as const;
+export const SLACK_MESSAGE_EPHEMERAL = {
+  id: "slack.message.ephemeral",
+  version: 1,
+} as const;
 
 const OPEN_REQUEST = { id: "slack.conversations.open", version: 1 } as const;
 const POST_REQUEST = { id: "slack.chat.post", version: 1 } as const;
@@ -22,6 +26,10 @@ const HISTORY_REQUEST = {
   version: 1,
 } as const;
 const UPDATE_REQUEST = { id: "slack.chat.update", version: 1 } as const;
+const EPHEMERAL_REQUEST = {
+  id: "slack.chat.post_ephemeral",
+  version: 1,
+} as const;
 const LIST_IMS_REQUEST = {
   id: "slack.conversations.list",
   version: 1,
@@ -41,6 +49,73 @@ const messageTs = z.string().regex(/^[0-9]+\.[0-9]+$/).describe(
 );
 const messageText = z.string().min(1).max(4000).describe(
   "The message text exactly as Slack shows it to the recipient.",
+);
+
+const plainText = z.strictObject({
+  type: z.literal("plain_text").describe("Text Slack shows as written."),
+  text: z.string().min(1).max(300).describe(
+    "The words on a button or in a confirm dialog.",
+  ),
+}).describe("A plain text object, for button labels and dialog copy.");
+const markdownText = z.strictObject({
+  type: z.literal("mrkdwn").describe("Text Slack formats as mrkdwn."),
+  text: z.string().min(1).max(3000).describe(
+    "The section body, with Slack links and bold marks.",
+  ),
+}).describe("A mrkdwn text object, for a section body.");
+const confirmDialog = z.strictObject({
+  title: plainText,
+  text: plainText,
+  confirm: plainText,
+  deny: plainText,
+}).describe("The dialog Slack shows before it sends a button press.");
+const actionButton = z.strictObject({
+  type: z.literal("button").describe("A Block Kit button."),
+  action_id: z.string().regex(/^[a-z_]{1,32}$/).describe(
+    "The name Bakery reads back when the button is pressed.",
+  ),
+  text: plainText,
+  value: z.string().min(1).max(200).describe(
+    "What the press carries back, such as the request id.",
+  ).optional().describe(
+    "What the press carries back; absent on link buttons.",
+  ),
+  url: z.string().url().max(3000).describe(
+    "The page a link button opens.",
+  ).optional().describe(
+    "The page a link button opens; absent on action buttons.",
+  ),
+  style: z.enum(["primary", "danger"]).describe(
+    "Green for the main action, red for a destructive one.",
+  ).optional().describe(
+    "The button colour; absent for a plain button.",
+  ),
+  confirm: confirmDialog.optional().describe(
+    "The dialog shown before the press is sent; absent on links.",
+  ),
+}).describe("One button in an actions block.");
+const sectionBlock = z.strictObject({
+  type: z.literal("section").describe("A Block Kit section."),
+  text: markdownText,
+}).describe("A block of message text.");
+const actionsBlock = z.strictObject({
+  type: z.literal("actions").describe("A Block Kit actions row."),
+  block_id: z.string().regex(/^[a-z_]{1,32}$/).describe(
+    "The name of the row of buttons.",
+  ),
+  elements: z.array(actionButton).min(1).max(5).describe(
+    "The buttons in the row, left to right.",
+  ),
+}).describe("A row of buttons.");
+const messageBlocks = z.array(
+  z.discriminatedUnion("type", [sectionBlock, actionsBlock]).describe(
+    "One block: a section of text or a row of buttons.",
+  ),
+).min(1).max(10).describe(
+  "The Block Kit layout Slack shows in place of the plain text.",
+);
+const optionalBlocks = messageBlocks.optional().describe(
+  "The Block Kit layout; absent for a plain text message.",
 );
 
 const slackOk = z.boolean().describe(
@@ -71,8 +146,13 @@ const openResponse = z.object({
   ),
 }).describe("Slack's conversations.open answer, reduced to the channel id.");
 
-const postBody = z.strictObject({ channel: channelId, text: messageText })
-  .describe("chat.postMessage arguments: the conversation and the text.");
+const postBody = z.strictObject({
+  channel: channelId,
+  text: messageText,
+  blocks: optionalBlocks,
+}).describe(
+  "chat.postMessage arguments: the conversation, the text and its layout.",
+);
 const postResponse = z.object({
   ok: slackOk,
   error: slackError,
@@ -133,7 +213,23 @@ const updateBody = z.strictObject({
   channel: channelId,
   ts: messageTs,
   text: messageText,
-}).describe("chat.update arguments: the message to rewrite and its new text.");
+  blocks: optionalBlocks,
+}).describe(
+  "chat.update arguments: the message to rewrite, its new text and layout.",
+);
+const ephemeralBody = z.strictObject({
+  channel: channelId,
+  user: slackUserId,
+  text: messageText,
+  blocks: optionalBlocks,
+}).describe(
+  "chat.postEphemeral arguments: the conversation, the one person who sees it, the text and its layout.",
+);
+const ephemeralResponse = z.object({
+  ok: slackOk,
+  error: slackError,
+  message_ts: answeredTs,
+}).describe("Slack's chat.postEphemeral answer: when the note was shown.");
 const updateResponse = z.object({
   ok: slackOk,
   error: slackError,
@@ -150,6 +246,7 @@ const dmOpenOutput = z.strictObject({ channelId }).describe(
 const postInput = z.strictObject({
   channelId,
   text: messageText,
+  blocks: optionalBlocks,
   marker: z.string().min(8).max(200).describe(
     "A unique string the text carries, used to find the message again when a post is uncertain.",
   ),
@@ -161,7 +258,16 @@ const updateInput = z.strictObject({
   channelId,
   ts: messageTs,
   text: messageText,
-}).describe("Rewrite the text of one message the bot posted.");
+  blocks: optionalBlocks,
+}).describe("Rewrite the text and layout of one message the bot posted.");
+const ephemeralInput = z.strictObject({
+  channelId,
+  userId: slackUserId,
+  text: messageText,
+  blocks: optionalBlocks,
+}).describe("Show one person a note in a conversation that nobody else sees.");
+const ephemeralOutput = z.strictObject({ channelId, userId: slackUserId })
+  .describe("The conversation and person the note was shown to.");
 
 export class SlackApiError extends Error {
   constructor(method: string, readonly code: string) {
@@ -234,6 +340,7 @@ const messagePost = defineAction({
       await ctx.provider.request(POST_REQUEST, {
         channel: input.channelId,
         text: input.text,
+        ...(input.blocks === undefined ? {} : { blocks: input.blocks }),
       }),
     );
     if (answer.ts === undefined) {
@@ -273,6 +380,7 @@ const messageUpdate = defineAction({
         channel: input.channelId,
         ts: input.ts,
         text: input.text,
+        ...(input.blocks === undefined ? {} : { blocks: input.blocks }),
       }),
     );
     return {
@@ -298,6 +406,37 @@ const messageUpdate = defineAction({
         result: { channelId: ctx.input.channelId, ts: ctx.input.ts },
       }
       : { status: "uncertain" as const };
+  },
+});
+
+const messageEphemeral = defineAction({
+  ...SLACK_MESSAGE_EPHEMERAL,
+  input: ephemeralInput,
+  output: ephemeralOutput,
+  effect: "reconcile",
+  resourceKind: SLACK_WORKSPACE_KIND,
+  requests: [EPHEMERAL_REQUEST],
+  reconcileRequests: [HISTORY_REQUEST],
+  providerPermissions: { chat: "write", im: "read" },
+  async execute(ctx, input) {
+    const answer = ephemeralResponse.parse(
+      await ctx.provider.request(EPHEMERAL_REQUEST, {
+        channel: input.channelId,
+        user: input.userId,
+        text: input.text,
+        ...(input.blocks === undefined ? {} : { blocks: input.blocks }),
+      }),
+    );
+    if (!answer.ok) {
+      throw new SlackApiError(
+        "chat.postEphemeral",
+        answer.error ?? "not_ok",
+      );
+    }
+    return { channelId: input.channelId, userId: input.userId };
+  },
+  reconcile() {
+    return Promise.resolve({ status: "uncertain" as const });
   },
 });
 
@@ -328,6 +467,7 @@ export const slackGateSource = {
     { ...SLACK_DM_OPEN },
     { ...SLACK_MESSAGE_POST },
     { ...SLACK_MESSAGE_UPDATE },
+    { ...SLACK_MESSAGE_EPHEMERAL },
   ],
   resourceKinds: [SLACK_WORKSPACE_KIND],
   requests: [
@@ -394,6 +534,19 @@ export const slackGateSource = {
       response: updateResponse,
       providerPermissions: { chat: "write" },
     },
+    {
+      ...EPHEMERAL_REQUEST,
+      ...template,
+      method: "POST",
+      effect: "write",
+      idempotent: false,
+      pathTemplate: "/api/chat.postEphemeral",
+      input: ephemeralBody,
+      query: [],
+      body: ephemeralBody,
+      response: ephemeralResponse,
+      providerPermissions: { chat: "write" },
+    },
   ],
   optionalFeatures: [],
   subscriptions: [],
@@ -403,6 +556,8 @@ export const slackGateHandlers = {
   [`${SLACK_DM_OPEN.id}@${SLACK_DM_OPEN.version}`]: dmOpen,
   [`${SLACK_MESSAGE_POST.id}@${SLACK_MESSAGE_POST.version}`]: messagePost,
   [`${SLACK_MESSAGE_UPDATE.id}@${SLACK_MESSAGE_UPDATE.version}`]: messageUpdate,
+  [`${SLACK_MESSAGE_EPHEMERAL.id}@${SLACK_MESSAGE_EPHEMERAL.version}`]:
+    messageEphemeral,
 };
 
 export const slackGate = defineIntegration(slackGateSource, slackGateHandlers);
