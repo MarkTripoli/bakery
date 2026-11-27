@@ -131,7 +131,25 @@ function RequestItem(
       data-request-id={request.id}
       data-request-status={request.status}
     >
-      <UI.Text variant={action === null ? "muted" : "strong"}>{title}</UI.Text>
+      {request.askedByKind === "agent"
+        ? (
+          <UI.Inline gap="compact">
+            <UI.Text variant={action === null ? "muted" : "strong"}>
+              {title}
+            </UI.Text>
+            <UI.Inline gap="compact">
+              <UI.Badge tone="neutral">{copy("agentBadge")}</UI.Badge>
+              <UI.HelpTip label={copy("agentHelpLabel")} placement="above">
+                {copy("agentHelp", { asker })}
+              </UI.HelpTip>
+            </UI.Inline>
+          </UI.Inline>
+        )
+        : (
+          <UI.Text variant={action === null ? "muted" : "strong"}>
+            {title}
+          </UI.Text>
+        )}
       {details === "" ? null : <UI.Text variant="hint">{details}</UI.Text>}
       {request.note === null ? null : <UI.Text>{request.note}</UI.Text>}
       {request.fallbackForName === null ? null : (
