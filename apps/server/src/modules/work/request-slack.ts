@@ -13,6 +13,7 @@ import {
 import { connectionInvokeDeps } from "../integrations/invoke.ts";
 import { findActiveSlackLinkForPrincipal } from "../integrations/slack-identity-links.ts";
 import { EMAIL_LINK_ORGANIZATION_PARAM } from "./request-email.ts";
+import { passedOnFromJoin } from "./request-passed-on.ts";
 
 export const REQUEST_SLACK_FUNCTION_ID = "bakery-person-request-slack";
 export const REQUEST_SLACK_MAX_ATTEMPTS = 3;
@@ -294,21 +295,7 @@ function requestJoins(kind: number, purpose: number, provider: number) {
   left join bakery.organization_groups audience_group
     on audience_group.organization_id = request.organization_id
    and audience_group.id = request.audience_group_id
-  left join lateral (
-    select coalesce(earlier.audience_name, earlier_recipient.display_name)
-             as name
-      from bakery.person_requests earlier
-      join bakery.principals earlier_recipient
-        on earlier_recipient.id = earlier.recipient_id
-     where request.step_key is not null
-       and earlier.organization_id = request.organization_id
-       and earlier.run_id = request.run_id
-       and earlier.step_key = request.step_key
-       and earlier.step_iteration is not distinct from request.step_iteration
-       and earlier.created_at < request.created_at
-     order by earlier.created_at, earlier.id
-     limit 1
-  ) passed_on on true`;
+  ${passedOnFromJoin("request", "passed_on")}`;
 }
 
 async function dueRequests(

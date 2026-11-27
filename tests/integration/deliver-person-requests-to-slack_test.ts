@@ -7,6 +7,7 @@ import {
 import { linkSlackIdentity } from "../../apps/server/src/modules/integrations/slack-identity-links.ts";
 import { withPgTransaction } from "../../packages/persistence/src/postgres.ts";
 import { seedRun } from "../helpers/run-requests.ts";
+import { createPeopleTagStepRunner } from "../../apps/server/src/modules/work/people-tag-step.ts";
 import {
   connectOnce,
   fakeSlack,
@@ -617,6 +618,135 @@ Deno.test("a send left uncertain that never landed ends failed with no new post 
     assertEquals(
       w.sent.filter((request) => request.path === "/api/chat.update").length,
       0,
+    );
+  } finally {
+    await w.finish();
+  }
+});
+
+async function stepFacts(w: Awaited<ReturnType<typeof world>>) {
+  const artifactId = crypto.randomUUID();
+  const versionId = crypto.randomUUID();
+  await w.f.pgDatabase.query(
+    `insert into bakery.artifacts (id, organization_id, task_id, artifact_type, name)
+     values ($1, $2, $3, 'document', $4)`,
+    [artifactId, w.f.organizationId, w.taskId, `doc-${artifactId}`],
+  );
+  await w.f.pgDatabase.query(
+    `insert into bakery.artifact_versions (
+       id, organization_id, artifact_id, task_id, author_id, revision, content,
+       sha256, size_bytes, media_type, run_step_id)
+     select $1, $2, $3, $4, $5, 1, 'hi'::bytea, $6, 2, 'text/plain', step.id
+       from bakery.run_steps step
+      where step.organization_id = $2 and step.run_id = $7
+      order by step.position
+      limit 1`,
+    [
+      versionId,
+      w.f.organizationId,
+      artifactId,
+      w.taskId,
+      w.f.adminId,
+      "0".repeat(64),
+      w.run.runId,
+    ],
+  );
+  return versionId;
+}
+
+Deno.test("a request passed on by the step's next ask says who did not answer", async () => {
+  const slack = slackAnswers();
+  const w = await world(slack.answer);
+  try {
+    assert((await w.linkRecipient()).ok);
+    const versionId = await stepFacts(w);
+    const runner = createPeopleTagStepRunner({
+      database: w.f.runtimePgDatabase,
+    });
+    const step = {
+      organizationId: w.f.organizationId,
+      runId: w.run.runId,
+      taskId: w.taskId,
+      repositoryId: null,
+      requestedBy: w.f.adminId,
+      traceId: "trace-458-slack",
+      stepKey: w.run.stepKey,
+      iteration: 0,
+      action: "people.tag",
+      input: {
+        intent: "review",
+        recipientId: w.f.adminId,
+        artifactVersionId: versionId,
+        wait: true,
+        ifNobodyAnswers: { afterHours: 24, recipientId: w.f.developerId! },
+      },
+    };
+    assertEquals(await runner.run(step), { kind: "pending" });
+    await w.f.pgDatabase.query(
+      `update bakery.person_requests
+          set created_at = created_at - interval '25 hours'
+        where organization_id = $1 and run_id = $2`,
+      [w.f.organizationId, w.run.runId],
+    );
+    assertEquals(await runner.run(step), { kind: "pending" });
+    const passed = (await w.f.pgDatabase.query<{ id: string }>(
+      `select id from bakery.person_requests
+        where run_id = $1 and recipient_id = $2`,
+      [w.run.runId, w.f.developerId!],
+    )).rows[0]!.id;
+    assertEquals(w.mine(await w.send(), passed), [
+      { requestId: passed, result: "delivered" },
+    ]);
+    const post = w.sent.find((request) =>
+      request.path === "/api/chat.postMessage"
+    )!.body as { text: string };
+    const second = post.text.split("\n")[1]!;
+    assert(
+      second.startsWith(`${await w.adminName()} did not answer, so `),
+      second,
+    );
+    assert(
+      second.endsWith(" now comes to you. Open Bakery to read it."),
+      second,
+    );
+  } finally {
+    await w.finish();
+  }
+});
+
+Deno.test("a plain second ask on the same step reads as a normal request", async () => {
+  const slack = slackAnswers();
+  const w = await world(slack.answer);
+  try {
+    assert((await w.linkRecipient()).ok);
+    const first = await w.requestFor(
+      w.f.adminId,
+      w.run.stepKey,
+      new Date(Date.now() - 90 * MINUTE),
+    );
+    const second = await w.requestFor(
+      w.f.developerId!,
+      w.run.stepKey,
+      new Date(Date.now() - 30 * MINUTE),
+    );
+    await w.f.pgDatabase.query(
+      "update bakery.person_requests set step_iteration = 0 where id = any($1)",
+      [[first, second]],
+    );
+    await w.f.pgDatabase.query(
+      "update bakery.person_requests set status = 'handled' where id = $1",
+      [first],
+    );
+    assertEquals(w.mine(await w.send(), second), [
+      { requestId: second, result: "delivered" },
+    ]);
+    const post = w.sent.find((request) =>
+      request.path === "/api/chat.postMessage"
+    )!.body as { text: string };
+    assertEquals(
+      post.text.split("\n")[1],
+      `${await w
+        .adminName()} asked you to review ${w.run.stepKey}. Open Bakery to read it.`,
     );
   } finally {
     await w.finish();
