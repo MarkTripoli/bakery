@@ -25,6 +25,7 @@ import {
   connectionHealth,
   type ConnectionStatus,
   permissionsOf,
+  scopeNamesOf,
   setupSteps,
 } from "./model.ts";
 import type { ConnectionOutcome } from "./outcomes.ts";
@@ -253,7 +254,7 @@ function Loaded(
         account={connection.label}
         provider={connection.provider}
         granted={connection.grantedScopes}
-        grantedScopeNames={connection.grantedScopeNames}
+        grantedScopeNames={scopeNamesOf(connection.grantedScopeNames)}
         canManage={canManage}
         checkFaulted={actions.checked?.faulted ?? false}
         checkStatus={actions.checkStatus}

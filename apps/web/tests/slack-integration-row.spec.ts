@@ -703,11 +703,7 @@ test("a refused Slack connection reads Needs reconnecting", async ({ page }) => 
 });
 
 test("a Slack connection missing a permission reads Limited and offers Reconnect", async ({ page }) => {
-  await connected(page, {
-    status: "degraded",
-    health: "degraded",
-    lastCheckedAt: checked,
-  });
+  await connected(page, { health: "degraded", lastCheckedAt: checked });
   await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
   await expect(connectionBody(page).getByText("Limited", { exact: true }))
     .toBeVisible();

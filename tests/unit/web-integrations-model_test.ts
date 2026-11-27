@@ -202,6 +202,18 @@ Deno.test("a check that never reached the provider does not read as working", ()
   );
 });
 
+Deno.test("a partial grant reads limited although the connection stays enabled", () => {
+  assertEquals(
+    connectionHealth({
+      status: "enabled",
+      lastCheckedAt: null,
+      health: "degraded",
+      grantedScopeNames: ["chat:write"],
+    }).kind,
+    "limited",
+  );
+});
+
 Deno.test("a degraded connection that reports its scopes says which way it is degraded", () => {
   const degraded = {
     status: "degraded",

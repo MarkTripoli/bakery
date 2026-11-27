@@ -93,6 +93,8 @@ function connectionBody(connection: Connection) {
     externalAccountId: "7000001",
     config: {},
     secretId: null,
+    health: connection.lastCheckedAt === null ? "unknown" : "healthy",
+    grantedScopeNames: null,
     grantedScopes: {
       metadata: "read",
       contents: "write",
