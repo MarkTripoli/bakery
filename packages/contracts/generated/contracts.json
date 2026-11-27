@@ -81051,6 +81051,14 @@
                 }
               },
               "additionalProperties": false
+            },
+            "onExpiry": {
+              "description": "What a waiting step does when every request has expired with no response. stop, the default, ends the run needs_human so a person decides what happens next; continue completes the step expired so a later condition can branch on it. Needs wait.",
+              "type": "string",
+              "enum": [
+                "stop",
+                "continue"
+              ]
             }
           },
           "required": [
@@ -97935,7 +97943,8 @@
                 "canceled",
                 "completed",
                 "failed",
-                "blocked"
+                "blocked",
+                "needs_human"
               ],
               "description": "Current lifecycle status of the workflow run record."
             },
@@ -98415,7 +98424,8 @@
                 "canceled",
                 "completed",
                 "failed",
-                "blocked"
+                "blocked",
+                "needs_human"
               ],
               "description": "Current lifecycle status of the workflow run record."
             },
@@ -98895,7 +98905,8 @@
                 "canceled",
                 "completed",
                 "failed",
-                "blocked"
+                "blocked",
+                "needs_human"
               ],
               "description": "Current lifecycle status of the workflow run record."
             },
@@ -99229,7 +99240,8 @@
                 "completed",
                 "failed",
                 "skipped",
-                "canceled"
+                "canceled",
+                "needs_human"
               ],
               "description": "Current lifecycle status of the run step record."
             },
@@ -99804,7 +99816,8 @@
                 "completed",
                 "failed",
                 "skipped",
-                "canceled"
+                "canceled",
+                "needs_human"
               ],
               "description": "Current lifecycle status of the run step record."
             },
@@ -100379,7 +100392,8 @@
                 "completed",
                 "failed",
                 "skipped",
-                "canceled"
+                "canceled",
+                "needs_human"
               ],
               "description": "Current lifecycle status of the record."
             },
@@ -159381,7 +159395,8 @@
                       "canceled",
                       "completed",
                       "failed",
-                      "blocked"
+                      "blocked",
+                      "needs_human"
                     ],
                     "description": "Current lifecycle status of the record."
                   },
@@ -159852,7 +159867,8 @@
                       "completed",
                       "failed",
                       "skipped",
-                      "canceled"
+                      "canceled",
+                      "needs_human"
                     ],
                     "description": "Current lifecycle status of the record."
                   },
@@ -182339,7 +182355,8 @@
                 "canceled",
                 "completed",
                 "failed",
-                "blocked"
+                "blocked",
+                "needs_human"
               ],
               "description": "Current lifecycle status of the record."
             },
@@ -324816,6 +324833,14 @@
             }
           },
           "additionalProperties": false
+        },
+        "onExpiry": {
+          "description": "What a waiting step does when every request has expired with no response. stop, the default, ends the run needs_human so a person decides what happens next; continue completes the step expired so a later condition can branch on it. Needs wait.",
+          "type": "string",
+          "enum": [
+            "stop",
+            "continue"
+          ]
         }
       },
       "required": [
@@ -341758,7 +341783,8 @@
             "canceled",
             "completed",
             "failed",
-            "blocked"
+            "blocked",
+            "needs_human"
           ],
           "description": "Current lifecycle status of the workflow run record."
         },
@@ -342238,7 +342264,8 @@
             "canceled",
             "completed",
             "failed",
-            "blocked"
+            "blocked",
+            "needs_human"
           ],
           "description": "Current lifecycle status of the workflow run record."
         },
@@ -342718,7 +342745,8 @@
             "canceled",
             "completed",
             "failed",
-            "blocked"
+            "blocked",
+            "needs_human"
           ],
           "description": "Current lifecycle status of the workflow run record."
         },
@@ -343052,7 +343080,8 @@
             "completed",
             "failed",
             "skipped",
-            "canceled"
+            "canceled",
+            "needs_human"
           ],
           "description": "Current lifecycle status of the run step record."
         },
@@ -343629,7 +343658,8 @@
             "completed",
             "failed",
             "skipped",
-            "canceled"
+            "canceled",
+            "needs_human"
           ],
           "description": "Current lifecycle status of the run step record."
         },
@@ -344206,7 +344236,8 @@
             "completed",
             "failed",
             "skipped",
-            "canceled"
+            "canceled",
+            "needs_human"
           ],
           "description": "Current lifecycle status of the record."
         },
@@ -403410,7 +403441,8 @@
                   "canceled",
                   "completed",
                   "failed",
-                  "blocked"
+                  "blocked",
+                  "needs_human"
                 ],
                 "description": "Current lifecycle status of the record."
               },
@@ -403881,7 +403913,8 @@
                   "completed",
                   "failed",
                   "skipped",
-                  "canceled"
+                  "canceled",
+                  "needs_human"
                 ],
                 "description": "Current lifecycle status of the record."
               },
@@ -426420,7 +426453,8 @@
             "canceled",
             "completed",
             "failed",
-            "blocked"
+            "blocked",
+            "needs_human"
           ],
           "description": "Current lifecycle status of the record."
         },

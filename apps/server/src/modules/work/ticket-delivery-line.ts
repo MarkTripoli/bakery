@@ -31,7 +31,7 @@ type DeliveryRow = {
   deployment_status: string | null;
 };
 
-const STOPPED_RUN = new Set(["failed", "canceled", "blocked"]);
+const STOPPED_RUN = new Set(["failed", "canceled", "blocked", "needs_human"]);
 const STARTING_RUN = new Set(["queued", "waiting_capacity"]);
 const ENDED_WITHOUT_RUN = new Set(["failed", "canceled", "completed"]);
 

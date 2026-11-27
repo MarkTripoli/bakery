@@ -289,7 +289,7 @@ export async function startSkillImportExecution(
             started_at = coalesce(started_at, now()), updated_at = now(),
             version = version + 1
       where organization_id = $1 and id = $2 and kind = 'skill_import'
-        and status not in ('completed', 'failed', 'canceled', 'blocked')`,
+        and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')`,
     [current.organization_id, runId],
   );
   return await loadSkillImportExecution(transaction, runId);
@@ -475,7 +475,7 @@ export async function rearmStaleSkillImports(
          on run.organization_id = import.organization_id
         and run.id = import.run_id and run.kind = 'skill_import'
       where import.state not in ('completed', 'failed')
-        and run.status not in ('completed', 'failed', 'canceled', 'blocked')
+        and run.status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
         and import.updated_at <= now() - ($1::integer * interval '1 millisecond')
       order by import.updated_at, import.id
       for update of import skip locked

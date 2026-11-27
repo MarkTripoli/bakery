@@ -94,6 +94,7 @@ const RUN_TONES = {
   completed: "success",
   failed: "danger",
   blocked: "warning",
+  needs_human: "warning",
 } as const;
 
 /** Where the server caps the tasks a blocked run names (work/run-query.ts). */
@@ -266,7 +267,8 @@ export function TaskRunSection(
         | "completed"
         | "failed"
         | "skipped"
-        | "canceled";
+        | "canceled"
+        | "needs_human";
     } | null
   >(null);
   const cursor = cursors.at(-1);

@@ -7666,13 +7666,19 @@ const transportSchemas = {
           "type": "PeopleTagEscalation",
           "required": false,
           "description": "Who to ask next if nobody tagged has responded after a while. Needs wait: the step keeps waiting, now on both asks, and completes responded when anyone answers."
+        },
+        {
+          "name": "onExpiry",
+          "type": "enum(stop|continue)",
+          "required": false,
+          "description": "What a waiting step does when every request has expired with no response. stop, the default, ends the run needs_human so a person decides what happens next; continue completes the step expired so a later condition can branch on it. Needs wait."
         }
       ],
       "rules": [
         "A step with no agent. The workflow tags on behalf of the person who started the run, who must still be able to write runs; the organization, the run and the step come from the run, never from this payload.",
         "Name exactly one recipient. Every rule of a request made on the run holds: a recipient who cannot be resolved falls back to the person who started the run, with a visible note, and a role or group too large to ask is refused whole.",
         "The step tags once, keyed by the run and the step, so a step looked at again finds its requests instead of tagging again.",
-        "A waiting step completes responded when anyone tagged responds, and expired when every request has expired or been withdrawn first. Nothing is approved by silence.",
+        "A waiting step completes responded when anyone tagged responds. When every request has expired or been withdrawn first, it ends the run needs_human, or completes expired when onExpiry is continue. Nothing is approved by silence.",
         "If ifNobodyAnswers names someone, the step asks them once, when afterHours have passed since the first ask and nobody has responded. Their request has its own seven days; the step completes expired only when every request has ended unanswered."
       ],
       "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
@@ -16535,7 +16541,7 @@ const transportSchemas = {
         "baseSha": "gitSha|null",
         "requestedBy": "uuid",
         "inngestRunId": "string|null",
-        "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked)",
+        "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked|needs_human)",
         "budgetLimitUsd": "decimal",
         "startedAt": "timestamp|null",
         "finishedAt": "timestamp|null",
@@ -16629,7 +16635,7 @@ const transportSchemas = {
         "runId": "uuid",
         "stepKey": "string",
         "iteration": "integer",
-        "status": "enum(pending|running|waiting|completed|failed|skipped|canceled)",
+        "status": "enum(pending|running|waiting|completed|failed|skipped|canceled|needs_human)",
         "input": "json",
         "output": "json|null",
         "error": "json|null",
@@ -22760,7 +22766,7 @@ const transportSchemas = {
         "runId": "uuid",
         "stepKey": "string",
         "iteration": "integer",
-        "status": "enum(pending|running|waiting|completed|failed|skipped|canceled)",
+        "status": "enum(pending|running|waiting|completed|failed|skipped|canceled|needs_human)",
         "input": "json",
         "output": "json|null",
         "error": "json|null",
@@ -23956,7 +23962,7 @@ const transportSchemas = {
         "workspaceBaseSha": "gitSha|null",
         "requestedBy": "uuid",
         "inngestRunId": "string|null",
-        "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked)",
+        "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked|needs_human)",
         "budgetLimitUsd": "decimal",
         "environment": "enum(live|offline)",
         "startedAt": "timestamp|null",

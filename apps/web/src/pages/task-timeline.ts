@@ -44,6 +44,7 @@ const STEP_STATUS: Record<
   failed: "failed",
   skipped: "skipped",
   canceled: "canceled",
+  needs_human: "blocked",
 };
 
 const KNOWN_STEPS = {

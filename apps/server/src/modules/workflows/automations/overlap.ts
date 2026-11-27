@@ -9,6 +9,7 @@ export const TERMINAL_RUN_STATUSES = [
   "completed",
   "failed",
   "canceled",
+  "needs_human",
 ] as const;
 
 /**

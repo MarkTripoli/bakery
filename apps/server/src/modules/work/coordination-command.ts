@@ -1109,7 +1109,7 @@ async function cancelChildTask(
               updated_at = current_timestamp, version = version + 1
         where organization_id = $1 and run_id = $2
           and status not in ('completed', 'failed', 'canceled', 'skipped',
-                             'blocked')`,
+                             'blocked', 'needs_human')`,
       [facts.organizationId, runId],
     );
     const runUpdate = await transaction.query<{ version: number }>(
