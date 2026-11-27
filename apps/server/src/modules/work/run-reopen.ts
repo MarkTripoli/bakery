@@ -34,7 +34,7 @@ export async function reopenFailedRun(
   const found = await transaction.query<
     {
       task_id: string;
-      application_id: string;
+      application_id: string | null;
       repository_id: string | null;
       conversation_id: string;
       run_status: string;

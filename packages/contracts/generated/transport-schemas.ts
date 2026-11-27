@@ -4620,8 +4620,8 @@ const transportSchemas = {
         {
           "name": "applicationId",
           "type": "uuid",
-          "required": true,
-          "description": "Identifier of the Bakery application this task belongs to."
+          "required": false,
+          "description": "Identifier of the Bakery application this task belongs to. Left out for work from a ticket source that names no application; a task with no application names no repository."
         },
         {
           "name": "repositoryId",
@@ -16410,7 +16410,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "applicationId": "uuid",
+        "applicationId": "uuid|null",
         "repositoryId": "uuid|null",
         "conversationId": "uuid",
         "parentTaskId": "uuid|null",
@@ -23822,7 +23822,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "applicationId": "uuid",
+        "applicationId": "uuid|null",
         "repositoryId": "uuid|null",
         "conversationId": "uuid",
         "parentTaskId": "uuid|null",

@@ -29,7 +29,10 @@ export function fakeSlack(
 ) {
   const calls: SlackCall[] = [];
   const issued = { token: BOT_TOKEN };
-  const answer = { tokenResponse: options.tokenResponse ?? {} };
+  const answers: {
+    authTest: (() => Response) | null;
+    tokenResponse: Record<string, unknown>;
+  } = { authTest: null, tokenResponse: options.tokenResponse ?? {} };
   const respond = (input: URL, init: RequestInit): Response => {
     const headers = new Headers(init.headers);
     const body = init.body instanceof URLSearchParams
@@ -56,12 +59,15 @@ export function fakeSlack(
         team: { id: TEAM_ID, name: "Test Workspace" },
         enterprise: null,
         authed_user: { id: "U0TESTUSER" },
-        ...answer.tokenResponse,
+        ...answers.tokenResponse,
       });
     }
     if (input.href === "https://slack.com/api/auth.test") {
+      if (answers.authTest !== null) return answers.authTest();
+      const ok = headers.get("authorization") === `Bearer ${issued.token}`;
       return Response.json({
-        ok: headers.get("authorization") === `Bearer ${issued.token}`,
+        ok,
+        ...(ok ? {} : { error: "invalid_auth" }),
         team_id: TEAM_ID,
         team: "Test Workspace",
         bot_id: "B0TESTBOT",
@@ -71,11 +77,11 @@ export function fakeSlack(
   };
   const fetch = (input: URL, init: RequestInit) =>
     Promise.resolve(respond(input, init));
-  return { calls, fetch, issued, answer };
+  return { calls, fetch, issued, answers };
 }
 
 export async function open(
-  slack: ReturnType<typeof fakeSlack>,
+  slack: Omit<ReturnType<typeof fakeSlack>, "answers">,
   options: { signingSecret?: string } = {},
 ) {
   const directory = await Deno.makeTempDir({ prefix: "bakery-slack-connect-" });

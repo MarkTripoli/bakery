@@ -205,6 +205,31 @@ const discovery: ResourceDiscovery = {
   list: () => Promise.resolve({ resources: [], nextCursor: null }),
 };
 
+const SLACK_SIGN_IN_AGAIN = new Set([
+  "invalid_auth",
+  "token_revoked",
+  "account_inactive",
+  "token_expired",
+  "not_authed",
+]);
+
+function retryAfter(
+  headers: Readonly<Record<string, string>>,
+): number | undefined {
+  const value = Number(headers["retry-after"]);
+  return Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
+function readAuthTest(body: Uint8Array) {
+  try {
+    return authTestResponse.safeParse(
+      JSON.parse(new TextDecoder().decode(body)),
+    );
+  } catch {
+    return null;
+  }
+}
+
 const health: HealthProbe = {
   async check(ctx) {
     let response;
@@ -223,14 +248,20 @@ const health: HealthProbe = {
       };
     }
     if (response.status === 429) {
-      return { healthy: false, reason: "rate_limited", retryable: true };
+      const seconds = retryAfter(response.headers ?? {});
+      return {
+        healthy: false,
+        reason: "rate_limited",
+        retryable: true,
+        ...(seconds === undefined ? {} : { retryAfterSeconds: seconds }),
+      };
     }
-    const parsed = authTestResponse.safeParse(
-      JSON.parse(new TextDecoder().decode(response.body)),
-    );
-    if (!parsed.success || !parsed.data.ok) {
-      const error = parsed.success ? parsed.data.error : undefined;
-      const revoked = error === "invalid_auth" || error === "token_revoked";
+    const parsed = readAuthTest(response.body);
+    if (parsed === null || !parsed.success) {
+      return { healthy: false, reason: "dependency_refused", retryable: true };
+    }
+    if (!parsed.data.ok) {
+      const revoked = SLACK_SIGN_IN_AGAIN.has(parsed.data.error ?? "");
       return {
         healthy: false,
         reason: revoked ? "auth_required" : "dependency_refused",

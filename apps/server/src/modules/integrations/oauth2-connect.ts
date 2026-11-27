@@ -78,7 +78,7 @@ export function oauth2ProviderFor(slug: string): OAuth2Provider | undefined {
   return { slug, profile: connect };
 }
 
-function isOAuth2Profile(connect: unknown): connect is OAuth2Profile {
+export function isOAuth2Profile(connect: unknown): connect is OAuth2Profile {
   return typeof connect === "object" && connect !== null &&
     "authorizeUrl" in connect && "tokenUrl" in connect &&
     "identify" in connect;
@@ -350,13 +350,15 @@ async function recordSignedEventSource(
   };
 }
 
-async function installedForAnotherApp(
+async function connectedThroughAnotherApp(
   transaction: PgTransactionClient,
-  appId: string,
+  source: SignedEventSource,
 ): Promise<boolean> {
   const other = await transaction.query(
-    "select 1 from bakery.slack_installations where app_id <> $1 limit 1",
-    [appId],
+    `select 1 from bakery.slack_installations
+      where team_id = $1 and app_id <> $2 and status = 'active'
+      limit 1`,
+    [source.workspaceId, source.appId],
   );
   return other.rows.length > 0;
 }
@@ -548,11 +550,11 @@ export function createOAuth2CallbackRunner(
         error,
       );
     }
-    const appId = connectedResource?.signedEventSource?.appId;
+    const source = connectedResource?.signedEventSource;
     if (
-      appId !== undefined &&
+      source !== undefined &&
       await inTransaction((transaction) =>
-        installedForAnotherApp(transaction, appId)
+        connectedThroughAnotherApp(transaction, source)
       )
     ) {
       return await fail("identify", ConnectionOutcome.WrongApp);

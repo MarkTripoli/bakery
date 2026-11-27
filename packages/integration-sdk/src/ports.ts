@@ -188,6 +188,7 @@ export type HealthProbe = {
       healthy: false;
       reason: string; /** Retrying may fix it; false means a person must. */
       retryable: boolean;
+      retryAfterSeconds?: number;
     }
   >;
 };

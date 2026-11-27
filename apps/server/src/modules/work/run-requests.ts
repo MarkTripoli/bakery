@@ -401,7 +401,7 @@ function nextAskOf(row: RequestRow) {
 type RunFacts = {
   id: string;
   task_id: string;
-  application_id: string;
+  application_id: string | null;
   repository_id: string | null;
   requested_by: string | null;
   task_created_by: string | null;

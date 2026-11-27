@@ -1,4 +1,5 @@
 import { assertEquals } from "@std/assert";
+import { call } from "../helpers/installation-settings.ts";
 import {
   connectOnce,
   fakeSlack,
@@ -50,16 +51,50 @@ Deno.test("an install for a whole Enterprise Grid organization is refused and st
   }
 });
 
-Deno.test("a token for a different Slack app than the installation uses is refused and stores nothing", async () => {
+Deno.test("a workspace still connected through another Slack app refuses a second app and stores nothing", async () => {
   const slack = fakeSlack();
   const o = await open(slack);
   try {
     await connectOnce(o);
     const before = await slackRows(o);
-    slack.answer.tokenResponse = { app_id: "A0OTHERAPP" };
-    const refused = await connectAttempt(o);
-    assertEquals(outcome(refused), "wrong_app");
+    slack.answers.tokenResponse = { app_id: "A0OTHERAPP" };
+    assertEquals(outcome(await connectAttempt(o)), "wrong_app");
     assertEquals(await slackRows(o), before);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("after its connection is removed, the workspace connects through a replacement Slack app", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    const connectionId = await connectOnce(o);
+    const headers = { "Bakery-Organization-Id": o.fixture.organizationId };
+    const current = await call(
+      o.fixture,
+      "GET",
+      `/v1/integration-connections/${connectionId}`,
+      o.fixture.adminCookie,
+      { headers },
+    );
+    const { version } = await current.json() as { version: number };
+    const removed = await call(
+      o.fixture,
+      "POST",
+      `/v1/integration-connections/${connectionId}/removal`,
+      o.fixture.adminCookie,
+      {
+        headers: {
+          ...headers,
+          "If-Match": `"${version}"`,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assertEquals(removed.status, 200, await removed.clone().text());
+    slack.answers.tokenResponse = { app_id: "A0OTHERAPP" };
+    assertEquals(outcome(await connectAttempt(o)), "refreshed");
   } finally {
     await o.finish();
   }
