@@ -254,7 +254,9 @@ export function createDeliveryActionRegistry(
     policy: commandPolicy,
     transactionIsolation: TransactionIsolation.ReadCommitted,
     explicitIdempotency: "key",
-    handler: createPullRequestRegistrationHandler(),
+    handler: createPullRequestRegistrationHandler(
+      DeliveryImplementedAction.PullRequestsRegister,
+    ),
   });
   registry.register({
     name: DeliveryImplementedAction.PullRequestsOpen,
@@ -265,7 +267,9 @@ export function createDeliveryActionRegistry(
     policy: commandPolicy,
     transactionIsolation: TransactionIsolation.ReadCommitted,
     explicitIdempotency: "key",
-    handler: createPullRequestRegistrationHandler(),
+    handler: createPullRequestRegistrationHandler(
+      DeliveryImplementedAction.PullRequestsOpen,
+    ),
   });
 
   registry.register({
