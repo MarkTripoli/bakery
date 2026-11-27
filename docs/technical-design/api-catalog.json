@@ -5700,6 +5700,28 @@
     },
     {
       "group": "Workers",
+      "method": "GET",
+      "path": "/v1/workers/{id}/models",
+      "action": "machines.models",
+      "access": "Developer",
+      "permission": "worker:read",
+      "input": "CursorQuery",
+      "output": "Page<MachineModel>",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Workers",
       "method": "POST",
       "path": "/v1/worker-enrollments",
       "action": "workers.enroll",

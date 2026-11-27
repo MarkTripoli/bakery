@@ -5831,6 +5831,29 @@ export const clientManifest = {
     },
     {
       "group": "Workers",
+      "method": "GET",
+      "path": "/v1/workers/{id}/models",
+      "action": "machines.models",
+      "access": "Developer",
+      "permission": "worker:read",
+      "input": "CursorQuery",
+      "output": "Page<MachineModel>",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Workers",
       "method": "POST",
       "path": "/v1/worker-enrollments",
       "action": "workers.enroll",
@@ -20954,6 +20977,7 @@ export const clientManifest = {
             "machines.dispatchBlockers",
             "workers.get",
             "workerAttempts.list",
+            "machines.models",
             "workers.enroll",
             "workerEnrollments.get",
             "workerEnrollments.cancel",
@@ -39378,6 +39402,160 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of WorkerAttemptRead."
     },
+    "Page<MachineModel>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable identity of the model route on this machine."
+              },
+              "provider": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Model provider the route calls, such as anthropic or openai."
+              },
+              "model": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Model name the route sends work to."
+              },
+              "harness": {
+                "type": "string",
+                "enum": [
+                  "pi",
+                  "claude_code",
+                  "codex",
+                  "mastra"
+                ],
+                "description": "Coding agent on the machine that runs the model."
+              },
+              "billingRoute": {
+                "type": "string",
+                "enum": [
+                  "subscription",
+                  "api_metered",
+                  "local"
+                ],
+                "description": "How the model's use is paid for: the coding agent's subscription, metered API use, or a local model."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "disabled",
+                  "revoked"
+                ],
+                "description": "Whether the model takes work: active, turned off (disabled), or removed for good (revoked)."
+              },
+              "health": {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "degraded",
+                  "open",
+                  "unverified"
+                ],
+                "description": "Last known health: healthy, degraded, open (paused while it is probed) or unverified."
+              },
+              "inferenceVerifiedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the machine last proved the model answers; null before it has."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MachineModel.inferenceVerifiedAt may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When the model was added; stable keyset position."
+              }
+            },
+            "required": [
+              "id",
+              "provider",
+              "model",
+              "harness",
+              "billingRoute",
+              "status",
+              "health",
+              "inferenceVerifiedAt",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One model a machine may send work to, read through the machine itself, with no account, endpoint, credential or incident detail."
+          },
+          "description": "MachineModel items in this cursor page. Page<MachineModel>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<MachineModel>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Opaque token for paging backward to the previous page, present only when one exists. Like nextCursor it is bound to this exact operation, scope, and filter set and must be treated as an opaque value, never parsed or constructed by the client. Page<MachineModel>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<MachineModel>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<MachineModel>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of MachineModel."
+    },
     "NoContent": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "null",
@@ -51895,6 +52073,7 @@ export const clientManifest = {
                   "machines.dispatchBlockers",
                   "workers.get",
                   "workerAttempts.list",
+                  "machines.models",
                   "workers.enroll",
                   "workerEnrollments.get",
                   "workerEnrollments.cancel",
@@ -75335,6 +75514,7 @@ export const clientManifest = {
             "machines.dispatchBlockers",
             "workers.get",
             "workerAttempts.list",
+            "machines.models",
             "workers.enroll",
             "workerEnrollments.get",
             "workerEnrollments.cancel",
