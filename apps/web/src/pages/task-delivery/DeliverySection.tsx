@@ -1,8 +1,8 @@
-import { useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "@bakery/i18n";
 import { useBakeryApi } from "../../api/context.tsx";
-import type { ApiFailure } from "../../api/client.ts";
+import type { ApiFailure, RunResponse } from "../../api/client.ts";
 import {
   approvalsQueryOptions,
   artifactsListQueryOptions,
@@ -16,6 +16,7 @@ import {
   runDeliveryDecisionsQueryOptions,
   runDeploymentsQueryOptions,
   runOutputStepIdsQueryOptions,
+  runQueryOptions,
   runReviewsQueryOptions,
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
@@ -34,6 +35,7 @@ import { useMoreTries } from "./use-more-tries.ts";
 import {
   DeliverySectionView,
   type DeliveryViewState,
+  type TriesOffer,
 } from "./DeliverySectionView.tsx";
 
 /**
@@ -113,6 +115,7 @@ export function DeliverySection(
   {
     baseSha,
     enabled,
+    limitStop = null,
     offline,
     onOpenRules,
     onTellBakery,
@@ -124,6 +127,7 @@ export function DeliverySection(
     runId: string;
     enabled: boolean;
     baseSha: string | null;
+    limitStop?: RunResponse["limitStop"];
     paused: boolean;
     offline: boolean;
     onTellBakery: () => void;
@@ -131,6 +135,7 @@ export function DeliverySection(
   }>,
 ) {
   const api = useBakeryApi();
+  const queryClient = useQueryClient();
   const scope = useProtectedScope();
   const { locale, timeZone } = useI18n();
   const revisionHeadSha = useRevisionHeadSha(taskId, runId, enabled);
@@ -210,7 +215,7 @@ export function DeliverySection(
     ) ?? false;
   const access = useQuery({
     ...effectiveAccessQueryOptions(api, scope),
-    enabled: enabled && (merged || outOfTries),
+    enabled: enabled && (merged || outOfTries || limitStop !== null),
   });
   const mayDeploy = access.data?.role === "admin" ||
     access.data?.role === "developer";
@@ -258,6 +263,7 @@ export function DeliverySection(
       mayDeploy,
       revisionHeadSha,
       baseSha,
+      limitStop,
       paused,
     })
     : null;
@@ -280,16 +286,47 @@ export function DeliverySection(
       decisions.refetch(),
       checks.refetch(),
       reviews.refetch(),
+      queryClient.invalidateQueries({
+        queryKey: runQueryOptions(api, scope, runId).queryKey,
+      }),
     ]);
-  }, [decisions.refetch, checks.refetch, reviews.refetch]);
+  }, [
+    decisions.refetch,
+    checks.refetch,
+    reviews.refetch,
+    queryClient,
+    api,
+    scope,
+    runId,
+  ]);
   const goBackAction = useGoBack(refreshRelease);
   const moreTriesAction = useMoreTries(runId, refreshTries);
+  const [triesOffer, setTriesOffer] = useState<TriesOffer | null>(null);
+  const stillStoppedAt = async (allowed: number) => {
+    const read = await queryClient.fetchQuery({
+      ...runQueryOptions(api, scope, runId),
+      staleTime: 0,
+    }).catch(() => null);
+    return read === null || read.limitStop?.allowed === allowed;
+  };
+  const giveMoreTries = (tries: number) => {
+    const allowed = triesOffer?.allowed ?? null;
+    return moreTriesAction.allow(
+      tries,
+      allowed === null ? undefined : () => stillStoppedAt(allowed),
+    );
+  };
   const decision = useApprovalDecision(
     model?.approval ?? null,
     refreshDecision,
   );
   // No changes yet: the section is not drawn at all.
-  if (state === "ready" && model !== null && !model.visible) return null;
+  if (
+    state === "ready" && model !== null && !model.visible &&
+    triesOffer === null
+  ) {
+    return null;
+  }
 
   const updatedAt = Math.max(
     checks.dataUpdatedAt,
@@ -316,7 +353,9 @@ export function DeliverySection(
       mayGiveMoreTries={mayGiveMoreTries}
       moreTriesPhase={moreTriesAction.phase}
       onClearMoreTries={moreTriesAction.clear}
-      onGiveMoreTries={moreTriesAction.allow}
+      onGiveMoreTries={giveMoreTries}
+      onTriesOffer={setTriesOffer}
+      triesOffer={triesOffer}
       onDecide={decision.decide}
       onGoBack={goBackAction.goBack}
       onMerge={mergeAction.merge}

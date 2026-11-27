@@ -2174,7 +2174,7 @@ export type BakeryApiClient = {
     readonly tries: number;
     readonly idempotencyKey: string;
     readonly signal?: AbortSignal;
-  }) => Promise<ApiResult<null>>;
+  }) => Promise<ApiResult<{ readonly addedTries: number }>>;
   /** Settles an unknown attempt by reading GitHub; it never sends a second merge. */
   readonly reconcileMergeAttempts: (options: {
     readonly organizationId: string;
@@ -7171,11 +7171,11 @@ export function createBakeryApiClient({
     async allowMoreRepairTries(options) {
       organizationId = options.organizationId;
       try {
-        await client.actions["runRepairAllowances.create"](
+        const data = await client.actions["runRepairAllowances.create"](
           { id: options.runId, tries: options.tries },
           { idempotencyKey: options.idempotencyKey, signal: options.signal },
         );
-        return { ok: true, data: null };
+        return { ok: true, data };
       } catch (error) {
         return failed(error);
       } finally {
