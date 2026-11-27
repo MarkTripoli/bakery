@@ -85025,6 +85025,44 @@
           "additionalProperties": false,
           "description": "One task a blocked run waits on: a dependency of the run's task, in the run's organization, that has not completed. Read live at request time, so it disappears once the task completes."
         },
+        "RunLimitStop": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "repeatKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Step key of the repeat block that stopped. RunLimitStop.repeatKey must contain at least 1 characters."
+            },
+            "iterations": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Rounds the repeat ran before it stopped. RunLimitStop.iterations must be at least 0."
+            },
+            "allowed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Rounds allowed before a person must decide, after earlier decisions. RunLimitStop.allowed must be at least 0."
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "description": "The repeat's most rounds; no decision goes past it. RunLimitStop.max must be at least 1."
+            }
+          },
+          "required": [
+            "repeatKey",
+            "iterations",
+            "allowed",
+            "max"
+          ],
+          "additionalProperties": false,
+          "description": "Where a failed run stopped at a repeat's ask-a-person limit: the repeat, the rounds it ran, the rounds it may run without a decision, and its most. Read live from the run's last plan failure."
+        },
         "ReviewInput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -159729,6 +159767,52 @@
                       "no",
                       "unknown"
                     ]
+                  },
+                  "limitStop": {
+                    "description": "Run.limitStop may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "repeatKey": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 65536,
+                            "description": "Step key of the repeat block that stopped. RunLimitStop.repeatKey must contain at least 1 characters."
+                          },
+                          "iterations": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "description": "Rounds the repeat ran before it stopped. RunLimitStop.iterations must be at least 0."
+                          },
+                          "allowed": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "description": "Rounds allowed before a person must decide, after earlier decisions. RunLimitStop.allowed must be at least 0."
+                          },
+                          "max": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9007199254740991,
+                            "description": "The repeat's most rounds; no decision goes past it. RunLimitStop.max must be at least 1."
+                          }
+                        },
+                        "required": [
+                          "repeatKey",
+                          "iterations",
+                          "allowed",
+                          "max"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Where the run stopped to ask a person about more tries, or null. Served by runs.get; omitted by other run responses."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -182686,6 +182770,52 @@
                 "yes",
                 "no",
                 "unknown"
+              ]
+            },
+            "limitStop": {
+              "description": "Run.limitStop may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "repeatKey": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 65536,
+                      "description": "Step key of the repeat block that stopped. RunLimitStop.repeatKey must contain at least 1 characters."
+                    },
+                    "iterations": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "description": "Rounds the repeat ran before it stopped. RunLimitStop.iterations must be at least 0."
+                    },
+                    "allowed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "description": "Rounds allowed before a person must decide, after earlier decisions. RunLimitStop.allowed must be at least 0."
+                    },
+                    "max": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991,
+                      "description": "The repeat's most rounds; no decision goes past it. RunLimitStop.max must be at least 1."
+                    }
+                  },
+                  "required": [
+                    "repeatKey",
+                    "iterations",
+                    "allowed",
+                    "max"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Where the run stopped to ask a person about more tries, or null. Served by runs.get; omitted by other run responses."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
               ]
             }
           },
@@ -328808,6 +328938,44 @@
       "additionalProperties": false,
       "description": "One task a blocked run waits on: a dependency of the run's task, in the run's organization, that has not completed. Read live at request time, so it disappears once the task completes."
     },
+    "RunLimitStop": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repeatKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Step key of the repeat block that stopped. RunLimitStop.repeatKey must contain at least 1 characters."
+        },
+        "iterations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Rounds the repeat ran before it stopped. RunLimitStop.iterations must be at least 0."
+        },
+        "allowed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Rounds allowed before a person must decide, after earlier decisions. RunLimitStop.allowed must be at least 0."
+        },
+        "max": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "The repeat's most rounds; no decision goes past it. RunLimitStop.max must be at least 1."
+        }
+      },
+      "required": [
+        "repeatKey",
+        "iterations",
+        "allowed",
+        "max"
+      ],
+      "additionalProperties": false,
+      "description": "Where a failed run stopped at a repeat's ask-a-person limit: the repeat, the rounds it ran, the rounds it may run without a decision, and its most. Read live from the run's last plan failure."
+    },
     "ReviewInput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -403758,6 +403926,52 @@
                   "no",
                   "unknown"
                 ]
+              },
+              "limitStop": {
+                "description": "Run.limitStop may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "repeatKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 65536,
+                        "description": "Step key of the repeat block that stopped. RunLimitStop.repeatKey must contain at least 1 characters."
+                      },
+                      "iterations": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "description": "Rounds the repeat ran before it stopped. RunLimitStop.iterations must be at least 0."
+                      },
+                      "allowed": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "description": "Rounds allowed before a person must decide, after earlier decisions. RunLimitStop.allowed must be at least 0."
+                      },
+                      "max": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991,
+                        "description": "The repeat's most rounds; no decision goes past it. RunLimitStop.max must be at least 1."
+                      }
+                    },
+                    "required": [
+                      "repeatKey",
+                      "iterations",
+                      "allowed",
+                      "max"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Where the run stopped to ask a person about more tries, or null. Served by runs.get; omitted by other run responses."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
               }
             },
             "required": [
@@ -426767,6 +426981,52 @@
             "yes",
             "no",
             "unknown"
+          ]
+        },
+        "limitStop": {
+          "description": "Run.limitStop may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "repeatKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 65536,
+                  "description": "Step key of the repeat block that stopped. RunLimitStop.repeatKey must contain at least 1 characters."
+                },
+                "iterations": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Rounds the repeat ran before it stopped. RunLimitStop.iterations must be at least 0."
+                },
+                "allowed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Rounds allowed before a person must decide, after earlier decisions. RunLimitStop.allowed must be at least 0."
+                },
+                "max": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991,
+                  "description": "The repeat's most rounds; no decision goes past it. RunLimitStop.max must be at least 1."
+                }
+              },
+              "required": [
+                "repeatKey",
+                "iterations",
+                "allowed",
+                "max"
+              ],
+              "additionalProperties": false,
+              "description": "Where the run stopped to ask a person about more tries, or null. Served by runs.get; omitted by other run responses."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
           ]
         }
       },

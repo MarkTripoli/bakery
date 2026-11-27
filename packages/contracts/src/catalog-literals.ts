@@ -1204,6 +1204,7 @@ export type ContractInputName =
   | "RunBlockingTask"
   | "RunControl"
   | "RunCreate"
+  | "RunLimitStop"
   | "RunRequestCreate"
   | "RunRetry"
   | "RunStepNoteCreate"
