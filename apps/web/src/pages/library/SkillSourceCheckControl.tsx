@@ -1,9 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type { SkillResponse, SkillSourceCheck } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
-import { skillSourceCheckQueryOptions } from "../../api/query.ts";
+import {
+  skillSourceCheckQueryOptions,
+  skillSourceQueryOptions,
+} from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { importFailureKind } from "./skill-source-state.ts";
@@ -59,11 +62,19 @@ export function SkillSourceCheckControl(
     ),
     enabled: false,
   });
+  const queryClient = useQueryClient();
+  const checkNow = async () => {
+    await check.refetch();
+    await queryClient.invalidateQueries({
+      queryKey: skillSourceQueryOptions(api, scope, skill.sourceId ?? "")
+        .queryKey,
+    });
+  };
   const checkButton = (label: string) => (
     <UI.Inline>
       <UI.Button
         loading={check.isFetching}
-        onClick={() => void check.refetch()}
+        onClick={() => void checkNow()}
         variant="secondary"
       >
         {label}

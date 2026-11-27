@@ -96,7 +96,7 @@ function FileChange(
             <UI.Badge tone={TONES[file.change]}>
               {translate(`library.skills.update.${file.change}`)}
             </UI.Badge>{" "}
-            {sizes}
+            <UI.DataText>{sizes}</UI.DataText>
           </>
         }
       >

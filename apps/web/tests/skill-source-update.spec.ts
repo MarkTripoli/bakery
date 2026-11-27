@@ -114,7 +114,12 @@ type Setup = {
 async function open(page: Page, setup: Setup = {}, path = PAGE) {
   await skillsFixture(page, { role: setup.role ?? "admin" });
   const sent: { path: string; body: unknown; ifMatch?: string | null }[] = [];
-  const state = { active: 2, versions: [version(2), version(1)], checks: 0 };
+  const state = {
+    active: 2,
+    versions: [version(2), version(1)],
+    checks: 0,
+    sourceReads: 0,
+  };
   const skill = () => ({
     id: SKILL,
     sourceId: IDS.source,
@@ -134,6 +139,13 @@ async function open(page: Page, setup: Setup = {}, path = PAGE) {
   });
   const post = (path: string, body: unknown, ifMatch?: string | null) =>
     sent.push({ path, body, ifMatch });
+  await page.route(
+    (url) => url.pathname === `/v1/skill-sources/${IDS.source}`,
+    (route) => {
+      state.sourceReads += 1;
+      return route.fallback();
+    },
+  );
   await page.route(
     (url) => url.pathname === `/v1/skills/${SKILL}`,
     (route) => route.fulfill({ json: skill() }),
@@ -264,9 +276,12 @@ test("someone who cannot change the skill is offered neither", async ({ page }) 
 });
 
 test("a check with changes leads to a review, file by file, and takes the update", async ({ page }) => {
-  const { sent } = await open(page);
+  const { sent, state } = await open(page);
+  await expect(origin(page)).toContainText("Last checked");
+  const readsBefore = state.sourceReads;
   await origin(page).getByRole("button", { name: "Check for updates" }).click();
   await expect(origin(page)).toContainText("The source has changes.");
+  await expect.poll(() => state.sourceReads).toBeGreaterThan(readsBefore);
   await still(page, "skill-update-check-changes");
   await origin(page).getByRole("button", { name: "Review update" }).click();
   await expect(page).toHaveURL(new RegExp(`${PAGE}/update$`));
