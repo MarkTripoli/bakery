@@ -179,9 +179,12 @@ export class ConnectRefused extends Error {
   }
 }
 
-const REFUSAL_OUTCOME: Readonly<Record<ConnectRefusal, ConnectionOutcome>> = {
-  enterprise_install: ConnectionOutcome.EnterpriseInstall,
-};
+function refusalOutcome(refusal: ConnectRefusal): ConnectionOutcome {
+  switch (refusal) {
+    case "enterprise_install":
+      return ConnectionOutcome.EnterpriseInstall;
+  }
+}
 
 export async function exchangeOAuth2Code(
   fetcher: OAuth2Fetch,
@@ -503,7 +506,7 @@ export function createOAuth2CallbackRunner(
       return await fail(
         "exchange",
         error instanceof ConnectRefused
-          ? REFUSAL_OUTCOME[error.refusal]
+          ? refusalOutcome(error.refusal)
           : ConnectionOutcome.ExchangeFailed,
         error,
       );
