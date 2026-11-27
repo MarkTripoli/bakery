@@ -12,6 +12,7 @@ import {
 } from "../helpers/worker-execution.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { sha256Hex } from "../../apps/server/src/platform/canonical-json.ts";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 
 /** One terminal: every public call comes from the same peer address. */
 const ONE_MACHINE = {
@@ -349,6 +350,59 @@ Deno.test("a machine with no code is approved in the browser, then links", () =>
       "worker.pollLinkRequest",
       "workerLinkRequests.approve",
     ]);
+  }));
+
+Deno.test("a poll that waits for the approval to commit still hands out the link code", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const request = await createRequest(fixture);
+    const approved = await adminRequest(
+      fixture,
+      `/v1/worker-link-requests/${request.requestId}/approvals`,
+      { slots: 2, capabilities: ["git"] },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(approved.status, 200, await approved.clone().text());
+    const decided = (await fixture.pgDatabase.query<Record<string, unknown>>(
+      `select organization_id, decided_at, decided_by, decision_idempotency_key,
+              decision_request_digest, enrollment_id
+         from bakery.worker_link_requests where id = $1`,
+      [request.requestId],
+    )).rows[0]!;
+    await fixture.pgDatabase.query(
+      `update bakery.worker_link_requests
+          set organization_id = null, decision = null, decided_at = null,
+              decided_by = null, decision_idempotency_key = null,
+              decision_request_digest = null, enrollment_id = null
+        where id = $1`,
+      [request.requestId],
+    );
+
+    let waiting: Promise<Response> | undefined;
+    await withPgTransaction(fixture.pgDatabase, async (approval) => {
+      await approval.query(
+        `update bakery.worker_link_requests
+            set organization_id = $2, decision = 'approved', decided_at = $3,
+                decided_by = $4, decision_idempotency_key = $5,
+                decision_request_digest = $6, enrollment_id = $7
+          where id = $1`,
+        [
+          request.requestId,
+          decided.organization_id,
+          decided.decided_at,
+          decided.decided_by,
+          decided.decision_idempotency_key,
+          decided.decision_request_digest,
+          decided.enrollment_id,
+        ],
+      );
+      waiting = poll(fixture, request.requestId, request.deviceSecret);
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    });
+
+    const answer = await (await waiting!).json();
+    assertEquals(answer.state, "approved");
+    assertMatch(answer.linkCode, CODE);
   }));
 
 Deno.test("a declined machine stops and can no longer be approved", () =>

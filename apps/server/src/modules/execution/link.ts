@@ -311,13 +311,18 @@ async function loadLinkRequest(
   where: string,
   value: string,
 ): Promise<LinkRequestRow | undefined> {
+  await transaction.query(
+    `select 1 from bakery.worker_link_requests r
+     where ${where} = $1
+     for update`,
+    [value],
+  );
   const rows = await transaction.query<LinkRequestRow>(
     `select ${LINK_REQUEST_COLUMNS}
      from bakery.worker_link_requests r
      left join bakery.worker_enrollments e
        on e.organization_id = r.organization_id and e.id = r.enrollment_id
-     where ${where} = $1
-     for update of r`,
+     where ${where} = $1`,
     [value],
   );
   return rows.rows[0];
