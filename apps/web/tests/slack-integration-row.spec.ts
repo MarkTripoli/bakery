@@ -475,11 +475,7 @@ const slackConnection = (extra: Record<string, unknown> = {}) => ({
   provider: "slack",
   label: "Test Workspace",
   externalAccountId: "T0123456",
-  grantedScopes: {
-    "channels:read": "granted",
-    "groups:read": "granted",
-    "chat:write": "granted",
-  },
+  grantedScopes: { channels: "read", chat: "write" },
   config: {},
   secretId: null,
   createdBy: "00000000-0000-4000-8000-000000000001",

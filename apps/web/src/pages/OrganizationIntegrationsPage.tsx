@@ -112,11 +112,10 @@ export function OrganizationIntegrationsPage(
 
   // A callback that names the connection it made or refreshed lands on that
   // connection's page, on its next unfinished step, with the outcome shown.
+  const landing = outcome !== null && connectionId !== null &&
+    OUTCOMES_FOR_THE_CONNECTION.has(outcome);
   useEffect(() => {
-    if (
-      outcome !== null && connectionId !== null &&
-      OUTCOMES_FOR_THE_CONNECTION.has(outcome)
-    ) {
+    if (landing) {
       void navigate({
         to: "/settings/organization/integrations/$connectionId",
         params: { connectionId },
@@ -126,7 +125,7 @@ export function OrganizationIntegrationsPage(
         replace: true,
       });
     }
-  }, [outcome, outcomeProvider, connectionId, navigate]);
+  }, [landing, outcome, outcomeProvider, connectionId, navigate]);
 
   const items = connections.data ?? [];
   const rows: ConnectionRow[] = items.map((connection) => ({
@@ -203,7 +202,7 @@ export function OrganizationIntegrationsPage(
             })}
           onReconnect={reconnect}
           onReload={() => void connections.refetch()}
-          outcome={outcome}
+          outcome={landing ? null : outcome}
           rows={rows}
           state={state}
         />
