@@ -48,6 +48,7 @@ const evidence = (
     baseSha: BASE,
     policyDigest: POLICY,
     blocking: 0,
+    accepted: false,
     ...overrides.review,
   },
   checks: overrides.checks ?? [
@@ -152,6 +153,16 @@ Deno.test("a blocking review finding keeps the candidate out of the queue", () =
   assertEquals(
     refused(evidenceRefusal(input, evidence({ review: { blocking: 1 } }))),
     "STATE_CONFLICT:review_findings_blocking",
+  );
+});
+
+Deno.test("a blocking review a person accepted anyway no longer keeps the candidate out", () => {
+  assertEquals(
+    evidenceRefusal(
+      input,
+      evidence({ review: { blocking: 1, accepted: true } }),
+    ),
+    null,
   );
 });
 

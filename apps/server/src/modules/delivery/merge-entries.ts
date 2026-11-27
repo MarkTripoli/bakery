@@ -163,6 +163,7 @@ export type CandidateEvidence = {
     baseSha: string;
     policyDigest: string;
     blocking: number;
+    accepted: boolean;
   } | null;
   checks: readonly {
     id: string;
@@ -236,7 +237,7 @@ export function evidenceRefusal(
   ) {
     return { code: "PRECONDITION_FAILED", reason: "review_evidence_stale" };
   }
-  if (review.blocking > 0) {
+  if (review.blocking > 0 && !review.accepted) {
     return { code: "STATE_CONFLICT", reason: "review_findings_blocking" };
   }
   // An entry that names no check run has no required-checks evidence to
@@ -288,11 +289,20 @@ export async function assertCandidateEvidence(
     baseSha: string;
     policyDigest: string;
     blocking: number;
+    accepted: boolean;
   }>(
-    `select head_sha as "headSha", base_sha as "baseSha",
-       policy_digest as "policyDigest", blocking_count as "blocking"
-       from bakery.review_cycles
-      where organization_id = $1 and id = $2 and run_id = $3`,
+    `select review.head_sha as "headSha", review.base_sha as "baseSha",
+       review.policy_digest as "policyDigest",
+       review.blocking_count as "blocking",
+       exists (
+         select 1 from bakery.decisions_ledger as entry
+          where entry.organization_id = review.organization_id
+            and entry.kind = 'accept_with_reason'
+            and entry.subject_kind = 'review' and entry.subject_id = review.id
+       ) as "accepted"
+       from bakery.review_cycles as review
+      where review.organization_id = $1 and review.id = $2
+        and review.run_id = $3`,
     [organizationId, input.reviewCycleId, input.runId],
   )).rows[0] ?? null;
   const checks = (await transaction.query<{

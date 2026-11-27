@@ -7,6 +7,7 @@ import {
   type MergeEntryCreateInput,
 } from "../../apps/server/src/modules/delivery/merge-entries.ts";
 import { withReviewedRun } from "../helpers/review-repair/loop-world.ts";
+import { appendDecision } from "../../apps/server/src/modules/work/human-approval-store.ts";
 import { HEADS } from "../helpers/review-repair/loop-world.ts";
 
 /**
@@ -31,97 +32,125 @@ type Scope = {
   checkRunIds: string[];
 };
 
+async function reviewedCandidate(
+  world: Parameters<Parameters<typeof withReviewedRun>[0]>[0],
+  seeded: Parameters<Parameters<typeof withReviewedRun>[0]>[1],
+  review: { status: string; blocking: number } = {
+    status: "completed",
+    blocking: 0,
+  },
+) {
+  const database = world.fixture.pgDatabase;
+  const organizationId = world.repository.organizationId;
+  const repositoryId = world.repository.repositoryId;
+
+  const implementer = (await database.query<{ id: string }>(
+    `select id from bakery.agent_sessions
+      where organization_id = $1 order by created_at limit 1`,
+    [organizationId],
+  )).rows[0].id;
+  assert(implementer !== undefined);
+  const principal = (await database.query<{ id: string }>(
+    `select principal_id as id from bakery.organization_memberships
+      where organization_id = $1 and status = 'active'
+      order by created_at limit 1`,
+    [organizationId],
+  )).rows[0].id;
+  const evidence = (await database.query<{
+    headSha: string;
+    baseSha: string;
+    policyDigest: string;
+  }>(
+    `select head_sha as "headSha", base_sha as "baseSha",
+       policy_digest as "policyDigest"
+       from bakery.check_runs
+      where organization_id = $1 and id = $2`,
+    [organizationId, seeded.rows[0].id],
+  )).rows[0];
+  assert(evidence.baseSha !== null);
+  const cycleId = crypto.randomUUID();
+  await database.query(
+    `insert into bakery.review_cycles (
+       id,organization_id,run_id,run_step_id,ordinal,reviewer_session_id,
+       reviewer_principal_id,implementer_session_id,implementer_principal_id,
+       head_sha,base_sha,policy_digest,status,finding_count,blocking_count
+     ) values ($1,$2,$3,$4,1,$5,$6,$5,$6,$7,$8,$9,$10,$11,$11)`,
+    [
+      cycleId,
+      organizationId,
+      world.runId,
+      seeded.stepId,
+      implementer,
+      principal,
+      evidence.headSha,
+      evidence.baseSha,
+      evidence.policyDigest,
+      review.status,
+      review.blocking,
+    ],
+  );
+  const pullRequestId = crypto.randomUUID();
+  await database.query(
+    `insert into bakery.pull_requests (
+       id,organization_id,task_id,repository_id,provider_number,url,head_sha,
+       base_sha,status,version
+     ) values ($1,$2,$3,$4,91,'https://github.com/acme/widgets/pull/91',
+       $5,$6,'open',1)`,
+    [
+      pullRequestId,
+      organizationId,
+      world.taskId,
+      repositoryId,
+      evidence.headSha,
+      evidence.baseSha,
+    ],
+  );
+
+  const input: MergeEntryCreateInput = {
+    pullRequestId,
+    repositoryId,
+    targetBranch: BRANCH,
+    expectedHeadSha: evidence.headSha,
+    expectedBaseSha: evidence.baseSha,
+    runId: world.runId,
+    policyDigest: evidence.policyDigest,
+    reviewCycleId: cycleId,
+    checkRunIds: seeded.rows.map((row) => row.id),
+  };
+  const create = async (overrides: Partial<MergeEntryCreateInput> = {}) =>
+    await withPgTransaction(
+      database,
+      (transaction) =>
+        createMergeEntry(transaction, organizationId, principal, {
+          requestId: `request-${crypto.randomUUID()}`,
+          traceId: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+          create: { ...input, ...overrides },
+        }),
+    );
+
+  return {
+    database,
+    organizationId,
+    repositoryId,
+    principal,
+    cycleId,
+    input,
+    create,
+    evidence,
+  };
+}
+
 Deno.test("the merge queue admits only the exact reviewed candidate (#40)", async () => {
   await withReviewedRun(async (world, seeded) => {
-    const database = world.fixture.pgDatabase;
-    const organizationId = world.repository.organizationId;
-    const repositoryId = world.repository.repositoryId;
-
-    // The candidate the review judged: one implemented head, one failing-free
-    // set of seeded checks (the fixture's default implement + check), and a
-    // cycle that names the same head, base and policy digest.
-    const implementer = (await database.query<{ id: string }>(
-      `select id from bakery.agent_sessions
-        where organization_id = $1 order by created_at limit 1`,
-      [organizationId],
-    )).rows[0].id;
-    assert(implementer !== undefined);
-    const principal = (await database.query<{ id: string }>(
-      `select principal_id as id from bakery.organization_memberships
-        where organization_id = $1 and status = 'active'
-        order by created_at limit 1`,
-      [organizationId],
-    )).rows[0].id;
-    const evidence = (await database.query<{
-      headSha: string;
-      baseSha: string;
-      policyDigest: string;
-    }>(
-      `select head_sha as "headSha", base_sha as "baseSha",
-         policy_digest as "policyDigest"
-         from bakery.check_runs
-        where organization_id = $1 and id = $2`,
-      [organizationId, seeded.rows[0].id],
-    )).rows[0];
-    assert(evidence.baseSha !== null);
-    const cycleId = crypto.randomUUID();
-    await database.query(
-      `insert into bakery.review_cycles (
-         id,organization_id,run_id,run_step_id,ordinal,reviewer_session_id,
-         reviewer_principal_id,implementer_session_id,implementer_principal_id,
-         head_sha,base_sha,policy_digest,status,finding_count,blocking_count
-       ) values ($1,$2,$3,$4,1,$5,$6,$5,$6,$7,$8,$9,'completed',0,0)`,
-      [
-        cycleId,
-        organizationId,
-        world.runId,
-        seeded.stepId,
-        implementer,
-        principal,
-        evidence.headSha,
-        evidence.baseSha,
-        evidence.policyDigest,
-      ],
-    );
-    const pullRequestId = crypto.randomUUID();
-    await database.query(
-      `insert into bakery.pull_requests (
-         id,organization_id,task_id,repository_id,provider_number,url,head_sha,
-         base_sha,status,version
-       ) values ($1,$2,$3,$4,91,'https://github.com/acme/widgets/pull/91',
-         $5,$6,'open',1)`,
-      [
-        pullRequestId,
-        organizationId,
-        world.taskId,
-        repositoryId,
-        evidence.headSha,
-        evidence.baseSha,
-      ],
-    );
-
-    const input: MergeEntryCreateInput = {
-      pullRequestId,
+    const {
+      database,
+      organizationId,
       repositoryId,
-      targetBranch: BRANCH,
-      expectedHeadSha: evidence.headSha,
-      expectedBaseSha: evidence.baseSha,
-      runId: world.runId,
-      policyDigest: evidence.policyDigest,
-      reviewCycleId: cycleId,
-      checkRunIds: seeded.rows.map((row) => row.id),
-    };
-    const create = async (overrides: Partial<MergeEntryCreateInput> = {}) =>
-      await withPgTransaction(
-        database,
-        (transaction) =>
-          createMergeEntry(transaction, organizationId, principal, {
-            requestId: `request-${crypto.randomUUID()}`,
-            traceId: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-            create: { ...input, ...overrides },
-          }),
-      );
-
+      principal,
+      input,
+      create,
+      evidence,
+    } = await reviewedCandidate(world, seeded);
     // The exact candidate is admitted, and the queue says so once.
     const admitted = await create();
     assertEquals(admitted.status, "queued");
@@ -239,6 +268,38 @@ Deno.test("the merge queue admits only the exact reviewed candidate (#40)", asyn
 
     // The fixture deletes the organization's tasks; the pull request this test
     // added would block that, so it goes first (its entries cascade).
+    await database.query(
+      "delete from bakery.pull_requests where organization_id = $1",
+      [organizationId],
+    );
+  });
+});
+
+Deno.test("a review that requested changes and was accepted anyway admits the candidate (#57)", async () => {
+  await withReviewedRun(async (world, seeded) => {
+    const { database, organizationId, principal, cycleId, create } =
+      await reviewedCandidate(world, seeded, {
+        status: "changes_requested",
+        blocking: 1,
+      });
+    const blocked = await assertRejects(() => create(), StandardError);
+    assertEquals(blocked.params?.reason, "review_findings_blocking");
+    await withPgTransaction(
+      database,
+      (transaction) =>
+        appendDecision(transaction, {
+          organizationId,
+          taskId: world.taskId,
+          runId: world.runId,
+          kind: "accept_with_reason",
+          subjectKind: "review",
+          subjectId: cycleId,
+          decidedBy: principal,
+          reason: "The finding is a false positive.",
+          detail: { ordinal: 1, blockingCount: 1 },
+        }),
+    );
+    assertEquals((await create()).status, "queued");
     await database.query(
       "delete from bakery.pull_requests where organization_id = $1",
       [organizationId],

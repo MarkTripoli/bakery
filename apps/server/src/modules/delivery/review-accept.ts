@@ -30,10 +30,6 @@ import {
  *   overrule, and accepting it would add a decision that means nothing.
  * - Once per review: a second decision would let the record disagree with itself.
  * - A reason is required; a blank one is refused before anything is written.
- *
- * This records the decision. It does not restart a run that already stopped:
- * the interpreter reads decisions, and a workflow that continues past an
- * accepted review is what makes it count.
  */
 export async function acceptReview(
   context: ActionContext,
