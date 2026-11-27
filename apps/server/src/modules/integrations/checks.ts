@@ -537,6 +537,12 @@ export async function probe(
  * 3. the result is stored through `next`, which rechecks the Admin, the
  *    status and the version under the row lock.
  */
+class ProviderRateLimited extends Error {
+  constructor(readonly retryAfterSeconds: number) {
+    super("provider rate limited");
+  }
+}
+
 type ProviderCheckTarget = {
   principalId: string;
   connectionId: string;
@@ -613,21 +619,36 @@ async function probeProvider(
     context.signal,
     AbortSignal.timeout(PROVIDER_CHECK_DEADLINE_MS),
   ]);
-  const verdict = await provider.impl.health.check({
-    provider: bearerRequestPort(
-      fetcher,
-      connect.apiBaseUrl,
-      target.token,
+  let verdict;
+  try {
+    verdict = await provider.impl.health.check({
+      provider: bearerRequestPort(
+        fetcher,
+        connect.apiBaseUrl,
+        target.token,
+        signal,
+      ),
+      origin: {
+        apiBaseUrl: connect.apiBaseUrl,
+        webBaseUrl: connect.webBaseUrl ?? connect.apiBaseUrl,
+      },
       signal,
-    ),
-    origin: {
-      apiBaseUrl: connect.apiBaseUrl,
-      webBaseUrl: connect.webBaseUrl ?? connect.apiBaseUrl,
-    },
-    signal,
-    now: () => new Date(),
-  });
+      now: () => new Date(),
+    });
+  } catch {
+    context.signal.throwIfAborted();
+    verdict = {
+      healthy: false as const,
+      reason: "dependency_unreachable",
+      retryable: true,
+    };
+  }
   context.signal.throwIfAborted();
+  if (!verdict.healthy && verdict.reason === "rate_limited") {
+    throw new ProviderRateLimited(
+      verdict.retryAfterSeconds ?? DEFAULT_RATE_LIMIT_SECONDS,
+    );
+  }
   if (verdict.healthy) {
     return {
       completed: true,
@@ -763,12 +784,35 @@ export function createConnectionCheckRunner(
     if ("providerTarget" in read) {
       const target = read.providerTarget;
       context.signal.throwIfAborted();
-      const outcome = await probeProvider(
-        fetcher,
-        target,
-        context,
-        dependencies.publicBaseUrl,
-      );
+      let outcome;
+      try {
+        outcome = await probeProvider(
+          fetcher,
+          target,
+          context,
+          dependencies.publicBaseUrl,
+        );
+      } catch (caught) {
+        if (!(caught instanceof ProviderRateLimited)) throw caught;
+        const seconds = boundRetryAfterSeconds(caught.retryAfterSeconds);
+        await authority.run(action, context, parsed, async (authorized) => {
+          const { context: value, actor } = organizationActor(authorized);
+          await value.transaction.query(
+            `update bakery.integration_connections
+                set next_allowed_at = greatest(
+                  coalesce(next_allowed_at, $3::timestamptz),
+                  $3::timestamptz)
+              where organization_id = $1 and id = $2
+                and archived_at is null`,
+            [
+              actor.organizationId,
+              target.connectionId,
+              new Date(Date.now() + seconds * 1000).toISOString(),
+            ],
+          );
+        });
+        throw quotaExceeded(seconds);
+      }
       const result = CheckResultSchema.parse({
         principalId: target.principalId,
         connectionId: target.connectionId,

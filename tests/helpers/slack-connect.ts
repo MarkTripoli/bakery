@@ -27,6 +27,7 @@ type SlackCall = { url: string; body: string; authorization: string | null };
 export function fakeSlack(options: { tokenOk?: boolean } = {}) {
   const calls: SlackCall[] = [];
   const issued = { token: BOT_TOKEN };
+  const answers: { authTest: (() => Response) | null } = { authTest: null };
   const respond = (input: URL, init: RequestInit): Response => {
     const headers = new Headers(init.headers);
     const body = init.body instanceof URLSearchParams
@@ -56,6 +57,7 @@ export function fakeSlack(options: { tokenOk?: boolean } = {}) {
       });
     }
     if (input.href === "https://slack.com/api/auth.test") {
+      if (answers.authTest !== null) return answers.authTest();
       const ok = headers.get("authorization") === `Bearer ${issued.token}`;
       return Response.json({
         ok,
@@ -69,7 +71,7 @@ export function fakeSlack(options: { tokenOk?: boolean } = {}) {
   };
   const fetch = (input: URL, init: RequestInit) =>
     Promise.resolve(respond(input, init));
-  return { calls, fetch, issued };
+  return { calls, fetch, issued, answers };
 }
 
 export async function open(
