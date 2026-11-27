@@ -205,17 +205,17 @@ Deno.test("an ask reaches at most 50 people: one more is refused and nobody is a
     assertEquals((await requestsOn(fixture, session.own.runId)).length, 50);
   }));
 
-Deno.test("without an ask grant the tool is not offered and nobody is asked", () =>
+Deno.test("without an ask grant an agent cannot ask a role, though the tool is offered", () =>
   withWorkerFixture(async (fixture) => {
     await addMember(fixture, "Dana", "developer");
     const session = await agentSession(fixture, { granted: null });
-    assert(!(await session.tools()).includes("runRequests.create"));
+    assert((await session.tools()).includes("runRequests.create"));
     const response = await ask(session, { recipientRoleKey: "developer" });
     assertEquals(response.status, 403, await response.text());
     assertEquals((await requestsOn(fixture, session.own.runId)).length, 0);
   }));
 
-Deno.test("an ask grant reaches only the role it names, never one person", () =>
+Deno.test("an ask grant reaches only the role it names, and its members one by one", () =>
   withWorkerFixture(async (fixture) => {
     const dana = await addMember(fixture, "Dana", "developer");
     await addMember(fixture, "Ada", "admin");
@@ -228,12 +228,14 @@ Deno.test("an ask grant reaches only the role it names, never one person", () =>
       403,
       "agent_ask_audience_not_granted",
     );
-    await refusedWith(
-      await ask(session, { recipientId: dana }),
-      403,
-      "agent_ask_audience_not_granted",
+    const one = await ask(session, { recipientId: dana });
+    assert(one.ok, await one.text());
+    assertEquals(
+      (await requestsOn(fixture, session.own.runId)).map((row) =>
+        row.recipient_id
+      ),
+      [dana],
     );
-    assertEquals((await requestsOn(fixture, session.own.runId)).length, 0);
   }));
 
 Deno.test("an agent asks only on its own run", () =>
@@ -442,5 +444,184 @@ Deno.test("two controls racing for a run's last transition: exactly one wins", (
         [fixture.organizationId, target.runId],
       );
       assertEquals(events.rows.length, 1);
+    }
+  }));
+
+async function involve(fixture: AgentFixture, runId: string, person: string) {
+  await fixture.pgDatabase.query(
+    `insert into bakery.person_requests (
+       organization_id, run_id, task_id, intent, recipient_id, asked_by,
+       asked_by_kind, status, expires_at)
+     select run.organization_id, run.id, run.task_id, 'fyi', $3, $4, 'person',
+            'responded', now() + interval '7 days'
+       from bakery.workflow_runs as run
+      where run.organization_id = $1 and run.id = $2`,
+    [fixture.organizationId, runId, person, fixture.principalId],
+  );
+}
+
+async function agentAsks(fixture: AgentFixture, runId: string) {
+  return (await fixture.pgDatabase.query<
+    { recipient_id: string; asked_by_session_id: string | null }
+  >(
+    `select recipient_id, asked_by_session_id from bakery.person_requests
+      where organization_id = $1 and run_id = $2 and asked_by_kind = 'agent'
+      order by created_at`,
+    [fixture.organizationId, runId],
+  )).rows;
+}
+
+Deno.test("without a grant an agent asks a person already involved in its run, recorded as the agent's", () =>
+  withWorkerFixture(async (fixture) => {
+    const dana = await addMember(fixture, "Dana", "developer");
+    const session = await agentSession(fixture, { granted: null });
+    await involve(fixture, session.own.runId, dana);
+    const response = await ask(session, { recipientId: dana });
+    assert(response.ok, await response.text());
+    const asked = await agentAsks(fixture, session.own.runId);
+    assertEquals(asked.map((row) => row.recipient_id), [dana]);
+    assert(asked[0]!.asked_by_session_id !== null);
+  }));
+
+Deno.test("without a grant an agent cannot bring in someone new", () =>
+  withWorkerFixture(async (fixture) => {
+    const ava = await addMember(fixture, "Ava", "developer");
+    const session = await agentSession(fixture, { granted: null });
+    await refusedWith(
+      await ask(session, { recipientId: ava }),
+      403,
+      "agent_ask_not_involved",
+    );
+    assertEquals(await agentAsks(fixture, session.own.runId), []);
+  }));
+
+Deno.test("without a grant an agent cannot hand someone a power they do not already hold", () =>
+  withWorkerFixture(async (fixture) => {
+    const gus = await addMember(fixture, "Gus", "guest");
+    const session = await agentSession(fixture, { granted: null });
+    await involve(fixture, session.own.runId, gus);
+    const step = await fixture.pgDatabase.query<{ step_key: string }>(
+      `select step_key from bakery.run_steps
+        where organization_id = $1 and run_id = $2
+          and status in ('pending', 'running', 'waiting')
+        order by iteration desc limit 1`,
+      [fixture.organizationId, session.own.runId],
+    );
+    await refusedWith(
+      await ask(session, {
+        recipientId: gus,
+        intent: "take_over",
+        stepKey: step.rows[0]!.step_key,
+      }),
+      403,
+      "agent_ask_power_not_held",
+    );
+    assertEquals(await agentAsks(fixture, session.own.runId), []);
+  }));
+
+Deno.test("an agent tags at most three people from one step", () =>
+  withWorkerFixture(async (fixture) => {
+    const session = await agentSession(fixture, { granted: null });
+    const people: string[] = [];
+    for (const name of ["Ann", "Ben", "Cy", "Dee"]) {
+      const id = await addMember(fixture, name, "developer");
+      await involve(fixture, session.own.runId, id);
+      people.push(id);
+    }
+    for (const person of people.slice(0, 3)) {
+      const response = await ask(session, { recipientId: person });
+      assert(response.ok, await response.text());
+    }
+    await refusedWith(
+      await ask(session, { recipientId: people[3] }),
+      409,
+      "agent_ask_step_limit",
+    );
+    const again = await ask(session, { recipientId: people[0] });
+    assert(again.ok, await again.text());
+    assertEquals((await agentAsks(fixture, session.own.runId)).length, 3);
+  }));
+
+Deno.test("an agent tags at most ten people on one run", () =>
+  withWorkerFixture(async (fixture) => {
+    const session = await agentSession(fixture, { granted: null });
+    const earlier: string[] = [];
+    for (let index = 0; index < 10; index += 1) {
+      earlier.push(await addMember(fixture, `Earlier${index}`, "developer"));
+    }
+    await fixture.pgDatabase.query(
+      `insert into bakery.person_requests (
+         organization_id, run_id, task_id, intent, recipient_id, asked_by,
+         asked_by_kind, status, expires_at)
+       select run.organization_id, run.id, run.task_id, 'fyi', person, $3,
+              'agent', 'responded', now() + interval '7 days'
+         from bakery.workflow_runs as run, unnest($4::uuid[]) as person
+        where run.organization_id = $1 and run.id = $2`,
+      [fixture.organizationId, session.own.runId, fixture.principalId, earlier],
+    );
+    const next = await addMember(fixture, "Next", "developer");
+    await involve(fixture, session.own.runId, next);
+    await refusedWith(
+      await ask(session, { recipientId: next }),
+      409,
+      "agent_ask_run_limit",
+    );
+  }));
+
+Deno.test("an agent may remind someone of a power a person already granted them", () =>
+  withWorkerFixture(async (fixture) => {
+    const gus = await addMember(fixture, "Gus", "guest");
+    const session = await agentSession(fixture, { granted: null });
+    const step = await fixture.pgDatabase.query<{ step_key: string }>(
+      `select step_key from bakery.run_steps
+        where organization_id = $1 and run_id = $2
+          and status in ('pending', 'running', 'waiting')
+        order by iteration desc limit 1`,
+      [fixture.organizationId, session.own.runId],
+    );
+    const granted = await adminRequest(
+      fixture,
+      `/v1/runs/${session.own.runId}/requests`,
+      {
+        recipientId: gus,
+        intent: "take_over",
+        stepKey: step.rows[0]!.step_key,
+      },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assert(granted.ok, await granted.text());
+    const response = await ask(session, {
+      recipientId: gus,
+      intent: "take_over",
+      stepKey: step.rows[0]!.step_key,
+    });
+    assert(response.ok, await response.text());
+  }));
+
+Deno.test("an agent's ask waits for another ask on the same run to finish counting", () =>
+  withWorkerFixture(async (fixture) => {
+    const dana = await addMember(fixture, "Dana", "developer");
+    const session = await agentSession(fixture, { granted: null });
+    await involve(fixture, session.own.runId, dana);
+    const holder = await fixture.pgDatabase.connect();
+    try {
+      await holder.query("begin");
+      await holder.query(
+        "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+        [`agent-ask:${session.own.runId}`],
+      );
+      let settled = false;
+      const pending = ask(session, { recipientId: dana }).then((response) => {
+        settled = true;
+        return response;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      assertEquals(settled, false);
+      await holder.query("commit");
+      const response = await pending;
+      assert(response.ok, await response.text());
+    } finally {
+      await holder.query("rollback").catch(() => undefined);
+      holder.release();
     }
   }));

@@ -228,6 +228,7 @@ export async function grantedScopesForAttempt(
 ): Promise<readonly OperationScope[]> {
   const origin = await attemptOrigin(tx, organizationId, attemptId);
   if (origin === null) return [];
+  const scopes = new Set<OperationScope>(POWER_SESSION_SCOPES.ask);
   const granted = await tx.query<{ power: string }>(
     `select distinct power from bakery.agent_power_grants
       where organization_id = $1 and workflow_id = $2
@@ -235,7 +236,6 @@ export async function grantedScopesForAttempt(
         and (expires_at is null or expires_at > now())`,
     [organizationId, origin.workflowId],
   );
-  const scopes = new Set<OperationScope>();
   for (const { power } of granted.rows) {
     if (!isAgentPower(power)) continue;
     for (const scope of POWER_SESSION_SCOPES[power]) scopes.add(scope);
