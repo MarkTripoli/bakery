@@ -425,3 +425,64 @@ Deno.test("saving the signing secret after connecting points the existing instal
     await o.finish();
   }
 });
+
+async function changeConnection(
+  o: Opened,
+  connectionId: string,
+  change: "off" | "on" | "remove",
+) {
+  const headers = { "Bakery-Organization-Id": o.fixture.organizationId };
+  const current = await call(
+    o.fixture,
+    "GET",
+    `/v1/integration-connections/${connectionId}`,
+    o.fixture.adminCookie,
+    { headers },
+  );
+  const { version } = await current.json() as { version: number };
+  const response = await call(
+    o.fixture,
+    change === "remove" ? "POST" : "PATCH",
+    change === "remove"
+      ? `/v1/integration-connections/${connectionId}/removal`
+      : `/v1/integration-connections/${connectionId}`,
+    o.fixture.adminCookie,
+    {
+      ...(change === "remove" ? {} : { body: { enabled: change === "on" } }),
+      headers: {
+        ...headers,
+        "If-Match": `"${version}"`,
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+    },
+  );
+  assert(response.ok, await response.clone().text());
+}
+
+Deno.test("the Slack installation follows its connection: off or removed refuses events, on or restored accepts them", async () => {
+  const o = await open(fakeSlack(), { signingSecret: SIGNING_SECRET });
+  try {
+    const connectionId = await connectOnce(o);
+    assertEquals((await postEvent(o, SIGNING_SECRET)).status, 200);
+
+    await changeConnection(o, connectionId, "off");
+    assertEquals((await installations(o))[0]!.status, "disabled");
+    assertEquals((await postEvent(o, SIGNING_SECRET)).status, 401);
+
+    await changeConnection(o, connectionId, "on");
+    assertEquals((await installations(o))[0]!.status, "active");
+    assertEquals((await postEvent(o, SIGNING_SECRET)).status, 200);
+
+    await changeConnection(o, connectionId, "remove");
+    assertEquals((await installations(o))[0]!.status, "disabled");
+    assertEquals((await postEvent(o, SIGNING_SECRET)).status, 401);
+
+    assertEquals(outcome(await reconnect(o, connectionId)), "refreshed");
+    const rows = await installations(o);
+    assertEquals(rows.length, 1);
+    assertEquals(rows[0]!.status, "active");
+    assertEquals((await postEvent(o, SIGNING_SECRET)).status, 200);
+  } finally {
+    await o.finish();
+  }
+});

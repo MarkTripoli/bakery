@@ -336,6 +336,8 @@ they cannot invoke an action or read a secret.
   that run even when `until` already holds; `until` is not asked before round
   `min`. `repeat.allow` (min..max) is a soft cap: a loop that uses it below `max`
   with `until` still false pauses the run, and no allowance goes past `max`.
+  `runs.get` serves that stop as `limitStop` (the repeat, rounds run, rounds
+  allowed and most) while the failed run waits for a decision.
   Interpreter revision 4 honors both; earlier revisions ignore them. A repeat
   terminates with exactly one outcome: `completed`, `exhausted`, `canceled`,
   `failed`, or `timed_out`; `exhausted` cannot satisfy a delivery gate.

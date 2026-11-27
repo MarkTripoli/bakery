@@ -30,6 +30,16 @@ export type ProviderCredentialsSaved = {
   readonly callbackUrl: string;
 };
 
+export type ProviderCredentialsFailure = {
+  readonly signingSecretSent: boolean;
+  readonly signingSecretRefused: boolean;
+};
+
+export const NO_PROVIDER_CREDENTIALS_FAILURE: ProviderCredentialsFailure = {
+  signingSecretSent: false,
+  signingSecretRefused: false,
+};
+
 export type ProviderCredentialsView =
   | "loading"
   | "error"
@@ -54,6 +64,7 @@ export type ProviderCredentialsSectionProps = {
   readonly guideUrl?: string;
   readonly connectAvailable?: boolean;
   readonly signingSecret?: boolean;
+  readonly failure?: ProviderCredentialsFailure;
   readonly onChange: (
     field: keyof ProviderCredentialValues,
     value: string,
@@ -91,6 +102,7 @@ export function ProviderCredentialsSection(
     guideUrl,
     connectAvailable,
     signingSecret,
+    failure = NO_PROVIDER_CREDENTIALS_FAILURE,
     onChange,
     onSubmit,
     onReload,
@@ -124,6 +136,21 @@ export function ProviderCredentialsSection(
   const idTooLong = values.clientId.length > CLIENT_ID_MAX;
   const secretTooLong = values.clientSecret.length > CLIENT_SECRET_MAX;
   const signingTooLong = values.signingSecret.length > CLIENT_SECRET_MAX;
+  const failed = status === "failed";
+  const secretAgain = failed && !secretMissing && values.clientSecret === "";
+  const signingRefused = failed && failure.signingSecretRefused &&
+    values.signingSecret === "";
+  const signingAgain = failed && failure.signingSecretSent &&
+    !failure.signingSecretRefused && values.signingSecret === "";
+  const signingError = signingTooLong
+    ? translate("settings.integrations.credentials.tooLong", {
+      limit: CLIENT_SECRET_MAX,
+    })
+    : signingRefused
+    ? translate(key("signingSecretRefused"))
+    : signingAgain
+    ? translate("settings.integrations.credentials.signingSecretAgain")
+    : undefined;
   const date = (value: string | null) =>
     value
       ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone })
@@ -241,7 +268,13 @@ export function ProviderCredentialsSection(
               {status === "failed"
                 ? (
                   <UI.AlertBanner tone="error">
-                    {translate(key("saveFailed"))}
+                    {translate(
+                      key(
+                        failure.signingSecretSent
+                          ? "saveFailedWithSigning"
+                          : "saveFailed",
+                      ),
+                    )}
                   </UI.AlertBanner>
                 )
                 : null}
@@ -330,13 +363,17 @@ export function ProviderCredentialsSection(
                             "settings.integrations.credentials.tooLong",
                             { limit: CLIENT_SECRET_MAX },
                           )
+                          : secretAgain
+                          ? translate(
+                            "settings.integrations.credentials.clientSecretAgain",
+                          )
                           : undefined}
                         htmlFor={ids.clientSecret}
                         label={translate(
                           `integrations.${provider}.fields.client_secret` as MessageKey,
                         )}
                         required
-                        state={secretMissing || secretTooLong
+                        state={secretMissing || secretTooLong || secretAgain
                           ? "invalid"
                           : "default"}
                       >
@@ -355,24 +392,19 @@ export function ProviderCredentialsSection(
                       {signingSecret
                         ? (
                           <UI.Field
-                            error={signingTooLong
-                              ? translate(
-                                "settings.integrations.credentials.tooLong",
-                                { limit: CLIENT_SECRET_MAX },
-                              )
-                              : undefined}
+                            error={signingError}
                             hint={translate(key("signingSecretHint"))}
                             htmlFor={ids.signingSecret}
                             label={translate(
                               `integrations.${provider}.fields.signing_secret` as MessageKey,
                             )}
-                            state={signingTooLong ? "invalid" : "default"}
+                            state={signingError ? "invalid" : "default"}
                           >
                             <UI.PasswordInput
                               autoComplete="new-password"
                               disabled={saving}
                               id={ids.signingSecret}
-                              invalid={signingTooLong}
+                              invalid={signingError !== undefined}
                               name="signingSecret"
                               onChange={(value) =>
                                 onChange("signingSecret", value)}

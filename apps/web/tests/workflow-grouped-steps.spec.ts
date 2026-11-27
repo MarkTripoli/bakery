@@ -117,7 +117,9 @@ test.describe("workflow editor: steps inside a group", () => {
     await page.locator("[data-connector='implement']")
       .getByRole("button").click();
     const picker = page.getByTestId("step-picker");
-    await expect(picker.locator("[data-pick-step]")).toHaveCount(1);
+    await expect(picker.locator("[data-pick-step]")).toHaveCount(2);
+    await expect(picker.locator("[data-pick-step='people.tag']"))
+      .toBeVisible();
     await expect(picker).toContainText(
       "Other step types need settings this page cannot fill in yet.",
     );
