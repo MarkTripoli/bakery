@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "4dc7f3e26db6f4c7fad0a7f7b066b62afb0cd14d"
+    "d548b750fdd43b8f34e2a472515b22d0bfbebd72"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:224dd91d0460f916fbe50dc011dbe58e4350711786c0cec3adac5d49ecc7faf2",
-  "reason": "#409 S4 tasks without an application by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 4dc7f3e26db6f4c7fad0a7f7b066b62afb0cd14d: Task.applicationId becomes nullable and TaskCreate.applicationId optional, so a provider-neutral ticket source with no application creates tasks; a task with no application names no repository. The web reads the field as nullable in this PR.",
+  "reason": "#409 S4 tasks without an application by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main d548b750fdd43b8f34e2a472515b22d0bfbebd72: Task.applicationId becomes nullable and TaskCreate.applicationId optional, so a provider-neutral ticket source with no application creates tasks; a task with no application names no repository. The web reads the field as nullable in this PR.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
