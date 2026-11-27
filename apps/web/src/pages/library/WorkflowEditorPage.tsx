@@ -34,6 +34,8 @@ import {
 import { startCardOf } from "./start-card.ts";
 import type { StartFocus } from "./StartPanel.tsx";
 import { publishChanges } from "./publish-changes.ts";
+import { DraftKeptNotice } from "./DraftKeptNotice.tsx";
+import { rewriteDraft } from "./leftover-draft.ts";
 import { PublishSummary } from "./PublishSummary.tsx";
 import { useBakeryApi } from "../../api/context.tsx";
 import {
@@ -57,7 +59,11 @@ import {
   type StepSkillRow,
   type StepSkills,
 } from "./StepPanel.tsx";
-import type { SkillResponse, WorkflowVersionSkills } from "../../api/client.ts";
+import type {
+  SkillResponse,
+  WorkflowVersionResponse,
+  WorkflowVersionSkills,
+} from "../../api/client.ts";
 import { WorkflowDiagram } from "./WorkflowDiagram.tsx";
 import { DiagramViewSwitch, useDiagramView } from "./diagram-view.tsx";
 import { versionSource } from "./copy-workflow.ts";
@@ -521,14 +527,44 @@ export function WorkflowEditorPage(
     },
   });
 
-  // Publishing the draft, and optionally making it the version in use: two
-  // forms of one action, decided by the button the person presses.
+  const [draftKept, setDraftKept] = useState<
+    { readonly used: WorkflowVersionResponse; readonly held: string } | null
+  >(null);
+  const [rewriting, setRewriting] = useState(false);
+  const draftNow = () =>
+    JSON.stringify([
+      writeTarget()?.version,
+      editor.steps,
+      editor.loops,
+      editor.starts,
+    ]);
+  const rebaseLeftoverDraft = async (used: WorkflowVersionResponse) => {
+    const target = draft?.status === "draft" ? writeTarget() : null;
+    if (target === null) return;
+    const held = draftNow();
+    setRewriting(true);
+    const written = await rewriteDraft(
+      api,
+      scope.organizationId as string,
+      workflowId,
+      target,
+      used,
+    );
+    setDraftKept(written ? null : { used, held });
+    setRewriting(false);
+    void queryClient.invalidateQueries({ queryKey: ["protected"] });
+  };
+  const retryRebase = (kept: NonNullable<typeof draftKept>) => {
+    if (draftNow() !== kept.held) return setDraftKept(null);
+    void rebaseLeftoverDraft(kept.used);
+  };
+
   const publish = useMutation({
     mutationKey: ["workflowVersions.publish"],
     mutationFn: async (alsoUse: boolean) => {
-      const latest = writeTarget();
-      let versionId = draft?.id ?? "";
-      let revision = draft?.revision ?? 0;
+      const latest = otherUnused === undefined ? writeTarget() : null;
+      let versionId = otherUnused?.id ?? draft?.id ?? "";
+      let revision = otherUnused?.revision ?? draft?.revision ?? 0;
       if (latest !== null) {
         const published = await api.publishWorkflowVersion({
           organizationId: scope.organizationId as string,
@@ -552,6 +588,7 @@ export function WorkflowEditorPage(
         idempotencyKey: crypto.randomUUID(),
       });
       if (!used.ok) throw new ActivationFailed(versionId, revision);
+      if (otherUnused !== undefined) await rebaseLeftoverDraft(otherUnused);
       return versionId;
     },
     onError: (error) => {
@@ -592,8 +629,21 @@ export function WorkflowEditorPage(
     [inUse, draft, steps, editor.loops, translate],
   );
   const startsChanged = !sameStarts(editor.starts, inUseStarts);
-  const draftDiffers = draft !== null &&
-    (publishedUnused || changes.differs || startsChanged);
+  const pendingChanges = draft !== null && (changes.differs || startsChanged);
+  const newerUnused = inUse === null ? undefined : (versions.data?.items ?? [])
+    .filter((item) =>
+      item.status === "published" && item.revision > inUse.revision
+    )
+    .sort((a, b) => b.revision - a.revision)[0];
+  const unused = publishedUnused
+    ? draft
+    : pendingChanges
+    ? undefined
+    : newerUnused;
+  const otherUnused = unused !== undefined && unused.id !== draft?.id
+    ? unused
+    : undefined;
+  const draftDiffers = pendingChanges || unused !== undefined;
 
   // The drawing comes from the definition itself, so nothing in it is left out:
   // groups, steps only changeable in code, and steps Bakery cannot read all keep
@@ -1190,8 +1240,35 @@ export function WorkflowEditorPage(
   >(null);
 
   const problemCount = rows.length;
+  const shown = otherUnused === undefined
+    ? {
+      changes,
+      startsChanged,
+      automatic,
+      blocked,
+      problemCount,
+    }
+    : {
+      changes: publishChanges(
+        inUse?.normalizedSpec,
+        record(otherUnused.normalizedSpec),
+        (key) => translate(key),
+      ),
+      startsChanged: !sameStarts(
+        startsOfVersion(otherUnused.starts),
+        inUseStarts,
+      ),
+      automatic: automaticStarts(startsOfVersion(otherUnused.starts)),
+      blocked: false,
+      problemCount: 0,
+    };
+  const cleanWord = unused !== undefined
+    ? translate("library.editor.publishedUnused", { version: unused.revision })
+    : draftDiffers
+    ? translate("library.editor.ready")
+    : translate("library.editor.noChanges");
   const problemWord = problemCount === 0
-    ? translate("library.editor.ready" as never)
+    ? cleanWord
     : problemCount === 1
     ? translate("library.editor.problem.one" as never)
     : translate("library.editor.problems" as never, {
@@ -1895,11 +1972,13 @@ export function WorkflowEditorPage(
                   version: inUse.revision,
                 })}
             </UI.Text>
-            {
-              /* A member needs to know before they try, on its own line so the
-                two sentences never run together (#67 UX ruling 6934081003
-                fix 4). */
-            }
+            {draftKept === null ? null : (
+              <DraftKeptNotice
+                onRetry={() => retryRebase(draftKept)}
+                pending={rewriting}
+                version={draftKept.used.revision}
+              />
+            )}
             {access.data === undefined || canManage
               ? null
               : (
@@ -2111,9 +2190,9 @@ export function WorkflowEditorPage(
           <UI.AlertDialog
             open
             variant="destructive"
-            title={publishedUnused
+            title={unused !== undefined
               ? translate("library.editor.publish.useTitle", {
-                version: String(draft.revision),
+                version: String(unused.revision),
               })
               : draftDiffers
               ? translate("library.editor.publish.title", {
@@ -2135,10 +2214,10 @@ export function WorkflowEditorPage(
                   : translate("library.editor.publish.close" as never)}
               </UI.Button>
             }
-            confirmAction={draftDiffers && !blocked
+            confirmAction={draftDiffers && !shown.blocked
               ? (
                 <UI.Inline gap="compact">
-                  {publishedUnused ? null : (
+                  {unused !== undefined ? null : (
                     <UI.Button
                       variant="secondary"
                       disabled={publish.isPending}
@@ -2153,7 +2232,7 @@ export function WorkflowEditorPage(
                     disabled={publish.isPending}
                     onClick={() => publish.mutate(true)}
                   >
-                    {publishedUnused
+                    {unused !== undefined
                       ? translate("library.workflow.versions.use")
                       : translate("library.editor.publish.andUse")}
                   </UI.Button>
@@ -2165,38 +2244,38 @@ export function WorkflowEditorPage(
               ? (
                 <UI.Stack gap="tight">
                   <UI.Text>
-                    {blocked
+                    {shown.blocked
                       ? translate("library.editor.publish.blocked")
                       : publish.error instanceof ActivationFailed
                       ? null
-                      : publishedUnused
+                      : unused !== undefined
                       ? translate("library.editor.publish.useBody", {
-                        version: String(draft.revision),
+                        version: String(unused.revision),
                       })
                       : translate("library.editor.publish.body")}
                   </UI.Text>
                   <UI.Text variant="muted">
                     {translate("library.workflow.steps.never" as never)}
                   </UI.Text>
-                  {blocked || automatic === 0 ? null : (
+                  {shown.blocked || shown.automatic === 0 ? null : (
                     <UI.Text>
                       {translate(
-                        publishedUnused
+                        unused !== undefined
                           ? "library.editor.start.useNote"
                           : "library.editor.start.publishNote",
-                        { count: automatic },
+                        { count: shown.automatic },
                       )}
                     </UI.Text>
                   )}
                   <PublishSummary
-                    blocked={blocked}
-                    changes={changes}
+                    blocked={shown.blocked}
+                    changes={shown.changes}
                     inUseRevision={inUse?.revision ?? null}
-                    problemCount={problemCount}
+                    problemCount={shown.problemCount}
                     publishedBefore={versions.data?.items.some((item) =>
                       item.status === "published"
                     ) ?? false}
-                    startsChanged={startsChanged}
+                    startsChanged={shown.startsChanged}
                   />
                   {publish.error === null
                     ? null
@@ -2216,7 +2295,7 @@ export function WorkflowEditorPage(
                           )}
                       </UI.InlineNotice>
                     )}
-                  {problemCount === 0 ? null : problemList}
+                  {shown.problemCount === 0 ? null : problemList}
                 </UI.Stack>
               )
               : (

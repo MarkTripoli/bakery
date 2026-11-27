@@ -7736,5 +7736,9 @@
   "library.editor.task.problem.minutes": "⟪Choose a time limit.⟫",
   "library.editor.task.problem.tools": "⟪Not set in this step. Tick what the agent may use.⟫",
   "library.editor.task.chooseTime": "⟪Choose a time limit⟫",
-  "library.editor.task.read.notSet": "⟪not set⟫"
+  "library.editor.task.read.notSet": "⟪not set⟫",
+  "library.workflow.draftKept": "⟪Version {version} is in use. Your unchanged draft could not be updated, so it still shows the earlier steps.⟫",
+  "library.workflow.draftKeptRetry": "⟪Try updating the draft again⟫",
+  "library.editor.noChanges": "⟪No changes to publish⟫",
+  "library.editor.publishedUnused": "⟪Version {version} published, not in use⟫"
 }
