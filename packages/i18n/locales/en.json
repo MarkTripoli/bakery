@@ -7728,6 +7728,7 @@
   "machines.models.adminChangeOnly": "Only administrators can change models.",
   "machines.models.state.revoked": "Turned off for good",
   "machines.models.note.revoked": "It cannot be turned on again. Add it as a new model to use it.",
+  "machines.models.note.revokedMember": "It cannot be turned on again. An administrator can add it as a new model.",
   "machines.models.line": "{provider} · {agent} · {payment}",
   "machines.models.new.intro": "Say which model a coding agent on this machine may use. Nothing is charged or switched by adding it.",
   "machines.models.new.back": "Back to models",

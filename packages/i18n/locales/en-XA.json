@@ -7872,5 +7872,6 @@
   "library.editor.leave.title": "⟦Ļëàṽë ƀëƒôŕë ÿôûŕ çĥàñĝëš àŕë šàṽëð? ŧëšŧ çôþÿŧ⟧",
   "library.editor.leave.body": "⟦Ÿôûŕ ļàŧëšŧ çĥàñĝëš àŕë ñôŧ šàṽëð ÿëŧ. Ïƒ ÿôû ļëàṽë, ŧĥëÿ àŕë ļôšŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "library.editor.leave.confirm": "⟦Ļëàṽë⟧",
-  "machines.models.adminChangeOnly": "⟦Ôñļÿ àðɱïñïšŧŕàŧôŕš çàñ çĥàñĝë ɱôðëļš. ŧëšŧ çôþÿ ŧ⟧"
+  "machines.models.adminChangeOnly": "⟦Ôñļÿ àðɱïñïšŧŕàŧôŕš çàñ çĥàñĝë ɱôðëļš. ŧëšŧ çôþÿ ŧ⟧",
+  "machines.models.note.revokedMember": "⟦Ïŧ çàññôŧ ƀë ŧûŕñëð ôñ àĝàïñ. Àñ àðɱïñïšŧŕàŧôŕ çàñ àðð ïŧ àš à ñëŵ ɱôðëļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
 }

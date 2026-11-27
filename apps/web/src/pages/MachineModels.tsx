@@ -329,7 +329,13 @@ export function MachineModels(
                       </UI.Text>
                     )
                     : shown.map((row) => {
-                      const note = noteLine(row, healthOf(row.id), say, time);
+                      const note = noteLine(
+                        row,
+                        healthOf(row.id),
+                        say,
+                        time,
+                        isAdmin,
+                      );
                       return (
                         <div
                           key={row.id}
@@ -387,7 +393,13 @@ export function MachineModels(
                       id: "model",
                       header: say("machines.models.col.model"),
                       cell: (row) => {
-                        const note = noteLine(row, healthOf(row.id), say, time);
+                        const note = noteLine(
+                          row,
+                          healthOf(row.id),
+                          say,
+                          time,
+                          isAdmin,
+                        );
                         // A quiet row greys its name too, which the cell's own title cannot do.
                         return modelMuted(row)
                           ? (
@@ -495,6 +507,7 @@ function noteLine(
   health: { reason: string | null; reasonSince: string | null } | null,
   say: Say,
   time: (value: string) => string,
+  isAdmin: boolean,
 ): string | undefined {
   const note = modelNote(route, health);
   if (note.kind === "answered") {
@@ -502,7 +515,13 @@ function noteLine(
       time: time(note.at),
     });
   }
-  if (note.kind === "revoked") return say("machines.models.note.revoked");
+  if (note.kind === "revoked") {
+    return say(
+      isAdmin
+        ? "machines.models.note.revoked"
+        : "machines.models.note.revokedMember",
+    );
+  }
   if (note.kind === "trouble") {
     const reason = say(`machines.models.reason.${note.reason}`);
     return note.since === null

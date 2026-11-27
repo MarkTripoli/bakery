@@ -524,6 +524,7 @@ test.describe("machine page: Models tab", () => {
       routes: [
         route({ model: "mine" }),
         route({ model: "mine-off", status: "disabled" }),
+        route({ model: "mine-gone", status: "revoked" }),
         route({ model: "someone-elses", workerBindingId: OTHER_BINDING_ID }),
       ],
     });
@@ -532,9 +533,13 @@ test.describe("machine page: Models tab", () => {
       "Only administrators can change models.",
     );
     await expect(models(page)).toContainText(
+      "It cannot be turned on again. An administrator can add it as a new model.",
+    );
+    await expect(models(page)).not.toContainText("Add it as a new model");
+    await expect(models(page)).toContainText(
       "Work on this machine is sent only to",
     );
-    await expect(page.locator("[data-model-id]")).toHaveCount(2);
+    await expect(page.locator("[data-model-id]")).toHaveCount(3);
     await expect(models(page)).toContainText("mine-off");
     await expect(models(page)).toContainText("Turned off");
     await expect(models(page)).not.toContainText("someone-elses");

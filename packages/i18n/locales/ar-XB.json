@@ -7872,5 +7872,6 @@
   "library.editor.leave.title": "⟪Leave before your changes are saved?⟫",
   "library.editor.leave.body": "⟪Your latest changes are not saved yet. If you leave, they are lost.⟫",
   "library.editor.leave.confirm": "⟪Leave⟫",
-  "machines.models.adminChangeOnly": "⟪Only administrators can change models.⟫"
+  "machines.models.adminChangeOnly": "⟪Only administrators can change models.⟫",
+  "machines.models.note.revokedMember": "⟪It cannot be turned on again. An administrator can add it as a new model.⟫"
 }
