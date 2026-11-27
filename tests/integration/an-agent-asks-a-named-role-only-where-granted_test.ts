@@ -625,3 +625,83 @@ Deno.test("an agent's ask waits for another ask on the same run to finish counti
       holder.release();
     }
   }));
+
+Deno.test("a person who steered the run, or left a step a note, counts as involved; a plain comment does not", () =>
+  withWorkerFixture(async (fixture) => {
+    const ellie = await addMember(fixture, "Ellie", "developer");
+    const nora = await addMember(fixture, "Nora", "developer");
+    const session = await agentSession(fixture, { granted: null });
+    await refusedWith(
+      await ask(session, { recipientId: ellie }),
+      403,
+      "agent_ask_not_involved",
+    );
+    const own = await fixture.pgDatabase.query<
+      { conversation_id: string; step_key: string; session_id: string }
+    >(
+      `select agent.conversation_id, step.step_key, agent.id as session_id
+         from bakery.agent_sessions as agent
+         join bakery.run_steps as step
+           on step.organization_id = agent.organization_id
+          and step.id = agent.run_step_id
+        where agent.organization_id = $1 and step.run_id = $2
+        limit 1`,
+      [fixture.organizationId, session.own.runId],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.messages (
+         organization_id, conversation_id, author_id, message_type, body,
+         client_message_id, sequence, intent)
+       select $1, $2, $3, 'user', 'A plain comment on the task.', $4,
+              coalesce(max(sequence), 0) + 1, 'discussion'
+         from bakery.messages
+        where organization_id = $1 and conversation_id = $2`,
+      [
+        fixture.organizationId,
+        own.rows[0]!.conversation_id,
+        ellie,
+        crypto.randomUUID(),
+      ],
+    );
+    await refusedWith(
+      await ask(session, { recipientId: ellie }),
+      403,
+      "agent_ask_not_involved",
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.decisions_ledger
+         (organization_id, task_id, run_id, kind, subject_kind, subject_id,
+          decided_by, text, detail)
+       select run.organization_id, run.task_id, run.id, 'steer', 'session',
+              $3, $4, 'Use the staging branch.', '{}'::jsonb
+         from bakery.workflow_runs as run
+        where run.organization_id = $1 and run.id = $2`,
+      [
+        fixture.organizationId,
+        session.own.runId,
+        own.rows[0]!.session_id,
+        ellie,
+      ],
+    );
+    await fixture.pgDatabase.query(
+      `insert into bakery.run_step_notes (
+         organization_id, run_id, step_key, author_id, body, client_note_id)
+       values ($1, $2, $3, $4, 'Check the retry path.', $5)`,
+      [
+        fixture.organizationId,
+        session.own.runId,
+        own.rows[0]!.step_key,
+        nora,
+        crypto.randomUUID(),
+      ],
+    );
+    for (const person of [ellie, nora]) {
+      const response = await ask(session, { recipientId: person });
+      assert(response.ok, await response.text());
+    }
+    assertEquals(
+      (await agentAsks(fixture, session.own.runId))
+        .map((row) => row.recipient_id).sort(),
+      [ellie, nora].sort(),
+    );
+  }));

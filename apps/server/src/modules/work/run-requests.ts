@@ -1404,6 +1404,13 @@ async function involvedInRun(
      select 1 from bakery.questions
       where organization_id = $1 and run_id = $2
         and audience->'principalIds' ? $3::text
+     union all
+     select 1 from bakery.decisions_ledger
+      where organization_id = $1 and run_id = $2 and kind = 'steer'
+        and decided_by = $3
+     union all
+     select 1 from bakery.run_step_notes
+      where organization_id = $1 and run_id = $2 and author_id = $3
      limit 1`,
     [organizationId, run.id, recipientId],
   );
