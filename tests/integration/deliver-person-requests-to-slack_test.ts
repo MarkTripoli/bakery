@@ -136,7 +136,37 @@ async function world(answer: Answer) {
     rewriteClosedRequestSlackMessages({ ...deps, now: at(offsetMinutes) });
   const mine = (outcomes: readonly RequestSlackOutcome[], id: string) =>
     outcomes.filter((outcome) => outcome.requestId === id);
+  const adminName = async () =>
+    (await f.pgDatabase.query<{ name: string }>(
+      "select display_name as name from bakery.principals where id = $1",
+      [f.adminId],
+    )).rows[0]!.name;
+  const requestFor = async (
+    recipient: string,
+    stepKey: string,
+    createdAt: Date,
+  ) =>
+    (await f.pgDatabase.query<{ id: string }>(
+      `insert into bakery.person_requests
+         (organization_id, run_id, task_id, step_key, intent, recipient_id,
+          asked_by, asked_by_kind, note, expires_at, created_at)
+       values ($1, $2, $3, $4, 'review', $5, $6, 'person', $7,
+         now() + interval '7 days', $8)
+       returning id`,
+      [
+        f.organizationId,
+        run.runId,
+        taskId,
+        stepKey,
+        recipient,
+        f.adminId,
+        NOTE,
+        createdAt.toISOString(),
+      ],
+    )).rows[0]!.id;
   return {
+    adminName,
+    requestFor,
     o,
     f,
     connectionId,
@@ -186,14 +216,21 @@ Deno.test("an open request of a linked recipient is sent as one Slack DM with it
     assertEquals(w.sent[0]!.body, { users: RECIPIENT });
     const post = w.sent[1]!.body as { channel: string; text: string };
     assertEquals(post.channel, DM);
-    assert(post.text.includes(`[bkr-${id}]`), post.text);
+    assert(post.text.includes(`request=${id}`), post.text);
     assert(
       post.text.includes(
-        `${BASE_URL}/tasks/${w.taskId}?organization=${w.f.organizationId}`,
+        `${BASE_URL}/tasks/${w.taskId}?organization=${w.f.organizationId}&request=${id}`,
       ),
       post.text,
     );
-    assert(post.text.includes("Ship the &lt;release&gt; &amp; notes"));
+    assertEquals(
+      post.text.split("\n").slice(0, 2),
+      [
+        "*Review requested* · Ship the &lt;release&gt; &amp; notes",
+        `${await w
+          .adminName()} asked you to review this work. Open Bakery to read it.`,
+      ],
+    );
     assert(!post.text.includes(NOTE), "the DM never carries the note");
     assertEquals(await w.deliveries(id), [{
       state: "delivered",
@@ -262,7 +299,7 @@ Deno.test("an uncertain send is retried after the backoff and then delivered", a
   try {
     assert((await w.linkRecipient()).ok);
     const id = await w.request();
-    landed = `landed [bkr-${id}]`;
+    landed = `landed request=${id}`;
     assertEquals(w.mine(await w.send(), id), [
       { requestId: id, result: "retrying", code: "uncertain" },
     ]);
@@ -346,11 +383,23 @@ Deno.test("handled, expired and withdrawn requests each rewrite their DM once", 
       "select display_name as name from bakery.principals where id = $1",
       [w.f.adminId],
     );
-    assert(textFor(handled).startsWith(`Handled by ${names.rows[0]!.name}: `));
-    assert(textFor(expired).startsWith("Expired: "));
-    assert(textFor(withdrawn).startsWith("Withdrawn: "));
+    const name = names.rows[0]!.name;
+    assertEquals(
+      textFor(handled).split("\n")[0],
+      `*Handled by ${name}* · Ship the &lt;release&gt; &amp; notes`,
+    );
+    const expiredLines = textFor(expired).split("\n");
+    assertEquals(
+      expiredLines[0],
+      "*Expired* · Ship the &lt;release&gt; &amp; notes",
+    );
+    assert(expiredLines[1]!.startsWith("Nobody answered by <!date^"));
+    assertEquals(textFor(withdrawn).split("\n").slice(0, 2), [
+      "*Withdrawn* · Ship the &lt;release&gt; &amp; notes",
+      `${name} withdrew this request.`,
+    ]);
     for (const id of [handled, expired, withdrawn]) {
-      assert(textFor(id).includes(`[bkr-${id}]`));
+      assert(textFor(id).includes(`request=${id}`));
       assert(!textFor(id).includes(NOTE));
     }
     assertEquals(await w.rewrite(30), []);
@@ -465,6 +514,109 @@ Deno.test("a row stuck in rewriting past the lease is rewritten on the next run 
     assertEquals(
       w.sent.filter((request) => request.path === "/api/chat.update").length,
       1,
+    );
+  } finally {
+    await w.finish();
+  }
+});
+
+Deno.test("more than a batch of older requests to unlinked people does not hold back a linked person's DM", async () => {
+  const slack = slackAnswers();
+  const w = await world(slack.answer);
+  try {
+    assert((await w.linkRecipient()).ok);
+    const older = new Date(Date.now() - 60 * MINUTE);
+    for (let index = 0; index < 105; index += 1) {
+      await w.requestFor(w.f.adminId, `unlinked-${index}`, older);
+    }
+    const id = await w.request();
+    assertEquals(w.mine(await w.send(), id), [
+      { requestId: id, result: "delivered" },
+    ]);
+    assertEquals(slack.posts(), 1);
+  } finally {
+    await w.finish();
+  }
+});
+
+Deno.test("a send left uncertain that did land is resolved and rewritten once the request closes", async () => {
+  const slack = slackAnswers();
+  let landed = "";
+  const w = await world((request) =>
+    request.path === "/api/chat.postMessage"
+      ? { ok: false, error: "fatal_error" }
+      : request.path === "/api/conversations.history" && landed !== ""
+      ? { ok: true, messages: [{ ts: "1700000000.7", text: landed }] }
+      : slack.answer(request)
+  );
+  try {
+    assert((await w.linkRecipient()).ok);
+    const id = await w.request();
+    assertEquals(w.mine(await w.send(), id), [
+      { requestId: id, result: "retrying", code: "uncertain" },
+    ]);
+    await w.f.pgDatabase.query(
+      "update bakery.person_requests set status = 'withdrawn' where id = $1",
+      [id],
+    );
+    landed = `landed request=${id}`;
+    assertEquals(w.mine(await w.send(1), id), [
+      { requestId: id, result: "delivered" },
+    ]);
+    assertEquals(
+      (await w.deliveries(id))[0]!.external_ref,
+      `${DM}:1700000000.7`,
+    );
+    assertEquals(w.mine(await w.rewrite(1), id), [
+      { requestId: id, result: "rewritten" },
+    ]);
+    const update = w.sent.find((request) =>
+      request.path === "/api/chat.update"
+    );
+    assertEquals((update!.body as { ts: string }).ts, "1700000000.7");
+    assertEquals(
+      w.sent.filter((request) => request.path === "/api/chat.postMessage")
+        .length,
+      1,
+    );
+  } finally {
+    await w.finish();
+  }
+});
+
+Deno.test("a send left uncertain that never landed ends failed with no new post once the request closes", async () => {
+  const slack = slackAnswers();
+  const w = await world((request) =>
+    request.path === "/api/chat.postMessage"
+      ? { ok: false, error: "fatal_error" }
+      : slack.answer(request)
+  );
+  try {
+    assert((await w.linkRecipient()).ok);
+    const id = await w.request();
+    await w.send();
+    await w.f.pgDatabase.query(
+      "update bakery.person_requests set status = 'withdrawn' where id = $1",
+      [id],
+    );
+    assertEquals(w.mine(await w.send(1), id), [
+      { requestId: id, result: "failed", code: "closed_unconfirmed" },
+    ]);
+    const [row] = await w.deliveries(id);
+    assertEquals([row!.state, row!.failure_code], [
+      "failed",
+      "closed_unconfirmed",
+    ]);
+    assertEquals(w.mine(await w.send(60), id), []);
+    assertEquals(w.mine(await w.rewrite(60), id), []);
+    assertEquals(
+      w.sent.filter((request) => request.path === "/api/chat.postMessage")
+        .length,
+      1,
+    );
+    assertEquals(
+      w.sent.filter((request) => request.path === "/api/chat.update").length,
+      0,
     );
   } finally {
     await w.finish();

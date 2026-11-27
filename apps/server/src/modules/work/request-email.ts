@@ -20,6 +20,7 @@ export const REQUEST_EMAIL_AFTER_MS = 15 * 60_000;
 export const REQUEST_EMAIL_MAX_ATTEMPTS = 3;
 export const REQUEST_EMAIL_RETRY_BASE_MINUTES = 10;
 export const REQUEST_EMAIL_LEASE_MINUTES = 10;
+export const REQUEST_EMAIL_CRASHED_CODE = "crashed";
 const REQUEST_EMAIL_BATCH = 100;
 const EMAIL_CHANNEL = "email";
 
@@ -169,7 +170,7 @@ async function dueRequests(
              (delivery.state = 'failed' and delivery.attempts < $4
               and delivery.updated_at <= $2 - make_interval(
                 mins => $6 * power(3, delivery.attempts - 1)::int))
-             or (delivery.state = 'sending'
+             or (delivery.state = 'sending' and delivery.attempts < $4
               and delivery.updated_at <= $2 - make_interval(mins => $7)))
       order by request.created_at, request.id
       limit $5`,
@@ -184,6 +185,26 @@ async function dueRequests(
     ],
   );
   return found.rows;
+}
+
+async function giveUpCrashedEmails(
+  database: PgDatabase,
+  now: Date,
+): Promise<void> {
+  await database.query(
+    `update bakery.person_request_deliveries
+        set state = 'failed', failure_code = $5, updated_at = $3::timestamptz,
+            version = version + 1
+      where channel = $1 and state = 'sending' and attempts >= $2
+        and updated_at <= $3::timestamptz - make_interval(mins => $4)`,
+    [
+      EMAIL_CHANNEL,
+      REQUEST_EMAIL_MAX_ATTEMPTS,
+      now,
+      REQUEST_EMAIL_LEASE_MINUTES,
+      REQUEST_EMAIL_CRASHED_CODE,
+    ],
+  );
 }
 
 async function claim(
@@ -203,6 +224,7 @@ async function claim(
          where (person_request_deliveries.state = 'failed'
                 and person_request_deliveries.attempts < $4)
             or (person_request_deliveries.state = 'sending'
+                and person_request_deliveries.attempts < $4
                 and person_request_deliveries.updated_at
                     <= $5::timestamptz - make_interval(mins => $6))
        returning 1`,
@@ -252,6 +274,7 @@ export async function sendDueRequestEmails(
   const settings = await readEmailSettings(options.database);
   if (settings === null || emailState(settings) !== "working") return [];
   const now = options.now ?? new Date();
+  await giveUpCrashedEmails(options.database, now);
   const due = await dueRequests(options.database, now);
   if (due.length === 0) return [];
   const password = await openEmailPassword(

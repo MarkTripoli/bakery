@@ -12,13 +12,14 @@ import {
 } from "../catalog/integration-invoke.ts";
 import { connectionInvokeDeps } from "../integrations/invoke.ts";
 import { findActiveSlackLinkForPrincipal } from "../integrations/slack-identity-links.ts";
-import { EMAIL_LINK_ORGANIZATION_PARAM, INTENT_VERB } from "./request-email.ts";
+import { EMAIL_LINK_ORGANIZATION_PARAM } from "./request-email.ts";
 
 export const REQUEST_SLACK_FUNCTION_ID = "bakery-person-request-slack";
 export const REQUEST_SLACK_MAX_ATTEMPTS = 3;
 export const REQUEST_SLACK_RETRY_BASE_MINUTES = 10;
 export const REQUEST_SLACK_TITLE_LIMIT = 120;
 export const REQUEST_SLACK_LEASE_MINUTES = 10;
+export const REQUEST_SLACK_MARKER_PARAM = "request";
 export const SLACK_DELIVERY_PURPOSE = "slack.delivery";
 const REQUEST_SLACK_BATCH = 100;
 const SLACK_CHANNEL = "slack";
@@ -28,6 +29,9 @@ const DM_OPEN = { id: "slack.dm.open", version: 1 } as const;
 const MESSAGE_POST = { id: "slack.message.post", version: 1 } as const;
 const MESSAGE_UPDATE = { id: "slack.message.update", version: 1 } as const;
 const UNCERTAIN_CODE = "uncertain";
+const CRASHED_CODE = "crashed";
+const CLOSED_UNCONFIRMED_CODE = "closed_unconfirmed";
+const CLOSED_BEFORE_SEND_CODE = "closed_before_send";
 
 export const SlackDeliveryState = {
   Sending: "sending",
@@ -63,8 +67,11 @@ export type RequestSlackFacts = Readonly<{
   taskId: string;
   intent: string;
   askerName: string | null;
-  groupName: string | null;
+  audienceName: string | null;
+  stepName: string | null;
   workItem: string;
+  passedOnFrom: string | null;
+  expiresAt: Date;
 }>;
 
 export type RequestSlackClosing = Readonly<{
@@ -79,19 +86,24 @@ type Target = {
   principal_id: string;
 };
 
-type DueRequest = Target & {
+type RequestRow = Target & {
   id: string;
   organization_id: string;
   recipient_id: string;
   task_id: string;
   intent: string;
   asker_name: string | null;
-  group_name: string | null;
+  audience_name: string | null;
+  step_key: string | null;
   work_item: string;
+  passed_on_from: string | null;
+  expires_at: Date;
 };
 
-type ClosedDelivery = DueRequest & {
-  external_ref: string;
+type ClosedRow = RequestRow & {
+  delivery_state: string;
+  delivery_attempts: number;
+  external_ref: string | null;
   final_status: RequestSlackFinalStatus;
   closed_by_name: string | null;
 };
@@ -101,8 +113,17 @@ type SendResult =
   | { kind: "failed"; code: string }
   | { kind: "uncertain" };
 
+const STATUS_WORD: Readonly<Record<string, string>> = {
+  approve: "Needs a decision",
+  review: "Review requested",
+  answer: "Question for you",
+  take_over: "Take over requested",
+};
+const FOR_YOUR_INFORMATION = "For your information";
+const READ_IN_BAKERY = new Set(["review", "answer", "take_over"]);
+
 export function requestSlackMarker(requestId: string): string {
-  return `[bkr-${requestId}]`;
+  return `${REQUEST_SLACK_MARKER_PARAM}=${requestId}`;
 }
 
 function escapeSlack(value: string): string {
@@ -121,26 +142,100 @@ export function capSlackTitle(title: string): string {
 
 export function requestSlackLink(
   publicBaseUrl: string,
-  facts: Pick<RequestSlackFacts, "organizationId" | "taskId">,
+  facts: Pick<RequestSlackFacts, "organizationId" | "taskId" | "requestId">,
 ): string {
   const address = new URL(`/tasks/${facts.taskId}`, publicBaseUrl);
   address.searchParams.set(EMAIL_LINK_ORGANIZATION_PARAM, facts.organizationId);
+  address.searchParams.set(REQUEST_SLACK_MARKER_PARAM, facts.requestId);
   return address.toString();
 }
 
-function closingLine(closing: RequestSlackClosing): string {
-  const by = closing.closedByName === null
-    ? ""
-    : ` by ${escapeSlack(closing.closedByName)}`;
+export function requestSlackStatusWord(intent: string): string {
+  return STATUS_WORD[intent] ?? FOR_YOUR_INFORMATION;
+}
+
+function askedFor(intent: string, step: string | null): string | null {
+  switch (intent) {
+    case "approve":
+      return step === null ? "approve this step" : `approve ${step}`;
+    case "review":
+      return step === null ? "review this work" : `review ${step}`;
+    case "answer":
+      return step === null
+        ? "answer a question"
+        : `answer a question in ${step}`;
+    case "take_over":
+      return step === null ? "take over a step" : `take over ${step}`;
+    default:
+      return null;
+  }
+}
+
+function slackDate(at: Date): string {
+  const seconds = Math.floor(at.getTime() / 1000);
+  return `<!date^${seconds}^{date_short_pretty}|${
+    at.toISOString().slice(0, 10)
+  }>`;
+}
+
+function openingLines(facts: RequestSlackFacts): string[] {
+  const asker = escapeSlack(facts.askerName ?? "A workflow");
+  const step = facts.stepName === null ? null : escapeSlack(facts.stepName);
+  const audience = facts.audienceName === null
+    ? "you"
+    : escapeSlack(facts.audienceName);
+  const action = askedFor(facts.intent, step);
+  const sentences: string[] = [];
+  if (action === null) {
+    sentences.push(`${asker} wants ${audience} to see this.`);
+  } else if (facts.passedOnFrom !== null) {
+    sentences.push(
+      `${
+        escapeSlack(facts.passedOnFrom)
+      } did not answer, so ${asker}'s request to ${action} now comes to you.`,
+    );
+  } else {
+    sentences.push(`${asker} asked ${audience} to ${action}.`);
+  }
+  if (facts.audienceName !== null && facts.passedOnFrom === null) {
+    sentences.push("Any one member can answer.");
+  }
+  if (READ_IN_BAKERY.has(facts.intent)) {
+    sentences.push("Open Bakery to read it.");
+  }
+  return [
+    `*${requestSlackStatusWord(facts.intent)}* · ${
+      escapeSlack(capSlackTitle(facts.workItem))
+    }`,
+    sentences.join(" "),
+  ];
+}
+
+function closingLines(
+  facts: RequestSlackFacts,
+  closing: RequestSlackClosing,
+): string[] {
+  const title = escapeSlack(capSlackTitle(facts.workItem));
   switch (closing.status) {
     case "answered":
-      return `Answered${by}`;
     case "handled":
-      return `Handled${by}`;
+      return [
+        closing.closedByName === null
+          ? `*Handled* · ${title}`
+          : `*Handled by ${escapeSlack(closing.closedByName)}* · ${title}`,
+      ];
     case "expired":
-      return "Expired";
+      return [
+        `*Expired* · ${title}`,
+        `Nobody answered by ${slackDate(facts.expiresAt)}.`,
+      ];
     case "withdrawn":
-      return "Withdrawn";
+      return [
+        `*Withdrawn* · ${title}`,
+        `${
+          escapeSlack(facts.askerName ?? "A workflow")
+        } withdrew this request.`,
+      ];
   }
 }
 
@@ -149,39 +244,28 @@ export function requestSlackText(
   facts: RequestSlackFacts,
   closing?: RequestSlackClosing,
 ): string {
-  const title = escapeSlack(capSlackTitle(facts.workItem));
-  const link = requestSlackLink(publicBaseUrl, facts);
-  const marker = requestSlackMarker(facts.requestId);
-  if (closing !== undefined) {
-    return [
-      `${closingLine(closing)}: ${title}`,
-      `Open in Bakery: ${link}`,
-      marker,
-    ].join("\n");
-  }
-  const asker = escapeSlack(facts.askerName ?? "A workflow");
-  const audience = facts.groupName === null
-    ? "you"
-    : escapeSlack(facts.groupName);
-  const verb = INTENT_VERB[facts.intent];
-  const ask = verb === undefined
-    ? `${asker} wants ${audience} to see`
-    : `${asker} asked ${audience} to ${verb}`;
-  return [`${ask}: ${title}`, `Open in Bakery: ${link}`, marker].join(
-    "\n",
-  );
+  const lines = closing === undefined
+    ? openingLines(facts)
+    : closingLines(facts, closing);
+  return [
+    ...lines,
+    `<${requestSlackLink(publicBaseUrl, facts)}|Open in Bakery>`,
+  ].join("\n");
 }
 
 const REQUEST_COLUMNS = `request.id, request.organization_id,
-  request.recipient_id, request.task_id, request.intent,
-  asker.display_name as asker_name, audience_group.name as group_name,
+  request.recipient_id, request.task_id, request.intent, request.step_key,
+  request.expires_at, asker.display_name as asker_name,
+  case when request.audience_group_id is not null
+         or request.audience_role_key is not null
+       then coalesce(request.audience_name, audience_group.name) end
+    as audience_name,
+  passed_on.name as passed_on_from,
   task.title as work_item, target.connection_id, target.team_id,
   target.resource_id, target.principal_id`;
 
-function joins(kind: number, purpose: number, provider: number): string {
-  return `join bakery.principals principal
-    on principal.id = request.recipient_id and principal.disabled_at is null
-  join bakery.tasks task
+function requestJoins(kind: number, purpose: number, provider: number) {
+  return `join bakery.tasks task
     on task.organization_id = request.organization_id
    and task.id = request.task_id
   join lateral (
@@ -209,27 +293,57 @@ function joins(kind: number, purpose: number, provider: number): string {
   left join bakery.principals asker on asker.id = request.asked_by
   left join bakery.organization_groups audience_group
     on audience_group.organization_id = request.organization_id
-   and audience_group.id = request.audience_group_id`;
+   and audience_group.id = request.audience_group_id
+  left join lateral (
+    select coalesce(earlier.audience_name, earlier_recipient.display_name)
+             as name
+      from bakery.person_requests earlier
+      join bakery.principals earlier_recipient
+        on earlier_recipient.id = earlier.recipient_id
+     where request.step_key is not null
+       and earlier.organization_id = request.organization_id
+       and earlier.run_id = request.run_id
+       and earlier.step_key = request.step_key
+       and earlier.step_iteration is not distinct from request.step_iteration
+       and earlier.created_at < request.created_at
+     order by earlier.created_at, earlier.id
+     limit 1
+  ) passed_on on true`;
 }
 
 async function dueRequests(
   database: PgDatabase,
   now: Date,
-): Promise<readonly DueRequest[]> {
-  const found = await database.query<DueRequest>(
+): Promise<readonly RequestRow[]> {
+  const found = await database.query<RequestRow>(
     `select ${REQUEST_COLUMNS}
        from bakery.person_requests request
-       ${joins(6, 7, 8)}
+       join bakery.principals principal
+         on principal.id = request.recipient_id
+        and principal.disabled_at is null
+       join bakery.organization_memberships membership
+         on membership.organization_id = request.organization_id
+        and membership.principal_id = request.recipient_id
+        and membership.status = 'active'
+       ${requestJoins(6, 7, 8)}
        left join bakery.person_request_deliveries delivery
          on delivery.request_id = request.id and delivery.channel = $2
       where request.status = 'open'
         and request.expires_at > $1
-        and (delivery.id is null or
-             (delivery.state = 'retrying' and delivery.attempts < $3
-              and delivery.updated_at <= $1 - make_interval(
-                mins => $5 * power(3, delivery.attempts - 1)::int))
-             or (delivery.state = 'sending'
-              and delivery.updated_at <= $1 - make_interval(mins => $9)))
+        and exists (
+          select 1 from bakery.external_identity_links link
+           where link.organization_id = request.organization_id
+             and link.principal_id = request.recipient_id
+             and link.provider = $8 and link.state = 'active'
+             and link.identity_scope = target.team_id
+        )
+        and (delivery.id is null
+             or (delivery.attempts < $3 and (
+               (delivery.state = 'retrying'
+                and delivery.updated_at <= $1 - make_interval(
+                  mins => $5 * power(3, delivery.attempts - 1)::int))
+               or (delivery.state = 'sending'
+                and delivery.updated_at <= $1 - make_interval(mins => $9)))))
       order by request.created_at, request.id
       limit $4`,
     [
@@ -247,23 +361,12 @@ async function dueRequests(
   return found.rows;
 }
 
-async function closedDeliveries(
-  database: PgDatabase,
-  now: Date,
-): Promise<readonly ClosedDelivery[]> {
-  const found = await database.query<ClosedDelivery>(
-    `select ${REQUEST_COLUMNS}, delivery.external_ref,
-            closing.final_status, closer.display_name as closed_by_name
-       from bakery.person_request_deliveries delivery
-       join bakery.person_requests request
-         on request.organization_id = delivery.organization_id
-        and request.id = delivery.request_id
-       cross join lateral (
+const CLOSING_JOINS = `cross join lateral (
          select case when request.status = 'open' and request.expires_at <= $1
                      then 'expired' else request.status end as final_status
-       ) closing
-       ${joins(5, 6, 7)}
-       left join lateral (
+       ) closing`;
+
+const CLOSER_JOINS = `left join lateral (
          select decision.decided_by
            from bakery.decisions_ledger decision
           where decision.organization_id = request.organization_id
@@ -272,48 +375,96 @@ async function closedDeliveries(
           order by decision.created_at desc
           limit 1
        ) handled on closing.final_status in ('answered', 'handled')
-       left join bakery.principals closer on closer.id = handled.decided_by
+       left join bakery.principals closer on closer.id = handled.decided_by`;
+
+async function closedRows(
+  database: PgDatabase,
+  now: Date,
+  states: string,
+  stateParams: readonly number[],
+): Promise<readonly ClosedRow[]> {
+  const found = await database.query<ClosedRow>(
+    `select ${REQUEST_COLUMNS}, delivery.state as delivery_state,
+            delivery.attempts as delivery_attempts, delivery.external_ref,
+            closing.final_status, closer.display_name as closed_by_name
+       from bakery.person_request_deliveries delivery
+       join bakery.person_requests request
+         on request.organization_id = delivery.organization_id
+        and request.id = delivery.request_id
+       ${CLOSING_JOINS}
+       ${requestJoins(4, 5, 6)}
+       ${CLOSER_JOINS}
       where delivery.channel = $2
-        and delivery.external_ref is not null
         and closing.final_status <> 'open'
-        and ((delivery.state = 'delivered' and delivery.attempts < $8
-              and (delivery.failure_code is null
-                   or delivery.updated_at <= $1 - make_interval(
-                     mins => $4 * power(3, delivery.attempts - 1)::int)))
-             or (delivery.state = 'rewriting'
-              and delivery.updated_at <= $1 - make_interval(mins => $9)))
+        and delivery.attempts < $7
+        and ${states}
       order by delivery.updated_at, delivery.id
       limit $3`,
     [
       now,
       SLACK_CHANNEL,
       REQUEST_SLACK_BATCH,
-      REQUEST_SLACK_RETRY_BASE_MINUTES,
       SLACK_WORKSPACE_KIND,
       SLACK_DELIVERY_PURPOSE,
       SLACK_PROVIDER,
       REQUEST_SLACK_MAX_ATTEMPTS,
-      REQUEST_SLACK_LEASE_MINUTES,
+      ...stateParams,
     ],
   );
   return found.rows;
 }
 
-async function claim(database: PgDatabase, request: DueRequest, now: Date) {
-  const claimed = await database.query(
+const UNSENT_STATES = `(delivery.state = 'retrying'
+         or (delivery.state = 'sending'
+             and delivery.updated_at <= $1 - make_interval(mins => $8)))`;
+
+const REWRITE_STATES = `delivery.external_ref is not null
+        and ((delivery.state = 'delivered'
+              and (delivery.failure_code is null
+                   or delivery.updated_at <= $1 - make_interval(
+                     mins => $8 * power(3, delivery.attempts - 1)::int)))
+             or (delivery.state = 'rewriting'
+              and delivery.updated_at <= $1 - make_interval(mins => $9)))`;
+
+async function giveUpCrashed(database: PgDatabase, now: Date): Promise<void> {
+  await database.query(
+    `update bakery.person_request_deliveries
+        set state = case when state = 'rewriting' then 'rewrite_failed'
+                         else 'failed' end,
+            failure_code = $5, updated_at = $3::timestamptz,
+            version = version + 1
+      where channel = $1 and state in ('sending', 'rewriting')
+        and attempts >= $2
+        and updated_at <= $3::timestamptz - make_interval(mins => $4)`,
+    [
+      SLACK_CHANNEL,
+      REQUEST_SLACK_MAX_ATTEMPTS,
+      now,
+      REQUEST_SLACK_LEASE_MINUTES,
+      CRASHED_CODE,
+    ],
+  );
+}
+
+async function claimNew(
+  database: PgDatabase,
+  request: RequestRow,
+  now: Date,
+): Promise<number | null> {
+  const claimed = await database.query<{ attempts: number }>(
     `insert into bakery.person_request_deliveries
-       (organization_id, request_id, channel, state)
-     values ($1, $2, $3, 'sending')
+       (organization_id, request_id, channel, state, updated_at)
+     values ($1, $2, $3, 'sending', $5::timestamptz)
      on conflict (request_id, channel) do update
        set state = 'sending', attempts = person_request_deliveries.attempts + 1,
            failure_code = null, updated_at = $5::timestamptz,
            version = person_request_deliveries.version + 1
-       where (person_request_deliveries.state = 'retrying'
-              and person_request_deliveries.attempts < $4)
-          or (person_request_deliveries.state = 'sending'
-              and person_request_deliveries.updated_at
-                  <= $5::timestamptz - make_interval(mins => $6))
-     returning 1`,
+       where person_request_deliveries.attempts < $4
+         and (person_request_deliveries.state = 'retrying'
+              or (person_request_deliveries.state = 'sending'
+                  and person_request_deliveries.updated_at
+                      <= $5::timestamptz - make_interval(mins => $6)))
+     returning attempts`,
     [
       request.organization_id,
       request.id,
@@ -323,74 +474,80 @@ async function claim(database: PgDatabase, request: DueRequest, now: Date) {
       REQUEST_SLACK_LEASE_MINUTES,
     ],
   );
-  return claimed.rows.length === 1;
+  return claimed.rows[0]?.attempts ?? null;
 }
 
-async function settleSend(
+async function claimExisting(
+  database: PgDatabase,
+  requestId: string,
+  fromState: string,
+  toState: string,
+  now: Date,
+): Promise<number | null> {
+  const claimed = await database.query<{ attempts: number }>(
+    `update bakery.person_request_deliveries
+        set state = $4, attempts = attempts + 1, failure_code = null,
+            updated_at = $5::timestamptz, version = version + 1
+      where request_id = $1 and channel = $2 and state = $3
+      returning attempts`,
+    [requestId, SLACK_CHANNEL, fromState, toState, now],
+  );
+  return claimed.rows[0]?.attempts ?? null;
+}
+
+async function settle(
   database: PgDatabase,
   requestId: string,
   facts: Readonly<{
+    from: string;
     state: string;
     failureCode: string | null;
-    externalRef: string | null;
+    externalRef?: string | null;
+    resetAttempts?: boolean;
     now: Date;
   }>,
 ): Promise<void> {
   await database.query(
     `update bakery.person_request_deliveries
-        set state = $3, failure_code = $4, external_ref = $5,
-            attempts = case when $3 = 'delivered' then 0 else attempts end,
-            delivered_at = case when $5::text is null then null
-                                else $6::timestamptz end,
-            updated_at = $6::timestamptz, version = version + 1
-      where request_id = $1 and channel = $2 and state = 'sending'`,
+        set state = $4, failure_code = $5,
+            external_ref = case when $6::boolean then $7::text
+                                else external_ref end,
+            delivered_at = case when $6::boolean and $7::text is not null
+                                then $8::timestamptz else delivered_at end,
+            attempts = case when $9::boolean then 0 else attempts end,
+            updated_at = $8::timestamptz, version = version + 1
+      where request_id = $1 and channel = $2 and state = $3`,
     [
       requestId,
       SLACK_CHANNEL,
+      facts.from,
       facts.state,
       facts.failureCode,
-      facts.externalRef,
+      facts.externalRef !== undefined,
+      facts.externalRef ?? null,
       facts.now,
+      facts.resetAttempts ?? false,
     ],
   );
 }
 
-async function claimRewrite(
+async function storedPost(
   database: PgDatabase,
-  requestId: string,
-  now: Date,
-): Promise<number | null> {
-  const claimed = await database.query<{ attempts: number }>(
-    `update bakery.person_request_deliveries
-        set state = 'rewriting', attempts = attempts + 1,
-            updated_at = $3::timestamptz, version = version + 1
-      where request_id = $1 and channel = $2
-        and (state = 'delivered'
-             or (state = 'rewriting'
-                 and updated_at <= $3::timestamptz - make_interval(mins => $4)))
-      returning attempts`,
-    [requestId, SLACK_CHANNEL, now, REQUEST_SLACK_LEASE_MINUTES],
+  organizationId: string,
+  idempotencyKey: string,
+): Promise<Record<string, unknown> | null> {
+  const found = await database.query<
+    { safe_arguments: Record<string, unknown> | null }
+  >(
+    `select safe_arguments from bakery.external_effects
+      where organization_id = $1 and operation = $2 and idempotency_key = $3
+      order by created_at desc
+      limit 1`,
+    [organizationId, MESSAGE_POST.id, idempotencyKey],
   );
-  return claimed.rows[0]?.attempts ?? null;
-}
-
-async function moveRewrite(
-  database: PgDatabase,
-  requestId: string,
-  from: string,
-  to: string,
-  failureCode: string | null,
-  now: Date,
-): Promise<boolean> {
-  const moved = await database.query(
-    `update bakery.person_request_deliveries
-        set state = $4, failure_code = $5, updated_at = $6::timestamptz,
-            version = version + 1
-      where request_id = $1 and channel = $2 and state = $3
-      returning 1`,
-    [requestId, SLACK_CHANNEL, from, to, failureCode, now],
-  );
-  return moved.rows.length === 1;
+  const row = found.rows[0];
+  if (row === undefined) return null;
+  return row.safe_arguments ?? {};
 }
 
 function refusalCode(result: IntegrationInvokeResult): string {
@@ -469,35 +626,80 @@ function stringField(value: unknown, field: string): string | null {
   return typeof found === "string" && found.length > 0 ? found : null;
 }
 
-function factsOf(request: DueRequest): RequestSlackFacts {
+function factsOf(request: RequestRow): RequestSlackFacts {
   return {
     requestId: request.id,
     organizationId: request.organization_id,
     taskId: request.task_id,
     intent: request.intent,
     askerName: request.asker_name,
-    groupName: request.group_name,
+    audienceName: request.audience_name,
+    stepName: request.step_key,
     workItem: request.work_item,
+    passedOnFrom: request.passed_on_from,
+    expiresAt: new Date(request.expires_at),
   };
 }
 
 function splitExternalRef(
-  externalRef: string,
+  externalRef: string | null,
 ): { channelId: string; ts: string } | null {
+  if (externalRef === null) return null;
   const at = externalRef.indexOf(":");
   if (at <= 0 || at === externalRef.length - 1) return null;
   return { channelId: externalRef.slice(0, at), ts: externalRef.slice(at + 1) };
+}
+
+const openKey = (id: string) => `request:${id}:slack:open`;
+const postKey = (id: string) => `request:${id}:slack:post`;
+
+function postedRef(posted: SendResult): string | null {
+  if (posted.kind !== "confirmed") return null;
+  const channelId = stringField(posted.output, "channelId");
+  const ts = stringField(posted.output, "ts");
+  return channelId === null || ts === null ? null : `${channelId}:${ts}`;
+}
+
+type Send = ReturnType<typeof createSender>;
+
+async function sendOpen(
+  options: RequestSlackDependencies & { database: PgDatabase },
+  send: Send,
+  request: RequestRow,
+  userId: string,
+): Promise<SendResult> {
+  const stored = await storedPost(
+    options.database,
+    request.organization_id,
+    postKey(request.id),
+  );
+  if (stored !== null) {
+    return await send(request, MESSAGE_POST, stored, postKey(request.id));
+  }
+  const opened = await send(
+    request,
+    DM_OPEN,
+    { userId },
+    openKey(request.id),
+  );
+  if (opened.kind !== "confirmed") return opened;
+  const channelId = stringField(opened.output, "channelId");
+  if (channelId === null) return { kind: "failed", code: "dm_channel_missing" };
+  return await send(request, MESSAGE_POST, {
+    channelId,
+    text: requestSlackText(options.publicBaseUrl, factsOf(request)),
+    marker: requestSlackMarker(request.id),
+  }, postKey(request.id));
 }
 
 export async function sendDueRequestSlackMessages(
   options: RequestSlackDependencies & { database: PgDatabase; now?: Date },
 ): Promise<RequestSlackOutcome[]> {
   const now = options.now ?? new Date();
-  const due = await dueRequests(options.database, now);
-  if (due.length === 0) return [];
+  await giveUpCrashed(options.database, now);
   const send = createSender(options);
   const outcomes: RequestSlackOutcome[] = [];
-  for (const request of due) {
+  for (const request of await dueRequests(options.database, now)) {
     const link = await withPgTransaction(
       options.database,
       (transaction) =>
@@ -508,61 +710,40 @@ export async function sendDueRequestSlackMessages(
         }),
     );
     if (link === undefined) continue;
-    if (!await claim(options.database, request, now)) continue;
-    const attempts = (await options.database.query<{ attempts: number }>(
-      `select attempts from bakery.person_request_deliveries
-        where request_id = $1 and channel = $2`,
-      [request.id, SLACK_CHANNEL],
-    )).rows[0]?.attempts ?? 1;
-    const opened = await send(
-      request,
-      DM_OPEN,
-      { userId: link.userId },
-      `request:${request.id}:slack:open`,
-    );
-    const channelId = opened.kind === "confirmed"
-      ? stringField(opened.output, "channelId")
-      : null;
-    const posted: SendResult = opened.kind !== "confirmed"
-      ? opened
-      : channelId === null
-      ? { kind: "failed", code: "dm_channel_missing" }
-      : await send(request, MESSAGE_POST, {
-        channelId,
-        text: requestSlackText(options.publicBaseUrl, factsOf(request)),
-        marker: requestSlackMarker(request.id),
-      }, `request:${request.id}:slack:post`);
-    const ts = posted.kind === "confirmed"
-      ? stringField(posted.output, "ts")
-      : null;
-    if (posted.kind === "confirmed" && channelId !== null && ts !== null) {
-      await settleSend(options.database, request.id, {
+    const attempts = await claimNew(options.database, request, now);
+    if (attempts === null) continue;
+    const posted = await sendOpen(options, send, request, link.userId);
+    const externalRef = postedRef(posted);
+    if (externalRef !== null) {
+      await settle(options.database, request.id, {
+        from: SlackDeliveryState.Sending,
         state: SlackDeliveryState.Delivered,
         failureCode: null,
-        externalRef: `${channelId}:${ts}`,
+        externalRef,
+        resetAttempts: true,
         now,
       });
       outcomes.push({ requestId: request.id, result: "delivered" });
       continue;
     }
-    if (posted.kind === "failed" || posted.kind === "confirmed") {
+    if (posted.kind !== "uncertain") {
       const code = posted.kind === "failed" ? posted.code : "post_ts_missing";
-      await settleSend(options.database, request.id, {
+      await settle(options.database, request.id, {
+        from: SlackDeliveryState.Sending,
         state: SlackDeliveryState.Failed,
         failureCode: code,
-        externalRef: null,
         now,
       });
       outcomes.push({ requestId: request.id, result: "failed", code });
       continue;
     }
     const exhausted = attempts >= REQUEST_SLACK_MAX_ATTEMPTS;
-    await settleSend(options.database, request.id, {
+    await settle(options.database, request.id, {
+      from: SlackDeliveryState.Sending,
       state: exhausted
         ? SlackDeliveryState.Failed
         : SlackDeliveryState.Retrying,
       failureCode: UNCERTAIN_CODE,
-      externalRef: null,
       now,
     });
     outcomes.push({
@@ -571,6 +752,51 @@ export async function sendDueRequestSlackMessages(
       code: UNCERTAIN_CODE,
     });
   }
+  for (
+    const row of await closedRows(options.database, now, UNSENT_STATES, [
+      REQUEST_SLACK_LEASE_MINUTES,
+    ])
+  ) {
+    const attempts = await claimExisting(
+      options.database,
+      row.id,
+      row.delivery_state,
+      SlackDeliveryState.Sending,
+      now,
+    );
+    if (attempts === null) continue;
+    const stored = await storedPost(
+      options.database,
+      row.organization_id,
+      postKey(row.id),
+    );
+    const posted: SendResult = stored === null
+      ? { kind: "failed", code: CLOSED_BEFORE_SEND_CODE }
+      : await send(row, MESSAGE_POST, stored, postKey(row.id));
+    const externalRef = postedRef(posted);
+    if (externalRef !== null) {
+      await settle(options.database, row.id, {
+        from: SlackDeliveryState.Sending,
+        state: SlackDeliveryState.Delivered,
+        failureCode: null,
+        externalRef,
+        resetAttempts: true,
+        now,
+      });
+      outcomes.push({ requestId: row.id, result: "delivered" });
+      continue;
+    }
+    const code = posted.kind === "failed"
+      ? posted.code
+      : CLOSED_UNCONFIRMED_CODE;
+    await settle(options.database, row.id, {
+      from: SlackDeliveryState.Sending,
+      state: SlackDeliveryState.Failed,
+      failureCode: code,
+      now,
+    });
+    outcomes.push({ requestId: row.id, result: "failed", code });
+  }
   return outcomes;
 }
 
@@ -578,65 +804,69 @@ export async function rewriteClosedRequestSlackMessages(
   options: RequestSlackDependencies & { database: PgDatabase; now?: Date },
 ): Promise<RequestSlackOutcome[]> {
   const now = options.now ?? new Date();
-  const closed = await closedDeliveries(options.database, now);
-  if (closed.length === 0) return [];
+  await giveUpCrashed(options.database, now);
   const send = createSender(options);
   const outcomes: RequestSlackOutcome[] = [];
-  for (const delivery of closed) {
-    const posted = splitExternalRef(delivery.external_ref);
-    const attempts = await claimRewrite(options.database, delivery.id, now);
+  for (
+    const row of await closedRows(options.database, now, REWRITE_STATES, [
+      REQUEST_SLACK_RETRY_BASE_MINUTES,
+      REQUEST_SLACK_LEASE_MINUTES,
+    ])
+  ) {
+    const posted = splitExternalRef(row.external_ref);
+    const attempts = await claimExisting(
+      options.database,
+      row.id,
+      row.delivery_state,
+      SlackDeliveryState.Rewriting,
+      now,
+    );
     if (attempts === null) continue;
     const updated: SendResult = posted === null
       ? { kind: "failed", code: "external_ref_invalid" }
-      : await send(delivery, MESSAGE_UPDATE, {
+      : await send(row, MESSAGE_UPDATE, {
         channelId: posted.channelId,
         ts: posted.ts,
-        text: requestSlackText(options.publicBaseUrl, factsOf(delivery), {
-          status: delivery.final_status,
-          closedByName: delivery.closed_by_name,
+        text: requestSlackText(options.publicBaseUrl, factsOf(row), {
+          status: row.final_status,
+          closedByName: row.closed_by_name,
         }),
-      }, `request:${delivery.id}:slack:update:${delivery.final_status}`);
+      }, `request:${row.id}:slack:update:${row.final_status}`);
     if (updated.kind === "confirmed") {
-      await moveRewrite(
-        options.database,
-        delivery.id,
-        SlackDeliveryState.Rewriting,
-        SlackDeliveryState.Rewritten,
-        null,
+      await settle(options.database, row.id, {
+        from: SlackDeliveryState.Rewriting,
+        state: SlackDeliveryState.Rewritten,
+        failureCode: null,
         now,
-      );
-      outcomes.push({ requestId: delivery.id, result: "rewritten" });
+      });
+      outcomes.push({ requestId: row.id, result: "rewritten" });
       continue;
     }
     if (updated.kind === "failed") {
-      await moveRewrite(
-        options.database,
-        delivery.id,
-        SlackDeliveryState.Rewriting,
-        SlackDeliveryState.RewriteFailed,
-        updated.code,
+      await settle(options.database, row.id, {
+        from: SlackDeliveryState.Rewriting,
+        state: SlackDeliveryState.RewriteFailed,
+        failureCode: updated.code,
         now,
-      );
+      });
       outcomes.push({
-        requestId: delivery.id,
+        requestId: row.id,
         result: "failed",
         code: updated.code,
       });
       continue;
     }
     const exhausted = attempts >= REQUEST_SLACK_MAX_ATTEMPTS;
-    await moveRewrite(
-      options.database,
-      delivery.id,
-      SlackDeliveryState.Rewriting,
-      exhausted
+    await settle(options.database, row.id, {
+      from: SlackDeliveryState.Rewriting,
+      state: exhausted
         ? SlackDeliveryState.RewriteFailed
         : SlackDeliveryState.Delivered,
-      UNCERTAIN_CODE,
+      failureCode: UNCERTAIN_CODE,
       now,
-    );
+    });
     outcomes.push({
-      requestId: delivery.id,
+      requestId: row.id,
       result: exhausted ? "failed" : "retrying",
       code: UNCERTAIN_CODE,
     });

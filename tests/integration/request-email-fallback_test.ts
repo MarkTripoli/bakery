@@ -297,3 +297,38 @@ Deno.test("a row stuck in sending past the lease is sent again on the next sweep
     await o.finish();
   }
 });
+
+Deno.test("a row that keeps crashing in sending stops after three attempts as crashed", async () => {
+  const o = await open();
+  try {
+    const id = await o.request(new Date("2026-11-26T09:00:00Z"));
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.person_request_deliveries
+         (organization_id, request_id, channel, state, attempts, updated_at)
+       values ($1, $2, 'email', 'sending', 3, '2026-11-26T09:16:00Z')`,
+      [o.fixture.organizationId, id],
+    );
+    const before = o.smtp.received.length;
+    assertEquals(
+      mine(await o.sweep(new Date("2026-11-26T09:27:00Z")), id),
+      [],
+    );
+    const row = await o.fixture.pgDatabase.query<
+      { state: string; attempts: number; failure_code: string | null }
+    >(
+      `select state, attempts, failure_code from bakery.person_request_deliveries
+        where request_id = $1`,
+      [id],
+    );
+    assertEquals(row.rows, [
+      { state: "failed", attempts: 3, failure_code: "crashed" },
+    ]);
+    assertEquals(
+      mine(await o.sweep(new Date("2026-11-26T11:00:00Z")), id),
+      [],
+    );
+    assertEquals(o.smtp.received.length, before);
+  } finally {
+    await o.finish();
+  }
+});
