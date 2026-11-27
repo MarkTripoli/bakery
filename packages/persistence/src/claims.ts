@@ -1,3 +1,4 @@
+import { hostAllowedCapabilities } from "@bakery/contracts/workflow-action-registry";
 import type { PgTransactionClient } from "./postgres.ts";
 import { StandardError } from "@bakery/contracts/http";
 import { jobAssignmentPayloadSchema } from "@bakery/contracts/contracts";
@@ -388,11 +389,13 @@ export function createClaimsRepository(
       metadata,
       principalId,
     }) {
-      const enrolled = Array.isArray(identity.host.capabilities)
-        ? identity.host.capabilities.filter((value): value is string =>
-          typeof value === "string"
-        )
-        : [];
+      const enrolled = hostAllowedCapabilities(
+        Array.isArray(identity.host.capabilities)
+          ? identity.host.capabilities.filter((value): value is string =>
+            typeof value === "string"
+          )
+          : [],
+      );
       const authenticatedCapabilities = requestedCapabilities.filter((
         capability,
       ) => enrolled.includes(capability));

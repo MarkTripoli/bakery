@@ -1,4 +1,7 @@
-import { hostSatisfiedCapabilities } from "@bakery/contracts/workflow-action-registry";
+import {
+  hostAllowedCapabilities,
+  hostSatisfiedCapabilities,
+} from "@bakery/contracts/workflow-action-registry";
 
 /**
  * The one rule deciding whether a worker host may run a job (#52 AC2).
@@ -20,7 +23,9 @@ export function hostMeetsJobRequirements(
   },
   host: { readonly os: string; readonly capabilities: readonly string[] },
 ): boolean {
-  const satisfied = hostSatisfiedCapabilities(host.capabilities);
+  const satisfied = hostSatisfiedCapabilities(
+    hostAllowedCapabilities(host.capabilities),
+  );
   if (
     requirements.capabilities.some((capability) =>
       !satisfied.includes(capability)
