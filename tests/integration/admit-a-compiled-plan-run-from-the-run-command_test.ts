@@ -1000,11 +1000,8 @@ Deno.test("a worker opens output for a cloud-only model job under its task's app
         where organization_id = $1 and id = $2`,
       [fixture.organizationId, binding.sessionId],
     )).rows[0];
-    assert(
-      stream !== undefined && stream.archive_state !== "not_required" &&
-        stream.archive_failure !== "no_task_owned_destination",
-      JSON.stringify(stream),
-    );
+    assertEquals(stream?.archive_failure, null, JSON.stringify(stream));
+    assert(stream.archive_state !== "not_required", stream.archive_state);
     const attempts = await adminRequest(
       fixture,
       `/v1/jobs/${assignment.jobId}/attempts?taskId=${task.id}`,
