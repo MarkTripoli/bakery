@@ -294,7 +294,7 @@ test.describe("approve a machine", () => {
     f.lookupRefusal = problem(429, "RATE_LIMITED");
     await page.getByLabel("Code from the terminal").press("Enter");
     await expect(
-      page.getByText("Too many tries. Wait a minute, then try again."),
+      page.getByText("Too many tries. Wait 10 minutes, then try again."),
     ).toBeVisible();
     await expect(page.getByLabel("Code from the terminal")).toBeVisible();
   });
@@ -381,8 +381,13 @@ test.describe("approve a machine", () => {
   test("someone who is not an administrator is told who to ask", async ({ page }) => {
     await open(page, fixture(), "developer");
     await expect(panel(page)).toContainText(
-      "Only administrators can approve a machine. Send an administrator this page.",
+      "Only administrators can approve a machine",
     );
+    await expect(panel(page)).toContainText(
+      "Send an administrator this page.",
+    );
+    await expect(panel(page).getByText("Only administrators")).toHaveCount(1);
+    await expect(panel(page)).not.toContainText("add machines");
     await expect(page.getByLabel("Code from the terminal")).toHaveCount(0);
     await expect(button(page, "Copy the address")).toBeVisible();
     await still(page, "link-not-admin");

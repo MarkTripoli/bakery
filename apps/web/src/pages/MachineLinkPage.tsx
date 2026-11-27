@@ -240,7 +240,7 @@ export function MachineLinkPage() {
     return frame(
       null,
       <UI.EmptyState
-        title={translate("machines.wizard.adminOnly.title" as never)}
+        title={say("adminOnlyTitle")}
         description={say("adminOnly")}
         action={
           <UI.Button

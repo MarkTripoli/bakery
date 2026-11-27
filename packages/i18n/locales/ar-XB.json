@@ -7905,5 +7905,6 @@
   "machines.link.adminOnly": "⟪Only administrators can approve a machine. Send an administrator this page.⟫",
   "machines.link.copyAddress": "⟪Copy the address⟫",
   "machines.link.ranOut": "⟪This approval ran out before the computer finished. Run the command on the machine again, then enter its new code.⟫",
-  "machines.link.newCode": "⟪Enter a new code⟫"
+  "machines.link.newCode": "⟪Enter a new code⟫",
+  "machines.link.adminOnlyTitle": "⟪Only administrators can approve a machine⟫"
 }

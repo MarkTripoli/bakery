@@ -405,6 +405,44 @@ Deno.test("a poll that waits for the approval to commit still hands out the link
     assertMatch(answer.linkCode, CODE);
   }));
 
+Deno.test("a computer on an unsupported system cannot be approved, only declined", () =>
+  withWorkerFixture(async (fixture) => {
+    await clearLinkRateLimits(fixture);
+    const response = await publicPost(fixture, "/v1/worker/link-requests", {
+      ...MACHINE,
+      os: "macos",
+      architecture: "arm64",
+    });
+    assertEquals(response.status, 201, await response.clone().text());
+    const request = await response.json() as {
+      requestId: string;
+      deviceSecret: string;
+    };
+    const approved = await adminRequest(
+      fixture,
+      `/v1/worker-link-requests/${request.requestId}/approvals`,
+      { slots: 1, capabilities: ["git"] },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(approved.status, 409, await approved.clone().text());
+    assertEquals(
+      await problem(approved).then((body) => body.reason),
+      "unsupported_system",
+    );
+    assertEquals(
+      await (await poll(fixture, request.requestId, request.deviceSecret))
+        .json(),
+      { state: "pending" },
+    );
+    const declined = await adminRequest(
+      fixture,
+      `/v1/worker-link-requests/${request.requestId}/declines`,
+      {},
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(declined.status, 200, await declined.clone().text());
+  }));
+
 Deno.test("a declined machine stops and can no longer be approved", () =>
   withWorkerFixture(async (fixture) => {
     await clearLinkRateLimits(fixture);
