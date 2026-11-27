@@ -1405,15 +1405,9 @@ async function involvedInRun(
       where organization_id = $1 and run_id = $2
         and audience->'principalIds' ? $3::text
      union all
-     select 1 from bakery.messages as message
-       join bakery.agent_sessions as session
-         on session.organization_id = message.organization_id
-        and session.conversation_id = message.conversation_id
-       join bakery.run_steps as step
-         on step.organization_id = session.organization_id
-        and step.id = session.run_step_id
-      where message.organization_id = $1 and step.run_id = $2
-        and message.author_id = $3 and message.message_type = 'user'
+     select 1 from bakery.decisions_ledger
+      where organization_id = $1 and run_id = $2 and kind = 'steer'
+        and decided_by = $3
      union all
      select 1 from bakery.run_step_notes
       where organization_id = $1 and run_id = $2 and author_id = $3
