@@ -430,8 +430,6 @@ export function DeliverySectionView(
             <UI.Skeleton shape="surface" />
             <UI.Skeleton shape="row" />
             <UI.Skeleton shape="row" />
-            <UI.Skeleton shape="row" />
-            <UI.Skeleton shape="row" />
           </UI.Stack>
         )}
         {state === "error" && (

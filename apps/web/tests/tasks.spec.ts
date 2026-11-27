@@ -1681,6 +1681,10 @@ test("a waiting run offers cancel only and cancels from the run view", async ({ 
   // Only what the server allows is listed: no faded Pause, Resume or Interrupt.
   await openRunActions(page);
   await expect(runAction(page, "Cancel run")).toBeEnabled();
+  await expect(runAction(page, "Cancel run")).toHaveAttribute(
+    "data-tone",
+    "danger",
+  );
   for (const name of ["Pause run", "Resume run", "Interrupt the agent"]) {
     await expect(page.getByRole("button", { name, exact: true })).toHaveCount(
       0,

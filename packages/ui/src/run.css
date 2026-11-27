@@ -66,6 +66,18 @@
 .ui-run-card__actions .ui-link--button::before {
   content: none;
 }
+.ui-run-card--row h2 {
+  font: var(--type-control);
+}
+.ui-run-card--row .ui-run-card__row {
+  gap: var(--space-1-5);
+}
+.ui-run-card--row .ui-run-card__meta::before {
+  content: "· ";
+}
+.ui-run-card--row .ui-run-card__actions {
+  margin-inline-start: auto;
+}
 .ui-log-viewer[data-presentation="output"] {
   background: var(--color-canvas);
   border: var(--border-none);
