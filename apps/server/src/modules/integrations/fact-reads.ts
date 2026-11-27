@@ -301,6 +301,20 @@ export async function mintReadToken(
   subject: Subject,
   signal: AbortSignal,
 ): Promise<GitHubInstallationToken | { kind: "refused" }> {
+  return await mintInstallationToken(
+    dependencies,
+    authority,
+    permissionsFor(subject),
+    signal,
+  );
+}
+
+export async function mintInstallationToken(
+  dependencies: ReconcileDependencies,
+  authority: ReadTokenAuthority,
+  permissions: GitHubPermissions,
+  signal: AbortSignal,
+): Promise<GitHubInstallationToken | { kind: "refused" }> {
   const { credentials, installation, resource, connection } = authority;
   if (
     credentials === null ||
@@ -317,7 +331,7 @@ export async function mintReadToken(
     privateKey: credentials.privateKey,
     installationId: Number(installation.externalId),
     repositoryIds: [Number(resource.externalId)],
-    permissions: permissionsFor(subject),
+    permissions,
   };
   return await dependencies.broker.token(target, signal);
 }
