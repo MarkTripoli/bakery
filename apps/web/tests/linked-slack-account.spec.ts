@@ -184,3 +184,15 @@ test("a viewer can link too, and is offered no integrations link", async ({ page
     .toBeVisible();
   await expect(section(page).getByRole("link")).toHaveCount(0);
 });
+
+test("the Link your account button in Slack opens this section", async ({ page }) => {
+  await security(page, {
+    link: NOT_LINKED,
+    query: `?organization=${MOCK_ORGANIZATION_ID}#slack`,
+  });
+  const section = page.locator("#slack");
+  await expect(section).toBeVisible();
+  await expect(section).toBeInViewport();
+  await expect(section.getByRole("button", { name: "Link Slack" }))
+    .toBeVisible();
+});
