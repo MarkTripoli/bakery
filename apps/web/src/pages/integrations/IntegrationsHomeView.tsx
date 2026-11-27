@@ -478,7 +478,7 @@ function ProviderConnectable(
         ? (
           <UI.InlineNotice tone="warning">
             {say("unregistered")}{" "}
-            <RouterLink to="/settings/installation/integrations">
+            <RouterLink hash={slug} to="/settings/installation/integrations">
               {say("unregisteredLink")}
             </RouterLink>
           </UI.InlineNotice>

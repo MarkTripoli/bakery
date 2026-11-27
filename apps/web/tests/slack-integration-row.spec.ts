@@ -133,6 +133,12 @@ test("Connect Slack without app details says who enters them", async ({ page }) 
     row.getByRole("link", { name: "Open installation integrations" }),
   ).toBeVisible();
   await still(page, "slack-connect-unregistered");
+  await row.getByRole("link", { name: "Open installation integrations" })
+    .click();
+  await expect(
+    page.getByTestId("slack-credentials").getByRole("heading").first(),
+  )
+    .toBeInViewport();
 });
 
 for (

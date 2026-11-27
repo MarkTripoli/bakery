@@ -111,6 +111,11 @@ export function InstallationProviderCredentials(
     : loaded
     ? "ready"
     : "loading";
+  useEffect(() => {
+    if (view === "ready" && globalThis.location.hash === `#${provider}`) {
+      globalThis.document.getElementById(provider)?.scrollIntoView();
+    }
+  }, [view, provider]);
   return (
     <ProviderCredentialsSection
       connectAvailable={connectAvailable}
