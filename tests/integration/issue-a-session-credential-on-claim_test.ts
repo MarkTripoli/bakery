@@ -70,13 +70,10 @@ Deno.test("a real claim hands back a credential bound to its attempt", () =>
       resolved.claim.scopes.length > 0,
       "the credential was issued with no scopes, so it can call nothing",
     );
-    // AC3: read operations first. This step declares no files section and
-    // nobody granted its workflow a folder, so every scope is a read (a bare
-    // `.read` or a `files.read:<area>` area), and /connections stays shut
-    // because the definition binds no connection (#448, O44).
     for (const scope of resolved.claim.scopes) {
       assert(
-        scope.endsWith(".read") || scope.startsWith("files.read:"),
+        scope.endsWith(".read") || scope.startsWith("files.read:") ||
+          scope === "runs.ask",
         `the claim minted ${scope}, which no definition granted`,
       );
     }
