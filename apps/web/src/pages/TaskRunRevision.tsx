@@ -1,6 +1,6 @@
 import { summarizePatch } from "./patch-summary.ts";
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import {
@@ -15,10 +15,11 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { FingerprintRow } from "./FingerprintRow.tsx";
 
 export function TaskRunRevision(
-  { taskId, runId, baseSha }: {
+  { taskId, runId, baseSha, onFiles }: {
     readonly taskId: string;
     readonly runId: string;
     readonly baseSha: string | null;
+    readonly onFiles?: (files: number | null) => void;
   },
 ) {
   const api = useBakeryApi();
@@ -42,8 +43,42 @@ export function TaskRunRevision(
     ) ?? [];
   const selected = items.find((artifact) => artifact.id === artifactId) ??
     items[0];
+  const reads = useQueries({
+    queries: items.map((artifact) =>
+      artifactVersionsQueryOptions(api, scope, artifact.id, { limit: 25 })
+    ),
+  });
+  const complete = !cursor && !artifacts.data?.nextCursor && !steps.isError &&
+    reads.every((read) =>
+      read.data !== undefined && !read.isError && !read.data.nextCursor
+    );
+  const patchesOfRun = items.map((artifact, index) =>
+    versionsOfRun(
+      reads[index]?.data?.items ?? [],
+      artifact.id,
+      steps.data ?? [],
+    )
+  ).filter((versions) => versions.length > 0);
+  const counted = complete && patchesOfRun.length === 1
+    ? patchesOfRun[0]!.reduce((latest, version) =>
+      version.revision > latest.revision ? version : latest
+    )
+    : undefined;
+  useEffect(() => {
+    if (counted === undefined) onFiles?.(null);
+  }, [counted === undefined, onFiles]);
   return (
     <UI.Stack>
+      {counted && onFiles
+        ? (
+          <RunFileCount
+            key={counted.id}
+            onFiles={onFiles}
+            taskId={taskId}
+            version={counted}
+          />
+        )
+        : null}
       {selected
         ? (
           <>
@@ -119,11 +154,7 @@ function PatchRevisions(
   });
   const candidates = versions.isError
     ? []
-    : versions.data?.items.filter((version) =>
-      version.artifactId === artifactId &&
-      version.runStepId !== null &&
-      stepIds.includes(version.runStepId) && version.subjectHeadSha !== null
-    ) ?? [];
+    : versionsOfRun(versions.data?.items ?? [], artifactId, stepIds);
   return (
     <UI.Stack>
       {candidates.length === 0
@@ -155,18 +186,21 @@ function PatchRevisions(
   );
 }
 
-function PatchContent(
-  { taskId, version, baseSha }: {
-    readonly taskId: string;
-    readonly baseSha: string | null;
-    readonly version: ArtifactVersionResponse;
-  },
-) {
+function versionsOfRun(
+  versions: readonly ArtifactVersionResponse[],
+  artifactId: string,
+  stepIds: readonly string[],
+): readonly ArtifactVersionResponse[] {
+  return versions.filter((version) =>
+    version.artifactId === artifactId && version.runStepId !== null &&
+    stepIds.includes(version.runStepId) && version.subjectHeadSha !== null
+  );
+}
+
+function usePatchText(taskId: string, version: ArtifactVersionResponse) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
-  const { translate: t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const content = useQuery({
+  return useQuery({
     queryKey: protectedQueryKey(scope, "runPatch.content", {
       taskId,
       versionId: version.id,
@@ -195,11 +229,41 @@ function PatchContent(
       );
     },
   });
+}
+
+function RunFileCount(
+  { taskId, version, onFiles }: {
+    readonly taskId: string;
+    readonly version: ArtifactVersionResponse;
+    readonly onFiles: (files: number | null) => void;
+  },
+) {
+  const content = usePatchText(taskId, version);
+  const files = content.isError || content.data === undefined
+    ? null
+    : summarizePatch(content.data)?.files ?? null;
+  useEffect(() => {
+    onFiles(files);
+  }, [files, onFiles]);
+  return null;
+}
+
+function PatchContent(
+  { taskId, version, baseSha }: {
+    readonly taskId: string;
+    readonly baseSha: string | null;
+    readonly version: ArtifactVersionResponse;
+  },
+) {
+  const { translate: t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const content = usePatchText(taskId, version);
   const summary = content.isError || content.data === undefined
     ? null
     : summarizePatch(content.data);
   return (
     <UI.RevisionSummary
+      variant="row"
       title={t("tasks.run.revision.title")}
       baseRevision={(version.subjectBaseSha ?? baseSha)?.slice(0, 7) ?? null}
       candidateRevision={version.subjectHeadSha?.slice(0, 7) ?? null}
@@ -210,12 +274,9 @@ function PatchContent(
           removed: summary.removed,
         })
         : null}
-      disclaimer={t("tasks.run.revision.disclaimer")}
-      unknownLabel={t("tasks.run.unknown")}
-      noneRecorded={t("tasks.run.revision.noneRecorded")}
       action={
         <UI.Button
-          variant="outline"
+          variant="text"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
@@ -225,6 +286,9 @@ function PatchContent(
     >
       {open && (
         <>
+          <UI.Text variant="muted">
+            {t("tasks.run.revision.disclaimer")}
+          </UI.Text>
           <UI.Text>
             {t("tasks.run.revision.version", { revision: version.revision })}
           </UI.Text>
