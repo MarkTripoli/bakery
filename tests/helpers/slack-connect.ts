@@ -75,7 +75,7 @@ export function fakeSlack(options: { tokenOk?: boolean } = {}) {
 }
 
 export async function open(
-  slack: ReturnType<typeof fakeSlack>,
+  slack: Omit<ReturnType<typeof fakeSlack>, "answers">,
   options: { signingSecret?: string } = {},
 ) {
   const directory = await Deno.makeTempDir({ prefix: "bakery-slack-connect-" });
