@@ -5413,6 +5413,7 @@
   "library.skills.update.modeOnly": "Only whether it can be run changed.",
   "library.skills.update.aside.existing": "Version {number} already has these files. Taking it puts version {number} in use.",
   "library.skills.update.unchanged": "Nothing changed: version {number} is still in use. Review it once more.",
+  "library.skills.update.heldAlready": "These files are already stored as an earlier version. Review it once more to put that version in use.",
   "library.skills.update.aside.title": "If you take it",
   "library.skills.update.aside.version": "Version {number} is added and becomes the one in use.",
   "library.skills.update.aside.unknownVersion": "A new version is added and becomes the one in use.",

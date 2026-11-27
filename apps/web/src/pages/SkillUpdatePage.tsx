@@ -34,6 +34,8 @@ import {
 } from "./library/SkillSourceCheckControl.tsx";
 import { importFailureKind } from "./library/skill-source-state.ts";
 import {
+  type FileChange as Change,
+  fileChanges,
   nextRevision,
   shortRevision,
   type TakeRefusal,
@@ -44,15 +46,6 @@ import { fileSize, usedByGroups } from "./library/skills-state.ts";
 import { useCanChangeSkill } from "./library/useCanChangeSkill.ts";
 
 const POLL_MS = 1500;
-
-type Change = {
-  readonly path: string;
-  readonly change: "added" | "removed" | "changed";
-  readonly installedSizeBytes: number | null;
-  readonly latestSizeBytes: number | null;
-  readonly diff: string | null;
-  readonly diffOmitted: "binary" | "too_large" | "mode_only" | null;
-};
 
 const OMITTED = {
   binary: "library.skills.update.binary",
@@ -70,6 +63,7 @@ const REFUSALS = {
   moved: "library.skills.update.moved",
   changed: "library.skills.update.skillChanged",
   installed: "library.skills.update.takeFailed",
+  held: "library.skills.update.heldAlready",
   unavailable: "library.skills.update.takeFailed",
   forbidden: "library.skills.update.forbiddenNow",
   offline: "library.skills.update.offline",
@@ -253,7 +247,9 @@ function Review(
       }
       const refusal = takeRefusal(error);
       if (refusal === "installed") back();
-      if (refusal === "moved" || refusal === "changed") void onStale();
+      if (
+        refusal === "moved" || refusal === "changed" || refusal === "held"
+      ) void onStale();
     },
   });
   const run = useQuery({
@@ -313,7 +309,7 @@ function Review(
       number: skill.activeRevision ?? 0,
     })
     : null;
-  const changes = check.changes as unknown as readonly Change[];
+  const changes = fileChanges(check.changes);
   return (
     <UI.FormWithSummary
       actions={

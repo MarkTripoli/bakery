@@ -7830,5 +7830,6 @@
   "library.skills.update.offline": "⟪You are offline. Nothing changed. Try again when you are back online.⟫",
   "library.skills.update.takeFailed": "⟪The update was not taken. Nothing changed. Try again.⟫",
   "library.skills.update.aside.existing": "⟪Version {number} already has these files. Taking it puts version {number} in use.⟫",
-  "library.skills.update.unchanged": "⟪Nothing changed: version {number} is still in use. Review it once more.⟫"
+  "library.skills.update.unchanged": "⟪Nothing changed: version {number} is still in use. Review it once more.⟫",
+  "library.skills.update.heldAlready": "⟪These files are already stored as an earlier version. Review it once more to put that version in use.⟫"
 }

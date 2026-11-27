@@ -3467,7 +3467,6 @@ export function skillDraftFileQueryOptions(
   });
 }
 
-/** The versions of one skill, a page at a time. */
 export function skillSourceCheckQueryOptions(
   client: Pick<BakeryApiClient, "checkSkillSource">,
   scope: ApiScope,
@@ -3495,6 +3494,7 @@ export function skillSourceCheckQueryOptions(
   });
 }
 
+/** The versions of one skill, a page at a time. */
 export function skillVersionsQueryOptions(
   client: Pick<BakeryApiClient, "listSkillVersions">,
   scope: ApiScope,

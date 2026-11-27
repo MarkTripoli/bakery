@@ -392,6 +392,19 @@ test("a source that moved since the check is read again, and says why", async ({
   await still(page, "skill-update-moved");
 });
 
+test("a refusal because the files are already a version says so and reads again", async ({ page }) => {
+  const { state } = await open(page, {
+    takeReason: "skill_update_revision_already_imported",
+  }, `${PAGE}/update`);
+  await expect(take(page)).toBeEnabled();
+  const before = state.checks;
+  await take(page).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "These files are already stored as an earlier version.",
+  );
+  await expect.poll(() => state.checks).toBe(before + 1);
+});
+
 test("a failed take stays on the review and says why", async ({ page }) => {
   await open(page, { failureCode: "SOURCE_LIMIT_EXCEEDED" }, `${PAGE}/update`);
   await take(page).click();
