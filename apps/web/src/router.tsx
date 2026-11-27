@@ -118,6 +118,10 @@ import { TotpSetupPage } from "./pages/TotpSetupPage.tsx";
 import { BackupCodesPage } from "./pages/BackupCodesPage.tsx";
 import { TotpDisablePage } from "./pages/TotpDisablePage.tsx";
 import { SecurityHubPage } from "./pages/SecurityHubPage.tsx";
+import {
+  isSlackLinkNotice,
+  type SlackLinkNotice,
+} from "./screens/LinkedSlackSection.tsx";
 import { ChangePasswordPage } from "./pages/ChangePasswordPage.tsx";
 import { PasskeysPage } from "./pages/PasskeysPage.tsx";
 import { AddPasskeyPage } from "./pages/AddPasskeyPage.tsx";
@@ -2475,16 +2479,22 @@ const securityRoute = createRoute({
   path: "/settings/security",
   validateSearch: (
     search: Record<string, unknown>,
-  ): { confirmed?: boolean } => ({
+  ): { confirmed?: boolean; slackLink?: SlackLinkNotice } => ({
     confirmed: searchFlag(search.confirmed) || undefined,
+    slackLink: isSlackLinkNotice(search.slackLink)
+      ? search.slackLink
+      : undefined,
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
-    const { confirmed } = securityRoute.useSearch();
+    const { confirmed, slackLink } = securityRoute.useSearch();
     return (
       <InSettings section="shell.navigation.security">
-        <SecurityHubPage confirmed={confirmed === true} />
+        <SecurityHubPage
+          confirmed={confirmed === true}
+          slackResult={slackLink ?? null}
+        />
       </InSettings>
     );
   },

@@ -219,6 +219,9 @@ export type IntegrationResourceUpdate =
 export type ConnectionCheck = ClientOutputMap["ConnectionCheck"];
 export type IntegrationAuthAttemptCreated =
   ClientOutputMap["IntegrationAuthAttemptCreated"];
+export type MySlackLink = ClientOutputMap["MySlackLink"];
+export type MySlackLinkAttemptCreated =
+  ClientOutputMap["MySlackLinkAttemptCreated"];
 export type AuditEventPage = ClientOutputMap["Page<AuditEvent>"];
 export type AuditEventItem = AuditEventPage["items"][number];
 export type AuditEventsQuery = ClientInputMap["AuditQuery"];
@@ -1877,6 +1880,18 @@ export type BakeryApiClient = {
       readonly returnPath?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<IntegrationAuthAttemptCreated>>;
+  };
+  readonly mySlackLink: {
+    readonly get: (
+      organizationId: string,
+      signal?: AbortSignal,
+    ) => Promise<ApiResult<MySlackLink>>;
+    readonly start: (
+      organizationId: string,
+    ) => Promise<ApiResult<MySlackLinkAttemptCreated>>;
+    readonly unlink: (
+      organizationId: string,
+    ) => Promise<ApiResult<MySlackLink>>;
   };
   readonly browserSessions: {
     readonly list: (
@@ -5630,6 +5645,48 @@ export function createBakeryApiClient({
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+    },
+
+    mySlackLink: {
+      async get(organizationId, signal) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(organizationId).actions["mySlackLink.get"](
+              {},
+              { signal },
+            ),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+
+      async start(organizationId) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(organizationId).actions[
+              "mySlackLinkAttempts.create"
+            ]({}),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
+
+      async unlink(organizationId) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(organizationId).actions["mySlackLink.delete"](
+              {},
+            ),
           };
         } catch (error) {
           return failed(error);

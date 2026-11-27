@@ -1,4 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import * as UI from "@bakery/ui";
 import {
   CONNECTED_CLIENTS_PATH,
@@ -27,6 +28,7 @@ export type SecurityHubScreenProps = {
   readonly onRetry: () => void;
   readonly onReload: () => void;
   readonly onRefresh: () => void;
+  readonly linkedAccounts?: ReactNode;
 };
 
 /**
@@ -43,6 +45,7 @@ export function SecurityHubScreen(
     confirmed,
     displayName,
     email,
+    linkedAccounts,
     onRefresh,
     onReload,
     onRetry,
@@ -172,6 +175,7 @@ export function SecurityHubScreen(
             to={CONNECTED_CLIENTS_PATH}
           />
         </div>
+        {linkedAccounts}
       </SecurityAsyncBoundary>
     </UI.SettingsContent>
   );
