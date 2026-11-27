@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "f9c1ef1f9240a85230080f1eddeb53537d515762"
+    "d548b750fdd43b8f34e2a472515b22d0bfbebd72"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:a667b25c30640cc23b2e5478b7a8f3022065d774392eacaad3b2f683939aff50",
-  "reason": "#458 Slack signing secret by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main f9c1ef1f9240a85230080f1eddeb53537d515762: IntegrationClientCredentials gains a required, nullable signingSecretSavedAt (when the provider app's signing secret was saved, never the secret) and IntegrationClientCredentialsPut gains an optional write-only signingSecret, so Slack's signing secret is configured in the UI with the app registration. The web client and its test mocks in this PR carry the field.",
+  "targetCompatibilityDigest": "sha256:224dd91d0460f916fbe50dc011dbe58e4350711786c0cec3adac5d49ecc7faf2",
+  "reason": "#409 S4 tasks without an application by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main d548b750fdd43b8f34e2a472515b22d0bfbebd72: Task.applicationId becomes nullable and TaskCreate.applicationId optional, so a provider-neutral ticket source with no application creates tasks; a task with no application names no repository. The web reads the field as nullable in this PR.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "f9c1ef1f9240a85230080f1eddeb53537d515762"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a667b25c30640cc23b2e5478b7a8f3022065d774392eacaad3b2f683939aff50",
+      "reason": "#458 Slack signing secret by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main f9c1ef1f9240a85230080f1eddeb53537d515762: IntegrationClientCredentials gains a required, nullable signingSecretSavedAt (when the provider app's signing secret was saved, never the secret) and IntegrationClientCredentialsPut gains an optional write-only signingSecret, so Slack's signing secret is configured in the UI with the app registration. The web client and its test mocks in this PR carry the field."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

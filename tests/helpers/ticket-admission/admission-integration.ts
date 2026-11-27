@@ -167,18 +167,12 @@ Deno.test("issue 82 admission AC1: six mixed origins for one issue converge on o
     assertEquals((await fx.counts(sourceId)).tasks, 1);
   }));
 
-Deno.test("issue 82 admission AC1: a source with no application is refused, and two concurrent attempts store nothing", () =>
+Deno.test("issue 409 S4: a source with no application is no longer refused; with no repository it waits at readiness", () =>
   withTicketFixture(async (fx) => {
-    // 0206 lets a source carry no application (a provider that verifies a
-    // webhook with a shared secret). Readiness works for such a source, but a
-    // task names an application and cannot omit one, so admission is refused
-    // with a reason instead of failing inside task creation. The concurrency
-    // half matters because a refused path must write nothing even when two
-    // attempts race - the alternative would be a request row admitted under a
-    // task that cannot exist.
     const sourceId = await fx.insertSource({
       policy: automaticPolicy(fx),
       applicationId: null,
+      repositoryId: null,
     });
     fx.reader.setIssue({ number: 11, labels: [EXECUTE_LABEL] });
     fx.reader.setLabelApplied(11, EXECUTE_LABEL, { appliedAt: AFTER_SINCE });
@@ -190,15 +184,19 @@ Deno.test("issue 82 admission AC1: a source with no application is refused, and 
       fx.admit(sourceId, { number: 11, origin: "poll", deps }),
     ]);
     for (const attempt of attempts) {
-      assertEquals(attempt.status, "rejected");
-      const reason = attempt.status === "rejected"
-        ? (attempt.reason as { code?: string; params?: { reason?: string } })
-        : null;
-      assertEquals(reason?.code, "PRECONDITION_FAILED");
-      assertEquals(reason?.params?.reason, "source_application_required");
+      assertEquals(attempt.status, "fulfilled");
+      const value = attempt.status === "fulfilled" ? attempt.value : null;
+      assertEquals(value?.kind, "unadmitted");
+      const waiting = value?.report?.checks.filter((check) =>
+        check.status === "wait"
+      ).map((check) => [check.id, check.reason]);
+      assertEquals(waiting, [
+        ["repository_ready", "no_active_profile"],
+        ["preset_ready", "preset_setup_required"],
+      ]);
     }
     const counts = await fx.counts(sourceId);
-    assertEquals(counts.requests, 0, "a refused admission stores no request");
+    assertEquals(counts.requests, 0);
     assertEquals(counts.tasks, 0);
     assertEquals(counts.links, 0);
   }));
