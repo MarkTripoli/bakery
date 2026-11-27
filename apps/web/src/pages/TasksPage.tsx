@@ -300,7 +300,8 @@ function InboxResults(
     complete
       ? t("tasks.queue.counted", { label, count: String(count) })
       : label;
-  const selected = rows.find((row) => row.id === selectedId) ?? rows[0];
+  const selected = rows.find((row) => row.id === selectedId) ??
+    groups[0]?.rows[0];
   const pageable = !!query.data?.nextCursor || cursors.length > 1;
   const questions = useQuery({
     ...questionsQueryOptions(api, scope, selected?.id ?? "", "open"),

@@ -431,6 +431,21 @@ test("queue inspector answers the selected task's open question and the page has
     .toBeVisible();
 });
 
+test("the panel opens on the first row shown, not the first task returned", async ({ page }) => {
+  test.skip(
+    page.viewportSize()!.width <= 900,
+    "inspector rail is desktop only",
+  );
+  await stillQueue(page, [...stillTasks].reverse());
+  const first = page.locator('[data-ui-component="taskQueue"] a').first();
+  await expect(first).toHaveAttribute("aria-current", "true");
+  await expect(
+    page.locator('[data-ui-component="inspectorPanel"]').getByRole("heading", {
+      level: 2,
+    }),
+  ).toHaveText((await first.locator(".ui-task-queue__title").textContent())!);
+});
+
 test("the Work list says each thing once and has no empty tabs", async ({ page }) => {
   await stillQueue(page, stillTasks);
   await expect(page.getByRole("link", { name: stillTasks[0].title }))
