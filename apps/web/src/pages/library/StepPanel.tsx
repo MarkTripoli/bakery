@@ -142,6 +142,34 @@ export type PanelTarget =
     readonly onRemove: () => void;
   };
 
+function MoveButton(
+  { atEnd, label, locked, onMove, reason }: {
+    readonly atEnd: boolean;
+    readonly label: string;
+    readonly locked: boolean;
+    readonly onMove: () => void;
+    readonly reason: string;
+  },
+) {
+  const blocked = atEnd && !locked;
+  return (
+    <UI.Tooltip
+      align="start"
+      content={blocked ? reason : ""}
+      variant="description"
+    >
+      <UI.Button
+        aria-disabled={blocked || undefined}
+        disabled={locked}
+        onClick={blocked ? undefined : onMove}
+        variant="secondary"
+      >
+        {label}
+      </UI.Button>
+    </UI.Tooltip>
+  );
+}
+
 export function StepPanel(
   { target, onViewAsCode }: {
     readonly target: PanelTarget;
@@ -240,20 +268,20 @@ export function StepPanel(
       header={<UI.Text variant="strong">{target.name}</UI.Text>}
       footer={locked ? undefined : (
         <UI.Inline gap="compact">
-          <UI.Button
-            variant="secondary"
-            disabled={target.disabled || !target.canMoveUp}
-            onClick={target.onMoveUp}
-          >
-            {translate("library.editor.panel.moveUp" as never)}
-          </UI.Button>
-          <UI.Button
-            variant="secondary"
-            disabled={target.disabled || !target.canMoveDown}
-            onClick={target.onMoveDown}
-          >
-            {translate("library.editor.panel.moveDown" as never)}
-          </UI.Button>
+          <MoveButton
+            atEnd={!target.canMoveUp}
+            label={translate("library.editor.panel.moveUp" as never)}
+            locked={target.disabled}
+            onMove={target.onMoveUp}
+            reason={translate("library.editor.panel.firstAlready")}
+          />
+          <MoveButton
+            atEnd={!target.canMoveDown}
+            label={translate("library.editor.panel.moveDown" as never)}
+            locked={target.disabled}
+            onMove={target.onMoveDown}
+            reason={translate("library.editor.panel.lastAlready")}
+          />
           <UI.Button
             variant="destructive"
             // A step Bakery cannot read is exactly the one a person must be
