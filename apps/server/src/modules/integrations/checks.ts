@@ -30,7 +30,11 @@ import { boundRetryAfterSeconds } from "../../platform/retry-after.ts";
 import { queueDiscovery } from "./discovery-queue.ts";
 import { openInstallationSecret } from "../secrets/installation-secrets.ts";
 import { decodeSecretSlots } from "./provider-credential-port.ts";
-import { bearerRequestPort, type OAuth2Fetch } from "./oauth2-connect.ts";
+import {
+  bearerRequestPort,
+  isOAuth2Profile,
+  type OAuth2Fetch,
+} from "./oauth2-connect.ts";
 import { PROVIDERS } from "./registry.ts";
 import { GITHUB_PROVIDER, type IntegrationsDependencies } from "./postgres.ts";
 import {
@@ -519,28 +523,20 @@ export async function probe(
   }
 }
 
-/**
- * Wraps integrationConnections.check so GitHub is asked between committed
- * transactions (secrets/preflight.ts precedent):
- * 1. a probe transaction, under the live Admin check, answers a replay from
- *    its stored response and refuses an unknown connection (404) or one that
- *    is not enabled, has an inactive installation or selects nothing (409),
- *    or whose recorded provider rate limit has not run out (429), before any
- *    key is decrypted or GitHub is called;
- * 2. outside any transaction, and one check at a time per installation, the
- *    broker mints (or reuses) a token narrowed to the live selection and the
- *    granted permissions, and the probe reads with it; a provider outage
- *    becomes a redacted fault, never the provider's answer, a rate limit
- *    records `next_allowed_at` and answers 429 PROVIDER_QUOTA_EXCEEDED, and
- *    a provider timeout answers 504 DEPENDENCY_TIMEOUT, both leaving health
- *    unchanged;
- * 3. the result is stored through `next`, which rechecks the Admin, the
- *    status and the version under the row lock.
- */
 class ProviderRateLimited extends Error {
   constructor(readonly retryAfterSeconds: number) {
     super("provider rate limited");
   }
+}
+
+function checkedProvider(slug: string) {
+  const provider = PROVIDERS.providers.find((candidate) =>
+    candidate.manifest.slug === slug
+  );
+  if (provider === undefined) {
+    throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
+  }
+  return provider;
 }
 
 type ProviderCheckTarget = {
@@ -559,10 +555,8 @@ async function storedBearerToken(
   dependencies: IntegrationsDependencies,
   connection: CheckedConnection,
 ): Promise<string> {
-  const provider = PROVIDERS.providers.find((candidate) =>
-    candidate.manifest.slug === connection.provider
-  );
-  if (provider === undefined || connection.credentialSecretId === null) {
+  const provider = checkedProvider(connection.provider);
+  if (connection.credentialSecretId === null) {
     throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
   }
   const stored = await openInstallationSecret(
@@ -606,13 +600,9 @@ async function probeProvider(
     | "expires"
   >
 > {
-  const provider = PROVIDERS.providers.find((candidate) =>
-    candidate.manifest.slug === target.provider
-  );
-  const connect = provider?.impl.connect as
-    | { apiBaseUrl?: URL; webBaseUrl?: URL }
-    | undefined;
-  if (provider === undefined || connect?.apiBaseUrl === undefined) {
+  const provider = checkedProvider(target.provider);
+  const connect = provider.impl.connect;
+  if (!isOAuth2Profile(connect)) {
     throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
   }
   const signal = AbortSignal.any([
@@ -630,7 +620,7 @@ async function probeProvider(
       ),
       origin: {
         apiBaseUrl: connect.apiBaseUrl,
-        webBaseUrl: connect.webBaseUrl ?? connect.apiBaseUrl,
+        webBaseUrl: connect.webBaseUrl,
       },
       signal,
       now: () => new Date(),
@@ -686,6 +676,24 @@ async function probeProvider(
   };
 }
 
+/**
+ * Wraps integrationConnections.check so GitHub is asked between committed
+ * transactions (secrets/preflight.ts precedent):
+ * 1. a probe transaction, under the live Admin check, answers a replay from
+ *    its stored response and refuses an unknown connection (404) or one that
+ *    is not enabled, has an inactive installation or selects nothing (409),
+ *    or whose recorded provider rate limit has not run out (429), before any
+ *    key is decrypted or GitHub is called;
+ * 2. outside any transaction, and one check at a time per installation, the
+ *    broker mints (or reuses) a token narrowed to the live selection and the
+ *    granted permissions, and the probe reads with it; a provider outage
+ *    becomes a redacted fault, never the provider's answer, a rate limit
+ *    records `next_allowed_at` and answers 429 PROVIDER_QUOTA_EXCEEDED, and
+ *    a provider timeout answers 504 DEPENDENCY_TIMEOUT, both leaving health
+ *    unchanged;
+ * 3. the result is stored through `next`, which rechecks the Admin, the
+ *    status and the version under the row lock.
+ */
 export function createConnectionCheckRunner(
   authority: ActionAuthorityRunner,
   dependencies: IntegrationsDependencies & {
