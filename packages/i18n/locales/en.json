@@ -5411,6 +5411,8 @@
   "library.skills.update.binary": "This file is not text.",
   "library.skills.update.tooLarge": "This file is too large to show.",
   "library.skills.update.modeOnly": "Only whether it can be run changed.",
+  "library.skills.update.aside.existing": "Version {number} already has these files. Taking it puts version {number} in use.",
+  "library.skills.update.unchanged": "Nothing changed: version {number} is still in use. Review it once more.",
   "library.skills.update.aside.title": "If you take it",
   "library.skills.update.aside.version": "Version {number} is added and becomes the one in use.",
   "library.skills.update.aside.unknownVersion": "A new version is added and becomes the one in use.",

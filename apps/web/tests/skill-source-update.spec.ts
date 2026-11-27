@@ -58,11 +58,11 @@ const run = {
   releaseStep: "unknown",
 };
 
-const version = (revision: number) => ({
+const version = (revision: number, sourceRevision = INSTALLED) => ({
   id: versionId(SKILL, revision),
   skillId: SKILL,
   revision,
-  sourceRevision: INSTALLED,
+  sourceRevision,
   digest: String(revision).repeat(64),
   entryPath: "SKILL.md",
   manifest: { schemaVersion: 1, entryPath: "SKILL.md", files: [] },
@@ -109,14 +109,19 @@ type Setup = {
   readonly role?: "admin" | "developer";
   readonly takeReason?: string;
   readonly failureCode?: string;
+  readonly alreadyHeld?: true;
+  readonly activatesNothing?: true;
 };
 
 async function open(page: Page, setup: Setup = {}, path = PAGE) {
   await skillsFixture(page, { role: setup.role ?? "admin" });
   const sent: { path: string; body: unknown; ifMatch?: string | null }[] = [];
   const state = {
-    active: 2,
-    versions: [version(2), version(1)],
+    active: setup.alreadyHeld ? 1 : 2,
+    versions: [
+      version(2, setup.alreadyHeld ? LATEST : INSTALLED),
+      version(1),
+    ],
     checks: 0,
     sourceReads: 0,
   };
@@ -221,7 +226,7 @@ async function open(page: Page, setup: Setup = {}, path = PAGE) {
     (url) => url.pathname === `/v1/skill-imports/${RUN}`,
     (route) => {
       const failed = setup.failureCode !== undefined;
-      if (!failed) {
+      if (!failed && !setup.activatesNothing) {
         state.active = 3;
         state.versions = [version(3), version(2), version(1)];
       }
@@ -266,6 +271,32 @@ test("an older version is put in use after asking", async ({ page }) => {
     body: { id: SKILL, versionId: versionId(SKILL, 1) },
     ifMatch: expect.stringContaining("4"),
   }]);
+  await expect(
+    versions(page).locator(`[data-version="${versionId(SKILL, 1)}"]`),
+  ).toBeFocused();
+});
+
+test("an update the skill already holds as a version puts that version in use", async ({ page }) => {
+  const { sent } = await open(page, { alreadyHeld: true }, `${PAGE}/update`);
+  const review = page.getByTestId("skill-update-page");
+  await expect(review).toContainText(
+    "Version 2 already has these files. Taking it puts version 2 in use.",
+  );
+  await expect(review).not.toContainText("is added and becomes");
+  await take(page).click();
+  await expect(page.getByTestId("skill-toast")).toContainText(
+    "Updated. Version 2 is in use.",
+  );
+  expect(sent.map((request) => request.path)).toEqual(["active-version"]);
+});
+
+test("a take that changes nothing never says it updated", async ({ page }) => {
+  await open(page, { activatesNothing: true }, `${PAGE}/update`);
+  await take(page).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Nothing changed: version 2 is still in use.",
+  );
+  await expect(page.getByText("Updated.")).toHaveCount(0);
 });
 
 test("someone who cannot change the skill is offered neither", async ({ page }) => {
@@ -304,6 +335,19 @@ test("a check with changes leads to a review, file by file, and takes the update
     document.documentElement.scrollWidth - document.documentElement.clientWidth
   );
   expect(overflow).toBeLessThanOrEqual(0);
+  await expect(review.locator('[data-change="added"]').first())
+    .toContainText("+Group");
+  await expect(review.locator('[data-change="removed"]').first())
+    .toContainText("-List");
+  const chevrons = await review.locator("summary .ui-icon").evaluateAll(
+    (icons) => icons.map((icon) => Math.round(icon.getBoundingClientRect().x)),
+  );
+  expect(new Set(chevrons).size).toBe(1);
+  const summary = await review.getByText("If you take it").boundingBox();
+  const button = await take(page).boundingBox();
+  if ((page.viewportSize()?.width ?? 0) < 640) {
+    expect(summary!.y).toBeLessThan(button!.y);
+  }
   await still(page, "skill-update-review");
   await take(page).click();
   await expect(page.getByTestId("skill-toast")).toContainText(

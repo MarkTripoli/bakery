@@ -38,6 +38,7 @@ import {
   shortRevision,
   type TakeRefusal,
   takeRefusal,
+  versionHolding,
 } from "./library/skill-update-state.ts";
 import { fileSize, usedByGroups } from "./library/skills-state.ts";
 import { useCanChangeSkill } from "./library/useCanChangeSkill.ts";
@@ -90,6 +91,7 @@ function FileChange(
     <div data-file={file.path} role="listitem">
       <UI.Disclosure
         defaultOpen={first}
+        variant="row"
         summary={
           <>
             <UI.DataText>{file.path}</UI.DataText>{" "}
@@ -114,6 +116,7 @@ function FileChange(
               code={file.diff}
               role="region"
               state="overflowing"
+              language="diff"
             />
           )}
       </UI.Disclosure>
@@ -122,9 +125,10 @@ function FileChange(
 }
 
 function Consequences(
-  { skill, next }: {
+  { skill, next, existing }: {
     readonly skill: SkillResponse;
     readonly next: number | null;
+    readonly existing: number | null;
   },
 ) {
   const api = useBakeryApi();
@@ -143,7 +147,11 @@ function Consequences(
       variant="stack"
     >
       <UI.Text>
-        {next === null
+        {existing !== null
+          ? translate("library.skills.update.aside.existing", {
+            number: existing,
+          })
+          : next === null
           ? translate("library.skills.update.aside.unknownVersion")
           : translate("library.skills.update.aside.version", { number: next })}
       </UI.Text>
@@ -179,9 +187,40 @@ function Review(
   const versions = useInfiniteQuery(
     skillVersionsQueryOptions(api, scope, skill.id, 100),
   );
-  const next = nextRevision(
-    versions.data?.pages.flatMap((page) => page.items) ?? [],
+  const listed = versions.data?.pages.flatMap((page) => page.items) ?? [];
+  const next = nextRevision(listed);
+  const existing = versionHolding(
+    listed,
+    check.latestRevision,
+    skill.activeVersionId,
   );
+  const [unchanged, setUnchanged] = useState(false);
+  const arrive = async (number: number) => {
+    sayAboutSkill(translate("library.skills.update.done", { number }));
+    await navigate({
+      to: "/library/skills/$skillId",
+      params: { skillId: skill.id },
+    });
+    void queryClient.invalidateQueries({ queryKey: ["protected"] });
+  };
+  const switchTo = useMutation<SkillResponse, ApiFailure, string>({
+    mutationKey: ["skills.setActiveVersion"],
+    mutationFn: async (versionId) => {
+      const result = await api.setSkillActiveVersion({
+        organizationId,
+        id: skill.id,
+        versionId,
+        version: skill.version,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      if (!result.ok) throw result.error;
+      return result.data;
+    },
+    onSuccess: (taken) => void arrive(taken.activeRevision ?? 0),
+    onError: (error) => {
+      if (takeRefusal(error) === "changed") void onStale();
+    },
+  });
   const [runId, setRunId] = useState<string | null>(null);
   const intent = useRef<string | null>(null);
   const finished = useRef<string | null>(null);
@@ -242,19 +281,16 @@ function Review(
     finished.current = runId;
     const open = async () => {
       const read = await api.getSkill({ organizationId, id: skill.id });
-      const number = read.ok ? read.data.activeRevision : next;
-      sayAboutSkill(
-        translate("library.skills.update.done", { number: number ?? 0 }),
-      );
-      await navigate({
-        to: "/library/skills/$skillId",
-        params: { skillId: skill.id },
-      });
-      void queryClient.invalidateQueries({ queryKey: ["protected"] });
+      if (read.ok && read.data.activeVersionId === skill.activeVersionId) {
+        setUnchanged(true);
+        setRunId(null);
+        return;
+      }
+      await arrive((read.ok ? read.data.activeRevision : next) ?? 0);
     };
     void open();
   });
-  const taking = take.isPending ||
+  const taking = take.isPending || switchTo.isPending ||
     runId !== null && outcome?.state !== "failed";
   const failed = outcome?.state === "failed"
     ? translate(
@@ -270,11 +306,43 @@ function Review(
     )
     : take.isError
     ? translate(REFUSALS[takeRefusal(take.error)])
+    : switchTo.isError
+    ? translate(REFUSALS[takeRefusal(switchTo.error)])
+    : unchanged
+    ? translate("library.skills.update.unchanged", {
+      number: skill.activeRevision ?? 0,
+    })
     : null;
   const changes = check.changes as unknown as readonly Change[];
   return (
     <UI.FormWithSummary
-      aside={<Consequences next={next} skill={skill} />}
+      actions={
+        <>
+          <UI.Button disabled={taking} onClick={back} variant="secondary">
+            {translate("library.skills.update.notNow")}
+          </UI.Button>
+          <UI.Button
+            disabled={!skill.enabled || versions.isPending}
+            loading={taking}
+            onClick={() => {
+              if (taking) return;
+              setUnchanged(false);
+              if (existing === null) take.mutate();
+              else switchTo.mutate(existing.id);
+            }}
+            variant="primary"
+          >
+            {translate("library.skills.update.take")}
+          </UI.Button>
+        </>
+      }
+      aside={
+        <Consequences
+          existing={existing?.revision ?? null}
+          next={next}
+          skill={skill}
+        />
+      }
       data-testid="skill-update-review"
     >
       <UI.Stack gap="standard">
@@ -302,21 +370,6 @@ function Review(
             {translate("library.skills.update.turnedOff")}
           </UI.InlineNotice>
         )}
-        <UI.Inline gap="compact">
-          <UI.Button disabled={taking} onClick={back} variant="secondary">
-            {translate("library.skills.update.notNow")}
-          </UI.Button>
-          <UI.Button
-            disabled={!skill.enabled}
-            loading={taking}
-            onClick={() => {
-              if (!taking) take.mutate();
-            }}
-            variant="primary"
-          >
-            {translate("library.skills.update.take")}
-          </UI.Button>
-        </UI.Inline>
         {taking
           ? (
             <UI.Text role="status" variant="muted">

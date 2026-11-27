@@ -52,16 +52,22 @@ export function SkillUseVersion(
       if (!result.ok) throw result.error;
       return result.data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       intent.current = null;
-      setOpen(false);
       sayAboutSkill(translate("library.skill.use.done", { number }));
+      setOpen(false);
+      await refresh();
+      focusAfterPaint(() =>
+        globalThis.document.querySelector<HTMLElement>(
+          `[data-version="${version.id}"]`,
+        )
+      );
     },
     onError: (error) => {
       const status = failureStatus(error);
       if (status !== null && status < 500) intent.current = null;
+      void refresh();
     },
-    onSettled: () => void refresh(),
   });
   const close = () => {
     setOpen(false);

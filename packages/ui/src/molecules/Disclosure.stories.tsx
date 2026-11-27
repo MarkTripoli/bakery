@@ -15,6 +15,10 @@ export const Contract: StoryObj = {
       <Disclosure summary="Details">
         <DataText>00000000-0000-4000-8000-000000000020</DataText>
       </Disclosure>
+      <Text>Row</Text>
+      <Disclosure summary="SKILL.md" variant="row">
+        <Text>Changed</Text>
+      </Disclosure>
       <Text>Open</Text>
       <Disclosure defaultOpen summary="Details">
         <Stack gap="compact">

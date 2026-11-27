@@ -269,7 +269,12 @@ function VersionsCard(
             role="list"
           >
             {ordered.map((version) => (
-              <div data-version={version.id} key={version.id} role="listitem">
+              <div
+                data-version={version.id}
+                key={version.id}
+                role="listitem"
+                tabIndex={-1}
+              >
                 <UI.Stack gap="compact">
                   <UI.Stack gap="none">
                     <UI.Inline gap="compact">

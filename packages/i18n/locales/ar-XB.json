@@ -7828,5 +7828,7 @@
   "library.skills.update.skillChanged": "⟪The skill changed while you were reading. Review it once more.⟫",
   "library.skills.update.forbiddenNow": "⟪You can no longer update this skill. Nothing changed.⟫",
   "library.skills.update.offline": "⟪You are offline. Nothing changed. Try again when you are back online.⟫",
-  "library.skills.update.takeFailed": "⟪The update was not taken. Nothing changed. Try again.⟫"
+  "library.skills.update.takeFailed": "⟪The update was not taken. Nothing changed. Try again.⟫",
+  "library.skills.update.aside.existing": "⟪Version {number} already has these files. Taking it puts version {number} in use.⟫",
+  "library.skills.update.unchanged": "⟪Nothing changed: version {number} is still in use. Review it once more.⟫"
 }

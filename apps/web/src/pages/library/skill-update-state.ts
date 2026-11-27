@@ -32,6 +32,23 @@ export function shortRevision(revision: string): string {
     : revision;
 }
 
+export function versionHolding<
+  Version extends {
+    readonly id: string;
+    readonly status: string;
+    readonly sourceRevision: string;
+  },
+>(
+  versions: readonly Version[],
+  revision: string,
+  activeVersionId: string | null,
+): Version | null {
+  return versions.find((version) =>
+    version.sourceRevision === revision && version.status === "published" &&
+    version.id !== activeVersionId
+  ) ?? null;
+}
+
 export function nextRevision(
   versions: readonly { readonly revision: number }[],
 ): number | null {
