@@ -10086,7 +10086,87 @@
         "DEPENDENCY_UNAVAILABLE"
       ],
       "organizationContext": "derived_bound_auth_attempt",
-      "implemented": false
+      "implemented": true
+    },
+    {
+      "group": "Integration identity",
+      "method": "GET",
+      "path": "/v1/me/slack-link",
+      "action": "mySlackLink.get",
+      "access": "Any member linking self",
+      "permission": "ownIdentityLink:read",
+      "input": "Empty",
+      "output": "MySlackLink",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Integration identity",
+      "method": "POST",
+      "path": "/v1/me/slack-link/attempts",
+      "action": "mySlackLinkAttempts.create",
+      "access": "Any member linking self",
+      "permission": "ownIdentityLink:write",
+      "input": "Empty",
+      "output": "MySlackLinkAttemptCreated",
+      "event": "",
+      "mcp": "",
+      "idempotency": "none; each call supersedes the member's earlier pending attempt for the workspace",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Integration identity",
+      "method": "DELETE",
+      "path": "/v1/me/slack-link",
+      "action": "mySlackLink.delete",
+      "access": "Any member linking self",
+      "permission": "ownIdentityLink:write",
+      "input": "Empty",
+      "output": "MySlackLink",
+      "event": "integration.identity_link_changed",
+      "mcp": "",
+      "idempotency": "natural; repeating it returns the same read with state not_linked",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SESSION_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Installation administration",
@@ -15692,6 +15772,10 @@
     "integrationInstallations.list",
     "integrationInstallations.get",
     "intake.webhook",
+    "integrationAuth.slackIdentityCallback",
+    "mySlackLink.get",
+    "mySlackLink.delete",
+    "mySlackLinkAttempts.create",
     "checks.list",
     "runReviews.list",
     "runReviews.accept",
@@ -45064,6 +45148,158 @@
           }
         }
       },
+      "/v1/me/slack-link": {
+        "get": {
+          "operationId": "mySlackLink.get",
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MySlackLink"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED, AUTH_INVALID, AUTH_EXPIRED, AUTH_FACTOR_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SESSION_REQUIRED, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        },
+        "delete": {
+          "operationId": "mySlackLink.delete",
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MySlackLink"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED, AUTH_INVALID, AUTH_EXPIRED, AUTH_FACTOR_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SESSION_REQUIRED, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/me/slack-link/attempts": {
+        "post": {
+          "operationId": "mySlackLinkAttempts.create",
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/MySlackLinkAttemptCreated"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request (MALFORMED_REQUEST)."
+            },
+            "401": {
+              "description": "Authentication required (AUTH_REQUIRED, AUTH_INVALID, AUTH_EXPIRED, AUTH_FACTOR_REQUIRED)."
+            },
+            "403": {
+              "description": "Forbidden (AUTH_FORBIDDEN, SESSION_REQUIRED, SCOPE_REQUIRED)."
+            },
+            "404": {
+              "description": "Resource not found (RESOURCE_NOT_FOUND)."
+            },
+            "409": {
+              "description": "Conflict (STATE_CONFLICT)."
+            },
+            "500": {
+              "description": "Internal server error."
+            },
+            "503": {
+              "description": "Service unavailable (DEPENDENCY_UNAVAILABLE)."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Empty"
+                }
+              }
+            }
+          }
+        }
+      },
       "/v1/integration-installations": {
         "get": {
           "operationId": "integrationInstallations.list",
@@ -67058,6 +67294,9 @@
                 "integrationAuth.providerCallback",
                 "integrationAuth.setup",
                 "integrationAuth.slackIdentityCallback",
+                "mySlackLink.get",
+                "mySlackLinkAttempts.create",
+                "mySlackLink.delete",
                 "integrationInstallations.list",
                 "integrationInstallations.get",
                 "integrationAppRegistrations.get",
@@ -120574,6 +120813,9 @@
                 "integrationAuth.providerCallback",
                 "integrationAuth.setup",
                 "integrationAuth.slackIdentityCallback",
+                "mySlackLink.get",
+                "mySlackLinkAttempts.create",
+                "mySlackLink.delete",
                 "integrationInstallations.list",
                 "integrationInstallations.get",
                 "integrationAppRegistrations.get",
@@ -121297,6 +121539,9 @@
                 "integrationAuth.providerCallback",
                 "integrationAuth.setup",
                 "integrationAuth.slackIdentityCallback",
+                "mySlackLink.get",
+                "mySlackLinkAttempts.create",
+                "mySlackLink.delete",
                 "integrationInstallations.list",
                 "integrationInstallations.get",
                 "integrationAppRegistrations.get",
@@ -122020,6 +122265,9 @@
                 "integrationAuth.providerCallback",
                 "integrationAuth.setup",
                 "integrationAuth.slackIdentityCallback",
+                "mySlackLink.get",
+                "mySlackLinkAttempts.create",
+                "mySlackLink.delete",
                 "integrationInstallations.list",
                 "integrationInstallations.get",
                 "integrationAppRegistrations.get",
@@ -169256,6 +169504,9 @@
                       "integrationAuth.providerCallback",
                       "integrationAuth.setup",
                       "integrationAuth.slackIdentityCallback",
+                      "mySlackLink.get",
+                      "mySlackLinkAttempts.create",
+                      "mySlackLink.delete",
                       "integrationInstallations.list",
                       "integrationInstallations.get",
                       "integrationAppRegistrations.get",
@@ -248153,6 +248404,8 @@
                   "organizationInvitation:manage",
                   "integrationAuthAttempt:manage",
                   "integrationAuthAttempt:read",
+                  "ownIdentityLink:read",
+                  "ownIdentityLink:write",
                   "integrationInstallation:read",
                   "backup:read",
                   "backup:manage",
@@ -301246,6 +301499,77 @@
           "additionalProperties": false,
           "description": "What a step was given: the sourced-memory facts and pinned documents in use when it started, redacted to the reader."
         },
+        "MySlackLink": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "connection": {
+              "type": "string",
+              "enum": [
+                "none",
+                "setup_unfinished",
+                "working",
+                "not_working"
+              ],
+              "description": "The organization's Slack connection: none when no Slack app credentials are saved and no connection exists; setup_unfinished when credentials are saved or a connection is pending but none has been enabled; working when a connection is enabled and its health is healthy or unknown; not_working when the connection is turned off, removed, or needs reconnecting."
+            },
+            "workspaceName": {
+              "description": "Name of the connected Slack workspace; present only when a connection exists and Slack gave it a name.",
+              "type": "string",
+              "maxLength": 65536
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "not_linked",
+                "linked",
+                "removed_by_admin"
+              ],
+              "description": "not_linked when the member has no link; linked when the member's Slack account is linked in the connected workspace; removed_by_admin when an administrator removed the member's last link."
+            },
+            "linkedAt": {
+              "description": "UTC timestamp at which the member proved their Slack account; present only when state is linked.",
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            "removedAt": {
+              "description": "UTC timestamp at which an administrator removed the link; present only when state is removed_by_admin.",
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            }
+          },
+          "required": [
+            "connection",
+            "state"
+          ],
+          "additionalProperties": false,
+          "description": "The signed-in member's own Slack link in the organization being viewed, with the state of the organization's Slack connection. It carries no Slack user id, token or email."
+        },
+        "MySlackLinkAttemptCreated": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "authorizationUrl": {
+              "type": "string",
+              "format": "uri",
+              "description": "Slack's OpenID Connect sign-in address, built from the organization's Slack app client id, Bakery's fixed identity callback and the connected workspace, carrying the single-use state and nonce; shown only in this response."
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp fifteen minutes after the attempt was created, after which the state is refused."
+            }
+          },
+          "required": [
+            "authorizationUrl",
+            "expiresAt"
+          ],
+          "additionalProperties": false,
+          "description": "Returned once to the member's browser to start Sign in with Slack. The address carries an opaque single-use state and nonce only, never a token or the member's identity."
+        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -310931,6 +311255,9 @@
             "integrationAuth.providerCallback",
             "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
+            "mySlackLink.get",
+            "mySlackLinkAttempts.create",
+            "mySlackLink.delete",
             "integrationInstallations.list",
             "integrationInstallations.get",
             "integrationAppRegistrations.get",
@@ -364631,6 +364958,9 @@
             "integrationAuth.providerCallback",
             "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
+            "mySlackLink.get",
+            "mySlackLinkAttempts.create",
+            "mySlackLink.delete",
             "integrationInstallations.list",
             "integrationInstallations.get",
             "integrationAppRegistrations.get",
@@ -365354,6 +365684,9 @@
             "integrationAuth.providerCallback",
             "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
+            "mySlackLink.get",
+            "mySlackLinkAttempts.create",
+            "mySlackLink.delete",
             "integrationInstallations.list",
             "integrationInstallations.get",
             "integrationAppRegistrations.get",
@@ -366077,6 +366410,9 @@
             "integrationAuth.providerCallback",
             "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
+            "mySlackLink.get",
+            "mySlackLinkAttempts.create",
+            "mySlackLink.delete",
             "integrationInstallations.list",
             "integrationInstallations.get",
             "integrationAppRegistrations.get",
@@ -413463,6 +413799,9 @@
                   "integrationAuth.providerCallback",
                   "integrationAuth.setup",
                   "integrationAuth.slackIdentityCallback",
+                  "mySlackLink.get",
+                  "mySlackLinkAttempts.create",
+                  "mySlackLink.delete",
                   "integrationInstallations.list",
                   "integrationInstallations.get",
                   "integrationAppRegistrations.get",
@@ -492446,6 +492785,8 @@
               "organizationInvitation:manage",
               "integrationAuthAttempt:manage",
               "integrationAuthAttempt:read",
+              "ownIdentityLink:read",
+              "ownIdentityLink:write",
               "integrationInstallation:read",
               "backup:read",
               "backup:manage",
@@ -545634,6 +545975,77 @@
       ],
       "additionalProperties": false,
       "description": "What a step was given: the sourced-memory facts and pinned documents in use when it started, redacted to the reader."
+    },
+    "MySlackLink": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "connection": {
+          "type": "string",
+          "enum": [
+            "none",
+            "setup_unfinished",
+            "working",
+            "not_working"
+          ],
+          "description": "The organization's Slack connection: none when no Slack app credentials are saved and no connection exists; setup_unfinished when credentials are saved or a connection is pending but none has been enabled; working when a connection is enabled and its health is healthy or unknown; not_working when the connection is turned off, removed, or needs reconnecting."
+        },
+        "workspaceName": {
+          "description": "Name of the connected Slack workspace; present only when a connection exists and Slack gave it a name.",
+          "type": "string",
+          "maxLength": 65536
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "not_linked",
+            "linked",
+            "removed_by_admin"
+          ],
+          "description": "not_linked when the member has no link; linked when the member's Slack account is linked in the connected workspace; removed_by_admin when an administrator removed the member's last link."
+        },
+        "linkedAt": {
+          "description": "UTC timestamp at which the member proved their Slack account; present only when state is linked.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "removedAt": {
+          "description": "UTC timestamp at which an administrator removed the link; present only when state is removed_by_admin.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        }
+      },
+      "required": [
+        "connection",
+        "state"
+      ],
+      "additionalProperties": false,
+      "description": "The signed-in member's own Slack link in the organization being viewed, with the state of the organization's Slack connection. It carries no Slack user id, token or email."
+    },
+    "MySlackLinkAttemptCreated": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "authorizationUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Slack's OpenID Connect sign-in address, built from the organization's Slack app client id, Bakery's fixed identity callback and the connected workspace, carrying the single-use state and nonce; shown only in this response."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp fifteen minutes after the attempt was created, after which the state is refused."
+        }
+      },
+      "required": [
+        "authorizationUrl",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "Returned once to the member's browser to start Sign in with Slack. The address carries an opaque single-use state and nonce only, never a token or the member's identity."
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

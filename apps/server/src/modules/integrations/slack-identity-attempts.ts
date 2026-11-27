@@ -46,6 +46,9 @@ export const SLACK_ATTEMPT_FAILURE_CODES = [
   "link_refused",
   "nonce_unreadable",
   "superseded",
+  "wrong_workspace",
+  "not_a_member",
+  "connection_unavailable",
 ] as const;
 
 export type SlackAttemptFailureCode =
