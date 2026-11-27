@@ -8,6 +8,7 @@ import { StandardError } from "@bakery/contracts/http";
 import type { SecretsKeyConfig } from "@bakery/config";
 import type {
   ConnectedResource,
+  ConnectRefusal,
   Identity,
   OAuth2Profile,
   ProviderRequestPort,
@@ -172,6 +173,19 @@ export async function readBounded(
 const deadline = (signal: AbortSignal) =>
   AbortSignal.any([signal, AbortSignal.timeout(PROVIDER_DEADLINE_MS)]);
 
+export class ConnectRefused extends Error {
+  constructor(readonly refusal: ConnectRefusal) {
+    super(`connect refused: ${refusal}`);
+  }
+}
+
+function refusalOutcome(refusal: ConnectRefusal): ConnectionOutcome {
+  switch (refusal) {
+    case "enterprise_install":
+      return ConnectionOutcome.EnterpriseInstall;
+  }
+}
+
 export async function exchangeOAuth2Code(
   fetcher: OAuth2Fetch,
   profile: OAuth2Profile,
@@ -205,9 +219,10 @@ export async function exchangeOAuth2Code(
   if (!response.ok) {
     throw new Error(`token endpoint answered ${response.status}`);
   }
-  const parsed = providerSchema(profile).parse(
-    JSON.parse(new TextDecoder().decode(body)),
-  );
+  const raw: unknown = JSON.parse(new TextDecoder().decode(body));
+  const refusal = profile.refusal?.(raw) ?? null;
+  if (refusal !== null) throw new ConnectRefused(refusal);
+  const parsed = providerSchema(profile).parse(raw);
   return { ...GrantedTokensSchema.parse(parsed), providerResponse: parsed };
 }
 
@@ -320,6 +335,13 @@ async function recordSignedEventSource(
 ): Promise<Record<string, unknown>> {
   const stored = await readStoredClientCredentials(transaction, input.provider);
   const signingSecretId = stored?.signingSecretId ?? null;
+  await transaction.query(
+    `update bakery.slack_installations
+        set status = 'disabled', updated_at = now(), version = version + 1
+      where organization_id = $1 and team_id = $2 and app_id <> $3
+        and status = 'active'`,
+    [input.organizationId, input.source.workspaceId, input.source.appId],
+  );
   const recorded = await connectSlackInstallation(transaction, {
     organizationId: input.organizationId,
     installation: {
@@ -340,6 +362,24 @@ async function recordSignedEventSource(
       : recorded.reason,
     signingSecretSaved: signingSecretId !== null,
   };
+}
+
+async function connectedThroughAnotherApp(
+  transaction: PgTransactionClient,
+  source: SignedEventSource,
+  registrationId: string,
+): Promise<boolean> {
+  const other = await transaction.query(
+    `select 1 from bakery.slack_installations slack
+       join bakery.integration_app_registrations registration
+         on registration.id = $3
+      where slack.team_id = $1 and slack.app_id <> $2
+        and slack.status = 'active'
+        and registration.updated_at <= slack.updated_at
+      limit 1`,
+    [source.workspaceId, source.appId, registrationId],
+  );
+  return other.rows.length > 0;
 }
 
 export type OAuth2BindingPreparation = Readonly<{
@@ -485,7 +525,13 @@ export function createOAuth2CallbackRunner(
         codeVerifier: await openVerifier(key, claim),
       }, signal);
     } catch (error) {
-      return await fail("exchange", ConnectionOutcome.ExchangeFailed, error);
+      return await fail(
+        "exchange",
+        error instanceof ConnectRefused
+          ? refusalOutcome(error.refusal)
+          : ConnectionOutcome.ExchangeFailed,
+        error,
+      );
     }
     let identity: { externalAccountId: string; accountLabel: string };
     try {
@@ -523,6 +569,15 @@ export function createOAuth2CallbackRunner(
         ConnectionOutcome.InstallationCheckFailed,
         error,
       );
+    }
+    const source = connectedResource?.signedEventSource;
+    if (
+      source !== undefined &&
+      await inTransaction((transaction) =>
+        connectedThroughAnotherApp(transaction, source, client.registrationId)
+      )
+    ) {
+      return await fail("identify", ConnectionOutcome.WrongApp);
     }
     const prepared: OAuth2BindingPreparation = {
       connectedResource,

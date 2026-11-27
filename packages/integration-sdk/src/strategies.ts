@@ -74,7 +74,10 @@ export type OAuth2Profile = {
     { externalAccountId: string; accountLabel: string }
   >;
   connectedResource?(input: ConnectedResourceInput): ConnectedResource;
+  refusal?(tokenResponse: unknown): ConnectRefusal | null;
 };
+
+export type ConnectRefusal = "enterprise_install";
 
 export type ConnectedResourceInput = Readonly<{
   tokenResponse: unknown;

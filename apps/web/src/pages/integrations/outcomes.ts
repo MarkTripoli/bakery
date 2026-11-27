@@ -26,6 +26,8 @@ export const CONNECTION_OUTCOMES = [
   "reconnect_unavailable",
   "held_elsewhere",
   "storage_failed",
+  "enterprise_install",
+  "wrong_app",
 ] as const;
 export type ConnectionOutcome = (typeof CONNECTION_OUTCOMES)[number];
 
@@ -36,8 +38,13 @@ export type OutcomeCopy = {
   readonly retry: boolean;
 };
 
+type SlackOnlyOutcome = "enterprise_install" | "wrong_app";
+
 const OUTCOME_COPY: Readonly<
-  Record<Exclude<ConnectionOutcome, "connected">, OutcomeCopy>
+  Record<
+    Exclude<ConnectionOutcome, "connected" | SlackOnlyOutcome>,
+    OutcomeCopy
+  >
 > = {
   pending: {
     tone: "success",
@@ -142,4 +149,7 @@ const OUTCOME_COPY: Readonly<
 };
 
 export const outcomeCopy = (outcome: ConnectionOutcome): OutcomeCopy | null =>
-  outcome === "connected" ? null : OUTCOME_COPY[outcome];
+  outcome === "connected" || outcome === "enterprise_install" ||
+    outcome === "wrong_app"
+    ? null
+    : OUTCOME_COPY[outcome];

@@ -44,6 +44,12 @@ export const SLACK_OUTCOMES: Readonly<
     "integrations.slack.outcome.reconnectUnavailable",
     true,
   ),
+  enterprise_install: said(
+    "error",
+    "integrations.slack.outcome.enterpriseInstall",
+    true,
+  ),
+  wrong_app: said("error", "integrations.slack.outcome.wrongApp"),
   held_elsewhere: said(
     "warning",
     "settings.connections.outcome.heldElsewhere",

@@ -173,6 +173,8 @@ for (
       false,
     ],
     ["exchange_failed", "Slack could not confirm the connection", true],
+    ["enterprise_install", "Connect again and pick a single workspace.", true],
+    ["wrong_app", "Slack answered for a different app", false],
   ] as const
 ) {
   test(
