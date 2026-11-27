@@ -170,6 +170,26 @@ test("a draft someone else changed says so and Reload reads theirs", async ({ pa
   expect(refused).toBe(1);
 });
 
+test("a new message takes the place of the one before it", async ({ page, context }) => {
+  await editor(page);
+  const messages = page.locator('[data-ui-component="toast"]');
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(messages).toHaveText(
+    /You are offline\. Publish when you are back/,
+  );
+  await block(page, "implement").focus();
+  await page.keyboard.press("Delete");
+  await expect(messages).toHaveCount(1);
+  await expect(messages).toContainText("Implement deleted");
+  await still(page, "editor-one-message");
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(messages).toHaveCount(1);
+  await expect(messages).toHaveText(
+    /You are offline\. Publish when you are back/,
+  );
+});
+
 test("offline, the change is kept and saved when the connection returns", async ({ page, context }) => {
   const { seen, saved } = await editor(page);
   await context.setOffline(true);

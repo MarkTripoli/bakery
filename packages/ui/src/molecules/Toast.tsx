@@ -32,12 +32,17 @@ export function Toast(
     const shown = toast.current;
     const held = room.current;
     if (!floating || shown === null || held === null) return;
-    const reserve = new ResizeObserver(() => {
+    const measure = () => {
       const below = globalThis.innerHeight - shown.getBoundingClientRect().top;
       held.style.setProperty("min-block-size", `${Math.ceil(below)}px`);
-    });
+    };
+    const reserve = new ResizeObserver(measure);
     reserve.observe(shown);
-    return () => reserve.disconnect();
+    globalThis.addEventListener("resize", measure);
+    return () => {
+      reserve.disconnect();
+      globalThis.removeEventListener("resize", measure);
+    };
   }, [floating]);
   if (state === "dismissed") {
     return (

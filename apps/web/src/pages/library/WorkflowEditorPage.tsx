@@ -37,6 +37,7 @@ import { publishChanges } from "./publish-changes.ts";
 import { DraftKeptNotice } from "./DraftKeptNotice.tsx";
 import { rewriteDraft } from "./leftover-draft.ts";
 import { PublishSummary } from "./PublishSummary.tsx";
+import { type EditorNotice, EditorToast } from "./EditorToast.tsx";
 import { useBakeryApi } from "../../api/context.tsx";
 import {
   asyncKindForError,
@@ -351,9 +352,6 @@ export function WorkflowEditorPage(
       readonly published: boolean;
     } | null
   >(null);
-  const [skillToast, setSkillToast] = useState<
-    { readonly text: string; readonly undo?: () => void } | null
-  >(null);
   const stepPaths = useMemo(() => {
     const spec = record(draft?.normalizedSpec);
     const steps = Array.isArray(spec.steps) ? spec.steps : [];
@@ -379,8 +377,7 @@ export function WorkflowEditorPage(
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishAfterSave, setPublishAfterSave] = useState(false);
   const [problemsOpen, setProblemsOpen] = useState(false);
-  // The step just deleted, by name, while its Undo is offered.
-  const [deleted, setDeleted] = useState<string | null>(null);
+  const [notice, setNotice] = useState<EditorNotice | null>(null);
   // null until the version being edited is known: an unknown baseline is not a
   // change, so the leave warning is never armed on a page nobody has touched.
   const lastSaved = useRef<string | null>(null);
@@ -467,7 +464,7 @@ export function WorkflowEditorPage(
     lastSaved.current = null;
     setResolving(new Set());
     setSelectedId(null);
-    setDeleted(null);
+    setNotice(null);
     setReloads((count) => count + 1);
   };
 
@@ -605,15 +602,6 @@ export function WorkflowEditorPage(
     void rebaseLeftoverDraft(kept.used);
   };
 
-  useEffect(() => {
-    if (skillToast === null) return;
-    setDeleted(null);
-    setPublished(null);
-  }, [skillToast]);
-  const [refused, setRefused] = useState<"away" | "conflict" | null>(null);
-  const [published, setPublished] = useState<
-    { readonly revision: number; readonly used: boolean } | null
-  >(null);
   const publish = useMutation({
     mutationKey: ["workflowVersions.publish"],
     mutationFn: async (alsoUse: boolean) => {
@@ -649,7 +637,7 @@ export function WorkflowEditorPage(
     onError: (error) => {
       if (error instanceof ActivationFailed) {
         setPublishedOnly(error.versionId);
-        setPublished(null);
+        setNotice(null);
         setPublishOpen(true);
       }
       if (error instanceof ActivationFailed || isConflictFailure(error)) {
@@ -660,9 +648,7 @@ export function WorkflowEditorPage(
       setPublishedOnly(alsoUse ? null : versionId);
       await queryClient.invalidateQueries({ queryKey: ["protected"] });
       setPublishOpen(false);
-      setDeleted(null);
-      setSkillToast(null);
-      setPublished({ revision, used: alsoUse });
+      setNotice({ kind: "published", revision, used: alsoUse });
     },
   });
 
@@ -773,9 +759,7 @@ export function WorkflowEditorPage(
     const drawn = stepsOfTree(tree).find((one) => one.id === id);
     const index = steps.findIndex((one) => one.id === id);
     if (written(id) || !deletable(steps[index]) || drawn === undefined) return;
-    setPublished(null);
-    setSkillToast(null);
-    setDeleted(stepName(drawn, translate));
+    setNotice({ kind: "deleted", name: stepName(drawn, translate) });
     dispatch({ kind: "remove", id });
     setSelectedId(null);
     focusBlock((steps[index + 1] ?? steps[index - 1])?.id ?? "start");
@@ -1410,7 +1394,8 @@ export function WorkflowEditorPage(
     });
     // An organization skill attaches at once; a private one says what it now allows.
     if (choice.group === "private") {
-      setSkillToast({
+      setNotice({
+        kind: "skill",
         text: say("toast.attached", {
           skill: choice.name,
           version: String(choice.revision),
@@ -1432,7 +1417,8 @@ export function WorkflowEditorPage(
       id: stepId,
       skills: before.filter((id) => id !== versionId),
     });
-    setSkillToast({
+    setNotice({
+      kind: "skill",
       text: say(published ? "toast.removedPublished" : "toast.removed", {
         skill: name,
       }),
@@ -1475,11 +1461,12 @@ export function WorkflowEditorPage(
                 ...(typing === undefined ? {} : { typing }),
               });
               if (removed >= 0) {
-                setDeleted(
-                  translate("library.editor.start.heading", {
+                setNotice({
+                  kind: "deleted",
+                  name: translate("library.editor.start.heading", {
                     number: removed + 1,
                   }),
-                );
+                });
               }
             }
             : undefined,
@@ -1537,7 +1524,8 @@ export function WorkflowEditorPage(
               // placeholder); the others remove like any skill, with Undo.
               if (row.versionId === null) {
                 resolve(row.stepPath);
-                setSkillToast({
+                setNotice({
+                  kind: "skill",
                   text: say("slot.removed", {
                     step: stepName(step, translate),
                   }),
@@ -2007,10 +1995,7 @@ export function WorkflowEditorPage(
   );
   const pressPublish = () => {
     if (saveState.kind === "conflict" || away) {
-      setPublished(null);
-      setDeleted(null);
-      setSkillToast(null);
-      setRefused(away ? "away" : "conflict");
+      setNotice({ kind: "refused", why: away ? "away" : "conflict" });
       return;
     }
     if (notSaved) {
@@ -2149,93 +2134,18 @@ export function WorkflowEditorPage(
         safest
       />
       {body}
-      {deleted === null ? null : (
-        <UI.Toast
-          placement="floating"
-          tone="success"
-          action={
-            <UI.Button
-              variant="secondary"
-              onClick={() => {
-                dispatch({ kind: "undo" });
-                setDeleted(null);
-              }}
-            >
-              {translate("library.editor.undo" as never)}
-            </UI.Button>
-          }
-          onDismiss={() => setDeleted(null)}
-        >
-          {translate("library.editor.deleted" as never, {
-            name: deleted,
-          })}
-        </UI.Toast>
-      )}
-      {refused === null ||
-          !(refused === "away" ? away : saveState.kind === "conflict")
+      {notice === null ||
+          (notice.kind === "refused" &&
+            !(notice.why === "away" ? away : saveState.kind === "conflict"))
         ? null
         : (
-          <UI.Toast
-            onDismiss={() => setRefused(null)}
-            placement="floating"
-            tone="warning"
-          >
-            {translate(
-              refused === "away"
-                ? "library.editor.publishAway"
-                : "library.editor.publishConflict",
-            )}
-          </UI.Toast>
+          <EditorToast
+            notice={notice}
+            onUndoDelete={() => dispatch({ kind: "undo" })}
+            onUse={() => publish.mutate(true)}
+            onClose={() => setNotice(null)}
+          />
         )}
-      {published === null ? null : (
-        <UI.Toast
-          placement="floating"
-          tone="success"
-          {...(published.used ? {} : {
-            action: (
-              <UI.Button
-                variant="secondary"
-                onClick={() => {
-                  setPublished(null);
-                  publish.mutate(true);
-                }}
-              >
-                {translate("library.workflow.versions.use")}
-              </UI.Button>
-            ),
-          })}
-          onDismiss={() => setPublished(null)}
-        >
-          {translate(
-            published.used
-              ? "library.editor.published.used"
-              : "library.editor.published.notUsed",
-            { version: String(published.revision) },
-          )}
-        </UI.Toast>
-      )}
-      {skillToast === null ? null : (
-        <UI.Toast
-          placement="floating"
-          tone="success"
-          {...(skillToast.undo === undefined ? {} : {
-            action: (
-              <UI.Button
-                variant="secondary"
-                onClick={() => {
-                  skillToast.undo?.();
-                  setSkillToast(null);
-                }}
-              >
-                {say("toast.undo", {})}
-              </UI.Button>
-            ),
-          })}
-          onDismiss={() => setSkillToast(null)}
-        >
-          {skillToast.text}
-        </UI.Toast>
-      )}
       {attaching === null ? null : (
         <UI.AlertDialog
           open
