@@ -393,6 +393,11 @@ export type DeliveryInput = Readonly<{
   revisionHeadSha: string | null;
   /** The run's base sha (`workspaceBaseSha`, else `baseSha`). */
   baseSha: string | null;
+  limitStop?:
+    | Readonly<
+      { iterations: number; allowed: number; max: number }
+    >
+    | null;
   /**
    * The task's pull requests, as `pullRequests.list` returns them (oldest
    * first). Choosing this run's one is the model's job, not the read's.
@@ -529,7 +534,16 @@ export type NowCard =
       /** A merge attempt on this pull request merged, so "Nothing was merged." would be false. */
       merged: boolean;
     }
-  >;
+  >
+  | Readonly<{
+    kind: "limit";
+    tried: number;
+    allowed: number;
+    max: number;
+    room: number;
+    blocking: number;
+    merged: boolean;
+  }>;
 
 /**
  * Where the person's approval stands. `closed` is an approval that ended
@@ -1102,7 +1116,7 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     commits,
     repositoryId: mergePullRequest?.repositoryId ?? null,
     visible: headSha !== null || input.checks.length > 0 ||
-      input.reviews.length > 0,
+      input.reviews.length > 0 || stoppedAtLimit(input.limitStop),
     headSha,
     baseSha: input.baseSha,
     outOfDate,
@@ -1255,6 +1269,9 @@ function mergeNow(
   }
 }
 
+export const stoppedAtLimit = (stop: DeliveryInput["limitStop"]): boolean =>
+  !!stop && stop.allowed < stop.max;
+
 function nowCard(
   {
     input,
@@ -1285,6 +1302,20 @@ function nowCard(
   // so none of them remains, and a stop for them no longer applies.
   const accepted = review?.accepted != null;
   const blocking = accepted ? [] : open.filter((finding) => finding.blocking);
+  const merged = input.mergeAttempts.some((attempt) =>
+    attempt.state === "merged"
+  );
+  if (input.limitStop && stoppedAtLimit(input.limitStop)) {
+    return {
+      kind: "limit",
+      tried: input.limitStop.iterations,
+      allowed: input.limitStop.allowed,
+      max: input.limitStop.max,
+      room: input.limitStop.max - input.limitStop.allowed,
+      blocking: blocking.length,
+      merged,
+    };
+  }
   if (latestDecision?.decision === "stop") {
     // Stale evidence is not a stop: the card says the results are being checked.
     if (latestDecision.reason === "stale_evidence") return { kind: "checking" };
@@ -1300,9 +1331,7 @@ function nowCard(
           blocking.length,
         unavailableChecks: checks.unavailable,
         findingTitle: blocking[0] ? findingTitle(blocking[0].body) : null,
-        merged: input.mergeAttempts.some((attempt) =>
-          attempt.state === "merged"
-        ),
+        merged,
       };
     }
   }

@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import {
   approvalsForRun,
   type DeliveryApproval,
@@ -1409,4 +1409,43 @@ Deno.test("a review accepted anyway shows who, when and why, from the server's r
     })).review!.accepted,
     null,
   );
+});
+
+Deno.test("a run stopped at its repeat limit asks for more tries, even with nothing else to show", () => {
+  const nothing: DeliveryInput = {
+    runId: "r",
+    checks: [],
+    reviews: [],
+    findings: [],
+    decisions: [],
+    approvals: [],
+    approvalsUnavailable: false,
+    revisionHeadSha: null,
+    baseSha: null,
+    pullRequests: [],
+    mergeAttempts: [],
+    mergeEntries: [],
+    mergeUnavailable: false,
+    paused: false,
+  };
+  const stopped = deliveryModel({
+    ...nothing,
+    limitStop: { iterations: 3, allowed: 3, max: 5 },
+  });
+  assertEquals(stopped.visible, true);
+  assertEquals(stopped.now, {
+    kind: "limit",
+    tried: 3,
+    allowed: 3,
+    max: 5,
+    room: 2,
+    blocking: 0,
+    merged: false,
+  });
+  const full = deliveryModel({
+    ...nothing,
+    limitStop: { iterations: 5, allowed: 5, max: 5 },
+  });
+  assertEquals(full.visible, false);
+  assert(full.now.kind !== "limit");
 });
