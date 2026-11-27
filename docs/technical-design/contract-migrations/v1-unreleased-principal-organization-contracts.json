@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a6a33fa18fb838e462f67f831e0892b0fbaca861"
+    "bd5fa403d54bb56d6d65bfc633f01dd7cc122db4"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:69dc7039ce4346b5f82d2c89a7b45be58d3a300179d75760d33cfabcb07708f2",
-  "reason": "#458 run-page lines by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main a6a33fa18fb838e462f67f831e0892b0fbaca861: RunRequest gains nextAsk (RunRequestNextAsk: dueAt, askedAt, who) and passedOn, read-only fields that say whom a waiting step asks next and when, and mark the request that next ask made.",
+  "targetCompatibilityDigest": "sha256:73834fa4bcbc8621befaf608164a4e3b65e638e330df12d01475e21f437ca44d",
+  "reason": "#458 Slack signing secret by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main bd5fa403d54bb56d6d65bfc633f01dd7cc122db4: IntegrationClientCredentials gains a required, nullable signingSecretSavedAt (when the provider app's signing secret was saved, never the secret) and IntegrationClientCredentialsPut gains an optional write-only signingSecret, so Slack's signing secret is configured in the UI with the app registration. The web client and its test mocks in this PR carry the field.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "a6a33fa18fb838e462f67f831e0892b0fbaca861"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:69dc7039ce4346b5f82d2c89a7b45be58d3a300179d75760d33cfabcb07708f2",
+      "reason": "#458 run-page lines by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main a6a33fa18fb838e462f67f831e0892b0fbaca861: RunRequest gains nextAsk (RunRequestNextAsk: dueAt, askedAt, who) and passedOn, read-only fields that say whom a waiting step asks next and when, and mark the request that next ask made."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

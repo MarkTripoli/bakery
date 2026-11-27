@@ -7648,5 +7648,9 @@
   "settings.connections.other.removedNext": "⟦Àççëšš ŧô {provider} ŵàš ŕëɱôṽëð. Çôññëçŧïñĝ {provider} àĝàïñ ƒŕôɱ Ɓàķëŕÿ ïš ñôŧ àṽàïļàƀļë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "integrations.slack.permission.write": "⟦Ɓàķëŕÿ çàñ þôšŧ ɱëššàĝëš ïñ Šļàçķ. ŧëšŧ çôþÿ⟧",
   "settings.connections.other.noResource": "⟦{provider} çôûļð ñôŧ ƀë ŧûŕñëð ôñ ƀëçàûšë ïŧ ĥàš ñôŧĥïñĝ Ɓàķëŕÿ ɱàÿ ûšë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "library.editor.group.lane": "⟦Ļàñë {n}…⟧"
+  "library.editor.group.lane": "⟦Ļàñë {n}…⟧",
+  "integrations.slack.fields.signing_secret": "⟦Šïĝñïñĝ šëçŕëŧ ŧë⟧",
+  "integrations.slack.credentials.signingSecretSaved": "⟦Šïĝñïñĝ šëçŕëŧ šàṽëð {date} ŧëšŧ çô⟧",
+  "integrations.slack.credentials.signingSecretNotSaved": "⟦Ñô šïĝñïñĝ šëçŕëŧ šàṽëð ÿëŧ ŧëšŧ çô⟧",
+  "integrations.slack.credentials.signingSecretHint": "⟦Ƒŕôɱ ÿôûŕ Šļàçķ àþþ'š Ɓàšïç Ïñƒôŕɱàŧïôñ þàĝë. Ɓàķëŕÿ ûšëš ïŧ ŧô çĥëçķ ŧĥàŧ ŕëǫûëšŧš ŕëàļļÿ çôɱë ƒŕôɱ Šļàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

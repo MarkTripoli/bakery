@@ -146,6 +146,42 @@ export async function registerSlackInstallation(
   return { ok: true, created: false, installation: installationRecord(row) };
 }
 
+export async function connectSlackInstallation(
+  transaction: PgTransactionClient,
+  input: {
+    readonly organizationId: string;
+    readonly installation: SlackInstallation;
+    readonly signingSecretId: string | null;
+  },
+): Promise<RegisterSlackInstallationResult> {
+  const registered = await registerSlackInstallation(transaction, {
+    organizationId: input.organizationId,
+    installation: input.installation,
+    ...(input.signingSecretId === null
+      ? {}
+      : { signingSecretId: input.signingSecretId }),
+  });
+  if (!registered.ok || registered.created) return registered;
+  const current = registered.installation;
+  if (
+    current.signingSecretId === input.signingSecretId &&
+    current.status === "active"
+  ) return registered;
+  const updated = await transaction.query<InstallationRow>(
+    `update bakery.slack_installations
+        set signing_secret_id = $3, status = 'active', updated_at = now(),
+            version = version + 1
+      where id = $1 and organization_id = $2
+      returning ${INSTALLATION_COLUMNS}`,
+    [current.installationId, input.organizationId, input.signingSecretId],
+  );
+  return {
+    ok: true,
+    created: false,
+    installation: installationRecord(updated.rows[0]!),
+  };
+}
+
 export async function findSlackInstallation(
   transaction: PgTransactionClient,
   input: { readonly appId: string; readonly teamId: string },

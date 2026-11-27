@@ -19,10 +19,11 @@ import {
  * as typed until the save succeeds.
  */
 export function InstallationProviderCredentials(
-  { provider, guideUrl, connectAvailable }: {
+  { provider, guideUrl, connectAvailable, signingSecret }: {
     provider: string;
     guideUrl?: string;
     connectAvailable?: boolean;
+    signingSecret?: boolean;
   },
 ) {
   const api = useBakeryApi();
@@ -47,8 +48,7 @@ export function InstallationProviderCredentials(
   const loaded = credentials.data;
   const [, save] = useSingleFlightSubmit(async () => {
     const current = values;
-    // The secret leaves the form before the request does. The client ID is not a
-    // secret: it stays as typed, so a failed save costs one field to re-enter.
+    const signing = current.signingSecret.trim();
     setValues({ ...EMPTY_PROVIDER_CREDENTIALS, clientId: current.clientId });
     setStatus("saving");
     const started = scope.sessionGeneration;
@@ -56,9 +56,8 @@ export function InstallationProviderCredentials(
       provider,
       input: {
         clientId: current.clientId.trim(),
-        // Pasted from a provider page, a secret often carries a trailing space or
-        // newline, which the server refuses: trim it as the client ID is trimmed.
         clientSecret: current.clientSecret.trim(),
+        ...(signing === "" ? {} : { signingSecret: signing }),
       },
       ...(loaded && loaded.configured ? { version: loaded.version } : {}),
       idempotencyKey: crypto.randomUUID(),
@@ -78,13 +77,11 @@ export function InstallationProviderCredentials(
     }
     const code = failureStatus(result.error);
     if (code === 412 || code === 428) {
-      // Someone saved first: show what is stored now, and nothing of what was typed.
       setValues(EMPTY_PROVIDER_CREDENTIALS);
       setStatus("stale");
       await credentials.refetch();
       return;
     }
-    // Any other failure saved nothing: the form stays open with the client ID kept.
     setStatus("failed");
   });
   const view = forbidden || (credentials.isError &&
@@ -108,11 +105,13 @@ export function InstallationProviderCredentials(
       onReload={() => void credentials.refetch()}
       onSubmit={() => void save()}
       provider={provider}
+      signingSecret={signingSecret}
       saved={loaded
         ? {
           configured: loaded.configured,
           clientId: loaded.clientId,
           clientSecretSavedAt: loaded.clientSecretSavedAt,
+          signingSecretSavedAt: loaded.signingSecretSavedAt,
           callbackUrl: loaded.callbackUrl,
         }
         : null}

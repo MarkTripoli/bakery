@@ -7648,5 +7648,9 @@
   "settings.connections.other.removedNext": "⟪Access to {provider} was removed. Connecting {provider} again from Bakery is not available yet.⟫",
   "integrations.slack.permission.write": "⟪Bakery can post messages in Slack.⟫",
   "settings.connections.other.noResource": "⟪{provider} could not be turned on because it has nothing Bakery may use yet.⟫",
-  "library.editor.group.lane": "⟪Lane {n}⟫"
+  "library.editor.group.lane": "⟪Lane {n}⟫",
+  "integrations.slack.fields.signing_secret": "⟪Signing secret⟫",
+  "integrations.slack.credentials.signingSecretSaved": "⟪Signing secret saved {date}⟫",
+  "integrations.slack.credentials.signingSecretNotSaved": "⟪No signing secret saved yet⟫",
+  "integrations.slack.credentials.signingSecretHint": "⟪From your Slack app's Basic Information page. Bakery uses it to check that requests really come from Slack.⟫"
 }

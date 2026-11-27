@@ -12,11 +12,13 @@ export const CLIENT_SECRET_MAX = 4096;
 export type ProviderCredentialValues = {
   readonly clientId: string;
   readonly clientSecret: string;
+  readonly signingSecret: string;
 };
 
 export const EMPTY_PROVIDER_CREDENTIALS: ProviderCredentialValues = {
   clientId: "",
   clientSecret: "",
+  signingSecret: "",
 };
 
 /** The saved registration as the section shows it; never the secret. */
@@ -24,6 +26,7 @@ export type ProviderCredentialsSaved = {
   readonly configured: boolean;
   readonly clientId: string | null;
   readonly clientSecretSavedAt: string | null;
+  readonly signingSecretSavedAt: string | null;
   readonly callbackUrl: string;
 };
 
@@ -50,6 +53,7 @@ export type ProviderCredentialsSectionProps = {
   /** Where the provider's OAuth application is created, if it has a page for it. */
   readonly guideUrl?: string;
   readonly connectAvailable?: boolean;
+  readonly signingSecret?: boolean;
   readonly onChange: (
     field: keyof ProviderCredentialValues,
     value: string,
@@ -66,7 +70,8 @@ export function providerCredentialsReady(
 ): boolean {
   return values.clientId.trim() !== "" && values.clientSecret.trim() !== "" &&
     values.clientId.length <= CLIENT_ID_MAX &&
-    values.clientSecret.length <= CLIENT_SECRET_MAX;
+    values.clientSecret.length <= CLIENT_SECRET_MAX &&
+    values.signingSecret.length <= CLIENT_SECRET_MAX;
 }
 
 /**
@@ -85,6 +90,7 @@ export function ProviderCredentialsSection(
     status,
     guideUrl,
     connectAvailable,
+    signingSecret,
     onChange,
     onSubmit,
     onReload,
@@ -94,7 +100,11 @@ export function ProviderCredentialsSection(
   const { translate, locale, timeZone } = useI18n();
   const key = (suffix: string) =>
     `integrations.${provider}.credentials.${suffix}` as MessageKey;
-  const ids = { clientId: useId(), clientSecret: useId() };
+  const ids = {
+    clientId: useId(),
+    clientSecret: useId(),
+    signingSecret: useId(),
+  };
   const [replacing, setReplacing] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const saving = status === "saving";
@@ -113,6 +123,7 @@ export function ProviderCredentialsSection(
   const secretMissing = attempted && values.clientSecret.trim() === "";
   const idTooLong = values.clientId.length > CLIENT_ID_MAX;
   const secretTooLong = values.clientSecret.length > CLIENT_SECRET_MAX;
+  const signingTooLong = values.signingSecret.length > CLIENT_SECRET_MAX;
   const date = (value: string | null) =>
     value
       ? new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone })
@@ -197,6 +208,17 @@ export function ProviderCredentialsSection(
                           date: date(saved.clientSecretSavedAt),
                         })}
                       </UI.Text>
+                      {signingSecret
+                        ? (
+                          <UI.Text>
+                            {saved.signingSecretSavedAt
+                              ? translate(key("signingSecretSaved"), {
+                                date: date(saved.signingSecretSavedAt),
+                              })
+                              : translate(key("signingSecretNotSaved"))}
+                          </UI.Text>
+                        )
+                        : null}
                     </UI.Stack>
                   </>
                 )
@@ -330,6 +352,36 @@ export function ProviderCredentialsSection(
                           value={values.clientSecret}
                         />
                       </UI.Field>
+                      {signingSecret
+                        ? (
+                          <UI.Field
+                            error={signingTooLong
+                              ? translate(
+                                "settings.integrations.credentials.tooLong",
+                                { limit: CLIENT_SECRET_MAX },
+                              )
+                              : undefined}
+                            hint={translate(key("signingSecretHint"))}
+                            htmlFor={ids.signingSecret}
+                            label={translate(
+                              `integrations.${provider}.fields.signing_secret` as MessageKey,
+                            )}
+                            state={signingTooLong ? "invalid" : "default"}
+                          >
+                            <UI.PasswordInput
+                              autoComplete="new-password"
+                              disabled={saving}
+                              id={ids.signingSecret}
+                              invalid={signingTooLong}
+                              name="signingSecret"
+                              onChange={(value) =>
+                                onChange("signingSecret", value)}
+                              revealLabels={reveal}
+                              value={values.signingSecret}
+                            />
+                          </UI.Field>
+                        )
+                        : null}
                       <UI.Inline>
                         <UI.Button
                           disabled={saving}
