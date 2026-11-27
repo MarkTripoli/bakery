@@ -1,0 +1,22 @@
+[
+  {
+    "group": [
+      201,
+      "{\"id\":\"d4c8a077-151a-4e61-9f5d-e4a04bd20a57\",\"name\":\"Release crew\",\"mentionName\":\"release-crew\",\"purpose\":null,\"members\":[],\"memberCount\":0,\"createdAt\":\"2026-11-27T03:17:32.269Z\",\"updatedAt\":\"2026-11-"
+    ]
+  },
+  {
+    "afterReload": {
+      "note": "Costs $5 per seat, yes",
+      "nobodyOn": true,
+      "draft": "{\"id\": \"people_tag\", \"uses\": \"people.tag\", \"with\": {\"note\": \"Costs $5 per seat, yes\", \"wait\": true, \"intent\": \"review\", \"ifNobodyAnswers\": {\"afterHours\": 24}, \"recipientRunRole\": \"starter\", \"artifactVersionId\": \"$step.flow.brief.artifact.versionId\"}}"
+    }
+  },
+  {
+    "publishDialog": "Publish version 1 This saves the steps as a new version and makes it the one new tasks get. A version never changes after it is published. Tasks keep the version they started with. This is the first version. New: Write the task brief, Notify, Implement Notify Release crew has no members. The step will fail until someone is added or you choose someone else. Show me Keep editing Publish only Publish and use",
+    "canPublish": true
+  },
+  {
+    "stored": "{\"id\": \"people_tag\", \"uses\": \"people.tag\", \"with\": {\"note\": \"Costs $5 per seat, yes\", \"wait\": true, \"intent\": \"review\", \"ifNobodyAnswers\": {\"afterHours\": 24, \"recipientRoleKey\": \"admin\"}, \"recipientRunRole\": \"starter\", \"artifactVersionId\": \"$step.flow.brief.artifact.versionId\"}}"
+  }
+]
