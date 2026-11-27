@@ -244,10 +244,7 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                 />
                 {WEB_PROVIDERS.filter((module) =>
                   module.connectAvailable === false &&
-                  !rows.some((row) =>
-                    row.provider === module.manifest.slug &&
-                    row.health.kind !== "removed"
-                  )
+                  !rows.some((row) => row.provider === module.manifest.slug)
                 ).map((module) => (
                   <ProviderNotYetConnectable
                     canManage={canManage}

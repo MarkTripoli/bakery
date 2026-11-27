@@ -244,11 +244,11 @@ function connectionTitle(
 }
 
 const OTHER_BANNER: Readonly<Partial<Record<HealthKind, MessageKey>>> = {
-  needsAttention: "settings.connections.other.needsAttention",
-  authRequired: "settings.connections.other.needsAttention",
-  limited: "settings.connections.other.needsAttention",
+  needsAttention: "settings.connections.other.needsAttentionNext",
+  authRequired: "settings.connections.other.needsAttentionNext",
+  limited: "settings.connections.other.needsAttentionNext",
   turnedOff: "settings.connections.banner.turnedOff",
-  removed: "settings.connections.other.removed",
+  removed: "settings.connections.other.removedNext",
 };
 
 function OtherProviderContent(props: ConnectionViewProps) {
@@ -262,7 +262,23 @@ function OtherProviderContent(props: ConnectionViewProps) {
     <>
       {banner !== undefined && tone !== null
         ? (
-          <UI.AlertBanner data-testid="connection-problem" tone={tone}>
+          <UI.AlertBanner
+            action={props.health.action === "turnOn" && props.canManage
+              ? (
+                <UI.Button
+                  disabled={props.switchStatus === "saving"}
+                  loading={props.switchStatus === "saving"}
+                  onClick={props.onTurnOn}
+                  type="button"
+                  variant="primary"
+                >
+                  {translate("settings.connections.action.turnOn")}
+                </UI.Button>
+              )
+              : undefined}
+            data-testid="connection-problem"
+            tone={tone}
+          >
             {translate(banner, { provider })}
           </UI.AlertBanner>
         )
@@ -270,7 +286,9 @@ function OtherProviderContent(props: ConnectionViewProps) {
       {switchNotice
         ? (
           <UI.InlineNotice tone="error">
-            {translate(switchNotice)}
+            {props.switchStatus === "noSelection"
+              ? translate("settings.connections.other.noResource", { provider })
+              : translate(switchNotice)}
           </UI.InlineNotice>
         )
         : null}
@@ -782,11 +800,7 @@ function DetailsSection(props: ConnectionViewProps) {
               })}
             >
               <UI.Text>
-                {guided
-                  ? translate("settings.connections.turnOff.body")
-                  : translate("settings.connections.other.turnOffExplain", {
-                    provider,
-                  })}
+                {translate("settings.connections.turnOff.body")}
               </UI.Text>
             </UI.AlertDialog>
           </>

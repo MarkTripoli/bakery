@@ -158,9 +158,7 @@ test("a Slack connection's page speaks only of Slack and offers no GitHub contro
       "Bakery can read the channels and messages this bot can see in Slack.",
     ),
   ).toHaveCount(1);
-  await expect(body).toContainText(
-    "Bakery can post messages in the channels you selected.",
-  );
+  await expect(body).toContainText("Bakery can post messages in Slack.");
   await expect(body).not.toContainText("GitHub");
   await expect(body.getByTestId("repositories")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Check now" }))
@@ -169,18 +167,22 @@ test("a Slack connection's page speaks only of Slack and offers no GitHub contro
   await body.getByRole("button", { name: "Turn off" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toContainText("Turn off Slack · Test Workspace?");
-  await expect(dialog).toContainText("This page cannot turn it back on yet.");
+  await expect(dialog).toContainText(
+    "Work that needs it waits until you turn it on again.",
+  );
   expect(asked.filter((path) => path.endsWith("/resources"))).toEqual([]);
 });
 
 for (
   const [status, sentence] of [
-    ["disabled", "This connection is off. Work that needs it is waiting."],
-    ["revoked", "Access to Slack was removed."],
-    ["degraded", "Slack is not accepting some of Bakery's access."],
+    [
+      "revoked",
+      "Access to Slack was removed. Connecting Slack again from Bakery is not available yet.",
+    ],
+    ["degraded", "Turn the connection off to stop work that needs it."],
   ]
 ) {
-  test(`a ${status} Slack connection says so without a fix it cannot do`, async ({ page }) => {
+  test(`a ${status} Slack connection says what can be done next`, async ({ page }) => {
     await connected(page, { status });
     await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
     const problem = page.getByTestId("connection-problem");
@@ -189,5 +191,74 @@ for (
     await expect(page.getByTestId("connection-page")).not.toContainText(
       "GitHub",
     );
+    await still(page, `slack-${status}`);
   });
 }
+
+for (
+  const [reason, sentence] of [
+    [
+      undefined,
+      "The connection changed meanwhile. It was reloaded; try again.",
+    ],
+    [
+      "no_selected_resource",
+      "Slack could not be turned on because it has nothing Bakery may use yet.",
+    ],
+  ]
+) {
+  test(`a turned off Slack connection can be turned on; refusal ${reason ?? "stale"} is said`, async ({ page }) => {
+    await turnOnRefused(page, reason, sentence!);
+  });
+}
+
+async function turnOnRefused(
+  page: Page,
+  reason: string | undefined,
+  sentence: string,
+) {
+  const asked = await connected(page, { status: "disabled" });
+  const sent: unknown[] = [];
+  await page.route(
+    `**/v1/integration-connections/${CONNECTION_ID}`,
+    (route) => {
+      if (route.request().method() === "GET") {
+        return route.fulfill({
+          json: slackConnection({ status: "disabled" }),
+        });
+      }
+      sent.push(route.request().postDataJSON());
+      return route.fulfill({
+        status: 409,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          type: "https://bakery.example/problems/test",
+          title: "Request refused",
+          detail: "Request refused.",
+          status: 409,
+          code: "STATE_CONFLICT",
+          ...(reason === undefined ? {} : { reason }),
+          retryable: false,
+          requestId: crypto.randomUUID(),
+          traceId: crypto.randomUUID(),
+        }),
+      });
+    },
+  );
+  await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
+  const problem = page.getByTestId("connection-problem");
+  await expect(problem).toContainText("This connection is off.");
+  await still(page, "slack-turned-off");
+  await problem.getByRole("button", { name: "Turn on" }).click();
+  await expect(page.getByText(sentence)).toBeVisible();
+  expect(sent).toEqual([{ enabled: true }]);
+  expect(asked.filter((path) => path.endsWith("/resources"))).toEqual([]);
+}
+
+test("a removed Slack connection is listed once", async ({ page }) => {
+  await connected(page, { status: "revoked" });
+  await page.goto(ORGANIZATION_PATH);
+  await expect(page.getByTestId(`connection-${CONNECTION_ID}`))
+    .toContainText("Slack · Test Workspace");
+  await expect(page.getByTestId("available-list")).not.toContainText("Slack");
+});

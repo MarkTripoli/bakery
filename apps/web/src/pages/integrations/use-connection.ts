@@ -245,7 +245,7 @@ export function useConnectionActions(
       const code = failureStatus(result.error);
       if (problemReason(result.error) === "no_selected_resource") {
         setSwitchStatus("noSelection");
-        void repositories.refetch();
+        if (hasSetupPages(connection.provider)) void repositories.refetch();
       } else if (code === 409 || code === 412) {
         setSwitchStatus("stale");
         await refreshConnection();
