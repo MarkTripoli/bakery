@@ -400,3 +400,28 @@ Deno.test("after a real connect the events intake accepts an event signed with t
     await o.finish();
   }
 });
+
+Deno.test("saving the signing secret after connecting points the existing installation at it, so signed events verify without a reconnect", async () => {
+  const o = await open(fakeSlack());
+  try {
+    await connectOnce(o);
+    assertEquals((await installations(o))[0]!.signing_secret_id, null);
+    assertEquals((await postEvent(o, SIGNING_SECRET)).status, 401);
+    const before = await readCredentials(o);
+    const saved = await saveCredentials(
+      o,
+      { signingSecret: SIGNING_SECRET },
+      before.version,
+    );
+    assertEquals(saved.status, 200, await saved.clone().text());
+    const secret = await signingSecretRow(o);
+    const rows = await installations(o);
+    assertEquals(rows.length, 1);
+    assertEquals(rows[0]!.signing_secret_id, secret.secret_id);
+    const accepted = await postEvent(o, SIGNING_SECRET);
+    assertEquals(accepted.status, 200, await accepted.clone().text());
+    assertEquals((await postEvent(o, "some-other-signing-secret")).status, 401);
+  } finally {
+    await o.finish();
+  }
+});

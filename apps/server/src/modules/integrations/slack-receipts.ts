@@ -182,6 +182,29 @@ export async function connectSlackInstallation(
   };
 }
 
+export async function adoptRegistrationSigningSecret(
+  transaction: PgTransactionClient,
+  input: { readonly registrationId: string; readonly signingSecretId: string },
+): Promise<number> {
+  const updated = await transaction.query(
+    `update bakery.slack_installations as slack
+        set signing_secret_id = $2, updated_at = now(),
+            version = slack.version + 1
+      where slack.signing_secret_id is null
+        and exists (
+          select 1 from bakery.integration_installations installation
+           join bakery.integration_connections connection
+             on connection.installation_id = installation.id
+          where installation.registration_id = $1
+            and installation.external_authorization_id = slack.team_id
+            and connection.organization_id = slack.organization_id
+            and connection.archived_at is null
+        )`,
+    [input.registrationId, input.signingSecretId],
+  );
+  return updated.rowCount ?? 0;
+}
+
 export async function findSlackInstallation(
   transaction: PgTransactionClient,
   input: { readonly appId: string; readonly teamId: string },
