@@ -19,6 +19,7 @@ import { createIntegrationsActionRegistry } from "./actions.ts";
 import { mountIntakeRoute } from "./intake-routes.ts";
 import { mountSlackIntakeRoute } from "./slack-intake-routes.ts";
 import type { InstallationTokenBroker } from "./token-broker.ts";
+import type { OAuth2Fetch } from "./oauth2-connect.ts";
 import type {
   ActiveIntegrationRegistry,
   ProviderRequestPort,
@@ -51,7 +52,7 @@ async function redirectAction(
         action,
         {
           request,
-          params: {},
+          params: context.req.param(),
           requestId,
           traceId,
           signal: request.signal,
@@ -82,7 +83,7 @@ async function redirectAction(
  * Renames GitHub's snake_case query parameters to the contract's fields and
  * drops every other parameter; values are validated by the action schema.
  */
-function githubQuery(
+function providerQuery(
   query: Record<string, string>,
   names: Readonly<Record<string, string>>,
 ): Record<string, string> {
@@ -108,6 +109,8 @@ const OAUTH_QUERY = Object.freeze({
   error_description: "errorDescription",
 });
 
+const PROVIDER_CALLBACK_PATH = "/v1/integration-auth/:provider/callback";
+
 export function createIntegrationsRoutes(options: {
   database: PgDatabase;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
@@ -125,6 +128,7 @@ export function createIntegrationsRoutes(options: {
   integrationRegistry: ActiveIntegrationRegistry;
   /** The provider request port the invoke door sends through. */
   providerRequests?: ProviderRequestPort;
+  oauth2Fetch?: OAuth2Fetch;
   /**
    * The ingress port that verifies and classifies a signed webhook delivery.
    *
@@ -143,6 +147,9 @@ export function createIntegrationsRoutes(options: {
     ...(options.providerRequests === undefined
       ? {}
       : { providerRequests: options.providerRequests }),
+    ...(options.oauth2Fetch === undefined
+      ? {}
+      : { oauth2Fetch: options.oauth2Fetch }),
   });
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/integration-app-registrations/github", options.browserSession);
@@ -152,6 +159,7 @@ export function createIntegrationsRoutes(options: {
   app.use("/v1/integration-auth-attempts/*", options.browserSession);
   app.use(GitHubAppPath.Setup, options.browserSession);
   app.use(GitHubAppPath.OAuthCallback, options.browserSession);
+  app.use(PROVIDER_CALLBACK_PATH, options.browserSession);
   app.use("/v1/integration-installations", options.browserSession);
   app.use("/v1/integration-installations/*", options.browserSession);
   app.use("/v1/integration-connections", options.browserSession);
@@ -178,7 +186,7 @@ export function createIntegrationsRoutes(options: {
         options.publicBaseUrl,
         IntegrationsImplementedAction.IntegrationSetup,
         (query) => {
-          const input = githubQuery(query, SETUP_QUERY);
+          const input = providerQuery(query, SETUP_QUERY);
           if (!SETUP_ACTIONS.has(input.setupAction)) delete input.setupAction;
           return coerceQueryInput(
             contractSchemas.IntegrationSetupCallback,
@@ -198,7 +206,22 @@ export function createIntegrationsRoutes(options: {
         (query) =>
           coerceQueryInput(
             contractSchemas.OAuthCallback,
-            githubQuery(query, OAUTH_QUERY),
+            providerQuery(query, OAUTH_QUERY),
+          ),
+      ),
+  );
+  app.get(
+    PROVIDER_CALLBACK_PATH,
+    (context) =>
+      redirectAction(
+        context,
+        registry,
+        options.publicBaseUrl,
+        IntegrationsImplementedAction.IntegrationProviderAuthorizationCallback,
+        (query) =>
+          coerceQueryInput(
+            contractSchemas.OAuthCallback,
+            providerQuery(query, OAUTH_QUERY),
           ),
       ),
   );

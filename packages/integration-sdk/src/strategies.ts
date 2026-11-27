@@ -64,13 +64,38 @@ export type OAuth2Profile = {
   authorizeUrl: URL;
   tokenUrl: URL;
   scopes: readonly string[];
+  scopeDelimiter: " " | ",";
+  apiBaseUrl: URL;
+  webBaseUrl: URL;
   /** Validates the token endpoint's response, because its shape is the provider's. */
   tokenResponse: unknown;
   /** Reads the connected account out of the provider's API. */
   identify(ctx: DriverContext): Promise<
     { externalAccountId: string; accountLabel: string }
   >;
+  connectedResource?(input: ConnectedResourceInput): ConnectedResource;
 };
+
+export type ConnectedResourceInput = Readonly<{
+  tokenResponse: unknown;
+  externalAccountId: string;
+  accountLabel: string;
+}>;
+
+export type ConnectedResourceGrant = Readonly<{
+  capability: string;
+  actionVersion: number;
+}>;
+
+export type ConnectedResource = Readonly<{
+  kind: string;
+  externalId: string;
+  displayName: string;
+  binding: Readonly<Record<string, string>>;
+  servicePrincipalName: string;
+  servicePurpose: string;
+  serviceGrants: readonly ConnectedResourceGrant[];
+}>;
 
 /**
  * `connect.kind: "api-token"` - core stores and encrypts; the provider only proves it.

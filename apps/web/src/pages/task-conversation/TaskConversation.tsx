@@ -73,6 +73,9 @@ import {
 } from "./PlanRevisionPanel.tsx";
 import { Participants } from "./Participants.tsx";
 import { QuestionAnswer } from "./QuestionAnswer.tsx";
+import { RequestsForYou } from "../task-requests/RequestsForYou.tsx";
+import { rereadRequests } from "../task-requests/reread.ts";
+
 import { TASK_READS, useQuestionAnswers } from "./useQuestionAnswers.ts";
 import { StageStrip } from "./StageStrip.tsx";
 import { TurnStatus } from "./TurnStatus.tsx";
@@ -93,6 +96,7 @@ export function TaskConversation(
   {
     aside,
     banner,
+    onReviewStep,
     extras,
     questionDefaults,
     references,
@@ -105,6 +109,7 @@ export function TaskConversation(
     renderStepReview?: (layout: "rail" | "sheet") => ReactNode;
     /** A notice that belongs right under the stages, such as a landing's. */
     banner?: ReactNode;
+    onReviewStep?: () => void;
     /** Transcript-end content: run controls, output and artifacts. */
     extras?: ReactNode;
     /** Option preselected per question id; a design fixture supplies it. */
@@ -173,12 +178,14 @@ export function TaskConversation(
     refetchInterval: poll,
   });
 
-  const refresh = () =>
-    cache.invalidateQueries({
+  const refresh = () => {
+    void rereadRequests(cache, organizationId, task.currentRunId);
+    return cache.invalidateQueries({
       predicate: ({ queryKey }) =>
         queryKey[0] === "protected" && queryKey[2] === organizationId &&
         TASK_READS.has(String(queryKey[3])),
     });
+  };
   refreshRef.current = () => void refresh();
 
   // ---- draft -------------------------------------------------------------
@@ -403,6 +410,16 @@ export function TaskConversation(
   // ---- planning only -----------------------------------------------------
   const phone = useShellViewport() === "phone";
   const [planOpen, setPlanOpen] = useState(false);
+  const [wantedQuestion, setWantedQuestion] = useState<string | null>(null);
+  useEffect(() => {
+    if (wantedQuestion === null) return;
+    const card = globalThis.document.querySelector<HTMLElement>(
+      `[data-ui-component="questionCard"][data-question-id="${wantedQuestion}"]`,
+    );
+    card?.scrollIntoView({ block: "center" });
+    card?.focus();
+    setWantedQuestion(null);
+  }, [wantedQuestion]);
   const [planningPending, setPlanningPending] = useState<boolean | null>(null);
   const [planningFailed, setPlanningFailed] = useState(false);
   const setPlanningOnly = async (value: boolean) => {
@@ -573,6 +590,10 @@ export function TaskConversation(
   ].filter((part) => part !== undefined).join(" · ");
   const reference = references?.[task.id] ?? task.id.slice(0, 8);
   const coordinationLink = (coordination.data?.items.length ?? 0) > 0;
+  const showQuestion = (questionId: string) => {
+    if (phone) setPlanOpen(true);
+    setWantedQuestion(questionId);
+  };
   const planCard = (
     <UI.PlanSummaryCard
       data-approval-id={approval?.id}
@@ -914,6 +935,13 @@ export function TaskConversation(
             </UI.Stack>
           </UI.InlineNotice>
         )}
+        <RequestsForYou
+          currentRunId={task.currentRunId}
+          online={online}
+          onReviewStep={() => onReviewStep?.()}
+          onShowQuestion={showQuestion}
+          taskId={task.id}
+        />
         {task.description && (
           <UI.Stack gap="compact" data-ui-region="task-brief">
             <UI.Text variant="caption">

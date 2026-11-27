@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBakeryApi } from "../../api/context.tsx";
 import { commandFailure } from "./model.ts";
+import { rereadRequests } from "../task-requests/reread.ts";
 import type { QuestionPhase } from "./QuestionAnswer.tsx";
 
 /** Query names a task read refreshes after a command settles. */
@@ -12,6 +13,7 @@ export const TASK_READS = new Set([
   "conversationTurns.list",
   "planRevisions.list",
   "approvals.list",
+  "runRequests.list",
   "questions.list",
   "tasks.get",
   "tasks.list",
@@ -43,12 +45,15 @@ export function useQuestionAnswers(
   }, []);
   const [phases, setPhases] = useState<Record<string, QuestionPhase>>({});
   const pending = useRef<Record<string, PendingAnswer>>({});
-  const reread = () =>
-    refresh?.() ?? cache.invalidateQueries({
+  const reread = () => {
+    if (refresh !== undefined) return refresh();
+    void rereadRequests(cache, organizationId, null);
+    return cache.invalidateQueries({
       predicate: ({ queryKey }) =>
         queryKey[0] === "protected" && queryKey[2] === organizationId &&
         TASK_READS.has(String(queryKey[3])),
     });
+  };
   const answer = async (
     id: string,
     input: { optionId?: string; text?: string },

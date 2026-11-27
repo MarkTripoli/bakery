@@ -83,6 +83,8 @@ export type WorkflowDraftUpdate = ClientInputMap["WorkflowDraftUpdate"];
 export type ValidationReportResponse = ClientOutputMap["ValidationReport"];
 export type TaskResponse = ClientOutputMap["Task"];
 export type RunListResponse = ClientOutputMap["Page<Run>"];
+export type RunRequestsResponse = ClientOutputMap["RunRequests"];
+export type RunRequestResponse = RunRequestsResponse["requests"][number];
 export type RunResponse = ClientOutputMap["Run"];
 export type RunControlCapabilities = ClientOutputMap["RunControlCapabilities"];
 export type RouteContinuationOffersResponse =
@@ -1983,6 +1985,24 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RunListResponse>>;
+  readonly listRunRequests: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RunRequestsResponse>>;
+  readonly listMyRunRequests: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RunRequestsResponse>>;
+  readonly restartRunStep: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly stepKey: string;
+    readonly note?: string;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<unknown>>;
   readonly controlRun: (options: {
     readonly organizationId: string;
     readonly runId: string;
@@ -6823,6 +6843,59 @@ export function createBakeryApiClient({
         ) {
           throw new ApiTransportError("protocol", 201);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listRunRequests(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["runRequests.list"](
+          { id: options.runId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listMyRunRequests(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["runRequests.mine"](
+          { id: options.runId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async restartRunStep(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["runSteps.takeOver"](
+          {
+            id: options.runId,
+            stepKey: options.stepKey,
+            mode: "restart",
+            ...(options.note === undefined ? {} : { note: options.note }),
+          },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
         return { ok: true, data };
       } catch (error) {
         return failed(error);

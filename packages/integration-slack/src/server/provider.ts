@@ -9,6 +9,13 @@ import type {
   ResourceDiscovery,
 } from "@bakery/integration-sdk/provider";
 import { slackProviderManifest } from "../manifest.ts";
+import {
+  SLACK_DM_OPEN,
+  SLACK_MESSAGE_POST,
+  SLACK_MESSAGE_UPDATE,
+  SLACK_WORKSPACE_KIND,
+  slackGate,
+} from "./gate.ts";
 
 const API_ORIGIN = "https://slack.com/api";
 
@@ -18,6 +25,9 @@ const BOT_SCOPES = [
   "channels:read",
   "chat:write",
   "commands",
+  "im:history",
+  "im:read",
+  "im:write",
 ] as const;
 
 export const slackTokenResponseSchema = z.strictObject({
@@ -124,6 +134,9 @@ const oauth2: OAuth2Profile = {
   authorizeUrl: new URL("https://slack.com/oauth/v2/authorize"),
   tokenUrl: new URL("https://slack.com/api/oauth.v2.access"),
   scopes: BOT_SCOPES,
+  scopeDelimiter: ",",
+  apiBaseUrl: new URL(API_ORIGIN),
+  webBaseUrl: new URL("https://slack.com"),
   tokenResponse: slackTokenResponseSchema,
   async identify(ctx: DriverContext) {
     const response = await ctx.provider.send({
@@ -145,6 +158,25 @@ const oauth2: OAuth2Profile = {
     return {
       externalAccountId: parsed.team_id,
       accountLabel: parsed.team ?? parsed.team_id,
+    };
+  },
+  connectedResource({ tokenResponse, externalAccountId, accountLabel }) {
+    const token = slackTokenResponseSchema.parse(tokenResponse);
+    if (token.team.id !== externalAccountId) {
+      throw new Error("Slack named a different workspace than the bot token.");
+    }
+    return {
+      kind: SLACK_WORKSPACE_KIND,
+      externalId: externalAccountId,
+      displayName: accountLabel,
+      binding: { teamId: externalAccountId, botUserId: token.bot_user_id },
+      servicePrincipalName: "Slack delivery",
+      servicePurpose: "slack.delivery",
+      serviceGrants: [SLACK_DM_OPEN, SLACK_MESSAGE_POST, SLACK_MESSAGE_UPDATE]
+        .map((action) => ({
+          capability: action.id,
+          actionVersion: action.version,
+        })),
     };
   },
 };
@@ -203,6 +235,7 @@ export const slackServerProvider = defineServerProvider(
     discovery,
     health,
     hostProfile: "slack-bot",
+    gate: slackGate,
   },
 );
 

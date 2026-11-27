@@ -51,6 +51,17 @@ const githubRepositoryBinding = z.strictObject({
   "Host-recorded binding of one selected GitHub repository: names, numeric identifiers and the installation bot.",
 );
 
+const slackWorkspaceBinding = z.strictObject({
+  teamId: z.string().regex(/^T[A-Z0-9]+$/).describe(
+    "Slack workspace id the bot was installed into, recorded at connect.",
+  ),
+  botUserId: z.string().regex(/^U[A-Z0-9]+$/).describe(
+    "Slack user id of the installed bot, used to recognise its own messages.",
+  ),
+}).describe(
+  "Host-recorded binding of one connected Slack workspace and its bot user.",
+);
+
 const githubApp: HostAuthProfile = Object.freeze({
   id: "github-app",
   origin: "https://api.github.com",
@@ -75,9 +86,30 @@ const githubApp: HostAuthProfile = Object.freeze({
   }),
 });
 
+const slackBot: HostAuthProfile = Object.freeze({
+  id: "slack-bot",
+  origin: "https://slack.com",
+  credentialPlacement: "authorization-bearer",
+  fixedHeaders: Object.freeze({}),
+  providerPermissions: Object.freeze({
+    chat: Object.freeze(["write"] as const),
+    im: Object.freeze(["read", "write"] as const),
+  }),
+  resourceKinds: Object.freeze({
+    "slack.workspace": Object.freeze({
+      bindingSchema: slackWorkspaceBinding,
+      projectable: Object.freeze([]),
+      externalIdentity: Object.freeze({
+        account: "teamId",
+        resource: "botUserId",
+      }),
+    }),
+  }),
+});
+
 /** Frozen registry of host authentication profiles; the only source of origins and credential placement. */
 export const HOST_AUTH_PROFILES: Readonly<Record<string, HostAuthProfile>> =
-  Object.freeze({ "github-app": githubApp });
+  Object.freeze({ "github-app": githubApp, "slack-bot": slackBot });
 
 /** Returns the host profile for an id, or undefined. Own-property lookup only. */
 export function getHostProfile(id: string): HostAuthProfile | undefined {

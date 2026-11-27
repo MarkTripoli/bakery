@@ -9615,6 +9615,32 @@
     {
       "group": "Integration setup",
       "method": "GET",
+      "path": "/v1/integration-auth/:provider/callback",
+      "action": "integrationAuth.providerCallback",
+      "access": "Bound browser auth attempt",
+      "permission": null,
+      "input": "OAuthCallback",
+      "output": "AuthRedirect",
+      "event": "integration.auth_attempt_changed",
+      "mcp": null,
+      "idempotency": "single-use state hash + provider code; no Idempotency-Key",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "INTERNAL"
+      ],
+      "organizationContext": "derived_bound_auth_attempt"
+    },
+    {
+      "group": "Integration setup",
+      "method": "GET",
       "path": "/v1/integration-auth/github/setup",
       "action": "integrationAuth.setup",
       "access": "Bound browser auth attempt",

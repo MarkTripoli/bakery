@@ -58,6 +58,7 @@ export function standaloneSnapshots(
 export type DispatchResult = Readonly<{
   outcome: EffectOutcome;
   requests: readonly RequestRecord[];
+  refusal?: StandardError;
 }>;
 
 /**
@@ -88,13 +89,15 @@ export async function runObserved(
   // The race must not leave a dangling rejection when the handler wins.
   aborted.catch(() => {});
   let end: HandlerEnd;
+  let thrown: unknown;
   try {
     const output = await Promise.race([
       input.run(observed.port, controller.signal),
       aborted,
     ]);
     end = { kind: "resolved", output };
-  } catch {
+  } catch (error) {
+    thrown = error;
     end = { kind: "threw", timedOut: controller.signal.aborted };
   } finally {
     clearTimeout(timer);
@@ -102,15 +105,15 @@ export async function runObserved(
     controller.abort();
   }
   const requests = observed.records();
-  return {
-    outcome: classifyDispatch({
-      end,
-      requests,
-      generation: input.generation,
-      maxGenerations: input.maxGenerations,
-    }),
+  const outcome = classifyDispatch({
+    end,
     requests,
-  };
+    generation: input.generation,
+    maxGenerations: input.maxGenerations,
+  });
+  return outcome.kind === "failed" && thrown instanceof StandardError
+    ? { outcome, requests, refusal: thrown }
+    : { outcome, requests };
 }
 
 /**

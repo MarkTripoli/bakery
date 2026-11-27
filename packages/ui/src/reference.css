@@ -71,6 +71,11 @@
   .ui-reference__copy .ui-button {
     min-block-size: var(--target-coarse);
   }
+
+  .ui-stacked-row[data-inset="none"] .ui-reference__plain {
+    margin-inline-end: var(--space-0);
+    padding-inline-end: var(--space-0);
+  }
 }
 
 /* The card's own lines are spans, never paragraphs: a reference sits inside

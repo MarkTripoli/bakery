@@ -9206,6 +9206,33 @@ export const clientManifest = {
     {
       "group": "Integration setup",
       "method": "GET",
+      "path": "/v1/integration-auth/:provider/callback",
+      "action": "integrationAuth.providerCallback",
+      "access": "Bound browser auth attempt",
+      "permission": null,
+      "input": "OAuthCallback",
+      "output": "AuthRedirect",
+      "event": "integration.auth_attempt_changed",
+      "mcp": "",
+      "idempotency": "single-use state hash + provider code; no Idempotency-Key",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "SESSION_REQUIRED",
+        "MALFORMED_REQUEST",
+        "RESOURCE_NOT_FOUND",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "INTERNAL"
+      ],
+      "organizationContext": "derived_bound_auth_attempt",
+      "implemented": true
+    },
+    {
+      "group": "Integration setup",
+      "method": "GET",
       "path": "/v1/integration-auth/github/setup",
       "action": "integrationAuth.setup",
       "access": "Bound browser auth attempt",
@@ -20997,6 +21024,7 @@ export const clientManifest = {
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
             "integrationAuth.authorizationCallback",
+            "integrationAuth.providerCallback",
             "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
@@ -26429,12 +26457,13 @@ export const clientManifest = {
         "provider": {
           "type": "string",
           "enum": [
-            "github"
+            "github",
+            "slack"
           ],
-          "description": "Integration provider to authorize against; only github is supported. The server builds the authorization URL from the provider app registered for this Bakery installation, never from request data."
+          "description": "Integration provider to authorize against: github through its registered App, or slack through the OAuth2 client credentials saved for this Bakery installation. The server builds the authorization URL from that registration, never from request data."
         },
         "reconnectConnectionId": {
-          "description": "When reconnecting an existing connection of the caller's organization, identifies it; completion for the same verified GitHub account refreshes that connection, and a different account creates a new pending connection and leaves this one unchanged. An unknown, archived or other organization's connection is refused as not found and no attempt is created.",
+          "description": "When reconnecting an existing connection of the caller's organization, identifies it; completion for the same verified account (the GitHub account, or the Slack workspace) refreshes that connection, and a different account creates a new connection (pending for GitHub until repositories are chosen, enabled for Slack) and leaves this one unchanged. An unknown, archived or other organization's connection is refused as not found and no attempt is created.",
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
@@ -48995,9 +49024,11 @@ export const clientManifest = {
               "provider": {
                 "type": "string",
                 "enum": [
-                  "github"
+                  "github",
+                  "linear",
+                  "slack"
                 ],
-                "description": "Integration provider this connection binds; only github is supported."
+                "description": "Integration provider this connection binds: github, linear or slack, each a provider registered in this Bakery build."
               },
               "label": {
                 "type": "string",
@@ -51698,6 +51729,7 @@ export const clientManifest = {
                   "integrationAuthAttempts.create",
                   "integrationAuthAttempts.get",
                   "integrationAuth.authorizationCallback",
+                  "integrationAuth.providerCallback",
                   "integrationAuth.setup",
                   "integrationAuth.slackIdentityCallback",
                   "integrationInstallations.list",
@@ -72262,9 +72294,11 @@ export const clientManifest = {
         "provider": {
           "type": "string",
           "enum": [
-            "github"
+            "github",
+            "linear",
+            "slack"
           ],
-          "description": "Integration provider this connection binds; only github is supported."
+          "description": "Integration provider this connection binds: github, linear or slack, each a provider registered in this Bakery build."
         },
         "label": {
           "type": "string",
@@ -74882,6 +74916,7 @@ export const clientManifest = {
             "integrationAuthAttempts.create",
             "integrationAuthAttempts.get",
             "integrationAuth.authorizationCallback",
+            "integrationAuth.providerCallback",
             "integrationAuth.setup",
             "integrationAuth.slackIdentityCallback",
             "integrationInstallations.list",
@@ -86797,9 +86832,11 @@ export const clientManifest = {
         "provider": {
           "type": "string",
           "enum": [
-            "github"
+            "github",
+            "linear",
+            "slack"
           ],
-          "description": "Integration provider this attempt authorizes against; only github is supported."
+          "description": "Integration provider this attempt authorizes against: github, linear or slack, each a provider registered in this Bakery build."
         },
         "reconnectConnectionId": {
           "anyOf": [
@@ -116232,6 +116269,66 @@ export const clientManifest = {
               "description": "Null indicates that the value is unavailable."
             }
           ]
+        },
+        "nextAsk": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dueAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC time the next ask is made if nobody has answered by then: the first ask plus the step's waiting hours."
+                },
+                "askedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC time the next ask was made, or null while it is still to come."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "RunRequestNextAsk.askedAt may be null in this transport value."
+                },
+                "who": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "The person, group or role asked next, by its current name, or null when it can no longer be found."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "RunRequestNextAsk.who may be null in this transport value."
+                }
+              },
+              "required": [
+                "dueAt",
+                "askedAt",
+                "who"
+              ],
+              "additionalProperties": false,
+              "description": "Who the step asks next if nobody answers this first request, and when; null when the step names nobody to ask next or this request was itself the next ask."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RunRequest.nextAsk may be null in this transport value."
+        },
+        "passedOn": {
+          "type": "boolean",
+          "description": "True when this request is the step's next ask, made because nobody answered the first one in time."
         }
       },
       "required": [
@@ -116250,7 +116347,9 @@ export const clientManifest = {
         "fallbackForName",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "nextAsk",
+        "passedOn"
       ],
       "additionalProperties": false,
       "description": "A request: one person asked for one thing on one run, with how it stands."
@@ -116529,6 +116628,66 @@ export const clientManifest = {
                     "description": "Null indicates that the value is unavailable."
                   }
                 ]
+              },
+              "nextAsk": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "dueAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC time the next ask is made if nobody has answered by then: the first ask plus the step's waiting hours."
+                      },
+                      "askedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "description": "UTC time the next ask was made, or null while it is still to come."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "RunRequestNextAsk.askedAt may be null in this transport value."
+                      },
+                      "who": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "The person, group or role asked next, by its current name, or null when it can no longer be found."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "RunRequestNextAsk.who may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "dueAt",
+                      "askedAt",
+                      "who"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Who the step asks next if nobody answers this first request, and when; null when the step names nobody to ask next or this request was itself the next ask."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "RunRequest.nextAsk may be null in this transport value."
+              },
+              "passedOn": {
+                "type": "boolean",
+                "description": "True when this request is the step's next ask, made because nobody answered the first one in time."
               }
             },
             "required": [
@@ -116547,7 +116706,9 @@ export const clientManifest = {
               "fallbackForName",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "nextAsk",
+              "passedOn"
             ],
             "additionalProperties": false,
             "description": "Requests in newest-first order; bounded to the most recent fifty. Each array item follows this format."

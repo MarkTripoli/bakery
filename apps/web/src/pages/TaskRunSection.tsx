@@ -45,6 +45,7 @@ import { focusMessageField } from "./task-delivery/focus-message.ts";
 import { HandOver } from "./task-handover/HandOver.tsx";
 import { useHandoverEvents } from "./task-handover/use-handover-events.ts";
 import { RouteWaiting } from "./task-waiting/RouteWaiting.tsx";
+import { WaitingFor } from "./task-waiting/WaitingFor.tsx";
 import { stepRowCopy } from "./task-waiting/model.ts";
 import { useWaitingOffers } from "./task-waiting/use-waiting-offers.ts";
 
@@ -598,6 +599,16 @@ export function TaskRunSection(
               )
               : null}
           </UI.Inline>
+          {activeRun && run.data !== undefined &&
+              !["completed", "canceled"].includes(run.data.status)
+            ? (
+              <WaitingFor
+                runFailed={run.data.status === "failed"}
+                runId={runId}
+                steps={steps.data?.items ?? []}
+              />
+            )
+            : null}
           {steeringUnsupported && (
             <UI.InlineNotice
               tone="information"

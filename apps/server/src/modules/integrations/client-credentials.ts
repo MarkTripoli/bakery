@@ -126,9 +126,10 @@ function credentialProvider(slug: string | undefined): string {
   return provider.manifest.slug;
 }
 
-function callbackUrl(slug: string, publicBaseUrl: string): string {
-  // The same path family GitHub's OAuth callback lives under: one place per
-  // provider, derived from this installation's public address.
+export function providerCallbackUrl(
+  slug: string,
+  publicBaseUrl: string,
+): string {
   return new URL(`/v1/integration-auth/${slug}/callback`, publicBaseUrl).href;
 }
 
@@ -144,12 +145,12 @@ function projection(
     clientSecretSavedAt: stored === null
       ? null
       : new Date(stored.savedAt).toISOString(),
-    callbackUrl: callbackUrl(slug, publicBaseUrl),
+    callbackUrl: providerCallbackUrl(slug, publicBaseUrl),
     version: stored?.version ?? 0,
   };
 }
 
-async function readStored(
+export async function readStoredClientCredentials(
   transaction: { query: ActionContextTransaction["query"] },
   slug: string,
   options: { lock?: boolean } = {},
@@ -202,7 +203,7 @@ export async function getClientCredentials(
   const slug = credentialProvider(context.params.provider);
   return projection(
     slug,
-    await readStored(value.transaction, slug),
+    await readStoredClientCredentials(value.transaction, slug),
     dependencies.publicBaseUrl,
   );
 }
@@ -234,7 +235,9 @@ export async function putClientCredentials(
   ) throw unprocessable(["clientSecret"], "invalid_client_secret");
 
   const expectedVersion = requireCommandMetadata(context).expectedVersion;
-  const stored = await readStored(transaction, slug, { lock: true });
+  const stored = await readStoredClientCredentials(transaction, slug, {
+    lock: true,
+  });
   if (stored) {
     if (expectedVersion === undefined) {
       throw new StandardError({ code: "PRECONDITION_REQUIRED" });
@@ -322,7 +325,7 @@ export async function putClientCredentials(
     }
   }
 
-  const saved = await readStored(transaction, slug);
+  const saved = await readStoredClientCredentials(transaction, slug);
   // The provider, the replaced flag and revision numbers only: never the client
   // secret, its ciphertext, the key id or the secret record id.
   await recordAuthAudit(transaction, value, {

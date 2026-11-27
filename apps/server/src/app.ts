@@ -83,6 +83,7 @@ import { PROVIDERS } from "./modules/integrations/registry.ts";
 import { GITHUB_PROVIDER } from "./modules/integrations/registry.ts";
 import { selectTicketSourceReader } from "./modules/work/ticket-reader-selection.ts";
 import { readAppCredentials } from "./modules/integrations/callbacks.ts";
+import type { OAuth2Fetch } from "./modules/integrations/oauth2-connect.ts";
 import { loadSnapshot } from "./modules/catalog/authority-snapshot-postgres.ts";
 import { withPgTransaction } from "./platform/database.ts";
 import { createDesktopCors } from "./platform/desktop-cors.ts";
@@ -259,6 +260,7 @@ export function createApp(options: {
   pluginBrokerOperations?: readonly BrokerOperation[];
   /** GitHub App API port; the fetch client against api.github.com by default. */
   githubAppClient?: GitHubAppClient;
+  oauth2Fetch?: OAuth2Fetch;
   /**
    * The process's installation token broker; tests inject one to drive a
    * reconcile against the same cache the API uses.
@@ -1174,6 +1176,9 @@ export function createApp(options: {
       // providers instead of re-deriving one.
       integrationRegistry,
       providerRequests,
+      ...(options.oauth2Fetch === undefined
+        ? {}
+        : { oauth2Fetch: options.oauth2Fetch }),
     }),
   );
   app.route(
