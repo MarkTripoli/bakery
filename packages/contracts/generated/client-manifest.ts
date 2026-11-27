@@ -7633,6 +7633,34 @@ export const clientManifest = {
     },
     {
       "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/tasks/{id}/pull-requests/open",
+      "action": "pullRequests.open",
+      "access": "Developer",
+      "permission": "pullRequest:register",
+      "input": "PullRequestOpen",
+      "output": "PullRequest",
+      "event": "",
+      "mcp": "bakery_pullRequests_open",
+      "idempotency": "Idempotency-Key required; exact payload retries replay the committed response, and a retry after an unknown answer finds the pull request already open on that branch",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "PROVIDER_QUOTA_EXCEEDED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
       "method": "GET",
       "path": "/v1/pull-requests",
       "action": "pullRequests.list",
@@ -21071,6 +21099,7 @@ export const clientManifest = {
             "memoryRevisions.create",
             "memoryRevisions.list",
             "pullRequests.register",
+            "pullRequests.open",
             "pullRequests.list",
             "reviews.list",
             "reviewFindings.list",
@@ -31551,6 +31580,54 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Registers one task-owned pull request from its Bakery repository identity and provider number; the server derives organization, installation, URL, commits, lifecycle and source evidence from live trusted state."
+    },
+    "PullRequestOpen": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Bakery repository to open the pull request in; it must be bound to the task and its enabled selected integration resource."
+        },
+        "headBranch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 250,
+          "description": "Branch that holds the changes, already pushed to the repository; any name git accepts. A pull request already open from it into the base is registered instead of a second one. PullRequestOpen.headBranch must contain at least 1 characters. PullRequestOpen.headBranch must contain at most 250 characters."
+        },
+        "baseBranch": {
+          "description": "Branch the changes should merge into; omitted, the repository's default branch. PullRequestOpen.baseBranch must contain at least 1 characters. PullRequestOpen.baseBranch must contain at most 250 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 250
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Pull request title GitHub shows; at most 256 characters, and not only spaces. PullRequestOpen.title must contain at least 1 characters. PullRequestOpen.title must contain at most 256 characters."
+        },
+        "body": {
+          "description": "Pull request description in Markdown; omitted, empty. PullRequestOpen.body must contain at most 65536 characters.",
+          "type": "string",
+          "maxLength": 65536
+        },
+        "runId": {
+          "description": "Workflow run of this task and repository that is opening the pull request; omit only when no workflow run opens it.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        }
+      },
+      "required": [
+        "repositoryId",
+        "headBranch",
+        "title"
+      ],
+      "additionalProperties": false,
+      "description": "Opens one task-owned pull request on the provider from a pushed branch and registers it, as pullRequests.register would; the server derives organization, installation, URL and commits from live trusted state."
     },
     "PullRequestMerge": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -52185,6 +52262,7 @@ export const clientManifest = {
                   "memoryRevisions.create",
                   "memoryRevisions.list",
                   "pullRequests.register",
+                  "pullRequests.open",
                   "pullRequests.list",
                   "reviews.list",
                   "reviewFindings.list",
@@ -75644,6 +75722,7 @@ export const clientManifest = {
             "memoryRevisions.create",
             "memoryRevisions.list",
             "pullRequests.register",
+            "pullRequests.open",
             "pullRequests.list",
             "reviews.list",
             "reviewFindings.list",

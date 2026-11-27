@@ -7853,6 +7853,33 @@
     },
     {
       "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/tasks/{id}/pull-requests/open",
+      "action": "pullRequests.open",
+      "access": "Developer",
+      "permission": "pullRequest:register",
+      "input": "PullRequestOpen",
+      "output": "PullRequest",
+      "event": "",
+      "mcp": "bakery_pullRequests_open",
+      "idempotency": "Idempotency-Key required; exact payload retries replay the committed response, and a retry after an unknown answer finds the pull request already open on that branch",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT",
+        "PROVIDER_QUOTA_EXCEEDED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Delivery",
       "method": "GET",
       "path": "/v1/pull-requests",
       "action": "pullRequests.list",

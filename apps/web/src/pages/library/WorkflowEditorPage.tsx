@@ -81,6 +81,7 @@ import {
   skillsOfNode,
 } from "./editor-state.ts";
 import { LeaveGuard } from "../repository-rules/leave-guard.tsx";
+import { useEscapeClosesPanel } from "./use-escape-closes-panel.ts";
 import {
   problemSentence,
   problemsOf,
@@ -850,6 +851,9 @@ export function WorkflowEditorPage(
     globalThis.addEventListener("beforeunload", warn);
     return () => globalThis.removeEventListener("beforeunload", warn);
   }, [saveState.kind, changed, loopPending, badBudget]);
+
+  const closePanel = useCallback(() => setSelectedId(null), []);
+  useEscapeClosesPanel(selectedId !== null, closePanel);
 
   const unsaved = changed || loopPending || save.isPending ||
       saveState.kind !== "saved" || badBudget
@@ -2020,6 +2024,7 @@ export function WorkflowEditorPage(
         }}
         discard={() => {}}
         path={`/library/workflows/${workflowId}/edit`}
+        safest
       />
       {body}
       {deleted === null ? null : (
