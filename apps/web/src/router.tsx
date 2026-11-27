@@ -45,6 +45,7 @@ import { EvaluationRunPage } from "./pages/EvaluationRunPage.tsx";
 import { AddSkillPage } from "./pages/AddSkillPage.tsx";
 import { SkillEditorPage } from "./pages/SkillEditorPage.tsx";
 import { SkillPage } from "./pages/SkillPage.tsx";
+import { SkillUpdatePage } from "./pages/SkillUpdatePage.tsx";
 import { skillFilter, skillSearch } from "./pages/library/skills-state.ts";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
@@ -394,6 +395,20 @@ export const routeCoverage = [
   {
     id: "library-skill-edit",
     path: "/library/skills/$skillId/edit",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library-skill-update",
+    path: "/library/skills/$skillId/update",
     classification: "production",
     states: [
       "loading",
@@ -1754,6 +1769,17 @@ const skillRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const skillUpdateRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/skills/$skillId/update",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <SkillUpdatePage skillId={skillUpdateRoute.useParams().skillId} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const skillEditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/library/skills/$skillId/edit",
@@ -2348,13 +2374,20 @@ const organizationIntegrationsRoute = createRoute({
     search: Record<string, unknown>,
   ): {
     githubConnection?: ReturnType<typeof parseConnectionOutcome>;
+    slackConnection?: ReturnType<typeof parseConnectionOutcome>;
     connectionId?: string;
+    removed?: string;
   } => {
     const connectionId = search[CONNECTION_ID_PARAMETER];
+    const removed = search.removed;
     return {
+      removed: typeof removed === "string" && isUuid(removed)
+        ? removed
+        : undefined,
       githubConnection: parseConnectionOutcome(
         search[CONNECTION_OUTCOME_PARAMETER],
       ),
+      slackConnection: parseConnectionOutcome(search.slackConnection),
       connectionId: typeof connectionId === "string" && isUuid(connectionId)
         ? connectionId
         : undefined,
@@ -2363,12 +2396,14 @@ const organizationIntegrationsRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
-    const { githubConnection, connectionId } = organizationIntegrationsRoute
-      .useSearch();
+    const { githubConnection, slackConnection, connectionId, removed } =
+      organizationIntegrationsRoute.useSearch();
     return (
       <OrganizationIntegrationsPage
+        removedId={removed ?? null}
         connectionId={connectionId ?? null}
-        outcome={githubConnection ?? null}
+        outcome={githubConnection ?? slackConnection ?? null}
+        outcomeProvider={slackConnection === undefined ? "github" : "slack"}
       />
     );
   },
@@ -2380,22 +2415,27 @@ const organizationIntegrationConnectionRoute = createRoute({
   path: "/settings/organization/integrations/$connectionId",
   validateSearch: (
     search: Record<string, unknown>,
-  ): { githubConnection?: ReturnType<typeof parseConnectionOutcome> } => ({
+  ): {
+    githubConnection?: ReturnType<typeof parseConnectionOutcome>;
+    slackConnection?: ReturnType<typeof parseConnectionOutcome>;
+  } => ({
     githubConnection: parseConnectionOutcome(
       search[CONNECTION_OUTCOME_PARAMETER],
     ),
+    slackConnection: parseConnectionOutcome(search.slackConnection),
   }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => {
     const { connectionId } = organizationIntegrationConnectionRoute
       .useParams();
-    const { githubConnection } = organizationIntegrationConnectionRoute
-      .useSearch();
+    const { githubConnection, slackConnection } =
+      organizationIntegrationConnectionRoute.useSearch();
     return (
       <ConnectionPage
         connectionId={connectionId}
-        outcome={githubConnection ?? null}
+        outcome={githubConnection ?? slackConnection ?? null}
+        outcomeProvider={slackConnection === undefined ? "github" : "slack"}
       />
     );
   },
@@ -3053,6 +3093,7 @@ const routeTree = rootRoute.addChildren([
   skillAddRoute,
   skillRoute,
   skillEditRoute,
+  skillUpdateRoute,
   evaluationRunRoute,
   machineNewRoute,
   machineNewByHandRoute,

@@ -429,6 +429,7 @@ function manualStartInput(
       installationEnabled: true,
       resourceSelected: true,
       repositoryFullName,
+      repositoryBound: true,
       repositoryArchived: false,
       repositoryHasActiveProfile: true,
       presetReady: true,

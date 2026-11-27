@@ -5299,6 +5299,13 @@
       "frames": []
     },
     {
+      "routeId": "library-skill-update",
+      "path": "/library/skills/$skillId/update",
+      "status": "no-mock",
+      "rationale": "Reviewing what a skill's source changed, file by file, before taking it is designed by design-ux on #74 (revision 4 section 2, mocks at design-74/v4/); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "library-evaluation",
       "path": "/library/evaluations/$batchId",
       "status": "no-mock",

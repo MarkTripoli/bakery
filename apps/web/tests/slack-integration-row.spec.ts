@@ -13,7 +13,8 @@ test.use({
 
 const ORGANIZATION_PATH = "/settings/organization/integrations";
 const INSTALLATION_PATH = "/settings/installation/integrations";
-const SOON = "Connecting Slack is not available in this version of Bakery yet.";
+const PURPOSE =
+  "Send people requests in Slack, and let them approve work there.";
 
 const slackCredentials = {
   provider: "slack",
@@ -35,12 +36,27 @@ const savedSlackCredentials = {
   version: 2,
 };
 
+async function signInAsAdmin(page: Page) {
+  await mockAuthenticatedSession(page);
+  await page.route(
+    "**/v1/organizations/*/effective-access",
+    (route) =>
+      route.fulfill({
+        json: {
+          organizationId: MOCK_ORGANIZATION_ID,
+          role: "admin",
+          capabilities: [],
+        },
+      }),
+  );
+}
+
 async function fixture(
   page: Page,
   credentials: typeof slackCredentials | typeof savedSlackCredentials =
     slackCredentials,
 ): Promise<void> {
-  await mockAuthenticatedSession(page);
+  await signInAsAdmin(page);
   await page.route(
     "**/v1/integration-client-credentials/slack",
     (route) =>
@@ -58,15 +74,154 @@ async function fixture(
     }));
 }
 
+const STAND_IN = "/slack-authorize-stand-in";
+
+async function startsConnect(page: Page, sent: unknown[], status = 201) {
+  await page.route("**/v1/integration-auth-attempts", (route) => {
+    sent.push(route.request().postDataJSON());
+    if (status !== 201) {
+      return route.fulfill({
+        status,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          type: "https://bakery.example/problems/test",
+          title: "Request refused",
+          detail: "Request refused.",
+          status,
+          code: "STATE_CONFLICT",
+          reason: "provider_unregistered",
+          retryable: false,
+          requestId: crypto.randomUUID(),
+          traceId: crypto.randomUUID(),
+        }),
+      });
+    }
+    return route.fulfill({
+      status,
+      json: {
+        id: "00000000-0000-4000-8000-0000000000aa",
+        authorizationUrl: new URL(STAND_IN, route.request().url()).href,
+        expiresAt: "2026-11-27T10:15:00.000Z",
+      },
+    });
+  });
+}
+
+const leftForSlack = (page: Page) =>
+  expect.poll(() => new URL(page.url()).pathname).toBe(STAND_IN);
+
+test("Connect Slack leaves for Slack in the same tab", async ({ page }) => {
+  await fixture(page);
+  const sent: unknown[] = [];
+  await startsConnect(page, sent);
+  await page.goto(ORGANIZATION_PATH);
+  await page.getByRole("button", { name: "Connect Slack" }).click();
+  await leftForSlack(page);
+  expect(sent).toEqual([{ provider: "slack" }]);
+});
+
+test("Connect Slack without app details says who enters them", async ({ page }) => {
+  await fixture(page);
+  await startsConnect(page, [], 409);
+  await page.goto(ORGANIZATION_PATH);
+  await page.getByRole("button", { name: "Connect Slack" }).click();
+  const row = page.getByTestId("provider-row-slack");
+  await expect(row).toContainText(
+    "Slack is not set up for this Bakery installation yet.",
+  );
+  await expect(
+    row.getByRole("link", { name: "Open installation integrations" }),
+  ).toBeVisible();
+  await still(page, "slack-connect-unregistered");
+  await page.route(
+    "**/v1/integration-app-registrations/github",
+    async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.fallback();
+    },
+  );
+  const gitHubRead = page.waitForResponse(
+    "**/v1/integration-app-registrations/github",
+  );
+  await row.getByRole("link", { name: "Open installation integrations" })
+    .click();
+  await gitHubRead;
+  await expect(page.getByRole("button", { name: "Create GitHub App" }))
+    .toBeAttached();
+  const heading = page.getByTestId("slack-credentials").getByRole("heading")
+    .first();
+  await expect(heading).toBeInViewport();
+  await page.evaluate(() => {
+    const late = document.createElement("div");
+    late.style.height = "1400px";
+    const section = document.getElementById("slack")!;
+    section.parentElement!.insertBefore(late, section);
+  });
+  await expect(heading).toBeInViewport();
+});
+
+for (
+  const [outcome, sentence, retry] of [
+    [
+      "authorization_denied",
+      "Slack was not connected, because the request was cancelled in Slack. Nothing changed.",
+      true,
+    ],
+    [
+      "held_elsewhere",
+      "Another organization in Bakery already holds this connection, so nothing was connected.",
+      false,
+    ],
+    ["exchange_failed", "Slack could not confirm the connection", true],
+    ["enterprise_install", "Connect again and pick a single workspace.", true],
+    ["wrong_app", "Slack answered for a different app", false],
+  ] as const
+) {
+  test(
+    "a Slack connect that ends " + outcome + " is said on return",
+    async ({ page }) => {
+      await fixture(page);
+      await page.goto(ORGANIZATION_PATH + "?slackConnection=" + outcome);
+      const banner = page.getByTestId("github-connection-outcome");
+      await expect(banner).toContainText(sentence);
+      await expect(banner).not.toContainText("GitHub");
+      await expect(
+        banner.getByRole("button", { name: "Connect Slack again" }),
+      ).toHaveCount(retry ? 1 : 0);
+      await still(page, "slack-outcome-" + outcome.replaceAll("_", "-"));
+    },
+  );
+}
+
+test("a Slack connect that worked lands on the connection and says so", async ({ page }) => {
+  await connected(page, {});
+  await page.goto(
+    ORGANIZATION_PATH + "?slackConnection=connected&connectionId=" +
+      CONNECTION_ID,
+  );
+  await expect.poll(() => new URL(page.url()).pathname).toBe(
+    ORGANIZATION_PATH + "/" + CONNECTION_ID,
+  );
+  await expect(page.getByTestId("github-connection-outcome"))
+    .toContainText("Bakery was added to Test Workspace.");
+  await still(page, "slack-outcome-connected");
+  await page.getByRole("button", { name: "Turn off" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Turn off" })
+    .click();
+  await expect(page.getByTestId("github-connection-outcome")).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(CONNECTION_ID + "$"));
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Turn off" })).toBeVisible();
+  await expect(page.getByTestId("github-connection-outcome")).toHaveCount(0);
+});
+
 test("the Slack row on the organization integrations page", async ({ page }) => {
   await fixture(page);
   await page.goto(ORGANIZATION_PATH);
-  const slack = page.getByTestId("provider-row-slack");
-  const row = (await slack.count()) > 0 ? slack : page.getByText("Slack", {
-    exact: true,
-  }).first();
-  await expect(row).toBeVisible();
-  await expect(page.getByText(SOON).first()).toBeVisible();
+  const row = page.getByTestId("provider-row-slack");
+  await expect(row).toContainText(PURPOSE);
+  await expect(row.getByRole("button", { name: "Connect Slack" }))
+    .toBeEnabled();
   await still(page, "connections-org");
 });
 
@@ -74,7 +229,7 @@ test("the Slack section on the installation integrations page", async ({ page })
   await fixture(page);
   await page.goto(INSTALLATION_PATH);
   const section = page.getByTestId("slack-credentials");
-  await expect(section).toContainText(SOON);
+  await expect(section).not.toContainText("not available");
   await expect(section).toContainText(
     "Slack is not set up yet. Create a Slack app, then enter its details here.",
   );
@@ -322,11 +477,9 @@ const slackConnection = (extra: Record<string, unknown> = {}) => ({
   provider: "slack",
   label: "Test Workspace",
   externalAccountId: "T0123456",
-  grantedScopes: {
-    "channels:read": "granted",
-    "groups:read": "granted",
-    "chat:write": "granted",
-  },
+  grantedScopes: { channels: "read", chat: "write" },
+  grantedScopeNames: ["channels:read", "chat:write"],
+  health: "unknown",
   config: {},
   secretId: null,
   createdBy: "00000000-0000-4000-8000-000000000001",
@@ -339,18 +492,7 @@ const slackConnection = (extra: Record<string, unknown> = {}) => ({
 });
 
 async function connected(page: Page, extra: Record<string, unknown> = {}) {
-  await mockAuthenticatedSession(page);
-  await page.route(
-    "**/v1/organizations/*/effective-access",
-    (route) =>
-      route.fulfill({
-        json: {
-          organizationId: MOCK_ORGANIZATION_ID,
-          role: "admin",
-          capabilities: [],
-        },
-      }),
-  );
+  await signInAsAdmin(page);
   const connection = slackConnection(extra);
   await page.route(
     (url) => url.pathname === "/v1/integration-connections",
@@ -374,7 +516,7 @@ test("a Slack connection is listed as Slack, not offered as coming soon", async 
   await expect(row).not.toContainText("GitHub");
   await expect(row.getByRole("button", { name: "Manage" })).toBeVisible();
   await expect(page.getByTestId("available-list")).toContainText("GitHub");
-  await expect(page.getByText(SOON)).toHaveCount(0);
+  await expect(page.getByTestId("provider-row-slack")).toHaveCount(0);
   await still(page, "slack-connected-list");
 });
 
@@ -385,48 +527,63 @@ test("a Slack connection's page speaks only of Slack and offers no GitHub contro
   await expect(body.getByRole("heading", { level: 1 }))
     .toHaveText("Slack · Test Workspace");
   await expect(body).toContainText("What Bakery can do on Slack");
-  await expect(body).toContainText("Connected");
-  await expect(body).not.toContainText("Not checked yet");
-  await expect(
-    body.getByText(
-      "Bakery can read the channels and messages this bot can see in Slack.",
-    ),
-  ).toHaveCount(1);
-  await expect(body).toContainText("Bakery can post messages in Slack.");
+  await expect(body).toContainText(
+    "Posts progress to Slack, and lets linked people approve work and message agents from Slack.",
+  );
+  await expect(body).toContainText("Not checked yet");
+  await expect(body).toContainText("Post progress in channels");
+  await expect(body.getByTestId("abilities-not-available")).toContainText(
+    "Take slash commands. Slack did not grant this. Reconnect to approve it.",
+  );
+  await body.getByText("Show Slack permission names").click();
+  await expect(body).toContainText("chat:write");
   await expect(body).not.toContainText("GitHub");
   await expect(body.getByTestId("repositories")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Check now" }))
-    .toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Check now" })).toBeVisible();
   await still(page, "slack-connection");
   await body.getByRole("button", { name: "Turn off" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toContainText("Turn off Slack · Test Workspace?");
   await expect(dialog).toContainText(
-    "Work that needs it waits until you turn it on again.",
+    "Bakery posts nothing to Slack and takes nothing from it until you turn it on again. People's links are kept.",
   );
   expect(asked.filter((path) => path.endsWith("/resources"))).toEqual([]);
 });
 
 for (
-  const [status, sentence] of [
+  const [status, sentence, action] of [
     [
       "revoked",
-      "Access to Slack was removed. Connecting Slack again from Bakery is not available yet.",
+      "Bakery is no longer connected to this Slack workspace.",
+      "Connect again",
     ],
-    ["degraded", "Turn the connection off to stop work that needs it."],
-  ]
+    ["degraded", "Slack no longer accepts Bakery's access.", "Reconnect"],
+  ] as const
 ) {
-  test(`a ${status} Slack connection says what can be done next`, async ({ page }) => {
-    await connected(page, { status });
-    await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
-    const problem = page.getByTestId("connection-problem");
-    await expect(problem).toContainText(sentence);
-    await expect(problem.getByRole("button")).toHaveCount(0);
-    await expect(page.getByTestId("connection-page")).not.toContainText(
-      "GitHub",
-    );
-    await still(page, `slack-${status}`);
-  });
+  test(
+    "a " + status + " Slack connection offers to " + action.toLowerCase(),
+    async ({ page }) => {
+      await connected(page, { status });
+      const sent: unknown[] = [];
+      await startsConnect(page, sent);
+      await page.goto(ORGANIZATION_PATH + "/" + CONNECTION_ID);
+      const problem = page.getByTestId("connection-problem");
+      await expect(problem).toContainText(sentence);
+      await expect(page.getByTestId("connection-page")).not.toContainText(
+        "GitHub",
+      );
+      await still(page, "slack-" + status);
+      await problem.getByRole("button", { name: action }).click();
+      await leftForSlack(page);
+      expect(sent).toEqual([
+        status === "revoked" ? { provider: "slack" } : {
+          provider: "slack",
+          reconnectConnectionId: CONNECTION_ID,
+          returnPath: ORGANIZATION_PATH + "/" + CONNECTION_ID,
+        },
+      ]);
+    },
+  );
 }
 
 for (
@@ -495,4 +652,213 @@ test("a removed Slack connection is listed once", async ({ page }) => {
   await expect(page.getByTestId(`connection-${CONNECTION_ID}`))
     .toContainText("Slack · Test Workspace");
   await expect(page.getByTestId("available-list")).not.toContainText("Slack");
+});
+
+const connectionBody = (page: Page) => page.getByTestId("connection-page");
+const checked = "2026-11-27T09:00:00.000Z";
+
+async function checks(page: Page, answer: Record<string, unknown>) {
+  const asked: number[] = [];
+  await page.route(
+    `**/v1/integration-connections/${CONNECTION_ID}/checks`,
+    (route) => {
+      asked.push(1);
+      return route.fulfill({
+        json: {
+          checkedAt: checked,
+          capabilities: [],
+          fault: null,
+          ...answer,
+        },
+      });
+    },
+  );
+  return asked;
+}
+
+async function ownLink(page: Page, state: "linked" | "not_linked") {
+  await page.route(
+    "**/v1/me/slack-link",
+    (route) =>
+      route.fulfill({
+        json: {
+          connection: "working",
+          state,
+          workspaceName: "Test Workspace",
+          ...(state === "linked" ? { linkedAt: checked } : {}),
+        },
+      }),
+  );
+}
+
+test("a checked Slack connection reads Working", async ({ page }) => {
+  await connected(page, { lastCheckedAt: checked, health: "healthy" });
+  await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
+  await expect(connectionBody(page)).toContainText("Working");
+  await expect(connectionBody(page)).toContainText("Last checked");
+});
+
+test("a refused Slack connection reads Needs reconnecting", async ({ page }) => {
+  await connected(page, { status: "degraded", health: "auth_required" });
+  await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
+  await expect(connectionBody(page)).toContainText("Needs reconnecting");
+});
+
+test("a Slack connection missing a permission reads Limited and offers Reconnect", async ({ page }) => {
+  await connected(page, { health: "degraded", lastCheckedAt: checked });
+  await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
+  await expect(connectionBody(page).getByText("Limited", { exact: true }))
+    .toBeVisible();
+  const problem = page.getByTestId("connection-problem");
+  await expect(problem).toContainText(
+    "Slack did not grant everything Bakery asks for",
+  );
+  await expect(problem.getByRole("button", { name: "Reconnect" }))
+    .toBeVisible();
+  await expect(page.getByTestId("abilities-not-available")).toContainText(
+    "Read replies in public channels. Slack did not grant this.",
+  );
+  await still(page, "slack-limited");
+  await page.goto(ORGANIZATION_PATH);
+  await expect(page.getByTestId(`connection-${CONNECTION_ID}`))
+    .toContainText("Limited");
+});
+
+test("a check that never reached Slack leaves the badge as it was, also after a reload", async ({ page }) => {
+  await connected(page, { lastCheckedAt: checked, health: "unknown" });
+  await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
+  await expect(connectionBody(page)).toContainText("Not checked yet");
+  await page.reload();
+  await expect(connectionBody(page)).toContainText("Not checked yet");
+  await expect(connectionBody(page).getByText("Working", { exact: true }))
+    .toHaveCount(0);
+  await page.goto(ORGANIZATION_PATH);
+  await expect(page.getByTestId(`connection-${CONNECTION_ID}`))
+    .not.toContainText("Working");
+});
+
+test("a Slack connection with no recorded scope names claims no ability", async ({ page }) => {
+  await connected(page, { grantedScopeNames: null });
+  await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
+  await expect(connectionBody(page)).toContainText(
+    "Reconnect to see exactly what Slack granted.",
+  );
+  await expect(connectionBody(page)).not.toContainText(
+    "Post progress in channels",
+  );
+});
+
+test("a check Slack does not answer says so and can be repeated", async ({ page }) => {
+  await connected(page, {});
+  const asked = await checks(page, {
+    health: "unknown",
+    healthy: false,
+    fault: "provider_unavailable",
+  });
+  await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
+  await page.getByRole("button", { name: "Check now" }).click();
+  await expect(connectionBody(page)).toContainText(
+    "Slack is not answering right now. Try again in a few minutes.",
+  );
+  await still(page, "slack-check-no-answer");
+  await connectionBody(page).getByRole("button", { name: "Check again" })
+    .click();
+  await expect.poll(() => asked.length).toBe(2);
+});
+
+for (const state of ["not_linked", "linked"] as const) {
+  test(`an administrator who is ${state} is ${state === "linked" ? "not " : ""}asked to link`, async ({ page }) => {
+    await connected(page, {});
+    await ownLink(page, state);
+    await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
+    await expect(connectionBody(page)).toContainText("Details");
+    const notice = page.getByTestId("own-slack-link");
+    if (state === "linked") {
+      await expect(notice).toHaveCount(0);
+      return;
+    }
+    await expect(notice).toContainText(
+      "You have not linked your own Slack account.",
+    );
+    await still(page, "slack-own-link-notice");
+    const link = notice.getByRole("link", { name: "Link Slack" });
+    await expect(link).toHaveAttribute("href", "/settings/security#slack");
+    await expect(link).toHaveClass(/ui-link/);
+  });
+}
+
+test("removing asks first, removes and says so on the list", async ({ page }) => {
+  await connected(page, {});
+  const sent: Array<string | undefined> = [];
+  await page.route(
+    `**/v1/integration-connections/${CONNECTION_ID}/removal`,
+    (route) => {
+      sent.push(route.request().headers()["if-match"]);
+      return route.fulfill({
+        json: slackConnection({ status: "revoked", version: 2 }),
+      });
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/integration-connections",
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [
+            slackConnection(
+              sent.length === 0 ? {} : { status: "revoked", version: 2 },
+            ),
+          ],
+          nextCursor: null,
+        },
+      }),
+  );
+  await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
+  await connectionBody(page).getByRole("button", { name: "Remove" }).click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Remove Slack · Test Workspace?",
+  });
+  await expect(dialog).toContainText("also remove the Bakery app in Slack.");
+  await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await still(page, "slack-remove-dialog");
+  expect(sent).toEqual([]);
+  await dialog.getByRole("button", { name: "Remove" }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe(ORGANIZATION_PATH);
+  await expect(page.getByTestId("returned-notice")).toContainText(
+    "Slack · Test Workspace was removed.",
+  );
+  await expect(page.getByTestId("returned-notice")).toBeFocused();
+  await still(page, "slack-removed-notice");
+  expect(sent).toHaveLength(1);
+});
+
+test("a result banner on the list takes focus", async ({ page }) => {
+  await fixture(page);
+  await page.goto(ORGANIZATION_PATH + "?slackConnection=authorization_denied");
+  await expect(page.getByTestId("returned-notice")).toBeFocused();
+});
+
+test("someone who cannot open installation settings is offered no link there", async ({ page }) => {
+  await fixture(page);
+  await page.route("**/v1/installation/settings", (route) =>
+    route.fulfill({
+      status: 403,
+      contentType: "application/problem+json",
+      body: JSON.stringify({
+        type: "https://bakery.example/problems/test",
+        title: "Request refused",
+        detail: "Request refused.",
+        status: 403,
+        code: "AUTH_FORBIDDEN",
+        retryable: false,
+        requestId: crypto.randomUUID(),
+        traceId: crypto.randomUUID(),
+      }),
+    }));
+  await startsConnect(page, [], 409);
+  await page.goto(ORGANIZATION_PATH);
+  await page.getByRole("button", { name: "Connect Slack" }).click();
+  const row = page.getByTestId("provider-row-slack");
+  await expect(row).toContainText("An installation administrator enters");
+  await expect(row.getByRole("link")).toHaveCount(0);
 });

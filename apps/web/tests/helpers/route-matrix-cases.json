@@ -64,6 +64,10 @@
     "path": "/library/skills/$skillId/edit"
   },
   {
+    "id": "library-skill-update",
+    "path": "/library/skills/$skillId/update"
+  },
+  {
     "id": "library-evaluation",
     "path": "/library/evaluations/$batchId"
   },

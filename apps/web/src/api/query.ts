@@ -134,6 +134,7 @@ import type {
   SkillResponse,
   SkillScope,
   SkillSource,
+  SkillSourceCheck,
   SkillStorageSettings,
   SkillUsageListResponse,
   SkillUseGrantListResponse,
@@ -3463,6 +3464,33 @@ export function skillDraftFileQueryOptions(
     enabled: Boolean(scope.organizationId) && id !== "" && fileId !== "",
     retry: retryNetworkOnce,
     staleTime: Infinity,
+  });
+}
+
+export function skillSourceCheckQueryOptions(
+  client: Pick<BakeryApiClient, "checkSkillSource">,
+  scope: ApiScope,
+  id: string,
+  versionId: string,
+) {
+  return queryOptions<SkillSourceCheck, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "skills.sourceUpdate", {
+      id,
+      versionId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.checkSkillSource({
+          organizationId: requireOrganization(scope),
+          id,
+          idempotencyKey: crypto.randomUUID(),
+          signal,
+        }),
+      ),
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }
 

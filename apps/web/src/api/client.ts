@@ -426,6 +426,7 @@ export type SkillSourceCreate = ClientInputMap["SkillSourceCreate"];
 export type SkillImport = ClientInputMap["SkillImport"];
 export type SkillImportResult = ClientOutputMap["SkillImportResult"];
 export type SkillImportRun = ClientOutputMap["Run"];
+export type SkillSourceCheck = ClientOutputMap["SkillSourceUpdateCheck"];
 export type SkillDraftResponse = ClientOutputMap["SkillDraft"];
 export type SkillDraftFileResponse = ClientOutputMap["SkillDraftFile"];
 export type SkillDraftCheckResponse = ClientOutputMap["SkillDraftCheck"];
@@ -1837,6 +1838,12 @@ export type BakeryApiClient = {
       readonly idempotencyKey: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<IntegrationConnection>>;
+    readonly remove: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly version: number;
+      readonly idempotencyKey: string;
+    }) => Promise<ApiResult<IntegrationConnection>>;
     /** `POST /v1/integration-connections/:id/checks`: the provider health probe. */
     readonly check: (options: {
       readonly organizationId: string;
@@ -1871,6 +1878,7 @@ export type BakeryApiClient = {
      * session storage only.
      */
     readonly create: (options: {
+      readonly provider?: "github" | "slack";
       readonly organizationId: string;
       readonly idempotencyKey: string;
       /** Refresh this connection's access instead of adding a new one. */
@@ -2336,6 +2344,26 @@ export type BakeryApiClient = {
     readonly id: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<SkillImportResult>>;
+  readonly checkSkillSource: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<SkillSourceCheck>>;
+  readonly takeSkillSourceUpdate: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly revision: string;
+    readonly version: number;
+    readonly idempotencyKey: string;
+  }) => Promise<ApiResult<SkillImportRun>>;
+  readonly setSkillActiveVersion: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly versionId: string;
+    readonly version: number;
+    readonly idempotencyKey: string;
+  }) => Promise<ApiResult<SkillResponse>>;
   readonly createSkill: (options: {
     readonly organizationId: string;
     readonly input: SkillCreate;
@@ -5571,6 +5599,21 @@ export function createBakeryApiClient({
           return failed(error);
         }
       },
+      async remove(options) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(options.organizationId).actions[
+              "integrationConnections.remove"
+            ]({ id: options.id }, {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+            }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
       async check(options) {
         try {
           return {
@@ -5633,7 +5676,7 @@ export function createBakeryApiClient({
             data: await scoped(options.organizationId).actions[
               "integrationAuthAttempts.create"
             ]({
-              provider: "github",
+              provider: options.provider ?? "github",
               ...(options.reconnectConnectionId === undefined
                 ? {}
                 : { reconnectConnectionId: options.reconnectConnectionId }),
@@ -7764,6 +7807,63 @@ export function createBakeryApiClient({
           { id: options.id },
           { signal: options.signal },
         );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async checkSkillSource(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.sourceUpdate"](
+          { id: options.id },
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
+        if (data.skillId !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async takeSkillSourceUpdate(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.takeSourceUpdate"](
+          { id: options.id, revision: options.revision },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async setSkillActiveVersion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["skills.setActiveVersion"](
+          { id: options.id, versionId: options.versionId },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
         return { ok: true, data };
       } catch (error) {
         return failed(error);

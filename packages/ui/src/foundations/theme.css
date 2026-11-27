@@ -1,4 +1,4 @@
-/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 28c03083b428943dacd15a8a938e1142c6555a8ed598a3030f01219e988b35c6. */
+/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest d39e28fb71fbcc4f8f546a0d984d3a94107eb40b2ef545c8a60cc93d41483d17. */
 :root,
 [data-theme="light"] {
   color-scheme: light;
@@ -46,6 +46,7 @@
   --color-surface: #FFFFFF;
   --color-surface-raised: #FFFFFF;
   --color-surface-subtle: #EEF0F4;
+  --color-syntax-danger: #FECACA;
   --color-syntax-foreground: #F9FAFB;
   --color-syntax-success: #BBF7D0;
   --color-syntax-surface: #111827;
@@ -99,6 +100,7 @@
   --color-surface: #12161E;
   --color-surface-raised: #212733;
   --color-surface-subtle: #191E28;
+  --color-syntax-danger: #FDB4B4;
   --color-syntax-foreground: #F2F4F8;
   --color-syntax-success: #A6F4C5;
   --color-syntax-surface: #0B0E14;

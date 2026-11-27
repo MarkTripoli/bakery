@@ -93,6 +93,8 @@ function connectionBody(connection: Connection) {
     externalAccountId: "7000001",
     config: {},
     secretId: null,
+    health: connection.lastCheckedAt === null ? "unknown" : "healthy",
+    grantedScopeNames: null,
     grantedScopes: {
       metadata: "read",
       contents: "write",
@@ -876,16 +878,20 @@ const OUTCOME_MESSAGES: Readonly<Record<string, string>> = {
   storage_failed: "could not save the connection",
 };
 
-test("every GitHub connection outcome shows its message", async ({ page }) => {
-  test.setTimeout(laneBudgetMs(90_000));
-  const world = newWorld();
-  await fixture(page, world);
-  for (const [outcome, message] of Object.entries(OUTCOME_MESSAGES)) {
+for (const [outcome, message] of Object.entries(OUTCOME_MESSAGES)) {
+  test(`the GitHub connection outcome ${outcome} shows its message`, async ({ page }) => {
+    const world = newWorld();
+    await fixture(page, world);
     await page.goto(`${PAGE_PATH}?githubConnection=${outcome}`);
     await expect(outcomeBanner(page)).toHaveAttribute("data-outcome", outcome);
     await expect(outcomeBanner(page)).toContainText(message);
-  }
-  // An unknown value is no outcome at all.
+    expect(world.github).toEqual([]);
+  });
+}
+
+test("an unknown GitHub connection outcome shows nothing", async ({ page }) => {
+  const world = newWorld();
+  await fixture(page, world);
   await page.goto(`${PAGE_PATH}?githubConnection=surprise`);
   await expect(page.getByText("Nothing is connected yet")).toBeVisible();
   await expect(outcomeBanner(page)).toHaveCount(0);
