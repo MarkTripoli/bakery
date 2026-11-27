@@ -91,7 +91,10 @@ Deno.test("role permission sets match current minimums and exclude sensitive rea
     permissions.add(action.permission);
     byMinimum.set(minimum, permissions);
   }
-  const developer = [...(byMinimum.get("developer") ?? [])].sort();
+  const member = [...(byMinimum.get("viewer") ?? [])].sort();
+  const developer = [
+    ...new Set([...member, ...(byMinimum.get("developer") ?? [])]),
+  ].sort();
   const admin = [
     ...new Set([
       ...(byMinimum.get("admin") ?? []),
@@ -104,10 +107,17 @@ Deno.test("role permission sets match current minimums and exclude sensitive rea
   const excluded = new Set(
     Object.keys(viewerPermissionExclusions) as CatalogPermissionKey[],
   );
-  const viewer = developer.filter((permission) =>
-    permission.endsWith(":read") && !excluded.has(permission)
-  );
+  const viewer = [
+    ...new Set([
+      ...member,
+      ...developer.filter((permission) =>
+        permission.endsWith(":read") && !excluded.has(permission)
+      ),
+    ]),
+  ].sort();
   assertEquals(rolePermissions.viewer, viewer);
+  assertEquals(member, ["ownIdentityLink:read", "ownIdentityLink:write"]);
+  assert(!rolePermissions.viewer.includes("externalIdentityLink:read"));
   assertEquals(rolePermissions.guest, []);
 
   for (
