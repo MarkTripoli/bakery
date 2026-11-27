@@ -752,6 +752,21 @@ test("renders the transcript with attribution, plan, question and stage strip", 
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
+test("the task page shows the short task id and copies the whole one", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await open(page);
+  await showPlan(page);
+  const row = page.getByTestId("task-id-row");
+  await expect(row).toContainText("Task ID");
+  await expect(row).toContainText(taskId.slice(0, 8));
+  await expect(row).not.toContainText(taskId.slice(0, 9));
+  await row.getByRole("button", { name: "Copy" }).click();
+  await expect(row.getByRole("button", { name: "Copied" })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    taskId,
+  );
+});
+
 test("the brief is not a synthetic transcript message", async ({ page }) => {
   await open(page);
   await expect(page.locator('[data-ui-region="task-brief"]')).toContainText(
