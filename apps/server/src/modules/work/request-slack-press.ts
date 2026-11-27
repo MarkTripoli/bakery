@@ -24,10 +24,18 @@ import {
   type RequestSlackDependencies,
   rewriteClosedRequestSlackMessages,
   sendRequestSlackEphemeral,
+  type SlackBlock,
+  slackLinkButton,
 } from "./request-slack.ts";
+import { EMAIL_LINK_ORGANIZATION_PARAM } from "./request-email.ts";
 
 export const SLACK_PRESS_NOT_LINKED =
   "Nothing was decided. Your Slack account is not linked to a Bakery account, so Bakery cannot tell who is deciding. Link your account, then press the button again.";
+export const SLACK_LINK_ACCOUNT_LABEL = "Link your account";
+export const SLACK_LINK_ACCOUNT_PATH = "/settings/security";
+export const SLACK_LINK_ACCOUNT_SECTION = "slack";
+const LINK_ACCOUNT_ACTION = "link_account";
+const LINK_ACCOUNT_BLOCK = "link";
 export const SLACK_PRESS_NO_PERMISSION =
   "Nothing was decided. You do not have permission to approve or reject this work.";
 export const SLACK_PRESS_NOT_RECORDED =
@@ -320,11 +328,24 @@ export function slackAlreadyDecided(name: string): string {
   return `Nothing changed. ${escapeSlack(name)} already decided this.`;
 }
 
+export function slackLinkAccountUrl(
+  publicBaseUrl: string,
+  organizationId: string,
+): string {
+  const address = new URL(SLACK_LINK_ACCOUNT_PATH, publicBaseUrl);
+  address.searchParams.set(EMAIL_LINK_ORGANIZATION_PARAM, organizationId);
+  address.hash = SLACK_LINK_ACCOUNT_SECTION;
+  return address.toString();
+}
+
 export type SlackPressReply = Readonly<{
   text: string;
+  blocks?: readonly SlackBlock[];
 }>;
 
 export function slackPressReply(
+  publicBaseUrl: string,
+  organizationId: string,
   outcome: SlackPressOutcome,
 ): SlackPressReply | null {
   switch (outcome.kind) {
@@ -338,7 +359,26 @@ export function slackPressReply(
     case "not_recorded":
       return { text: SLACK_PRESS_NOT_RECORDED };
     case "not_linked":
-      return { text: SLACK_PRESS_NOT_LINKED };
+      return {
+        text: SLACK_PRESS_NOT_LINKED,
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: SLACK_PRESS_NOT_LINKED },
+          },
+          {
+            type: "actions",
+            block_id: LINK_ACCOUNT_BLOCK,
+            elements: [
+              slackLinkButton(
+                LINK_ACCOUNT_ACTION,
+                SLACK_LINK_ACCOUNT_LABEL,
+                slackLinkAccountUrl(publicBaseUrl, organizationId),
+              ),
+            ],
+          },
+        ],
+      };
   }
 }
 
@@ -354,7 +394,7 @@ export async function answerSlackPress(
       targetId: outcome.approvalId,
     });
   }
-  const reply = slackPressReply(outcome);
+  const reply = slackPressReply(options.publicBaseUrl, organizationId, outcome);
   if (reply === null) return;
   await sendRequestSlackEphemeral(options, {
     organizationId,
@@ -362,6 +402,7 @@ export async function answerSlackPress(
     channelId: press.channelId,
     userId: press.userId,
     text: reply.text,
+    ...(reply.blocks === undefined ? {} : { blocks: reply.blocks }),
     idempotencyKey:
       `slack-press:${press.appId}:${press.teamId}:${press.userId}:${press.actionTs}`,
   });
