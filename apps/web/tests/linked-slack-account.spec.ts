@@ -102,6 +102,25 @@ test("coming back linked says so, and unlinking asks first", async ({ page }) =>
   expect(server.unlinks).toBe(1);
 });
 
+test("the result is said once, so a reload cannot contradict the row", async ({ page }) => {
+  await security(page, { link: LINKED, query: "?slackLink=linked#slack" });
+  await expect(section(page).getByRole("status")).toContainText(
+    "Slack is linked.",
+  );
+  await expect(page).toHaveURL(/\/settings\/security#slack$/);
+  await expect(section(page).getByRole("status")).toContainText(
+    "Slack is linked.",
+  );
+  await section(page).getByRole("button", { name: "Unlink Slack" }).click();
+  await page.getByRole("alertdialog", { name: "Unlink Slack?" })
+    .getByRole("button", { name: "Unlink" }).click();
+  await expect(section(page)).toContainText("Slack is unlinked.");
+  await page.reload();
+  await expect(section(page).getByRole("button", { name: "Link Slack" }))
+    .toBeVisible();
+  await expect(section(page)).not.toContainText("Slack is linked.");
+});
+
 for (
   const [result, sentence] of [
     ["link_refused", "already linked to another member of Fixture Org"],

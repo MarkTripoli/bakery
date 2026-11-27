@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useBakeryApi } from "../api/context.tsx";
 import {
   effectiveAccessQueryOptions,
@@ -29,6 +30,18 @@ export function LinkedSlackAccounts(
   const [unlinking, setUnlinking] = useState(false);
   const [confirmingUnlink, setConfirmingUnlink] = useState(false);
   const shown = !link.isPending;
+  const navigate = useNavigate();
+  const resultInAddress = result !== null;
+  useEffect(() => {
+    if (!shown || !resultInAddress) return;
+    void navigate({
+      to: "/settings/security",
+      search: {},
+      hash: "slack",
+      replace: true,
+      resetScroll: false,
+    });
+  }, [shown, resultInAddress, navigate]);
   useEffect(() => {
     if (shown && globalThis.location.hash === "#slack") {
       globalThis.document.getElementById("slack")?.scrollIntoView();
