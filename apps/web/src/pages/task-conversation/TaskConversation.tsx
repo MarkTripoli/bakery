@@ -31,6 +31,7 @@ import {
 import { useLiveEvents } from "../../api/use-live-events.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
 import { useShellViewport } from "../../app/responsive.ts";
+import { FingerprintRow } from "../FingerprintRow.tsx";
 import { RouterLink } from "../../app/router-link.tsx";
 import { NotificationBellControl } from "../../notifications/NotificationBellControl.tsx";
 import { WORK_HOME } from "../../shell/breadcrumb-paths.ts";
@@ -670,6 +671,16 @@ export function TaskConversation(
       ))}
       {plan?.body}
       {!phone && aside}
+      <UI.PaneSection>
+        <FingerprintRow
+          copyFailedText={t("tasks.queue.inspector.taskIdCopyFailed")}
+          display={reference}
+          fingerprint={task.id}
+          label={t("tasks.queue.inspector.taskId")}
+          noHelp
+          testId="task-id-row"
+        />
+      </UI.PaneSection>
     </>
   );
   return (
@@ -796,9 +807,7 @@ export function TaskConversation(
         layout="conversation"
         variant={phone ? "sheet" : "rail"}
         title={task.title}
-        subtitle={phone
-          ? <UI.DataText variant="timestamp">{reference}</UI.DataText>
-          : subtitle}
+        subtitle={subtitle}
         leading={phone
           ? (
             <RouterLink
