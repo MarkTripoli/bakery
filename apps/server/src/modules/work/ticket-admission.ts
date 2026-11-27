@@ -427,6 +427,7 @@ async function sourceFacts(
   if (source.repositoryId === null) {
     return {
       ...base,
+      repositoryBound: false,
       repositoryArchived: false,
       repositoryHasActiveProfile: false,
       presetReady: false,
@@ -440,6 +441,7 @@ async function sourceFacts(
     );
     return {
       ...base,
+      repositoryBound: true,
       repositoryArchived: facts.archived,
       repositoryHasActiveProfile: facts.hasActiveProfile,
       presetReady: false,
@@ -452,6 +454,7 @@ async function sourceFacts(
   );
   return {
     ...base,
+    repositoryBound: true,
     repositoryArchived: availability.reasons.includes("repository_archived") ||
       availability.reasons.includes("application_archived"),
     repositoryHasActiveProfile: !availability.reasons.includes(

@@ -398,6 +398,12 @@
   overflow-wrap: normal;
   white-space: pre;
 }
+.ui-code-block__line[data-change="added"] {
+  color: var(--color-syntax-success);
+}
+.ui-code-block__line[data-change="removed"] {
+  color: var(--color-syntax-danger);
+}
 .ui-code-block__copied {
   color: var(--color-syntax-success);
   inset-block-start: var(--space-2);

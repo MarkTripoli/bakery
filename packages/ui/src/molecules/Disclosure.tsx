@@ -16,6 +16,8 @@ export type DisclosureProps =
     summary: ReactNode;
     /** What opens. It is not read or reached while the control is closed. */
     children: ReactNode;
+    /** A row in a list: the control spans it, so every chevron lines up. */
+    variant?: "default" | "row";
     /** Starts open. Closed by default. */
     defaultOpen?: boolean;
     /** Told when the person opens or closes it: a read behind it can wait until it is open. */
@@ -28,8 +30,14 @@ export type DisclosureProps =
  * disclosure, so keyboard, focus and the accessible state come with it.
  */
 export function Disclosure(
-  { summary, children, defaultOpen = false, onOpenChange, ...unsafeProps }:
-    DisclosureProps,
+  {
+    summary,
+    children,
+    defaultOpen = false,
+    onOpenChange,
+    variant = "default",
+    ...unsafeProps
+  }: DisclosureProps,
 ) {
   const props = withoutSemanticOwnerProps(unsafeProps);
   const [open, setOpen] = useState(defaultOpen);
@@ -40,7 +48,7 @@ export function Disclosure(
       {...props}
       data-state={open ? "open" : "closed"}
       data-ui-component="disclosure"
-      data-variant="default"
+      data-variant={variant}
       onToggle={(event) => {
         setOpen(event.currentTarget.open);
         onOpenChange?.(event.currentTarget.open);

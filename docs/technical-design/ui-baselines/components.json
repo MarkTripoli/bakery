@@ -1,5 +1,5 @@
 {
-  "revision": "280ddb1ddce9c8a1d526b6bcccbc4e489305d22fefaafca4d72a8b9510007620",
+  "revision": "7dfb572ea14bb9d2c61e5ecfa4e1c7699fd758efc3695692e790c493d75e0b15",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -8238,7 +8238,7 @@
         "--type-control"
       ],
       "variants": [
-        "default"
+        "default", "row"
       ],
       "states": [
         "closed",
@@ -8269,7 +8269,7 @@
           "id": "contract",
           "description": "Exercises the documented Disclosure states across required contexts: closed and open.",
           "variants": [
-            "default"
+            "default", "row"
           ],
           "states": [
             "closed",

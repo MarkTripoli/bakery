@@ -45,6 +45,7 @@ import { EvaluationRunPage } from "./pages/EvaluationRunPage.tsx";
 import { AddSkillPage } from "./pages/AddSkillPage.tsx";
 import { SkillEditorPage } from "./pages/SkillEditorPage.tsx";
 import { SkillPage } from "./pages/SkillPage.tsx";
+import { SkillUpdatePage } from "./pages/SkillUpdatePage.tsx";
 import { skillFilter, skillSearch } from "./pages/library/skills-state.ts";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
@@ -394,6 +395,20 @@ export const routeCoverage = [
   {
     id: "library-skill-edit",
     path: "/library/skills/$skillId/edit",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library-skill-update",
+    path: "/library/skills/$skillId/update",
     classification: "production",
     states: [
       "loading",
@@ -1754,6 +1769,17 @@ const skillRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const skillUpdateRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/skills/$skillId/update",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <SkillUpdatePage skillId={skillUpdateRoute.useParams().skillId} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const skillEditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/library/skills/$skillId/edit",
@@ -3067,6 +3093,7 @@ const routeTree = rootRoute.addChildren([
   skillAddRoute,
   skillRoute,
   skillEditRoute,
+  skillUpdateRoute,
   evaluationRunRoute,
   machineNewRoute,
   machineNewByHandRoute,

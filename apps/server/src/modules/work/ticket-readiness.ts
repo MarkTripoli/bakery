@@ -69,6 +69,7 @@ export type ReadinessSourceFacts = {
   resourceSelected: boolean;
   /** Repository the source reads, owner/name; a ticket from another repository is refused. */
   repositoryFullName: string;
+  repositoryBound: boolean;
   /** The Bakery repository is archived. */
   repositoryArchived: boolean;
   /** The Bakery repository has an active execution profile. */
@@ -611,8 +612,13 @@ function repositoryReady({ source, route }: ReadinessInput): Outcome {
       ),
     );
   }
-  if (source.repositoryArchived) return waiting("repository_archived");
-  if (!source.repositoryHasActiveProfile) return waiting("no_active_profile");
+  if (!source.repositoryBound && route?.kind !== "routed") {
+    return passed(evidenceRef("repository:none"));
+  }
+  if (source.repositoryBound) {
+    if (source.repositoryArchived) return waiting("repository_archived");
+    if (!source.repositoryHasActiveProfile) return waiting("no_active_profile");
+  }
   if (route === undefined) return passed();
   // Every routed target needs its own ready profile, not only the source's.
   const noProfile = route.unready?.profile ?? [];
