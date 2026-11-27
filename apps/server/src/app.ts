@@ -1,5 +1,6 @@
 import type { ExecutionTelemetry } from "./modules/execution/telemetry.ts";
 import { createDeliveryStepRunner } from "./modules/delivery/delivery-steps.ts";
+import { createOpenPullRequestStepRunner } from "./modules/delivery/open-pull-request-step.ts";
 import { createToolCallStepRunner } from "./modules/tool-call/tool-call-step.ts";
 import { createPostgresMcpPinnedStatePort } from "./modules/mcp/postgres.ts";
 import { createRemoteMcpToolTransport } from "./modules/mcp/tool-transport.ts";
@@ -853,6 +854,10 @@ export function createApp(options: {
               transport: options.mcpToolTransport ?? httpsMcpTransport(),
             }),
           },
+        }),
+        createOpenPullRequestStepRunner({
+          database: options.pgDatabase,
+          registration: { database: options.pgDatabase, ...integrations },
         }),
         ...(options.config.deliveryTarget
           ? [createDeliveryStepRunner({

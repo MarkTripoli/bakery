@@ -10,12 +10,25 @@ import {
   createNormalizedCommandMetadata,
   StandardError,
 } from "@bakery/contracts/http";
-import { effectivePermissions } from "../auth/application/authorize.ts";
+import {
+  authorize,
+  effectivePermissions,
+  permissionForAction,
+} from "../auth/application/authorize.ts";
 import type {
   AuthorizedActionContext,
   OrganizationActor,
 } from "../auth/application/authority.ts";
-import type { PgTransactionClient } from "../../platform/database.ts";
+import {
+  type PgDatabase,
+  type PgTransactionClient,
+  withPgTransaction,
+} from "../../platform/database.ts";
+import {
+  organizationId as toOrganizationId,
+  principalId as toPrincipalId,
+} from "@bakery/contracts/contracts";
+import { resolveOrganizationActor } from "../auth/adapters/authority-postgres.ts";
 import { readCompletedCommandReplay } from "../../platform/command-replay.ts";
 import { boundRetryAfterSeconds } from "../../platform/retry-after.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
@@ -708,128 +721,239 @@ function toIso(value: string | Date): string {
     : value.toISOString();
 }
 
+async function commitRegistration(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  taskId: string,
+  parsed: RegistrationScope,
+  prepared: PreparedRegistration,
+  actor: OrganizationActor,
+): Promise<PullRequestOutput> {
+  const denied = await authorityDeniedAtWrite(transaction, {
+    organizationId: organizationId,
+    connectionId: prepared.authority.connectionId,
+    installationId: prepared.authority.installationId,
+    resourceId: prepared.authority.resourceId,
+    purpose: "fact_refresh",
+    eventKind: "pull_request",
+  });
+  if (denied !== null) throw stateConflict(denied);
+  const currentAuthority = await readRegistrationAuthority(
+    transaction,
+    organizationId,
+    taskId,
+    parsed,
+    prepared.authority.connectionId,
+    true,
+  );
+  if (!sameAuthority(prepared.authority, currentAuthority)) {
+    throw stateConflict("registration_authority_changed");
+  }
+  const read = prepared.pullRequest;
+  const registered = await registerPullRequest(transaction, {
+    organizationId: organizationId,
+    taskId: currentAuthority.taskId,
+    repositoryId: currentAuthority.repositoryId,
+    providerNumber: read.number,
+    url: read.url,
+    headSha: read.headSha,
+    baseSha: read.baseSha,
+    ...(currentAuthority.runId === null
+      ? {}
+      : { runId: currentAuthority.runId }),
+  });
+  await observePullRequest(transaction, currentAuthority.repositoryId, {
+    organizationId: organizationId,
+    number: read.number,
+    state: read.state,
+    merged: read.merged,
+    url: read.url,
+    headSha: read.headSha,
+    baseSha: read.baseSha,
+    mergedSha: read.mergedSha,
+    providerUpdatedAt: new Date(read.updatedAt),
+    observedStartedAt: prepared.observedStartedAt,
+    openedAt: read.openedAt ? new Date(read.openedAt) : null,
+    closedAt: read.closedAt ? new Date(read.closedAt) : null,
+    mergedAt: read.mergedAt ? new Date(read.mergedAt) : null,
+    additions: read.additions,
+    deletions: read.deletions,
+    changedFiles: read.changedFiles,
+  });
+  for (const fact of prepared.checkFacts) {
+    await upsertFact(transaction, fact);
+  }
+  if (prepared.lineCount !== null) {
+    await storeLineCount(transaction, {
+      organizationId: organizationId,
+      pullRequestId: registered.pullRequest.id,
+      headSha: read.headSha,
+      count: prepared.lineCount,
+    });
+  }
+  const stored = await transaction.query<{
+    id: string;
+    task_id: string;
+    repository_id: string;
+    run_id: string | null;
+    provider_number: number;
+    url: string;
+    head_sha: string;
+    base_sha: string;
+    status: "open" | "merged" | "closed";
+    merged_sha: string | null;
+    created_at: Date | string;
+    updated_at: Date | string;
+    version: number;
+    target_branch: string;
+  }>(
+    `select pull_request.id, pull_request.task_id,
+            pull_request.repository_id, pull_request.run_id,
+            pull_request.provider_number, pull_request.url,
+            pull_request.head_sha, pull_request.base_sha,
+            pull_request.status, pull_request.merged_sha,
+            pull_request.created_at, pull_request.updated_at,
+            pull_request.version,
+            repository.default_branch as target_branch
+       from bakery.pull_requests as pull_request
+       join bakery.repositories as repository
+         on repository.organization_id = pull_request.organization_id
+        and repository.id = pull_request.repository_id
+      where pull_request.organization_id = $1 and pull_request.id = $2`,
+    [organizationId, registered.pullRequest.id],
+  );
+  const row = stored.rows[0];
+  if (row === undefined) throw new StandardError({ code: "INTERNAL" });
+  return {
+    id: row.id,
+    taskId: row.task_id,
+    repositoryId: row.repository_id,
+    runId: row.run_id,
+    providerNumber: row.provider_number,
+    url: row.url,
+    headSha: row.head_sha,
+    baseSha: row.base_sha,
+    status: row.status,
+    mergedSha: row.merged_sha,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+    version: row.version,
+    mayMerge: effectivePermissions(actor).includes("pullRequest:merge"),
+    mergeMethod: PULL_REQUEST_MERGE_METHOD,
+    targetBranch: row.target_branch,
+  };
+}
+
 export function createPullRequestRegistrationHandler() {
   return async (
     context: ActionContext,
     input: unknown,
   ): Promise<PullRequestOutput> => {
-    const parsed = parsedScope(input);
     const work = requireWorkTransaction(context);
-    const prepared = preparedRegistration(context);
-    const denied = await authorityDeniedAtWrite(work.transaction, {
-      organizationId: work.organizationId,
-      connectionId: prepared.authority.connectionId,
-      installationId: prepared.authority.installationId,
-      resourceId: prepared.authority.resourceId,
-      purpose: "fact_refresh",
-      eventKind: "pull_request",
-    });
-    if (denied !== null) throw stateConflict(denied);
-    const currentAuthority = await readRegistrationAuthority(
+    return await commitRegistration(
       work.transaction,
       work.organizationId,
       taskIdOf(context),
-      parsed,
-      prepared.authority.connectionId,
-      true,
+      parsedScope(input),
+      preparedRegistration(context),
+      (context as AuthorizedActionContext).authority as OrganizationActor,
     );
-    if (!sameAuthority(prepared.authority, currentAuthority)) {
-      throw stateConflict("registration_authority_changed");
-    }
-    const read = prepared.pullRequest;
-    const registered = await registerPullRequest(work.transaction, {
-      organizationId: work.organizationId,
-      taskId: currentAuthority.taskId,
-      repositoryId: currentAuthority.repositoryId,
-      providerNumber: read.number,
-      url: read.url,
-      headSha: read.headSha,
-      baseSha: read.baseSha,
-      ...(currentAuthority.runId === null
-        ? {}
-        : { runId: currentAuthority.runId }),
-    });
-    await observePullRequest(work.transaction, currentAuthority.repositoryId, {
-      organizationId: work.organizationId,
-      number: read.number,
-      state: read.state,
-      merged: read.merged,
-      url: read.url,
-      headSha: read.headSha,
-      baseSha: read.baseSha,
-      mergedSha: read.mergedSha,
-      providerUpdatedAt: new Date(read.updatedAt),
-      observedStartedAt: prepared.observedStartedAt,
-      openedAt: read.openedAt ? new Date(read.openedAt) : null,
-      closedAt: read.closedAt ? new Date(read.closedAt) : null,
-      mergedAt: read.mergedAt ? new Date(read.mergedAt) : null,
-      additions: read.additions,
-      deletions: read.deletions,
-      changedFiles: read.changedFiles,
-    });
-    for (const fact of prepared.checkFacts) {
-      await upsertFact(work.transaction, fact);
-    }
-    if (prepared.lineCount !== null) {
-      await storeLineCount(work.transaction, {
-        organizationId: work.organizationId,
-        pullRequestId: registered.pullRequest.id,
-        headSha: read.headSha,
-        count: prepared.lineCount,
-      });
-    }
-    const stored = await work.transaction.query<{
-      id: string;
-      task_id: string;
-      repository_id: string;
-      run_id: string | null;
-      provider_number: number;
-      url: string;
-      head_sha: string;
-      base_sha: string;
-      status: "open" | "merged" | "closed";
-      merged_sha: string | null;
-      created_at: Date | string;
-      updated_at: Date | string;
-      version: number;
-      target_branch: string;
-    }>(
-      `select pull_request.id, pull_request.task_id,
-              pull_request.repository_id, pull_request.run_id,
-              pull_request.provider_number, pull_request.url,
-              pull_request.head_sha, pull_request.base_sha,
-              pull_request.status, pull_request.merged_sha,
-              pull_request.created_at, pull_request.updated_at,
-              pull_request.version,
-              repository.default_branch as target_branch
-         from bakery.pull_requests as pull_request
-         join bakery.repositories as repository
-           on repository.organization_id = pull_request.organization_id
-          and repository.id = pull_request.repository_id
-        where pull_request.organization_id = $1 and pull_request.id = $2`,
-      [work.organizationId, registered.pullRequest.id],
-    );
-    const row = stored.rows[0];
-    if (row === undefined) throw new StandardError({ code: "INTERNAL" });
-    const actor = (context as AuthorizedActionContext)
-      .authority as OrganizationActor;
-    return {
-      id: row.id,
-      taskId: row.task_id,
-      repositoryId: row.repository_id,
-      runId: row.run_id,
-      providerNumber: row.provider_number,
-      url: row.url,
-      headSha: row.head_sha,
-      baseSha: row.base_sha,
-      status: row.status,
-      mergedSha: row.merged_sha,
-      createdAt: toIso(row.created_at),
-      updatedAt: toIso(row.updated_at),
-      version: row.version,
-      mayMerge: effectivePermissions(actor).includes("pullRequest:merge"),
-      mergeMethod: PULL_REQUEST_MERGE_METHOD,
-      targetBranch: row.target_branch,
-    };
   };
+}
+
+export type RunPullRequestOpen = Readonly<{
+  organizationId: string;
+  taskId: string;
+  runId: string;
+  principalId: string;
+  repositoryId: string;
+  headBranch: string;
+  baseBranch?: string;
+  title: string;
+  body?: string;
+}>;
+
+async function runActor(
+  transaction: PgTransactionClient,
+  open: RunPullRequestOpen,
+): Promise<OrganizationActor> {
+  const actor = await resolveOrganizationActor(
+    transaction,
+    toPrincipalId(open.principalId),
+    toOrganizationId(open.organizationId),
+  );
+  const action = DeliveryImplementedAction.PullRequestsOpen;
+  authorize(actor, permissionForAction(action), { action });
+  return actor as OrganizationActor;
+}
+
+export async function openPullRequestForRun(
+  database: PgDatabase,
+  dependencies: ReconcileDependencies,
+  open: RunPullRequestOpen,
+  signal: AbortSignal,
+): Promise<PullRequestOutput> {
+  const scope = { repositoryId: open.repositoryId, runId: open.runId };
+  const connectionId = await withPgTransaction(
+    database,
+    async (transaction) => {
+      await runActor(transaction, open);
+      return await connectionIdFor(
+        transaction,
+        open.organizationId,
+        open.repositoryId,
+      );
+    },
+  );
+  const generation = dependencies.broker.generation(connectionId);
+  const read = await withPgTransaction(database, async (transaction) => ({
+    authority: await readRegistrationAuthority(
+      transaction,
+      open.organizationId,
+      open.taskId,
+      scope,
+      connectionId,
+      false,
+    ),
+    credentials: await readAppCredentials(transaction),
+    defaultBranch: await defaultBranchOf(
+      transaction,
+      open.organizationId,
+      open.repositoryId,
+    ),
+  }));
+  const number = await openOnProvider(
+    dependencies,
+    read.authority,
+    generation,
+    read.credentials,
+    {
+      repositoryId: open.repositoryId,
+      headBranch: open.headBranch,
+      title: open.title,
+      ...(open.body === undefined ? {} : { body: open.body }),
+      base: open.baseBranch ?? read.defaultBranch,
+    },
+    signal,
+  );
+  const prepared = await readPullRequest(
+    dependencies,
+    read.authority,
+    generation,
+    read.credentials,
+    number,
+    signal,
+  );
+  return await withPgTransaction(
+    database,
+    async (transaction) =>
+      await commitRegistration(
+        transaction,
+        open.organizationId,
+        open.taskId,
+        scope,
+        prepared,
+        await runActor(transaction, open),
+      ),
+  );
 }

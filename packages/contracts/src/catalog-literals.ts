@@ -1138,6 +1138,7 @@ export type ContractInputName =
   | "NotificationReadUpdate"
   | "NotificationUndoMarkAllRead"
   | "OAuthCallback"
+  | "OpenPullRequestInput"
   | "OrganizationCreate"
   | "OrganizationInvitationCreate"
   | "OrganizationInvitationPreviewGet"

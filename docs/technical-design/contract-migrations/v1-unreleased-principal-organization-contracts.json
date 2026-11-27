@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "4b0321d38881bc3aaee98b52f20b933fde2ead92"
+    "e1944b61e39c0b7fd603ca262b6dd28c1b5790da"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:996bad5d25a38dcb24b0c97a03839bc5f0933e31b0fc98886f8d93c86cc090be",
-  "reason": "#67 pullRequests.open by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 4b0321d3: adds pullRequests.open and PullRequestOpen.",
+  "targetCompatibilityDigest": "sha256:d56e4d042cef60b97c7d1be9608f040bcccafb7e599769cd046ff56207aae9a7",
+  "reason": "#67 delivery.openPullRequest by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main e1944b61: adds the delivery.openPullRequest workflow action and OpenPullRequestInput, on top of pullRequests.open.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "4b0321d38881bc3aaee98b52f20b933fde2ead92"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:996bad5d25a38dcb24b0c97a03839bc5f0933e31b0fc98886f8d93c86cc090be",
+      "reason": "#67 pullRequests.open by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 4b0321d3: adds pullRequests.open and PullRequestOpen."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
