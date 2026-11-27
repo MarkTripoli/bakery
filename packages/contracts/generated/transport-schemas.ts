@@ -26370,7 +26370,9 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "blockedReason"
+        "blockedReason",
+        "requestedBy",
+        "requestedByName"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -26387,11 +26389,14 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "blockedReason": "enum(already_merged|not_open|head_moved|base_moved|checks_not_passed|not_permitted|evidence_changed|github_refused|not_merged|unavailable)|null"
+        "blockedReason": "enum(already_merged|not_open|head_moved|base_moved|checks_not_passed|not_permitted|evidence_changed|github_refused|not_merged|unavailable)|null",
+        "requestedBy": "uuid",
+        "requestedByName": "string|null"
       },
       "nullableFields": [
         "externalEffectId",
-        "blockedReason"
+        "blockedReason",
+        "requestedByName"
       ],
       "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds.",
       "fieldDescriptions": {
@@ -26409,7 +26414,9 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
-        "blockedReason": "Why Bakery stopped this merge: already_merged, not_open, head_moved, base_moved, checks_not_passed, not_permitted, evidence_changed, github_refused, not_merged or unavailable. Null unless status is blocked, and null for an entry blocked before the reason was recorded."
+        "blockedReason": "Why Bakery stopped this merge: already_merged, not_open, head_moved, base_moved, checks_not_passed, not_permitted, evidence_changed, github_refused, not_merged or unavailable. Null unless status is blocked, and null for an entry blocked before the reason was recorded.",
+        "requestedBy": "Principal id of the person or agent whose request queued this merge, so a client can tell its own merge from one someone else started.",
+        "requestedByName": "Display name of whoever queued this merge, or null when that principal has no display name; shown as \"{name} already started this merge\"."
       }
     },
     "Deployment": {

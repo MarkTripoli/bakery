@@ -175,6 +175,18 @@ Deno.test("the merge queue admits only the exact reviewed candidate (#40)", asyn
     // target rather than opening a second one.
     const replayed = await create();
     assertEquals(replayed.id, admitted.id);
+    const requester = (await database.query<{ name: string | null }>(
+      "select display_name as name from bakery.principals where id = $1",
+      [principal],
+    )).rows[0];
+    assertEquals(
+      [admitted.requestedBy, admitted.requestedByName],
+      [principal, requester?.name ?? null],
+    );
+    assertEquals(
+      [replayed.requestedBy, replayed.requestedByName],
+      [principal, requester?.name ?? null],
+    );
 
     // A different candidate for the same repository and target is refused: one
     // target merges one candidate at a time.

@@ -5,18 +5,28 @@
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:d56e4d042cef60b97c7d1be9608f040bcccafb7e599769cd046ff56207aae9a7",
+  "targetCompatibilityDigest": "sha256:9899ec423a20e84b2043adb1cbe28b08600810d74157ef133cd54775d4f40530",
   "reason": "#67 delivery.openPullRequest by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main e1944b61: adds the delivery.openPullRequest workflow action and OpenPullRequestInput, on top of pullRequests.open.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
-        "4b0321d38881bc3aaee98b52f20b933fde2ead92"
+        "e1944b61e39c0b7fd603ca262b6dd28c1b5790da"
       ],
       "status": "displaced",
       "allowBreaking": true,
-      "targetCompatibilityDigest": "sha256:996bad5d25a38dcb24b0c97a03839bc5f0933e31b0fc98886f8d93c86cc090be",
-      "reason": "#67 pullRequests.open by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 4b0321d3: adds pullRequests.open and PullRequestOpen."
+      "targetCompatibilityDigest": "sha256:039c65d2df79a316285700dc6c10175ca9dbbc7f5da734806df8fde9766ec16d",
+      "reason": "#67 pullRequests.open by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main e1944b61: adds pullRequests.open and PullRequestOpen."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "733031570eec6033bf1a00ef70efe0f8b6bdd5b5"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:9b65c56c63f5da75bdbc39b9f6df85df27e2269894d48b2d8a4e4893027c7c80",
+      "reason": "#57 merge requester by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 73303157: MergeEntry gains requestedBy and requestedByName."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
