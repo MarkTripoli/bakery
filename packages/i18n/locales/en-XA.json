@@ -7783,5 +7783,8 @@
   "settings.security.linked.slack.result.notAMember": "⟦Šļàçķ ŵàš ñôŧ ļïñķëð, ƀëçàûšë ÿôû àŕë ñô ļôñĝëŕ à ɱëɱƀëŕ ôƒ {organization}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "settings.security.linked.slack.result.unconfirmed": "⟦Šļàçķ çôûļð ñôŧ çôñƒïŕɱ ÿôûŕ àççôûñŧ, šô ñôŧĥïñĝ ŵàš ļïñķëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "settings.security.linked.slack.result.expired": "⟦Ŧĥàŧ àŧŧëɱþŧ ŕàñ ôûŧ ôƒ ŧïɱë. Šŧàŕŧ àĝàïñ. ŧëšŧ çôþÿ ŧë⟧",
-  "settings.security.linked.slack.result.wrongWorkspace": "⟦Ÿôû šïĝñëð ïñ ŧô à ðïƒƒëŕëñŧ Šļàçķ ŵôŕķšþàçë. {workspace, select, none {Sign in to the one {organization} uses and try again.} other {Sign in to {name} and try again.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧"
+  "settings.security.linked.slack.result.wrongWorkspace": "⟦Ÿôû šïĝñëð ïñ ŧô à ðïƒƒëŕëñŧ Šļàçķ ŵôŕķšþàçë. {workspace, select, none {Sign in to the one {organization} uses and try again.} other {Sign in to {name} and try again.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "tasks.requests.agentBadge": "⟦Àĝëñŧ'š àçŧïôñ ŧë⟧",
+  "tasks.requests.agentHelpLabel": "⟦Ŵĥÿ àñ àĝëñŧ'š àçŧïôñ ŧëšŧŧ⟧",
+  "tasks.requests.agentHelp": "⟦Àñ àĝëñŧ ŵôŕķïñĝ ôñ ŧĥïš ŕûñ àšķëð ÿôû, àçŧïñĝ ƒôŕ {asker}. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }
