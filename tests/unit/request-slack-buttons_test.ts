@@ -157,17 +157,36 @@ Deno.test("link presses, other payload types and broken bodies are ignored", () 
   );
 });
 
+const ORGANIZATION_ID = "0a0b0c0d-0e0f-4011-8213-141516171819";
+const reply = (outcome: Parameters<typeof slackPressReply>[2]) =>
+  slackPressReply(BASE_URL, ORGANIZATION_ID, outcome);
+
 Deno.test("each refusal has its exact reply", () => {
-  assertEquals(slackPressReply({ kind: "not_linked" }), {
-    text:
-      "Nothing was decided. Your Slack account is not linked to a Bakery account, so Bakery cannot tell who is deciding. Link your account, then press the button again.",
+  const notLinked =
+    "Nothing was decided. Your Slack account is not linked to a Bakery account, so Bakery cannot tell who is deciding. Link your account, then press the button again.";
+  assertEquals(reply({ kind: "not_linked" }), {
+    text: notLinked,
+    blocks: [
+      { type: "section", text: { type: "mrkdwn", text: notLinked } },
+      {
+        type: "actions",
+        block_id: "link",
+        elements: [{
+          type: "button",
+          action_id: "link_account",
+          text: { type: "plain_text", text: "Link your account" },
+          url:
+            `${BASE_URL}/settings/security?organization=${ORGANIZATION_ID}#slack`,
+        }],
+      },
+    ],
   });
   assertEquals(
-    slackPressReply({ kind: "no_permission" })?.text,
+    reply({ kind: "no_permission" })?.text,
     "Nothing was decided. You do not have permission to approve or reject this work.",
   );
   assertEquals(
-    slackPressReply({
+    reply({
       kind: "already_decided",
       approvalId: REQUEST_ID,
       name: "Ada <x>",
@@ -175,11 +194,11 @@ Deno.test("each refusal has its exact reply", () => {
     "Nothing changed. Ada &lt;x&gt; already decided this.",
   );
   assertEquals(
-    slackPressReply({ kind: "not_recorded" })?.text,
+    reply({ kind: "not_recorded" })?.text,
     "Your decision was not recorded. Try again.",
   );
   assertEquals(
-    slackPressReply({ kind: "decided", approvalId: REQUEST_ID }),
+    reply({ kind: "decided", approvalId: REQUEST_ID }),
     null,
   );
 });
