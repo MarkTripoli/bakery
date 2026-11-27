@@ -7736,5 +7736,6 @@
   "library.editor.task.problem.minutes": "⟪Choose a time limit.⟫",
   "library.editor.task.problem.tools": "⟪Not set in this step. Tick what the agent may use.⟫",
   "library.editor.task.chooseTime": "⟪Choose a time limit⟫",
-  "library.editor.task.read.notSet": "⟪not set⟫"
+  "library.editor.task.read.notSet": "⟪not set⟫",
+  "settings.roles.thing.ownIdentityLink": "⟪their own linked outside accounts⟫"
 }

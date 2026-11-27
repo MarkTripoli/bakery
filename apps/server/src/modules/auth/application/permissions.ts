@@ -27,6 +27,7 @@ const minimumRoleByAccess = new Map<
   ],
   [ActionAccess.CurrentMember, OrganizationRole.Developer],
   [ActionAccess.CurrentMemberLinkingSelf, OrganizationRole.Developer],
+  [ActionAccess.AnyMemberLinkingSelf, OrganizationRole.Viewer],
   // Developer is the floor: the action's own guard raises the bar to Admin for
   // the organization-scope case, which a single role mapping cannot express.
   [
@@ -71,10 +72,16 @@ for (const action of catalogActions) {
   minimumRoleByPermission.set(action.permission, minimum);
 }
 
-const developerPermissions = [...minimumRoleByPermission]
-  .filter(([, minimum]) => minimum === OrganizationRole.Developer)
-  .map(([permission]) => permission)
-  .sort();
+const permissionsWithMinimum = (...roles: OrganizationRoleValue[]) =>
+  [...minimumRoleByPermission]
+    .filter(([, minimum]) => roles.includes(minimum))
+    .map(([permission]) => permission)
+    .sort();
+const memberPermissions = permissionsWithMinimum(OrganizationRole.Viewer);
+const developerPermissions = permissionsWithMinimum(
+  OrganizationRole.Viewer,
+  OrganizationRole.Developer,
+);
 const adminPermissions = [...minimumRoleByPermission.keys()].sort();
 
 export const viewerPermissionExclusions = Object.freeze(
@@ -110,9 +117,14 @@ export const viewerPermissionExclusions = Object.freeze(
 const viewerExclusions = new Set<CatalogPermissionKey>(
   Object.keys(viewerPermissionExclusions) as CatalogPermissionKey[],
 );
-const viewerPermissions = developerPermissions.filter((permission) =>
-  permission.endsWith(":read") && !viewerExclusions.has(permission)
-);
+const viewerPermissions = [
+  ...new Set([
+    ...memberPermissions,
+    ...developerPermissions.filter((permission) =>
+      permission.endsWith(":read") && !viewerExclusions.has(permission)
+    ),
+  ]),
+].sort();
 
 export const rolePermissions = Object.freeze(
   {

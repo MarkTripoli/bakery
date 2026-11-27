@@ -760,6 +760,8 @@ export type CatalogPermissionKey =
   | "organizationRole:manage"
   | "organizationRole:read"
   | "outputStream:read"
+  | "ownIdentityLink:read"
+  | "ownIdentityLink:write"
   | "permissionGrant:manage"
   | "permissionGrant:read"
   | "planRevision:read"
@@ -848,6 +850,7 @@ export type CatalogPermissionKey =
 
 export type CatalogAccessPolicy =
   | "Admin"
+  | "Any member linking self"
   | "Authenticated"
   | "Authenticated principal"
   | "Authenticated principal allowed to create organizations"
@@ -887,6 +890,7 @@ export type CatalogAccessPolicy =
 export const CatalogAccess = Object.freeze(
   {
     Admin: "Admin",
+    AnyMemberLinkingSelf: "Any member linking self",
     Authenticated: "Authenticated",
     AuthenticatedPrincipal: "Authenticated principal",
     AuthenticatedPrincipalAllowedToCreateOrganizations: "Authenticated principal allowed to create organizations",

@@ -37,11 +37,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export type SlackLinkRevokeReason =
   | "revoked_by_admin"
   | "unlinked_by_member"
+  | "replaced_by_new_link"
   | "membership_inactive";
 
 const REVOKE_REASONS: ReadonlySet<string> = new Set<SlackLinkRevokeReason>([
   "revoked_by_admin",
   "unlinked_by_member",
+  "replaced_by_new_link",
   "membership_inactive",
 ]);
 

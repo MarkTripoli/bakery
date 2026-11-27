@@ -791,7 +791,7 @@ export function createIntegrationsActionRegistry(
     handler: bindSlackIdentity,
   });
   const linkingSelf = {
-    access: ActionAccess.CurrentMemberLinkingSelf,
+    access: ActionAccess.AnyMemberLinkingSelf,
     authorize: authorizeLinkingSelf,
     organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
     sessionOnly: true,
