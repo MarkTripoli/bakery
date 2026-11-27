@@ -254,7 +254,7 @@ Deno.test("an organization-wide grant never validates as a workspace installatio
 Deno.test("a refusal this build does not name still offers a retry", async () => {
   assertEquals(
     await slackServerProvider.impl.health.check(
-      context(() => json({ ok: false, error: "not_authed" })),
+      context(() => json({ ok: false, error: "fatal_error" })),
     ),
     { healthy: false, reason: "dependency_refused", retryable: true },
   );
