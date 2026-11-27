@@ -1,4 +1,4 @@
-/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest 28c03083b428943dacd15a8a938e1142c6555a8ed598a3030f01219e988b35c6. */
+/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest d39e28fb71fbcc4f8f546a0d984d3a94107eb40b2ef545c8a60cc93d41483d17. */
 export const semanticTokens = {
   "border.default": "--border-default",
   "border.emphasis": "--border-emphasis",
@@ -55,6 +55,7 @@ export const semanticTokens = {
   "color.surface": "--color-surface",
   "color.surface.raised": "--color-surface-raised",
   "color.surface.subtle": "--color-surface-subtle",
+  "color.syntax.danger": "--color-syntax-danger",
   "color.syntax.foreground": "--color-syntax-foreground",
   "color.syntax.success": "--color-syntax-success",
   "color.syntax.surface": "--color-syntax-surface",
