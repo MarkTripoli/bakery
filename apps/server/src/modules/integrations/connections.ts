@@ -13,6 +13,7 @@ import type { PgTransactionClient } from "../../platform/database.ts";
 import { authorize } from "../auth/application/authorize.ts";
 import { organizationActor } from "./auth-attempts.ts";
 import { identityForProviderId, providerManifestForId } from "./registry.ts";
+import { oauth2ProviderFor } from "./oauth2-connect.ts";
 
 type Connection = z.output<typeof contractSchemas.IntegrationConnection>;
 type Resource = z.output<typeof contractSchemas.IntegrationResource>;
@@ -27,6 +28,7 @@ const connectionColumns = `connection.id, connection.provider,
   connection.label, connection.external_account_id as "externalAccountId",
   connection.config, connection.secret_id as "secretId",
   connection.granted_permissions as "grantedScopes",
+  connection.granted_scope_names as "grantedScopeNames",
   connection.status, connection.health,
   to_char(connection.last_checked_at at time zone 'UTC', ${TIMESTAMP})
     as "lastCheckedAt",
@@ -66,16 +68,25 @@ const connectionProjection = `select ${connectionColumns}
 
 type ConnectionRow = Omit<Connection, "status"> & {
   status: string;
-  health: string;
 };
 
-function toConnection(
-  { health, ...connection }: ConnectionRow,
-): Connection {
+function toConnection(connection: ConnectionRow): Connection {
   return contractSchemas.IntegrationConnection.parse({
     ...connection,
-    status: connectionStatus(connection.status, health),
+    status: connectionStatus(connection.status, connection.health),
+    health: scopesMissing(connection) &&
+        (connection.health === "unknown" || connection.health === "healthy")
+      ? "degraded"
+      : connection.health,
   });
+}
+
+function scopesMissing(connection: ConnectionRow): boolean {
+  const granted = connection.grantedScopeNames;
+  if (!Array.isArray(granted)) return false;
+  const requested = oauth2ProviderFor(connection.provider)?.profile.scopes ??
+    [];
+  return requested.some((scope) => !granted.includes(scope));
 }
 
 /**
