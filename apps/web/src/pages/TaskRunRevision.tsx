@@ -19,7 +19,7 @@ export function TaskRunRevision(
     readonly taskId: string;
     readonly runId: string;
     readonly baseSha: string | null;
-    readonly onFiles?: (files: number) => void;
+    readonly onFiles?: (files: number | null) => void;
   },
 ) {
   const api = useBakeryApi();
@@ -43,6 +43,10 @@ export function TaskRunRevision(
     ) ?? [];
   const selected = items.find((artifact) => artifact.id === artifactId) ??
     items[0];
+  const sole = !cursor && !artifacts.data?.nextCursor && items.length === 1;
+  useEffect(() => {
+    if (!sole) onFiles?.(null);
+  }, [sole, onFiles]);
   return (
     <UI.Stack>
       {selected
@@ -67,7 +71,7 @@ export function TaskRunRevision(
               runId={runId}
               stepIds={steps.isError ? [] : steps.data ?? []}
               baseSha={baseSha}
-              onFiles={onFiles}
+              onFiles={sole ? onFiles : undefined}
             />
           </>
         )
@@ -127,17 +131,18 @@ function PatchRevisions(
       version.runStepId !== null &&
       stepIds.includes(version.runStepId) && version.subjectHeadSha !== null
     ) ?? [];
+  const latest = Math.max(0, ...candidates.map((version) => version.revision));
   return (
     <UI.Stack>
       {candidates.length === 0
         ? null
-        : candidates.map((version, position) => (
+        : candidates.map((version) => (
           <PatchContent
             key={version.id}
             taskId={taskId}
             version={version}
             baseSha={baseSha}
-            onFiles={position === 0 ? onFiles : undefined}
+            onFiles={version.revision === latest ? onFiles : undefined}
           />
         ))}
       {versions.isError && (

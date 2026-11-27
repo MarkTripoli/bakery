@@ -197,7 +197,8 @@ export function TaskRunSection(
     { readonly runId: string; readonly files: number } | null
   >(null);
   const reportFiles = useCallback(
-    (files: number) => setChanged({ runId, files }),
+    (files: number | null) =>
+      setChanged(files === null ? null : { runId, files }),
     [runId],
   );
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);

@@ -649,6 +649,28 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
   await expect(page.getByRole("button", { name: "Open the changes" }))
     .toBeVisible();
   await still(page, "run-finished-changes");
+  await page.route("**/v1/artifacts?*", (route) =>
+    route.fulfill({
+      json: {
+        items: [artifact, {
+          ...artifact,
+          id: "00000000-0000-4000-8000-000000000053",
+          name: "second.patch",
+        }],
+        nextCursor: null,
+      },
+    }));
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Open the changes" }))
+    .toBeVisible();
+  await expect(page.getByText("1 step in 59 s", { exact: true }))
+    .toBeVisible();
+  await expect(page.getByText(/files? changed/)).toHaveCount(0);
+  await page.route(
+    "**/v1/artifacts?*",
+    (route) => route.fulfill({ json: { items: [artifact], nextCursor: null } }),
+  );
+  await page.reload();
   await page.getByRole("button", { name: "Open the changes", exact: true })
     .click();
   // The version is a plain "Version 3"; its SHA-256 sits behind a fingerprint
