@@ -84,6 +84,7 @@ const terminalStatuses: Record<string, true> = {
   canceled: true,
   blocked: true,
   skipped: true,
+  needs_human: true,
 };
 const eligibleRunStatuses: Record<string, true> = {
   queued: true,
@@ -412,7 +413,11 @@ export type BakeryPostgresWorkflowRepository = Readonly<{
   ): Promise<void>;
 }>;
 
-export type PlanRunOutcome = "completed" | "failed" | "canceled";
+export type PlanRunOutcome =
+  | "completed"
+  | "failed"
+  | "canceled"
+  | "needs_human";
 
 function isTerminal(
   row: Pick<
@@ -801,7 +806,7 @@ async function assertEngineOwner(
         and engine_owner_token = $2
         and engine_owner_generation = $3
         and engine_owner_lease_expires_at > clock_timestamp()
-        and status not in ('completed', 'failed', 'canceled', 'blocked')`,
+        and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')`,
     [runId, owner.token, owner.generation],
   );
   return result.rows.length > 0;
@@ -1063,7 +1068,9 @@ async function findNextPlanKeys(
     await finishPlanRunIn(
       transaction,
       context,
-      answer.outcome === "canceled" ? "canceled" : "failed",
+      answer.outcome === "canceled" || answer.outcome === "needs_human"
+        ? answer.outcome
+        : "failed",
       activeOwner,
     );
     return undefined;
@@ -1305,6 +1312,7 @@ async function completeProjectionStep(
     action,
     output,
     WORKFLOW_PROJECTION_OPERATION,
+    "completed",
   );
 }
 
@@ -1313,6 +1321,13 @@ async function completeProjectionStep(
  * output written, a queued run moved to running with `run.updated`, one audit
  * entry. A step that is no longer pending is left as it is.
  */
+type EngineStepEnding = "completed" | "needs_human";
+
+const ENGINE_STEP_END_STATUS: Readonly<Record<EngineStepEnding, string>> = {
+  completed: "completed",
+  needs_human: "needs_human",
+};
+
 async function finishEngineStep(
   transaction: PgTransactionClient,
   row: AdmissionStepRow,
@@ -1320,10 +1335,11 @@ async function finishEngineStep(
   action: string,
   output: unknown,
   operation: string,
+  ending: EngineStepEnding,
 ): Promise<AdmissionRecord> {
   const completed = await transaction.query<{ version: number }>(
     `update bakery.run_steps
-        set status = 'completed', output = $3::jsonb,
+        set status = '${ENGINE_STEP_END_STATUS[ending]}', output = $3::jsonb,
             started_at = coalesce(started_at, clock_timestamp()),
             finished_at = clock_timestamp(), updated_at = clock_timestamp(),
             version = version + 1
@@ -1402,7 +1418,7 @@ async function completeStopStep(
          on run.organization_id = step.organization_id and run.id = step.run_id
       where step.organization_id = $1 and step.id = $2
         and run.status in ('queued', 'running')
-        and step.status not in ('completed', 'failed', 'canceled', 'skipped')
+        and step.status not in ('completed', 'failed', 'canceled', 'skipped', 'needs_human')
       for update of step`,
     [row.organizationId, row.runStepId],
   );
@@ -1455,7 +1471,7 @@ async function completeStopStep(
             finished_at = clock_timestamp(), updated_at = clock_timestamp(),
             version = version + 1
       where organization_id = $1 and id = $2
-        and status not in ('completed', 'failed', 'canceled', 'skipped')`,
+        and status not in ('completed', 'failed', 'canceled', 'skipped', 'needs_human')`,
     [row.organizationId, row.runStepId, stop.outcome, stop.reason ?? null],
   );
   if (completed.rowCount !== 1) {
@@ -1491,7 +1507,7 @@ async function projectFailure(
             and owner_run.engine_owner_token = $4
             and owner_run.engine_owner_generation = $5
             and owner_run.engine_owner_lease_expires_at > clock_timestamp()
-            and owner_run.status not in ('completed', 'failed', 'canceled', 'blocked')
+            and owner_run.status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
        )`
     : "";
   if (row.jobId !== null) {
@@ -1537,7 +1553,7 @@ async function projectFailure(
             started_at = coalesce(started_at, now()),
             finished_at = now(), updated_at = now(), version = version + 1
       where organization_id = $1 and id = $2
-        and status not in ('completed', 'failed', 'canceled', 'skipped')
+        and status not in ('completed', 'failed', 'canceled', 'skipped', 'needs_human')
         ${ownerPredicate}`,
     owner
       ? [
@@ -1572,27 +1588,39 @@ async function projectFailure(
  * plan is finished or halted. `conflict` names the error when the run or the
  * task is no longer open.
  */
-const RUN_END_STATUS: Readonly<
-  Record<"completed" | "failed" | "canceled", string>
-> = { completed: "completed", failed: "failed", canceled: "canceled" };
+const RUN_END_STATUS: Readonly<Record<PlanRunOutcome, string>> = {
+  completed: "completed",
+  failed: "failed",
+  canceled: "canceled",
+  needs_human: "needs_human",
+};
+
+const TASK_END_STATUS: Readonly<Record<PlanRunOutcome, string>> = {
+  completed: "completed",
+  failed: "failed",
+  canceled: "canceled",
+  needs_human: "waiting_input",
+};
 
 async function projectRunEnd(
   transaction: PgTransactionClient,
   row: RunEndContext,
-  status: "completed" | "failed" | "canceled",
+  status: PlanRunOutcome,
   owner: EngineOwner | undefined,
   conflict: string,
 ): Promise<void> {
-  // A closed set of literals: the status is never taken from outside.
   const literal = RUN_END_STATUS[status];
-  if (literal === undefined) throw new Error(conflict);
+  const taskLiteral = TASK_END_STATUS[status];
+  if (literal === undefined || taskLiteral === undefined) {
+    throw new Error(conflict);
+  }
   const runUpdate = await transaction.query<{ version: number }>(
     `update bakery.workflow_runs
         set status = '${literal}', finished_at = now(), updated_at = now(),
             engine_owner_token = null, engine_owner_lease_expires_at = null,
             version = version + 1
       where organization_id = $1 and id = $2
-        and status not in ('completed', 'failed', 'canceled', 'blocked')
+        and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
         ${
       owner
         ? "and engine_owner_token = $3 and engine_owner_generation = $4 " +
@@ -1610,7 +1638,7 @@ async function projectRunEnd(
   await appendRunUpdated(transaction, row, runUpdate.rows[0].version);
   const taskUpdate = await transaction.query<{ version: number }>(
     `update bakery.tasks
-        set status = '${literal}', updated_at = now(), version = version + 1
+        set status = '${taskLiteral}', updated_at = now(), version = version + 1
       where organization_id = $1 and id = $2
         and current_run_id = $3
         and status not in ('completed', 'failed', 'canceled')
@@ -1827,7 +1855,7 @@ async function admitEngineStep(
       }
       return { key, terminal: true };
     }
-    if (result.kind === "completed") {
+    if (result.kind === "completed" || result.kind === "needs_human") {
       if (costReservation) {
         await settleToolCallCost(transaction, {
           organizationId: row.organizationId,
@@ -1841,6 +1869,7 @@ async function admitEngineStep(
         due.action,
         result.output,
         WORKFLOW_ENGINE_STEP_OPERATION,
+        result.kind,
       );
     }
     if (result.kind === "failed") {
@@ -1952,7 +1981,7 @@ export function createBakeryPostgresWorkflowRepository(options: {
                     clock_timestamp() + ($3::integer * interval '1 millisecond'),
                   updated_at = clock_timestamp(), version = version + 1
             where id = $1
-              and status not in ('completed', 'failed', 'canceled', 'blocked')
+              and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
               and (
                 engine_owner_token is null or
                 engine_owner_lease_expires_at <= clock_timestamp()
@@ -1976,7 +2005,7 @@ export function createBakeryPostgresWorkflowRepository(options: {
             where id = $1 and engine_owner_token = $2
               and engine_owner_generation = $3
               and engine_owner_lease_expires_at > clock_timestamp()
-              and status not in ('completed', 'failed', 'canceled', 'blocked')
+              and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
             returning id`,
           [owner.runId, owner.token, owner.generation, owner.leaseMs],
         );
@@ -1993,7 +2022,7 @@ export function createBakeryPostgresWorkflowRepository(options: {
             where id = $1 and engine_owner_token = $2
               and engine_owner_generation = $3
               and engine_owner_lease_expires_at > clock_timestamp()
-              and status not in ('completed', 'failed', 'canceled', 'blocked')
+              and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
             returning id`,
           [owner.runId, owner.token, owner.generation],
         );
@@ -2035,7 +2064,7 @@ export function createBakeryPostgresWorkflowRepository(options: {
               and run.engine_owner_token = $2
               and run.engine_owner_generation = $3
               and run.engine_owner_lease_expires_at > clock_timestamp()
-              and run.status not in ('completed', 'failed', 'canceled', 'blocked')
+              and run.status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
             for update of run`,
           [owner.runId, owner.token, owner.generation],
         );
@@ -2905,7 +2934,7 @@ export function createBakeryPostgresWorkflowRepository(options: {
               where id = $1
                 and engine_owner_token = $2
                 and engine_owner_lease_expires_at > clock_timestamp()
-                and status not in ('completed', 'failed', 'canceled', 'blocked')`,
+                and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')`,
             [runId, ownerToken],
           );
           if (!result.rows[0]) return undefined;

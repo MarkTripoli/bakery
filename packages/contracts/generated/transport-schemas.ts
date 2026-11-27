@@ -7666,13 +7666,19 @@ const transportSchemas = {
           "type": "PeopleTagEscalation",
           "required": false,
           "description": "Who to ask next if nobody tagged has responded after a while. Needs wait: the step keeps waiting, now on both asks, and completes responded when anyone answers."
+        },
+        {
+          "name": "onExpiry",
+          "type": "enum(stop|continue)",
+          "required": false,
+          "description": "What a waiting step does when every request has expired with no response. stop, the default, ends the run needs_human so a person decides what happens next; continue completes the step expired so a later condition can branch on it. Needs wait."
         }
       ],
       "rules": [
         "A step with no agent. The workflow tags on behalf of the person who started the run, who must still be able to write runs; the organization, the run and the step come from the run, never from this payload.",
         "Name exactly one recipient. Every rule of a request made on the run holds: a recipient who cannot be resolved falls back to the person who started the run, with a visible note, and a role or group too large to ask is refused whole.",
         "The step tags once, keyed by the run and the step, so a step looked at again finds its requests instead of tagging again.",
-        "A waiting step completes responded when anyone tagged responds, and expired when every request has expired or been withdrawn first. Nothing is approved by silence.",
+        "A waiting step completes responded when anyone tagged responds. When every request has expired or been withdrawn first, it ends the run needs_human, or completes expired when onExpiry is continue. Nothing is approved by silence.",
         "If ifNobodyAnswers names someone, the step asks them once, when afterHours have passed since the first ask and nobody has responded. Their request has its own seven days; the step completes expired only when every request has ended unanswered."
       ],
       "description": "A Notify step (chapter 25 section 19): tag a person, a role, a group or someone worked out from the run, then carry on or wait for the response."
@@ -14105,7 +14111,7 @@ const transportSchemas = {
       "rules": [
         "Developer or Admin who can see the run. Bounded by the asker: nobody hands over a right they do not hold. Asking the same person for the same thing again while a request is open reminds them and returns the open request.",
         "Name exactly one recipient: recipientId, recipientRoleKey or recipientGroupId (request_recipient_required). A role or group nobody else holds is request_audience_empty, one only the asker holds is request_self, an unknown one is request_audience_not_found. One with more than 50 people to ask is refused whole with STATE_CONFLICT request_audience_too_large, and nobody is asked.",
-        "An agent asks only on the run its session belongs to (AUTH_FORBIDDEN agent_ask_own_run_only) and only a role or group a live ask grant on its workflow names (agent_ask_audience_not_granted; no ask grant at all is agent_power_requires_grant, a lapsed one agent_power_grant_expired). The response is the first member's request; runRequests.list shows each member's."
+        "An agent asks only on the run its session belongs to (AUTH_FORBIDDEN agent_ask_own_run_only). Without a grant it asks one person already involved in the run (its starter, the task's or workflow's owner, someone already asked, or an approval's audience) and only for a power that person already holds; someone new is agent_ask_not_involved, a power they lack is agent_ask_power_not_held, unless a live ask grant names a role or group they belong to. A role or group is asked only where a live ask grant names it (agent_ask_audience_not_granted; a lapsed one is agent_power_grant_expired). An agent makes at most 3 tags per step and 10 per run (STATE_CONFLICT agent_ask_step_limit, agent_ask_run_limit); asking someone already tagged reminds them and does not count. The response is the first member's request; runRequests.list shows each member's."
       ],
       "description": "Asks one person, or every member of one role or group, on one run, for one thing. Gives each person asked the right to see this run and, for approve, answer, review and take_over, to do that one thing until the request ends."
     },
@@ -16583,7 +16589,7 @@ const transportSchemas = {
         "baseSha": "gitSha|null",
         "requestedBy": "uuid",
         "inngestRunId": "string|null",
-        "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked)",
+        "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked|needs_human)",
         "budgetLimitUsd": "decimal",
         "startedAt": "timestamp|null",
         "finishedAt": "timestamp|null",
@@ -16677,7 +16683,7 @@ const transportSchemas = {
         "runId": "uuid",
         "stepKey": "string",
         "iteration": "integer",
-        "status": "enum(pending|running|waiting|completed|failed|skipped|canceled)",
+        "status": "enum(pending|running|waiting|completed|failed|skipped|canceled|needs_human)",
         "input": "json",
         "output": "json|null",
         "error": "json|null",
@@ -22808,7 +22814,7 @@ const transportSchemas = {
         "runId": "uuid",
         "stepKey": "string",
         "iteration": "integer",
-        "status": "enum(pending|running|waiting|completed|failed|skipped|canceled)",
+        "status": "enum(pending|running|waiting|completed|failed|skipped|canceled|needs_human)",
         "input": "json",
         "output": "json|null",
         "error": "json|null",
@@ -24005,7 +24011,7 @@ const transportSchemas = {
         "workspaceBaseSha": "gitSha|null",
         "requestedBy": "uuid",
         "inngestRunId": "string|null",
-        "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked)",
+        "status": "enum(queued|running|waiting_input|waiting_capacity|paused|canceling|canceled|completed|failed|blocked|needs_human)",
         "budgetLimitUsd": "decimal",
         "environment": "enum(live|offline)",
         "startedAt": "timestamp|null",

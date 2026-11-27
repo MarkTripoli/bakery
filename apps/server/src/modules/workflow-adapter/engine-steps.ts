@@ -23,6 +23,7 @@ export type EngineStepRequest = Readonly<{
 export type EngineStepResult =
   | Readonly<{ kind: "completed"; output: unknown }>
   | Readonly<{ kind: "failed"; code: string; message: string }>
+  | Readonly<{ kind: "needs_human"; output: unknown }>
   | Readonly<{ kind: "pending" }>;
 
 export type EngineStepPacing = Readonly<{

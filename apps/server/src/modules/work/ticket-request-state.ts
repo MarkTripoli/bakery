@@ -432,6 +432,7 @@ export function ticketRequestProgress(
     case "waiting_input":
     case "waiting_capacity":
     case "blocked":
+    case "needs_human":
       return "waiting";
     case "running":
     case "canceling":

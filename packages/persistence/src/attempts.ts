@@ -253,7 +253,7 @@ export async function markJobAssignmentPayloadInvalid(
               finished_at = current_timestamp, updated_at = current_timestamp,
               version = version + 1
         where organization_id = $1 and id = $2
-          and status not in ('completed', 'failed', 'canceled', 'blocked')`,
+          and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')`,
       [options.organizationId, context.runStepId, JSON.stringify(safeError)],
     );
     const run = await transaction.query<{ version: number }>(
@@ -262,7 +262,7 @@ export async function markJobAssignmentPayloadInvalid(
               engine_owner_token = null, engine_owner_lease_expires_at = null,
               updated_at = current_timestamp, version = version + 1
         where organization_id = $1 and id = $2
-          and status not in ('completed', 'failed', 'canceled', 'blocked')
+          and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
         returning version`,
       [options.organizationId, context.runId],
     );
@@ -343,7 +343,9 @@ export async function markJobAssignmentPayloadInvalid(
 }
 
 function protectedLifecycleStatus(status: string): boolean {
-  return ["completed", "failed", "canceled", "blocked"].includes(status);
+  return ["completed", "failed", "canceled", "blocked", "needs_human"].includes(
+    status,
+  );
 }
 
 async function attemptBudget(
@@ -427,7 +429,7 @@ async function finalizeWorkflowFailure(
             updated_at = current_timestamp,
             version = version + 1
       where organization_id = $1 and id = $2
-        and status not in ('completed', 'failed', 'canceled', 'blocked')`,
+        and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')`,
     [context.organizationId, context.runStepId],
   );
   const runUpdate = await transaction.query<{ version: number }>(
@@ -435,7 +437,7 @@ async function finalizeWorkflowFailure(
         set status = 'failed', finished_at = current_timestamp,
             updated_at = current_timestamp, version = version + 1
       where organization_id = $1 and id = $2
-        and status not in ('completed', 'failed', 'canceled', 'blocked')
+        and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
       returning version`,
     [context.organizationId, context.runId],
   );

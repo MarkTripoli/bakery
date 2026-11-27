@@ -41,6 +41,7 @@ import { runOutcome, stepName } from "./task-step-approval/model.ts";
 import { useStepApproval } from "./task-step-approval/use-step-approval.ts";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
+import { stoppedAtLimit } from "./task-delivery/model.ts";
 import { focusMessageField } from "./task-delivery/focus-message.ts";
 import { HandOver } from "./task-handover/HandOver.tsx";
 import { useHandoverEvents } from "./task-handover/use-handover-events.ts";
@@ -94,6 +95,7 @@ const RUN_TONES = {
   completed: "success",
   failed: "danger",
   blocked: "warning",
+  needs_human: "warning",
 } as const;
 
 /** Where the server caps the tasks a blocked run names (work/run-query.ts). */
@@ -266,7 +268,8 @@ export function TaskRunSection(
         | "completed"
         | "failed"
         | "skipped"
-        | "canceled";
+        | "canceled"
+        | "needs_human";
     } | null
   >(null);
   const cursor = cursors.at(-1);
@@ -452,9 +455,13 @@ export function TaskRunSection(
       case "blocked":
         return <BlockedNotice run={current} />;
       case "failed":
-        return (
-          <UI.Text data-placement="line">{t("tasks.run.line.failed")}</UI.Text>
-        );
+        return stoppedAtLimit(current.limitStop)
+          ? null
+          : (
+            <UI.Text data-placement="line">
+              {t("tasks.run.line.failed")}
+            </UI.Text>
+          );
       case "canceled":
         return (
           <UI.Text data-placement="line">
@@ -532,7 +539,9 @@ export function TaskRunSection(
       ].reverse()
       : null;
   const folds = stepEvents !== null && run.data !== undefined &&
-    ["completed", "failed", "canceled", "paused"].includes(run.data.status) &&
+    ["completed", "failed", "canceled", "needs_human", "paused"].includes(
+      run.data.status,
+    ) &&
     stepEvents.length > 3;
   const timelineProps = {
     label: t("tasks.run.timeline"),
@@ -787,10 +796,12 @@ export function TaskRunSection(
       delivery={activeRun && run.data
         ? (
           <DeliverySection
+            key={runId}
             taskId={taskId}
             runId={runId}
             enabled={activeRun}
             baseSha={run.data.workspaceBaseSha ?? run.data.baseSha}
+            limitStop={run.data.limitStop}
             paused={run.data.status === "paused"}
             offline={connectivity === "offline" ||
               connectivity === "reconnecting"}

@@ -324,7 +324,7 @@ async function cancelRunLifecycle(
             version = version + 1
       where organization_id = $1
         and run_id = $2
-        and status not in ('completed', 'failed', 'canceled', 'blocked')`,
+        and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')`,
     [input.organizationId, lifecycle.runId],
   );
 
@@ -336,7 +336,7 @@ async function cancelRunLifecycle(
             version = version + 1
       where organization_id = $1
         and id = $2
-        and status not in ('completed', 'failed', 'canceled', 'blocked')
+        and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
       returning version`,
     [input.organizationId, lifecycle.runId],
   );
@@ -354,7 +354,7 @@ async function cancelRunLifecycle(
       where organization_id = $1
         and id = $2
         and current_run_id = $3
-        and status not in ('completed', 'failed', 'canceled', 'blocked')
+        and status not in ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
       returning version`,
     [input.organizationId, lifecycle.taskId, lifecycle.runId],
   );
@@ -541,7 +541,7 @@ export async function cancelRunWithoutAttempt(
           where candidate.organization_id = run.organization_id
             and candidate.run_id = run.id
             and candidate.status not in
-              ('completed', 'failed', 'canceled', 'blocked')
+              ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
           order by candidate.position asc, candidate.iteration asc
           limit 1
        ) as step on true

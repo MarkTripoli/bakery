@@ -42602,7 +42602,8 @@ export const clientManifest = {
                   "canceled",
                   "completed",
                   "failed",
-                  "blocked"
+                  "blocked",
+                  "needs_human"
                 ],
                 "description": "Current lifecycle status of the record."
               },
@@ -43119,7 +43120,8 @@ export const clientManifest = {
                   "completed",
                   "failed",
                   "skipped",
-                  "canceled"
+                  "canceled",
+                  "needs_human"
                 ],
                 "description": "Current lifecycle status of the record."
               },
@@ -60730,7 +60732,8 @@ export const clientManifest = {
             "completed",
             "failed",
             "skipped",
-            "canceled"
+            "canceled",
+            "needs_human"
           ],
           "description": "Current lifecycle status of the record."
         },
@@ -63546,7 +63549,8 @@ export const clientManifest = {
             "canceled",
             "completed",
             "failed",
-            "blocked"
+            "blocked",
+            "needs_human"
           ],
           "description": "Current lifecycle status of the record."
         },

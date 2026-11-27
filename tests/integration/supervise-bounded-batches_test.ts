@@ -689,6 +689,7 @@ Deno.test("batches: every way a run can end is an end, and a run waiting on its 
         ["canceled", "cancelled"],
         ["failed", "failed"],
         ["blocked", "failed"],
+        ["needs_human", "failed"],
       ] as const
     ) {
       await setRunStatus(fx, runId, status);

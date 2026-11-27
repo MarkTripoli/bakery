@@ -49,11 +49,12 @@ function failed(code: string, message: string): EngineStepResult {
   return { kind: "failed", code, message };
 }
 
+function tagOutput(value: Record<string, unknown>): unknown {
+  return peopleTagOutput().parse(value);
+}
+
 function completed(value: Record<string, unknown>): EngineStepResult {
-  return {
-    kind: "completed",
-    output: peopleTagOutput().parse(value),
-  };
+  return { kind: "completed", output: tagOutput(value) };
 }
 
 function refusalReason(error: StandardError): string {
@@ -210,6 +211,12 @@ export function createPeopleTagStepRunner(
         "Asking someone next needs wait: a step that carries on waits for nobody.",
       );
     }
+    if (input.onExpiry !== undefined && input.wait !== true) {
+      return failed(
+        "TAG_INPUT_INVALID",
+        "What happens on expiry needs wait: a step that carries on never expires.",
+      );
+    }
     if (escalation !== undefined && recipientCount(escalation) !== 1) {
       return failed(
         "TAG_INPUT_INVALID",
@@ -317,7 +324,12 @@ export function createPeopleTagStepRunner(
     );
     if (!open) {
       await markOwnTagsExpired(deps.database, request);
-      return completed({ outcome: "expired", asked });
+      return input.onExpiry === "continue"
+        ? completed({ outcome: "expired", asked })
+        : {
+          kind: "needs_human",
+          output: tagOutput({ outcome: "expired", asked }),
+        };
     }
     if (escalation !== undefined && escalationDue(tags, escalation, now)) {
       const asked = await askNext(request, escalation, trace);
