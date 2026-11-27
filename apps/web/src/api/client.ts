@@ -308,6 +308,7 @@ export type TicketRoutingRulesReplace =
   ClientInputMap["TicketRoutingRulesReplace"];
 export type WorkerResponse = ClientOutputMap["WorkerHost"];
 export type DispatchBlockersResponse = ClientOutputMap["DispatchBlockers"];
+export type MachineModelListResponse = ClientOutputMap["Page<MachineModel>"];
 export type WorkerEnrollmentListResponse =
   ClientOutputMap["Page<WorkerEnrollmentSummary>"];
 export type WorkerEnrollmentResponse = ClientOutputMap["WorkerEnrollment"];
@@ -1435,6 +1436,13 @@ export type BakeryApiClient = {
       readonly id: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<DispatchBlockersResponse>>;
+    readonly models: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<MachineModelListResponse>>;
   };
   readonly workerEnrollments: {
     readonly list: (options: {
@@ -3998,6 +4006,17 @@ export function createBakeryApiClient({
             scoped.actions["machines.dispatchBlockers"]({ id: options.id }, {
               signal: options.signal,
             }),
+        );
+      },
+      models(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["machines.models"]({
+              id: options.id,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
         );
       },
     },
