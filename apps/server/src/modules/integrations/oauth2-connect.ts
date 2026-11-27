@@ -583,10 +583,10 @@ export async function bindOAuth2Connection(
 
   if (attempt.reconnectConnectionId !== null) {
     const target = await transaction.query<
-      { externalAccountId: string; archived: boolean }
+      { externalAccountId: string; archived: boolean; status: string }
     >(
       `select external_account_id as "externalAccountId",
-         archived_at is not null as archived
+         archived_at is not null as archived, status
          from bakery.integration_connections
         where organization_id = $1 and id = $2 and provider = $3
         for update`,
@@ -597,45 +597,15 @@ export async function bindOAuth2Connection(
       return await fail(ConnectionOutcome.ReconnectUnavailable);
     }
     if (row.externalAccountId === accountId) {
-      const refreshedInstallationId = await storeInstallation();
-      const refreshed = await transaction.query<
-        { version: number; authorizationRevision: number }
-      >(
-        `update bakery.integration_connections
-            set label = $3, granted_permissions = $4::jsonb,
-                authorization_revision = authorization_revision + 1,
-                status = 'enabled', health = 'unknown',
-                version = version + 1, updated_at = now()
-          where organization_id = $1 and id = $2
-          returning version, authorization_revision as "authorizationRevision"`,
-        [
-          attempt.organizationId,
-          attempt.reconnectConnectionId,
-          label,
-          permissions,
-        ],
-      );
-      const updated = refreshed.rows[0];
-      if (updated === undefined) throw new StandardError({ code: "INTERNAL" });
-      await bindPreparedResource(
+      return await refreshConnection(
         attempt.reconnectConnectionId,
-        refreshedInstallationId,
-      );
-      await completeAttempt(attempt.reconnectConnectionId, {
-        step: "refreshed",
-        accountId,
-        authorizationRevision: updated.authorizationRevision,
-        version: updated.version,
-      });
-      return redirect(
-        ConnectionOutcome.Refreshed,
-        attempt.reconnectConnectionId,
+        row.status === "revoked" ? "restored" : "refreshed",
       );
     }
   }
 
-  const live = await transaction.query(
-    `select 1
+  const live = await transaction.query<{ id: string; status: string }>(
+    `select connection.id, connection.status
        from bakery.integration_connections connection
        join bakery.integration_installations installation
          on installation.id = connection.installation_id
@@ -646,6 +616,10 @@ export async function bindOAuth2Connection(
       for update of connection`,
     [attempt.organizationId, prepared.registrationId, accountId],
   );
+  const removed = live.rows.find((row) => row.status === "revoked");
+  if (removed !== undefined) {
+    return await refreshConnection(removed.id, "restored");
+  }
   if (live.rows.length > 0) {
     return await fail(ConnectionOutcome.AlreadyConnected);
   }
@@ -688,9 +662,44 @@ export async function bindOAuth2Connection(
   });
   return redirect(ConnectionOutcome.Connected, created.id);
 
+  async function refreshConnection(
+    connectionId: string,
+    step: "refreshed" | "restored",
+  ): Promise<AuthRedirect> {
+    const installationId = await storeInstallation();
+    const refreshed = await transaction.query<
+      { version: number; authorizationRevision: number }
+    >(
+      `update bakery.integration_connections
+          set label = $3, granted_permissions = $4::jsonb,
+              authorization_revision = authorization_revision + 1,
+              status = 'enabled', health = 'unknown',
+              version = version + 1, updated_at = now()
+        where organization_id = $1 and id = $2
+        returning version, authorization_revision as "authorizationRevision"`,
+      [attempt!.organizationId, connectionId, label, permissions],
+    );
+    const updated = refreshed.rows[0];
+    if (updated === undefined) throw new StandardError({ code: "INTERNAL" });
+    await bindPreparedResource(
+      connectionId,
+      installationId,
+      step === "restored",
+    );
+    await completeAttempt(connectionId, {
+      step,
+      regranted: step === "restored" && prepared.connectedResource !== null,
+      accountId,
+      authorizationRevision: updated.authorizationRevision,
+      version: updated.version,
+    });
+    return redirect(ConnectionOutcome.Refreshed, connectionId);
+  }
+
   async function bindPreparedResource(
     connectionId: string,
     installationId: string,
+    regrant = false,
   ): Promise<void> {
     if (prepared.connectedResource === null) return;
     await bindConnectedResource(transaction, {
@@ -699,6 +708,7 @@ export async function bindOAuth2Connection(
       installationId,
       grantedBy: attempt!.initiatingPrincipalId,
       resource: prepared.connectedResource,
+      regrant,
     });
   }
 
