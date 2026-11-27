@@ -534,7 +534,9 @@ export function TaskRunSection(
       ].reverse()
       : null;
   const folds = stepEvents !== null && run.data !== undefined &&
-    ["completed", "failed", "canceled", "paused"].includes(run.data.status) &&
+    ["completed", "failed", "canceled", "needs_human", "paused"].includes(
+      run.data.status,
+    ) &&
     stepEvents.length > 3;
   const timelineProps = {
     label: t("tasks.run.timeline"),

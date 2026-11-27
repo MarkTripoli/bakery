@@ -1033,7 +1033,12 @@ async function supersedeEarlierRevisions(
 
 // A blocked run (never started) is canceled with its task, so a canceled lane
 // child never keeps a blocked current run that no release can reach.
-const TERMINAL_RUN = ["completed", "failed", "canceled"] as const;
+const TERMINAL_RUN = [
+  "completed",
+  "failed",
+  "canceled",
+  "needs_human",
+] as const;
 
 async function cancelChildTask(
   transaction: PgTransactionClient,
