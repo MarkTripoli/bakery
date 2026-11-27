@@ -4527,6 +4527,20 @@ test.describe("what someone was asked, on the task page", () => {
     await still(page, "request-review");
   });
 
+  test("a request an agent made says it is the agent's action", async ({ page }) => {
+    const { asked } = await openRequests(page, [
+      requestFixture({ intent: "fyi", askedByKind: "agent" }),
+      requestFixture({
+        id: "00000000-0000-4000-8000-000000000899",
+        intent: "fyi",
+      }),
+    ]);
+    const items = asked.locator("[data-request-id]");
+    await expect(items.first()).toContainText("Agent's action");
+    await expect(items.nth(1)).not.toContainText("Agent's action");
+    await still(page, "request-agent-action", asked);
+  });
+
   test("an answer request goes to the question", async ({ page }) => {
     const { asked } = await openRequests(page, [
       requestFixture({ intent: "answer", questionId: question().id }),
