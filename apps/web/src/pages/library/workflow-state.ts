@@ -125,6 +125,7 @@ export const PICKER_STEPS: readonly string[] = [
   "harness.repair",
   "quality.check",
   "review.independent",
+  "agent.freeform",
   "delivery.merge",
   "human.approval",
   "people.tag",
