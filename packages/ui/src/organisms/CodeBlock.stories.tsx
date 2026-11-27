@@ -7,6 +7,8 @@ const overflowingCode =
   "const deliberatelyOverflowingIdentifier = 'runtime-overflow-proof-without-wrapping';"
     .repeat(12);
 
+const diffCode = "-old line\n+new line\n unchanged";
+
 const meta = {
   title: "Bakery/Organisms/CodeBlock",
   parameters: { catalogId: "ui.codeBlock", requiredCases: ["contract"] },
@@ -19,6 +21,7 @@ export const Contract: StoryObj = {
       <Text variant="caption">
         Plain · syntax · command · copied · overflowing · long-content
       </Text>
+      <CodeBlock code={diffCode} language="diff" variant="syntax" />
       <CodeBlock code="echo bakery" state="default" variant="plain" />
       <CodeBlock
         code="npx @bakery/worker@VERIFIED_VERSION setup"

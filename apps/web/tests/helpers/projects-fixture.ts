@@ -252,6 +252,8 @@ export async function projectsFixture(page: Page, options: Options = {}) {
           externalAccountId: "7000001",
           config: {},
           secretId: null,
+          health: "healthy",
+          grantedScopeNames: null,
           grantedScopes: { metadata: "read", contents: "write" },
           createdBy: uuid(1),
           status: "enabled",

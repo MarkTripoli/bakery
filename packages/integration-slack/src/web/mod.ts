@@ -4,7 +4,7 @@ import { slackProviderManifest } from "../manifest.ts";
 export const slackWebProvider = defineWebProvider({
   manifest: slackProviderManifest,
   ConnectStep: undefined,
-  connectAvailable: false,
+  connectAvailable: true,
   registrationGuideUrl: "https://api.slack.com/apps",
   describePermission: (permission, level) =>
     level === "write"

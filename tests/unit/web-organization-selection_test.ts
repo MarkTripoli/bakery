@@ -217,6 +217,7 @@ function fakeApi(
       list: rejecting,
       update: rejecting,
       check: rejecting,
+      remove: rejecting,
     },
     integrationResources: { list: rejecting, update: rejecting },
     integrationAuthAttempts: { create: rejecting },
@@ -426,6 +427,9 @@ function fakeApi(
     publishWorkflowVersion: rejecting,
     updateSkill: rejecting,
     copySkill: rejecting,
+    checkSkillSource: rejecting,
+    takeSkillSourceUpdate: rejecting,
+    setSkillActiveVersion: rejecting,
     deleteSkillUseGrant: rejecting,
     validateWorkflow: rejecting,
   };

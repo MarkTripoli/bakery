@@ -5,7 +5,10 @@
  */
 import type { MessageKey } from "@bakery/i18n";
 import { webProviderFor } from "../../../integrations/registry.ts";
+import { type ConnectionOutcome, outcomeCopy } from "../outcomes.ts";
+import type { HealthKind } from "../model.ts";
 import { GITHUB_IDENTITY } from "./github/identity.ts";
+import { type ProviderFix, SLACK_FIXES, SLACK_OUTCOMES } from "./slack/copy.ts";
 
 export { useGitHubConnect as useProviderConnect } from "./github/use-github-connect.ts";
 export type { ConnectOptions } from "./github/use-github-connect.ts";
@@ -17,11 +20,55 @@ export function hasSetupPages(provider: string): boolean {
   return provider === GITHUB_IDENTITY.slug;
 }
 
+export { useOAuthConnect } from "./use-oauth-connect.ts";
+
+export function providerOutcomeCopy(
+  provider: string,
+  outcome: ConnectionOutcome | null,
+) {
+  if (outcome === null) return null;
+  return hasSetupPages(provider)
+    ? outcomeCopy(outcome)
+    : SLACK_OUTCOMES[outcome] ?? null;
+}
+
+const WITH_OWN_PAGE = "slack";
+
+export function hasHealthCheck(provider: string): boolean {
+  return hasSetupPages(provider) || provider === WITH_OWN_PAGE;
+}
+
+export function canRemove(provider: string): boolean {
+  return provider === WITH_OWN_PAGE;
+}
+
+export function providerBanner(
+  provider: string,
+  health: HealthKind,
+): MessageKey | null {
+  return provider === WITH_OWN_PAGE && health === "turnedOff"
+    ? "integrations.slack.banner.turnedOff"
+    : null;
+}
+
+export function providerFix(
+  provider: string,
+  health: HealthKind,
+): ProviderFix | null {
+  return webProviderFor(provider)?.connectAvailable === false ||
+      hasSetupPages(provider)
+    ? null
+    : SLACK_FIXES[health] ?? null;
+}
+
 export function healthBadge<Tone extends string>(
   provider: string,
   health: Readonly<{ kind: string; tone: Tone }>,
-): Readonly<{ key: MessageKey; tone: Tone | "success" }> {
-  return !hasSetupPages(provider) &&
+): Readonly<{ key: MessageKey; tone: Tone | "success" | "danger" }> {
+  if (provider === WITH_OWN_PAGE && health.kind === "needsAttention") {
+    return { key: "settings.connections.badge.authRequired", tone: "danger" };
+  }
+  return !hasHealthCheck(provider) &&
       (health.kind === "notChecked" || health.kind === "working")
     ? {
       key: "settings.connections.other.connected",

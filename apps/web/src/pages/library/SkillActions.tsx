@@ -14,9 +14,9 @@ import { useConnectivity } from "../../app/connectivity.ts";
 import { focusAfterPaint } from "../../app/focus.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
-import { useSession } from "../../app/session-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { clip, copyName, NAME_LIMIT } from "./copy-workflow.ts";
+import { useCanChangeSkill } from "./useCanChangeSkill.ts";
 
 const toastStore = (() => {
   let message: string | null = null;
@@ -87,7 +87,6 @@ export function useSkillActions(
   const { translate } = useI18n();
   const offline = useConnectivity() === "offline";
   const phone = useShellViewport() === "phone";
-  const identity = useSession().identity;
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const organizations = useQuery(organizationsListQueryOptions(api, scope));
   const organizationId = scope.organizationId as string;
@@ -95,10 +94,7 @@ export function useSkillActions(
     organizations.data?.items.find((item) => item.id === organizationId)
       ?.name ?? null;
   const admin = access.data?.role === "admin";
-  const canChange = skill.scope === "organization"
-    ? admin
-    : skill.scope === "personal" &&
-      identity?.principalId === skill.ownerPrincipalId;
+  const canChange = useCanChangeSkill(skill) === true;
 
   const [dialog, setDialog] = useState<Dialog>(null);
   const [menuOpen, setMenuOpen] = useState(false);
