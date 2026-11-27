@@ -10,6 +10,7 @@ import { requireWorkTransaction } from "./work-transaction.ts";
 import {
   loadTaskScope,
   lockApplication,
+  requireTaskApplication,
   type TaskScopeRow,
   toIso,
 } from "./postgres.ts";
@@ -147,12 +148,13 @@ export async function createTaskDependencyCommand(
     undefined,
     false,
   );
-  await lockApplication(transaction, organizationId, owner.application_id);
+  const ownerApplicationId = requireTaskApplication(owner);
+  await lockApplication(transaction, organizationId, ownerApplicationId);
   const lockedOwner = await loadTaskScope(
     transaction,
     organizationId,
     taskId,
-    owner.application_id,
+    ownerApplicationId,
   );
   assertDependencyOwnerEditable(lockedOwner);
   if (value.dependsOnTaskId.toLowerCase() === lockedOwner.id.toLowerCase()) {
@@ -162,7 +164,7 @@ export async function createTaskDependencyCommand(
     transaction,
     organizationId,
     value.dependsOnTaskId,
-    owner.application_id,
+    ownerApplicationId,
   );
   if (prerequisite.archived_at !== null) {
     throw new StandardError({
@@ -242,12 +244,13 @@ export async function deleteTaskDependencyCommand(
     undefined,
     false,
   );
-  await lockApplication(transaction, organizationId, owner.application_id);
+  const ownerApplicationId = requireTaskApplication(owner);
+  await lockApplication(transaction, organizationId, ownerApplicationId);
   const lockedOwner = await loadTaskScope(
     transaction,
     organizationId,
     taskId,
-    owner.application_id,
+    ownerApplicationId,
   );
   assertDependencyOwnerEditable(lockedOwner);
   const edge = await transaction.query<TaskDependencyRow>(

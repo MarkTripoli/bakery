@@ -77,7 +77,7 @@ export function oauth2ProviderFor(slug: string): OAuth2Provider | undefined {
   return { slug, profile: connect };
 }
 
-function isOAuth2Profile(connect: unknown): connect is OAuth2Profile {
+export function isOAuth2Profile(connect: unknown): connect is OAuth2Profile {
   return typeof connect === "object" && connect !== null &&
     "authorizeUrl" in connect && "tokenUrl" in connect &&
     "identify" in connect;

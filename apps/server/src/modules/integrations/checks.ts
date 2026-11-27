@@ -28,6 +28,14 @@ import {
 
 import { boundRetryAfterSeconds } from "../../platform/retry-after.ts";
 import { queueDiscovery } from "./discovery-queue.ts";
+import { openInstallationSecret } from "../secrets/installation-secrets.ts";
+import { decodeSecretSlots } from "./provider-credential-port.ts";
+import {
+  bearerRequestPort,
+  isOAuth2Profile,
+  type OAuth2Fetch,
+} from "./oauth2-connect.ts";
+import { PROVIDERS } from "./registry.ts";
 import { GITHUB_PROVIDER, type IntegrationsDependencies } from "./postgres.ts";
 import {
   connectionNotEnabled,
@@ -63,6 +71,8 @@ export const PermissionsSchema = z.record(
 
 type CheckedConnection = {
   id: string;
+  provider: string;
+  credentialSecretId: string | null;
   status: string;
   health: string;
   version: number;
@@ -93,7 +103,9 @@ async function readCheckedConnection(
   lock: boolean,
 ): Promise<CheckedConnection> {
   const result = await transaction.query<CheckedConnection>(
-    `select connection.id, connection.status, connection.health,
+    `select connection.id, connection.provider, connection.status,
+       connection.health,
+       installation.credential_secret_id as "credentialSecretId",
        connection.version, connection.next_allowed_at as "nextAllowedAt",
        connection.last_problem_code as "lastProblemCode",
        connection.installation_id as "installationId",
@@ -333,7 +345,7 @@ export async function checkConnection(
     resourceType: "integration_connection",
     resourceId: id,
     details: {
-      provider: GITHUB_PROVIDER,
+      provider: current.provider,
       healthy: result.healthy,
       from: current.health,
       to: health,
@@ -511,6 +523,159 @@ export async function probe(
   }
 }
 
+class ProviderRateLimited extends Error {
+  constructor(readonly retryAfterSeconds: number) {
+    super("provider rate limited");
+  }
+}
+
+function checkedProvider(slug: string) {
+  const provider = PROVIDERS.providers.find((candidate) =>
+    candidate.manifest.slug === slug
+  );
+  if (provider === undefined) {
+    throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
+  }
+  return provider;
+}
+
+type ProviderCheckTarget = {
+  principalId: string;
+  connectionId: string;
+  expectedVersion: number;
+  installationExternalId: string;
+  provider: string;
+  token: string;
+};
+
+const PROVIDER_CHECK_DEADLINE_MS = 10_000;
+
+async function storedBearerToken(
+  transaction: PgTransactionClient,
+  dependencies: IntegrationsDependencies,
+  connection: CheckedConnection,
+): Promise<string> {
+  const provider = checkedProvider(connection.provider);
+  if (connection.credentialSecretId === null) {
+    throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
+  }
+  const stored = await openInstallationSecret(
+    transaction,
+    dependencies.secretsKey,
+    connection.credentialSecretId,
+  );
+  const minted = await provider.impl.credentials.mint({
+    binding: null,
+    permissions: {},
+    secrets: decodeSecretSlots(stored, provider.impl.credentials.secretSlots),
+    ctx: {
+      provider: {
+        send: () =>
+          Promise.reject(new Error("no provider calls while minting")),
+      },
+      origin: {
+        apiBaseUrl: new URL("https://invalid"),
+        webBaseUrl: new URL("https://invalid"),
+      },
+      signal: AbortSignal.timeout(PROVIDER_CHECK_DEADLINE_MS),
+      now: () => new Date(),
+    },
+  });
+  return minted.token;
+}
+
+async function probeProvider(
+  fetcher: OAuth2Fetch,
+  target: ProviderCheckTarget,
+  context: ActionContext,
+  publicBaseUrl: string,
+): Promise<
+  Omit<
+    CheckResult,
+    | "principalId"
+    | "connectionId"
+    | "expectedVersion"
+    | "installationExternalId"
+    | "checkedAt"
+    | "expires"
+  >
+> {
+  const provider = checkedProvider(target.provider);
+  const connect = provider.impl.connect;
+  if (!isOAuth2Profile(connect)) {
+    throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
+  }
+  const signal = AbortSignal.any([
+    context.signal,
+    AbortSignal.timeout(PROVIDER_CHECK_DEADLINE_MS),
+  ]);
+  let verdict;
+  try {
+    verdict = await provider.impl.health.check({
+      provider: bearerRequestPort(
+        fetcher,
+        connect.apiBaseUrl,
+        target.token,
+        signal,
+      ),
+      origin: {
+        apiBaseUrl: connect.apiBaseUrl,
+        webBaseUrl: connect.webBaseUrl,
+      },
+      signal,
+      now: () => new Date(),
+    });
+  } catch {
+    context.signal.throwIfAborted();
+    verdict = {
+      healthy: false as const,
+      reason: "dependency_unreachable",
+      retryable: true,
+    };
+  }
+  context.signal.throwIfAborted();
+  if (!verdict.healthy && verdict.reason === "rate_limited") {
+    throw new ProviderRateLimited(
+      verdict.retryAfterSeconds ?? DEFAULT_RATE_LIMIT_SECONDS,
+    );
+  }
+  if (verdict.healthy) {
+    return {
+      completed: true,
+      healthy: true,
+      health: "healthy",
+      discovery: false,
+      problem: null,
+      capabilities: [],
+      fault: null,
+    };
+  }
+  if (verdict.reason === "auth_required") {
+    return {
+      completed: true,
+      healthy: false,
+      health: "auth_required",
+      discovery: false,
+      problem: CheckProblem.TokenRejected,
+      capabilities: [],
+      fault: null,
+    };
+  }
+  return {
+    completed: false,
+    healthy: false,
+    health: null,
+    discovery: false,
+    problem: CheckProblem.DependencyUnavailable,
+    capabilities: [],
+    fault: toProblem(new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }), {
+      requestId: context.requestId,
+      traceId: context.traceId,
+      publicBaseUrl,
+    }),
+  };
+}
+
 /**
  * Wraps integrationConnections.check so GitHub is asked between committed
  * transactions (secrets/preflight.ts precedent):
@@ -531,9 +696,14 @@ export async function probe(
  */
 export function createConnectionCheckRunner(
   authority: ActionAuthorityRunner,
-  dependencies: IntegrationsDependencies & { github: GitHubAppClient },
+  dependencies: IntegrationsDependencies & {
+    github: GitHubAppClient;
+    oauth2Fetch?: OAuth2Fetch;
+  },
   broker: InstallationTokenBroker,
 ): ActionAuthorityRunner["run"] {
+  const fetcher: OAuth2Fetch = dependencies.oauth2Fetch ??
+    ((input, init) => fetch(input, init));
   return async (action, context, input, next) => {
     const parsed = contractSchemas.Empty.parse(input);
     const metadata = createNormalizedCommandMetadata(
@@ -567,6 +737,22 @@ export function createConnectionCheckRunner(
           false,
         );
         assertWithinQuota(connection);
+        if (connection.provider !== GITHUB_PROVIDER) {
+          return {
+            providerTarget: {
+              principalId: actor.subject.principalId,
+              connectionId,
+              expectedVersion: connection.version,
+              installationExternalId: connection.installationExternalId,
+              provider: connection.provider,
+              token: await storedBearerToken(
+                value.transaction,
+                dependencies,
+                connection,
+              ),
+            } satisfies ProviderCheckTarget,
+          };
+        }
         const repositoryIds = await selectedRepositoryIds(
           value.transaction,
           actor.organizationId,
@@ -600,8 +786,58 @@ export function createConnectionCheckRunner(
       },
     ) as
       | { replay: ReturnType<typeof validateEncodedSuccessResponse> }
-      | { target: CheckTarget };
+      | { target: CheckTarget }
+      | { providerTarget: ProviderCheckTarget };
     if ("replay" in read) return read.replay;
+    if ("providerTarget" in read) {
+      const target = read.providerTarget;
+      context.signal.throwIfAborted();
+      let outcome;
+      try {
+        outcome = await probeProvider(
+          fetcher,
+          target,
+          context,
+          dependencies.publicBaseUrl,
+        );
+      } catch (caught) {
+        if (!(caught instanceof ProviderRateLimited)) throw caught;
+        const seconds = boundRetryAfterSeconds(caught.retryAfterSeconds);
+        await authority.run(action, context, parsed, async (authorized) => {
+          const { context: value, actor } = organizationActor(authorized);
+          await value.transaction.query(
+            `update bakery.integration_connections
+                set next_allowed_at = greatest(
+                  coalesce(next_allowed_at, $3::timestamptz),
+                  $3::timestamptz)
+              where organization_id = $1 and id = $2
+                and archived_at is null`,
+            [
+              actor.organizationId,
+              target.connectionId,
+              new Date(Date.now() + seconds * 1000).toISOString(),
+            ],
+          );
+        });
+        throw quotaExceeded(seconds);
+      }
+      const result = CheckResultSchema.parse({
+        principalId: target.principalId,
+        connectionId: target.connectionId,
+        expectedVersion: target.expectedVersion,
+        installationExternalId: target.installationExternalId,
+        ...outcome,
+        checkedAt: new Date().toISOString(),
+        expires: Date.now() + 30_000,
+      });
+      return await authority.run(
+        action,
+        context,
+        parsed,
+        (authorized) =>
+          next(Object.assign({}, authorized, { [resultSlot]: result })),
+      );
+    }
     const { target } = read;
     context.signal.throwIfAborted();
     const installationId = Number(target.installationExternalId);
