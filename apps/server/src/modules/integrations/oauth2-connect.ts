@@ -328,6 +328,13 @@ async function recordSignedEventSource(
 ): Promise<Record<string, unknown>> {
   const stored = await readStoredClientCredentials(transaction, input.provider);
   const signingSecretId = stored?.signingSecretId ?? null;
+  await transaction.query(
+    `update bakery.slack_installations
+        set status = 'disabled', updated_at = now(), version = version + 1
+      where organization_id = $1 and team_id = $2 and app_id <> $3
+        and status = 'active'`,
+    [input.organizationId, input.source.workspaceId, input.source.appId],
+  );
   const recorded = await connectSlackInstallation(transaction, {
     organizationId: input.organizationId,
     installation: {
@@ -353,12 +360,17 @@ async function recordSignedEventSource(
 async function connectedThroughAnotherApp(
   transaction: PgTransactionClient,
   source: SignedEventSource,
+  registrationId: string,
 ): Promise<boolean> {
   const other = await transaction.query(
-    `select 1 from bakery.slack_installations
-      where team_id = $1 and app_id <> $2 and status = 'active'
+    `select 1 from bakery.slack_installations slack
+       join bakery.integration_app_registrations registration
+         on registration.id = $3
+      where slack.team_id = $1 and slack.app_id <> $2
+        and slack.status = 'active'
+        and registration.updated_at <= slack.updated_at
       limit 1`,
-    [source.workspaceId, source.appId],
+    [source.workspaceId, source.appId, registrationId],
   );
   return other.rows.length > 0;
 }
@@ -554,7 +566,7 @@ export function createOAuth2CallbackRunner(
     if (
       source !== undefined &&
       await inTransaction((transaction) =>
-        connectedThroughAnotherApp(transaction, source)
+        connectedThroughAnotherApp(transaction, source, client.registrationId)
       )
     ) {
       return await fail("identify", ConnectionOutcome.WrongApp);

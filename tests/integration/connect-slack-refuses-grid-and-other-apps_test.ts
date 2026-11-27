@@ -1,6 +1,8 @@
 import { assertEquals } from "@std/assert";
 import { call } from "../helpers/installation-settings.ts";
+import { postSlackEvent } from "../helpers/slack-events.ts";
 import {
+  APP_ID,
   connectOnce,
   fakeSlack,
   open,
@@ -150,6 +152,61 @@ Deno.test("after an administrator saves a different Slack app, Reconnect binds t
       state: new URL(created.authorizationUrl).searchParams.get("state")!,
     });
     assertEquals(outcome(reconnected), "refreshed");
+  } finally {
+    await o.finish();
+  }
+});
+
+async function saveSlackDetails(
+  o: Awaited<ReturnType<typeof open>>,
+  clientId: string,
+) {
+  const headers = { "Bakery-Organization-Id": o.fixture.organizationId };
+  const current = await call(
+    o.fixture,
+    "GET",
+    "/v1/integration-client-credentials/slack",
+    o.fixture.adminCookie,
+    { headers },
+  );
+  const { version } = await current.json() as { version: number };
+  const saved = await call(
+    o.fixture,
+    "PUT",
+    "/v1/integration-client-credentials/slack",
+    o.fixture.adminCookie,
+    {
+      body: { clientId, clientSecret: "slack-client-secret-two" },
+      headers: {
+        ...headers,
+        "If-Match": `"${version}"`,
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+    },
+  );
+  assertEquals(saved.status, 200, await saved.clone().text());
+}
+
+Deno.test("a mistyped then corrected client id leaves the connected Slack app receiving signed events", async () => {
+  const signingSecret = "slack-signing-secret-one";
+  const slack = fakeSlack();
+  const o = await open(slack, { signingSecret });
+  try {
+    await connectOnce(o);
+    const challenge = () =>
+      postSlackEvent(o.fixture, signingSecret, {
+        type: "url_verification",
+        api_app_id: APP_ID,
+        challenge: "still-connected",
+      });
+    const before = await challenge();
+    assertEquals(before.status, 200, await before.clone().text());
+    await before.body?.cancel();
+    await saveSlackDetails(o, "1234.0000");
+    await saveSlackDetails(o, "1234.5678");
+    const after = await challenge();
+    assertEquals(after.status, 200, await after.clone().text());
+    await after.body?.cancel();
   } finally {
     await o.finish();
   }
