@@ -312,9 +312,9 @@ export async function mintReadToken(
 export async function mintInstallationToken(
   dependencies: ReconcileDependencies,
   authority: ReadTokenAuthority,
-  permissions: GitHubPermissions,
+  permissions: TokenTarget["permissions"],
   signal: AbortSignal,
-): Promise<GitHubInstallationToken | { kind: "refused" }> {
+): ReturnType<ReconcileDependencies["broker"]["token"]> {
   const { credentials, installation, resource, connection } = authority;
   if (
     credentials === null ||
