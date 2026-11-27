@@ -3142,6 +3142,7 @@
   "settings.roles.thing.integrationSubscription": "integration subscriptions",
   "settings.roles.thing.channelLink": "channel links",
   "settings.roles.thing.externalIdentityLink": "linked outside accounts",
+  "settings.roles.thing.ownIdentityLink": "their own linked outside accounts",
   "settings.roles.thing.secret": "secrets",
   "settings.roles.thing.organization": "organizations",
   "settings.roles.thing.organizationInvitation": "organization invitations",

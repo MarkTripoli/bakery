@@ -388,6 +388,10 @@ export const IntegrationsImplementedAction = Object.freeze(
     IntegrationInstallationsList: "integrationInstallations.list",
     IntegrationInstallationsGet: "integrationInstallations.get",
     IntakeWebhook: "intake.webhook",
+    IntegrationSlackIdentityCallback: "integrationAuth.slackIdentityCallback",
+    MySlackLinkGet: "mySlackLink.get",
+    MySlackLinkDelete: "mySlackLink.delete",
+    MySlackLinkAttemptsCreate: "mySlackLinkAttempts.create",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const integrationsImplementedActions = Object.freeze(

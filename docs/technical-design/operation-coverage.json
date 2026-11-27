@@ -110,11 +110,6 @@
         "contains": "SLACK_INTERACTIONS_PATH"
       }
     },
-    "integrationAuth.slackIdentityCallback": {
-      "state": "unbuilt",
-      "owner": "#12",
-      "reason": "Slack identity linking callback arrives with Slack installation."
-    },
     "integrationCapabilities.list": {
       "state": "unbuilt",
       "owner": "#3",

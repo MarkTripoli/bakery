@@ -142,7 +142,7 @@ function providerSchema(profile: OAuth2Profile): z.ZodType {
   return profile.tokenResponse;
 }
 
-async function readBounded(
+export async function readBounded(
   response: Response,
   maxBytes: number,
 ): Promise<Uint8Array> {
