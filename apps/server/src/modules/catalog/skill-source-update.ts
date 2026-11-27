@@ -412,6 +412,19 @@ export async function confirmSkillSourceUpdateTake(
       params: { reason: "skill_update_already_installed" },
     });
   }
+  const imported = await transaction.query(
+    `select 1 from bakery.skill_versions
+      where organization_id = $1 and skill_id = $2 and source_revision = $3
+        and status = 'published'
+      limit 1`,
+    [organizationId, facts.skillId, revision],
+  );
+  if (imported.rows.length > 0) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "skill_update_revision_already_imported" },
+    });
+  }
   return Object.freeze({
     principalId: facts.principalId,
     organizationId,

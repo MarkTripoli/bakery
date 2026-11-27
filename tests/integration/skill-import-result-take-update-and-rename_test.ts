@@ -490,6 +490,35 @@ Deno.test("taking a reviewed update imports exactly that revision and keeps foll
       ["main", NEWER],
     );
     assertEquals(source.calls.at(-1)?.requestedRevision, "main");
+
+    const older = await db.query<{ id: string }>(
+      `select id from bakery.skill_versions
+        where skill_id = $1 and source_revision <> $2`,
+      [skill.id, NEWER],
+    );
+    await db.query(
+      `update bakery.skills set active_version_id = $2 where id = $1`,
+      [skill.id, older.rows[0]!.id],
+    );
+    const runsBefore = await db.query<{ n: number }>(
+      `select count(*)::int as n from bakery.skill_imports where skill_id = $1`,
+      [skill.id],
+    );
+    const retake = await command(f, f.ownerCookie, path, { revision: NEWER }, {
+      key: "take-already-imported",
+      version: await skillVersion(),
+    });
+    const retakeText = await retake.text();
+    assertEquals(retake.status, 409, retakeText);
+    assertEquals(
+      (JSON.parse(retakeText) as { reason?: string }).reason,
+      "skill_update_revision_already_imported",
+    );
+    const runsAfter = await db.query<{ n: number }>(
+      `select count(*)::int as n from bakery.skill_imports where skill_id = $1`,
+      [skill.id],
+    );
+    assertEquals(runsAfter.rows[0].n, runsBefore.rows[0].n);
   } finally {
     await f.close();
     await Deno.remove(root, { recursive: true });
