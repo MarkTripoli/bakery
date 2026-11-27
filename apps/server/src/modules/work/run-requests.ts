@@ -1532,6 +1532,10 @@ async function guardAgentAskLimits(
 ): Promise<void> {
   const tag =
     "coalesce(audience_group_id::text, audience_role_key, recipient_id::text)";
+  await transaction.query(
+    "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+    [`agent-ask:${scope.runId}`],
+  );
   const sessionId = agent.origin?.agentSessionId ?? null;
   const made = await transaction.query<{ tag: string; from_step: boolean }>(
     `select distinct ${tag} as tag,

@@ -597,3 +597,31 @@ Deno.test("an agent may remind someone of a power a person already granted them"
     });
     assert(response.ok, await response.text());
   }));
+
+Deno.test("an agent's ask waits for another ask on the same run to finish counting", () =>
+  withWorkerFixture(async (fixture) => {
+    const dana = await addMember(fixture, "Dana", "developer");
+    const session = await agentSession(fixture, { granted: null });
+    await involve(fixture, session.own.runId, dana);
+    const holder = await fixture.pgDatabase.connect();
+    try {
+      await holder.query("begin");
+      await holder.query(
+        "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+        [`agent-ask:${session.own.runId}`],
+      );
+      let settled = false;
+      const pending = ask(session, { recipientId: dana }).then((response) => {
+        settled = true;
+        return response;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      assertEquals(settled, false);
+      await holder.query("commit");
+      const response = await pending;
+      assert(response.ok, await response.text());
+    } finally {
+      await holder.query("rollback").catch(() => undefined);
+      holder.release();
+    }
+  }));
