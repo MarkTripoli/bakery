@@ -726,3 +726,55 @@ Deno.test("a Notify step that cannot tag fails with a fixed code and tags nobody
     await o.finish();
   }
 });
+
+Deno.test("a plain second ask on a step that names someone next is not read as passed on", async () => {
+  const o = await openWithNextPerson();
+  try {
+    await o.fixture.pgDatabase.query(
+      `update bakery.run_steps set input = $3::jsonb
+        where organization_id = $1 and run_id = $2 and step_key = 'notify'`,
+      [o.fixture.organizationId, o.run.runId, JSON.stringify(o.request.input)],
+    );
+    assertEquals(await o.runner.run(o.request), { kind: "pending" });
+    await o.fixture.pgDatabase.query(
+      `insert into bakery.person_requests
+         (organization_id, run_id, task_id, step_key, step_iteration, intent,
+          recipient_id, asked_by, asked_by_kind, expires_at, created_at)
+       values ($1, $2, $3, 'notify', 0, 'review', $4, $5, 'person',
+         now() + interval '7 days', now() + interval '1 minute')`,
+      [
+        o.fixture.organizationId,
+        o.run.runId,
+        o.run.taskId,
+        o.next.principalId,
+        o.fixture.principalId,
+      ],
+    );
+    const response = await api(
+      o.fixture,
+      o.fixture.cookie,
+      "GET",
+      `/v1/runs/${o.run.runId}/requests`,
+    );
+    assertEquals(response.status, 200);
+    const body = await response.json() as {
+      requests: {
+        recipient: { principalId: string };
+        nextAsk: unknown;
+        passedOn: boolean;
+      }[];
+    };
+    const second = body.requests.find((request) =>
+      request.recipient.principalId === o.next.principalId
+    )!;
+    assertEquals(second.passedOn, false);
+    assertEquals(second.nextAsk, null);
+    const claims = await o.fixture.pgDatabase.query(
+      "select 1 from bakery.person_request_next_asks where run_id = $1",
+      [o.run.runId],
+    );
+    assertEquals(claims.rows.length, 0);
+  } finally {
+    await o.finishAll();
+  }
+});
