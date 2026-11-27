@@ -7737,6 +7737,10 @@
   "library.editor.task.problem.tools": "⟦Ñôŧ šëŧ ïñ ŧĥïš šŧëþ. Ŧïçķ ŵĥàŧ ŧĥë àĝëñŧ ɱàÿ ûšë. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.editor.task.chooseTime": "⟦Çĥôôšë à ŧïɱë ļïɱïŧ ŧëšŧ⟧",
   "library.editor.task.read.notSet": "⟦ñôŧ šëŧ…⟧",
+  "library.workflow.draftKept": "⟦Ṽëŕšïôñ {version} ïš ïñ ûšë. Ÿôûŕ ûñçĥàñĝëð ðŕàƒŧ çôûļð ñôŧ ƀë ûþðàŧëð, šô ïŧ šŧïļļ šĥôŵš ŧĥë ëàŕļïëŕ šŧëþš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.workflow.draftKeptRetry": "⟦Ŧŕÿ ûþðàŧïñĝ ŧĥë ðŕàƒŧ àĝàïñ ŧëšŧ çô⟧",
+  "library.editor.noChanges": "⟦Ñô çĥàñĝëš ŧô þûƀļïšĥ ŧëšŧŧ⟧",
+  "library.editor.publishedUnused": "⟦Ṽëŕšïôñ {version} þûƀļïšĥëð, ñôŧ ïñ ûšë ŧëšŧ çôþÿ ŧ⟧",
   "tasks.delivery.now.stopped.limitTitle": "⟦Ɓàķëŕÿ šŧôþþëð ŧô àšķ ÿôû ŧëšŧ ç⟧",
   "tasks.delivery.now.stopped.limitBody": "⟦Ïŧ ŧŕïëð {count, plural, one {# time} other {# times}}{findings, plural, =0 {.} one { and # blocking finding remains.} other { and # blocking findings remain.}} Ŧĥïš ŵôŕķƒļôŵ àļļôŵš ûþ ŧô {max} ŧŕïëš, šô ïŧ çàñ ŧŕÿ {room} ɱôŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

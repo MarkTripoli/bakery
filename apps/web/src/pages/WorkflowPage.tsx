@@ -49,12 +49,18 @@ import {
 } from "./library/workflow-state.ts";
 import { stepsOfTree, treeOf } from "./library/workflow-tree.ts";
 import { WorkflowDiagram } from "./library/WorkflowDiagram.tsx";
+import { DraftKeptNotice } from "./library/DraftKeptNotice.tsx";
+import { leftoverDraftOf, rewriteDraft } from "./library/leftover-draft.ts";
 import { startCardOf } from "./library/start-card.ts";
 import { startsOfVersion } from "./library/start-list.ts";
 import { DiagramViewSwitch, useDiagramView } from "./library/diagram-view.tsx";
 
 /** How many versions the Versions card lists before "Show all". */
 const CARD_VERSIONS = 5;
+type Replaced = Readonly<{
+  used: WorkflowVersionResponse;
+  wasInUse: WorkflowVersionResponse;
+}>;
 // A read-only diagram reports nothing: the problems in it belong to a draft.
 const EMPTY_PROBLEMS: ReadonlyMap<string, string> = new Map();
 
@@ -147,10 +153,37 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
         idempotencyKey: crypto.randomUUID(),
       });
       if (!result.ok) throw result.error;
+      const used = all.find((version) => version.id === versionId);
+      const wasInUse = all.find((version) =>
+        version.id === current.activeVersionId
+      );
+      if (used !== undefined && wasInUse !== undefined) {
+        await rewriteLeftover({ used, wasInUse });
+      }
       return result.data;
     },
     onSettled: refresh,
   });
+  const [draftKept, setDraftKept] = useState<Replaced | null>(null);
+  const [rewriting, setRewriting] = useState(false);
+  const rewriteLeftover = async (replaced: Replaced) => {
+    const leftover = leftoverDraftOf(all, replaced.wasInUse);
+    if (leftover === undefined) {
+      setDraftKept(null);
+      return;
+    }
+    setRewriting(true);
+    const written = await rewriteDraft(
+      api,
+      organizationId,
+      workflowId,
+      leftover,
+      replaced.used,
+    );
+    setDraftKept(written ? null : replaced);
+    setRewriting(false);
+    refresh();
+  };
   const update = useMutation({
     mutationKey: ["workflows.update"],
     mutationFn: async (
@@ -726,9 +759,13 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
               </UI.InlineNotice>
             )
             : null}
-          {
-            /* With the page's other notices, at the top: a page this long scrolls a note at its end out of sight. */
-          }
+          {draftKept === null ? null : (
+            <DraftKeptNotice
+              onRetry={() => void rewriteLeftover(draftKept)}
+              pending={rewriting}
+              version={draftKept.used.revision}
+            />
+          )}
           {exported === null
             ? null
             : (
