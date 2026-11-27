@@ -327,7 +327,9 @@ async function recordSignedEventSource(
     signingSecretId,
   });
   return {
-    signedEvents: recorded.ok ? "recorded" : recorded.reason,
+    signedEvents: recorded.ok
+      ? (recorded.reclaimed ? "reclaimed" : "recorded")
+      : recorded.reason,
     signingSecretSaved: signingSecretId !== null,
   };
 }
