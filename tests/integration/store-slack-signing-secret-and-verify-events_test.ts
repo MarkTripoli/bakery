@@ -9,6 +9,7 @@ import {
   open,
   outcome,
   slackCallback,
+  startAttempt,
   TEAM_ID,
 } from "../helpers/slack-connect.ts";
 import { openInstallationSecret } from "../../apps/server/src/modules/secrets/installation-secrets.ts";
@@ -337,43 +338,112 @@ Deno.test("connecting Slack records the installation with the saved signing secr
   }
 });
 
-Deno.test("a workspace another organization already holds still connects, and the claim is recorded instead", async () => {
+async function secondOrganization(o: Opened) {
+  const organizationId = crypto.randomUUID();
+  const pg = o.fixture.pgDatabase;
+  await pg.query(
+    `insert into bakery.organizations (id, name, slug, metadata, created_at,
+       updated_at, version)
+     values ($1, 'Second', $2, '{}'::jsonb, now(), now(), 1)`,
+    [organizationId, `second-${organizationId}`],
+  );
+  await pg.query(
+    `insert into bakery.organization_memberships
+       (id, organization_id, principal_id, role, status, joined_at,
+        created_at, updated_at, version)
+     values ($1, $2, $3, 'admin', 'active', now(), now(), now(), 1)`,
+    [crypto.randomUUID(), organizationId, o.fixture.adminId],
+  );
+  return {
+    organizationId,
+    connect: () =>
+      connectOnce({ ...o, fixture: { ...o.fixture, organizationId } }),
+    attempt: async () => {
+      const fixture = { ...o.fixture, organizationId };
+      const started = await startAttempt(fixture);
+      return outcome(
+        await slackCallback(fixture, {
+          code: "slack-code-first",
+          state: started.url.searchParams.get("state")!,
+        }),
+      );
+    },
+    drop: async () => {
+      for (
+        const table of [
+          "audit_events",
+          "integration_resources",
+          "integration_connections",
+          "integration_installations",
+          "integration_auth_attempts",
+          "slack_installations",
+          "organization_memberships",
+        ]
+      ) {
+        await pg.query(
+          `delete from bakery.${table} where organization_id = $1`,
+          [organizationId],
+        ).catch(() => undefined);
+      }
+      await pg.query("delete from bakery.organizations where id = $1", [
+        organizationId,
+      ]).catch(() => undefined);
+    },
+  };
+}
+
+async function signedEventsAudit(o: Opened, connectionId: string) {
+  const audit = await o.fixture.pgDatabase.query<{ details: string }>(
+    `select details::text from bakery.audit_events
+      where operation = 'integrationAuth.providerCallback'
+        and resource_id = $1`,
+    [connectionId],
+  );
+  return JSON.parse(audit.rows[0]!.details).signedEvents;
+}
+
+Deno.test("a workspace another organization holds and has only turned off stays theirs", async () => {
   const o = await open(fakeSlack(), { signingSecret: SIGNING_SECRET });
-  const otherId = crypto.randomUUID();
+  const second = await secondOrganization(o);
   try {
-    await o.fixture.pgDatabase.query(
-      `insert into bakery.organizations (id, name, slug, metadata, created_at,
-         updated_at, version)
-       values ($1, 'Other', $2, '{}'::jsonb, now(), now(), 1)`,
-      [otherId, `other-${otherId}`],
-    );
-    await o.fixture.pgDatabase.query(
-      `insert into bakery.slack_installations (
-         id, organization_id, app_id, team_id, bot_user_id, status)
-       values ($1, $2, $3, $4, 'U0OTHERBOT', 'active')`,
-      [crypto.randomUUID(), otherId, APP_ID, TEAM_ID],
-    );
-    const connectionId = await connectOnce(o);
+    const firstId = await connectOnce(o);
+    await changeConnection(o, firstId, "off");
+    assertNotEquals(await second.attempt(), "connected");
     const rows = await installations(o);
     assertEquals(rows.length, 1);
-    assertEquals(rows[0]!.organization_id, otherId);
-    assertEquals(rows[0]!.signing_secret_id, null);
-    const audit = await o.fixture.pgDatabase.query<{ details: string }>(
-      `select details::text from bakery.audit_events
-        where operation = 'integrationAuth.providerCallback'
-          and resource_id = $1`,
-      [connectionId],
-    );
-    assertEquals(
-      JSON.parse(audit.rows[0]!.details).signedEvents,
-      "claimed_elsewhere",
-    );
+    assertEquals(rows[0]!.organization_id, o.fixture.organizationId);
+    assertEquals(rows[0]!.status, "disabled");
   } finally {
+    await second.drop();
     await o.finish();
-    await o.fixture.pgDatabase.query(
-      "delete from bakery.organizations where id = $1",
-      [otherId],
-    ).catch(() => undefined);
+  }
+});
+
+Deno.test("a workspace its holder removed is claimed by the next organization that connects it, and its events verify", async () => {
+  const o = await open(fakeSlack(), { signingSecret: SIGNING_SECRET });
+  const second = await secondOrganization(o);
+  try {
+    const firstId = await connectOnce(o);
+    await changeConnection(o, firstId, "remove");
+    assertEquals((await postEvent(o, SIGNING_SECRET)).status, 401);
+    const secondId = await second.connect();
+    const rows = await installations(o);
+    assertEquals(
+      rows.map((row) => [row.organization_id, row.status]).sort(),
+      [
+        [o.fixture.organizationId, "disabled"],
+        [second.organizationId, "active"],
+      ].sort(),
+    );
+    assertNotEquals(
+      rows.find((row) => row.status === "active")!.signing_secret_id,
+      null,
+    );
+    assertEquals(await signedEventsAudit(o, secondId), "reclaimed");
+    assertEquals((await postEvent(o, SIGNING_SECRET)).status, 200);
+  } finally {
+    await second.drop();
+    await o.finish();
   }
 });
 
