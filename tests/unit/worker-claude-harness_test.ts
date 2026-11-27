@@ -1317,6 +1317,7 @@ Deno.test({
           inputSchema: { type: "object" },
           readOnly: false,
         })),
+        builtinTools: [],
         mcpConfig: () => ({}),
         close: () => {
           closed.push(assignment.attemptId);

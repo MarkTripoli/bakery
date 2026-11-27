@@ -7,6 +7,12 @@ import {
   StdioMcpError,
   type StdioMcpServer,
 } from "./stdio-mcp.ts";
+import {
+  BAKERY_FILES_TOOL_NAMES,
+  bakeryFilesTools,
+  type BuiltinGatewayTool,
+} from "./files-gateway-tools.ts";
+import { createSessionApi } from "../../../packages/cli/src/session-call.ts";
 
 /**
  * The worker-local tool gateway (#436, docs/technical-design/25-one-engine.md
@@ -44,6 +50,9 @@ export type GatewayTool = z.infer<typeof GatewayToolSchema>;
 /** What the gateway needs from the worker's server client. */
 export type ToolGatewayBackend = Readonly<{
   listTools(signal?: AbortSignal): Promise<readonly GatewayTool[]>;
+  listBuiltinTools?(
+    signal?: AbortSignal,
+  ): Promise<readonly BuiltinGatewayTool[]>;
   invokeTool(
     input: Readonly<{
       tool: GatewayTool;
@@ -60,6 +69,7 @@ export type ToolGatewaySession = Readonly<{
   /** The bearer the session presents; random per session. */
   token: string;
   tools: readonly GatewayTool[];
+  builtinTools: readonly BuiltinGatewayTool[];
   /** An MCP client configuration naming only this gateway. */
   mcpConfig(): Record<string, unknown>;
   close(): Promise<void>;
@@ -72,20 +82,18 @@ type JsonRpcRequest = {
   params?: unknown;
 };
 
-function readBody(request: IncomingMessage): Promise<string> {
+function readBody(request: IncomingMessage): Promise<string | null> {
   return new Promise((resolve, reject) => {
     const chunks: Uint8Array[] = [];
     let size = 0;
     request.on("data", (chunk: Uint8Array) => {
       size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
-        reject(new Error("TOOL_GATEWAY_BODY_TOO_LARGE"));
-        request.destroy();
-        return;
-      }
-      chunks.push(chunk);
+      if (size <= MAX_BODY_BYTES) chunks.push(chunk);
     });
-    request.on("end", () => resolve(new TextDecoder().decode(concat(chunks))));
+    request.on("end", () =>
+      resolve(
+        size > MAX_BODY_BYTES ? null : new TextDecoder().decode(concat(chunks)),
+      ));
     request.on("error", reject);
   });
 }
@@ -112,6 +120,7 @@ export async function answerGatewayMessage(
   tools: readonly GatewayTool[],
   backend: ToolGatewayBackend,
   signal?: AbortSignal,
+  builtins: readonly BuiltinGatewayTool[] = [],
 ): Promise<Record<string, unknown> | null> {
   const id = message.id;
   if (id === undefined || id === null) return null;
@@ -132,12 +141,20 @@ export async function answerGatewayMessage(
       return reply({});
     case "tools/list":
       return reply({
-        tools: tools.map((tool) => ({
-          name: tool.name,
-          description: tool.description,
-          inputSchema: tool.inputSchema ?? { type: "object" },
-          annotations: { readOnlyHint: tool.readOnly },
-        })),
+        tools: [
+          ...tools.map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema ?? { type: "object" },
+            annotations: { readOnlyHint: tool.readOnly },
+          })),
+          ...builtins.map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema,
+            annotations: { readOnlyHint: tool.readOnly },
+          })),
+        ],
       });
     case "tools/call": {
       const params = (message.params ?? {}) as {
@@ -145,11 +162,18 @@ export async function answerGatewayMessage(
         arguments?: unknown;
       };
       const tool = tools.find((candidate) => candidate.name === params.name);
-      // Only listed tools; the server refuses anything else again anyway.
-      if (tool === undefined) return error(-32602, "Unknown tool.");
+      const builtin = builtins.find((candidate) =>
+        candidate.name === params.name
+      );
+      if (tool === undefined && builtin === undefined) {
+        return error(-32602, "Unknown tool.");
+      }
       const args = params.arguments ?? {};
       if (args === null || typeof args !== "object" || Array.isArray(args)) {
         return error(-32602, "Tool arguments must be an object.");
+      }
+      if (tool === undefined) {
+        return reply(await builtin!.call(args as Record<string, unknown>));
       }
       try {
         const result = await backend.invokeTool({
@@ -182,7 +206,10 @@ export async function startToolGateway(
   backend: ToolGatewayBackend,
   signal?: AbortSignal,
 ): Promise<ToolGatewaySession> {
-  const tools = await backend.listTools(signal);
+  const builtinTools = await backend.listBuiltinTools?.(signal) ?? [];
+  const tools = (await backend.listTools(signal)).filter((tool) =>
+    !BAKERY_FILES_TOOL_NAMES.has(tool.name)
+  );
   const token = randomBytes(32).toString("base64url");
   const server: Server = createServer((request, response) => {
     const send = (status: number, body?: unknown) => {
@@ -201,6 +228,17 @@ export async function startToolGateway(
       return;
     }
     readBody(request).then(async (text) => {
+      if (text === null) {
+        send(413, {
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32600,
+            message: `Request larger than ${MAX_BODY_BYTES} bytes.`,
+          },
+        });
+        return;
+      }
       let message: JsonRpcRequest;
       try {
         message = JSON.parse(text) as JsonRpcRequest;
@@ -217,6 +255,7 @@ export async function startToolGateway(
         tools,
         backend,
         signal,
+        builtinTools,
       );
       if (answer === null) send(202);
       else send(200, answer);
@@ -245,6 +284,7 @@ export async function startToolGateway(
     url,
     token,
     tools,
+    builtinTools,
     mcpConfig: () => ({
       mcpServers: {
         [TOOL_GATEWAY_SERVER_NAME]: {
@@ -258,6 +298,13 @@ export async function startToolGateway(
   });
 }
 
+export function gatewayOffersTools(
+  gateway: ToolGatewaySession | null,
+): gateway is ToolGatewaySession {
+  return gateway !== null &&
+    gateway.tools.length + gateway.builtinTools.length > 0;
+}
+
 /** The worker session holding the attempt, read when a gateway opens. */
 export type ToolGatewayAuthority = () => Promise<
   { workerSessionId: string; workerSessionGeneration: string } | null
@@ -266,7 +313,12 @@ export type ToolGatewayAuthority = () => Promise<
 /** Opens the gateway of one assignment's agent session. */
 export type ToolGatewayFactory = (
   assignment: Readonly<
-    { attemptId: string; leaseToken: string; fence: string }
+    {
+      attemptId: string;
+      leaseToken: string;
+      fence: string;
+      sessionCredential?: string;
+    }
   >,
   signal?: AbortSignal,
 ) => Promise<ToolGatewaySession>;
@@ -339,6 +391,8 @@ type GatewayClient = Readonly<{
 export type LocalToolOptions = Readonly<{
   stdioAllowlist: readonly string[];
   launch?: typeof launchStdioMcpServer;
+  sessionServerUrl?: string;
+  sessionFetcher?: typeof fetch;
 }>;
 
 function requestReachedServer(error: unknown): boolean {
@@ -460,7 +514,27 @@ export function createToolGatewayFactory(
       );
       return result;
     };
+    const credential = assignment.sessionCredential;
+    const sessionCaller =
+      credential === undefined || credential.trim() === "" ||
+        local.sessionServerUrl === undefined
+        ? null
+        : createSessionApi(
+          { baseUrl: local.sessionServerUrl, sessionToken: credential },
+          local.sessionFetcher,
+        );
     const gateway = await startToolGateway({
+      listBuiltinTools: async () =>
+        sessionCaller === null
+          ? []
+          : await bakeryFilesTools(sessionCaller).catch((error) => {
+            console.warn(JSON.stringify({
+              event: "tool_gateway.files_tools_unavailable",
+              attemptId: assignment.attemptId,
+              reason: error instanceof Error ? error.message : "unknown",
+            }));
+            return [];
+          }),
       listTools: async (listSignal) =>
         (await client.effectiveTools(assignment.attemptId, proof, listSignal))
           .value.tools,

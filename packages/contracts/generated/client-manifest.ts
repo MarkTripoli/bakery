@@ -118056,6 +118056,12 @@ export const clientManifest = {
                 "type": "boolean",
                 "description": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders."
               },
+              "version": {
+                "description": "The entry's optimistic concurrency version; send it as If-Match (bakery_files_write's version) to replace, move, delete or restore it.",
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
               "updatedAt": {
                 "type": "string",
                 "format": "date-time",
@@ -118597,6 +118603,12 @@ export const clientManifest = {
             "contentRemoved": {
               "type": "boolean",
               "description": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders."
+            },
+            "version": {
+              "description": "The entry's optimistic concurrency version; send it as If-Match (bakery_files_write's version) to replace, move, delete or restore it.",
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
             },
             "updatedAt": {
               "type": "string",

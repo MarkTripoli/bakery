@@ -243,6 +243,7 @@ type ListedRow = EntryRow & {
   media_type: string | null;
   content_removed: boolean;
   pinned: boolean;
+  version: string;
 };
 
 /**
@@ -255,7 +256,7 @@ const LISTED_SELECT = "select " + ENTRY_COLUMNS + "," +
   " coalesce(wv.size_bytes, av.size_bytes)::text as size_bytes," +
   " coalesce(wv.media_type, av.media_type) as media_type," +
   " (e.purged_at is not null or av.purged_at is not null) as content_removed," +
-  " (a.pinned_at is not null) as pinned" +
+  " (a.pinned_at is not null) as pinned, e.version::text as version" +
   " from bakery.storage_entries e" +
   " left join bakery.storage_file_versions wv" +
   " on wv.organization_id = e.organization_id and wv.id = e.current_version_id" +
@@ -284,6 +285,7 @@ function listed(row: ListedRow, path: string) {
     artifactId: row.artifact_id,
     pinned: row.kind === "file" && row.pinned,
     contentRemoved: row.kind === "file" && row.content_removed,
+    version: Number(row.version),
     updatedAt: iso(row.updated_at),
   };
 }
