@@ -1,3 +1,9 @@
+import {
+  listingDigest,
+  recordStepRead,
+  stepReaderOf,
+  stepReadSetRow,
+} from "./step-read-set.ts";
 import type { z } from "zod";
 import type { ActionContext } from "@bakery/contracts/action-registry";
 import { contractSchemas } from "@bakery/contracts/contracts";
@@ -735,6 +741,22 @@ export function createFileSearchHandler(
     const treeIds = visible.filter((row) => row.source === "files").map((row) =>
       row.sort_id
     );
+    const stepReader = await stepReaderOf(transaction, context, organizationId);
+    for (const row of visible) {
+      if (row.source !== "files") continue;
+      const readRow = stepReadSetRow(stepReader, {
+        organizationId,
+        entryId: row.sort_id,
+        served: { kind: "listing" },
+        sha256: await listingDigest([{
+          id: row.sort_id,
+          kind: "file",
+          versionId: row.version_id,
+        }]),
+        pinned: false,
+      });
+      if (readRow !== null) await recordStepRead(transaction, readRow);
+    }
     const paths = new Map<string, string>();
     if (treeIds.length > 0) {
       const found = await transaction.query<{ leaf: string; path: string }>(
