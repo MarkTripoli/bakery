@@ -994,6 +994,7 @@ export type SlackEphemeralNote = Readonly<{
   channelId: string;
   userId: string;
   text: string;
+  blocks?: readonly SlackBlock[];
   idempotencyKey: string;
 }>;
 
@@ -1040,6 +1041,7 @@ export async function sendRequestSlackEphemeral(
       channelId: note.channelId,
       userId: note.userId,
       text: note.text,
+      ...(note.blocks === undefined ? {} : { blocks: note.blocks }),
     },
     note.idempotencyKey,
   );
