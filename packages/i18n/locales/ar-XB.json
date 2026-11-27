@@ -7385,10 +7385,7 @@
   "library.workflow.action.humanApproval": "⟪Ask a person⟫",
   "library.workflow.actionLine.humanApproval": "⟪The run waits until someone approves.⟫",
   "library.editor.publish.failed": "⟪Publishing did not work, so nothing changed. Check the problems and try again.⟫",
-  "library.editor.leave.title": "⟪Leave the editor?⟫",
-  "library.editor.leave.body": "⟪Your last change may be lost.⟫",
   "library.editor.leave.stay": "⟪Stay⟫",
-  "library.editor.leave.confirm": "⟪Leave anyway⟫",
   "library.editor.publish.blocked": "⟪Fix these first. The workflow cannot be published until you do.⟫",
   "library.editor.ask.panelLine": "⟪This step stops the run and asks a person. The run continues when they answer.⟫",
   "library.editor.ask.who": "⟪Who is asked⟫",
@@ -7873,5 +7870,10 @@
   "integrations.slack.can.scopeLine": "⟪{ability}: {scopes}⟫",
   "integrations.slack.banner.accessRefused": "⟪Slack no longer accepts Bakery's access. Nothing is posted, and approvals and messages from Slack do not work. Reconnect to continue.⟫",
   "integrations.slack.banner.limited": "⟪Slack did not grant everything Bakery asks for, so part of this does not work. See “What Bakery can do” below, then reconnect and approve it.⟫",
-  "integrations.slack.banner.removed": "⟪Bakery is no longer connected to this Slack workspace. Nothing is posted, and approvals and messages from Slack do not work. People's links are kept and work again when you connect again.⟫"
+  "integrations.slack.banner.removed": "⟪Bakery is no longer connected to this Slack workspace. Nothing is posted, and approvals and messages from Slack do not work. People's links are kept and work again when you connect again.⟫",
+  "library.editor.panel.firstAlready": "⟪This is already the first step.⟫",
+  "library.editor.panel.lastAlready": "⟪This is already the last step.⟫",
+  "library.editor.leave.title": "⟪Leave before your changes are saved?⟫",
+  "library.editor.leave.body": "⟪Your latest changes are not saved yet. If you leave, they are lost.⟫",
+  "library.editor.leave.confirm": "⟪Leave⟫"
 }

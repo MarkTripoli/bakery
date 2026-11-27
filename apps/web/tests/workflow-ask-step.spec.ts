@@ -360,7 +360,9 @@ test.describe("workflow editor: Ask a person", () => {
     await prompt(page).fill("Ship it on Friday?");
     await page.evaluate(() => history.back());
     const leave = page.getByRole("alertdialog");
-    await expect(leave).toContainText("Your last change may be lost.");
+    await expect(leave).toContainText(
+      "Your latest changes are not saved yet.",
+    );
     await still(page, "ask-step-leave");
     await leave.getByRole("button", { name: "Stay" }).click();
     await expect(prompt(page)).toHaveValue("Ship it on Friday?");

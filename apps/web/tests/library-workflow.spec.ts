@@ -979,7 +979,7 @@ for (
       await expect(picker).toBeVisible();
       // The picker says what each step does, and its search narrows the list:
       // a bare list of names told a person nothing (#67 UX ruling 6934081003).
-      await expect(picker.locator("[data-pick-step]")).toHaveCount(10);
+      await expect(picker.locator("[data-pick-step]")).toHaveCount(11);
       await expect(
         picker.locator("[data-pick-step='review.independent']"),
       ).toContainText(
@@ -1104,6 +1104,48 @@ for (
         .toBeGreaterThan(0);
       expect(seen.draftSaves[0].ifMatch).not.toBeNull();
       await expect(saveStatus(page)).toContainText("Saved");
+    });
+
+    test("Escape closes the panel and returns focus to the block, and Move says why it cannot", async ({ page }) => {
+      await openEditor(page);
+      await page.getByRole("button", { name: /Add a step after/ }).last()
+        .click();
+      await page
+        .getByTestId("step-picker")
+        .locator("[data-pick-step='review.independent']")
+        .click();
+      const block = page.locator("[data-card]").filter({ hasText: "Review" })
+        .getByRole("button").first();
+      await block.click();
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      const up = panel.getByRole("button", { name: "Move up" });
+      const down = panel.getByRole("button", { name: "Move down" });
+      await expect(down).toBeDisabled();
+      await down.focus();
+      await expect(panel.getByText("This is already the last step."))
+        .toBeVisible();
+      await up.focus();
+      await expect(panel.getByText("This is already the last step."))
+        .toBeHidden();
+      await up.press("Enter");
+      await expect(up).toBeDisabled();
+      await expect(up).toBeFocused();
+      await expect(panel.getByText("This is already the first step."))
+        .toBeVisible();
+      const tip = (await panel.getByText("This is already the first step.")
+        .boundingBox())!;
+      expect(tip.x).toBeGreaterThanOrEqual(0);
+      expect(tip.x + tip.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+      await shot(page, "workflow-editor-move-blocked");
+      await page.keyboard.press("Escape");
+      await expect(panel.getByText("This is already the first step."))
+        .toBeHidden();
+      await expect(panel).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(panel).toHaveCount(0);
+      await expect(block).toBeFocused();
     });
 
     test("publish offers both forms when the draft differs from the version in use", async ({ page }) => {
@@ -2967,7 +3009,8 @@ for (
       await skills.getByRole("button", { name: "Remove Code style" }).click();
       await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
         .toBe(2);
-      await expect(page.getByText("Not saved")).toHaveCount(0);
+      await expect(page.getByText("Not saved", { exact: true }))
+        .toHaveCount(0);
       // The second save carries what the first returned (version 2), not what was read before it.
       expect(seen.draftSaves[1].ifMatch).toBe('"v2"');
       expect(savedSkills(seen).skills ?? []).toEqual([]);
@@ -3334,7 +3377,9 @@ for (
       await most.fill("5");
       await page.evaluate(() => history.back());
       const leave = page.getByRole("alertdialog");
-      await expect(leave).toContainText("Leave the editor?");
+      await expect(leave).toContainText(
+        "Leave before your changes are saved?",
+      );
       expect(seen.draftSaves).toHaveLength(0);
       await leave.getByRole("button", { name: "Stay" }).click();
       await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
