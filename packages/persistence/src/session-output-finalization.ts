@@ -196,7 +196,8 @@ async function loadScope(
   producer: OutputProducer,
 ): Promise<Scope & { authorId: string }> {
   const result = await transaction.query<Scope & { authorId: string }>(
-    `select job.application_id as "applicationId", job.repository_id as "repositoryId",
+    `select coalesce(job.application_id, task.application_id) as "applicationId",
+            job.repository_id as "repositoryId",
             run.task_id as "taskId", task.conversation_id as "conversationId",
             job.run_step_id as "runStepId", job.id as "jobId",
             host.principal_id as "authorId"
@@ -210,7 +211,9 @@ async function loadScope(
        join bakery.worker_hosts host
          on host.organization_id = $1 and host.id = $2
       where job.organization_id = $1 and job.id = $3
-        and task.application_id = job.application_id
+        and coalesce(job.application_id, task.application_id) is not null
+        and (job.application_id is null
+          or task.application_id = job.application_id)
         and task.repository_id is not distinct from job.repository_id`,
     [producer.organizationId, producer.workerHostId, producer.jobId],
   );

@@ -175,7 +175,8 @@ async function assertLiveStoredGrantIntegrity(
     author_id: string;
     scope_digest: string;
   }>(
-    `select job.application_id,job.repository_id,run.task_id,task.conversation_id,
+    `select coalesce(job.application_id, task.application_id) as application_id,
+            job.repository_id,run.task_id,task.conversation_id,
             job.run_step_id,job.id as job_id,attempt.id as attempt_id,
             attempt.worker_host_id,host.principal_id as author_id,stream.scope_digest
        from bakery.jobs job

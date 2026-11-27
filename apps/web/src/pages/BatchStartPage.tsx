@@ -657,27 +657,15 @@ export function BatchStartPage() {
                 : translate(shown.presetId as never)}
             />
             {setupReasons.length === 0 ? null : (
-              <div
+              <UI.TaskSetupNotice
+                heading={setupLabels.setupHeading}
                 id="batch-workflow-setup"
-                tabIndex={-1}
-                data-testid="batch-workflow-setup"
-              >
-                <UI.InlineNotice tone="warning">
-                  <UI.Stack gap="tight">
-                    <UI.Text variant="strong">
-                      {setupLabels.setupHeading}
-                    </UI.Text>
-                    <ul>
-                      {setupReasons.map((reason) => (
-                        <li data-reason={reason} key={reason}>
-                          {setupLabels.setupRequired[reason] ??
-                            setupLabels.setupUnknown}
-                        </li>
-                      ))}
-                    </ul>
-                  </UI.Stack>
-                </UI.InlineNotice>
-              </div>
+                reasons={setupReasons.map((reason) => ({
+                  id: reason,
+                  content: setupLabels.setupRequired[reason] ??
+                    setupLabels.setupUnknown,
+                }))}
+              />
             )}
             <UI.Text variant="hint">{workflowHint}</UI.Text>
           </UI.Stack>
