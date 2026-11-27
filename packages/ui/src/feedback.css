@@ -850,11 +850,11 @@
 }
 
 .ui-toast[data-placement="floating"] {
-  inline-size: max-content;
+  inline-size: fit-content;
   inset-block-end: calc(var(--space-4) + env(safe-area-inset-bottom));
   inset-inline: var(--space-4);
   margin-inline: auto;
-  max-inline-size: min(40rem, calc(100vw - var(--space-8)));
+  max-inline-size: 64ch;
   position: fixed;
   z-index: var(--layer-tooltip);
 }
