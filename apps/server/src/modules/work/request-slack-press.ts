@@ -14,7 +14,6 @@ import { effectivePermissions } from "../auth/application/authorize.ts";
 import { decideApproval } from "../conversation/approvals.ts";
 import { findSlackIdentityLink } from "../integrations/slack-identity-links.ts";
 import { internalContext } from "../workflows/automations/start.ts";
-import { EMAIL_LINK_ORGANIZATION_PARAM } from "./request-email.ts";
 import {
   REQUEST_SLACK_APPROVE_ACTION,
   REQUEST_SLACK_REJECT_ACTION,
@@ -22,7 +21,6 @@ import {
   rewriteClosedRequestSlackMessages,
   sendRequestSlackEphemeral,
   type SlackBlock,
-  slackLinkButton,
 } from "./request-slack.ts";
 
 export const SLACK_PRESS_NOT_LINKED =
@@ -31,10 +29,6 @@ export const SLACK_PRESS_NO_PERMISSION =
   "Nothing was decided. You do not have permission to approve or reject this work.";
 export const SLACK_PRESS_NOT_RECORDED =
   "Your decision was not recorded. Try again.";
-export const SLACK_LINK_ACCOUNT_LABEL = "Link your account";
-export const SLACK_LINK_ACCOUNT_PATH = "/settings/profile";
-const LINK_ACCOUNT_ACTION = "link_account";
-const LINK_ACCOUNT_BLOCK = "link";
 const DECIDE_PERMISSION = "approval:decide";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -298,23 +292,12 @@ export function slackAlreadyDecided(name: string): string {
   return `Nothing changed. ${escapeSlack(name)} already decided this.`;
 }
 
-export function slackLinkAccountUrl(
-  publicBaseUrl: string,
-  organizationId: string,
-): string {
-  const address = new URL(SLACK_LINK_ACCOUNT_PATH, publicBaseUrl);
-  address.searchParams.set(EMAIL_LINK_ORGANIZATION_PARAM, organizationId);
-  return address.toString();
-}
-
 export type SlackPressReply = Readonly<{
   text: string;
   blocks?: readonly SlackBlock[];
 }>;
 
 export function slackPressReply(
-  publicBaseUrl: string,
-  organizationId: string,
   outcome: SlackPressOutcome,
 ): SlackPressReply | null {
   switch (outcome.kind) {
@@ -328,26 +311,7 @@ export function slackPressReply(
     case "not_recorded":
       return { text: SLACK_PRESS_NOT_RECORDED };
     case "not_linked":
-      return {
-        text: SLACK_PRESS_NOT_LINKED,
-        blocks: [
-          {
-            type: "section",
-            text: { type: "mrkdwn", text: SLACK_PRESS_NOT_LINKED },
-          },
-          {
-            type: "actions",
-            block_id: LINK_ACCOUNT_BLOCK,
-            elements: [
-              slackLinkButton(
-                LINK_ACCOUNT_ACTION,
-                SLACK_LINK_ACCOUNT_LABEL,
-                slackLinkAccountUrl(publicBaseUrl, organizationId),
-              ),
-            ],
-          },
-        ],
-      };
+      return { text: SLACK_PRESS_NOT_LINKED };
   }
 }
 
@@ -363,7 +327,7 @@ export async function answerSlackPress(
       targetId: outcome.approvalId,
     });
   }
-  const reply = slackPressReply(options.publicBaseUrl, organizationId, outcome);
+  const reply = slackPressReply(outcome);
   if (reply === null) return;
   await sendRequestSlackEphemeral(options, {
     organizationId,

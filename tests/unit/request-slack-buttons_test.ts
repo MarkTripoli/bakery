@@ -7,7 +7,6 @@ import {
 import {
   readSlackInteractionPayload,
   readSlackPress,
-  SLACK_PRESS_NOT_LINKED,
   slackPressReply,
 } from "../../apps/server/src/modules/work/request-slack-press.ts";
 
@@ -159,17 +158,16 @@ Deno.test("link presses, other payload types and broken bodies are ignored", () 
 });
 
 Deno.test("each refusal has its exact reply", () => {
-  const org = "0a0b0c0d-0e0f-4011-8213-141516171819";
+  assertEquals(slackPressReply({ kind: "not_linked" }), {
+    text:
+      "Nothing was decided. Your Slack account is not linked to a Bakery account, so Bakery cannot tell who is deciding. Link your account, then press the button again.",
+  });
   assertEquals(
-    slackPressReply(BASE_URL, org, { kind: "not_linked" })?.text,
-    SLACK_PRESS_NOT_LINKED,
-  );
-  assertEquals(
-    slackPressReply(BASE_URL, org, { kind: "no_permission" })?.text,
+    slackPressReply({ kind: "no_permission" })?.text,
     "Nothing was decided. You do not have permission to approve or reject this work.",
   );
   assertEquals(
-    slackPressReply(BASE_URL, org, {
+    slackPressReply({
       kind: "already_decided",
       approvalId: REQUEST_ID,
       name: "Ada <x>",
@@ -177,11 +175,11 @@ Deno.test("each refusal has its exact reply", () => {
     "Nothing changed. Ada &lt;x&gt; already decided this.",
   );
   assertEquals(
-    slackPressReply(BASE_URL, org, { kind: "not_recorded" })?.text,
+    slackPressReply({ kind: "not_recorded" })?.text,
     "Your decision was not recorded. Try again.",
   );
   assertEquals(
-    slackPressReply(BASE_URL, org, { kind: "decided", approvalId: REQUEST_ID }),
+    slackPressReply({ kind: "decided", approvalId: REQUEST_ID }),
     null,
   );
 });

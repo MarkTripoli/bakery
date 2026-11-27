@@ -345,6 +345,9 @@ async function worldIn(o: Awaited<ReturnType<typeof open>>) {
             );
           }
         }
+        await pg.query("delete from bakery.organizations where id = $1", [
+          otherOrganizationId,
+        ]);
         await cleanupAuthFixture(pg, extraEmails);
       } finally {
         await o.finish();
@@ -378,7 +381,7 @@ Deno.test("a press with a missing, wrong or old signature is refused and decides
   }
 });
 
-Deno.test("an unlinked Slack user gets the not-linked note with a link button and nothing is decided", async () => {
+Deno.test("an unlinked Slack user gets the not-linked note and nothing is decided", async () => {
   const w = await world();
   try {
     const asked = await w.ask();
@@ -390,23 +393,13 @@ Deno.test("an unlinked Slack user gets the not-linked note with a link button an
     assertEquals(response.status, 200);
     assertEquals((await w.approval(asked.approvalId)).status, "open");
     const [note] = w.sentTo("/api/chat.postEphemeral");
-    const body = note!.body as Ephemeral & {
-      blocks: {
-        type: string;
-        elements?: { text: { text: string }; url: string }[];
-      }[];
-    };
+    const body = note!.body as Ephemeral & { blocks?: unknown };
     assertEquals([body.channel, body.user, body.text], [
       DM,
       STRANGER,
       SLACK_PRESS_NOT_LINKED,
     ]);
-    const button = body.blocks[1]!.elements![0]!;
-    assertEquals(button.text.text, "Link your account");
-    assertEquals(
-      button.url,
-      `${BASE_URL}/settings/profile?organization=${w.f.organizationId}`,
-    );
+    assertEquals(body.blocks, undefined);
   } finally {
     await w.finish();
   }
