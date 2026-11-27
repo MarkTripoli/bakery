@@ -12126,6 +12126,62 @@ const transportSchemas = {
       ],
       "description": "Registers one task-owned pull request from its Bakery repository identity and provider number; the server derives organization, installation, URL, commits, lifecycle and source evidence from live trusted state."
     },
+    "PullRequestOpen": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "Bakery repository to open the pull request in; it must be bound to the task and its enabled selected integration resource."
+        },
+        {
+          "name": "headBranch",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 250
+          },
+          "description": "Branch that holds the changes, already pushed to the repository; any name git accepts. A pull request already open from it into the base is registered instead of a second one."
+        },
+        {
+          "name": "baseBranch",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 250
+          },
+          "description": "Branch the changes should merge into; omitted, the repository's default branch."
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "description": "Pull request title GitHub shows; at most 256 characters, and not only spaces."
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 65536
+          },
+          "description": "Pull request description in Markdown; omitted, empty."
+        },
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Workflow run of this task and repository that is opening the pull request; omit only when no workflow run opens it."
+        }
+      ],
+      "description": "Opens one task-owned pull request on the provider from a pushed branch and registers it, as pullRequests.register would; the server derives organization, installation, URL and commits from live trusted state."
+    },
     "PullRequestMerge": {
       "fields": [
         {

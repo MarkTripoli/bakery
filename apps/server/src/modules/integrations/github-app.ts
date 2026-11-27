@@ -702,6 +702,49 @@ export type GitHubMergeOutcome =
   | { kind: "refused"; status: number }
   | { kind: "unknown" };
 
+export type GitHubOpenOutcome =
+  | { kind: "opened"; number: number }
+  | { kind: "refused"; status: number }
+  | { kind: "unknown" };
+
+const GitHubOpenedPullRequestSchema = z.object({
+  number: z.number().int().positive().describe(
+    "Number GitHub assigned to the pull request it opened.",
+  ),
+}).describe("The part of POST /repos/{owner}/{repo}/pulls Bakery reads.");
+
+const GitHubOpenPullRequestListSchema = z.array(
+  GitHubOpenedPullRequestSchema,
+).max(1).describe(
+  "At most one open pull request of GET /repos/{owner}/{repo}/pulls for one head and base.",
+);
+
+const GIT_REF_FORBIDDEN = new Set(["~", "^", ":", "?", "*", "[", "\\"]);
+
+function hasForbiddenRefCharacter(name: string): boolean {
+  for (const character of name) {
+    const code = character.codePointAt(0)!;
+    if (code <= 0x20 || code === 0x7f || GIT_REF_FORBIDDEN.has(character)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function isGitBranchName(name: string): boolean {
+  if (name.length === 0 || name.length > 250 || name === "@") return false;
+  if (hasForbiddenRefCharacter(name)) return false;
+  if (name.includes("..") || name.includes("@{") || name.includes("//")) {
+    return false;
+  }
+  if (name.startsWith("/") || name.endsWith("/") || name.endsWith(".")) {
+    return false;
+  }
+  return name.split("/").every((part) =>
+    !part.startsWith(".") && !part.endsWith(".lock")
+  );
+}
+
 /** The merge methods GitHub supports; anything else is refused unseen. */
 export type GitHubMergeMethod = "merge" | "squash" | "rebase";
 
@@ -1552,6 +1595,21 @@ export type GitHubAppClient = {
     },
     signal: AbortSignal,
   ): Promise<GitHubMergeOutcome>;
+  openPullRequest(
+    request: {
+      token: string;
+      fullName: string;
+      head: string;
+      base: string;
+      title: string;
+      body: string;
+    },
+    signal: AbortSignal,
+  ): Promise<GitHubOpenOutcome>;
+  findOpenPullRequest(
+    request: { token: string; fullName: string; head: string; base: string },
+    signal: AbortSignal,
+  ): Promise<number | null>;
   /**
    * One page of 50 check runs on a commit
    * (`GET /repos/{owner}/{repo}/commits/{sha}/check-runs`). `headSha` is a
@@ -2428,6 +2486,82 @@ export function createFetchGitHubAppClient(
         items: parsed(GitHubIssueEventPageSchema, body),
         hasNext: hasNextPage(link),
       };
+    },
+    async openPullRequest(request, signal) {
+      const authorization = bearer(request.token);
+      const path = repositoryPath(request.fullName);
+      if (!isGitBranchName(request.head) || !isGitBranchName(request.base)) {
+        throw refused();
+      }
+      let status: number;
+      let body: unknown;
+      try {
+        const answer = await readJson(
+          transport,
+          `${GITHUB_API_ORIGIN}${path}/pulls`,
+          {
+            method: "POST",
+            expectedStatus: 201,
+            absentStatuses: [403, 404, 422],
+            classify: "token",
+            authorization,
+            body: {
+              head: request.head,
+              base: request.base,
+              title: request.title,
+              body: request.body,
+            },
+            maxBytes: MAX_SINGLE_READ_BYTES,
+          },
+          signal,
+        );
+        status = answer.status;
+        body = answer.body;
+      } catch (error) {
+        if (
+          error instanceof GitHubReadFailure && error.kind === "timeout"
+        ) {
+          return { kind: "unknown" };
+        }
+        if (
+          error instanceof StandardError &&
+          error.code === "DEPENDENCY_UNAVAILABLE"
+        ) {
+          return { kind: "unknown" };
+        }
+        throw error;
+      }
+      if (status !== 201) return { kind: "refused", status };
+      const opened = GitHubOpenedPullRequestSchema.safeParse(body);
+      return opened.success
+        ? { kind: "opened", number: opened.data.number }
+        : { kind: "unknown" };
+    },
+    async findOpenPullRequest(request, signal) {
+      const authorization = bearer(request.token);
+      const path = repositoryPath(request.fullName);
+      if (!isGitBranchName(request.head) || !isGitBranchName(request.base)) {
+        throw refused();
+      }
+      const owner = request.fullName.split("/")[0]!;
+      const url = new URL(`${GITHUB_API_ORIGIN}${path}/pulls`);
+      url.searchParams.set("state", "open");
+      url.searchParams.set("head", `${owner}:${request.head}`);
+      url.searchParams.set("base", request.base);
+      url.searchParams.set("per_page", "1");
+      const { body } = await readJson(
+        transport,
+        url.href,
+        {
+          method: "GET",
+          expectedStatus: 200,
+          classify: "token",
+          authorization,
+          maxBytes: MAX_SINGLE_READ_BYTES,
+        },
+        signal,
+      );
+      return parsed(GitHubOpenPullRequestListSchema, body)[0]?.number ?? null;
     },
     async listCommitPullRequests(request, signal) {
       const authorization = bearer(request.token);
