@@ -567,3 +567,33 @@ Deno.test("an agent tags at most ten people on one run", () =>
       "agent_ask_run_limit",
     );
   }));
+
+Deno.test("an agent may remind someone of a power a person already granted them", () =>
+  withWorkerFixture(async (fixture) => {
+    const gus = await addMember(fixture, "Gus", "guest");
+    const session = await agentSession(fixture, { granted: null });
+    const step = await fixture.pgDatabase.query<{ step_key: string }>(
+      `select step_key from bakery.run_steps
+        where organization_id = $1 and run_id = $2
+          and status in ('pending', 'running', 'waiting')
+        order by iteration desc limit 1`,
+      [fixture.organizationId, session.own.runId],
+    );
+    const granted = await adminRequest(
+      fixture,
+      `/v1/runs/${session.own.runId}/requests`,
+      {
+        recipientId: gus,
+        intent: "take_over",
+        stepKey: step.rows[0]!.step_key,
+      },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assert(granted.ok, await granted.text());
+    const response = await ask(session, {
+      recipientId: gus,
+      intent: "take_over",
+      stepKey: step.rows[0]!.step_key,
+    });
+    assert(response.ok, await response.text());
+  }));

@@ -1419,6 +1419,18 @@ async function holdsIntentPower(
 ): Promise<boolean> {
   const action = INTENT_ACTION[intent];
   if (action === undefined) return true;
+  const power = POWER_OF_INTENT[intent];
+  if (power !== undefined && targetId !== null) {
+    const granted = await transaction.query(
+      `select 1 from bakery.run_power_grants
+        where organization_id = $1 and principal_id = $2 and power = $3
+          and coalesce(question_id, artifact_version_id, run_step_id) = $4
+          and revoked_at is null and expires_at > now()
+        limit 1`,
+      [organizationId, recipientId, power, targetId],
+    );
+    if (granted.rows.length > 0) return true;
+  }
   const permission = permissionForAction(action);
   const member = await transaction.query<
     { role: string | null; permissions: string[] | null }
