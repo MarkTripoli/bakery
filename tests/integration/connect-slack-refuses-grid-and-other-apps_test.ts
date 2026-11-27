@@ -99,3 +99,58 @@ Deno.test("after its connection is removed, the workspace connects through a rep
     await o.finish();
   }
 });
+
+Deno.test("after an administrator saves a different Slack app, Reconnect binds the workspace through the new app", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    const connectionId = await connectOnce(o);
+    const headers = { "Bakery-Organization-Id": o.fixture.organizationId };
+    const current = await call(
+      o.fixture,
+      "GET",
+      "/v1/integration-client-credentials/slack",
+      o.fixture.adminCookie,
+      { headers },
+    );
+    const { version } = await current.json() as { version: number };
+    const saved = await call(
+      o.fixture,
+      "PUT",
+      "/v1/integration-client-credentials/slack",
+      o.fixture.adminCookie,
+      {
+        body: {
+          clientId: "9999.8888",
+          clientSecret: "slack-client-secret-two",
+        },
+        headers: {
+          ...headers,
+          "If-Match": `"${version}"`,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assertEquals(saved.status, 200, await saved.clone().text());
+    slack.answers.tokenResponse = { app_id: "A0OTHERAPP" };
+    const attempt = await call(
+      o.fixture,
+      "POST",
+      "/v1/integration-auth-attempts",
+      o.fixture.adminCookie,
+      {
+        body: { provider: "slack", reconnectConnectionId: connectionId },
+        headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+      },
+    );
+    assertEquals(attempt.status, 201, await attempt.clone().text());
+    const created = await attempt.json() as { authorizationUrl: string };
+    const reconnected = await slackCallback(o.fixture, {
+      code: "slack-code-new-app",
+      state: new URL(created.authorizationUrl).searchParams.get("state")!,
+    });
+    assertEquals(outcome(reconnected), "refreshed");
+  } finally {
+    await o.finish();
+  }
+});

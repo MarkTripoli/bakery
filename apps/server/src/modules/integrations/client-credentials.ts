@@ -33,7 +33,10 @@ import { postgresErrorCode } from "../../platform/postgres-errors.ts";
 import { encryptInstallationSecret, loadSecretKey } from "../secrets/crypto.ts";
 import { installationActor } from "./postgres.ts";
 import { PROVIDERS } from "./registry.ts";
-import { adoptRegistrationSigningSecret } from "./slack-receipts.ts";
+import {
+  adoptRegistrationSigningSecret,
+  retireRegistrationSignedEventSources,
+} from "./slack-receipts.ts";
 
 /**
  * Installation-level OAuth client credentials for any integration provider whose
@@ -359,6 +362,11 @@ export async function putClientCredentials(
     }
   }
 
+  const retired = stored !== null && stored.clientId !== clientId
+    ? await retireRegistrationSignedEventSources(transaction, {
+      registrationId,
+    })
+    : 0;
   const adopted = signingSecretId !== null && stored?.signingSecretId == null
     ? await adoptRegistrationSigningSecret(transaction, {
       registrationId,
@@ -379,6 +387,7 @@ export async function putClientCredentials(
       signingSecretReplaced: signingSecret !== undefined,
       signingSecretRevision: saved?.signingSecretRevision ?? null,
       signedEventSourcesAdopted: adopted,
+      signedEventSourcesRetired: retired,
       version: saved?.version ?? null,
     },
   });
