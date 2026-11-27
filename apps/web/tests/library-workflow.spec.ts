@@ -280,6 +280,64 @@ for (
       await still(page, "workflow-lanes");
     });
 
+    test("six lanes keep their written order, say when empty, and can all be reached", async ({ page }) => {
+      const lane = (id: string) => ({
+        steps: [{ kind: "action", id, uses: "agent.review" }],
+      });
+      const ids = ["one", "two", "three", "four", "five", "six"];
+      await libraryFixture(page, {
+        ...GROUPED,
+        versions: [
+          ...VERSIONS,
+          {
+            ...version(6, 6, "published", [{
+              id: "brief",
+              uses: "task.brief",
+            }]),
+            spec: [{
+              kind: "parallel",
+              lanes: [...ids.map(lane), { steps: [] }],
+            }],
+          },
+        ],
+      });
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1006)}`,
+      );
+      const steps = page.getByTestId("workflow-steps");
+      await expect(steps.locator("[data-card='six']")).toBeAttached();
+      await expect(steps.getByText("No steps")).toBeAttached();
+      const at = async (id: string) =>
+        (await steps.locator(`[data-card='${id}']`).boundingBox())!;
+      if (viewport.name !== "desktop") {
+        const tops = [];
+        for (const id of ids) tops.push((await at(id)).y);
+        expect(tops).toEqual([...tops].sort((a, b) => a - b));
+        return;
+      }
+      await expect(steps.locator('[data-layout="ready"]')).toBeVisible();
+      await expect.poll(async () => {
+        const lefts = [];
+        for (const id of ids) lefts.push((await at(id)).x);
+        return lefts.every((x, index) => index === 0 || x > lefts[index - 1]);
+      }).toBe(true);
+      await steps.locator('[data-fit="true"]').click();
+      const frame = (await steps.locator('[data-ui-region="workflow-canvas"]')
+        .boundingBox())!;
+      await expect.poll(async () => {
+        const first = await at("one");
+        const last = await at("six");
+        const empty = (await steps.getByText("No steps").boundingBox())!;
+        const box = (await steps.locator("[data-group=together]")
+          .boundingBox())!;
+        return first.x >= frame.x - 1 &&
+          last.x + last.width <= frame.x + frame.width &&
+          empty.x + empty.width <= frame.x + frame.width &&
+          box.x >= frame.x - 1;
+      }).toBe(true);
+      await still(page, "workflow-lanes-six");
+    });
+
     test("opens from the list and shows the version in use: its steps, agents, and every version with its state", async ({ page }) => {
       await libraryFixture(page, WORLD);
       await page.goto("/library");

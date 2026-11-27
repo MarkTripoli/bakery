@@ -199,3 +199,23 @@ Deno.test("a single lane stays a plain box", () => {
   assertEquals(graph.blocks.some((block) => block.kind === "lane"), false);
   assertEquals(graph.edges.map((edge) => edge.id).includes("a->b"), true);
 });
+
+Deno.test("lane columns are hinted in written order", () => {
+  const graph = canvasGraph(treeOf({
+    steps: [{
+      kind: "parallel",
+      lanes: ["a", "b", "c", "d"].map((id) => ({ steps: [step(id)] })),
+    }],
+  }));
+  const box = graph.blocks.find((block) => block.label === "together")!;
+  const laid = elkGraph(graph).children!.find((node) => node.id === box.id)!;
+  assertEquals(
+    laid.layoutOptions!["elk.layered.crossingMinimization.semiInteractive"],
+    "true",
+  );
+  const columns = laid.children!.map((lane) =>
+    Number(lane.layoutOptions!["elk.position"].slice(1).split(",")[0])
+  );
+  assertEquals(columns, [...columns].sort((a, b) => a - b));
+  assertEquals(new Set(columns).size, 4);
+});

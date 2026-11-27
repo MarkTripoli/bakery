@@ -312,8 +312,12 @@ function Surface(props: WorkflowCanvasProps) {
     });
   }, [selectedId, laid, width, height]);
 
-  const larger = (bounds.h + 2 * PAD) * zoom > height ||
-    (bounds.w + 2 * PAD) * zoom > width;
+  const wider = (bounds.w + 2 * PAD) * zoom > width;
+  const larger = (bounds.h + 2 * PAD) * zoom > height || wider;
+  const sideways = mode === "page" && width > 0 && wider;
+  const fitted = mode === "page"
+    ? Math.min(1, (width - 2 * PAD) / bounds.w)
+    : 1;
   const frameHeight = laid === null
     ? estimatedHeight(graph)
     : Math.ceil(bounds.h * zoom + 2 * PAD);
@@ -344,21 +348,21 @@ function Surface(props: WorkflowCanvasProps) {
           edgesFocusable={false}
           elementsSelectable={false}
           maxZoom={1.5}
-          minZoom={0.5}
+          minZoom={sideways ? 0.2 : 0.5}
           nodes={nodes}
           nodesConnectable={false}
           nodesDraggable={false}
           nodesFocusable={false}
           onNodeClick={ignoreNodeClick}
           nodeTypes={NODE_TYPES}
-          panOnDrag={mode === "editor"}
+          panOnDrag={mode === "editor" || sideways}
           panOnScroll={mode === "editor"}
           preventScrolling={mode === "editor"}
           zoomOnDoubleClick={false}
           zoomOnPinch={mode === "editor"}
           zoomOnScroll={false}
         >
-          {mode === "editor" && larger
+          {(mode === "editor" && larger) || sideways
             ? (
               <Controls
                 aria-label={labels.canvas}
@@ -385,9 +389,9 @@ function Surface(props: WorkflowCanvasProps) {
                   data-fit="true"
                   onClick={() =>
                     void flow.setViewport({
-                      x: Math.max(PAD, (width - bounds.w) / 2),
+                      x: Math.max(PAD, (width - bounds.w * fitted) / 2),
                       y: PAD,
-                      zoom: 1,
+                      zoom: fitted,
                     })}
                 >
                   {labels.fit}

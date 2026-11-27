@@ -225,13 +225,14 @@ export function StepPanel(
     : "library.editor.ask.panelLine";
   const line = lineKey === undefined ? undefined : translate(lineKey as never);
 
+  const locked = target.disabled && !target.deletable;
   return (
     <UI.InspectorPanel
       id="editor-step-panel"
       label={label}
       variant="column"
       header={<UI.Text variant="strong">{target.name}</UI.Text>}
-      footer={
+      footer={locked ? undefined : (
         <UI.Inline gap="compact">
           <UI.Button
             variant="secondary"
@@ -258,9 +259,16 @@ export function StepPanel(
             {translate("library.editor.panel.remove" as never)}
           </UI.Button>
         </UI.Inline>
-      }
+      )}
     >
       <UI.Stack gap="compact">
+        {locked
+          ? (
+            <UI.Text>
+              {translate("library.editor.panel.codeOnly")}
+            </UI.Text>
+          )
+          : null}
         {line === undefined ? null : <UI.Text>{line}</UI.Text>}
         {target.agentFromSetup === true
           ? (

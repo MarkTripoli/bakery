@@ -513,7 +513,9 @@ export function WorkflowDiagram(
   const renderBlock = (block: CanvasBlock): ReactNode => {
     switch (block.kind) {
       case "lane":
-        return null;
+        return block.empty
+          ? <UI.Text variant="muted">{noSteps}</UI.Text>
+          : null;
       case "start":
         return startCard;
       case "step":
@@ -667,7 +669,14 @@ export function WorkflowDiagram(
                     </UI.Text>
                   }
                 />
-                {lane.length === 0 ? null : outlineRows(lane, true)}
+                {lane.length === 0
+                  ? (
+                    <UI.OutlineRow
+                      caption
+                      title={<UI.Text variant="muted">{noSteps}</UI.Text>}
+                    />
+                  )
+                  : outlineRows(lane, true)}
               </UI.OutlineList>
             </Fragment>
           ))}

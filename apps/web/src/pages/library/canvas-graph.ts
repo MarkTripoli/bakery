@@ -160,6 +160,12 @@ export function elkGraph(
         targets: [edge.target],
       }));
 
+  const columnHint = (block: CanvasBlock): Record<string, string> => {
+    if (block.kind !== "lane") return {};
+    const column = childrenOf.get(block.parent)!.indexOf(block);
+    return { "elk.position": `(${column * STEP_SIZE.width},0)` };
+  };
+
   const node = (block: CanvasBlock): ElkNode => {
     const held = childrenOf.get(block.id) ?? [];
     const row = block.kind === "if" || block.row === true;
@@ -179,6 +185,10 @@ export function elkGraph(
           ? `[top=0,left=0,bottom=${BOX_PADDING.bottom},right=0]`
           : `[top=${BOX_PADDING.top},left=${BOX_PADDING.side},bottom=${BOX_PADDING.bottom},right=${BOX_PADDING.side}]`,
         "elk.direction": row ? "RIGHT" : "DOWN",
+        ...columnHint(block),
+        ...(block.row === true
+          ? { "elk.layered.crossingMinimization.semiInteractive": "true" }
+          : {}),
         "elk.spacing.nodeNode": String(row ? SIDE_GAP : BOX_GAP),
         ...(row
           ? {}
