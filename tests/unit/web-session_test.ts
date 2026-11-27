@@ -179,7 +179,7 @@ function fakeApi(
       update: rejecting,
       revoke: rejecting,
     },
-    machines: { dispatchBlockers: rejecting },
+    machines: { dispatchBlockers: rejecting, models: rejecting },
     workerEnrollments: {
       list: rejecting,
       get: rejecting,

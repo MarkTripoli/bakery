@@ -279,6 +279,23 @@ async function open(
         json({ items: w.bound ? [bindingWire] : [], nextCursor: null }),
       );
     }
+    if (url.pathname.endsWith("/models")) {
+      return r.fulfill(json({
+        items: w.routes.filter((one) => one.workerBindingId === BINDING_ID)
+          .map((one) => ({
+            id: one.id,
+            provider: "acme",
+            model: one.model,
+            harness: one.harness,
+            billingRoute: "subscription",
+            status: one.status,
+            health: one.health,
+            inferenceVerifiedAt: one.inferenceVerifiedAt,
+            createdAt: "2026-01-01T00:00:00.000Z",
+          })),
+        nextCursor: null,
+      }));
+    }
     return r.fulfill(json({ items: [], nextCursor: null }));
   });
   await page.route(
@@ -501,30 +518,47 @@ test.describe("machine page: Models tab", () => {
     await still(page, "models-revoked");
   });
 
-  test("a member sees one line and no table, and never the models of other machines", async ({ page }) => {
+  test("a member reads this machine's own models, with nothing to change", async ({ page }) => {
     const w = world({
       role: "developer",
       routes: [
         route({ model: "mine" }),
+        route({ model: "mine-off", status: "disabled" }),
+        route({ model: "mine-gone", status: "revoked" }),
         route({ model: "someone-elses", workerBindingId: OTHER_BINDING_ID }),
-        // The same coding agent on another machine: the old fallback listed this one.
-        route({ model: "same-agent-elsewhere", workerBindingId: null }),
       ],
     });
     await open(page, w);
-    await expect(models(page)).toHaveText(
-      "Only administrators can see this machine's models.",
+    await expect(models(page)).toContainText(
+      "Only administrators can change models.",
     );
-    await expect(page.locator("[data-model-id]")).toHaveCount(0);
+    await expect(models(page)).toContainText(
+      "It cannot be turned on again. An administrator can add it as a new model.",
+    );
+    await expect(models(page)).not.toContainText("Add it as a new model");
+    await expect(models(page)).toContainText(
+      "Work on this machine is sent only to",
+    );
+    await expect(page.locator("[data-model-id]")).toHaveCount(3);
+    await expect(models(page)).toContainText("mine-off");
+    await expect(models(page)).toContainText("Turned off");
+    await expect(models(page)).not.toContainText("someone-elses");
     await expect(page.getByRole("switch")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Add a model" })).toHaveCount(
       0,
     );
-    // The sentence cannot stand over no list, and the list of everything is never asked for.
-    await expect(page.getByText("Work on this machine is sent only to"))
-      .toHaveCount(0);
     expect(w.listCalls).toBe(0);
     await still(page, "models-not-admin");
+  });
+
+  test("a member of a machine with no models is told so, without a button", async ({ page }) => {
+    await open(page, world({ role: "developer", routes: [] }));
+    await expect(models(page)).toContainText("No models yet");
+    await expect(models(page)).toContainText(
+      "Only administrators can change models.",
+    );
+    await expect(models(page).getByRole("button")).toHaveCount(0);
+    await still(page, "models-not-admin-empty");
   });
 
   test("while this machine's sign-ins are read, no list is drawn, never a guess", async ({ page }) => {
