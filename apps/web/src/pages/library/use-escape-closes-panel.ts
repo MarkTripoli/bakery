@@ -17,6 +17,7 @@ export function useEscapeClosesPanel(open: boolean, close: () => void): void {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.isComposing) return;
       if ((event.target as Element | null)?.closest?.(OWNS_ESCAPE)) return;
       event.preventDefault();
       const block = selectedBlock();
