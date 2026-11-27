@@ -431,25 +431,23 @@ test("queue inspector answers the selected task's open question and the page has
     .toBeVisible();
 });
 
-test("queue inspector Details shows the short task id and copies the whole one", async ({ page, context }) => {
-  test.skip(
-    page.viewportSize()!.width <= 900,
-    "inspector rail is desktop only",
-  );
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+test("the Work list says each thing once and has no empty tabs", async ({ page }) => {
   await stillQueue(page, stillTasks);
-  const inspector = page.getByRole("complementary");
-  await inspector.getByRole("tab", { name: "Details" }).click();
-  const row = inspector.getByTestId("task-id-row");
-  await expect(row).toContainText("Task ID");
-  // Eight characters on screen, the whole id on the clipboard.
-  await expect(row).toContainText(stillTasks[0].id.slice(0, 8));
-  await expect(row).not.toContainText(stillTasks[0].id.slice(0, 9));
-  await row.getByRole("button", { name: "Copy" }).click();
-  await expect(row.getByRole("button", { name: "Copied" })).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-    stillTasks[0].id,
-  );
+  await expect(page.getByRole("link", { name: stillTasks[0].title }))
+    .toBeVisible();
+  const queue = page.locator('[data-ui-component="taskQueue"]');
+  await expect(queue).not.toContainText(stillTasks[0].id.slice(0, 8));
+  await expect(queue.locator(".ui-status-dot").filter({ visible: true }))
+    .toHaveCount(0);
+  await expect(queue.getByRole("columnheader", { name: "Stage" }))
+    .toHaveCount(0);
+  if (page.viewportSize()!.width <= 900) return;
+  const inspector = page.locator('[data-ui-component="inspectorPanel"]');
+  await expect(inspector.getByRole("link", { name: "Open task" }))
+    .toBeVisible();
+  await expect(inspector.getByRole("tab")).toHaveCount(0);
+  await expect(inspector).not.toContainText("No recorded activity yet.");
+  await expect(inspector).not.toContainText("No artifacts to show.");
 });
 
 test("on a phone an applied search shows the icon and the term on one row, with Clear beside it", async ({ page }) => {
@@ -540,8 +538,6 @@ test("on a phone an applied search shows the icon and the term on one row, with 
 
 // Evidence stills of the Work list (BAKERY_STILLS_DIR): the list with tasks,
 // a search with a term, and the empty list; skipped in a normal run.
-// The reference under a title is the first eight characters of the id, and the
-// age is read from `createdAt`, so the fixtures carry readable ids and recent times.
 const stillTasks = [
   ["Add repository onboarding", "waiting_input", "a104b3c1", 2],
   ["Confirm error tracking provider", "waiting_input", "e041d7f2", 15],
@@ -595,19 +591,6 @@ test("still: the Work list with a search term", async ({ page }) => {
   await search.fill("repository");
   await dismissFilters(page);
   await still(page, "work-list-search");
-});
-
-test("still: the Details tab with the task id and Copy", async ({ page }) => {
-  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
-  test.skip(
-    page.viewportSize()!.width <= 900,
-    "inspector rail is desktop only",
-  );
-  await stillQueue(page, stillTasks);
-  const inspector = page.getByRole("complementary");
-  await inspector.getByRole("tab", { name: "Details" }).click();
-  await expect(inspector.getByTestId("task-id-row")).toBeVisible();
-  await still(page, "work-list-details");
 });
 
 test("still: the phone with a search term applied", async ({ page }) => {

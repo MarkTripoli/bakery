@@ -25,7 +25,6 @@ import { useConnectivity } from "../app/connectivity.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { ShellFlushMain, ShellSlot } from "../shell/shell-slots.tsx";
 import { focusAfterPaint } from "../app/focus.ts";
-import { FingerprintRow } from "./FingerprintRow.tsx";
 import { NewTaskComposer } from "./NewTaskComposer.tsx";
 import { TaskArtifactPane } from "./TaskArtifactPane.tsx";
 import { TaskRunSection } from "./TaskRunSection.tsx";
@@ -282,7 +281,6 @@ function InboxResults(
   const rows = items.map((task) => ({
     id: task.id,
     status: task.status,
-    reference: task.id.slice(0, 8),
     title: task.title,
     stage: {
       label: t(`tasks.queue.stage.${task.status}`),
@@ -1021,7 +1019,7 @@ export type WorkQueueStage = {
 
 export type WorkQueueTask = {
   id: string;
-  reference: string;
+  reference?: string;
   title: string;
   application?: string;
   harness?: string;
@@ -1198,6 +1196,9 @@ export function WorkQueueView(
               harness: groups.some((group) =>
                 group.rows.some((row) => row.harness != null)
               ),
+              stage: groups.some((group) =>
+                group.rows.some((row) => row.stage.label !== group.label)
+              ),
             }}
             variant={layout === "sheet" ? "list" : "table"}
             labels={{
@@ -1251,7 +1252,6 @@ function WorkQueueInspector(
   },
 ) {
   const { translate: t } = useI18n();
-  const [view, setView] = useState("activity");
   const question = detail?.question;
   return (
     <UI.TaskInspector
@@ -1263,48 +1263,15 @@ function WorkQueueInspector(
       participants={detail?.participants?.length
         ? detail.participants.map((name) => <UI.Avatar alt={name} key={name} />)
         : undefined}
-      activity={
-        <UI.Tabs
-          aria-label={t("tasks.queue.inspector.activity")}
-          selectedId={view}
-          onSelect={setView}
-          tabs={[
-            {
-              id: "activity",
-              label: t("tasks.queue.inspector.activity"),
-              content: detail?.activity?.length
-                ? (
-                  <UI.RunTimeline
-                    events={[...detail.activity]}
-                    label={t("tasks.queue.inspector.activity")}
-                    variant="activity"
-                  />
-                )
-                : <UI.Text>{t("tasks.queue.inspector.noActivity")}</UI.Text>,
-            },
-            {
-              id: "evidence",
-              label: t("tasks.queue.inspector.evidence"),
-              content: <UI.Text>{t("tasks.live.noArtifacts")}</UI.Text>,
-            },
-            {
-              id: "details",
-              label: t("tasks.queue.inspector.details"),
-              // The short form on screen, the whole id on the clipboard.
-              content: (
-                <FingerprintRow
-                  copyFailedText={t("tasks.queue.inspector.taskIdCopyFailed")}
-                  display={task.reference}
-                  fingerprint={task.id}
-                  label={t("tasks.queue.inspector.taskId")}
-                  noHelp
-                  testId="task-id-row"
-                />
-              ),
-            },
-          ]}
-        />
-      }
+      activity={detail?.activity?.length
+        ? (
+          <UI.RunTimeline
+            events={[...detail.activity]}
+            label={t("tasks.queue.inspector.activity")}
+            variant="activity"
+          />
+        )
+        : undefined}
     >
       {question && (
         <QuestionAnswer
