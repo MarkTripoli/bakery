@@ -37,7 +37,7 @@ type ResourceUpdate = z.output<
   typeof contractSchemas.IntegrationResourceUpdate
 >;
 
-const CONNECTION_UPDATED = "integrationConnections.updated";
+export const CONNECTION_UPDATED = "integrationConnections.updated";
 const RESOURCES_CHANGED = "integration.resources_changed";
 
 /**

@@ -1,4 +1,5 @@
 import { StandardError } from "@bakery/contracts/http";
+import { INSTALLATION_REVOKED_PROBLEM } from "./connection-problems.ts";
 import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { GITHUB_PROVIDER } from "./postgres.ts";
@@ -23,7 +24,7 @@ const CONNECTION_UPDATED = "integrationConnections.updated";
 const ReconcileProblem = Object.freeze(
   {
     Suspended: "installation_suspended",
-    Revoked: "installation_revoked",
+    Revoked: INSTALLATION_REVOKED_PROBLEM,
   } as const,
 );
 
