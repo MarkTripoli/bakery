@@ -206,7 +206,8 @@ export function withAgentTaskChecks<
   return guarded as unknown as Create;
 }
 
-const TERMINAL = "('completed', 'failed', 'canceled', 'blocked')";
+const TERMINAL =
+  "('completed', 'failed', 'canceled', 'blocked', 'needs_human')";
 
 /** A USD decimal string to micro-USD, exact. */
 export function toMicroUsd(value: string): bigint {

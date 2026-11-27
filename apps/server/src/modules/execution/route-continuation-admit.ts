@@ -77,7 +77,13 @@ type Admit = z.output<typeof contractSchemas.RouteContinuationAdmit>;
 type Admitted = z.output<typeof contractSchemas.RouteContinuation>;
 type Pin = Admitted["previousPin"];
 
-const TERMINAL_RUN_STATUSES = ["completed", "failed", "canceled", "blocked"];
+const TERMINAL_RUN_STATUSES = [
+  "completed",
+  "failed",
+  "canceled",
+  "blocked",
+  "needs_human",
+];
 const TERMINAL_JOB_STATUSES = ["completed", "failed", "canceled"];
 const LIVE_ATTEMPT_STATUSES = ["leased", "running", "canceling"];
 const LIVE_EFFECT_STATUSES = ["prepared", "submitted", "uncertain"];

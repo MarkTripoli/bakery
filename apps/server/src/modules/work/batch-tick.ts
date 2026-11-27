@@ -129,7 +129,10 @@ export async function readIssueOutcome(
   const row = result.rows[0];
   if (!row) return "failed";
   if (row.merged) return "merged";
-  if (row.status === "failed" || row.status === "blocked") return "failed";
+  if (
+    row.status === "failed" || row.status === "blocked" ||
+    row.status === "needs_human"
+  ) return "failed";
   if (row.status === "canceled") return "cancelled";
   if (row.status === "completed" && !row.merging && !row.pr_open) {
     return "failed";

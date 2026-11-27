@@ -7752,5 +7752,7 @@
   "settings.connections.outcome.heldElsewhere": "⟪Another organization in Bakery already holds this connection, so nothing was connected. It can be connected here once that organization removes it.⟫",
   "settings.roles.thing.ownIdentityLink": "⟪their own linked outside accounts⟫",
   "tasks.delivery.now.stopped.limitTitle": "⟪Bakery stopped to ask you⟫",
-  "tasks.delivery.now.stopped.limitBody": "⟪It tried {count, plural, one {# time} other {# times}}{findings, plural, =0 {.} one { and # blocking finding remains.} other { and # blocking findings remain.}} This workflow allows up to {max} tries, so it can try {room} more.⟫"
+  "tasks.delivery.now.stopped.limitBody": "⟪It tried {count, plural, one {# time} other {# times}}{findings, plural, =0 {.} one { and # blocking finding remains.} other { and # blocking findings remain.}} This workflow allows up to {max} tries, so it can try {room} more.⟫",
+  "tasks.run.status.needs_human": "⟪Needs input⟫",
+  "tasks.run.step.needs_human": "⟪Needs input⟫"
 }

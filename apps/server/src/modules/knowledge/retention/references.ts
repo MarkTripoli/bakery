@@ -188,7 +188,7 @@ export const additionalArtifactReferenceChecks: readonly ReferenceCheck[] = [
            join bakery.workflow_runs r
              on r.organization_id = p.organization_id and r.id = p.run_id
           where p.organization_id=$1 and p.artifact_version_id=$2
-            and r.status not in ('completed','failed','canceled')
+            and r.status not in ('completed','failed','canceled','needs_human')
           limit 1`,
         [organizationId, versionId],
       );
@@ -332,11 +332,11 @@ export async function hasProtectedArtifactReference(
     `
     select 1 from bakery.artifact_drafts where organization_id=$1 and base_version_id=$2 and status='active'
     union all
-    select 1 from bakery.workflow_runs where organization_id=$1 and status not in ('completed','failed','canceled')
+    select 1 from bakery.workflow_runs where organization_id=$1 and status not in ('completed','failed','canceled','needs_human')
       and jsonb_path_exists(snapshot, '$.** ? (@ == $id)', jsonb_build_object('id',$2::text))
     union all
     select 1 from bakery.run_steps s join bakery.workflow_runs r on r.organization_id=s.organization_id and r.id=s.run_id
-      where s.organization_id=$1 and (s.status not in ('completed','failed','canceled','skipped') or r.status not in ('completed','failed','canceled'))
+      where s.organization_id=$1 and (s.status not in ('completed','failed','canceled','skipped','needs_human') or r.status not in ('completed','failed','canceled','needs_human'))
       and (jsonb_path_exists(s.input, '$.** ? (@ == $id)', jsonb_build_object('id',$2::text))
         or jsonb_path_exists(s.output, '$.** ? (@ == $id)', jsonb_build_object('id',$2::text))
         or s.id in (select run_step_id from bakery.artifact_versions where id=$2))

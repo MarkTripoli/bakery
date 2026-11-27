@@ -23,7 +23,7 @@ import { WorkflowInterpreterError } from "./errors.ts";
 /** What the run has recorded for one executable step (an action or a wait). */
 export type StepRecord =
   | Readonly<{ status: "completed"; output: JsonValue }>
-  | Readonly<{ status: "failed" | "canceled" | "timed_out" }>;
+  | Readonly<{ status: "failed" | "canceled" | "timed_out" | "needs_human" }>;
 
 /**
  * Everything the interpreter reads. It is the whole input: the interpreter has
@@ -119,7 +119,7 @@ export type NextStep =
    */
   | Readonly<{
     kind: "halted";
-    outcome: "failed" | "canceled" | "timed_out";
+    outcome: "failed" | "canceled" | "timed_out" | "needs_human";
     key: string | null;
   }>
   | Readonly<{
@@ -173,7 +173,7 @@ type Walk =
   | Readonly<{ t: "done" }>
   | Readonly<{
     t: "halt";
-    outcome: "failed" | "canceled" | "timed_out";
+    outcome: "failed" | "canceled" | "timed_out" | "needs_human";
     key: string;
   }>
   | Readonly<{
@@ -762,6 +762,7 @@ class Run {
         walk.t === "pause"
       ) return walk;
       if (walk.t === "halt") {
+        if (walk.outcome === "needs_human") return walk;
         outcome = walk.outcome;
         break;
       }
@@ -861,11 +862,13 @@ class Run {
         (typeof statuses)[number],
         { kind: "failed" }
       >;
+      const halt = failed.halt;
+      if (halt.outcome === "needs_human") return halt;
       const collected: Record<string, JsonValue[]> = Object.create(null);
       for (const name of Object.keys(collect)) collected[name] = [];
       this.forEachResults.set(key, {
         iterations: statuses.filter((status) => status.kind === "done").length,
-        outcome: failed.halt.outcome,
+        outcome: halt.outcome,
         collected,
       });
       return { t: "done" };

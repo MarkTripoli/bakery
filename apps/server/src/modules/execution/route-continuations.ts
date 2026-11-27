@@ -289,7 +289,13 @@ export function summarizeUnavailable(
 }
 
 /** Run statuses after which nothing more happens to a run. */
-const TERMINAL_RUN_STATUSES = ["completed", "failed", "canceled", "blocked"];
+const TERMINAL_RUN_STATUSES = [
+  "completed",
+  "failed",
+  "canceled",
+  "blocked",
+  "needs_human",
+];
 /** Job statuses after which a job produces nothing more. */
 /**
  * A step waits on a model only while its job sits queued with no attempt in
