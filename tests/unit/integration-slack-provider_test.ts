@@ -116,13 +116,16 @@ Deno.test("the app registration is exactly the client pair the host stores", () 
   );
 });
 
-Deno.test("the bot asks for the features that exist and no private-channel history", () => {
+Deno.test("the bot asks for the features that exist, direct messages included, and no private-channel history", () => {
   assertEquals([...SLACK_BOT_SCOPES], [
     "app_mentions:read",
     "channels:history",
     "channels:read",
     "chat:write",
     "commands",
+    "im:history",
+    "im:read",
+    "im:write",
   ]);
   assertEquals(SLACK_BOT_SCOPES.includes("groups:history" as never), false);
   assertEquals(

@@ -100,6 +100,9 @@ export type {
 } from "./src/storage-port.ts";
 export type {
   ApiTokenProbe,
+  ConnectedResource,
+  ConnectedResourceGrant,
+  ConnectedResourceInput,
   ConnectStrategy,
   CredentialStrategy,
   IntakeIntent,
