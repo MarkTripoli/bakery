@@ -1,4 +1,5 @@
 import { StandardError } from "@bakery/contracts/http";
+import { ACCEPTANCE_JOIN } from "./postgres.ts";
 import {
   appendAudit,
   appendDomainEvent,
@@ -291,18 +292,14 @@ export async function assertCandidateEvidence(
     blocking: number;
     accepted: boolean;
   }>(
-    `select review.head_sha as "headSha", review.base_sha as "baseSha",
-       review.policy_digest as "policyDigest",
-       review.blocking_count as "blocking",
-       exists (
-         select 1 from bakery.decisions_ledger as entry
-          where entry.organization_id = review.organization_id
-            and entry.kind = 'accept_with_reason'
-            and entry.subject_kind = 'review' and entry.subject_id = review.id
-       ) as "accepted"
-       from bakery.review_cycles as review
-      where review.organization_id = $1 and review.id = $2
-        and review.run_id = $3`,
+    `select review_cycles.head_sha as "headSha",
+       review_cycles.base_sha as "baseSha",
+       review_cycles.policy_digest as "policyDigest",
+       review_cycles.blocking_count as "blocking",
+       acceptance.decided_by is not null as "accepted"
+       from bakery.review_cycles${ACCEPTANCE_JOIN}
+      where review_cycles.organization_id = $1 and review_cycles.id = $2
+        and review_cycles.run_id = $3`,
     [organizationId, input.reviewCycleId, input.runId],
   )).rows[0] ?? null;
   const checks = (await transaction.query<{
