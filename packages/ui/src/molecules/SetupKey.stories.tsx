@@ -10,3 +10,7 @@ export default meta;
 export const Contract: StoryObj = {
   render: () => <SetupKey>JBSW Y3DP EHPK 3PXP</SetupKey>,
 };
+
+export const Pairing: StoryObj = {
+  render: () => <SetupKey variant="pairing">K7QM-2XPD</SetupKey>,
+};

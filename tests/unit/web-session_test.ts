@@ -180,6 +180,11 @@ function fakeApi(
       revoke: rejecting,
     },
     machines: { dispatchBlockers: rejecting },
+    workerLinkRequests: {
+      find: rejecting,
+      approve: rejecting,
+      decline: rejecting,
+    },
     workerEnrollments: {
       list: rejecting,
       get: rejecting,
