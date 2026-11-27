@@ -113,6 +113,7 @@ test("a draft someone else changed says so and Reload reads theirs", async ({ pa
   await expect(status(page)).toHaveText("Saved");
   await expect(page.getByText("Someone else changed this draft."))
     .toHaveCount(0);
+  await expect(page.getByText("Implement deleted")).toHaveCount(0);
   expect(refused).toBe(1);
 });
 

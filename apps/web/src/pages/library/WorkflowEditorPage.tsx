@@ -466,6 +466,7 @@ export function WorkflowEditorPage(
     lastSaved.current = null;
     setResolving(new Set());
     setSelectedId(null);
+    setDeleted(null);
     setReloads((count) => count + 1);
   };
 
@@ -652,6 +653,7 @@ export function WorkflowEditorPage(
       setPublishedOnly(alsoUse ? null : versionId);
       await queryClient.invalidateQueries({ queryKey: ["protected"] });
       setPublishOpen(false);
+      setDeleted(null);
       setPublished({ revision, used: alsoUse });
     },
   });
