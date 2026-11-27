@@ -613,6 +613,10 @@
         "module": "work",
         "migration": "apps/server/src/modules/work/migrations/bakery/0186_definition_publish_grants_and_proposal_supersession.sql"
       },
+      "delivery_principals": {
+        "module": "integrations",
+        "migration": "apps/server/src/modules/integrations/migrations/bakery/0378_delivery_principals.sql"
+      },
       "desktop_handoffs": {
         "module": "auth",
         "migration": "apps/server/src/modules/auth/migrations/bakery/0306_desktop_handoffs.sql"

@@ -5,3 +5,12 @@ export {
   slackServerProvider,
   slackTokenResponseSchema,
 } from "./provider.ts";
+export {
+  SLACK_DM_OPEN,
+  SLACK_GATE_ID,
+  SLACK_MESSAGE_POST,
+  SLACK_MESSAGE_UPDATE,
+  SLACK_WORKSPACE_KIND,
+  SlackApiError,
+  slackGate,
+} from "./gate.ts";

@@ -24,6 +24,7 @@ import {
   rolePermissionsOf,
 } from "../application/authorize.ts";
 import { resolveOrganizationActor } from "./authority-postgres.ts";
+import { refuseDeliveryPrincipal } from "./delivery-principals-postgres.ts";
 
 const ORDERING = "createdAt:asc,id:asc";
 export const TIMESTAMP_SQL = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
@@ -222,6 +223,7 @@ async function ownedServiceAccount(
   organizationId: string,
   principalId: string,
 ): Promise<PrincipalRow> {
+  await refuseDeliveryPrincipal(client, principalId);
   const result = await client.query<PrincipalRow>(
     `select ${PRINCIPAL_COLUMNS}
     from bakery.principals as principal
@@ -362,7 +364,7 @@ export async function createPermissionGrant(
   if (expiresAt !== null && !(expiresAt.getTime() > now.getTime())) {
     throw new StandardError({ code: "UNPROCESSABLE" });
   }
-  // The target must be a live service or worker principal of this organization.
+  await refuseDeliveryPrincipal(client, input.principalId);
   const target = await client.query<{ principalType: string }>(
     `select principal.principal_type as "principalType"
     from bakery.principals as principal
@@ -423,6 +425,7 @@ export async function revokePermissionGrant(
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   }
   const row = found.rows[0];
+  await refuseDeliveryPrincipal(client, row.principalId);
   if (row.version !== expectedVersion) {
     throw new StandardError({ code: "VERSION_CONFLICT" });
   }
