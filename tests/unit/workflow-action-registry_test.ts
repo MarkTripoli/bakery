@@ -38,7 +38,19 @@ function registration(
 }
 
 Deno.test("workflow registry exposes the exact documented metadata allowlist", () => {
-  assertEquals(WORKFLOW_ACTION_NAMES.length, 26);
+  assertEquals(WORKFLOW_ACTION_NAMES.length, 27);
+  assertEquals(WORKFLOW_ACTION_METADATA["delivery.openPullRequest"], {
+    input: "OpenPullRequestInput",
+    output: "PullRequest",
+    capabilities: ["delivery"],
+    cancel: "cooperative",
+    retry: {
+      maxAttempts: 1,
+      backoff: "0s",
+      faults: ["DEPENDENCY_UNAVAILABLE"],
+    },
+    effectPolicy: "external_effect_keyed",
+  });
   assertEquals(Object.keys(WORKFLOW_ACTION_METADATA), [
     ...WORKFLOW_ACTION_NAMES,
   ]);

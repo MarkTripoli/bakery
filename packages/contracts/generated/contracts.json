@@ -22619,6 +22619,7 @@
                   "coordination.split",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
+                  "delivery.openPullRequest",
                   "delivery.merge",
                   "delivery.deploy",
                   "delivery.health",
@@ -84423,6 +84424,47 @@
           "additionalProperties": false,
           "description": "Input to the rpi.research workflow action: the task to research and the repository whose code the research reads, from which the step produces its research artifact."
         },
+        "OpenPullRequestInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "repositoryId": {
+              "description": "Repository to open the pull request in; omitted, the step's own repository.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "headBranch": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 250,
+              "description": "Branch that holds the changes, already pushed, normally the branch a preceding implement step pushed. OpenPullRequestInput.headBranch must contain at least 1 characters. OpenPullRequestInput.headBranch must contain at most 250 characters."
+            },
+            "baseBranch": {
+              "description": "Branch the changes should merge into; omitted, the repository's default branch. OpenPullRequestInput.baseBranch must contain at least 1 characters. OpenPullRequestInput.baseBranch must contain at most 250 characters.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 250
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "description": "Pull request title GitHub shows. OpenPullRequestInput.title must contain at least 1 characters. OpenPullRequestInput.title must contain at most 256 characters."
+            },
+            "body": {
+              "description": "Pull request description in Markdown; omitted, empty. OpenPullRequestInput.body must contain at most 65536 characters.",
+              "type": "string",
+              "maxLength": 65536
+            }
+          },
+          "required": [
+            "headBranch",
+            "title"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the delivery.openPullRequest workflow action: the pushed branch to open a pull request from, and its title and description. A retried step registers the pull request already open from that branch instead of opening another."
+        },
         "PrepareInput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -85020,6 +85062,7 @@
                 "coordination.split",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
+                "delivery.openPullRequest",
                 "delivery.merge",
                 "delivery.deploy",
                 "delivery.health",
@@ -192233,6 +192276,7 @@
                 "coordination.split",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
+                "delivery.openPullRequest",
                 "delivery.merge",
                 "delivery.deploy",
                 "delivery.health",
@@ -192398,6 +192442,7 @@
                       "coordination.split",
                       "delivery.candidate_evidence",
                       "delivery.prepare",
+                      "delivery.openPullRequest",
                       "delivery.merge",
                       "delivery.deploy",
                       "delivery.health",
@@ -192616,6 +192661,7 @@
                 "coordination.split",
                 "delivery.candidate_evidence",
                 "delivery.prepare",
+                "delivery.openPullRequest",
                 "delivery.merge",
                 "delivery.deploy",
                 "delivery.health",
@@ -192893,6 +192939,7 @@
                       "coordination.split",
                       "delivery.candidate_evidence",
                       "delivery.prepare",
+                      "delivery.openPullRequest",
                       "delivery.merge",
                       "delivery.deploy",
                       "delivery.health",
@@ -328971,6 +329018,47 @@
       "additionalProperties": false,
       "description": "Input to the rpi.research workflow action: the task to research and the repository whose code the research reads, from which the step produces its research artifact."
     },
+    "OpenPullRequestInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "description": "Repository to open the pull request in; omitted, the step's own repository.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "headBranch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 250,
+          "description": "Branch that holds the changes, already pushed, normally the branch a preceding implement step pushed. OpenPullRequestInput.headBranch must contain at least 1 characters. OpenPullRequestInput.headBranch must contain at most 250 characters."
+        },
+        "baseBranch": {
+          "description": "Branch the changes should merge into; omitted, the repository's default branch. OpenPullRequestInput.baseBranch must contain at least 1 characters. OpenPullRequestInput.baseBranch must contain at most 250 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 250
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Pull request title GitHub shows. OpenPullRequestInput.title must contain at least 1 characters. OpenPullRequestInput.title must contain at most 256 characters."
+        },
+        "body": {
+          "description": "Pull request description in Markdown; omitted, empty. OpenPullRequestInput.body must contain at most 65536 characters.",
+          "type": "string",
+          "maxLength": 65536
+        }
+      },
+      "required": [
+        "headBranch",
+        "title"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the delivery.openPullRequest workflow action: the pushed branch to open a pull request from, and its title and description. A retried step registers the pull request already open from that branch instead of opening another."
+    },
     "PrepareInput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -329570,6 +329658,7 @@
             "coordination.split",
             "delivery.candidate_evidence",
             "delivery.prepare",
+            "delivery.openPullRequest",
             "delivery.merge",
             "delivery.deploy",
             "delivery.health",
@@ -437095,6 +437184,7 @@
             "coordination.split",
             "delivery.candidate_evidence",
             "delivery.prepare",
+            "delivery.openPullRequest",
             "delivery.merge",
             "delivery.deploy",
             "delivery.health",
@@ -437260,6 +437350,7 @@
                   "coordination.split",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
+                  "delivery.openPullRequest",
                   "delivery.merge",
                   "delivery.deploy",
                   "delivery.health",
@@ -437478,6 +437569,7 @@
             "coordination.split",
             "delivery.candidate_evidence",
             "delivery.prepare",
+            "delivery.openPullRequest",
             "delivery.merge",
             "delivery.deploy",
             "delivery.health",
@@ -437755,6 +437847,7 @@
                   "coordination.split",
                   "delivery.candidate_evidence",
                   "delivery.prepare",
+                  "delivery.openPullRequest",
                   "delivery.merge",
                   "delivery.deploy",
                   "delivery.health",
