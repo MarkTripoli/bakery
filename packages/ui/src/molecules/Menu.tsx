@@ -8,6 +8,7 @@ export type MenuItem = {
   id: string;
   label: ReactNode;
   selected?: boolean;
+  tone?: "danger";
 };
 export type MenuProps = {
   "aria-label": string;
@@ -77,6 +78,7 @@ export function Menu(
                   aria-pressed={variant === "selection"
                     ? item.selected
                     : undefined}
+                  data-tone={item.tone}
                   disabled={item.disabled}
                   onClick={() => onSelect?.(item.id)}
                   type="button"

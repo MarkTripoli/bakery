@@ -311,6 +311,8 @@ const mergeEntryRow = (
   updatedAt: at(8),
   version: 1,
   blockedReason: null,
+  requestedBy: uuid(1),
+  requestedByName: "Ana",
   ...over,
 });
 
@@ -679,6 +681,18 @@ const openLink = async (section: Locator, testId: string) => {
   }
   return link;
 };
+
+test("loading shows the shape of what is coming: one banner block and two rows", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, CLEAN);
+  await stubSidePanel(page);
+  await page.route(`**/v1/runs/${runId}/checks*`, () => {});
+  await page.goto(`/tasks/${id}`);
+  const loading = page.getByTestId("delivery-section").getByRole("status");
+  await expect(loading.locator(".ui-skeleton--surface")).toHaveCount(1);
+  await expect(loading.locator(".ui-skeleton--row")).toHaveCount(2);
+  await still(page, "delivery-loading");
+});
 
 test("a clean run says nothing is waiting, offers no buttons and lists nothing that needs attention", async ({ page }) => {
   await mockRun(page);

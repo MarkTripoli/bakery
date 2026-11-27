@@ -2658,3 +2658,6 @@
     min-block-size: var(--target-coarse);
   }
 }
+.ui-menu button[data-tone="danger"] {
+  color: var(--color-destructive);
+}

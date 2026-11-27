@@ -193,6 +193,13 @@ export function TaskRunSection(
   const { translate: t, locale, timeZone } = useI18n();
   const online = useConnectivity() === "online";
   const [outputStepId, setOutputStepId] = useState<string | null>(null);
+  const [changed, setChanged] = useState<
+    { readonly runId: string; readonly files: number } | null
+  >(null);
+  const reportFiles = useCallback(
+    (files: number) => setChanged({ runId, files }),
+    [runId],
+  );
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
   const authority =
     `${scope.sessionGeneration}:${scope.organizationId}:${taskId}:${runId}`;
@@ -491,17 +498,23 @@ export function TaskRunSection(
         const whole = Math.round(lasted / 1000);
         return (
           <UI.Text data-placement="line">
-            {t("tasks.run.line.finished", {
-              steps: steps.data.items.length,
-              duration: lasted < 1000
-                ? t("tasks.run.duration.instant")
-                : whole < 60
-                ? t("tasks.run.duration.seconds", { seconds: whole })
-                : t("tasks.run.duration.minutes", {
-                  minutes: Math.floor(whole / 60),
-                  seconds: whole % 60,
-                }),
-            })}
+            {t(
+              changed?.runId === runId
+                ? "tasks.run.line.finishedFiles"
+                : "tasks.run.line.finished",
+              {
+                files: changed?.runId === runId ? changed.files : 0,
+                steps: steps.data.items.length,
+                duration: lasted < 1000
+                  ? t("tasks.run.duration.instant")
+                  : whole < 60
+                  ? t("tasks.run.duration.seconds", { seconds: whole })
+                  : t("tasks.run.duration.minutes", {
+                    minutes: Math.floor(whole / 60),
+                    seconds: whole % 60,
+                  }),
+              },
+            )}
           </UI.Text>
         );
       }
@@ -786,6 +799,7 @@ export function TaskRunSection(
           !steps.isPending && !steps.isError && !invalidSteps
         ? (
           <TaskRunRevision
+            onFiles={reportFiles}
             taskId={taskId}
             runId={runId}
             baseSha={run.data.workspaceBaseSha ?? run.data.baseSha}

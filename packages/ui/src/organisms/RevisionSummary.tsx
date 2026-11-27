@@ -14,6 +14,7 @@ export type RevisionSummaryProps = {
   diffLink?: { href: string; label: string };
   action?: ReactNode;
   children?: ReactNode;
+  variant?: "default" | "row";
 };
 
 export function RevisionSummary(
@@ -28,8 +29,29 @@ export function RevisionSummary(
     diffLink,
     action,
     children,
+    variant = "default",
   }: RevisionSummaryProps,
 ) {
+  if (variant === "row") {
+    return (
+      <section
+        aria-label={title}
+        className="ui-run-card ui-run-card--row"
+        data-ui-component="revisionSummary"
+        data-variant="row"
+        data-state={candidateRevision ? "candidate" : "unknown"}
+      >
+        <div className="ui-run-card__row">
+          <h2>{title}</h2>
+          {summary
+            ? <span className="ui-run-card__meta">{summary}</span>
+            : null}
+          <div className="ui-run-card__actions">{action}</div>
+        </div>
+        {children}
+      </section>
+    );
+  }
   // With no commit and no change count known there is nothing to show but that.
   const nothingKnown = noneRecorded !== undefined && !baseRevision &&
     !candidateRevision && !summary;

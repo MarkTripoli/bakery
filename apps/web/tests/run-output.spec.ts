@@ -636,8 +636,21 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
     });
   });
   await page.routeWebSocket("**/v1/events?*", () => {});
+  await page.route(
+    `**/v1/runs/${runId}`,
+    (route) => route.fulfill({ json: run }),
+  );
+  await page.route(
+    `**/v1/runs/${runId}/steps*`,
+    (route) => route.fulfill({ json: { items: [step], nextCursor: null } }),
+  );
   await page.goto(`/tasks/${id}`);
-  await page.getByRole("button", { name: "View diff", exact: true }).click();
+  await expect(page.getByText(/in 59 s · 1 file changed$/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open the changes" }))
+    .toBeVisible();
+  await still(page, "run-finished-changes");
+  await page.getByRole("button", { name: "Open the changes", exact: true })
+    .click();
   // The version is a plain "Version 3"; its SHA-256 sits behind a fingerprint
   // row (first 12 characters and Copy), not in the main line.
   // The revision card says "Version 3"; the artifact version picker also has
@@ -659,7 +672,7 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
   );
   await expect(page.getByText("Patch: 1 files · +1 −1", { exact: true }))
     .toBeVisible();
-  await expect(page.getByText("1 files · +1 −1", { exact: true }))
+  await expect(page.getByText("1 file, +1 −1", { exact: true }))
     .toBeVisible();
   await expect(page.locator('[data-ui-component="codeBlock"]')).toContainText(
     "+<script>unsafe()</script>",
@@ -702,7 +715,7 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
     page.getByText("The changes could not be loaded.", { exact: true }),
   ).toBeVisible();
   await expect(page.locator('[data-ui-component="codeBlock"]')).toHaveCount(0);
-  await expect(page.getByText("1 files · +1 −1", { exact: true })).toHaveCount(
+  await expect(page.getByText("1 file, +1 −1", { exact: true })).toHaveCount(
     0,
   );
 });

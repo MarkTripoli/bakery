@@ -1,5 +1,5 @@
 import { summarizePatch } from "./patch-summary.ts";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
@@ -15,10 +15,11 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { FingerprintRow } from "./FingerprintRow.tsx";
 
 export function TaskRunRevision(
-  { taskId, runId, baseSha }: {
+  { taskId, runId, baseSha, onFiles }: {
     readonly taskId: string;
     readonly runId: string;
     readonly baseSha: string | null;
+    readonly onFiles?: (files: number) => void;
   },
 ) {
   const api = useBakeryApi();
@@ -66,6 +67,7 @@ export function TaskRunRevision(
               runId={runId}
               stepIds={steps.isError ? [] : steps.data ?? []}
               baseSha={baseSha}
+              onFiles={onFiles}
             />
           </>
         )
@@ -90,13 +92,14 @@ export function TaskRunRevision(
 }
 
 function PatchRevisions(
-  { taskId, runId, artifactId, currentVersionId, stepIds, baseSha }: {
+  { taskId, runId, artifactId, currentVersionId, stepIds, baseSha, onFiles }: {
     readonly taskId: string;
     readonly runId: string;
     readonly artifactId: string;
     readonly currentVersionId: string | null;
     readonly stepIds: readonly string[];
     readonly baseSha: string | null;
+    readonly onFiles?: (files: number) => void;
   },
 ) {
   const api = useBakeryApi();
@@ -128,12 +131,13 @@ function PatchRevisions(
     <UI.Stack>
       {candidates.length === 0
         ? null
-        : candidates.map((version) => (
+        : candidates.map((version, position) => (
           <PatchContent
             key={version.id}
             taskId={taskId}
             version={version}
             baseSha={baseSha}
+            onFiles={position === 0 ? onFiles : undefined}
           />
         ))}
       {versions.isError && (
@@ -156,10 +160,11 @@ function PatchRevisions(
 }
 
 function PatchContent(
-  { taskId, version, baseSha }: {
+  { taskId, version, baseSha, onFiles }: {
     readonly taskId: string;
     readonly baseSha: string | null;
     readonly version: ArtifactVersionResponse;
+    readonly onFiles?: (files: number) => void;
   },
 ) {
   const api = useBakeryApi();
@@ -198,8 +203,13 @@ function PatchContent(
   const summary = content.isError || content.data === undefined
     ? null
     : summarizePatch(content.data);
+  const files = summary?.files;
+  useEffect(() => {
+    if (files !== undefined) onFiles?.(files);
+  }, [files, onFiles]);
   return (
     <UI.RevisionSummary
+      variant="row"
       title={t("tasks.run.revision.title")}
       baseRevision={(version.subjectBaseSha ?? baseSha)?.slice(0, 7) ?? null}
       candidateRevision={version.subjectHeadSha?.slice(0, 7) ?? null}
@@ -212,10 +222,9 @@ function PatchContent(
         : null}
       disclaimer={t("tasks.run.revision.disclaimer")}
       unknownLabel={t("tasks.run.unknown")}
-      noneRecorded={t("tasks.run.revision.noneRecorded")}
       action={
         <UI.Button
-          variant="outline"
+          variant="text"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
@@ -225,6 +234,9 @@ function PatchContent(
     >
       {open && (
         <>
+          <UI.Text variant="muted">
+            {t("tasks.run.revision.disclaimer")}
+          </UI.Text>
           <UI.Text>
             {t("tasks.run.revision.version", { revision: version.revision })}
           </UI.Text>

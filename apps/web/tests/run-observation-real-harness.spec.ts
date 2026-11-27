@@ -509,7 +509,8 @@ test(
 
     // (a) a 1.5 MiB patch is too large to show inline and is never fetched.
     const revision = page.locator('[data-ui-component="revisionSummary"]');
-    await revision.getByRole("button", { name: "View diff" }).first().click();
+    await revision.getByRole("button", { name: "Open the changes" }).first()
+      .click();
     await expect(revision).toContainText(
       "This patch exceeds the inline preview limit.",
     );
