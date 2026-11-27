@@ -719,7 +719,31 @@ const GitHubOpenPullRequestListSchema = z.array(
   "At most one open pull request of GET /repos/{owner}/{repo}/pulls for one head and base.",
 );
 
-const GIT_BRANCH = /^(?!.*\.\.)(?!\/)(?!.*\/$)[A-Za-z0-9._\/-]{1,250}$/;
+const GIT_REF_FORBIDDEN = new Set(["~", "^", ":", "?", "*", "[", "\\"]);
+
+function hasForbiddenRefCharacter(name: string): boolean {
+  for (const character of name) {
+    const code = character.codePointAt(0)!;
+    if (code <= 0x20 || code === 0x7f || GIT_REF_FORBIDDEN.has(character)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function isGitBranchName(name: string): boolean {
+  if (name.length === 0 || name.length > 250 || name === "@") return false;
+  if (hasForbiddenRefCharacter(name)) return false;
+  if (name.includes("..") || name.includes("@{") || name.includes("//")) {
+    return false;
+  }
+  if (name.startsWith("/") || name.endsWith("/") || name.endsWith(".")) {
+    return false;
+  }
+  return name.split("/").every((part) =>
+    !part.startsWith(".") && !part.endsWith(".lock")
+  );
+}
 
 /** The merge methods GitHub supports; anything else is refused unseen. */
 export type GitHubMergeMethod = "merge" | "squash" | "rebase";
@@ -2466,7 +2490,7 @@ export function createFetchGitHubAppClient(
     async openPullRequest(request, signal) {
       const authorization = bearer(request.token);
       const path = repositoryPath(request.fullName);
-      if (!GIT_BRANCH.test(request.head) || !GIT_BRANCH.test(request.base)) {
+      if (!isGitBranchName(request.head) || !isGitBranchName(request.base)) {
         throw refused();
       }
       let status: number;
@@ -2516,7 +2540,7 @@ export function createFetchGitHubAppClient(
     async findOpenPullRequest(request, signal) {
       const authorization = bearer(request.token);
       const path = repositoryPath(request.fullName);
-      if (!GIT_BRANCH.test(request.head) || !GIT_BRANCH.test(request.base)) {
+      if (!isGitBranchName(request.head) || !isGitBranchName(request.base)) {
         throw refused();
       }
       const owner = request.fullName.split("/")[0]!;

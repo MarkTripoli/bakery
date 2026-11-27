@@ -31570,21 +31570,24 @@ export const clientManifest = {
         },
         "headBranch": {
           "type": "string",
-          "maxLength": 65536,
-          "description": "Branch that holds the changes, already pushed to the repository; a pull request already open from it into the base is registered instead of a second one."
+          "minLength": 1,
+          "maxLength": 250,
+          "description": "Branch that holds the changes, already pushed to the repository; any name git accepts. A pull request already open from it into the base is registered instead of a second one. PullRequestOpen.headBranch must contain at least 1 characters. PullRequestOpen.headBranch must contain at most 250 characters."
         },
         "baseBranch": {
-          "description": "Branch the changes should merge into; omitted, the repository's default branch.",
+          "description": "Branch the changes should merge into; omitted, the repository's default branch. PullRequestOpen.baseBranch must contain at least 1 characters. PullRequestOpen.baseBranch must contain at most 250 characters.",
           "type": "string",
-          "maxLength": 65536
+          "minLength": 1,
+          "maxLength": 250
         },
         "title": {
           "type": "string",
-          "maxLength": 65536,
-          "description": "Pull request title GitHub shows; at most 256 characters."
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Pull request title GitHub shows; at most 256 characters, and not only spaces. PullRequestOpen.title must contain at least 1 characters. PullRequestOpen.title must contain at most 256 characters."
         },
         "body": {
-          "description": "Pull request description in Markdown; omitted, empty.",
+          "description": "Pull request description in Markdown; omitted, empty. PullRequestOpen.body must contain at most 65536 characters.",
           "type": "string",
           "maxLength": 65536
         },
@@ -49443,6 +49446,23 @@ export const clientManifest = {
                 ],
                 "description": "Health of the connection: unknown until a check completes, healthy, degraded when the last check found a problem or a requested provider scope was not granted at the last connect or reconnect, or auth_required when the provider refused the credential."
               },
+              "removedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "provider"
+                    ],
+                    "description": "Who removed a revoked connection: provider when the provider removed Bakery (Slack uninstalled the app or revoked its bot token, or GitHub removed its installation), admin when a Bakery Admin removed it; null while the connection is not revoked."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationConnection.removedBy may be null in this transport value."
+              },
               "lastCheckedAt": {
                 "anyOf": [
                   {
@@ -49494,6 +49514,7 @@ export const clientManifest = {
               "grantedScopeNames",
               "status",
               "health",
+              "removedBy",
               "lastCheckedAt",
               "createdAt",
               "createdBy",
@@ -72967,6 +72988,23 @@ export const clientManifest = {
           ],
           "description": "Health of the connection: unknown until a check completes, healthy, degraded when the last check found a problem or a requested provider scope was not granted at the last connect or reconnect, or auth_required when the provider refused the credential."
         },
+        "removedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "admin",
+                "provider"
+              ],
+              "description": "Who removed a revoked connection: provider when the provider removed Bakery (Slack uninstalled the app or revoked its bot token, or GitHub removed its installation), admin when a Bakery Admin removed it; null while the connection is not revoked."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationConnection.removedBy may be null in this transport value."
+        },
         "lastCheckedAt": {
           "anyOf": [
             {
@@ -73018,6 +73056,7 @@ export const clientManifest = {
         "grantedScopeNames",
         "status",
         "health",
+        "removedBy",
         "lastCheckedAt",
         "createdAt",
         "createdBy",

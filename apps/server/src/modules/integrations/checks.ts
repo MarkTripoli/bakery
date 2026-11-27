@@ -35,6 +35,7 @@ import {
   isOAuth2Profile,
   type OAuth2Fetch,
 } from "./oauth2-connect.ts";
+import { PROVIDER_REMOVED_PROBLEM } from "./connection-problems.ts";
 import { PROVIDERS } from "./registry.ts";
 import { GITHUB_PROVIDER, type IntegrationsDependencies } from "./postgres.ts";
 import {
@@ -58,6 +59,7 @@ export const CheckProblem = Object.freeze(
     /** GitHub refused the token's read for want of permission (403). */
     PermissionLost: "permission_lost",
     DependencyUnavailable: "dependency_unavailable",
+    ProviderRemoved: PROVIDER_REMOVED_PROBLEM,
   } as const,
 );
 export type CheckProblem = (typeof CheckProblem)[keyof typeof CheckProblem];
@@ -226,6 +228,7 @@ const CheckResultSchema = z.object({
     CheckProblem.PermissionMissing,
     CheckProblem.PermissionLost,
     CheckProblem.DependencyUnavailable,
+    CheckProblem.ProviderRemoved,
   ]).nullable().describe("Safe outcome code, or null when healthy."),
   capabilities: z.array(
     z.string().min(1).max(80).describe(
@@ -650,13 +653,17 @@ async function probeProvider(
       fault: null,
     };
   }
-  if (verdict.reason === "auth_required") {
+  if (
+    verdict.reason === "auth_required" || verdict.reason === "provider_removed"
+  ) {
     return {
       completed: true,
       healthy: false,
       health: "auth_required",
       discovery: false,
-      problem: CheckProblem.TokenRejected,
+      problem: verdict.reason === "provider_removed"
+        ? CheckProblem.ProviderRemoved
+        : CheckProblem.TokenRejected,
       capabilities: [],
       fault: null,
     };

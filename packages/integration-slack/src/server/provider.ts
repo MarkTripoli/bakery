@@ -261,10 +261,15 @@ const health: HealthProbe = {
       return { healthy: false, reason: "dependency_refused", retryable: true };
     }
     if (!parsed.data.ok) {
-      const revoked = SLACK_SIGN_IN_AGAIN.has(parsed.data.error ?? "");
+      const error = parsed.data.error ?? "";
+      const revoked = SLACK_SIGN_IN_AGAIN.has(error);
       return {
         healthy: false,
-        reason: revoked ? "auth_required" : "dependency_refused",
+        reason: error === "token_revoked"
+          ? "provider_removed"
+          : revoked
+          ? "auth_required"
+          : "dependency_refused",
         retryable: !revoked,
       };
     }

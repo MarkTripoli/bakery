@@ -9,6 +9,7 @@ import { DeliveryImplementedAction } from "@bakery/contracts/implemented-actions
 import {
   createNormalizedCommandMetadata,
   StandardError,
+  unprocessable,
 } from "@bakery/contracts/http";
 import {
   authorize,
@@ -45,6 +46,7 @@ import {
   DEFAULT_RATE_LIMIT_SECONDS,
   type GitHubPullRequest,
   GitHubReadFailure,
+  isGitBranchName,
 } from "../integrations/github-app.ts";
 import {
   countLines,
@@ -356,6 +358,18 @@ const OPEN_PERMISSIONS = {
   pull_requests: "write",
 } as const;
 
+function assertOpenable(open: OpenInput & { base: string }): void {
+  if (!isGitBranchName(open.headBranch)) {
+    throw unprocessable(["headBranch"], "branch_name_invalid");
+  }
+  if (!isGitBranchName(open.base)) {
+    throw unprocessable(["baseBranch"], "branch_name_invalid");
+  }
+  if (open.title.trim() === "") {
+    throw unprocessable(["title"], "pull_request_title_required");
+  }
+}
+
 async function openOnProvider(
   dependencies: ReconcileDependencies,
   authority: RegistrationAuthority,
@@ -364,6 +378,7 @@ async function openOnProvider(
   open: OpenInput & { base: string },
   signal: AbortSignal,
 ): Promise<number> {
+  assertOpenable(open);
   const token = await mintInstallationToken(
     dependencies,
     tokenAuthorityOf(authority, generation, credentials),

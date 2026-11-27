@@ -1,22 +1,32 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "e1944b61e39c0b7fd603ca262b6dd28c1b5790da"
+    "eb0f10f8c8fd97a4e4663efe1b68c3b791e53c96"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:9899ec423a20e84b2043adb1cbe28b08600810d74157ef133cd54775d4f40530",
-  "reason": "#67 delivery.openPullRequest by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main e1944b61: adds the delivery.openPullRequest workflow action and OpenPullRequestInput, on top of pullRequests.open.",
+  "targetCompatibilityDigest": "sha256:1ec459bf5ae9d35a0ed8c4b1ee4b7eab3e4ced338a43c23e26263b19131c87a1",
+  "reason": "#67 delivery.openPullRequest by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main eb0f10f8: adds the delivery.openPullRequest workflow action and OpenPullRequestInput, on top of pullRequests.open.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
-        "e1944b61e39c0b7fd603ca262b6dd28c1b5790da"
+        "eb0f10f8c8fd97a4e4663efe1b68c3b791e53c96"
       ],
       "status": "displaced",
       "allowBreaking": true,
-      "targetCompatibilityDigest": "sha256:039c65d2df79a316285700dc6c10175ca9dbbc7f5da734806df8fde9766ec16d",
-      "reason": "#67 pullRequests.open by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main e1944b61: adds pullRequests.open and PullRequestOpen."
+      "targetCompatibilityDigest": "sha256:9a4b621950edc9002b59ed5995941988e7de3552225b20f921c43e4d2d072761",
+      "reason": "#67 pullRequests.open by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main eb0f10f8: adds pullRequests.open and PullRequestOpen."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "0c0036071044f26f5e08f1f4e2d44c8ff05120d4"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:070b45b9314e52dcbf408223a33a00c3cc5799d2469a4d660948cbe150266825",
+      "reason": "#12 Slack removal by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 0c003607: IntegrationConnection gains removedBy."
     },
     {
       "id": "v1-unreleased-principal-organization-contracts",
