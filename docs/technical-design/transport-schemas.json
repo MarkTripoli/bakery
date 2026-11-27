@@ -21695,6 +21695,46 @@
       "pageOf": "WorkerAttemptRead",
       "description": "Keyset page of one machine's attempts in one state, newest first; null nextCursor marks the last page."
     },
+    "MachineModel": {
+      "fields": [
+        "id",
+        "provider",
+        "model",
+        "harness",
+        "billingRoute",
+        "status",
+        "health",
+        "inferenceVerifiedAt",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "provider": "string",
+        "model": "string",
+        "harness": "enum(pi|claude_code|codex|mastra)",
+        "billingRoute": "enum(subscription|api_metered|local)",
+        "status": "enum(active|disabled|revoked)",
+        "health": "enum(healthy|degraded|open|unverified)",
+        "inferenceVerifiedAt": "timestamp|null",
+        "createdAt": "timestamp"
+      },
+      "fieldDescriptions": {
+        "id": "Stable identity of the model route on this machine.",
+        "provider": "Model provider the route calls, such as anthropic or openai.",
+        "model": "Model name the route sends work to.",
+        "harness": "Coding agent on the machine that runs the model.",
+        "billingRoute": "How the model's use is paid for: the coding agent's subscription, metered API use, or a local model.",
+        "status": "Whether the model takes work: active, turned off (disabled), or removed for good (revoked).",
+        "health": "Last known health: healthy, degraded, open (paused while it is probed) or unverified.",
+        "inferenceVerifiedAt": "When the machine last proved the model answers; null before it has.",
+        "createdAt": "When the model was added; stable keyset position."
+      },
+      "description": "One model a machine may send work to, read through the machine itself, with no account, endpoint, credential or incident detail."
+    },
+    "Page<MachineModel>": {
+      "pageOf": "MachineModel",
+      "description": "Keyset page of the models one machine may use, newest first; null nextCursor marks the last page."
+    },
     "JobAttemptRead": {
       "fields": [
         "id",

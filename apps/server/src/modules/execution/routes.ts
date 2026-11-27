@@ -1,4 +1,5 @@
 import { pluginBrokerRelayRoute } from "./plugin-broker-relay.ts";
+import { listMachineModels } from "./machine-models-read.ts";
 import type { RequestEmailSend } from "../work/request-email.ts";
 import type { RequestSlackDependencies } from "../work/request-slack.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
@@ -343,6 +344,10 @@ export function createExecutionRoutes(
   app.get(
     "/v1/workers/:id/attempts",
     routeHandler(options, (context) => listMachineAttempts(context, options)),
+  );
+  app.get(
+    "/v1/workers/:id/models",
+    routeHandler(options, (context) => listMachineModels(context, options)),
   );
   app.get(
     "/v1/workers/:id/dispatch-blockers",
