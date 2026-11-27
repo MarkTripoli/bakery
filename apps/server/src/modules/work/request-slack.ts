@@ -29,6 +29,14 @@ const SLACK_WORKSPACE_KIND = "slack.workspace";
 const DM_OPEN = { id: "slack.dm.open", version: 1 } as const;
 const MESSAGE_POST = { id: "slack.message.post", version: 1 } as const;
 const MESSAGE_UPDATE = { id: "slack.message.update", version: 1 } as const;
+const MESSAGE_EPHEMERAL = {
+  id: "slack.message.ephemeral",
+  version: 1,
+} as const;
+export const REQUEST_SLACK_APPROVE_ACTION = "approve";
+export const REQUEST_SLACK_REJECT_ACTION = "reject";
+export const REQUEST_SLACK_OPEN_ACTION = "open";
+export const REQUEST_SLACK_BLOCK_ID = "request";
 const UNCERTAIN_CODE = "uncertain";
 const CRASHED_CODE = "crashed";
 const CLOSED_UNCONFIRMED_CODE = "closed_unconfirmed";
@@ -240,6 +248,108 @@ function closingLines(
   }
 }
 
+export type SlackPlainText = Readonly<{ type: "plain_text"; text: string }>;
+
+export type SlackButton = Readonly<{
+  type: "button";
+  action_id: string;
+  text: SlackPlainText;
+  value?: string;
+  url?: string;
+  style?: "primary" | "danger";
+  confirm?: Readonly<{
+    title: SlackPlainText;
+    text: SlackPlainText;
+    confirm: SlackPlainText;
+    deny: SlackPlainText;
+  }>;
+}>;
+
+export type SlackBlock =
+  | Readonly<{
+    type: "section";
+    text: Readonly<{ type: "mrkdwn"; text: string }>;
+  }>
+  | Readonly<{
+    type: "actions";
+    block_id: string;
+    elements: readonly SlackButton[];
+  }>;
+
+const plain = (text: string): SlackPlainText => ({ type: "plain_text", text });
+
+export function slackLinkButton(
+  actionId: string,
+  label: string,
+  url: string,
+): SlackButton {
+  return { type: "button", action_id: actionId, text: plain(label), url };
+}
+
+function decisionButtons(facts: RequestSlackFacts): SlackButton[] {
+  const step = facts.stepName === null
+    ? "this step"
+    : capSlackTitle(facts.stepName);
+  return [
+    {
+      type: "button",
+      action_id: REQUEST_SLACK_APPROVE_ACTION,
+      text: plain("Approve"),
+      value: facts.requestId,
+      style: "primary",
+      confirm: {
+        title: plain("Approve this?"),
+        text: plain(
+          `Bakery continues from ${step}. Your decision is recorded under your name.`,
+        ),
+        confirm: plain("Approve"),
+        deny: plain("Cancel"),
+      },
+    },
+    {
+      type: "button",
+      action_id: REQUEST_SLACK_REJECT_ACTION,
+      text: plain("Reject"),
+      value: facts.requestId,
+      style: "danger",
+      confirm: {
+        title: plain("Reject this?"),
+        text: plain(
+          `Bakery will not continue past ${step}. Your decision is recorded under your name.`,
+        ),
+        confirm: plain("Reject"),
+        deny: plain("Cancel"),
+      },
+    },
+  ];
+}
+
+export function requestSlackBlocks(
+  publicBaseUrl: string,
+  facts: RequestSlackFacts,
+  closing?: RequestSlackClosing,
+): SlackBlock[] {
+  const lines = closing === undefined
+    ? openingLines(facts)
+    : closingLines(facts, closing);
+  const decides = closing === undefined && facts.intent === "approve";
+  return [
+    { type: "section", text: { type: "mrkdwn", text: lines.join("\n") } },
+    {
+      type: "actions",
+      block_id: REQUEST_SLACK_BLOCK_ID,
+      elements: [
+        ...(decides ? decisionButtons(facts) : []),
+        slackLinkButton(
+          REQUEST_SLACK_OPEN_ACTION,
+          "Open in Bakery",
+          requestSlackLink(publicBaseUrl, facts),
+        ),
+      ],
+    },
+  ];
+}
+
 export function requestSlackText(
   publicBaseUrl: string,
   facts: RequestSlackFacts,
@@ -369,7 +479,9 @@ async function closedRows(
   now: Date,
   states: string,
   stateParams: readonly number[],
+  targetId?: string,
 ): Promise<readonly ClosedRow[]> {
+  const targetParam = 8 + stateParams.length;
   const found = await database.query<ClosedRow>(
     `select ${REQUEST_COLUMNS}, delivery.state as delivery_state,
             delivery.attempts as delivery_attempts, delivery.external_ref,
@@ -385,6 +497,8 @@ async function closedRows(
         and closing.final_status <> 'open'
         and delivery.attempts < $7
         and ${states}
+        and ($${targetParam}::uuid is null
+             or request.target_id = $${targetParam}::uuid)
       order by delivery.updated_at, delivery.id
       limit $3`,
     [
@@ -396,6 +510,7 @@ async function closedRows(
       SLACK_PROVIDER,
       REQUEST_SLACK_MAX_ATTEMPTS,
       ...stateParams,
+      targetId ?? null,
     ],
   );
   return found.rows;
@@ -675,6 +790,7 @@ async function sendOpen(
   return await send(request, MESSAGE_POST, {
     channelId,
     text: requestSlackText(options.publicBaseUrl, factsOf(request)),
+    blocks: requestSlackBlocks(options.publicBaseUrl, factsOf(request)),
     marker: requestSlackMarker(request.id),
   }, postKey(request.id));
 }
@@ -788,17 +904,24 @@ export async function sendDueRequestSlackMessages(
 }
 
 export async function rewriteClosedRequestSlackMessages(
-  options: RequestSlackDependencies & { database: PgDatabase; now?: Date },
+  options: RequestSlackDependencies & {
+    database: PgDatabase;
+    now?: Date;
+    targetId?: string;
+  },
 ): Promise<RequestSlackOutcome[]> {
   const now = options.now ?? new Date();
   await giveUpCrashed(options.database, now);
   const send = createSender(options);
   const outcomes: RequestSlackOutcome[] = [];
   for (
-    const row of await closedRows(options.database, now, REWRITE_STATES, [
-      REQUEST_SLACK_RETRY_BASE_MINUTES,
-      REQUEST_SLACK_LEASE_MINUTES,
-    ])
+    const row of await closedRows(
+      options.database,
+      now,
+      REWRITE_STATES,
+      [REQUEST_SLACK_RETRY_BASE_MINUTES, REQUEST_SLACK_LEASE_MINUTES],
+      options.targetId,
+    )
   ) {
     const posted = splitExternalRef(row.external_ref);
     const attempts = await claimExisting(
@@ -815,6 +938,10 @@ export async function rewriteClosedRequestSlackMessages(
         channelId: posted.channelId,
         ts: posted.ts,
         text: requestSlackText(options.publicBaseUrl, factsOf(row), {
+          status: row.final_status,
+          closedByName: row.closed_by_name,
+        }),
+        blocks: requestSlackBlocks(options.publicBaseUrl, factsOf(row), {
           status: row.final_status,
           closedByName: row.closed_by_name,
         }),
@@ -859,6 +986,66 @@ export async function rewriteClosedRequestSlackMessages(
     });
   }
   return outcomes;
+}
+
+export type SlackEphemeralNote = Readonly<{
+  organizationId: string;
+  teamId: string;
+  channelId: string;
+  userId: string;
+  text: string;
+  blocks?: readonly SlackBlock[];
+  idempotencyKey: string;
+}>;
+
+export async function sendRequestSlackEphemeral(
+  options: RequestSlackDependencies & { database: PgDatabase },
+  note: SlackEphemeralNote,
+): Promise<"shown" | "not_shown"> {
+  const found = await options.database.query<Target>(
+    `select connection.id as connection_id,
+            connection.external_account_id as team_id,
+            resource.id as resource_id,
+            delivery_principal.principal_id
+       from bakery.integration_connections connection
+       join bakery.integration_resources resource
+         on resource.organization_id = connection.organization_id
+        and resource.connection_id = connection.id
+        and resource.kind = $3
+        and resource.external_id = connection.external_account_id
+        and resource.archived_at is null
+       join bakery.delivery_principals delivery_principal
+         on delivery_principal.organization_id = connection.organization_id
+        and delivery_principal.purpose = $4
+      where connection.organization_id = $1
+        and connection.external_account_id = $2
+        and connection.provider = $5
+        and connection.status = 'enabled'
+        and connection.archived_at is null
+      order by connection.created_at, connection.id
+      limit 1`,
+    [
+      note.organizationId,
+      note.teamId,
+      SLACK_WORKSPACE_KIND,
+      SLACK_DELIVERY_PURPOSE,
+      SLACK_PROVIDER,
+    ],
+  );
+  const target = found.rows[0];
+  if (target === undefined) return "not_shown";
+  const shown = await createSender(options)(
+    { ...target, organization_id: note.organizationId },
+    MESSAGE_EPHEMERAL,
+    {
+      channelId: note.channelId,
+      userId: note.userId,
+      text: note.text,
+      ...(note.blocks === undefined ? {} : { blocks: note.blocks }),
+    },
+    note.idempotencyKey,
+  );
+  return shown.kind === "confirmed" ? "shown" : "not_shown";
 }
 
 export function createRequestSlackFunction(
