@@ -65,6 +65,10 @@ import {
   createRequestEmailFunction,
   type RequestEmailDependencies,
 } from "../work/request-email.ts";
+import {
+  createRequestSlackFunction,
+  type RequestSlackDependencies,
+} from "../work/request-slack.ts";
 
 import { createOutputArchiveWorkflow } from "./output-archive.ts";
 import {
@@ -153,6 +157,7 @@ export function createDefaultInngestFunctions(options: {
   storageLocalRoot?: string;
   storageBlobStore?: OrganizationBlobStore;
   requestEmail?: RequestEmailDependencies;
+  requestSlack?: RequestSlackDependencies;
 }): readonly unknown[] {
   const storage = defaultStorageConnections({
     storageLocalRoot: options.storageLocalRoot,
@@ -324,6 +329,13 @@ export function createDefaultInngestFunctions(options: {
         database: options.database,
       }),
     ]),
+    ...(options.requestSlack === undefined ? [] : [
+      createRequestSlackFunction({
+        ...options.requestSlack,
+        client: options.client,
+        database: options.database,
+      }),
+    ]),
     // The batch supervisor: a supervisor over ordinary requests, not an engine. It
     // starts an issue only through the existing admission, with the same live reader
     // and budget policy as the ticket functions, so it is wired where they are; with no
@@ -404,6 +416,7 @@ export function createInngestHttpHandler(options: {
   storageLocalRoot?: string;
   storageBlobStore?: OrganizationBlobStore;
   requestEmail?: RequestEmailDependencies;
+  requestSlack?: RequestSlackDependencies;
 }): (context: unknown) => Promise<Response> {
   const client = (options.client ?? new Inngest({
     id: "bakery-server",
@@ -428,6 +441,7 @@ export function createInngestHttpHandler(options: {
         storageLocalRoot: options.storageLocalRoot,
         storageBlobStore: options.storageBlobStore,
         requestEmail: options.requestEmail,
+        requestSlack: options.requestSlack,
       })
       : [])) as ServeOptions["functions"];
   const officialHandler = serve({

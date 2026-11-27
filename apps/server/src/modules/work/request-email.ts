@@ -52,7 +52,7 @@ type DueRequest = {
   email: string;
 };
 
-const INTENT_VERB: Readonly<Record<string, string>> = {
+export const INTENT_VERB: Readonly<Record<string, string>> = {
   approve: "approve",
   review: "review",
   answer: "answer a question",
