@@ -207,9 +207,9 @@ export async function startToolGateway(
   backend: ToolGatewayBackend,
   signal?: AbortSignal,
 ): Promise<ToolGatewaySession> {
-  const tools = await backend.listTools(signal);
-  const builtinTools = (await backend.listBuiltinTools?.(signal) ?? []).filter(
-    (builtin) => !tools.some((tool) => tool.name === builtin.name),
+  const builtinTools = await backend.listBuiltinTools?.(signal) ?? [];
+  const tools = (await backend.listTools(signal)).filter((tool) =>
+    !builtinTools.some((builtin) => builtin.name === tool.name)
   );
   const token = randomBytes(32).toString("base64url");
   const server: Server = createServer((request, response) => {
@@ -286,6 +286,13 @@ export async function startToolGateway(
     }),
     close,
   });
+}
+
+export function gatewayOffersTools(
+  gateway: ToolGatewaySession | null,
+): gateway is ToolGatewaySession {
+  return gateway !== null &&
+    gateway.tools.length + gateway.builtinTools.length > 0;
 }
 
 /** The worker session holding the attempt, read when a gateway opens. */
@@ -510,7 +517,14 @@ export function createToolGatewayFactory(
       listBuiltinTools: async () =>
         sessionCaller === null
           ? []
-          : await bakeryFilesTools(sessionCaller).catch(() => []),
+          : await bakeryFilesTools(sessionCaller).catch((error) => {
+            console.warn(JSON.stringify({
+              event: "tool_gateway.files_tools_unavailable",
+              attemptId: assignment.attemptId,
+              reason: error instanceof Error ? error.message : "unknown",
+            }));
+            return [];
+          }),
       listTools: async (listSignal) =>
         (await client.effectiveTools(assignment.attemptId, proof, listSignal))
           .value.tools,

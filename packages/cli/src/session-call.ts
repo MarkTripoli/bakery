@@ -78,7 +78,7 @@ export type SessionApi = Readonly<{
   /** What this session may call, in the server's order. */
   tools: () => Promise<readonly SessionTool[]>;
   /** Runs one operation and answers with its own output. */
-  call: (tool: string, args: unknown) => Promise<unknown>;
+  call: (tool: string, args: unknown, ifMatch?: number) => Promise<unknown>;
 }>;
 
 export function sessionToolsPath(): string {
@@ -223,7 +223,7 @@ export function createSessionApi(
 ): SessionApi {
   const send = async (
     path: string,
-    init: Readonly<{ method: string; body?: unknown }>,
+    init: Readonly<{ method: string; body?: unknown; ifMatch?: number }>,
     tool: string,
   ): Promise<unknown> => {
     const headers = new Headers({
@@ -235,6 +235,9 @@ export function createSessionApi(
     });
     if (init.body !== undefined) {
       headers.set("content-type", "application/json");
+    }
+    if (init.ifMatch !== undefined) {
+      headers.set("if-match", `"${init.ifMatch}"`);
     }
     let response: Response;
     try {
@@ -274,10 +277,10 @@ export function createSessionApi(
       const list = Array.isArray(body?.tools) ? body.tools : [];
       return list as readonly SessionTool[];
     },
-    call: async (tool, args) => {
+    call: async (tool, args, ifMatch) => {
       const body = await send(
         sessionCallPath(),
-        { method: "POST", body: { tool, arguments: args } },
+        { method: "POST", body: { tool, arguments: args }, ifMatch },
         tool,
       ) as { outcome?: unknown; result?: unknown };
       // An audited refusal is still an answer: say it, do not print the

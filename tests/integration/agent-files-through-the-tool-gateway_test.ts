@@ -103,6 +103,27 @@ async function gatewayCall(
   return JSON.parse(answer.result.content[0].text);
 }
 
+async function gatewayRefusal(
+  tools: Awaited<ReturnType<typeof agentFilesTools>>["tools"],
+  name: string,
+  args: Json,
+): Promise<string> {
+  const answer = await answerGatewayMessage(
+    {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name, arguments: args },
+    },
+    [],
+    noMcp,
+    undefined,
+    tools,
+  ) as { result: { content: { text: string }[]; isError: boolean } };
+  assertEquals(answer.result.isError, true);
+  return answer.result.content[0].text;
+}
+
 async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest))
@@ -155,14 +176,46 @@ Deno.test("an agent writes and reads Bakery Files through the tool gateway, and 
     });
     assertEquals(read, btoa("gateway bytes"));
 
+    const unversioned = await gatewayRefusal(
+      agent.tools,
+      "bakery_files_write",
+      {
+        path: "/shared/gateway-451/notes.md",
+        mediaType: "text/markdown",
+        content: btoa("second"),
+      },
+    );
+    assert(unversioned.includes("PRECONDITION_REQUIRED"), unversioned);
+    const stat = await gatewayCall(agent.tools, "bakery_files_stat", {
+      id: written.id,
+    }) as Json;
+    assertEquals(
+      [stat.version, stat.revision, stat.sha256],
+      [written.version, 1, written.sha256],
+    );
+    const replaced = await gatewayCall(agent.tools, "bakery_files_write", {
+      path: "/shared/gateway-451/notes.md",
+      mediaType: "text/markdown",
+      content: btoa("second"),
+      version: stat.version,
+    }) as Json;
+    assertEquals(replaced.revision, 2);
+    const tooLarge = await gatewayRefusal(agent.tools, "bakery_files_write", {
+      path: "/shared/gateway-451/large.bin",
+      mediaType: "application/octet-stream",
+      content: "A".repeat(65_540),
+    });
+    assert(tooLarge.startsWith("Bakery refused the file call"), tooLarge);
+
     const writes = await fixture.pgDatabase.query<
       { op: string; new_version_id: string | null }
     >(
       `select op, new_version_id from bakery.step_write_set
-        where organization_id = $1 and attempt_id = $2 and entry_id = $3`,
+        where organization_id = $1 and attempt_id = $2 and entry_id = $3
+        order by created_at`,
       [fixture.organizationId, agent.attemptId, written.id],
     );
-    assertEquals(writes.rows.map((row) => row.op), ["put"]);
+    assertEquals(writes.rows.map((row) => row.op), ["put", "put"]);
     const reads = await fixture.pgDatabase.query<
       { version_id: string | null; sha256: string }
     >(

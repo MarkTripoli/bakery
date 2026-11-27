@@ -1,4 +1,7 @@
-import type { SessionApi } from "../../../packages/cli/src/session-call.ts";
+import {
+  type SessionApi,
+  SessionRefusal,
+} from "../../../packages/cli/src/session-call.ts";
 
 export type GatewayCallResult = { content: unknown[]; isError: boolean };
 
@@ -12,12 +15,12 @@ export type BuiltinGatewayTool = Readonly<{
 
 type FilesToolSpec = Readonly<{
   name: string;
-  operation: string;
+  operations: readonly string[];
   description: string;
   readOnly: boolean;
   properties: Record<string, unknown>;
   required: readonly string[];
-  arguments?: (args: Record<string, unknown>) => Record<string, unknown>;
+  run: (session: SessionApi, args: Record<string, unknown>) => Promise<unknown>;
 }>;
 
 const entryId = {
@@ -36,40 +39,80 @@ const limit = {
   description: "Most items to return on one page.",
 };
 
+export const FILES_WRITE_MAX_BASE64_CHARACTERS = 65_536;
+
+const direct =
+  (operation: string) => (session: SessionApi, args: Record<string, unknown>) =>
+    session.call(operation, args);
+
+async function stat(
+  session: SessionApi,
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const versions = await session.call("storageFileVersions.list", {
+    id: args.id,
+    limit: 1,
+  }) as { items?: { id?: unknown; revision?: unknown; sha256?: unknown }[] };
+  const current = versions.items?.[0];
+  if (typeof current?.id !== "string") return null;
+  const atVersion = await session.call("storageFiles.byVersion", {
+    id: current.id,
+  }) as { file?: Record<string, unknown> };
+  return {
+    ...atVersion.file,
+    revision: current.revision,
+    sha256: current.sha256,
+  };
+}
+
+async function write(
+  session: SessionApi,
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const { version, ...put } = args;
+  return await session.call(
+    "storageFiles.put",
+    put,
+    typeof version === "number" ? version : undefined,
+  );
+}
+
 const FILES_TOOL_SPECS: readonly FilesToolSpec[] = Object.freeze([
   {
     name: "bakery_files_roots",
-    operation: "storageRoots.list",
+    operations: ["storageRoots.list"],
     description:
       "List the top-level folders of Bakery Files this step may open.",
     readOnly: true,
     properties: {},
     required: [],
+    run: direct("storageRoots.list"),
   },
   {
     name: "bakery_files_list",
-    operation: "storageFolderEntries.list",
+    operations: ["storageFolderEntries.list"],
     description:
       "List the files and folders in one Bakery Files folder, a page at a time.",
     readOnly: true,
     properties: { id: entryId, cursor, limit },
     required: ["id"],
+    run: direct("storageFolderEntries.list"),
   },
   {
     name: "bakery_files_stat",
-    operation: "storageFileVersions.list",
+    operations: ["storageFileVersions.list", "storageFiles.byVersion"],
     description:
-      "Describe a file's current version: revision, size, media type and SHA-256.",
+      "Describe a file as it is now: path, revision, size, media type, SHA-256, and the version number bakery_files_write needs to replace it.",
     readOnly: true,
     properties: { id: entryId },
     required: ["id"],
-    arguments: (args) => ({ ...args, limit: 1 }),
+    run: stat,
   },
   {
     name: "bakery_files_read",
-    operation: "storageFiles.content",
+    operations: ["storageFiles.content"],
     description:
-      "Read a file's bytes, as base64, whole or one byte range. The answer carries the version's SHA-256.",
+      "Read a file's bytes, as base64, whole or one byte range. bakery_files_stat gives its SHA-256.",
     readOnly: true,
     properties: {
       id: entryId,
@@ -85,10 +128,11 @@ const FILES_TOOL_SPECS: readonly FilesToolSpec[] = Object.freeze([
       },
     },
     required: ["id"],
+    run: direct("storageFiles.content"),
   },
   {
     name: "bakery_files_search",
-    operation: "files.search",
+    operations: ["files.search"],
     description:
       "Find files by name. Only files this step may read are returned.",
     readOnly: true,
@@ -107,12 +151,13 @@ const FILES_TOOL_SPECS: readonly FilesToolSpec[] = Object.freeze([
       limit,
     },
     required: ["query"],
+    run: direct("files.search"),
   },
   {
     name: "bakery_files_write",
-    operation: "storageFiles.put",
+    operations: ["storageFiles.put"],
     description:
-      "Upload a file to a path, or save a new version of the file already there. Content is base64, at most 1 MiB.",
+      "Upload a new file to a path, or save a new version of a file there by passing the version bakery_files_stat or the last write gave. Content is base64, at most 65536 characters (48 KiB of bytes).",
     readOnly: false,
     properties: {
       path: {
@@ -124,13 +169,23 @@ const FILES_TOOL_SPECS: readonly FilesToolSpec[] = Object.freeze([
         type: "string",
         description: "Media type, such as text/markdown.",
       },
-      content: { type: "string", description: "The file's bytes, base64." },
+      content: {
+        type: "string",
+        maxLength: FILES_WRITE_MAX_BASE64_CHARACTERS,
+        description: "The file's bytes, base64.",
+      },
+      version: {
+        type: "integer",
+        description:
+          "The file's current version, to replace a file that exists; omit for a new file.",
+      },
     },
     required: ["path", "mediaType", "content"],
+    run: write,
   },
   {
     name: "bakery_files_mkdir",
-    operation: "storageFolders.create",
+    operations: ["storageFolders.create"],
     description: "Create a folder at an absolute path whose parent exists.",
     readOnly: false,
     properties: {
@@ -140,16 +195,23 @@ const FILES_TOOL_SPECS: readonly FilesToolSpec[] = Object.freeze([
       },
     },
     required: ["path"],
+    run: direct("storageFolders.create"),
   },
 ]);
 
-export const FILES_CALL_FAILED_TEXT = "The file call was refused or failed.";
+export function filesCallFailure(error: unknown): string {
+  return error instanceof SessionRefusal
+    ? `Bakery refused the file call: ${error.message}`
+    : "The file call failed.";
+}
 
 export async function bakeryFilesTools(
   session: SessionApi,
 ): Promise<readonly BuiltinGatewayTool[]> {
   const offered = new Set((await session.tools()).map((tool) => tool.name));
-  return FILES_TOOL_SPECS.filter((spec) => offered.has(spec.operation)).map(
+  return FILES_TOOL_SPECS.filter((spec) =>
+    spec.operations.every((operation) => offered.has(operation))
+  ).map(
     (spec): BuiltinGatewayTool =>
       Object.freeze({
         name: spec.name,
@@ -163,17 +225,14 @@ export async function bakeryFilesTools(
         },
         call: async (args) => {
           try {
-            const result = await session.call(
-              spec.operation,
-              spec.arguments?.(args) ?? args,
-            );
+            const result = await spec.run(session, args);
             return {
               content: [{ type: "text", text: JSON.stringify(result) }],
               isError: false,
             };
-          } catch {
+          } catch (error) {
             return {
-              content: [{ type: "text", text: FILES_CALL_FAILED_TEXT }],
+              content: [{ type: "text", text: filesCallFailure(error) }],
               isError: true,
             };
           }
