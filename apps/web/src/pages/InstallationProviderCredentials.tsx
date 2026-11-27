@@ -5,6 +5,7 @@ import { integrationClientCredentialsQueryOptions } from "../api/query.ts";
 import { failureStatus, isForbiddenFailure } from "../app/async-state.ts";
 import { useSingleFlightSubmit } from "../app/auth-form.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { useArrivalScroll } from "../app/arrival-scroll.ts";
 import {
   EMPTY_PROVIDER_CREDENTIALS,
   NO_PROVIDER_CREDENTIALS_FAILURE,
@@ -111,6 +112,7 @@ export function InstallationProviderCredentials(
     : loaded
     ? "ready"
     : "loading";
+  useArrivalScroll(provider, view === "ready");
   return (
     <ProviderCredentialsSection
       connectAvailable={connectAvailable}

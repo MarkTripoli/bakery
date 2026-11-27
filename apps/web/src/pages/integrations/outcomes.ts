@@ -5,6 +5,7 @@ import type { MessageKey } from "@bakery/i18n";
  * (integrations/callbacks.ts `ConnectionOutcome`); never a provider detail.
  */
 export const CONNECTION_OUTCOMES = [
+  "connected",
   "pending",
   "refreshed",
   "awaiting_authorization",
@@ -25,6 +26,8 @@ export const CONNECTION_OUTCOMES = [
   "reconnect_unavailable",
   "held_elsewhere",
   "storage_failed",
+  "enterprise_install",
+  "wrong_app",
 ] as const;
 export type ConnectionOutcome = (typeof CONNECTION_OUTCOMES)[number];
 
@@ -35,7 +38,14 @@ export type OutcomeCopy = {
   readonly retry: boolean;
 };
 
-export const OUTCOME_COPY: Readonly<Record<ConnectionOutcome, OutcomeCopy>> = {
+type SlackOnlyOutcome = "enterprise_install" | "wrong_app";
+
+const OUTCOME_COPY: Readonly<
+  Record<
+    Exclude<ConnectionOutcome, "connected" | SlackOnlyOutcome>,
+    OutcomeCopy
+  >
+> = {
   pending: {
     tone: "success",
     body: "settings.connections.outcome.pending",
@@ -137,3 +147,9 @@ export const OUTCOME_COPY: Readonly<Record<ConnectionOutcome, OutcomeCopy>> = {
     retry: true,
   },
 };
+
+export const outcomeCopy = (outcome: ConnectionOutcome): OutcomeCopy | null =>
+  outcome === "connected" || outcome === "enterprise_install" ||
+    outcome === "wrong_app"
+    ? null
+    : OUTCOME_COPY[outcome];
