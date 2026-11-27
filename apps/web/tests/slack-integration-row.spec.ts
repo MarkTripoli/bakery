@@ -5,6 +5,12 @@ import {
 } from "./helpers/mock-session.ts";
 import { still } from "./helpers/stills.ts";
 
+test.use({
+  video: process.env.BAKERY_EVIDENCE_VIDEO === "1"
+    ? { mode: "on", size: { width: 1440, height: 900 } }
+    : "off",
+});
+
 const ORGANIZATION_PATH = "/settings/organization/integrations";
 const INSTALLATION_PATH = "/settings/installation/integrations";
 const SOON = "Connecting Slack is not available in this version of Bakery yet.";
@@ -14,6 +20,7 @@ const slackCredentials = {
   configured: false,
   clientId: null,
   clientSecretSavedAt: null,
+  signingSecretSavedAt: null,
   callbackUrl:
     "https://bakery.example/v1/integration-auth/slack/install-callback",
   version: 0,
@@ -24,6 +31,7 @@ const savedSlackCredentials = {
   configured: true,
   clientId: "1234567890.0987654321",
   clientSecretSavedAt: "2026-11-24T10:00:00.000Z",
+  signingSecretSavedAt: null,
   version: 2,
 };
 
@@ -79,6 +87,232 @@ test("a saved Slack app says its details are saved, never that Slack is set up",
   const section = page.getByTestId("slack-credentials");
   await expect(section).toContainText("Your Slack app details are saved.");
   await expect(section).not.toContainText("Slack is set up.");
+});
+
+test("the Slack app form takes the signing secret beside the client pair and says when it was saved", async ({ page }) => {
+  await fixture(page);
+  const sent: Array<{ body: unknown; ifMatch: string | undefined }> = [];
+  await page.route(
+    "**/v1/integration-client-credentials/slack",
+    (route) => {
+      if (route.request().method() !== "PUT") {
+        return route.fulfill({ json: slackCredentials });
+      }
+      sent.push({
+        body: route.request().postDataJSON(),
+        ifMatch: route.request().headers()["if-match"],
+      });
+      return route.fulfill({
+        json: {
+          ...savedSlackCredentials,
+          signingSecretSavedAt: "2026-11-25T10:00:00.000Z",
+        },
+      });
+    },
+  );
+  await page.goto(INSTALLATION_PATH);
+  const section = page.getByTestId("slack-credentials");
+  const form = section.getByTestId("slack-credentials-form");
+  await expect(form).toContainText("Signing secret");
+  await expect(form).toContainText(
+    "From your Slack app's Basic Information page. Bakery uses it to check that requests really come from Slack.",
+  );
+  await form.locator('input[name="clientId"]').fill("1234567890.0987654321");
+  await form.locator('input[name="clientSecret"]').fill("client-secret-value");
+  await form.locator('input[name="signingSecret"]').fill(
+    " signing-secret-value \n",
+  );
+  await still(page, "slack-signing-secret-form", section);
+  await form.getByRole("button", { name: "Save" }).click();
+  await expect(section).toContainText("Signing secret saved");
+  await expect(section).toContainText("Client secret saved");
+  await expect(section.locator('input[name="signingSecret"]')).toHaveCount(0);
+  expect(sent).toEqual([{
+    body: {
+      clientId: "1234567890.0987654321",
+      clientSecret: "client-secret-value",
+      signingSecret: "signing-secret-value",
+    },
+    ifMatch: undefined,
+  }]);
+  await still(page, "slack-signing-secret-saved", section);
+  await expect(
+    page.getByTestId("linear-credentials").locator(
+      'input[name="signingSecret"]',
+    ),
+  ).toHaveCount(0);
+});
+
+test("replacing the Slack app details without a new signing secret keeps the saved one", async ({ page }) => {
+  await fixture(page, savedSlackCredentials);
+  const sent: Array<{ body: unknown; ifMatch: string | undefined }> = [];
+  await page.route(
+    "**/v1/integration-client-credentials/slack",
+    (route) => {
+      if (route.request().method() !== "PUT") {
+        return route.fulfill({ json: savedSlackCredentials });
+      }
+      sent.push({
+        body: route.request().postDataJSON(),
+        ifMatch: route.request().headers()["if-match"],
+      });
+      return route.fulfill({
+        json: { ...savedSlackCredentials, version: 3 },
+      });
+    },
+  );
+  await page.goto(INSTALLATION_PATH);
+  const section = page.getByTestId("slack-credentials");
+  await expect(section).toContainText("No signing secret saved yet");
+  await section.getByRole("button", { name: "Replace" }).click();
+  const form = section.getByTestId("slack-credentials-form");
+  const signing = form.locator('input[name="signingSecret"]');
+  await expect(signing).toHaveValue("");
+  await form.locator('input[name="clientId"]').fill("1234567890.0987654321");
+  await form.locator('input[name="clientSecret"]').fill("next-client-secret");
+  await signing.fill("x".repeat(4097));
+  await expect(form).toContainText("Use at most 4096 characters.");
+  await form.getByRole("button", { name: "Save" }).click();
+  expect(sent).toEqual([]);
+  await signing.fill("");
+  await form.getByRole("button", { name: "Save" }).click();
+  await expect(section.getByRole("button", { name: "Replace" })).toBeVisible();
+  expect(sent.map((request) => request.body)).toEqual([{
+    clientId: "1234567890.0987654321",
+    clientSecret: "next-client-secret",
+  }]);
+  expect(sent[0]?.ifMatch).toContain("2");
+});
+
+function failingSave(
+  page: Page,
+  issues: readonly { path: string[]; code: string; message: string }[] = [],
+) {
+  const sent: unknown[] = [];
+  return page.route(
+    "**/v1/integration-client-credentials/slack",
+    (route) => {
+      if (route.request().method() !== "PUT") {
+        return route.fulfill({ json: savedSlackCredentials });
+      }
+      sent.push(route.request().postDataJSON());
+      return route.fulfill({
+        status: issues.length > 0 ? 422 : 503,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          type: "https://bakery.example/problems/test",
+          title: "Request refused",
+          detail: "Request refused.",
+          status: issues.length > 0 ? 422 : 503,
+          code: issues.length > 0 ? "UNPROCESSABLE" : "DEPENDENCY_UNAVAILABLE",
+          ...(issues.length > 0 ? { issues } : {}),
+          retryable: false,
+          requestId: crypto.randomUUID(),
+          traceId: crypto.randomUUID(),
+        }),
+      });
+    },
+  ).then(() => sent);
+}
+
+async function replaceAll(page: Page) {
+  await page.goto(INSTALLATION_PATH);
+  const section = page.getByTestId("slack-credentials");
+  await section.getByRole("button", { name: "Replace" }).click();
+  const form = section.getByTestId("slack-credentials-form");
+  await form.locator('input[name="clientId"]').fill("1234567890.0987654321");
+  await form.locator('input[name="clientSecret"]').fill("next-client-secret");
+  await form.locator('input[name="signingSecret"]').fill("next-signing-secret");
+  await form.getByRole("button", { name: "Save" }).click();
+  return { section, form };
+}
+
+test("a failed save asks for both secrets again, each on its own field", async ({ page }) => {
+  await fixture(page, savedSlackCredentials);
+  const sent = await failingSave(page);
+  const { section, form } = await replaceAll(page);
+  await expect(section).toContainText(
+    "The details could not be saved. Enter the client secret and the signing secret again, then save.",
+  );
+  await expect(form).toContainText("Enter the client secret again.");
+  await expect(form).toContainText("Enter the signing secret again.");
+  await expect(form.locator('input[name="clientSecret"]')).toHaveValue("");
+  await expect(form.locator('input[name="signingSecret"]')).toHaveValue("");
+  await expect(form.locator('input[name="clientId"]')).toHaveValue(
+    "1234567890.0987654321",
+  );
+  expect(sent).toHaveLength(1);
+  await still(page, "slack-signing-secret-save-failed", section);
+  await form.locator('input[name="signingSecret"]').fill("again");
+  await expect(form).not.toContainText("Enter the signing secret again.");
+});
+
+test("a refused signing secret gets its own field error", async ({ page }) => {
+  await fixture(page, savedSlackCredentials);
+  await failingSave(page, [{
+    path: ["signingSecret"],
+    code: "invalid_signing_secret",
+    message: "invalid signing secret",
+  }]);
+  const { form } = await replaceAll(page);
+  await expect(form).toContainText(
+    "Bakery could not accept this signing secret. Copy it again from your Slack app's Basic Information page.",
+  );
+  await expect(form).not.toContainText("Enter the signing secret again.");
+  await expect(form.locator('input[name="signingSecret"]')).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+});
+
+test.describe("recorded: save, then Replace keeps the saved signing secret", () => {
+  test("save the Slack app with a signing secret, then Replace without one", async ({ page }) => {
+    await fixture(page);
+    let stored: Record<string, unknown> = slackCredentials;
+    const sent: unknown[] = [];
+    await page.route(
+      "**/v1/integration-client-credentials/slack",
+      (route) => {
+        if (route.request().method() === "PUT") {
+          const body = route.request().postDataJSON() as {
+            signingSecret?: string;
+          };
+          sent.push(body);
+          stored = {
+            ...savedSlackCredentials,
+            version: Number(stored.version) + 1,
+            signingSecretSavedAt: body.signingSecret === undefined
+              ? stored.signingSecretSavedAt
+              : "2026-11-25T10:00:00.000Z",
+          };
+        }
+        return route.fulfill({ json: stored });
+      },
+    );
+    await page.goto(INSTALLATION_PATH);
+    const section = page.getByTestId("slack-credentials");
+    const form = section.getByTestId("slack-credentials-form");
+    await form.locator('input[name="clientId"]').fill("1234567890.0987654321");
+    await form.locator('input[name="clientSecret"]').fill("client-secret");
+    await form.locator('input[name="signingSecret"]').fill("signing-secret");
+    await form.getByRole("button", { name: "Save" }).click();
+    await expect(section).toContainText("Signing secret saved");
+    await section.getByRole("button", { name: "Replace" }).click();
+    await form.locator('input[name="clientId"]').fill("1234567890.0987654321");
+    await form.locator('input[name="clientSecret"]').fill("next-secret");
+    await form.getByRole("button", { name: "Save" }).click();
+    await expect(section.getByRole("button", { name: "Replace" }))
+      .toBeVisible();
+    await expect(section).toContainText("Signing secret saved");
+    expect(sent).toEqual([
+      {
+        clientId: "1234567890.0987654321",
+        clientSecret: "client-secret",
+        signingSecret: "signing-secret",
+      },
+      { clientId: "1234567890.0987654321", clientSecret: "next-secret" },
+    ]);
+  });
 });
 
 const CONNECTION_ID = "00000000-0000-4000-8000-0000000000e1";

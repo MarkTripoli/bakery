@@ -291,6 +291,7 @@ test.describe("GitHub setup against the real API and the fake GitHub App", () =>
         "admin_required",
         "already_connected",
         "reconnect_unavailable",
+        "held_elsewhere",
         "storage_failed",
       ]
     ) {

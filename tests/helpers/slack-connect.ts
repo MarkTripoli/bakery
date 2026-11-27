@@ -20,6 +20,7 @@ import type { PgDatabase } from "../../apps/server/src/platform/database.ts";
 export const BOT_TOKEN = "xoxb-test-bot-token";
 export const CLIENT_SECRET = "slack-client-secret-one";
 export const TEAM_ID = "T0TESTTEAM";
+export const APP_ID = "A0TESTAPP";
 
 type SlackCall = { url: string; body: string; authorization: string | null };
 
@@ -48,7 +49,7 @@ export function fakeSlack(options: { tokenOk?: boolean } = {}) {
         token_type: "bot",
         scope: SLACK_BOT_SCOPES.join(","),
         bot_user_id: "U0TESTBOT",
-        app_id: "A0TESTAPP",
+        app_id: APP_ID,
         team: { id: TEAM_ID, name: "Test Workspace" },
         enterprise: null,
         authed_user: { id: "U0TESTUSER" },
@@ -69,7 +70,10 @@ export function fakeSlack(options: { tokenOk?: boolean } = {}) {
   return { calls, fetch, issued };
 }
 
-export async function open(slack: ReturnType<typeof fakeSlack>) {
+export async function open(
+  slack: ReturnType<typeof fakeSlack>,
+  options: { signingSecret?: string } = {},
+) {
   const directory = await Deno.makeTempDir({ prefix: "bakery-slack-connect-" });
   const file = `${directory}/key`;
   await Deno.writeFile(file, crypto.getRandomValues(new Uint8Array(32)), {
@@ -87,7 +91,13 @@ export async function open(slack: ReturnType<typeof fakeSlack>) {
     "/v1/integration-client-credentials/slack",
     fixture.adminCookie,
     {
-      body: { clientId: "1234.5678", clientSecret: CLIENT_SECRET },
+      body: {
+        clientId: "1234.5678",
+        clientSecret: CLIENT_SECRET,
+        ...(options.signingSecret === undefined
+          ? {}
+          : { signingSecret: options.signingSecret }),
+      },
       headers: { "Idempotency-Key": crypto.randomUUID() },
     },
   );
@@ -128,6 +138,17 @@ export async function clear(fixture: Fixture) {
   );
   await pg.query(
     "delete from bakery.integration_app_registrations where provider = 'slack'",
+  );
+  await pg.query(
+    `delete from bakery.audit_events
+      where operation = 'integrationClientCredentials.put'
+        and details ->> 'provider' = 'slack'`,
+  );
+  await pg.query(
+    `delete from bakery.slack_installations
+      where app_id = $1 or signing_secret_id in
+        (select id from bakery.secrets where provider = 'slack')`,
+    [APP_ID],
   );
   await pg.query(
     "update bakery.secrets set active_version_id = null where provider = 'slack'",
@@ -291,4 +312,39 @@ export function slackGateDeps(
     providerRequests: broker,
   };
   return { deps, sent };
+}
+
+export async function changeConnection(
+  o: Awaited<ReturnType<typeof open>>,
+  connectionId: string,
+  change: "off" | "on" | "remove",
+) {
+  const headers = { "Bakery-Organization-Id": o.fixture.organizationId };
+  const current = await call(
+    o.fixture,
+    "GET",
+    `/v1/integration-connections/${connectionId}`,
+    o.fixture.adminCookie,
+    { headers },
+  );
+  const { version } = await current.json() as { version: number };
+  const response = await call(
+    o.fixture,
+    change === "remove" ? "POST" : "PATCH",
+    change === "remove"
+      ? `/v1/integration-connections/${connectionId}/removal`
+      : `/v1/integration-connections/${connectionId}`,
+    o.fixture.adminCookie,
+    {
+      ...(change === "remove" ? {} : { body: { enabled: change === "on" } }),
+      headers: {
+        ...headers,
+        "If-Match": `"${version}"`,
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`${change} failed: ${await response.text()}`);
+  }
 }

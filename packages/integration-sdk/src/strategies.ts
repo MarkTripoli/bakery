@@ -87,6 +87,13 @@ export type ConnectedResourceGrant = Readonly<{
   actionVersion: number;
 }>;
 
+export type SignedEventSource = Readonly<{
+  appId: string;
+  workspaceId: string;
+  enterpriseId?: string;
+  botUserId: string;
+}>;
+
 export type ConnectedResource = Readonly<{
   kind: string;
   externalId: string;
@@ -95,6 +102,7 @@ export type ConnectedResource = Readonly<{
   servicePrincipalName: string;
   servicePurpose: string;
   serviceGrants: readonly ConnectedResourceGrant[];
+  signedEventSource?: SignedEventSource;
 }>;
 
 /**
