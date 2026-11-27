@@ -343,6 +343,22 @@ test.describe("workflow editor: Ask a person", () => {
     await expect(prompt(page)).toBeFocused();
   });
 
+  test("Escape that cancels a composition keeps the panel open", async ({ page }) => {
+    await editor(page, { steps: [ask({ prompt: "Ship it?" })] });
+    await page.goto(EDIT);
+    await card(page).click();
+    await prompt(page).focus();
+    await prompt(page).dispatchEvent("keydown", {
+      key: "Escape",
+      isComposing: true,
+      bubbles: true,
+    });
+    await page.waitForTimeout(300);
+    await expect(prompt(page)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(prompt(page)).toHaveCount(0);
+  });
+
   test("leaving before the change is saved asks, and Stay keeps it", async ({ page }) => {
     const server = await editor(page, {
       steps: [ask({ prompt: "Ship it?" })],
@@ -360,7 +376,9 @@ test.describe("workflow editor: Ask a person", () => {
     await prompt(page).fill("Ship it on Friday?");
     await page.evaluate(() => history.back());
     const leave = page.getByRole("alertdialog");
-    await expect(leave).toContainText("Your last change may be lost.");
+    await expect(leave).toContainText(
+      "Your latest changes are not saved yet.",
+    );
     await still(page, "ask-step-leave");
     await leave.getByRole("button", { name: "Stay" }).click();
     await expect(prompt(page)).toHaveValue("Ship it on Friday?");

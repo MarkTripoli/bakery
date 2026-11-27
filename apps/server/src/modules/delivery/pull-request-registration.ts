@@ -81,13 +81,14 @@ function registrationScopeOf(
   };
 }
 
-function parsedScope(input: unknown): RegistrationScope {
-  const registration = contractSchemas.PullRequestRegistrationCreate
-    .safeParse(input);
+function parsedScope(
+  action: string,
+  input: unknown,
+): RegistrationScope {
   return registrationScopeOf(
-    registration.success
-      ? registration.data
-      : contractSchemas.PullRequestOpen.parse(input),
+    action === DeliveryImplementedAction.PullRequestsOpen
+      ? contractSchemas.PullRequestOpen.parse(input)
+      : contractSchemas.PullRequestRegistrationCreate.parse(input),
   );
 }
 type PullRequestOutput = z.output<typeof contractSchemas.PullRequest>;
@@ -623,7 +624,6 @@ export function createPullRequestRegistrationAuthorityRunner(
           kind: "register",
           input: contractSchemas.PullRequestRegistrationCreate.parse(input),
         };
-      const open = request.kind === "open" ? request.input : null;
       const parsed = registrationScopeOf(request.input);
       const commandInput = request.input;
       const taskId = taskIdOf(context);
@@ -677,17 +677,17 @@ export function createPullRequestRegistrationAuthorityRunner(
           return {
             registrationAuthority,
             credentials: await readAppCredentials(work.transaction),
-            defaultBranch: open === null ? null : await defaultBranchOf(
+            defaultBranch: await defaultBranchOf(
               work.transaction,
               work.organizationId,
-              open.repositoryId,
+              parsed.repositoryId,
             ),
           };
         },
       ) as {
         registrationAuthority: RegistrationAuthority;
         credentials: Awaited<ReturnType<typeof readAppCredentials>>;
-        defaultBranch: string | null;
+        defaultBranch: string;
       };
       const number = request.kind === "register"
         ? request.input.providerNumber
@@ -698,8 +698,7 @@ export function createPullRequestRegistrationAuthorityRunner(
           preparedAuthority.credentials,
           {
             ...request.input,
-            base: request.input.baseBranch ??
-              preparedAuthority.defaultBranch ?? "",
+            base: request.input.baseBranch ?? preparedAuthority.defaultBranch,
           },
           context.signal,
         );
@@ -859,7 +858,7 @@ async function commitRegistration(
   };
 }
 
-export function createPullRequestRegistrationHandler() {
+export function createPullRequestRegistrationHandler(action: string) {
   return async (
     context: ActionContext,
     input: unknown,
@@ -869,7 +868,7 @@ export function createPullRequestRegistrationHandler() {
       work.transaction,
       work.organizationId,
       taskIdOf(context),
-      parsedScope(input),
+      parsedScope(action, input),
       preparedRegistration(context),
       (context as AuthorizedActionContext).authority as OrganizationActor,
     );
