@@ -58072,6 +58072,26 @@ export const clientManifest = {
                   }
                 ],
                 "description": "MergeEntry.blockedReason may be null in this transport value."
+              },
+              "requestedBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal id of the person or agent whose request queued this merge, so a client can tell its own merge from one someone else started."
+              },
+              "requestedByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Display name of whoever queued this merge, or null when that principal has no display name; shown as \"{name} already started this merge\"."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "MergeEntry.requestedByName may be null in this transport value."
               }
             },
             "required": [
@@ -58089,7 +58109,9 @@ export const clientManifest = {
               "createdAt",
               "updatedAt",
               "version",
-              "blockedReason"
+              "blockedReason",
+              "requestedBy",
+              "requestedByName"
             ],
             "additionalProperties": false,
             "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds."
@@ -78111,6 +78133,26 @@ export const clientManifest = {
             }
           ],
           "description": "MergeEntry.blockedReason may be null in this transport value."
+        },
+        "requestedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal id of the person or agent whose request queued this merge, so a client can tell its own merge from one someone else started."
+        },
+        "requestedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Display name of whoever queued this merge, or null when that principal has no display name; shown as \"{name} already started this merge\"."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MergeEntry.requestedByName may be null in this transport value."
         }
       },
       "required": [
@@ -78128,7 +78170,9 @@ export const clientManifest = {
         "createdAt",
         "updatedAt",
         "version",
-        "blockedReason"
+        "blockedReason",
+        "requestedBy",
+        "requestedByName"
       ],
       "additionalProperties": false,
       "description": "One serialized merge-queue attempt for a pull request; the server allows at most one active entry per repository/target branch and requires its linked review cycle and check runs to still match this entry's exact head, base and policy digest before merging proceeds."

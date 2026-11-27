@@ -172,6 +172,7 @@ export function ProviderCredentialsSection(
     <section
       aria-labelledby={`${ids.clientId}-heading`}
       data-testid={`${provider}-credentials`}
+      id={provider}
     >
       <UI.Stack gap="standard">
         <UI.Heading id={`${ids.clientId}-heading`} level="section">
