@@ -7647,5 +7647,6 @@
   "settings.connections.other.needsAttentionNext": "⟪{provider} is not accepting some of Bakery's access. Reconnecting {provider} from Bakery is not available yet. Turn the connection off to stop work that needs it.⟫",
   "settings.connections.other.removedNext": "⟪Access to {provider} was removed. Connecting {provider} again from Bakery is not available yet.⟫",
   "integrations.slack.permission.write": "⟪Bakery can post messages in Slack.⟫",
-  "settings.connections.other.noResource": "⟪{provider} could not be turned on because it has nothing Bakery may use yet.⟫"
+  "settings.connections.other.noResource": "⟪{provider} could not be turned on because it has nothing Bakery may use yet.⟫",
+  "library.editor.group.lane": "⟪Lane {n}⟫"
 }

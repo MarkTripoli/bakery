@@ -7647,5 +7647,6 @@
   "settings.connections.other.needsAttentionNext": "⟦{provider} ïš ñôŧ àççëþŧïñĝ šôɱë ôƒ Ɓàķëŕÿ'š àççëšš. Ŕëçôññëçŧïñĝ {provider} ƒŕôɱ Ɓàķëŕÿ ïš ñôŧ àṽàïļàƀļë ÿëŧ. Ŧûŕñ ŧĥë çôññëçŧïôñ ôƒƒ ŧô šŧôþ ŵôŕķ ŧĥàŧ ñëëðš ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "settings.connections.other.removedNext": "⟦Àççëšš ŧô {provider} ŵàš ŕëɱôṽëð. Çôññëçŧïñĝ {provider} àĝàïñ ƒŕôɱ Ɓàķëŕÿ ïš ñôŧ àṽàïļàƀļë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "integrations.slack.permission.write": "⟦Ɓàķëŕÿ çàñ þôšŧ ɱëššàĝëš ïñ Šļàçķ. ŧëšŧ çôþÿ⟧",
-  "settings.connections.other.noResource": "⟦{provider} çôûļð ñôŧ ƀë ŧûŕñëð ôñ ƀëçàûšë ïŧ ĥàš ñôŧĥïñĝ Ɓàķëŕÿ ɱàÿ ûšë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "settings.connections.other.noResource": "⟦{provider} çôûļð ñôŧ ƀë ŧûŕñëð ôñ ƀëçàûšë ïŧ ĥàš ñôŧĥïñĝ Ɓàķëŕÿ ɱàÿ ûšë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "library.editor.group.lane": "⟦Ļàñë {n}…⟧"
 }

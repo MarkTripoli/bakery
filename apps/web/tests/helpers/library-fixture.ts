@@ -679,7 +679,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
             defaultBudgetLimitUsd: "8.00",
             availability: null,
           },
-        ].map(presetRead),
+        ].map((preset) => presetRead(preset)),
       )(route);
     },
   );

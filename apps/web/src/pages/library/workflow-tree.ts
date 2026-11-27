@@ -49,6 +49,7 @@ export type TreeGroup = {
   readonly loop?: TreeLoop;
   /** The nodes inside it, drawn under the label. */
   readonly children: readonly TreeNode[];
+  readonly lanes?: readonly (readonly TreeNode[])[];
   /** How the definition states it, so the page can say it is code-only. */
   readonly editedInCode: true;
 };
@@ -407,7 +408,7 @@ function drawNode(
   }
   if (kind === "parallel") {
     const lanes = Array.isArray(node.lanes) ? node.lanes : [];
-    const children = lanes.flatMap((lane, index) => {
+    const drawn = lanes.map((lane, index) => {
       const held = record(lane).steps;
       return drawNodes(
         Array.isArray(held) ? held : [],
@@ -419,7 +420,8 @@ function drawNode(
       kind: "group",
       id: anonymousId(counter, "group"),
       label: "together",
-      children,
+      children: drawn.flat(),
+      ...(drawn.length > 1 ? { lanes: drawn } : {}),
       editedInCode: true,
     }];
   }
