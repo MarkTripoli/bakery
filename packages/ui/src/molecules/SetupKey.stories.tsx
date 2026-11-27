@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { SetupKey } from "@bakery/ui";
+import { SetupKey, Stack } from "@bakery/ui";
 
 const meta = {
   title: "Bakery/Molecules/SetupKey",
@@ -8,9 +8,10 @@ const meta = {
 export default meta;
 
 export const Contract: StoryObj = {
-  render: () => <SetupKey>JBSW Y3DP EHPK 3PXP</SetupKey>,
-};
-
-export const Pairing: StoryObj = {
-  render: () => <SetupKey variant="pairing">K7QM-2XPD</SetupKey>,
+  render: () => (
+    <Stack gap="compact">
+      <SetupKey>JBSW Y3DP EHPK 3PXP</SetupKey>
+      <SetupKey variant="pairing">K7QM-2XPD</SetupKey>
+    </Stack>
+  ),
 };
