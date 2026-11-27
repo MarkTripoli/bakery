@@ -110,6 +110,7 @@ export function OrganizationIntegrationsPage(
   const items = connections.data ?? [];
   const rows: ConnectionRow[] = items.map((connection) => ({
     id: connection.id,
+    provider: connection.provider,
     account: connection.label,
     health: connectionHealth(connection),
     lastCheckedAt: connection.lastCheckedAt,
