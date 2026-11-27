@@ -280,6 +280,41 @@ for (
       await still(page, "workflow-lanes");
     });
 
+    test("closing the page asks only when something typed is unsaved", async ({ page }) => {
+      await libraryFixture(page, WORLD);
+      const guarded = () =>
+        page.evaluate(() => {
+          const { history } = (globalThis as unknown as {
+            __TSR_ROUTER__: {
+              history: { _getBlockers: () => readonly unknown[] };
+            };
+          }).__TSR_ROUTER__;
+          return history._getBlockers().length;
+        });
+      const asks = () =>
+        page.evaluate(() => {
+          const leaving = new Event("beforeunload", { cancelable: true });
+          globalThis.dispatchEvent(leaving);
+          return leaving.defaultPrevented;
+        });
+      for (
+        const path of [
+          "/library",
+          `/library/workflows/${WORKFLOW.id}`,
+          "/settings/appearance",
+        ]
+      ) {
+        await page.goto(path);
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expect.poll(guarded, { message: path }).toBeGreaterThan(0);
+        expect(await asks(), path).toBe(false);
+      }
+      const language = page.getByRole("combobox", { name: /language/i });
+      await expect(language).toBeEnabled();
+      await language.selectOption({ index: 1 });
+      await expect.poll(asks).toBe(true);
+    });
+
     test("six lanes keep their written order, say when empty, and can all be reached", async ({ page }) => {
       const lane = (id: string) => ({
         steps: [{ kind: "action", id, uses: "agent.review" }],
