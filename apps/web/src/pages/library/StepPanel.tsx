@@ -9,6 +9,7 @@ import {
 } from "./ApprovalPanel.tsx";
 import { NotifyPanelBody, type NotifyPanelProps } from "./NotifyPanel.tsx";
 import { StartPanelBody, type StartPanelProps } from "./StartPanel.tsx";
+import { TaskPanelBody, type TaskPanelProps } from "./TaskPanel.tsx";
 
 /**
  * The panel beside the diagram (#67, slice 1): what the person selected, and
@@ -128,6 +129,7 @@ export type PanelTarget =
     readonly agentFromSetup?: boolean;
     readonly approval?: ApprovalPanelProps | undefined;
     readonly notify?: NotifyPanelProps | undefined;
+    readonly task?: TaskPanelProps | undefined;
     /** The skills the step names (#431). */
     readonly skills: StepSkills;
     /** The picker that attaches a skill; null when the page cannot edit. */
@@ -298,6 +300,9 @@ export function StepPanel(
         {target.notify === undefined
           ? null
           : <NotifyPanelBody key={target.notify.stepId} {...target.notify} />}
+        {target.task === undefined
+          ? null
+          : <TaskPanelBody key={target.task.stepId} {...target.task} />}
         {target.approval === undefined ? null : (
           <ApprovalPanelBody
             key={target.approval.stepId}

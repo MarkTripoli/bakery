@@ -111,6 +111,13 @@ import {
   notifyChoices,
   whoName,
 } from "./notify-copy.ts";
+import {
+  NEW_TASK,
+  TASK_ACTION,
+  taskOfNode,
+  type TaskProblem,
+  taskProblems,
+} from "./task-step.ts";
 import { ACTION_TITLES, stepName } from "./workflow-state.ts";
 import {
   type GroupLabel,
@@ -164,6 +171,7 @@ type ProblemRow = {
   readonly field?:
     | ApprovalProblem["field"]
     | NotifyProblem["field"]
+    | TaskProblem["field"]
     | "start";
   readonly start?: Omit<StartFocus, "request">;
   readonly blocking?: boolean;
@@ -176,9 +184,11 @@ type ProblemRow = {
 function approvalPart(uses: string, node: Record<string, unknown>) {
   const approval = uses === APPROVAL_ACTION ? approvalOfNode(node) : null;
   const notify = uses === NOTIFY_ACTION ? notifyOfNode(node) : null;
+  const task = uses === TASK_ACTION ? taskOfNode(node) : null;
   return {
     ...(approval === null ? {} : { approval }),
     ...(notify === null ? {} : { notify }),
+    ...(task === null ? {} : { task }),
   };
 }
 
@@ -951,6 +961,21 @@ export function WorkflowEditorPage(
     }
     return found;
   }, [steps, translate]);
+  const taskIssues = useMemo(() => {
+    const found = new Map<
+      string,
+      readonly (TaskProblem & { readonly sentence: string })[]
+    >();
+    for (const step of steps) {
+      if (step.task === undefined) continue;
+      const issues = taskProblems(step.task).map((problem) => ({
+        ...problem,
+        sentence: translate(`library.editor.task.problem.${problem.field}`),
+      }));
+      if (issues.length > 0) found.set(step.id, issues);
+    }
+    return found;
+  }, [steps, translate]);
   const cardLines = useMemo<ReadonlyMap<string, string>>(() => {
     const lines = new Map<string, string>();
     for (const step of steps) {
@@ -1004,7 +1029,9 @@ export function WorkflowEditorPage(
   const startCard = startCardOf(editor.starts, translate);
   const problemsByStep = useMemo<ReadonlyMap<string, string>>(() => {
     const merged = new Map(checker.byStep);
-    for (const [id, issues] of [...approvalIssues, ...notifyIssues]) {
+    for (
+      const [id, issues] of [...approvalIssues, ...notifyIssues, ...taskIssues]
+    ) {
       merged.set(id, issues[0].sentence);
     }
     for (const id of skillProblemSteps) {
@@ -1016,6 +1043,7 @@ export function WorkflowEditorPage(
     checker.byStep,
     approvalIssues,
     notifyIssues,
+    taskIssues,
     skillProblemSteps,
     startIssues,
   ]);
@@ -1080,6 +1108,16 @@ export function WorkflowEditorPage(
           stepId: step.id,
         });
       }
+      for (const issue of taskIssues.get(step.id) ?? []) {
+        out.push({
+          key: `task-${step.id}-${issue.field}`,
+          name: stepName(step, translate),
+          sentence: issue.sentence,
+          stepId: step.id,
+          field: issue.field,
+          blocking: true,
+        });
+      }
       for (const issue of approvalIssues.get(step.id) ?? []) {
         out.push({
           key: `ask-${step.id}-${issue.field}-${issue.name}`,
@@ -1135,6 +1173,7 @@ export function WorkflowEditorPage(
     approvalIssues,
     notifyIssues,
     notifyNotes,
+    taskIssues,
     startIssues,
     translate,
   ]);
@@ -1486,6 +1525,31 @@ export function WorkflowEditorPage(
           ? { field: focusRequest.field, request: focusRequest.request }
           : null,
       },
+      task: live?.task === undefined ? undefined : {
+        stepId: live.id,
+        fields: live.task,
+        onChange: canChange(live)
+          ? (fields: NonNullable<EditorStep["task"]>, typing?: string) =>
+            dispatch({
+              kind: "task",
+              id: live.id,
+              task: fields,
+              ...(typing === undefined ? {} : { typing }),
+            })
+          : undefined,
+        problems: Object.fromEntries(
+          (taskIssues.get(live.id) ?? []).map((issue) => [
+            issue.field,
+            issue.sentence,
+          ]),
+        ),
+        focus: focusRequest?.stepId === live.id &&
+            (focusRequest.field === "prompt" ||
+              focusRequest.field === "turns" ||
+              focusRequest.field === "cost")
+          ? { field: focusRequest.field, request: focusRequest.request }
+          : null,
+      },
       agentFromSetup: checker.unboundActions.has(step.uses),
       code: step.code,
       problem: step.problem === undefined
@@ -1534,6 +1598,7 @@ export function WorkflowEditorPage(
     approvalIssues,
     notifyIssues,
     notifyNotes,
+    taskIssues,
     choices,
     lists,
     rememberNext,
@@ -1702,6 +1767,7 @@ export function WorkflowEditorPage(
                 skills: [],
                 ...(uses === APPROVAL_ACTION ? { approval: NEW_APPROVAL } : {}),
                 ...(uses === NOTIFY_ACTION ? { notify: NEW_NOTIFY } : {}),
+                ...(uses === TASK_ACTION ? { task: NEW_TASK } : {}),
                 ...(list === undefined ? {} : { list }),
               };
               dispatch({ kind: "add", step });

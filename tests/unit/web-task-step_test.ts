@@ -1,4 +1,9 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertStrictEquals } from "@std/assert";
+import {
+  definitionOf,
+  editorReducer,
+  editorStateOf,
+} from "../../apps/web/src/pages/library/editor-state.ts";
 import { compileWorkflowDocumentDetailed } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 import { defaultWorkflowCompilerCatalog } from "../../packages/contracts/src/workflow-compiler/default-catalog.ts";
 import { parseFreeformTimeout } from "../../apps/worker/src/harness-freeform.ts";
@@ -42,6 +47,37 @@ Deno.test("missing instructions and out of range limits are problems", () => {
     ),
     ["prompt", "turns", "cost"],
   );
+});
+
+Deno.test("a task nobody edited keeps its authored node, and an edit saves what the field shows", () => {
+  const authored = {
+    id: "task",
+    uses: "agent.freeform",
+    with: { ...taskInput(filled), timeout: "30m" },
+  };
+  const held = taskOfNode(authored)!;
+  const step = {
+    id: "task",
+    uses: "agent.freeform",
+    agentVersionId: null,
+    skills: [],
+    task: held,
+  };
+  const spec = { steps: [authored] };
+  assertStrictEquals(
+    (definitionOf(spec, [step]).steps as unknown[])[0],
+    authored,
+  );
+  const edited = editorReducer(editorStateOf([step]), {
+    kind: "task",
+    id: "task",
+    task: { ...held, turns: "200" },
+  });
+  const [saved] = definitionOf(spec, edited.steps).steps as {
+    with: Record<string, unknown>;
+  }[];
+  assertEquals(saved.with.maxTurns, 200);
+  assertEquals(saved.with.timeout, "PT30M");
 });
 
 Deno.test("input the panel cannot show is left to code", () => {

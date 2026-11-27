@@ -101,20 +101,23 @@ export function costOf(text: string): number | null {
 }
 
 export function taskInput(fields: TaskFields): Record<string, unknown> {
-  const turns = turnsOf(fields.turns);
-  const cost = costOf(fields.cost);
   return {
-    ...(fields.prompt.trim() === "" ? {} : {
+    ...(fields.prompt === "" ? {} : {
       prompt: fields.prompt.includes("$")
         ? { $literal: fields.prompt }
         : fields.prompt,
     }),
-    ...(turns === null ? {} : { maxTurns: turns }),
+    ...(fields.turns === "" ? {} : { maxTurns: Number(fields.turns) }),
     timeout: timeoutOf(fields.minutes),
-    ...(cost === null ? {} : { maxCostUsd: cost }),
+    ...(fields.cost === "" ? {} : { maxCostUsd: Number(fields.cost) }),
     allowedTools: [...fields.tools],
   };
 }
+
+export const typedTurns = (text: string): boolean => /^\d{0,4}$/.test(text);
+
+export const typedCost = (text: string): boolean =>
+  /^(\d{1,4}(\.\d{0,2})?)?$/.test(text);
 
 export function sameTask(left: TaskFields, right: TaskFields): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
