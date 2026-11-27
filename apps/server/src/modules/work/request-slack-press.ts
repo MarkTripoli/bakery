@@ -11,6 +11,10 @@ import {
 } from "../../platform/database.ts";
 import { resolveOrganizationActor } from "../auth/adapters/authority-postgres.ts";
 import { effectivePermissions } from "../auth/application/authorize.ts";
+import {
+  hasLivePowerGrant,
+  RUN_POWER_ACTIONS,
+} from "../auth/application/run-grants.ts";
 import { decideApproval } from "../conversation/approvals.ts";
 import { findSlackIdentityLink } from "../integrations/slack-identity-links.ts";
 import { internalContext } from "../workflows/automations/start.ts";
@@ -179,6 +183,25 @@ type Pressed =
   | Readonly<{ kind: "outcome"; outcome: SlackPressOutcome }>
   | Readonly<{ kind: "decide"; approvalId: string }>;
 
+const DECIDE_POWER = RUN_POWER_ACTIONS["approvals.decide"]!.power;
+
+async function mayDecideApproval(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  actor: Awaited<ReturnType<typeof resolveOrganizationActor>>,
+  principalId: string,
+  approvalId: string,
+): Promise<boolean> {
+  if (effectivePermissions(actor).includes(DECIDE_PERMISSION)) return true;
+  return await hasLivePowerGrant(
+    transaction,
+    organizationId,
+    principalId,
+    DECIDE_POWER,
+    { kind: "question", id: approvalId },
+  );
+}
+
 async function checkPress(
   transaction: PgTransactionClient,
   organizationId: string,
@@ -230,7 +253,13 @@ async function checkPress(
   }
   if (
     actor.subject.principalType !== "human" ||
-    !effectivePermissions(actor).includes(DECIDE_PERMISSION)
+    !(await mayDecideApproval(
+      transaction,
+      organizationId,
+      actor,
+      link.principalId,
+      approvalId,
+    ))
   ) return done({ kind: "no_permission" });
   await decideApproval(
     internalContext(

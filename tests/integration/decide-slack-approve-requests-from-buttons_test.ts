@@ -18,6 +18,7 @@ import type { AuthVariables } from "../../apps/server/src/modules/auth/middlewar
 import { addMember, seedRun } from "../helpers/run-requests.ts";
 import {
   APP_ID,
+  changeConnection,
   connectOnce,
   fakeSlack,
   open,
@@ -31,6 +32,7 @@ const DM = "D0BUTTONS";
 const RECIPIENT = "U0RECIPIENT";
 const SECOND = "U0SECOND";
 const STRANGER = "U0STRANGER";
+const VIEWER = "U0VIEWER";
 const BASE_URL = "https://bakery.example.test";
 const encoder = new TextEncoder();
 
@@ -126,16 +128,18 @@ async function world() {
 }
 
 async function worldIn(o: Awaited<ReturnType<typeof open>>) {
-  await connectOnce(o);
+  const connectionId = await connectOnce(o);
   const f = o.fixture;
   const recipientId = f.developerId!;
   const pg = f.pgDatabase;
   const otherOrganizationId = crypto.randomUUID();
   const second = await addMember(f, "Second Member", "developer");
   const stranger = await addMember(f, "Stranger Member", "developer");
+  const viewer = await addMember(f, "Viewer Member", "viewer");
   const secondId = second.principalId;
   const strangerId = stranger.principalId;
-  const extraEmails = [second.email, stranger.email];
+  const viewerId = viewer.principalId;
+  const extraEmails = [second.email, stranger.email, viewer.email];
   const task = await seedTask(pg, f.organizationId, f.adminId);
   const run = await seedRun({
     pgDatabase: pg,
@@ -316,7 +320,11 @@ async function worldIn(o: Awaited<ReturnType<typeof open>>) {
     recipientId,
     secondId,
     strangerId,
+    viewerId,
+    pg,
     otherOrganizationId,
+    connection: (change: "off" | "on" | "remove") =>
+      changeConnection(o, connectionId, change),
     link,
     ask,
     requestOf,
@@ -568,6 +576,78 @@ Deno.test("a press signed for this workspace cannot decide a request of another 
       "open",
     );
     assertEquals(await w.decisions(foreign.approvalId), []);
+    assertEquals(
+      w.sentTo("/api/chat.postEphemeral").map((note) =>
+        (note.body as Ephemeral).text
+      ),
+      [SLACK_PRESS_NO_PERMISSION],
+    );
+  } finally {
+    await w.finish();
+  }
+});
+
+Deno.test("a press after the connection is turned off or removed is refused and decides nothing", async () => {
+  for (const change of ["off", "remove"] as const) {
+    const w = await world();
+    try {
+      assert((await w.link(w.recipientId, RECIPIENT)).ok);
+      const asked = await w.ask();
+      await w.connection(change);
+      const response = await w.press({
+        requestId: w.requestOf(asked),
+        action: "approve",
+        userId: RECIPIENT,
+      });
+      assertEquals(response.status, 401, change);
+      await response.body?.cancel();
+      assertEquals((await w.approval(asked.approvalId)).status, "open", change);
+      assertEquals(await w.decisions(asked.approvalId), [], change);
+    } finally {
+      await w.finish();
+    }
+  }
+});
+
+Deno.test("a viewer asked to approve decides from Slack through the approve grant, as on the web", async () => {
+  const w = await world();
+  try {
+    assert((await w.link(w.viewerId, VIEWER)).ok);
+    const asked = await w.ask([w.viewerId]);
+    const response = await w.press({
+      requestId: w.requestOf(asked, w.viewerId),
+      action: "approve",
+      userId: VIEWER,
+    });
+    assertEquals(response.status, 200);
+    assertEquals(await w.approval(asked.approvalId), {
+      status: "answered",
+      decision: "approve",
+      decided_by: w.viewerId,
+    });
+    assertEquals(w.sentTo("/api/chat.postEphemeral"), []);
+  } finally {
+    await w.finish();
+  }
+});
+
+Deno.test("a viewer not asked to approve still gets the no-permission note", async () => {
+  const w = await world();
+  try {
+    assert((await w.link(w.viewerId, VIEWER)).ok);
+    const asked = await w.ask([w.recipientId, w.viewerId]);
+    await w.pg.query(
+      `update bakery.run_power_grants set revoked_at = now()
+        where organization_id = $1 and principal_id = $2`,
+      [w.f.organizationId, w.viewerId],
+    );
+    const response = await w.press({
+      requestId: w.requestOf(asked, w.viewerId),
+      action: "approve",
+      userId: VIEWER,
+    });
+    assertEquals(response.status, 200);
+    assertEquals((await w.approval(asked.approvalId)).status, "open");
     assertEquals(
       w.sentTo("/api/chat.postEphemeral").map((note) =>
         (note.body as Ephemeral).text

@@ -313,3 +313,38 @@ export function slackGateDeps(
   };
   return { deps, sent };
 }
+
+export async function changeConnection(
+  o: Awaited<ReturnType<typeof open>>,
+  connectionId: string,
+  change: "off" | "on" | "remove",
+) {
+  const headers = { "Bakery-Organization-Id": o.fixture.organizationId };
+  const current = await call(
+    o.fixture,
+    "GET",
+    `/v1/integration-connections/${connectionId}`,
+    o.fixture.adminCookie,
+    { headers },
+  );
+  const { version } = await current.json() as { version: number };
+  const response = await call(
+    o.fixture,
+    change === "remove" ? "POST" : "PATCH",
+    change === "remove"
+      ? `/v1/integration-connections/${connectionId}/removal`
+      : `/v1/integration-connections/${connectionId}`,
+    o.fixture.adminCookie,
+    {
+      ...(change === "remove" ? {} : { body: { enabled: change === "on" } }),
+      headers: {
+        ...headers,
+        "If-Match": `"${version}"`,
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`${change} failed: ${await response.text()}`);
+  }
+}

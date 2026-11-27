@@ -3,6 +3,7 @@ import { call } from "../helpers/installation-settings.ts";
 import {
   APP_ID,
   BOT_TOKEN,
+  changeConnection,
   CLIENT_SECRET,
   connectOnce,
   fakeSlack,
@@ -425,39 +426,6 @@ Deno.test("saving the signing secret after connecting points the existing instal
     await o.finish();
   }
 });
-
-async function changeConnection(
-  o: Opened,
-  connectionId: string,
-  change: "off" | "on" | "remove",
-) {
-  const headers = { "Bakery-Organization-Id": o.fixture.organizationId };
-  const current = await call(
-    o.fixture,
-    "GET",
-    `/v1/integration-connections/${connectionId}`,
-    o.fixture.adminCookie,
-    { headers },
-  );
-  const { version } = await current.json() as { version: number };
-  const response = await call(
-    o.fixture,
-    change === "remove" ? "POST" : "PATCH",
-    change === "remove"
-      ? `/v1/integration-connections/${connectionId}/removal`
-      : `/v1/integration-connections/${connectionId}`,
-    o.fixture.adminCookie,
-    {
-      ...(change === "remove" ? {} : { body: { enabled: change === "on" } }),
-      headers: {
-        ...headers,
-        "If-Match": `"${version}"`,
-        "Idempotency-Key": crypto.randomUUID(),
-      },
-    },
-  );
-  assert(response.ok, await response.clone().text());
-}
 
 Deno.test("the Slack installation follows its connection: off or removed refuses events, on or restored accepts them", async () => {
   const o = await open(fakeSlack(), { signingSecret: SIGNING_SECRET });
