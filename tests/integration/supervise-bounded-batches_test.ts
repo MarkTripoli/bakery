@@ -6,15 +6,13 @@
  * request, run, merge-entry and usage rows it reads in production. Only the two
  * ports are faked (start and cancel) so each case can say exactly what the
  * supervisor asked for and as whom.
- *
- * Two kinds of row are too heavy to seed honestly (a merge entry needs a pull
- * request and a review cycle, a usage record needs an attempt and a worker). They
- * are inserted by `insertWithoutForeignKeys` as the owner with foreign keys off,
- * and only the columns the supervisor reads are meaningful. That shortcut is test
- * only and is named so a reader sees it.
  */
 import { assert, assertEquals, assertRejects } from "@std/assert";
-import type { PgDatabase } from "../../packages/persistence/src/postgres.ts";
+import {
+  closePgDatabase,
+  openPgDatabase,
+} from "../../apps/server/src/platform/database.ts";
+import { readTestDatabaseConfig } from "../../packages/config/src/env.ts";
 import {
   createBatchesListHandler,
   createBatchHandler,
@@ -200,17 +198,15 @@ async function runOf(fx: TicketFixture, ticketRequestId: string) {
   return runId;
 }
 
-/**
- * TEST ONLY. Inserts one row as the owner with foreign keys off, giving every
- * required column a dummy of its type unless the caller names it. Used for the
- * rows the supervisor only reads a few columns of.
- */
 async function insertWithoutForeignKeys(
-  database: PgDatabase,
   table: string,
   values: Record<string, unknown>,
 ): Promise<void> {
-  const client = await database.connect();
+  const superuser = openPgDatabase(
+    readTestDatabaseConfig(Deno.env.toObject(), { requireAdmin: true })
+      .adminDatabaseUrl,
+  );
+  const client = await superuser.connect();
   try {
     await client.query("begin");
     await client.query("set local session_replication_role = replica");
@@ -250,6 +246,7 @@ async function insertWithoutForeignKeys(
     throw error;
   } finally {
     client.release();
+    await closePgDatabase(superuser);
   }
 }
 
@@ -278,7 +275,7 @@ function dummyOf(dataType: string): unknown {
 }
 
 async function mergeIssue(fx: TicketFixture, runId: string): Promise<void> {
-  await insertWithoutForeignKeys(fx.owner, "merge_entries", {
+  await insertWithoutForeignKeys("merge_entries", {
     organization_id: fx.organizationId,
     run_id: runId,
     status: "merged",
@@ -552,7 +549,7 @@ Deno.test("batches: spend is derived from the issues' usage, and reaching the li
     const [issue] = await issueRows(fx, batchId);
     const runId = await runOf(fx, issue.ticket_request_id!);
 
-    await insertWithoutForeignKeys(fx.owner, "usage_records", {
+    await insertWithoutForeignKeys("usage_records", {
       organization_id: fx.organizationId,
       run_id: runId,
       cost_usd: "10.000000",
@@ -714,7 +711,7 @@ Deno.test("batches: every way a run can end is an end, and a run waiting on its 
         where request.organization_id = $1 and request.id = $2`,
       [fx.organizationId, requestId],
     );
-    await insertWithoutForeignKeys(fx.owner, "pull_requests", {
+    await insertWithoutForeignKeys("pull_requests", {
       organization_id: fx.organizationId,
       task_id: task.rows[0].task_id,
       status: "open",
@@ -733,7 +730,7 @@ Deno.test("batches: every way a run can end is an end, and a run waiting on its 
     );
 
     // A merge in flight is not an end either; a cancelled one is, and a merged one is a merge.
-    await insertWithoutForeignKeys(fx.owner, "merge_entries", {
+    await insertWithoutForeignKeys("merge_entries", {
       organization_id: fx.organizationId,
       run_id: runId,
       status: "queued",
@@ -1184,7 +1181,7 @@ Deno.test("batches: a batch says what the issue being worked on waits for, and c
 
     // An approval put to one named person on this issue's task.
     const questionId = crypto.randomUUID();
-    await insertWithoutForeignKeys(fx.owner, "questions", {
+    await insertWithoutForeignKeys("questions", {
       id: questionId,
       organization_id: fx.organizationId,
       task_id: taskId,
@@ -1218,7 +1215,7 @@ Deno.test("batches: a batch says what the issue being worked on waits for, and c
     // does not exist for this viewer: the next one they may see is shown instead.
     assertEquals(await readAs(undefined), null);
     const privateId = crypto.randomUUID();
-    await insertWithoutForeignKeys(fx.owner, "questions", {
+    await insertWithoutForeignKeys("questions", {
       id: privateId,
       organization_id: fx.organizationId,
       task_id: taskId,
@@ -1281,7 +1278,7 @@ async function openQuestion(
   over: Record<string, unknown> = {},
 ) {
   const id = crypto.randomUUID();
-  await insertWithoutForeignKeys(fx.owner, "questions", {
+  await insertWithoutForeignKeys("questions", {
     id,
     organization_id: fx.organizationId,
     task_id: taskId,
