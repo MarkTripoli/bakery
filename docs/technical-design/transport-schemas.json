@@ -25361,6 +25361,7 @@
         "grantedScopeNames",
         "status",
         "health",
+        "removedBy",
         "lastCheckedAt",
         "createdAt",
         "createdBy",
@@ -25378,6 +25379,7 @@
         "grantedScopeNames": "json|null",
         "status": "enum(pending|enabled|disabled|degraded|revoked)",
         "health": "enum(unknown|healthy|degraded|auth_required)",
+        "removedBy": "enum(admin|provider)|null",
         "lastCheckedAt": "timestamp|null",
         "createdAt": "timestamp",
         "createdBy": "uuid",
@@ -25387,6 +25389,7 @@
       "nullableFields": [
         "secretId",
         "grantedScopeNames",
+        "removedBy",
         "lastCheckedAt"
       ],
       "description": "An organization's binding to one host-verified provider installation, such as a GitHub App installation or Slack workspace: label, validated config, granted provider permissions, and lifecycle status (`pending`/`enabled`/`disabled`/`degraded`/`revoked`), where `degraded` reflects a failed health check rather than an Admin action. Read via GET /v1/integration-connections/{id}; Admins create and update it.",
@@ -25400,6 +25403,7 @@
         "grantedScopes": "Provider-side permission scopes the connection's credential was consented with, recorded when the connection was established. Informational: what Bakery may do through the connection is governed by explicit Bakery grants, which can be narrower than this provider consent.",
         "grantedScopeNames": "Exact provider scope names granted at the last connect or reconnect, such as channels:read and channels:history, so a client can tell scopes that grantedScopes folds into one level; null for connections that record none, such as GitHub App installations.",
         "health": "Health of the connection: unknown until a check completes, healthy, degraded when the last check found a problem or a requested provider scope was not granted at the last connect or reconnect, or auth_required when the provider refused the credential.",
+        "removedBy": "Who removed a revoked connection: provider when the provider removed Bakery (Slack uninstalled the app or revoked its bot token, or GitHub removed its installation), admin when a Bakery Admin removed it; null while the connection is not revoked.",
         "status": "Client-facing connection state folded from the stored status and health columns: `pending` after verified setup until an Admin enables it, `revoked` when the provider revoked authorization, `disabled` when an Admin disabled it, `degraded` when an enabled connection's recorded health is degraded or auth_required, otherwise `enabled`; a requested scope that was not granted shows only in health, because the connection still works.",
         "lastCheckedAt": "UTC timestamp when the record was last checked.",
         "createdAt": "UTC timestamp when the record was created.",

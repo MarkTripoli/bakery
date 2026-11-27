@@ -26,7 +26,8 @@ import {
   type SlackInstallation,
 } from "./slack-scope.ts";
 import { lockSlackIdentityLink } from "./slack-identity-links.ts";
-import { SLACK_IGNORE_REASONS } from "./slack-request.ts";
+import { SLACK_IGNORE_REASONS, SLACK_REMOVAL_CAUSES } from "./slack-request.ts";
+import { markSlackConnectionsRemoved } from "./slack-removal.ts";
 
 export const SLACK_RECEIPT_RETENTION_DAYS = 7;
 
@@ -192,13 +193,10 @@ export async function connectSlackInstallation(
   });
   if (!registered.ok || registered.created) return registered;
   const current = registered.installation;
-  if (
-    current.signingSecretId === input.signingSecretId &&
-    current.status === "active"
-  ) return registered;
   const updated = await transaction.query<InstallationRow>(
     `update bakery.slack_installations
         set signing_secret_id = $3, status = 'active', updated_at = now(),
+            connected_at = now(),
             version = version + 1
       where id = $1 and organization_id = $2
       returning ${INSTALLATION_COLUMNS}`,
@@ -324,8 +322,24 @@ const SlackThreadReplyDecisionSchema = z.object({
   ...SlackReceiptWorkFields,
 }).strict().describe("Verified and binding-authorized Slack thread reply.");
 
+const SlackRemovedDecisionSchema = z.object({
+  kind: z.literal("removed").describe(
+    "Marks a verified event saying Slack removed Bakery from the workspace.",
+  ),
+  eventId: SlackReceiptWorkFields.eventId,
+  cause: z.enum(SLACK_REMOVAL_CAUSES).describe(
+    "Which Slack event removed Bakery: the app was uninstalled or its bot token revoked.",
+  ),
+  eventTime: z.number().int().nonnegative().nullable().describe(
+    "Slack's event_time in Unix seconds; a removal dated before the workspace last connected is ignored.",
+  ),
+}).strict().describe(
+  "Verified Slack removal that ends the workspace's connections as removed by Slack.",
+);
+
 export const PersistedSlackDecisionSchema = z.discriminatedUnion("kind", [
   SlackIgnoredDecisionSchema,
+  SlackRemovedDecisionSchema,
   SlackMentionDecisionSchema,
   SlackThreadReplyDecisionSchema,
 ]).describe(
@@ -354,11 +368,12 @@ export type CommitSlackReceiptResult =
 type ActiveSlackInstallation = {
   readonly organizationId: string;
   readonly teamId: string;
+  readonly connectedAt: Date;
 };
 
 type SlackReceiptWork = Exclude<
   PersistedSlackDecision,
-  { readonly kind: "ignore" }
+  { readonly kind: "ignore" } | { readonly kind: "removed" }
 >;
 const PERMANENT_SLACK_ADMISSION_CODES = new Set([
   "AUTH_FORBIDDEN",
@@ -521,7 +536,8 @@ export async function commitSlackReceipt(
     return { kind: "malformed" };
   }
   const found = await transaction.query<ActiveSlackInstallation>(
-    `select organization_id as "organizationId", team_id as "teamId"
+    `select organization_id as "organizationId", team_id as "teamId",
+            connected_at as "connectedAt"
        from bakery.slack_installations
       where app_id = $1 and id = $2 and status = 'active'
       for share`,
@@ -572,15 +588,30 @@ export async function commitSlackReceipt(
   }
   if (work === null) return { kind: "recorded", receiptId, outcome };
   let handedOff = false;
-  try {
-    handedOff = await handoffSlackWork(transaction, {
-      installation: { ...active, installationId: input.installationId },
-      appId: input.appId,
-      eventId: input.eventId,
-      work,
-    });
-  } catch (error) {
-    if (!isPermanentSlackAdmissionError(error)) throw error;
+  if (work.kind === "removed") {
+    const stale = work.eventTime !== null &&
+      work.eventTime <
+        Math.floor(new Date(active.connectedAt).getTime() / 1000);
+    if (!stale) {
+      await markSlackConnectionsRemoved(transaction, {
+        organizationId: active.organizationId,
+        teamId: active.teamId,
+        eventId: input.eventId,
+        cause: work.cause,
+      });
+    }
+    handedOff = !stale;
+  } else {
+    try {
+      handedOff = await handoffSlackWork(transaction, {
+        installation: { ...active, installationId: input.installationId },
+        appId: input.appId,
+        eventId: input.eventId,
+        work,
+      });
+    } catch (error) {
+      if (!isPermanentSlackAdmissionError(error)) throw error;
+    }
   }
   const settledOutcome: SlackReceiptOutcome = handedOff
     ? "accepted"
