@@ -476,6 +476,8 @@ const slackConnection = (extra: Record<string, unknown> = {}) => ({
   label: "Test Workspace",
   externalAccountId: "T0123456",
   grantedScopes: { channels: "read", chat: "write" },
+  grantedScopeNames: ["channels:read", "chat:write"],
+  health: "unknown",
   config: {},
   secretId: null,
   createdBy: "00000000-0000-4000-8000-000000000001",
@@ -523,6 +525,9 @@ test("a Slack connection's page speaks only of Slack and offers no GitHub contro
   await expect(body.getByRole("heading", { level: 1 }))
     .toHaveText("Slack · Test Workspace");
   await expect(body).toContainText("What Bakery can do on Slack");
+  await expect(body).toContainText(
+    "Posts progress to Slack, and lets linked people approve work and message agents from Slack.",
+  );
   await expect(body).toContainText("Not checked yet");
   await expect(body).toContainText("Post progress in channels");
   await expect(body.getByTestId("abilities-not-available")).toContainText(
@@ -685,16 +690,64 @@ async function ownLink(page: Page, state: "linked" | "not_linked") {
 }
 
 test("a checked Slack connection reads Working", async ({ page }) => {
-  await connected(page, { lastCheckedAt: checked });
+  await connected(page, { lastCheckedAt: checked, health: "healthy" });
   await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
   await expect(connectionBody(page)).toContainText("Working");
   await expect(connectionBody(page)).toContainText("Last checked");
 });
 
 test("a refused Slack connection reads Needs reconnecting", async ({ page }) => {
-  await connected(page, { status: "degraded" });
+  await connected(page, { status: "degraded", health: "auth_required" });
   await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
   await expect(connectionBody(page)).toContainText("Needs reconnecting");
+});
+
+test("a Slack connection missing a permission reads Limited and offers Reconnect", async ({ page }) => {
+  await connected(page, {
+    status: "degraded",
+    health: "degraded",
+    lastCheckedAt: checked,
+  });
+  await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
+  await expect(connectionBody(page).getByText("Limited", { exact: true }))
+    .toBeVisible();
+  const problem = page.getByTestId("connection-problem");
+  await expect(problem).toContainText(
+    "Slack did not grant everything Bakery asks for",
+  );
+  await expect(problem.getByRole("button", { name: "Reconnect" }))
+    .toBeVisible();
+  await expect(page.getByTestId("abilities-not-available")).toContainText(
+    "Read replies in public channels. Slack did not grant this.",
+  );
+  await still(page, "slack-limited");
+  await page.goto(ORGANIZATION_PATH);
+  await expect(page.getByTestId(`connection-${CONNECTION_ID}`))
+    .toContainText("Limited");
+});
+
+test("a check that never reached Slack leaves the badge as it was, also after a reload", async ({ page }) => {
+  await connected(page, { lastCheckedAt: checked, health: "unknown" });
+  await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
+  await expect(connectionBody(page)).toContainText("Not checked yet");
+  await page.reload();
+  await expect(connectionBody(page)).toContainText("Not checked yet");
+  await expect(connectionBody(page).getByText("Working", { exact: true }))
+    .toHaveCount(0);
+  await page.goto(ORGANIZATION_PATH);
+  await expect(page.getByTestId(`connection-${CONNECTION_ID}`))
+    .not.toContainText("Working");
+});
+
+test("a Slack connection with no recorded scope names claims no ability", async ({ page }) => {
+  await connected(page, { grantedScopeNames: null });
+  await page.goto(`${ORGANIZATION_PATH}/${CONNECTION_ID}`);
+  await expect(connectionBody(page)).toContainText(
+    "Reconnect to see exactly what Slack granted.",
+  );
+  await expect(connectionBody(page)).not.toContainText(
+    "Post progress in channels",
+  );
 });
 
 test("a check Slack does not answer says so and can be repeated", async ({ page }) => {
@@ -730,8 +783,9 @@ for (const state of ["not_linked", "linked"] as const) {
       "You have not linked your own Slack account.",
     );
     await still(page, "slack-own-link-notice");
-    await expect(notice.getByRole("link", { name: "Link Slack" }))
-      .toHaveAttribute("href", "/settings/security#slack");
+    const link = notice.getByRole("link", { name: "Link Slack" });
+    await expect(link).toHaveAttribute("href", "/settings/security#slack");
+    await expect(link).toHaveClass(/ui-link/);
   });
 }
 

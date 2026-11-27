@@ -2,9 +2,18 @@ import * as UI from "@bakery/ui";
 import { useI18n } from "../../../../i18n/I18nProvider.tsx";
 import { slackAbilities } from "./abilities.ts";
 
-export function SlackAbilities({ granted }: { readonly granted: unknown }) {
+export function SlackAbilities(
+  { scopeNames }: { readonly scopeNames: readonly string[] | null },
+) {
   const { translate, locale } = useI18n();
-  const { available, missing } = slackAbilities(granted);
+  if (scopeNames === null) {
+    return (
+      <UI.Text variant="muted">
+        {translate("integrations.slack.can.unknown")}
+      </UI.Text>
+    );
+  }
+  const { available, missing } = slackAbilities(scopeNames);
   return (
     <UI.Stack gap="compact">
       <UI.Stack gap="tight">

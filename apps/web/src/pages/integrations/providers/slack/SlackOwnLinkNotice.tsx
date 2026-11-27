@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link as RouterLink } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../../../../api/context.tsx";
 import { mySlackLinkQueryOptions } from "../../../../api/query.ts";
 import { useProtectedScope } from "../../../../app/query-scope-context.tsx";
 import { useI18n } from "../../../../i18n/I18nProvider.tsx";
+import { RouterLink } from "../../../../app/router-link.tsx";
 
 export function SlackOwnLinkNotice() {
   const api = useBakeryApi();

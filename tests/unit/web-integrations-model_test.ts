@@ -187,3 +187,41 @@ Deno.test("the repository filter ignores case and spacing and keeps order", () =
   assertEquals(filterRepositories(items, "nothing"), []);
   assertEquals(SEARCH_AFTER, 10);
 });
+
+Deno.test("a check that never reached the provider does not read as working", () => {
+  const after = {
+    status: "enabled",
+    lastCheckedAt: "2026-11-27T10:00:00.000Z",
+    health: "unknown",
+  } as const;
+  assertEquals(connectionHealth(after).kind, "notChecked");
+  assertEquals(connectionHealth(after, "unknown").kind, "notChecked");
+  assertEquals(
+    connectionHealth({ ...after, health: "healthy" }).kind,
+    "working",
+  );
+});
+
+Deno.test("a degraded connection that reports its scopes says which way it is degraded", () => {
+  const degraded = {
+    status: "degraded",
+    lastCheckedAt: null,
+    grantedScopeNames: ["chat:write"],
+  } as const;
+  assertEquals(
+    connectionHealth({ ...degraded, health: "degraded" }).kind,
+    "limited",
+  );
+  assertEquals(
+    connectionHealth({ ...degraded, health: "auth_required" }).kind,
+    "authRequired",
+  );
+  assertEquals(
+    connectionHealth({
+      ...degraded,
+      health: "degraded",
+      grantedScopeNames: null,
+    }).kind,
+    "needsAttention",
+  );
+});

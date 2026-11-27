@@ -253,6 +253,7 @@ function Loaded(
         account={connection.label}
         provider={connection.provider}
         granted={connection.grantedScopes}
+        grantedScopeNames={connection.grantedScopeNames}
         canManage={canManage}
         checkFaulted={actions.checked?.faulted ?? false}
         checkStatus={actions.checkStatus}

@@ -7824,5 +7824,7 @@
   "integrations.slack.outcome.connected": "⟪Bakery was added to {account}.⟫",
   "integrations.slack.banner.accessRefused": "⟪Slack no longer accepts Bakery's access. Nothing is posted, and approvals and messages from Slack do not work. Reconnect to continue.⟫",
   "integrations.slack.banner.limited": "⟪Slack did not grant everything Bakery asks for, so part of this does not work. See “What Bakery can do” below, then reconnect and approve it.⟫",
-  "integrations.slack.banner.removed": "⟪Bakery is no longer connected to this Slack workspace. Nothing is posted, and approvals and messages from Slack do not work. People's links are kept and work again when you connect again.⟫"
+  "integrations.slack.banner.removed": "⟪Bakery is no longer connected to this Slack workspace. Nothing is posted, and approvals and messages from Slack do not work. People's links are kept and work again when you connect again.⟫",
+  "integrations.slack.page.purpose": "⟪Posts progress to Slack, and lets linked people approve work and message agents from Slack.⟫",
+  "integrations.slack.can.unknown": "⟪Reconnect to see exactly what Slack granted.⟫"
 }

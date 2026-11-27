@@ -68,6 +68,7 @@ export type ConnectionViewProps = {
   readonly canManage: boolean;
   readonly provider: string;
   readonly granted: unknown;
+  readonly grantedScopeNames?: readonly string[] | null;
   readonly account: string;
   readonly status: ConnectionStatus;
   readonly health: Health;
@@ -180,8 +181,12 @@ export function ConnectionView(props: ConnectionViewProps) {
       <UI.PageHeader
         actions={phone ? checkNow : undefined}
         flush
-        subtitle={state === "ready" && guided
+        subtitle={state !== "ready"
+          ? undefined
+          : guided
           ? translate("settings.connections.page.purpose")
+          : hasHealthCheck(props.provider)
+          ? translate("integrations.slack.page.purpose")
           : undefined}
         summary={state === "ready"
           ? (
@@ -367,7 +372,7 @@ function OtherProviderContent(props: ConnectionViewProps) {
           </UI.HelpTip>
         </UI.Heading>
         {checkable
-          ? <SlackAbilities granted={props.granted} />
+          ? <SlackAbilities scopeNames={props.grantedScopeNames ?? null} />
           : sentences.length === 0
           ? (
             <UI.Text variant="muted">

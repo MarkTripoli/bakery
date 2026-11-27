@@ -21,6 +21,8 @@ export type ConnectionStatus =
 export type ConnectionFacts = {
   readonly status: ConnectionStatus;
   readonly lastCheckedAt: string | null;
+  readonly health?: CheckedHealth;
+  readonly grantedScopeNames?: readonly string[] | null;
 };
 
 /** The finer health a "Check now" answers with. */
@@ -128,12 +130,21 @@ export function connectionHealth(
       return HEALTH.finishSetup;
     case "degraded":
     case "enabled": {
-      if (checked === "auth_required") return HEALTH.authRequired;
-      if (checked === "degraded") return HEALTH.limited;
+      const reportsScopes = connection.grantedScopeNames != null;
+      const stored = reportsScopes && connection.status === "degraded"
+        ? connection.health
+        : null;
+      if (checked === "auth_required" || stored === "auth_required") {
+        return HEALTH.authRequired;
+      }
+      if (checked === "degraded" || stored === "degraded") {
+        return HEALTH.limited;
+      }
       if (connection.status === "degraded") return HEALTH.needsAttention;
-      return connection.lastCheckedAt === null && checked === null
-        ? HEALTH.notChecked
-        : HEALTH.working;
+      if (checked === "healthy") return HEALTH.working;
+      const unproven = connection.health === "unknown" ||
+        connection.lastCheckedAt === null && checked === null;
+      return unproven ? HEALTH.notChecked : HEALTH.working;
     }
   }
 }

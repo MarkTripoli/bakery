@@ -7763,6 +7763,8 @@
   "integrations.slack.details.workspace": "Workspace",
   "integrations.slack.ownLink.text": "You have not linked your own Slack account. Link it to approve work from Slack.",
   "integrations.slack.ownLink.action": "Link Slack",
+  "integrations.slack.page.purpose": "Posts progress to Slack, and lets linked people approve work and message agents from Slack.",
+  "integrations.slack.can.unknown": "Reconnect to see exactly what Slack granted.",
   "integrations.slack.can.channels": "See channel names",
   "integrations.slack.can.post": "Post progress in channels",
   "integrations.slack.can.mentions": "Notice when someone mentions @Bakery",
