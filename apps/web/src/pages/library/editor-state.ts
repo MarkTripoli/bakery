@@ -14,6 +14,12 @@ import {
   approvalOfNode,
   sameApproval,
 } from "./approval-step.ts";
+import {
+  type NotifyFields,
+  notifyInput,
+  notifyOfNode,
+  sameNotify,
+} from "./notify-step.ts";
 
 /** One step as the editor holds it: what it runs, and the agent bound to it. */
 export type EditorStep = {
@@ -23,6 +29,7 @@ export type EditorStep = {
   /** The skill versions the step names, in order (#431); none for most steps. */
   readonly skills: readonly string[];
   readonly approval?: ApprovalFields;
+  readonly notify?: NotifyFields;
   readonly list?: string;
 };
 
@@ -70,6 +77,12 @@ export type EditorAction =
     readonly kind: "approval";
     readonly id: string;
     readonly approval: ApprovalFields;
+    readonly typing?: string;
+  }
+  | {
+    readonly kind: "notify";
+    readonly id: string;
+    readonly notify: NotifyFields;
     readonly typing?: string;
   }
   | {
@@ -189,15 +202,18 @@ function stepNodes(
     if (
       node !== undefined && sameAction &&
       agent === step.agentVersionId && sameList(skills, step.skills) &&
-      keepsApproval(node, step)
+      keepsApproval(node, step) && keepsNotify(node, step)
     ) {
       return node;
     }
     const { agentVersionId: _dropped, skills: _skills, ...rest } = node ?? {};
-    if (step.approval !== undefined) delete rest.with;
-    const input = step.approval === undefined
-      ? null
-      : approvalInput(step.approval);
+    const edited = step.notify !== undefined
+      ? notifyInput(step.notify)
+      : step.approval !== undefined
+      ? approvalInput(step.approval)
+      : undefined;
+    if (edited !== undefined) delete rest.with;
+    const input = edited ?? null;
     return {
       ...rest,
       ...(input === null ? {} : { with: input }),
@@ -296,6 +312,31 @@ function keepsApproval(
   if (step.approval === undefined) return true;
   const held = approvalOfNode(node);
   return held !== null && sameApproval(held, step.approval);
+}
+
+function editedFields(
+  held: EditorStep | undefined,
+  action: Extract<EditorAction, { kind: "approval" | "notify" }>,
+): Partial<EditorStep> | null {
+  if (action.kind === "approval") {
+    return held?.approval === undefined ||
+        sameApproval(held.approval, action.approval)
+      ? null
+      : { approval: action.approval };
+  }
+  return held?.notify === undefined || sameNotify(held.notify, action.notify)
+    ? null
+    : { notify: action.notify };
+}
+
+function keepsNotify(
+  node: Readonly<Record<string, unknown>>,
+  step: EditorStep,
+): boolean {
+  if (step.notify === undefined) return true;
+  const held = notifyOfNode(node);
+  return held !== null && node.with !== undefined &&
+    sameNotify(held, step.notify);
 }
 
 const sameList = (left: readonly string[], right: readonly string[]) =>
@@ -410,16 +451,15 @@ export function editorReducer(
         ),
       );
     }
-    case "approval": {
+    case "approval":
+    case "notify": {
       const at = state.steps.findIndex((step) => step.id === action.id);
-      const held = state.steps[at]?.approval;
-      if (held === undefined || sameApproval(held, action.approval)) {
-        return state;
-      }
+      const patch = editedFields(state.steps[at], action);
+      if (patch === null) return state;
       const next = changed(
         state,
         state.steps.map((step, index) =>
-          index === at ? { ...step, approval: action.approval } : step
+          index === at ? { ...step, ...patch } : step
         ),
       );
       if (action.typing === undefined) return next;
