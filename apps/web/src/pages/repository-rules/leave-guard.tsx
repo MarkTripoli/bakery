@@ -27,13 +27,13 @@ const RULES_COPY: LeaveCopy = {
  * reload or a closed tab gets the browser's own prompt.
  */
 export function LeaveGuard(
-  { count, discard, path = RULES_PATH, copy = RULES_COPY }: {
+  { count, discard, path = RULES_PATH, copy = RULES_COPY, safest = false }: {
     count: number;
     discard: () => void;
     /** The prefix whose pages share this draft; `/settings/organization/repository-rules` by default. */
     path?: string;
-    /** The words the question uses; the repository rules' by default. */
     copy?: LeaveCopy;
+    safest?: boolean;
   },
 ) {
   const { translate } = useI18n();
@@ -48,7 +48,7 @@ export function LeaveGuard(
         <UI.Button
           onClick={() => blocker.reset?.()}
           type="button"
-          variant="secondary"
+          variant={safest ? "primary" : "secondary"}
         >
           {translate(copy.stay as never)}
         </UI.Button>
@@ -60,7 +60,7 @@ export function LeaveGuard(
             blocker.proceed?.();
           }}
           type="button"
-          variant="destructive"
+          variant={safest ? "secondary" : "destructive"}
         >
           {translate(copy.confirm as never)}
         </UI.Button>

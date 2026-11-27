@@ -37,11 +37,13 @@ export type TooltipProps =
     children: ReactElement<TooltipTriggerProps>;
     content: ReactNode;
     variant?: "label" | "description";
+    align?: "center" | "start";
   };
 
 /** Supplies supplementary text on hover and keyboard focus. */
 export function Tooltip(
-  { children, content, variant = "label", ...props }: TooltipProps,
+  { align = "center", children, content, variant = "label", ...props }:
+    TooltipProps,
 ) {
   const descriptionId = useId();
   const [dismissed, setDismissed] = useState(false);
@@ -65,7 +67,10 @@ export function Tooltip(
     },
     onKeyDown: (event) => {
       children.props.onKeyDown?.(event);
-      if (!event.defaultPrevented && event.key === "Escape") {
+      if (
+        !event.defaultPrevented && event.key === "Escape" && content &&
+        !dismissed
+      ) {
         event.preventDefault();
         setDismissed(true);
       }
@@ -95,7 +100,12 @@ export function Tooltip(
       data-variant={variant}
     >
       {trigger}
-      <span className="ui-tooltip__content" id={descriptionId} role="tooltip">
+      <span
+        className="ui-tooltip__content"
+        data-align={align}
+        id={descriptionId}
+        role="tooltip"
+      >
         {content}
       </span>
     </span>

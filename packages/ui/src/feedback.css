@@ -352,6 +352,13 @@
 .ui-tooltip[data-dismissed="true"] .ui-tooltip__content {
   display: none;
 }
+.ui-tooltip[data-state] .ui-tooltip__content:empty {
+  display: none;
+}
+.ui-tooltip__content[data-align="start"] {
+  inset-inline-start: 0;
+  transform: none;
+}
 
 /* HelpTip: the information button after a label. Its box is the pointer
    target (28px fine, 44px coarse); the glyph stays 16px and muted until the
