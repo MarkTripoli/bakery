@@ -640,7 +640,11 @@ export function transcriptIntegrationTests(
         [fixture.organizationId, segment.versionId, "0".repeat(64)],
       );
       const corruptRead = await readVersion(fixture, segment.versionId);
-      assertEquals(corruptRead.response.status, 500);
+      assertEquals(corruptRead.response.status, 409);
+      assertEquals(
+        JSON.parse(new TextDecoder().decode(corruptRead.bytes)).code,
+        "ARTIFACT_CONTENT_MISMATCH",
+      );
       assertEquals(
         (await statusResponse(fixture, own.binding.sessionId)).status,
         412,

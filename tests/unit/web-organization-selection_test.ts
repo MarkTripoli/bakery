@@ -145,7 +145,7 @@ function fakeApi(
       update: rejecting,
       revoke: rejecting,
     },
-    machines: { dispatchBlockers: rejecting },
+    machines: { dispatchBlockers: rejecting, models: rejecting },
     workerLinkRequests: {
       find: rejecting,
       approve: rejecting,

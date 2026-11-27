@@ -74,6 +74,7 @@ import type {
   IntegrationConnection,
   IntegrationResource,
   LibraryPage,
+  MachineModelListResponse,
   MemoryEntryResponse,
   MemoryRevisionResponse,
   MentionCandidatePage,
@@ -762,6 +763,33 @@ export function dispatchBlockersQueryOptions(
     enabled: Boolean(scope.organizationId && workerId),
     retry: retryNetworkOnce,
     refetchInterval: 15_000,
+  });
+}
+
+export function machineModelsQueryOptions(
+  client: Pick<BakeryApiClient, "machines">,
+  scope: ApiScope,
+  machineId: string,
+) {
+  return queryOptions<MachineModelListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "machines.models", { machineId }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const page = async (cursor?: string) =>
+        unwrap(
+          await client.machines.models({
+            organizationId: scope.organizationId as string,
+            id: machineId,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+      return collectMachinePages(await page(), page);
+    },
+    enabled: Boolean(scope.organizationId && machineId),
   });
 }
 
