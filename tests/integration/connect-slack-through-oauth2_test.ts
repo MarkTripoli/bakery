@@ -518,3 +518,64 @@ Deno.test("a connected Slack workspace reads back through the connection list, g
     await o.finish();
   }
 });
+
+Deno.test("connecting a removed Slack workspace again restores the same connection and says so in the audit", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    const first = await startAttempt(o.fixture);
+    const connected = await slackCallback(o.fixture, {
+      code: "slack-code-before-removal",
+      state: first.url.searchParams.get("state")!,
+    });
+    const connectionId = new URL(
+      connected.headers.get("location")!,
+      "https://x",
+    ).searchParams.get("connectionId")!;
+    const headers = { "Bakery-Organization-Id": o.fixture.organizationId };
+    const current = await call(
+      o.fixture,
+      "GET",
+      `/v1/integration-connections/${connectionId}`,
+      o.fixture.adminCookie,
+      { headers },
+    );
+    const { version } = await current.json() as { version: number };
+    const removed = await call(
+      o.fixture,
+      "POST",
+      `/v1/integration-connections/${connectionId}/removal`,
+      o.fixture.adminCookie,
+      {
+        headers: {
+          ...headers,
+          "If-Match": `"${version}"`,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assert(removed.ok, await removed.clone().text());
+    const again = await startAttempt(o.fixture);
+    const restored = await slackCallback(o.fixture, {
+      code: "slack-code-after-removal",
+      state: again.url.searchParams.get("state")!,
+    });
+    const location = new URL(restored.headers.get("location")!, "https://x");
+    assertEquals(location.searchParams.get("slackConnection"), "refreshed");
+    assertEquals(location.searchParams.get("connectionId"), connectionId);
+    const row = await o.fixture.pgDatabase.query<{ status: string }>(
+      "select status from bakery.integration_connections where id = $1",
+      [connectionId],
+    );
+    assertEquals(row.rows, [{ status: "enabled" }]);
+    const audited = await o.fixture.pgDatabase.query<{ step: string }>(
+      `select details ->> 'step' as step from bakery.audit_events
+        where operation = 'integrationAuth.providerCallback'
+          and resource_id = $1 order by created_at`,
+      [connectionId],
+    );
+    assertEquals(audited.rows.map((r) => r.step), ["bound", "restored"]);
+  } finally {
+    await o.finish();
+  }
+});

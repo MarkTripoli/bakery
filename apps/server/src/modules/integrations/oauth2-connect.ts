@@ -552,41 +552,12 @@ export async function bindOAuth2Connection(
       return await fail(ConnectionOutcome.ReconnectUnavailable);
     }
     if (row.externalAccountId === accountId) {
-      await storeInstallation();
-      const refreshed = await transaction.query<
-        { version: number; authorizationRevision: number }
-      >(
-        `update bakery.integration_connections
-            set label = $3, granted_permissions = $4::jsonb,
-                authorization_revision = authorization_revision + 1,
-                status = 'enabled', health = 'unknown',
-                version = version + 1, updated_at = now()
-          where organization_id = $1 and id = $2
-          returning version, authorization_revision as "authorizationRevision"`,
-        [
-          attempt.organizationId,
-          attempt.reconnectConnectionId,
-          label,
-          permissions,
-        ],
-      );
-      const updated = refreshed.rows[0];
-      if (updated === undefined) throw new StandardError({ code: "INTERNAL" });
-      await completeAttempt(attempt.reconnectConnectionId, {
-        step: "refreshed",
-        accountId,
-        authorizationRevision: updated.authorizationRevision,
-        version: updated.version,
-      });
-      return redirect(
-        ConnectionOutcome.Refreshed,
-        attempt.reconnectConnectionId,
-      );
+      return await refreshConnection(attempt.reconnectConnectionId);
     }
   }
 
-  const live = await transaction.query(
-    `select 1
+  const live = await transaction.query<{ id: string; status: string }>(
+    `select connection.id, connection.status
        from bakery.integration_connections connection
        join bakery.integration_installations installation
          on installation.id = connection.installation_id
@@ -597,6 +568,10 @@ export async function bindOAuth2Connection(
       for update of connection`,
     [attempt.organizationId, prepared.registrationId, accountId],
   );
+  const removed = live.rows.find((row) => row.status === "revoked");
+  if (removed !== undefined) {
+    return await refreshConnection(removed.id, "restored");
+  }
   if (live.rows.length > 0) {
     return await fail(ConnectionOutcome.AlreadyConnected);
   }
@@ -637,6 +612,34 @@ export async function bindOAuth2Connection(
     reconnectConnectionId: attempt.reconnectConnectionId,
   });
   return redirect(ConnectionOutcome.Connected, created.id);
+
+  async function refreshConnection(
+    connectionId: string,
+    step: "refreshed" | "restored" = "refreshed",
+  ): Promise<AuthRedirect> {
+    await storeInstallation();
+    const refreshed = await transaction.query<
+      { version: number; authorizationRevision: number }
+    >(
+      `update bakery.integration_connections
+          set label = $3, granted_permissions = $4::jsonb,
+              authorization_revision = authorization_revision + 1,
+              status = 'enabled', health = 'unknown',
+              version = version + 1, updated_at = now()
+        where organization_id = $1 and id = $2
+        returning version, authorization_revision as "authorizationRevision"`,
+      [attempt!.organizationId, connectionId, label, permissions],
+    );
+    const updated = refreshed.rows[0];
+    if (updated === undefined) throw new StandardError({ code: "INTERNAL" });
+    await completeAttempt(connectionId, {
+      step,
+      accountId,
+      authorizationRevision: updated.authorizationRevision,
+      version: updated.version,
+    });
+    return redirect(ConnectionOutcome.Refreshed, connectionId);
+  }
 
   async function storeInstallation(): Promise<string> {
     const existing = await transaction.query<
