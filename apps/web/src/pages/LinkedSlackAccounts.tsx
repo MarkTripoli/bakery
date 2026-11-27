@@ -22,25 +22,20 @@ export function LinkedSlackAccounts(
   const queryClient = useQueryClient();
   useRestoreOrganizationScope({ redirect: false });
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
-  const mayLink = access.data?.role === "admin" ||
-    access.data?.role === "developer";
   const organization = useQuery(organizationQueryOptions(api, scope));
-  const link = useQuery({
-    ...mySlackLinkQueryOptions(api, scope),
-    enabled: mayLink,
-  });
+  const link = useQuery(mySlackLinkQueryOptions(api, scope));
   const [notice, setNotice] = useState(result);
   const [linking, setLinking] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
   const [confirmingUnlink, setConfirmingUnlink] = useState(false);
-  const shown = mayLink && !link.isPending;
+  const shown = !link.isPending;
   useEffect(() => {
     if (shown && globalThis.location.hash === "#slack") {
       globalThis.document.getElementById("slack")?.scrollIntoView();
     }
   }, [shown]);
   const organizationId = scope.organizationId;
-  if (!mayLink || organizationId === null) return null;
+  if (organizationId === null) return null;
 
   const status: SlackLinkStatus = link.isPending
     ? { kind: "loading" }

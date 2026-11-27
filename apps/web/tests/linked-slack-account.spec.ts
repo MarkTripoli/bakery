@@ -159,10 +159,9 @@ test("a link an administrator removed says when", async ({ page }) => {
   );
 });
 
-test("a viewer, who cannot link, sees no linked accounts", async ({ page }) => {
-  const server = await security(page, { link: NOT_LINKED, role: "viewer" });
-  await expect(page.getByTestId("security-hub").getByText("Active sessions"))
+test("a viewer can link too, and is offered no integrations link", async ({ page }) => {
+  await security(page, { link: NOT_LINKED, role: "viewer" });
+  await expect(section(page).getByRole("button", { name: "Link Slack" }))
     .toBeVisible();
-  await expect(section(page)).toHaveCount(0);
-  expect(server.reads).toBe(0);
+  await expect(section(page).getByRole("link")).toHaveCount(0);
 });
