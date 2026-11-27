@@ -193,6 +193,7 @@ function readyInput(overrides: Partial<ReadinessInput> = {}): ReadinessInput {
       installationEnabled: true,
       resourceSelected: true,
       repositoryFullName: "owner/repo",
+      repositoryBound: true,
       repositoryArchived: false,
       repositoryHasActiveProfile: true,
       presetReady: true,
@@ -1508,6 +1509,23 @@ Deno.test("issue 82 unit readiness: repository and preset readiness", async () =
   assertEquals(preset.verdict, "waiting");
 });
 
+Deno.test("issue 409 S5 unit readiness: a source with no repository passes repository readiness", async () => {
+  const source = readyInput().source;
+  const unbound = await evaluate(readyInput({
+    source: {
+      ...source,
+      repositoryBound: false,
+      repositoryHasActiveProfile: false,
+      presetReady: false,
+    },
+  }));
+  assertEquals(outcome(unbound, "repository_ready")?.[0], "pass");
+  assertEquals(outcome(unbound, "preset_ready"), [
+    "wait",
+    "preset_setup_required",
+  ]);
+});
+
 Deno.test("issue 407 unit readiness: a source with no workflow is judged ready, reports no pin and leaves the workflow check out", async () => {
   const none = await evaluate(readyInput({ preset: null }));
   assertEquals(none.verdict, "ready");
@@ -2261,6 +2279,7 @@ function randomInput(random: () => number): ReadinessInput {
       installationEnabled: !flip(0.03),
       resourceSelected: !flip(0.03),
       repositoryFullName: "owner/repo",
+      repositoryBound: true,
       repositoryArchived: flip(0.03),
       repositoryHasActiveProfile: !flip(0.03),
       presetReady: !flip(0.03),
