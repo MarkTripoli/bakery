@@ -171,7 +171,12 @@ test.describe("workflow editor: steps inside a group", () => {
   test("a step inside the loop block is read, not rewritten", async ({ page }) => {
     await editor(page);
     await page.locator("[data-card='repair_review']").click();
-    await expect(page.getByRole("button", { name: "Move up" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Delete" })).toBeDisabled();
+    await expect(
+      page.getByText(
+        "This part of the workflow is written in code. You cannot change it here.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Move up" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
   });
 });

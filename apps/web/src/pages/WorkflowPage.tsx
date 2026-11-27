@@ -359,73 +359,75 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
           })}
           status={stateBadge(version)}
         >
-          <UI.Text variant="caption">
-            {state === "draft"
-              ? translate("library.workflow.versions.changed" as never, {
-                date: date(version.updatedAt),
-              })
-              : translate("library.workflow.versions.created" as never, {
-                date: date(version.createdAt),
-              })}
-          </UI.Text>
-          {sheet
-            ? (
-              <UI.Text variant="caption">
-                {translate("library.workflow.versions.fingerprint" as never)}
-                {": "}
-                <UI.DataText>{version.digest.slice(0, 12)}</UI.DataText>
-              </UI.Text>
-            )
-            : null}
-          <UI.Inline gap="compact">
-            {canManage && canUse(version, activeId)
-              ? (
-                <UI.Button
-                  variant="secondary"
-                  disabled={offline || pending}
-                  onClick={() => open({ kind: "use", version })}
-                >
-                  {translate("library.workflow.versions.use" as never)}
-                </UI.Button>
-              )
-              : null}
-            {sheet || state !== "retired"
-              ? isShown
-                ? (
-                  <UI.Text variant="muted">
-                    {translate("library.workflow.versions.shown" as never)}
-                  </UI.Text>
-                )
-                : (
-                  <UI.Inline gap="compact" data-view-link="">
-                    <UI.Link
-                      href={`/library/workflows/${workflowId}?version=${version.id}`}
-                      aria-label={translate(
-                        "library.workflow.versions.viewNamed" as never,
-                        { version: version.revision },
-                      )}
-                      onClick={(event) => {
-                        event.preventDefault();
-                        setViewing(version.id);
-                        if (sheet) close();
-                      }}
-                    >
-                      {translate("library.workflow.versions.view" as never)}
-                    </UI.Link>
-                  </UI.Inline>
-                )
-              : null}
+          <UI.Stack gap="compact">
+            <UI.Text variant="caption">
+              {state === "draft"
+                ? translate("library.workflow.versions.changed", {
+                  date: date(version.updatedAt),
+                })
+                : translate("library.workflow.versions.created", {
+                  date: date(version.createdAt),
+                })}
+            </UI.Text>
             {sheet
               ? (
-                <UI.Button
-                  variant="quiet"
-                  onClick={() => exportVersion(version)}
-                >
-                  {translate("library.workflow.export" as never)}
-                </UI.Button>
+                <UI.Text variant="caption">
+                  {translate("library.workflow.versions.fingerprint")}
+                  {": "}
+                  <UI.DataText>{version.digest.slice(0, 12)}</UI.DataText>
+                </UI.Text>
               )
               : null}
-          </UI.Inline>
+            <UI.Inline gap="compact">
+              {canManage && canUse(version, activeId)
+                ? (
+                  <UI.Button
+                    variant="secondary"
+                    disabled={offline || pending}
+                    onClick={() => open({ kind: "use", version })}
+                  >
+                    {translate("library.workflow.versions.use")}
+                  </UI.Button>
+                )
+                : null}
+              {sheet || state !== "retired"
+                ? isShown
+                  ? (
+                    <UI.Text variant="muted">
+                      {translate("library.workflow.versions.shown")}
+                    </UI.Text>
+                  )
+                  : (
+                    <UI.Inline gap="compact" data-view-link="">
+                      <UI.Link
+                        href={`/library/workflows/${workflowId}?version=${version.id}`}
+                        aria-label={translate(
+                          "library.workflow.versions.viewNamed",
+                          { version: version.revision },
+                        )}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          setViewing(version.id);
+                          if (sheet) close();
+                        }}
+                      >
+                        {translate("library.workflow.versions.view")}
+                      </UI.Link>
+                    </UI.Inline>
+                  )
+                : null}
+              {sheet
+                ? (
+                  <UI.Button
+                    variant="quiet"
+                    onClick={() => exportVersion(version)}
+                  >
+                    {translate("library.workflow.export")}
+                  </UI.Button>
+                )
+                : null}
+            </UI.Inline>
+          </UI.Stack>
         </UI.StackedRow>
       </div>
     );

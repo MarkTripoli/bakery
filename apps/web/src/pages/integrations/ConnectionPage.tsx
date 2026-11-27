@@ -29,7 +29,12 @@ import {
 } from "./model.ts";
 import type { ConnectionOutcome } from "./outcomes.ts";
 import { useConnectionActions } from "./use-connection.ts";
-import { PROVIDER_IDENTITY, useProviderConnect } from "./providers/index.ts";
+import {
+  hasSetupPages,
+  PROVIDER_IDENTITY,
+  providerLook,
+  useProviderConnect,
+} from "./providers/index.ts";
 
 const INTEGRATIONS_PATH = "/settings/organization/integrations";
 
@@ -118,6 +123,8 @@ const NOTHING: Omit<
 > = {
   canManage: false,
   account: "",
+  provider: PROVIDER_IDENTITY.slug,
+  granted: null,
   status: "enabled",
   health: connectionHealth({ status: "enabled", lastCheckedAt: null }),
   steps: null,
@@ -161,7 +168,7 @@ function Frame(
   const { translate } = useI18n();
   return (
     <>
-      <Crumbs title={translate(PROVIDER_IDENTITY.headingKey)} />
+      <Crumbs title={translate("settings.connections.title")} />
       <ConnectionView
         {...NOTHING}
         formatTime={String}
@@ -206,12 +213,19 @@ function Loaded(
   return (
     <>
       <Crumbs
-        title={translate("settings.connections.row.title", {
-          account: connection.label,
-        })}
+        title={hasSetupPages(connection.provider)
+          ? translate("settings.connections.row.title", {
+            account: connection.label,
+          })
+          : translate("settings.connections.other.title", {
+            provider: providerLook(connection.provider, translate).name,
+            account: connection.label,
+          })}
       />
       <ConnectionView
         account={connection.label}
+        provider={connection.provider}
+        granted={connection.grantedScopes}
         canManage={canManage}
         checkFaulted={actions.checked?.faulted ?? false}
         checkStatus={actions.checkStatus}
@@ -269,10 +283,9 @@ function Loaded(
         }}
         state="ready"
         status={status}
-        steps={setupSteps(
-          connection,
-          actions.repositories.data ? saved : null,
-        )}
+        steps={hasSetupPages(connection.provider)
+          ? setupSteps(connection, actions.repositories.data ? saved : null)
+          : null}
         switchStatus={actions.switchStatus}
       />
     </>

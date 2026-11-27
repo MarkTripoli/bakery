@@ -6,7 +6,12 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import type { Health } from "./model.ts";
 import { type ConnectionOutcome, OUTCOME_COPY } from "./outcomes.ts";
 import type { ConnectStatus } from "./connect.ts";
-import { PROVIDER_IDENTITY } from "./providers/index.ts";
+import {
+  hasSetupPages,
+  healthBadge,
+  PROVIDER_IDENTITY,
+  providerLook,
+} from "./providers/index.ts";
 import { WEB_PROVIDERS } from "../../integrations/registry.ts";
 
 export type IntegrationsHomeState = "loading" | "error" | "forbidden" | "ready";
@@ -14,6 +19,7 @@ export type IntegrationsHomeState = "loading" | "error" | "forbidden" | "ready";
 /** One connected integration as the list shows it. */
 export type ConnectionRow = {
   readonly id: string;
+  readonly provider: string;
   /** The account the connection belongs to, such as an organization name. */
   readonly account: string;
   readonly health: Health;
@@ -237,7 +243,8 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                   )}
                 />
                 {WEB_PROVIDERS.filter((module) =>
-                  module.connectAvailable === false
+                  module.connectAvailable === false &&
+                  !rows.some((row) => row.provider === module.manifest.slug)
                 ).map((module) => (
                   <ProviderNotYetConnectable
                     canManage={canManage}
@@ -288,19 +295,28 @@ function ConnectedRow(
 ) {
   const { translate } = useI18n();
   const { health } = row;
+  const guided = hasSetupPages(row.provider);
+  const look = providerLook(row.provider, translate);
   const label = translate(
-    `settings.connections.action.${health.action}` as MessageKey,
+    guided
+      ? `settings.connections.action.${health.action}` as MessageKey
+      : "settings.connections.action.manage",
   );
   // Reconnecting and connecting again leave for the provider; every other fix, and
   // Manage, opens the connection's own page.
-  const leaves = health.action === "reconnect" ||
-    health.action === "connectAgain";
+  const leaves = guided &&
+    (health.action === "reconnect" || health.action === "connectAgain");
   const open = (
     <RouterLink
       params={{ connectionId: row.id }}
       to="/settings/organization/integrations/$connectionId"
     >
-      {translate("settings.connections.row.title", { account: row.account })}
+      {guided
+        ? translate("settings.connections.row.title", { account: row.account })
+        : translate("settings.connections.other.title", {
+          provider: look.name,
+          account: row.account,
+        })}
     </RouterLink>
   );
   return (
@@ -320,22 +336,43 @@ function ConnectedRow(
         : undefined}
       identity={
         <UI.Inline gap="compact">
-          <UI.Avatar
-            alt={PROVIDER_IDENTITY.avatarAlt}
-            fallback={PROVIDER_IDENTITY.avatarFallback}
-            size="small"
-          />
+          <UI.Avatar alt={look.name} fallback={look.fallback} size="small" />
           <UI.Text variant="strong">{open}</UI.Text>
         </UI.Inline>
       }
-      metadata={rowLine(row, translate, formatTime)}
+      metadata={guided
+        ? rowLine(row, translate, formatTime)
+        : otherRowLine(row, look.name, translate)}
       status={
-        <UI.Badge tone={health.tone}>
-          {translate(`settings.connections.badge.${health.kind}` as MessageKey)}
+        <UI.Badge tone={healthBadge(row.provider, health).tone}>
+          {translate(healthBadge(row.provider, health).key)}
         </UI.Badge>
       }
     />
   );
+}
+
+function otherRowLine(
+  row: ConnectionRow,
+  provider: string,
+  translate: ReturnType<typeof useI18n>["translate"],
+): string | undefined {
+  switch (row.health.kind) {
+    case "turnedOff":
+      return translate("settings.connections.other.turnedOff", { provider });
+    case "removed":
+      return translate("settings.connections.other.removed", { provider });
+    case "needsAttention":
+    case "authRequired":
+    case "limited":
+      return translate("settings.connections.other.needsAttention", {
+        provider,
+      });
+    case "finishSetup":
+    case "working":
+    case "notChecked":
+      return undefined;
+  }
 }
 
 /** The one line under a row: what is worth knowing for its state, or nothing. */

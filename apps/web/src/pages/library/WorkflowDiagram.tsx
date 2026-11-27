@@ -1,5 +1,6 @@
 import {
   Component,
+  Fragment,
   lazy,
   type ReactNode,
   Suspense,
@@ -511,6 +512,10 @@ export function WorkflowDiagram(
 
   const renderBlock = (block: CanvasBlock): ReactNode => {
     switch (block.kind) {
+      case "lane":
+        return block.empty
+          ? <UI.Text variant="muted">{noSteps}</UI.Text>
+          : null;
       case "start":
         return startCard;
       case "step":
@@ -649,7 +654,32 @@ export function WorkflowDiagram(
               />
             </UI.OutlineList>
           )
-          : innerList(node.children)}
+          : node.lanes === undefined
+          ? innerList(node.children)
+          : node.lanes.map((lane, position) => (
+            <Fragment key={position}>
+              <UI.OutlineList>
+                <UI.OutlineRow
+                  caption
+                  title={
+                    <UI.Text variant="muted">
+                      {translate("library.editor.group.lane", {
+                        n: position + 1,
+                      })}
+                    </UI.Text>
+                  }
+                />
+                {lane.length === 0
+                  ? (
+                    <UI.OutlineRow
+                      caption
+                      title={<UI.Text variant="muted">{noSteps}</UI.Text>}
+                    />
+                  )
+                  : outlineRows(lane, true)}
+              </UI.OutlineList>
+            </Fragment>
+          ))}
       </UI.OutlineRow>
     );
   };
