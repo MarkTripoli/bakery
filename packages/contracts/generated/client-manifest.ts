@@ -49356,7 +49356,7 @@ export const clientManifest = {
                   "degraded",
                   "revoked"
                 ],
-                "description": "Client-facing connection state folded from the stored status and health columns: `pending` after verified setup until an Admin enables it, `revoked` when the provider revoked authorization, `disabled` when an Admin disabled it, `degraded` when an enabled connection's health is degraded or auth_required, otherwise `enabled`."
+                "description": "Client-facing connection state folded from the stored status and health columns: `pending` after verified setup until an Admin enables it, `revoked` when the provider revoked authorization, `disabled` when an Admin disabled it, `degraded` when an enabled connection's recorded health is degraded or auth_required, otherwise `enabled`; a requested scope that was not granted shows only in health, because the connection still works."
               },
               "health": {
                 "type": "string",
@@ -49366,7 +49366,7 @@ export const clientManifest = {
                   "degraded",
                   "auth_required"
                 ],
-                "description": "Last recorded health of the connection: unknown until a check completes, healthy, degraded when the provider works but something is missing (such as a requested scope not granted), or auth_required when the provider refused the credential."
+                "description": "Health of the connection: unknown until a check completes, healthy, degraded when the last check found a problem or a requested provider scope was not granted at the last connect or reconnect, or auth_required when the provider refused the credential."
               },
               "lastCheckedAt": {
                 "anyOf": [
@@ -72857,7 +72857,7 @@ export const clientManifest = {
             "degraded",
             "revoked"
           ],
-          "description": "Client-facing connection state folded from the stored status and health columns: `pending` after verified setup until an Admin enables it, `revoked` when the provider revoked authorization, `disabled` when an Admin disabled it, `degraded` when an enabled connection's health is degraded or auth_required, otherwise `enabled`."
+          "description": "Client-facing connection state folded from the stored status and health columns: `pending` after verified setup until an Admin enables it, `revoked` when the provider revoked authorization, `disabled` when an Admin disabled it, `degraded` when an enabled connection's recorded health is degraded or auth_required, otherwise `enabled`; a requested scope that was not granted shows only in health, because the connection still works."
         },
         "health": {
           "type": "string",
@@ -72867,7 +72867,7 @@ export const clientManifest = {
             "degraded",
             "auth_required"
           ],
-          "description": "Last recorded health of the connection: unknown until a check completes, healthy, degraded when the provider works but something is missing (such as a requested scope not granted), or auth_required when the provider refused the credential."
+          "description": "Health of the connection: unknown until a check completes, healthy, degraded when the last check found a problem or a requested provider scope was not granted at the last connect or reconnect, or auth_required when the provider refused the credential."
         },
         "lastCheckedAt": {
           "anyOf": [
