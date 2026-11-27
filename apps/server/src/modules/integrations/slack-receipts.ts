@@ -193,10 +193,6 @@ export async function connectSlackInstallation(
   });
   if (!registered.ok || registered.created) return registered;
   const current = registered.installation;
-  if (
-    current.signingSecretId === input.signingSecretId &&
-    current.status === "active"
-  ) return registered;
   const updated = await transaction.query<InstallationRow>(
     `update bakery.slack_installations
         set signing_secret_id = $3, status = 'active', updated_at = now(),

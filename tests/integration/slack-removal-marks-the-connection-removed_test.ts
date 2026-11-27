@@ -231,3 +231,47 @@ Deno.test("a connection the provider's installation removal revoked reads remove
     await o.finish();
   }
 });
+
+Deno.test("an uninstall delivered after the workspace reconnected leaves the reconnect", async () => {
+  const o = await open(fakeSlack(), { signingSecret: SIGNING_SECRET });
+  try {
+    const connectionId = await connectOnce(o);
+    const uninstalledAt = Math.floor(Date.now() / 1000);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const attempt = await call(
+      o.fixture,
+      "POST",
+      "/v1/integration-auth-attempts",
+      o.fixture.adminCookie,
+      {
+        body: { provider: "slack", reconnectConnectionId: connectionId },
+        headers: {
+          "Bakery-Organization-Id": o.fixture.organizationId,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assertEquals(attempt.status, 201, await attempt.clone().text());
+    const created = await attempt.json() as { authorizationUrl: string };
+    const reconnected = await slackCallback(o.fixture, {
+      code: "slack-code-reconnect",
+      state: new URL(created.authorizationUrl).searchParams.get("state")!,
+    });
+    assertEquals(outcome(reconnected), "refreshed");
+    assertEquals(
+      await send(
+        o,
+        removal(
+          "EvDELAYED1",
+          { type: "app_uninstalled" },
+          TEAM_ID,
+          uninstalledAt,
+        ),
+      ),
+      200,
+    );
+    assertEquals((await state(o, connectionId)).status, "enabled");
+  } finally {
+    await o.finish();
+  }
+});
