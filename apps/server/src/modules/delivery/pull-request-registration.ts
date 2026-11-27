@@ -9,6 +9,7 @@ import { DeliveryImplementedAction } from "@bakery/contracts/implemented-actions
 import {
   createNormalizedCommandMetadata,
   StandardError,
+  unprocessable,
 } from "@bakery/contracts/http";
 import { effectivePermissions } from "../auth/application/authorize.ts";
 import type {
@@ -25,12 +26,14 @@ import {
   checkRunFactOf,
   forgetFailedToken,
   MAX_CHECK_PAGES,
+  mintInstallationToken,
   mintReadToken,
 } from "../integrations/fact-reads.ts";
 import {
   DEFAULT_RATE_LIMIT_SECONDS,
   type GitHubPullRequest,
   GitHubReadFailure,
+  isGitBranchName,
 } from "../integrations/github-app.ts";
 import {
   countLines,
@@ -50,6 +53,31 @@ import { PULL_REQUEST_MERGE_METHOD } from "./postgres.ts";
 type RegistrationInput = z.output<
   typeof contractSchemas.PullRequestRegistrationCreate
 >;
+type OpenInput = z.output<typeof contractSchemas.PullRequestOpen>;
+type RegistrationScope = Pick<RegistrationInput, "repositoryId" | "runId">;
+type OpenOrRegister =
+  | { kind: "open"; input: OpenInput }
+  | { kind: "register"; input: RegistrationInput };
+
+function registrationScopeOf(
+  input: RegistrationInput | OpenInput,
+): RegistrationScope {
+  return {
+    repositoryId: input.repositoryId,
+    ...(input.runId === undefined ? {} : { runId: input.runId }),
+  };
+}
+
+function parsedScope(
+  action: string,
+  input: unknown,
+): RegistrationScope {
+  return registrationScopeOf(
+    action === DeliveryImplementedAction.PullRequestsOpen
+      ? contractSchemas.PullRequestOpen.parse(input)
+      : contractSchemas.PullRequestRegistrationCreate.parse(input),
+  );
+}
 type PullRequestOutput = z.output<typeof contractSchemas.PullRequest>;
 
 type RegistrationAuthority = {
@@ -111,11 +139,28 @@ async function connectionIdFor(
   return connectionId;
 }
 
+async function defaultBranchOf(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  repositoryId: string,
+): Promise<string> {
+  const result = await transaction.query<{ default_branch: string }>(
+    `select default_branch from bakery.repositories
+      where organization_id = $1 and id = $2 and archived_at is null`,
+    [organizationId, repositoryId],
+  );
+  const branch = result.rows[0]?.default_branch;
+  if (branch === undefined) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+  return branch;
+}
+
 async function readRegistrationAuthority(
   transaction: PgTransactionClient,
   organizationId: string,
   taskId: string,
-  input: RegistrationInput,
+  input: RegistrationScope,
   expectedConnectionId: string,
   lock: boolean,
 ): Promise<RegistrationAuthority> {
@@ -277,15 +322,12 @@ function providerFailure(error: unknown): StandardError {
   return new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
 }
 
-async function readPullRequest(
-  dependencies: ReconcileDependencies,
+function tokenAuthorityOf(
   authority: RegistrationAuthority,
   generation: number,
   credentials: Awaited<ReturnType<typeof readAppCredentials>>,
-  number: number,
-  signal: AbortSignal,
-): Promise<PreparedRegistration> {
-  const tokenAuthority = {
+) {
+  return {
     connectionId: authority.connectionId,
     generation,
     connection: { status: authority.connectionStatus },
@@ -297,6 +339,105 @@ async function readPullRequest(
     resource: { externalId: authority.resourceExternalId },
     credentials,
   };
+}
+
+const OPEN_PERMISSIONS = {
+  metadata: "read",
+  pull_requests: "write",
+} as const;
+
+function assertOpenable(open: OpenInput & { base: string }): void {
+  if (!isGitBranchName(open.headBranch)) {
+    throw unprocessable(["headBranch"], "branch_name_invalid");
+  }
+  if (!isGitBranchName(open.base)) {
+    throw unprocessable(["baseBranch"], "branch_name_invalid");
+  }
+  if (open.title.trim() === "") {
+    throw unprocessable(["title"], "pull_request_title_required");
+  }
+}
+
+async function openOnProvider(
+  dependencies: ReconcileDependencies,
+  authority: RegistrationAuthority,
+  generation: number,
+  credentials: Awaited<ReturnType<typeof readAppCredentials>>,
+  open: OpenInput & { base: string },
+  signal: AbortSignal,
+): Promise<number> {
+  assertOpenable(open);
+  const token = await mintInstallationToken(
+    dependencies,
+    tokenAuthorityOf(authority, generation, credentials),
+    OPEN_PERMISSIONS,
+    signal,
+  );
+  if (token.kind === "refused") {
+    throw stateConflict("provider_open_authority_missing");
+  }
+  const branch = {
+    token: token.token,
+    fullName: authority.displayName,
+    head: open.headBranch,
+    base: open.base,
+  };
+  try {
+    const existing = await dependencies.github.findOpenPullRequest(
+      branch,
+      signal,
+    );
+    if (existing !== null) return existing;
+    const outcome = await dependencies.github.openPullRequest({
+      ...branch,
+      title: open.title,
+      body: open.body ?? "",
+    }, signal);
+    if (outcome.kind === "opened") return outcome.number;
+    if (outcome.kind === "unknown") {
+      const settled = await dependencies.github.findOpenPullRequest(
+        branch,
+        signal,
+      );
+      if (settled !== null) return settled;
+      throw new StandardError({
+        code: "DEPENDENCY_UNAVAILABLE",
+        params: { reason: "pull_request_open_unknown" },
+      });
+    }
+    const raced = await dependencies.github.findOpenPullRequest(
+      branch,
+      signal,
+    );
+    if (raced !== null) return raced;
+    throw stateConflict(
+      outcome.status === 422
+        ? "pull_request_open_refused"
+        : "provider_open_authority_missing",
+    );
+  } catch (error) {
+    if (error instanceof StandardError) throw error;
+    forgetFailedToken(
+      dependencies,
+      authority.connectionId,
+      token.token,
+      error,
+      signal,
+    );
+    signal.throwIfAborted();
+    throw providerFailure(error);
+  }
+}
+
+async function readPullRequest(
+  dependencies: ReconcileDependencies,
+  authority: RegistrationAuthority,
+  generation: number,
+  credentials: Awaited<ReturnType<typeof readAppCredentials>>,
+  number: number,
+  signal: AbortSignal,
+): Promise<PreparedRegistration> {
+  const tokenAuthority = tokenAuthorityOf(authority, generation, credentials);
   const pullToken = await mintReadToken(
     dependencies,
     tokenAuthority,
@@ -456,16 +597,28 @@ export function createPullRequestRegistrationAuthorityRunner(
 ): ActionAuthorityRunner {
   return {
     async run(action, context, input, next) {
-      if (action.name !== DeliveryImplementedAction.PullRequestsRegister) {
+      const opening =
+        action.name === DeliveryImplementedAction.PullRequestsOpen;
+      if (
+        !opening &&
+        action.name !== DeliveryImplementedAction.PullRequestsRegister
+      ) {
         return await authority.run(action, context, input, next);
       }
-      const parsed = contractSchemas.PullRequestRegistrationCreate.parse(input);
+      const request: OpenOrRegister = opening
+        ? { kind: "open", input: contractSchemas.PullRequestOpen.parse(input) }
+        : {
+          kind: "register",
+          input: contractSchemas.PullRequestRegistrationCreate.parse(input),
+        };
+      const parsed = registrationScopeOf(request.input);
+      const commandInput = request.input;
       const taskId = taskIdOf(context);
       const metadata = createNormalizedCommandMetadata(
         action,
         context.request,
         context.params,
-        parsed,
+        commandInput,
       );
       const first = await authority.run(
         action,
@@ -475,7 +628,7 @@ export function createPullRequestRegistrationAuthorityRunner(
           const replay = await readCompletedCommandReplay({
             context: authorized,
             metadata,
-            input: parsed,
+            input: commandInput,
           });
           if (replay) {
             return { replay: validateEncodedSuccessResponse(action, replay) };
@@ -511,18 +664,37 @@ export function createPullRequestRegistrationAuthorityRunner(
           return {
             registrationAuthority,
             credentials: await readAppCredentials(work.transaction),
+            defaultBranch: await defaultBranchOf(
+              work.transaction,
+              work.organizationId,
+              parsed.repositoryId,
+            ),
           };
         },
       ) as {
         registrationAuthority: RegistrationAuthority;
         credentials: Awaited<ReturnType<typeof readAppCredentials>>;
+        defaultBranch: string;
       };
+      const number = request.kind === "register"
+        ? request.input.providerNumber
+        : await openOnProvider(
+          dependencies,
+          preparedAuthority.registrationAuthority,
+          generation,
+          preparedAuthority.credentials,
+          {
+            ...request.input,
+            base: request.input.baseBranch ?? preparedAuthority.defaultBranch,
+          },
+          context.signal,
+        );
       const prepared = await readPullRequest(
         dependencies,
         preparedAuthority.registrationAuthority,
         generation,
         preparedAuthority.credentials,
-        parsed.providerNumber,
+        number,
         context.signal,
       );
       return await authority.run(
@@ -550,12 +722,12 @@ function toIso(value: string | Date): string {
     : value.toISOString();
 }
 
-export function createPullRequestRegistrationHandler() {
+export function createPullRequestRegistrationHandler(action: string) {
   return async (
     context: ActionContext,
     input: unknown,
   ): Promise<PullRequestOutput> => {
-    const parsed = contractSchemas.PullRequestRegistrationCreate.parse(input);
+    const parsed = parsedScope(action, input);
     const work = requireWorkTransaction(context);
     const prepared = preparedRegistration(context);
     const denied = await authorityDeniedAtWrite(work.transaction, {
