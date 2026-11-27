@@ -827,6 +827,7 @@ export function createApp(options: {
         : {}),
       allowPlainLoopbackEmail: options.config.environment === "test",
       emailSend: options.emailSend,
+      requestSlackGate: { registry: integrationRegistry, providerRequests },
       integrations,
       ticketNoteWriter,
       ticketLabelWriter,
