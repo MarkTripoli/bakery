@@ -44,10 +44,9 @@ export function TaskRunRevision(
   const selected = items.find((artifact) => artifact.id === artifactId) ??
     items[0];
   const reads = useQueries({
-    queries: items.map((artifact) => ({
-      ...artifactVersionsQueryOptions(api, scope, artifact.id, { limit: 25 }),
-      refetchInterval: 5000,
-    })),
+    queries: items.map((artifact) =>
+      artifactVersionsQueryOptions(api, scope, artifact.id, { limit: 25 })
+    ),
   });
   const complete = !cursor && !artifacts.data?.nextCursor && !steps.isError &&
     reads.every((read) =>

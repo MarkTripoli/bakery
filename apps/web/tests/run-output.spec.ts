@@ -650,10 +650,11 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
     .toBeVisible();
   await still(page, "run-finished-changes");
   const second = "00000000-0000-4000-8000-000000000053";
+  let secondReads = 0;
   const secondFrom = (stepOfRun: string) =>
     page.route(
       `**/v1/artifacts/${second}/versions*`,
-      (route) =>
+      (route) => (secondReads += 1,
         route.fulfill({
           json: {
             items: [{
@@ -674,7 +675,7 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
             }],
             nextCursor: null,
           },
-        }),
+        })),
     );
   await page.route("**/v1/artifacts?*", (route) =>
     route.fulfill({
@@ -686,6 +687,9 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
   await secondFrom("00000000-0000-4000-8000-000000000099");
   await page.reload();
   await expect(page.getByText(/in 59 s · 1 file changed$/)).toBeVisible();
+  const settled = secondReads;
+  await page.waitForTimeout(6000);
+  expect(secondReads).toBe(settled);
   await secondFrom(stepId);
   await page.reload();
   await expect(page.getByRole("button", { name: "Open the changes" }))
