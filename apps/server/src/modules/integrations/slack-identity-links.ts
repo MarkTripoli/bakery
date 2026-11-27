@@ -290,48 +290,6 @@ export async function findSlackIdentityLink(
   };
 }
 
-export async function findActiveSlackLinkForPrincipal(
-  transaction: PgTransactionClient,
-  input: {
-    readonly organizationId: string;
-    readonly principalId: string;
-    readonly teamId?: string;
-  },
-): Promise<SlackLinkIdentity | undefined> {
-  if (!isUuid(input.organizationId) || !isUuid(input.principalId)) {
-    return undefined;
-  }
-  if (input.teamId !== undefined && !isSlackTeamId(input.teamId)) {
-    return undefined;
-  }
-  const result = await transaction.query<
-    { appId: string; teamId: string; userId: string }
-  >(
-    `select link.external_app_id as "appId", link.identity_scope as "teamId",
-            link.external_user_id as "userId"
-       from bakery.external_identity_links as link
-       join bakery.organization_memberships as membership
-         on membership.organization_id = link.organization_id
-        and membership.principal_id = link.principal_id
-        and membership.status = 'active'
-      where link.organization_id = $1 and link.principal_id = $2
-        and link.provider = $3 and link.state = 'active'
-        and ($4::text is null or link.identity_scope = $4)
-      order by link.verified_at desc, link.id
-      limit 1`,
-    [
-      input.organizationId,
-      input.principalId,
-      SLACK_LINK_PROVIDER,
-      input.teamId ?? null,
-    ],
-  );
-  const row = result.rows[0];
-  return row === undefined
-    ? undefined
-    : { appId: row.appId, teamId: row.teamId, userId: row.userId };
-}
-
 export async function lockSlackIdentityLink(
   transaction: PgTransactionClient,
   input: { readonly organizationId: string } & SlackLinkIdentity,
