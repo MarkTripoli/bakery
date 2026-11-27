@@ -716,3 +716,86 @@ Deno.test("a Slack connection turns off and on, and connecting after removal res
     await o.finish();
   }
 });
+
+Deno.test("a reconnect that names a removed Slack connection also restores its delivery grants", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    const first = await startAttempt(o.fixture);
+    const connected = await slackCallback(o.fixture, {
+      code: "slack-code-by-id",
+      state: first.url.searchParams.get("state")!,
+    });
+    const connectionId = new URL(
+      connected.headers.get("location")!,
+      "https://x",
+    ).searchParams.get("connectionId")!;
+    const headers = { "Bakery-Organization-Id": o.fixture.organizationId };
+    const pg = o.fixture.pgDatabase;
+    await pg.query(
+      `update bakery.integration_grants set revoked_at = now(), revoked_by = $2
+        where connection_id = $1 and capability = 'slack.message.post'`,
+      [connectionId, o.fixture.adminId],
+    );
+    const { version } = await (await call(
+      o.fixture,
+      "GET",
+      `/v1/integration-connections/${connectionId}`,
+      o.fixture.adminCookie,
+      { headers },
+    )).json() as { version: number };
+    const removed = await call(
+      o.fixture,
+      "POST",
+      `/v1/integration-connections/${connectionId}/removal`,
+      o.fixture.adminCookie,
+      {
+        headers: {
+          ...headers,
+          "If-Match": `"${version}"`,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assert(removed.ok, await removed.clone().text());
+    const attempt = await call(
+      o.fixture,
+      "POST",
+      "/v1/integration-auth-attempts",
+      o.fixture.adminCookie,
+      {
+        body: { provider: "slack", reconnectConnectionId: connectionId },
+        headers: { ...headers, "Idempotency-Key": crypto.randomUUID() },
+      },
+    );
+    assertEquals(attempt.status, 201, await attempt.clone().text());
+    const { authorizationUrl } = await attempt.json() as {
+      authorizationUrl: string;
+    };
+    const restored = await slackCallback(o.fixture, {
+      code: "slack-code-by-id-again",
+      state: new URL(authorizationUrl).searchParams.get("state")!,
+    });
+    assertEquals(outcome(restored), "refreshed");
+    const live = await pg.query<{ capability: string }>(
+      `select capability from bakery.integration_grants
+        where connection_id = $1 and revoked_at is null order by capability`,
+      [connectionId],
+    );
+    assertEquals(live.rows.map((row) => row.capability), [
+      "slack.dm.open",
+      "slack.message.post",
+      "slack.message.update",
+    ]);
+    const audited = await pg.query<{ step: string; regranted: string }>(
+      `select details ->> 'step' as step, details ->> 'regranted' as regranted
+         from bakery.audit_events
+        where operation = 'integrationAuth.providerCallback'
+          and resource_id = $1 order by created_at desc limit 1`,
+      [connectionId],
+    );
+    assertEquals(audited.rows, [{ step: "restored", regranted: "true" }]);
+  } finally {
+    await o.finish();
+  }
+});

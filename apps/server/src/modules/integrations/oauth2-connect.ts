@@ -583,10 +583,10 @@ export async function bindOAuth2Connection(
 
   if (attempt.reconnectConnectionId !== null) {
     const target = await transaction.query<
-      { externalAccountId: string; archived: boolean }
+      { externalAccountId: string; archived: boolean; status: string }
     >(
       `select external_account_id as "externalAccountId",
-         archived_at is not null as archived
+         archived_at is not null as archived, status
          from bakery.integration_connections
         where organization_id = $1 and id = $2 and provider = $3
         for update`,
@@ -597,7 +597,10 @@ export async function bindOAuth2Connection(
       return await fail(ConnectionOutcome.ReconnectUnavailable);
     }
     if (row.externalAccountId === accountId) {
-      return await refreshConnection(attempt.reconnectConnectionId);
+      return await refreshConnection(
+        attempt.reconnectConnectionId,
+        row.status === "revoked" ? "restored" : "refreshed",
+      );
     }
   }
 
