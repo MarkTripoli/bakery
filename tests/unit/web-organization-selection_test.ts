@@ -331,6 +331,7 @@ function fakeApi(
     undoMarkAllNotificationsRead: rejecting,
     createRun: rejecting,
     listRuns: rejecting,
+    listGroups: rejecting,
     listRunRequests: rejecting,
     listMyRunRequests: rejecting,
     restartRunStep: rejecting,

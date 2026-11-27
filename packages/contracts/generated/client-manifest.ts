@@ -42944,6 +42944,52 @@ export const clientManifest = {
                   "no",
                   "unknown"
                 ]
+              },
+              "limitStop": {
+                "description": "Run.limitStop may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "repeatKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 65536,
+                        "description": "Step key of the repeat block that stopped. RunLimitStop.repeatKey must contain at least 1 characters."
+                      },
+                      "iterations": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "description": "Rounds the repeat ran before it stopped. RunLimitStop.iterations must be at least 0."
+                      },
+                      "allowed": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "description": "Rounds allowed before a person must decide, after earlier decisions. RunLimitStop.allowed must be at least 0."
+                      },
+                      "max": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991,
+                        "description": "The repeat's most rounds; no decision goes past it. RunLimitStop.max must be at least 1."
+                      }
+                    },
+                    "required": [
+                      "repeatKey",
+                      "iterations",
+                      "allowed",
+                      "max"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Where the run stopped to ask a person about more tries, or null. Served by runs.get; omitted by other run responses."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
               }
             },
             "required": [
@@ -63841,6 +63887,52 @@ export const clientManifest = {
             "yes",
             "no",
             "unknown"
+          ]
+        },
+        "limitStop": {
+          "description": "Run.limitStop may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "repeatKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 65536,
+                  "description": "Step key of the repeat block that stopped. RunLimitStop.repeatKey must contain at least 1 characters."
+                },
+                "iterations": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Rounds the repeat ran before it stopped. RunLimitStop.iterations must be at least 0."
+                },
+                "allowed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Rounds allowed before a person must decide, after earlier decisions. RunLimitStop.allowed must be at least 0."
+                },
+                "max": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991,
+                  "description": "The repeat's most rounds; no decision goes past it. RunLimitStop.max must be at least 1."
+                }
+              },
+              "required": [
+                "repeatKey",
+                "iterations",
+                "allowed",
+                "max"
+              ],
+              "additionalProperties": false,
+              "description": "Where the run stopped to ask a person about more tries, or null. Served by runs.get; omitted by other run responses."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
           ]
         }
       },
