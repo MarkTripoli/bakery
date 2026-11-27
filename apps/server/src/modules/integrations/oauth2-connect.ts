@@ -8,6 +8,7 @@ import { StandardError } from "@bakery/contracts/http";
 import type { SecretsKeyConfig } from "@bakery/config";
 import type {
   ConnectedResource,
+  ConnectRefusal,
   Identity,
   OAuth2Profile,
   ProviderRequestPort,
@@ -172,6 +173,16 @@ export async function readBounded(
 const deadline = (signal: AbortSignal) =>
   AbortSignal.any([signal, AbortSignal.timeout(PROVIDER_DEADLINE_MS)]);
 
+export class ConnectRefused extends Error {
+  constructor(readonly refusal: ConnectRefusal) {
+    super(`connect refused: ${refusal}`);
+  }
+}
+
+const REFUSAL_OUTCOME: Readonly<Record<ConnectRefusal, ConnectionOutcome>> = {
+  enterprise_install: ConnectionOutcome.EnterpriseInstall,
+};
+
 export async function exchangeOAuth2Code(
   fetcher: OAuth2Fetch,
   profile: OAuth2Profile,
@@ -205,9 +216,10 @@ export async function exchangeOAuth2Code(
   if (!response.ok) {
     throw new Error(`token endpoint answered ${response.status}`);
   }
-  const parsed = providerSchema(profile).parse(
-    JSON.parse(new TextDecoder().decode(body)),
-  );
+  const raw: unknown = JSON.parse(new TextDecoder().decode(body));
+  const refusal = profile.refusal?.(raw) ?? null;
+  if (refusal !== null) throw new ConnectRefused(refusal);
+  const parsed = providerSchema(profile).parse(raw);
   return { ...GrantedTokensSchema.parse(parsed), providerResponse: parsed };
 }
 
@@ -333,6 +345,17 @@ async function recordSignedEventSource(
       : recorded.reason,
     signingSecretSaved: signingSecretId !== null,
   };
+}
+
+async function installedForAnotherApp(
+  transaction: PgTransactionClient,
+  appId: string,
+): Promise<boolean> {
+  const other = await transaction.query(
+    "select 1 from bakery.slack_installations where app_id <> $1 limit 1",
+    [appId],
+  );
+  return other.rows.length > 0;
 }
 
 export type OAuth2BindingPreparation = Readonly<{
@@ -477,7 +500,13 @@ export function createOAuth2CallbackRunner(
         codeVerifier: await openVerifier(key, claim),
       }, signal);
     } catch (error) {
-      return await fail("exchange", ConnectionOutcome.ExchangeFailed, error);
+      return await fail(
+        "exchange",
+        error instanceof ConnectRefused
+          ? REFUSAL_OUTCOME[error.refusal]
+          : ConnectionOutcome.ExchangeFailed,
+        error,
+      );
     }
     let identity: { externalAccountId: string; accountLabel: string };
     try {
@@ -515,6 +544,15 @@ export function createOAuth2CallbackRunner(
         ConnectionOutcome.InstallationCheckFailed,
         error,
       );
+    }
+    const appId = connectedResource?.signedEventSource?.appId;
+    if (
+      appId !== undefined &&
+      await inTransaction((transaction) =>
+        installedForAnotherApp(transaction, appId)
+      )
+    ) {
+      return await fail("identify", ConnectionOutcome.WrongApp);
     }
     const prepared: OAuth2BindingPreparation = {
       connectedResource,

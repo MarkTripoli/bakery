@@ -97,7 +97,7 @@ export const slackTokenResponseSchema = z.strictObject({
     "Slack's structured metadata for non-fatal response warnings.",
   ),
   is_enterprise_install: z.literal(false).optional().describe(
-    "Slack omits it unless the grant is organization-wide; an organization-wide grant is not a workspace installation Bakery supports, so it fails this response rather than reaching storage.",
+    "Slack omits it unless the grant is organization-wide; an organization-wide grant is refused as enterprise_install before this response is read.",
   ),
 }).describe(
   "Slack's oauth.v2.access response for a bot installation: the bot identity, the workspace and whether the grant is organization-wide.",
@@ -139,6 +139,10 @@ const oauth2: OAuth2Profile = {
   apiBaseUrl: new URL(API_ORIGIN),
   webBaseUrl: new URL("https://slack.com"),
   tokenResponse: slackTokenResponseSchema,
+  refusal(tokenResponse: unknown) {
+    const raw = tokenResponse as { is_enterprise_install?: unknown } | null;
+    return raw?.is_enterprise_install === true ? "enterprise_install" : null;
+  },
   async identify(ctx: DriverContext) {
     const response = await ctx.provider.send({
       method: "POST",

@@ -79,6 +79,8 @@ export const ConnectionOutcome = Object.freeze(
     Refreshed: "refreshed",
     ReconnectUnavailable: "reconnect_unavailable",
     HeldElsewhere: "held_elsewhere",
+    EnterpriseInstall: "enterprise_install",
+    WrongApp: "wrong_app",
     StorageFailed: "storage_failed",
   } as const,
 );

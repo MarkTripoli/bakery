@@ -7786,5 +7786,7 @@
   "settings.security.linked.slack.result.wrongWorkspace": "⟦Ÿôû šïĝñëð ïñ ŧô à ðïƒƒëŕëñŧ Šļàçķ ŵôŕķšþàçë. {workspace, select, none {Sign in to the one {organization} uses and try again.} other {Sign in to {name} and try again.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "tasks.requests.agentBadge": "⟦Àĝëñŧ'š àçŧïôñ ŧë⟧",
   "tasks.requests.agentHelpLabel": "⟦Ŵĥÿ àñ àĝëñŧ'š àçŧïôñ ŧëšŧŧ⟧",
-  "tasks.requests.agentHelp": "⟦Àñ àĝëñŧ ŵôŕķïñĝ ôñ ŧĥïš ŕûñ àšķëð ÿôû, àçŧïñĝ ƒôŕ {asker}. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
+  "tasks.requests.agentHelp": "⟦Àñ àĝëñŧ ŵôŕķïñĝ ôñ ŧĥïš ŕûñ àšķëð ÿôû, àçŧïñĝ ƒôŕ {asker}. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "integrations.slack.outcome.enterpriseInstall": "⟦Šļàçķ ŵàš ñôŧ çôññëçŧëð. Ɓàķëŕÿ ŵàš àððëð ŧô à ŵĥôļë Šļàçķ ôŕĝàñïžàŧïôñ, àñð ïŧ ŵôŕķš ŵïŧĥ ôñë ŵôŕķšþàçë àŧ à ŧïɱë. Çôññëçŧ àĝàïñ àñð þïçķ à šïñĝļë ŵôŕķšþàçë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "integrations.slack.outcome.wrongApp": "⟦Šļàçķ ŵàš ñôŧ çôññëçŧëð. Šļàçķ àñšŵëŕëð ƒôŕ à ðïƒƒëŕëñŧ àþþ ŧĥàñ ŧĥë ôñë ŧĥïš Ɓàķëŕÿ ïñšŧàļļàŧïôñ ûšëš. Àñ ïñšŧàļļàŧïôñ àðɱïñïšŧŕàŧôŕ šĥôûļð çĥëçķ ŧĥë Šļàçķ àþþ ðëŧàïļš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }
