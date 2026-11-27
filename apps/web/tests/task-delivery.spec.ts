@@ -863,6 +863,7 @@ const allowanceAnswer = () => ({
 async function mockMoreTries(
   page: Page,
   reply: { status: number; reason?: string; added?: number },
+  onPost: () => unknown = () => {},
 ) {
   const posted: { body: unknown; key: string | undefined }[] = [];
   await page.route(`**/v1/runs/${runId}/repair-allowances`, (route) => {
@@ -871,6 +872,7 @@ async function mockMoreTries(
       body: request.postDataJSON(),
       key: request.headers()["idempotency-key"],
     });
+    onPost();
     if (reply.status < 300) {
       return route.fulfill({
         json: {
@@ -934,7 +936,7 @@ async function mockLimitStop(
 
 test("a run stopped at its repeat limit says how many more it can try and gives them", async ({ page }) => {
   const clear = await mockLimitStop(page, "admin");
-  const posted = await mockMoreTries(page, { status: 200 });
+  const posted = await mockMoreTries(page, { status: 200 }, clear);
   await page.goto(`/tasks/${id}`);
   const now = nowCard(page);
   await expect(now).toContainText("Bakery stopped to ask you");
@@ -947,7 +949,6 @@ test("a run stopped at its repeat limit says how many more it can try and gives 
   const dialog = page.getByRole("dialog", { name: "Give Bakery more tries?" });
   await expect(dialog).toContainText("Bakery tried 3 times and stopped.");
   await expect(dialog).toContainText("From 1 to 2.");
-  clear();
   await dialog.getByRole("button", { name: "Give more tries" }).click();
   await expect(dialog).toBeHidden();
   expect(posted[0].body).toEqual({ tries: 2 });
@@ -976,20 +977,39 @@ test("someone who cannot give tries at a repeat limit is told who can", async ({
   await still(page, "limit-stop-no-permission");
 });
 
-test("fewer tries added than asked, because someone else answered first, is said", async ({ page }) => {
-  await mockLimitStop(page, "admin");
-  const posted = await mockMoreTries(page, { status: 201, added: 1 });
-  await page.goto(`/tasks/${id}`);
-  await button(nowCard(page), "Give Bakery more tries").click();
-  const dialog = page.getByRole("dialog", { name: "Give Bakery more tries?" });
-  await dialog.getByRole("button", { name: "Give more tries" }).click();
-  await expect(dialog).toContainText(
-    "This run is no longer waiting for more tries. The page now shows where it is.",
-  );
-  await expect(dialog.getByRole("button", { name: "Give more tries" }))
-    .toHaveCount(0);
-  expect(posted[0].body).toEqual({ tries: 2 });
-});
+for (
+  const [name, reply, answeredBeforeConfirm, posts] of [
+    ["fewer tries are added than asked", { status: 201, added: 1 }, false, 1],
+    [
+      "the server says the run is no longer stopped",
+      { status: 409, reason: "run_not_stopped_by_limit" },
+      false,
+      1,
+    ],
+    ["someone else answered while it was open", { status: 201 }, true, 0],
+  ] as const
+) {
+  test("when " + name + ", the dialog stays and says so", async ({ page }) => {
+    const clear = await mockLimitStop(page, "admin", { checks: [] });
+    const posted = await mockMoreTries(page, reply, clear);
+    await page.goto(`/tasks/${id}`);
+    await button(nowCard(page), "Give Bakery more tries").click();
+    const dialog = page.getByRole("dialog", {
+      name: "Give Bakery more tries?",
+    });
+    if (answeredBeforeConfirm) clear();
+    await dialog.getByRole("button", { name: "Give more tries" }).click();
+    await expect(dialog).toContainText(
+      "This run is no longer waiting for more tries. The page now shows where it is.",
+    );
+    await expect(page.getByText("Bakery stopped to ask you")).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    expect(posted).toHaveLength(posts);
+    await still(page, "limit-answered-elsewhere");
+    await dialog.getByRole("button", { name: "Close" }).last().click();
+    await expect(dialog).toHaveCount(0);
+  });
+}
 
 test("a refused allowance keeps the dialog open and says why", async ({ page }) => {
   await mockRun(page);
@@ -1037,7 +1057,7 @@ test("a retry after no answer sends the same idempotency key", async ({ page }) 
       });
     }
     return route.fulfill({
-      json: allowanceAnswer(),
+      json: { ...allowanceAnswer(), addedTries: 2 },
     });
   });
   await page.goto(`/tasks/${id}`);

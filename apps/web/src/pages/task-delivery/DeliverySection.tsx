@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "@bakery/i18n";
 import { useBakeryApi } from "../../api/context.tsx";
@@ -35,6 +35,7 @@ import { useMoreTries } from "./use-more-tries.ts";
 import {
   DeliverySectionView,
   type DeliveryViewState,
+  type TriesOffer,
 } from "./DeliverySectionView.tsx";
 
 /**
@@ -300,12 +301,32 @@ export function DeliverySection(
   ]);
   const goBackAction = useGoBack(refreshRelease);
   const moreTriesAction = useMoreTries(runId, refreshTries);
+  const [triesOffer, setTriesOffer] = useState<TriesOffer | null>(null);
+  const stillStoppedAt = async (allowed: number) => {
+    const read = await queryClient.fetchQuery({
+      ...runQueryOptions(api, scope, runId),
+      staleTime: 0,
+    }).catch(() => null);
+    return read === null || read.limitStop?.allowed === allowed;
+  };
+  const giveMoreTries = (tries: number) => {
+    const allowed = triesOffer?.allowed ?? null;
+    return moreTriesAction.allow(
+      tries,
+      allowed === null ? undefined : () => stillStoppedAt(allowed),
+    );
+  };
   const decision = useApprovalDecision(
     model?.approval ?? null,
     refreshDecision,
   );
   // No changes yet: the section is not drawn at all.
-  if (state === "ready" && model !== null && !model.visible) return null;
+  if (
+    state === "ready" && model !== null && !model.visible &&
+    triesOffer === null
+  ) {
+    return null;
+  }
 
   const updatedAt = Math.max(
     checks.dataUpdatedAt,
@@ -332,7 +353,9 @@ export function DeliverySection(
       mayGiveMoreTries={mayGiveMoreTries}
       moreTriesPhase={moreTriesAction.phase}
       onClearMoreTries={moreTriesAction.clear}
-      onGiveMoreTries={moreTriesAction.allow}
+      onGiveMoreTries={giveMoreTries}
+      onTriesOffer={setTriesOffer}
+      triesOffer={triesOffer}
       onDecide={decision.decide}
       onGoBack={goBackAction.goBack}
       onMerge={mergeAction.merge}

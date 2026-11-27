@@ -47,7 +47,10 @@ export function useMoreTries(runId: string, refresh: () => Promise<void>) {
   }, []);
 
   const allow = useCallback(
-    async (tries: number): Promise<MoreTriesPhase> => {
+    async (
+      tries: number,
+      stillOffered?: () => Promise<boolean>,
+    ): Promise<MoreTriesPhase> => {
       if (organizationId === null) return "error";
       const current = held.current;
       const next: Held =
@@ -56,6 +59,12 @@ export function useMoreTries(runId: string, refresh: () => Promise<void>) {
           : { key: crypto.randomUUID(), runId, tries };
       held.current = next;
       setPhase("working");
+      if (next !== current && stillOffered && !(await stillOffered())) {
+        held.current = null;
+        setPhase("notStopped");
+        void refresh();
+        return "notStopped";
+      }
       const result = await api.allowMoreRepairTries({
         organizationId,
         runId,

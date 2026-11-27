@@ -538,6 +538,7 @@ export type NowCard =
   | Readonly<{
     kind: "limit";
     tried: number;
+    allowed: number;
     max: number;
     room: number;
     blocking: number;
@@ -1308,6 +1309,7 @@ function nowCard(
     return {
       kind: "limit",
       tried: input.limitStop.iterations,
+      allowed: input.limitStop.allowed,
       max: input.limitStop.max,
       room: input.limitStop.max - input.limitStop.allowed,
       blocking: blocking.length,

@@ -1436,6 +1436,7 @@ Deno.test("a run stopped at its repeat limit asks for more tries, even with noth
   assertEquals(stopped.now, {
     kind: "limit",
     tried: 3,
+    allowed: 3,
     max: 5,
     room: 2,
     blocking: 0,

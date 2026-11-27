@@ -69,6 +69,8 @@ export type DeliverySectionViewProps = Readonly<{
   moreTriesPhase: MoreTriesPhase;
   onGiveMoreTries: (tries: number) => Promise<MoreTriesPhase>;
   onClearMoreTries: () => void;
+  triesOffer: TriesOffer | null;
+  onTriesOffer: (offer: TriesOffer | null) => void;
 }>;
 
 /** The Now card's title takes focus after a decision, so it is announced. */
@@ -94,6 +96,10 @@ type NowCopy = Readonly<{
 }>;
 
 type MoreTriesOffer = "offer" | "ask" | "none";
+
+export type TriesOffer = Readonly<
+  { count: number; max: number; allowed: number | null }
+>;
 
 function nowCopy(
   t: Translate,
@@ -396,6 +402,8 @@ export function DeliverySectionView(
     onClearGoBack,
     onClearMoreTries,
     onGiveMoreTries,
+    onTriesOffer,
+    triesOffer,
     onClearMerge,
     onDecide,
     onGoBack,
@@ -454,6 +462,8 @@ export function DeliverySectionView(
             moreTriesPhase={moreTriesPhase}
             onClearMoreTries={onClearMoreTries}
             onGiveMoreTries={onGiveMoreTries}
+            onTriesOffer={onTriesOffer}
+            triesOffer={triesOffer}
             offline={offline}
             onCheckAgain={onCheckAgain}
             goBackPhase={goBackPhase}
@@ -505,6 +515,8 @@ function ReadyView(
     offline,
     onClearMoreTries,
     onGiveMoreTries,
+    onTriesOffer,
+    triesOffer,
     onCheckAgain,
     onClearGoBack,
     onClearMerge,
@@ -528,6 +540,8 @@ function ReadyView(
     moreTriesPhase: MoreTriesPhase;
     onGiveMoreTries: (tries: number) => Promise<MoreTriesPhase>;
     onClearMoreTries: () => void;
+    triesOffer: TriesOffer | null;
+    onTriesOffer: (offer: TriesOffer | null) => void;
     onMerge: (view: MergeView) => Promise<MergePhase>;
     onCheckAgain: (pullRequestId: string) => Promise<MergePhase>;
     onClearMerge: () => void;
@@ -570,7 +584,6 @@ function ReadyView(
     : mayGiveMoreTries
     ? "offer"
     : "ask";
-  const [moreTriesOpen, setMoreTriesOpen] = useState(false);
   const nothingDelivered = model.headSha === null &&
     model.checks.total === 0 && model.review === null;
   const copy = model.now.kind === "paused"
@@ -806,7 +819,13 @@ function ReadyView(
       key="moreTries"
       onClick={() => {
         onClearMoreTries();
-        setMoreTriesOpen(true);
+        onTriesOffer(
+          triesSpent === null ? null : {
+            count: triesSpent,
+            max: triesRoom,
+            allowed: model.now.kind === "limit" ? model.now.allowed : null,
+          },
+        );
       }}
       variant="primary"
     >
@@ -1218,18 +1237,18 @@ function ReadyView(
         <UI.Text>{t("tasks.delivery.approval.rejectDialog.body")}</UI.Text>
         {dialog === "reject" && dialogNotice}
       </UI.AlertDialog>
-      {triesSpent !== null && (
+      {triesOffer !== null && (
         <MoreTriesDialog
-          count={triesSpent}
-          max={triesRoom}
+          count={triesOffer.count}
+          max={triesOffer.max}
           offline={offline}
           onClose={() => {
-            setMoreTriesOpen(false);
+            onTriesOffer(null);
             onClearMoreTries();
             focusAfterPaint(() => document.getElementById(NOW_TITLE_ID));
           }}
           onGive={onGiveMoreTries}
-          open={moreTriesOpen && triesRoom >= 1}
+          open
           phase={moreTriesPhase}
         />
       )}
