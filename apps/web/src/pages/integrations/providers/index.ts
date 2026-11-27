@@ -5,7 +5,10 @@
  */
 import type { MessageKey } from "@bakery/i18n";
 import { webProviderFor } from "../../../integrations/registry.ts";
+import { type ConnectionOutcome, outcomeCopy } from "../outcomes.ts";
+import type { HealthKind } from "../model.ts";
 import { GITHUB_IDENTITY } from "./github/identity.ts";
+import { type ProviderFix, SLACK_FIXES, SLACK_OUTCOMES } from "./slack/copy.ts";
 
 export { useGitHubConnect as useProviderConnect } from "./github/use-github-connect.ts";
 export type { ConnectOptions } from "./github/use-github-connect.ts";
@@ -15,6 +18,28 @@ type Translate = (key: MessageKey) => string;
 
 export function hasSetupPages(provider: string): boolean {
   return provider === GITHUB_IDENTITY.slug;
+}
+
+export { useOAuthConnect } from "./use-oauth-connect.ts";
+
+export function providerOutcomeCopy(
+  provider: string,
+  outcome: ConnectionOutcome | null,
+) {
+  if (outcome === null) return null;
+  return hasSetupPages(provider)
+    ? outcomeCopy(outcome)
+    : SLACK_OUTCOMES[outcome] ?? null;
+}
+
+export function providerFix(
+  provider: string,
+  health: HealthKind,
+): ProviderFix | null {
+  return webProviderFor(provider)?.connectAvailable === false ||
+      hasSetupPages(provider)
+    ? null
+    : SLACK_FIXES[health] ?? null;
 }
 
 export function healthBadge<Tone extends string>(

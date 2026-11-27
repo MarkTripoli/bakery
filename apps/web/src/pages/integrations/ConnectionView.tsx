@@ -13,7 +13,7 @@ import {
   SEARCH_AFTER,
   type SetupStep,
 } from "./model.ts";
-import { type ConnectionOutcome, OUTCOME_COPY } from "./outcomes.ts";
+import type { ConnectionOutcome } from "./outcomes.ts";
 import type {
   CheckStatus,
   SelectionStatus,
@@ -24,7 +24,9 @@ import {
   hasSetupPages,
   healthBadge,
   permissionSentences,
+  providerFix,
   providerLook,
+  providerOutcomeCopy,
 } from "./providers/index.ts";
 
 export type ConnectionViewState =
@@ -71,6 +73,7 @@ export type ConnectionViewProps = {
   readonly lastCheckedAt: string | null;
   readonly formatTime: (iso: string) => string;
   readonly outcome: ConnectionOutcome | null;
+  readonly outcomeProvider: string;
   readonly continuing: boolean;
   readonly connectStatus: ConnectStatus;
   readonly checkStatus: CheckStatus;
@@ -258,12 +261,43 @@ function OtherProviderContent(props: ConnectionViewProps) {
   const tone = BANNER_TONE[props.health.kind];
   const switchNotice = SWITCH_NOTICE[props.switchStatus];
   const sentences = permissionSentences(props.provider, props.granted);
+  const fix = providerFix(props.provider, props.health.kind);
+  const connecting = props.connectStatus === "starting" ||
+    props.connectStatus === "redirecting";
   return (
     <>
+      <OutcomeBanner {...props} />
+      {props.connectStatus === "redirecting" ||
+          props.connectStatus === "failed" ||
+          props.connectStatus === "unregistered"
+        ? (
+          <UI.InlineNotice
+            tone={props.connectStatus === "redirecting"
+              ? "information"
+              : "error"}
+          >
+            {translate(
+              `integrations.${props.provider}.${props.connectStatus}` as MessageKey,
+            )}
+          </UI.InlineNotice>
+        )
+        : null}
       {banner !== undefined && tone !== null
         ? (
           <UI.AlertBanner
-            action={props.health.action === "turnOn" && props.canManage
+            action={fix !== null && props.canManage
+              ? (
+                <UI.Button
+                  disabled={connecting}
+                  loading={connecting}
+                  onClick={props.onFix}
+                  type="button"
+                  variant="primary"
+                >
+                  {translate(`settings.connections.action.${fix.action}`)}
+                </UI.Button>
+              )
+              : props.health.action === "turnOn" && props.canManage
               ? (
                 <UI.Button
                   disabled={props.switchStatus === "saving"}
@@ -279,7 +313,7 @@ function OtherProviderContent(props: ConnectionViewProps) {
             data-testid="connection-problem"
             tone={tone}
           >
-            {translate(banner, { provider })}
+            {translate(fix?.body ?? banner, { provider })}
           </UI.AlertBanner>
         )
         : null}
@@ -325,10 +359,25 @@ function OtherProviderContent(props: ConnectionViewProps) {
   );
 }
 
+function OutcomeBanner(props: ConnectionViewProps) {
+  const { translate } = useI18n();
+  const copy = providerOutcomeCopy(props.outcomeProvider, props.outcome);
+  if (copy === null) return null;
+  return (
+    <UI.AlertBanner
+      data-outcome={props.outcome ?? undefined}
+      data-testid="github-connection-outcome"
+      onDismiss={props.onDismissOutcome}
+      tone={copy.tone}
+    >
+      {translate(copy.body)}
+    </UI.AlertBanner>
+  );
+}
+
 function ReadyContent(props: ConnectionViewProps) {
   const { translate } = useI18n();
   const { health, canManage } = props;
-  const outcome = props.outcome ? OUTCOME_COPY[props.outcome] : null;
   const connecting = props.connectStatus === "starting" ||
     props.connectStatus === "redirecting" || props.continuing;
   const bannerTone = BANNER_TONE[health.kind];
@@ -349,18 +398,7 @@ function ReadyContent(props: ConnectionViewProps) {
   const switchNotice = SWITCH_NOTICE[props.switchStatus];
   return (
     <>
-      {outcome
-        ? (
-          <UI.AlertBanner
-            data-outcome={props.outcome ?? undefined}
-            data-testid="github-connection-outcome"
-            onDismiss={props.onDismissOutcome}
-            tone={outcome.tone}
-          >
-            {translate(outcome.body)}
-          </UI.AlertBanner>
-        )
-        : null}
+      <OutcomeBanner {...props} />
       {props.continuing
         ? (
           <UI.AlertBanner tone="information">

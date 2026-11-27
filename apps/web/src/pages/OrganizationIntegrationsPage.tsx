@@ -26,7 +26,10 @@ import {
   CONNECTION_OUTCOMES,
   type ConnectionOutcome,
 } from "./integrations/outcomes.ts";
-import { useProviderConnect } from "./integrations/providers/index.ts";
+import {
+  useOAuthConnect,
+  useProviderConnect,
+} from "./integrations/providers/index.ts";
 
 /** Query parameters the GitHub callbacks redirect with (server contract). */
 export const CONNECTION_OUTCOME_PARAMETER = "githubConnection";
@@ -43,6 +46,7 @@ export function parseConnectionOutcome(
 
 /** Outcomes that name a connection and belong on that connection's own page. */
 const OUTCOMES_FOR_THE_CONNECTION = new Set<ConnectionOutcome>([
+  "connected",
   "pending",
   "refreshed",
   "already_connected",
@@ -50,8 +54,9 @@ const OUTCOMES_FOR_THE_CONNECTION = new Set<ConnectionOutcome>([
 
 /** The organization's integrations: what is connected and what can be added. */
 export function OrganizationIntegrationsPage(
-  { outcome, connectionId }: {
+  { outcome, outcomeProvider, connectionId }: {
     readonly outcome: ConnectionOutcome | null;
+    readonly outcomeProvider: string;
     readonly connectionId: string | null;
   },
 ) {
@@ -89,7 +94,11 @@ export function OrganizationIntegrationsPage(
     enabled: organizationId !== null,
     retry: false,
   });
-  const connectFlow = useProviderConnect({ organizationId, outcome });
+  const connectFlow = useProviderConnect({
+    organizationId,
+    outcome: outcomeProvider === "slack" ? null : outcome,
+  });
+  const oauthFlow = useOAuthConnect({ organizationId, provider: "slack" });
 
   // A callback that names the connection it made or refreshed lands on that
   // connection's page, on its next unfinished step, with the outcome shown.
@@ -101,11 +110,13 @@ export function OrganizationIntegrationsPage(
       void navigate({
         to: "/settings/organization/integrations/$connectionId",
         params: { connectionId },
-        search: { githubConnection: outcome },
+        search: outcomeProvider === "slack"
+          ? { slackConnection: outcome }
+          : { githubConnection: outcome },
         replace: true,
       });
     }
-  }, [outcome, connectionId, navigate]);
+  }, [outcome, outcomeProvider, connectionId, navigate]);
 
   const items = connections.data ?? [];
   const rows: ConnectionRow[] = items.map((connection) => ({
@@ -148,6 +159,9 @@ export function OrganizationIntegrationsPage(
           continuing={connectFlow.continuing}
           formatTime={connectionTimeFormatter(locale, timeZone)}
           onConnect={() => void connectFlow.connect()}
+          onConnectProvider={() => void oauthFlow.connect()}
+          providerConnectStatus={oauthFlow.connectStatus}
+          outcomeProvider={outcomeProvider}
           onDismissOutcome={() =>
             void navigate({
               to: ORGANIZATION_INTEGRATIONS_PATH,

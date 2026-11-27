@@ -1868,6 +1868,7 @@ export type BakeryApiClient = {
      * session storage only.
      */
     readonly create: (options: {
+      readonly provider?: "github" | "slack";
       readonly organizationId: string;
       readonly idempotencyKey: string;
       /** Refresh this connection's access instead of adding a new one. */
@@ -5618,7 +5619,7 @@ export function createBakeryApiClient({
             data: await scoped(options.organizationId).actions[
               "integrationAuthAttempts.create"
             ]({
-              provider: "github",
+              provider: options.provider ?? "github",
               ...(options.reconnectConnectionId === undefined
                 ? {}
                 : { reconnectConnectionId: options.reconnectConnectionId }),

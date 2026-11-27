@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import type { ApiFailure } from "../../../../api/client.ts";
 import { useBakeryApi } from "../../../../api/context.tsx";
 import {
   clearGitHubConnectHandoff,
@@ -7,7 +6,7 @@ import {
   takeGitHubConnectUrl,
 } from "../../../../app/github-connect-handoff.ts";
 import { useProtectedScope } from "../../../../app/query-scope-context.tsx";
-import type { ConnectStatus } from "../../connect.ts";
+import { type ConnectStatus, problemReason } from "../../connect.ts";
 import type { ConnectionOutcome } from "../../outcomes.ts";
 
 /** What a connect or reconnect starts with. */
@@ -21,10 +20,6 @@ export type ConnectOptions = {
 /** Leaves the page for github.com; replaced so Back skips the spent hop. */
 function leaveForGitHub(url: string) {
   globalThis.location.replace(url);
-}
-
-function problemReason(error: ApiFailure): string | null {
-  return error.kind === "problem" ? error.problem.reason ?? null : null;
 }
 
 /**

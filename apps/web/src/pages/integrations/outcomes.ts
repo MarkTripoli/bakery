@@ -5,6 +5,7 @@ import type { MessageKey } from "@bakery/i18n";
  * (integrations/callbacks.ts `ConnectionOutcome`); never a provider detail.
  */
 export const CONNECTION_OUTCOMES = [
+  "connected",
   "pending",
   "refreshed",
   "awaiting_authorization",
@@ -34,7 +35,9 @@ export type OutcomeCopy = {
   readonly retry: boolean;
 };
 
-export const OUTCOME_COPY: Readonly<Record<ConnectionOutcome, OutcomeCopy>> = {
+const OUTCOME_COPY: Readonly<
+  Record<Exclude<ConnectionOutcome, "connected">, OutcomeCopy>
+> = {
   pending: {
     tone: "success",
     body: "settings.connections.outcome.pending",
@@ -131,3 +134,6 @@ export const OUTCOME_COPY: Readonly<Record<ConnectionOutcome, OutcomeCopy>> = {
     retry: true,
   },
 };
+
+export const outcomeCopy = (outcome: ConnectionOutcome): OutcomeCopy | null =>
+  outcome === "connected" ? null : OUTCOME_COPY[outcome];

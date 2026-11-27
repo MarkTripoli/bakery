@@ -4,13 +4,14 @@ import type { MessageKey } from "@bakery/i18n";
 import { RouterLink } from "../../app/router-link.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import type { Health } from "./model.ts";
-import { type ConnectionOutcome, OUTCOME_COPY } from "./outcomes.ts";
+import type { ConnectionOutcome } from "./outcomes.ts";
 import type { ConnectStatus } from "./connect.ts";
 import {
   hasSetupPages,
   healthBadge,
   PROVIDER_IDENTITY,
   providerLook,
+  providerOutcomeCopy,
 } from "./providers/index.ts";
 import { WEB_PROVIDERS } from "../../integrations/registry.ts";
 
@@ -33,6 +34,9 @@ export type IntegrationsHomeViewProps = {
   readonly canManage: boolean;
   readonly rows: readonly ConnectionRow[];
   readonly outcome: ConnectionOutcome | null;
+  readonly outcomeProvider: string;
+  readonly providerConnectStatus: ConnectStatus;
+  readonly onConnectProvider: () => void;
   /** The page is on its way back to the provider for the attempt's next step. */
   readonly continuing: boolean;
   readonly connectStatus: ConnectStatus;
@@ -57,7 +61,10 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
   const { state, canManage, rows, outcome, connectStatus } = props;
   const busy = connectStatus === "starting" ||
     connectStatus === "redirecting" || props.continuing;
-  const copy = outcome ? OUTCOME_COPY[outcome] : null;
+  const copy = providerOutcomeCopy(props.outcomeProvider, outcome);
+  const ownOutcome = hasSetupPages(props.outcomeProvider);
+  const providerBusy = props.providerConnectStatus === "starting" ||
+    props.providerConnectStatus === "redirecting";
   const failure = CONNECT_FAILURE[connectStatus];
   const connectButton = (
     variant: "primary" | "secondary",
@@ -94,12 +101,18 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
             action={copy.retry && canManage
               ? (
                 <UI.Button
-                  disabled={busy}
-                  onClick={props.onConnect}
+                  disabled={ownOutcome ? busy : providerBusy}
+                  onClick={ownOutcome
+                    ? props.onConnect
+                    : props.onConnectProvider}
                   type="button"
                   variant="secondary"
                 >
-                  {translate("settings.connections.connectAgain")}
+                  {translate(
+                    ownOutcome
+                      ? "settings.connections.connectAgain"
+                      : `integrations.${props.outcomeProvider}.connectAgain` as MessageKey,
+                  )}
                 </UI.Button>
               )
               : undefined}
@@ -243,15 +256,26 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                   )}
                 />
                 {WEB_PROVIDERS.filter((module) =>
-                  module.connectAvailable === false &&
                   !rows.some((row) => row.provider === module.manifest.slug)
-                ).map((module) => (
-                  <ProviderNotYetConnectable
-                    canManage={canManage}
-                    key={module.manifest.slug}
-                    slug={module.manifest.slug}
-                  />
-                ))}
+                ).map((module) =>
+                  module.connectAvailable === false
+                    ? (
+                      <ProviderNotYetConnectable
+                        canManage={canManage}
+                        key={module.manifest.slug}
+                        slug={module.manifest.slug}
+                      />
+                    )
+                    : (
+                      <ProviderConnectable
+                        canManage={canManage}
+                        key={module.manifest.slug}
+                        onConnect={props.onConnectProvider}
+                        slug={module.manifest.slug}
+                        status={props.providerConnectStatus}
+                      />
+                    )
+                )}
               </div>
               {canManage && connectStatus !== "unregistered"
                 ? (
@@ -401,6 +425,67 @@ function rowLine(
     case "notChecked":
       return undefined;
   }
+}
+
+function ProviderConnectable(
+  { slug, canManage, status, onConnect }: {
+    readonly slug: string;
+    readonly canManage: boolean;
+    readonly status: ConnectStatus;
+    readonly onConnect: () => void;
+  },
+) {
+  const { translate } = useI18n();
+  const say = (suffix: string) =>
+    translate(`integrations.${slug}.${suffix}` as MessageKey);
+  const name = say("name");
+  const busy = status === "starting" || status === "redirecting";
+  return (
+    <UI.Stack data-testid={`provider-row-${slug}`} gap="compact">
+      <UI.ObjectRow
+        aligned
+        actions={canManage
+          ? (
+            <UI.Button
+              aria-label={say("connect")}
+              disabled={busy}
+              loading={status === "starting"}
+              onClick={onConnect}
+              type="button"
+              variant="secondary"
+            >
+              {translate("settings.connections.home.connect")}
+            </UI.Button>
+          )
+          : undefined}
+        identity={
+          <UI.Inline gap="compact">
+            <UI.Avatar alt={name} fallback={name.slice(0, 1)} size="small" />
+            <UI.Text variant="strong">{name}</UI.Text>
+          </UI.Inline>
+        }
+        metadata={say("purpose")}
+      />
+      {status === "redirecting"
+        ? (
+          <UI.InlineNotice tone="information">
+            {say("redirecting")}
+          </UI.InlineNotice>
+        )
+        : status === "failed"
+        ? <UI.InlineNotice tone="error">{say("failed")}</UI.InlineNotice>
+        : status === "unregistered"
+        ? (
+          <UI.InlineNotice tone="warning">
+            {say("unregistered")}{" "}
+            <RouterLink to="/settings/installation/integrations">
+              {say("unregisteredLink")}
+            </RouterLink>
+          </UI.InlineNotice>
+        )
+        : null}
+    </UI.Stack>
+  );
 }
 
 /**
