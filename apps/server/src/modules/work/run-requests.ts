@@ -41,6 +41,7 @@ import {
   grantRefusal,
   matchingGrants,
 } from "../auth/application/agent-power-grants.ts";
+import { passedOnFromJoin } from "./request-passed-on.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 /** An agent asked on a run other than the one its session belongs to. */
@@ -166,6 +167,7 @@ type RequestRow = {
   next_already_asked: boolean | null;
   next_ask_claimed: boolean;
   next_audience_has_new: boolean | null;
+  passed_on_from: string | null;
 };
 
 const DEFAULT_NEXT_ASK_HOURS = 24;
@@ -194,7 +196,8 @@ const REQUEST_SELECT = `
          coalesce(next_person.id, next_run_person.id) = any(first_round.ids)
            as next_already_asked,
          next_claim.asked_at is not null as next_ask_claimed,
-         next_audience.has_new as next_audience_has_new
+         next_audience.has_new as next_audience_has_new,
+         passed_on.name as passed_on_from
     from bakery.person_requests as request
     join bakery.principals as recipient on recipient.id = request.recipient_id
     left join bakery.principals as asker on asker.id = request.asked_by
@@ -306,7 +309,8 @@ const REQUEST_SELECT = `
       ) as has_new
        where next_group.id is not null
           or step.input #>> '{ifNobodyAnswers,recipientRoleKey}' is not null
-    ) as next_audience on true`;
+    ) as next_audience on true
+    ${passedOnFromJoin("request", "passed_on")}`;
 
 function iso(value: Date | string): string {
   return (value instanceof Date ? value : new Date(value)).toISOString();
@@ -368,7 +372,7 @@ function nextAskOf(row: RequestRow) {
   }
   const firstAskedAt = new Date(iso(row.first_asked_at)).getTime();
   if (new Date(iso(row.created_at)).getTime() > firstAskedAt) {
-    return { nextAsk: null, passedOn: true };
+    return { nextAsk: null, passedOn: row.passed_on_from !== null };
   }
   const reachesNobodyNew = row.next_already_asked === true ||
     row.next_audience_has_new === false ||

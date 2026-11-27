@@ -1,5 +1,6 @@
 import { pluginBrokerRelayRoute } from "./plugin-broker-relay.ts";
 import type { RequestEmailSend } from "../work/request-email.ts";
+import type { RequestSlackDependencies } from "../work/request-slack.ts";
 import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { pluginJobFilesRoute } from "./plugin-job-files.ts";
 import { type Context, Hono } from "hono";
@@ -133,6 +134,7 @@ export type ExecutionRoutesOptions = ExecutionRouteOptions & {
   storageBlobStore?: OrganizationBlobStore;
   allowPlainLoopbackEmail?: boolean;
   emailSend?: RequestEmailSend;
+  requestSlackGate?: Omit<RequestSlackDependencies, "publicBaseUrl">;
   /** Validated artifact preview origin; absent fails previews closed. */
   artifactPreviewOrigin?: string;
   /** Artifact registry shared with the MCP catalog tools. */
@@ -255,6 +257,12 @@ export function createExecutionRoutes(
         allowPlainLoopback: options.allowPlainLoopbackEmail,
         send: options.emailSend,
       },
+      ...(options.requestSlackGate === undefined ? {} : {
+        requestSlack: {
+          ...options.requestSlackGate,
+          publicBaseUrl: options.publicBaseUrl,
+        },
+      }),
     });
     app.all("/api/inngest", inngest);
     app.all("/api/inngest/*", inngest);

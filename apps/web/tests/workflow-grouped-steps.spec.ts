@@ -117,7 +117,9 @@ test.describe("workflow editor: steps inside a group", () => {
     await page.locator("[data-connector='implement']")
       .getByRole("button").click();
     const picker = page.getByTestId("step-picker");
-    await expect(picker.locator("[data-pick-step]")).toHaveCount(1);
+    await expect(picker.locator("[data-pick-step]")).toHaveCount(2);
+    await expect(picker.locator("[data-pick-step='people.tag']"))
+      .toBeVisible();
     await expect(picker).toContainText(
       "Other step types need settings this page cannot fill in yet.",
     );
@@ -169,7 +171,12 @@ test.describe("workflow editor: steps inside a group", () => {
   test("a step inside the loop block is read, not rewritten", async ({ page }) => {
     await editor(page);
     await page.locator("[data-card='repair_review']").click();
-    await expect(page.getByRole("button", { name: "Move up" })).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Delete" })).toBeDisabled();
+    await expect(
+      page.getByText(
+        "This part of the workflow is written in code. You cannot change it here.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Move up" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
   });
 });

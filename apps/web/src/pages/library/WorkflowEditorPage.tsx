@@ -1,10 +1,18 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import {
   allOrganizationMembersQueryOptions,
   attachableSkillsQueryOptions,
   effectiveAccessQueryOptions,
+  groupsQueryOptions,
   organizationQueryOptions,
   repositoriesAllQueryOptions,
   workflowQueryOptions,
@@ -91,7 +99,33 @@ import {
   askedWho,
   NEW_APPROVAL,
 } from "./approval-step.ts";
-import { stepName } from "./workflow-state.ts";
+import {
+  documentKey,
+  documentsBefore,
+  NEW_NOTIFY,
+  NOTIFY_ACTION,
+  type NotifyNext,
+  notifyOfNode,
+  type NotifyProblem,
+  notifyProblems,
+  type NotifyWarning,
+  notifyWarnings,
+} from "./notify-step.ts";
+import {
+  type ListStates,
+  notifyCardLine,
+  notifyChoices,
+  whoName,
+} from "./notify-copy.ts";
+import {
+  isTaskField,
+  NEW_TASK,
+  TASK_ACTION,
+  taskOfNode,
+  type TaskProblem,
+  taskProblems,
+} from "./task-step.ts";
+import { ACTION_TITLES, stepName } from "./workflow-state.ts";
 import {
   type GroupLabel,
   groupsOfTree,
@@ -100,7 +134,7 @@ import {
   type TreeStep,
 } from "./workflow-tree.ts";
 
-const GROUP_STEP_TYPES: readonly string[] = [APPROVAL_ACTION];
+const GROUP_STEP_TYPES: readonly string[] = [APPROVAL_ACTION, NOTIFY_ACTION];
 
 /**
  * The workflow editor (#67, slice 1 of the owner's spec): the workflow drawn
@@ -141,7 +175,11 @@ type SaveState =
  */
 type ProblemRow = {
   readonly key: string;
-  readonly field?: ApprovalProblem["field"] | "start";
+  readonly field?:
+    | ApprovalProblem["field"]
+    | NotifyProblem["field"]
+    | TaskProblem["field"]
+    | "start";
   readonly start?: Omit<StartFocus, "request">;
   readonly blocking?: boolean;
   /** The step or group's name; empty for a problem that has no place in the drawing. */
@@ -152,7 +190,13 @@ type ProblemRow = {
 
 function approvalPart(uses: string, node: Record<string, unknown>) {
   const approval = uses === APPROVAL_ACTION ? approvalOfNode(node) : null;
-  return approval === null ? {} : { approval };
+  const notify = uses === NOTIFY_ACTION ? notifyOfNode(node) : null;
+  const task = uses === TASK_ACTION ? taskOfNode(node) : null;
+  return {
+    ...(approval === null ? {} : { approval }),
+    ...(notify === null ? {} : { notify }),
+    ...(task === null ? {} : { task }),
+  };
 }
 
 function repeatCap(spec: Readonly<Record<string, unknown>> | null): number {
@@ -825,7 +869,12 @@ export function WorkflowEditorPage(
     }
     return open;
   }, [skillsRead.data, stepPaths, editor.steps, resolving]);
-  const asks = steps.some((step) => step.approval !== undefined);
+  const notifies = steps.some((step) => step.notify !== undefined);
+  const asks = notifies || steps.some((step) => step.approval !== undefined);
+  const groups = useQuery({
+    ...groupsQueryOptions(api, scope),
+    enabled: notifies && scope.organizationId !== null,
+  });
   const members = useQuery({
     ...allOrganizationMembersQueryOptions(api, scope),
     enabled: asks && scope.organizationId !== null,
@@ -873,9 +922,106 @@ export function WorkflowEditorPage(
     }
     return found;
   }, [steps, everyone, organization.data?.name, translate]);
+  const choices = useMemo(
+    () => notifyChoices(groups.data, people, translate),
+    [groups.data, people, translate],
+  );
+  const lists = useMemo<ListStates>(() => ({
+    people: members.isError
+      ? "failed"
+      : members.data === undefined
+      ? "loading"
+      : "ready",
+    groups: groups.isError
+      ? "failed"
+      : groups.data === undefined
+      ? "loading"
+      : "ready",
+  }), [members.isError, members.data, groups.isError, groups.data]);
+  const notifyNotes = useMemo(() => {
+    const directory = {
+      people: everyone === null ? null : new Set(
+        everyone.filter((one) => one.active).map((one) => one.principalId),
+      ),
+      groups: groups.data === undefined ? null : new Map([
+        ...groups.data.groups.map((group) =>
+          [`group:${group.id}`, group.memberCount] as const
+        ),
+        ...groups.data.fromRoles.map((role) =>
+          [`role:${role.roleKey}`, role.memberCount] as const
+        ),
+      ]),
+    };
+    const sentence = ({ field, kind, who }: NotifyWarning) => {
+      const name = whoName(who, choices, lists, translate);
+      if (kind === "personGone") {
+        return translate("library.editor.notify.warning.personGone", {
+          name: choices.some((choice) => choice.value === who)
+            ? name
+            : translate("library.editor.notify.warning.thisPerson"),
+        });
+      }
+      return translate(`library.editor.notify.warning.${field}.${kind}`, {
+        name,
+      });
+    };
+    const found = new Map<
+      string,
+      readonly (NotifyWarning & { readonly sentence: string })[]
+    >();
+    for (const step of steps) {
+      if (step.notify === undefined) continue;
+      const warnings = notifyWarnings(step.notify, directory).map(
+        (warning) => ({ ...warning, sentence: sentence(warning) }),
+      );
+      if (warnings.length > 0) found.set(step.id, warnings);
+    }
+    return found;
+  }, [steps, everyone, groups.data, choices, lists, translate]);
+  const rememberedNext = useRef(new Map<string, NotifyNext>());
+  const rememberNext = useCallback((next: NotifyNext) => {
+    if (selectedId !== null) rememberedNext.current.set(selectedId, next);
+  }, [selectedId]);
+  const notifyIssues = useMemo(() => {
+    const found = new Map<
+      string,
+      readonly (NotifyProblem & { readonly sentence: string })[]
+    >();
+    for (const step of steps) {
+      if (step.notify === undefined) continue;
+      const issues = notifyProblems(
+        step.notify,
+        documentsBefore(steps, step.id).map(documentKey),
+      ).map((problem) => ({
+        ...problem,
+        sentence: translate(`library.editor.notify.problem.${problem.kind}`),
+      }));
+      if (issues.length > 0) found.set(step.id, issues);
+    }
+    return found;
+  }, [steps, translate]);
+  const taskIssues = useMemo(() => {
+    const found = new Map<
+      string,
+      readonly (TaskProblem & { readonly sentence: string })[]
+    >();
+    for (const step of steps) {
+      if (step.task === undefined) continue;
+      const issues = taskProblems(step.task).map((problem) => ({
+        ...problem,
+        sentence: translate(`library.editor.task.problem.${problem.field}`),
+      }));
+      if (issues.length > 0) found.set(step.id, issues);
+    }
+    return found;
+  }, [steps, translate]);
   const cardLines = useMemo<ReadonlyMap<string, string>>(() => {
     const lines = new Map<string, string>();
     for (const step of steps) {
+      if (step.notify !== undefined) {
+        const line = notifyCardLine(step.notify, choices, lists, translate);
+        if (line !== null) lines.set(step.id, line);
+      }
       if (step.approval === undefined) continue;
       const who = askedWho(
         step.approval.audience,
@@ -893,7 +1039,7 @@ export function WorkflowEditorPage(
       );
     }
     return lines;
-  }, [steps, people, members.data, translate]);
+  }, [steps, people, members.data, choices, lists, translate]);
   const needs = useMemo(
     () => startNeeds(draft?.normalizedSpec),
     [draft],
@@ -922,7 +1068,9 @@ export function WorkflowEditorPage(
   const startCard = startCardOf(editor.starts, translate);
   const problemsByStep = useMemo<ReadonlyMap<string, string>>(() => {
     const merged = new Map(checker.byStep);
-    for (const [id, issues] of approvalIssues) {
+    for (
+      const [id, issues] of [...approvalIssues, ...notifyIssues, ...taskIssues]
+    ) {
       merged.set(id, issues[0].sentence);
     }
     for (const id of skillProblemSteps) {
@@ -930,7 +1078,14 @@ export function WorkflowEditorPage(
     }
     if (startIssues.length > 0) merged.set(START_ID, startIssues[0].sentence);
     return merged;
-  }, [checker.byStep, approvalIssues, skillProblemSteps, startIssues]);
+  }, [
+    checker.byStep,
+    approvalIssues,
+    notifyIssues,
+    taskIssues,
+    skillProblemSteps,
+    startIssues,
+  ]);
   // Steps whose only problem is a skill: the Skills section carries it, not a notice above it.
   const skillOnlySteps = useMemo<ReadonlySet<string>>(() => {
     const only = new Set(checker.skillOnly);
@@ -974,6 +1129,34 @@ export function WorkflowEditorPage(
     }
     const drawnIds = new Set(drawn.map((step) => step.id));
     for (const step of drawn) {
+      for (const issue of notifyIssues.get(step.id) ?? []) {
+        out.push({
+          key: `notify-${step.id}-${issue.kind}`,
+          name: stepName(step, translate),
+          sentence: issue.sentence,
+          stepId: step.id,
+          field: issue.field,
+          blocking: true,
+        });
+      }
+      for (const warning of notifyNotes.get(step.id) ?? []) {
+        out.push({
+          key: `notify-${step.id}-${warning.field}-${warning.kind}`,
+          name: stepName(step, translate),
+          sentence: warning.sentence,
+          stepId: step.id,
+        });
+      }
+      for (const issue of taskIssues.get(step.id) ?? []) {
+        out.push({
+          key: `task-${step.id}-${issue.field}`,
+          name: stepName(step, translate),
+          sentence: issue.sentence,
+          stepId: step.id,
+          field: issue.field,
+          blocking: true,
+        });
+      }
       for (const issue of approvalIssues.get(step.id) ?? []) {
         out.push({
           key: `ask-${step.id}-${issue.field}-${issue.name}`,
@@ -1022,7 +1205,17 @@ export function WorkflowEditorPage(
       });
     });
     return out;
-  }, [tree, checker, problemsByStep, approvalIssues, startIssues, translate]);
+  }, [
+    tree,
+    checker,
+    problemsByStep,
+    approvalIssues,
+    notifyIssues,
+    notifyNotes,
+    taskIssues,
+    startIssues,
+    translate,
+  ]);
   const blocked = checker.refused.size > 0 || checker.refusedElsewhere ||
     rows.some((row) => row.blocking === true);
   const [focusRequest, setFocusRequest] = useState<
@@ -1346,7 +1539,8 @@ export function WorkflowEditorPage(
       audienceProblems: issues.filter((issue) => issue.field === "audience")
         .map((issue) => issue.sentence),
       focus: focusRequest?.stepId === live.id &&
-          focusRequest.field !== "start"
+          (focusRequest.field === "prompt" ||
+            focusRequest.field === "audience")
         ? { field: focusRequest.field, request: focusRequest.request }
         : null,
     };
@@ -1357,6 +1551,69 @@ export function WorkflowEditorPage(
         (!grouped || steps.filter((one) => one.list === live?.list).length > 1),
       uses: step.uses,
       approval,
+      notify: live?.notify === undefined ? undefined : {
+        stepId: live.id,
+        fields: live.notify,
+        onChange: canChange(live)
+          ? (fields: NonNullable<EditorStep["notify"]>, typing?: string) =>
+            dispatch({
+              kind: "notify",
+              id: live.id,
+              notify: fields,
+              ...(typing === undefined ? {} : { typing }),
+            })
+          : undefined,
+        choices,
+        lists,
+        onRetry: () => {
+          void members.refetch();
+          void groups.refetch();
+        },
+        remembered: rememberedNext.current.get(live.id) ?? null,
+        onRemember: rememberNext,
+        whoWarning: notifyNotes.get(live.id)?.find((one) => one.field === "who")
+          ?.sentence,
+        nextWarning: notifyNotes.get(live.id)?.find((one) =>
+          one.field === "next"
+        )?.sentence,
+        documents: documentsBefore(steps, live.id).map((one) => ({
+          value: documentKey(one),
+          label: translate(ACTION_TITLES[one.uses]),
+        })),
+        fromProblem: notifyIssues.get(live.id)?.find((one) =>
+          one.field === "from"
+        )?.sentence,
+        nextProblem: notifyIssues.get(live.id)?.find((one) =>
+          one.field === "next"
+        )?.sentence,
+        focus: focusRequest?.stepId === live.id &&
+            (focusRequest.field === "from" || focusRequest.field === "next")
+          ? { field: focusRequest.field, request: focusRequest.request }
+          : null,
+      },
+      task: live?.task === undefined ? undefined : {
+        stepId: live.id,
+        fields: live.task,
+        onChange: canChange(live)
+          ? (fields: NonNullable<EditorStep["task"]>, typing?: string) =>
+            dispatch({
+              kind: "task",
+              id: live.id,
+              task: fields,
+              ...(typing === undefined ? {} : { typing }),
+            })
+          : undefined,
+        problems: Object.fromEntries(
+          (taskIssues.get(live.id) ?? []).map((issue) => [
+            issue.field,
+            issue.sentence,
+          ]),
+        ),
+        focus: focusRequest?.stepId === live.id &&
+            isTaskField(focusRequest.field)
+          ? { field: focusRequest.field, request: focusRequest.request }
+          : null,
+      },
       agentFromSetup: checker.unboundActions.has(step.uses),
       code: step.code,
       problem: step.problem === undefined
@@ -1403,6 +1660,13 @@ export function WorkflowEditorPage(
     skillOnlySteps,
     checker.unboundActions,
     approvalIssues,
+    notifyIssues,
+    notifyNotes,
+    taskIssues,
+    choices,
+    lists,
+    rememberNext,
+    groups.status,
     people,
     members.status,
     focusRequest,
@@ -1566,6 +1830,8 @@ export function WorkflowEditorPage(
                 agentVersionId: null,
                 skills: [],
                 ...(uses === APPROVAL_ACTION ? { approval: NEW_APPROVAL } : {}),
+                ...(uses === NOTIFY_ACTION ? { notify: NEW_NOTIFY } : {}),
+                ...(uses === TASK_ACTION ? { task: NEW_TASK } : {}),
                 ...(list === undefined ? {} : { list }),
               };
               dispatch({ kind: "add", step });
@@ -1701,11 +1967,13 @@ export function WorkflowEditorPage(
                 version={draftKept.revision}
               />
             )}
-            {canManage ? null : (
-              <UI.Text variant="muted">
-                {translate("library.editor.memberOnly" as never)}
-              </UI.Text>
-            )}
+            {access.data === undefined || canManage
+              ? null
+              : (
+                <UI.Text variant="muted">
+                  {translate("library.editor.memberOnly")}
+                </UI.Text>
+              )}
             {editing && phone
               ? (
                 <UI.Inline gap="compact">
@@ -1992,6 +2260,9 @@ export function WorkflowEditorPage(
                     changes={shown.changes}
                     inUseRevision={inUse?.revision ?? null}
                     problemCount={shown.problemCount}
+                    publishedBefore={versions.data?.items.some((item) =>
+                      item.status === "published"
+                    ) ?? false}
                     startsChanged={shown.startsChanged}
                   />
                   {publish.error === null

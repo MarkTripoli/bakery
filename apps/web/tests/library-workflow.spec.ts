@@ -208,6 +208,171 @@ for (
       await shot(page, "workflow-groups", [], { windowOnly: true });
     });
 
+    test("steps that run at the same time are drawn lane by lane", async ({ page }) => {
+      await libraryFixture(page, {
+        ...GROUPED,
+        versions: [
+          ...VERSIONS,
+          {
+            ...version(6, 6, "published", [{
+              id: "brief",
+              uses: "task.brief",
+            }]),
+            spec: [
+              { kind: "action", id: "brief", uses: "task.brief" },
+              {
+                kind: "parallel",
+                lanes: [
+                  {
+                    steps: [
+                      {
+                        kind: "action",
+                        id: "implement",
+                        uses: "harness.implement",
+                      },
+                      { kind: "action", id: "checks", uses: "quality.check" },
+                    ],
+                  },
+                  {
+                    steps: [
+                      { kind: "action", id: "review", uses: "agent.review" },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1006)}`,
+      );
+      const together = page.getByTestId("workflow-steps")
+        .locator("[data-group=together]");
+      await expect(together).toContainText("At the same time");
+      const box = async (id: string) =>
+        (await page.getByTestId("workflow-steps")
+          .locator(`[data-card='${id}']`).boundingBox())!;
+      await expect(
+        page.getByTestId("workflow-steps").locator("[data-card='review']"),
+      )
+        .toBeVisible();
+      if (viewport.name === "desktop") {
+        await expect.poll(async () =>
+          Math.abs((await box("implement")).y - (await box("review")).y)
+        ).toBeLessThanOrEqual(1);
+        const [first, second, other] = [
+          await box("implement"),
+          await box("checks"),
+          await box("review"),
+        ];
+        expect(second.y).toBeGreaterThan(first.y + first.height);
+        expect(other.x).toBeGreaterThan(first.x + first.width);
+      } else {
+        expect((await box("review")).y).toBeGreaterThan(
+          (await box("checks")).y,
+        );
+        await expect(together.locator(".ui-outline")).toHaveCount(2);
+        await expect(together).toContainText("Lane 1");
+        await expect(together).toContainText("Lane 2");
+      }
+      await page.mouse.move(700, 700);
+      await still(page, "workflow-lanes");
+    });
+
+    test("closing the page asks only when something typed is unsaved", async ({ page }) => {
+      await libraryFixture(page, WORLD);
+      const guarded = () =>
+        page.evaluate(() => {
+          const { history } = (globalThis as unknown as {
+            __TSR_ROUTER__: {
+              history: { _getBlockers: () => readonly unknown[] };
+            };
+          }).__TSR_ROUTER__;
+          return history._getBlockers().length;
+        });
+      const asks = () =>
+        page.evaluate(() => {
+          const leaving = new Event("beforeunload", { cancelable: true });
+          globalThis.dispatchEvent(leaving);
+          return leaving.defaultPrevented;
+        });
+      for (
+        const path of [
+          "/library",
+          `/library/workflows/${WORKFLOW.id}`,
+          "/settings/appearance",
+        ]
+      ) {
+        await page.goto(path);
+        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expect.poll(guarded, { message: path }).toBeGreaterThan(0);
+        expect(await asks(), path).toBe(false);
+      }
+      const language = page.getByRole("combobox", { name: /language/i });
+      await expect(language).toBeEnabled();
+      await language.selectOption({ index: 1 });
+      await expect.poll(asks).toBe(true);
+    });
+
+    test("six lanes keep their written order, say when empty, and can all be reached", async ({ page }) => {
+      const lane = (id: string) => ({
+        steps: [{ kind: "action", id, uses: "agent.review" }],
+      });
+      const ids = ["one", "two", "three", "four", "five", "six"];
+      await libraryFixture(page, {
+        ...GROUPED,
+        versions: [
+          ...VERSIONS,
+          {
+            ...version(6, 6, "published", [{
+              id: "brief",
+              uses: "task.brief",
+            }]),
+            spec: [{
+              kind: "parallel",
+              lanes: [...ids.map(lane), { steps: [] }],
+            }],
+          },
+        ],
+      });
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1006)}`,
+      );
+      const steps = page.getByTestId("workflow-steps");
+      await expect(steps.locator("[data-card='six']")).toBeAttached();
+      await expect(steps.getByText("No steps")).toBeAttached();
+      const at = async (id: string) =>
+        (await steps.locator(`[data-card='${id}']`).boundingBox())!;
+      if (viewport.name !== "desktop") {
+        const tops = [];
+        for (const id of ids) tops.push((await at(id)).y);
+        expect(tops).toEqual([...tops].sort((a, b) => a - b));
+        return;
+      }
+      await expect(steps.locator('[data-layout="ready"]')).toBeVisible();
+      await expect.poll(async () => {
+        const lefts = [];
+        for (const id of ids) lefts.push((await at(id)).x);
+        return lefts.every((x, index) => index === 0 || x > lefts[index - 1]);
+      }).toBe(true);
+      await steps.locator('[data-fit="true"]').click();
+      const frame = (await steps.locator('[data-ui-region="workflow-canvas"]')
+        .boundingBox())!;
+      await expect.poll(async () => {
+        const first = await at("one");
+        const last = await at("six");
+        const empty = (await steps.getByText("No steps").boundingBox())!;
+        const box = (await steps.locator("[data-group=together]")
+          .boundingBox())!;
+        return first.x >= frame.x - 1 &&
+          last.x + last.width <= frame.x + frame.width &&
+          empty.x + empty.width <= frame.x + frame.width &&
+          box.x >= frame.x - 1;
+      }).toBe(true);
+      await still(page, "workflow-lanes-six");
+    });
+
     test("opens from the list and shows the version in use: its steps, agents, and every version with its state", async ({ page }) => {
       await libraryFixture(page, WORLD);
       await page.goto("/library");
@@ -814,7 +979,7 @@ for (
       await expect(picker).toBeVisible();
       // The picker says what each step does, and its search narrows the list:
       // a bare list of names told a person nothing (#67 UX ruling 6934081003).
-      await expect(picker.locator("[data-pick-step]")).toHaveCount(9);
+      await expect(picker.locator("[data-pick-step]")).toHaveCount(10);
       await expect(
         picker.locator("[data-pick-step='review.independent']"),
       ).toContainText(
@@ -3250,7 +3415,7 @@ for (
                 ],
                 defaultBudgetLimitUsd: "8.00",
                 availability: null,
-              }].map(presetRead),
+              }].map((preset) => presetRead(preset)),
               nextCursor: null,
             },
           }),

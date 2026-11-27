@@ -36,10 +36,18 @@ type Setup = {
   readonly activations?: unknown[];
   readonly leftoverDraft?: unknown[];
   readonly refusedRewrites?: number;
+  readonly nothingInUse?: boolean;
 };
 
 async function editor(page: Page, setup: Setup) {
-  await libraryFixture(page, { workflows: [WORKFLOW], versions: [] });
+  await libraryFixture(page, {
+    workflows: [
+      setup.nothingInUse
+        ? definition(10, "Release train", { activeVersionId: null })
+        : WORKFLOW,
+    ],
+    versions: [],
+  });
   const server = {
     steps: setup.draftSteps,
     version: 1,
@@ -161,6 +169,17 @@ test.describe("workflow editor: what publishing changes", () => {
     await expect(dialog).toContainText("New: Review");
     await expect(dialog).toContainText("Removed: Write the task brief");
     await still(page, "publish-new-removed");
+  });
+
+  test("an earlier published version nobody used is not called the first", async ({ page }) => {
+    await editor(page, {
+      draftSteps: [{ id: "brief", uses: "task.brief" }],
+      nothingInUse: true,
+    });
+    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    const summary = page.getByTestId("publish-changes");
+    await expect(summary).toContainText("Nothing is in use yet");
+    await expect(summary).not.toContainText("This is the first version.");
   });
 
   test("a draft that matches the version in use has nothing to publish", async ({ page }) => {

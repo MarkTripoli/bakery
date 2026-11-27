@@ -19,6 +19,7 @@ export function OrganizationSwitchGuard(
     shouldBlockFn: ({ current, next }) =>
       unsaved > 0 && next.pathname === ORGANIZATIONS_PATH &&
       current.pathname !== ORGANIZATIONS_PATH,
+    enableBeforeUnload: () => unsaved > 0,
     withResolver: true,
   });
   // On a phone the account menu lives in the navigation drawer, which would

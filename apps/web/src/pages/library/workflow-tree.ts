@@ -1,4 +1,6 @@
 import { APPROVAL_ACTION, approvalOfNode } from "./approval-step.ts";
+import { NOTIFY_ACTION, notifyOfNode } from "./notify-step.ts";
+import { TASK_ACTION, taskOfNode } from "./task-step.ts";
 import { ACTION_TITLES, PICKER_STEPS } from "./workflow-state.ts";
 
 /**
@@ -49,6 +51,7 @@ export type TreeGroup = {
   readonly loop?: TreeLoop;
   /** The nodes inside it, drawn under the label. */
   readonly children: readonly TreeNode[];
+  readonly lanes?: readonly (readonly TreeNode[])[];
   /** How the definition states it, so the page can say it is code-only. */
   readonly editedInCode: true;
 };
@@ -173,6 +176,8 @@ function isCodeOnly(node: Record<string, unknown>, uses: string): boolean {
   if (!KNOWN_ACTIONS.has(uses)) return false;
   if (!ADDABLE_ACTIONS.has(uses)) return true;
   if (uses === APPROVAL_ACTION && approvalOfNode(node) === null) return true;
+  if (uses === NOTIFY_ACTION && notifyOfNode(node) === null) return true;
+  if (uses === TASK_ACTION && taskOfNode(node) === null) return true;
   if (node.if !== undefined) return true;
   if (node.retry !== undefined) {
     const retry = record(node.retry);
@@ -407,7 +412,7 @@ function drawNode(
   }
   if (kind === "parallel") {
     const lanes = Array.isArray(node.lanes) ? node.lanes : [];
-    const children = lanes.flatMap((lane, index) => {
+    const drawn = lanes.map((lane, index) => {
       const held = record(lane).steps;
       return drawNodes(
         Array.isArray(held) ? held : [],
@@ -419,7 +424,8 @@ function drawNode(
       kind: "group",
       id: anonymousId(counter, "group"),
       label: "together",
-      children,
+      children: drawn.flat(),
+      ...(drawn.length > 1 ? { lanes: drawn } : {}),
       editedInCode: true,
     }];
   }
