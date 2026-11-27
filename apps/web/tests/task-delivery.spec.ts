@@ -311,6 +311,8 @@ const mergeEntryRow = (
   updatedAt: at(8),
   version: 1,
   blockedReason: null,
+  requestedBy: uuid(1),
+  requestedByName: "Ana",
   ...over,
 });
 
