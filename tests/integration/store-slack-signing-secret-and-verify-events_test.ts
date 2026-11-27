@@ -409,7 +409,7 @@ Deno.test("a workspace another organization holds and has only turned off stays 
   try {
     const firstId = await connectOnce(o);
     await changeConnection(o, firstId, "off");
-    assertNotEquals(await second.attempt(), "connected");
+    assertEquals(await second.attempt(), "held_elsewhere");
     const rows = await installations(o);
     assertEquals(rows.length, 1);
     assertEquals(rows[0]!.organization_id, o.fixture.organizationId);
