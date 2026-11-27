@@ -593,7 +593,8 @@ export async function commitSlackReceipt(
   let handedOff = false;
   if (work.kind === "removed") {
     const stale = work.eventTime !== null &&
-      work.eventTime * 1000 < new Date(active.connectedAt).getTime();
+      work.eventTime <
+        Math.floor(new Date(active.connectedAt).getTime() / 1000);
     if (!stale) {
       await markSlackConnectionsRemoved(transaction, {
         organizationId: active.organizationId,

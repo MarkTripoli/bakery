@@ -175,7 +175,7 @@ Deno.test("a removal dated before the workspace connected again leaves the new c
   const o = await open(fakeSlack(), { signingSecret: SIGNING_SECRET });
   try {
     const connectionId = await connectOnce(o);
-    const uninstalledAt = Math.floor(Date.now() / 1000) - 5;
+    const uninstalledAt = Math.floor(Date.now() / 1000);
     assertEquals(
       await send(
         o,
@@ -184,6 +184,7 @@ Deno.test("a removal dated before the workspace connected again leaves the new c
       200,
     );
     assertEquals((await state(o, connectionId)).status, "revoked");
+    await new Promise((resolve) => setTimeout(resolve, 1100));
     const attempt = await startAttempt(o.fixture);
     const again = await slackCallback(o.fixture, {
       code: "slack-code-again",

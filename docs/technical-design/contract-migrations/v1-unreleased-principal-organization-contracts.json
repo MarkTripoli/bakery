@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "b749e118780433d7d734935fe73977400a8861a7"
+    "bb634b49016ad9068318d495743479d51c52bfeb"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:8976885170db7124b2fe39a44575d25a86ad1656324fdd6b3ec721098d714199",
-  "reason": "#12 Slack removal by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main b749e118: IntegrationConnection gains removedBy.",
+  "targetCompatibilityDigest": "sha256:a7c7cde6d5fa77d0e6fc290e779d35b636ac88af12ca20e7dda1eef08dd28769",
+  "reason": "#12 Slack removal by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main bb634b49: IntegrationConnection gains removedBy.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "b749e118780433d7d734935fe73977400a8861a7"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8976885170db7124b2fe39a44575d25a86ad1656324fdd6b3ec721098d714199",
+      "reason": "#12 Slack removal by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main b749e118: IntegrationConnection gains removedBy."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
