@@ -31,11 +31,12 @@ import {
 } from "../helpers/repository-inspection.ts";
 import { reviewedPlanDocument } from "../helpers/review-repair/plan-loop-document.ts";
 import {
+  adminRequest,
   registeredWorker,
   type WorkerFixture,
   workerFixtureCapabilities,
 } from "../helpers/worker-execution.ts";
-import { clientFor } from "../helpers/output-ingestion.ts";
+import { batch, clientFor } from "../helpers/output-ingestion.ts";
 import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 
@@ -958,19 +959,59 @@ Deno.test("a worker opens output for a cloud-only model job under its task's app
       ...session,
     })).value;
     assert(assignment);
+    const open = contractSchemas.WorkerOutputOpen.parse({
+      leaseToken: assignment.leaseToken,
+      fence: assignment.fence,
+      ...session,
+    });
     const binding = (await client.openOutput(
       assignment.attemptId,
-      contractSchemas.WorkerOutputOpen.parse({
-        leaseToken: assignment.leaseToken,
-        fence: assignment.fence,
-        ...session,
-      }),
+      open,
       crypto.randomUUID(),
     )).value;
     assertEquals(
       [binding.organizationId, binding.applicationId, binding.taskId],
       [fixture.organizationId, repository.applicationId, task.id],
     );
+    await client.postEvents(assignment.attemptId, {
+      ...open,
+      events: [{
+        eventId: crypto.randomUUID(),
+        localSeq: "1",
+        eventType: "job.output",
+        payload: await batch(binding, "drafted the summary"),
+      }],
+    });
+    await client.closeOutput(
+      assignment.attemptId,
+      {
+        ...open,
+        sessionId: binding.sessionId,
+        writerGeneration: binding.writerGeneration,
+        capture: "complete",
+        reason: "clean-end",
+      },
+      crypto.randomUUID(),
+    );
+    const stream = (await fixture.pgDatabase.query<
+      { archive_state: string; archive_failure: string | null }
+    >(
+      `select archive_state, archive_failure from bakery.session_output_streams
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, binding.sessionId],
+    )).rows[0];
+    assert(
+      stream !== undefined && stream.archive_state !== "not_required" &&
+        stream.archive_failure !== "no_task_owned_destination",
+      JSON.stringify(stream),
+    );
+    const attempts = await adminRequest(
+      fixture,
+      `/v1/jobs/${assignment.jobId}/attempts?taskId=${task.id}`,
+      undefined,
+      { method: "GET" },
+    );
+    assertEquals(attempts.status, 200, await attempts.clone().text());
   }));
 
 Deno.test("a plan with a duration wait is admitted, and the engine puts the wait between its steps as a row without a job", () =>
