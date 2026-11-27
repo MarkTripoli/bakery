@@ -253,7 +253,7 @@ export async function takeOverRunStep(
   // attempt, so the last finished attempt (a retry waiting) names it, or none.
   const scope = await transaction.query<
     {
-      application_id: string;
+      application_id: string | null;
       repository_id: string | null;
       conversation_id: string;
     }

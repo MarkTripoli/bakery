@@ -383,7 +383,7 @@ export async function runControlAction(
   }
   if (
     run.task_id === null || run.workflow_version_id === null ||
-    run.application_id === null || run.conversation_id === null
+    run.conversation_id === null
   ) {
     throw new Error("WORKFLOW_RUN_OWNER_INVALID");
   }
