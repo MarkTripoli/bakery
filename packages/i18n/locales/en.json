@@ -6123,6 +6123,8 @@
   "library.editor.notify.who.help": "A person, a group, or someone from the run. In a group, any one member can answer.",
   "library.editor.notify.who.failed": "People and groups could not be loaded.",
   "library.editor.notify.who.starter": "The person who started the run",
+  "library.editor.notify.who.starterName": "the person who started the run",
+  "library.editor.notify.who.taskOwnerName": "the person who created the work item",
   "library.editor.notify.who.taskOwner": "The person who created the work item",
   "library.editor.notify.who.group": "{name} · {count, plural, one {# member} other {# members}}",
   "library.editor.notify.who.gone": "Someone who no longer exists",

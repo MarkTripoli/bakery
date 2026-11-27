@@ -128,6 +128,11 @@ function EditableNotify(
         value,
         label: translate("library.editor.notify.who.gone"),
       }];
+  const options = (value: string) =>
+    withGone(value).map((choice) => ({
+      value: choice.value,
+      label: choice.label,
+    }));
   const setNext = (next: NotifyNext) => {
     setRemembered(next);
     onChange({ ...fields, next });
@@ -141,7 +146,7 @@ function EditableNotify(
           label={translate("library.editor.notify.who.label")}
           onChange={(event) =>
             onChange({ ...fields, who: event.currentTarget.value })}
-          options={withGone(fields.who)}
+          options={options(fields.who)}
           value={fields.who}
         />
         <UI.Text variant="caption">
@@ -300,7 +305,7 @@ function EditableNotify(
                       value: "",
                       label: translate("library.editor.notify.next.choose"),
                     },
-                    ...withGone(next.who),
+                    ...options(next.who),
                   ]}
                   value={next.who}
                 />

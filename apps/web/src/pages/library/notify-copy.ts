@@ -8,7 +8,9 @@ export type Translate = (
   values?: Readonly<Record<string, string | number>>,
 ) => string;
 
-export type NotifyChoice = Readonly<{ value: string; label: string }>;
+export type NotifyChoice = Readonly<
+  { value: string; label: string; name?: string }
+>;
 
 export function notifyChoices(
   groups: GroupsResponse | undefined,
@@ -19,13 +21,16 @@ export function notifyChoices(
     {
       value: "run:starter",
       label: translate("library.editor.notify.who.starter"),
+      name: translate("library.editor.notify.who.starterName"),
     },
     {
       value: "run:task_owner",
       label: translate("library.editor.notify.who.taskOwner"),
+      name: translate("library.editor.notify.who.taskOwnerName"),
     },
     ...(groups?.groups ?? []).map((group) => ({
       value: `group:${group.id}`,
+      name: group.name,
       label: translate("library.editor.notify.who.group", {
         name: group.name,
         count: group.memberCount,
@@ -33,6 +38,7 @@ export function notifyChoices(
     })),
     ...(groups?.fromRoles ?? []).map((role) => ({
       value: `role:${role.roleKey}`,
+      name: role.name,
       label: translate("library.editor.notify.who.group", {
         name: role.name,
         count: role.memberCount,
@@ -50,7 +56,8 @@ export function whoName(
   choices: readonly NotifyChoice[],
   translate: Translate,
 ): string {
-  return choices.find((choice) => choice.value === who)?.label ??
+  const found = choices.find((choice) => choice.value === who);
+  return found?.name ?? found?.label ??
     translate("library.editor.notify.who.gone");
 }
 

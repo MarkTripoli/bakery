@@ -7681,5 +7681,7 @@
   "library.editor.notify.problem.from": "⟪Choose the document to review.⟫",
   "library.editor.notify.problem.fromGone": "⟪That step is gone or comes later. Choose another document.⟫",
   "library.editor.notify.problem.nextEmpty": "⟪Choose who is asked next, or turn this off.⟫",
-  "library.editor.notify.problem.nextSame": "⟪Choose someone different from the first person asked.⟫"
+  "library.editor.notify.problem.nextSame": "⟪Choose someone different from the first person asked.⟫",
+  "library.editor.notify.who.starterName": "⟪the person who started the run⟫",
+  "library.editor.notify.who.taskOwnerName": "⟪the person who created the work item⟫"
 }

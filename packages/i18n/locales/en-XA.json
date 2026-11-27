@@ -7681,5 +7681,7 @@
   "library.editor.notify.problem.from": "⟦Çĥôôšë ŧĥë ðôçûɱëñŧ ŧô ŕëṽïëŵ. ŧëšŧ çôþ⟧",
   "library.editor.notify.problem.fromGone": "⟦Ŧĥàŧ šŧëþ ïš ĝôñë ôŕ çôɱëš ļàŧëŕ. Çĥôôšë àñôŧĥëŕ ðôçûɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "library.editor.notify.problem.nextEmpty": "⟦Çĥôôšë ŵĥô ïš àšķëð ñëẋŧ, ôŕ ŧûŕñ ŧĥïš ôƒƒ. ŧëšŧ çôþÿ ŧëš⟧",
-  "library.editor.notify.problem.nextSame": "⟦Çĥôôšë šôɱëôñë ðïƒƒëŕëñŧ ƒŕôɱ ŧĥë ƒïŕšŧ þëŕšôñ àšķëð. ŧëšŧ çôþÿ ŧëšŧ ç⟧"
+  "library.editor.notify.problem.nextSame": "⟦Çĥôôšë šôɱëôñë ðïƒƒëŕëñŧ ƒŕôɱ ŧĥë ƒïŕšŧ þëŕšôñ àšķëð. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "library.editor.notify.who.starterName": "⟦ŧĥë þëŕšôñ ŵĥô šŧàŕŧëð ŧĥë ŕûñ ŧëšŧ çôþ⟧",
+  "library.editor.notify.who.taskOwnerName": "⟦ŧĥë þëŕšôñ ŵĥô çŕëàŧëð ŧĥë ŵôŕķ ïŧëɱ ŧëšŧ çôþÿŧ⟧"
 }
