@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import { type HTMLAttributes, type ReactNode, useEffect, useRef } from "react";
 import type { SemanticNativeProps } from "../foundations/semantic-native-props.ts";
 import "../feedback.css";
 
@@ -25,6 +25,20 @@ export function Toast(
     ...props
   }: ToastProps,
 ) {
+  const floating = placement === "floating" && state !== "dismissed";
+  const toast = useRef<HTMLDivElement>(null);
+  const room = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const shown = toast.current;
+    const held = room.current;
+    if (!floating || shown === null || held === null) return;
+    const reserve = new ResizeObserver(() => {
+      const below = globalThis.innerHeight - shown.getBoundingClientRect().top;
+      held.style.setProperty("min-block-size", `${Math.ceil(below)}px`);
+    });
+    reserve.observe(shown);
+    return () => reserve.disconnect();
+  }, [floating]);
   if (state === "dismissed") {
     return (
       <div
@@ -38,8 +52,9 @@ export function Toast(
       />
     );
   }
-  return (
+  const message = (
     <div
+      ref={toast}
       aria-busy={state === "entering" || undefined}
       className={["ui-toast", `ui-toast--${tone}`].filter(Boolean).join(" ")}
       role={tone === "error" ? "alert" : "status"}
@@ -65,4 +80,12 @@ export function Toast(
         : null}
     </div>
   );
+  return floating
+    ? (
+      <>
+        <div aria-hidden="true" className="ui-toast-room" ref={room} />
+        {message}
+      </>
+    )
+    : message;
 }

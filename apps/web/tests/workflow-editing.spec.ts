@@ -28,7 +28,7 @@ async function editor(
     }],
   });
   await page.goto(EDIT);
-  await expect(page.locator("[data-card='implement']")).toBeVisible();
+  await expect(page.locator(`[data-card='${steps[0]!.id}']`)).toBeVisible();
   const saved = () => {
     const sent = seen.draftSaves.at(-1)?.body as {
       definition?: { steps?: { id: string }[] };
@@ -68,6 +68,29 @@ test("Alt with an arrow moves a block, Delete removes it, and undo and redo foll
   await expect.poll(saved).toEqual(["research", "implement", "review"]);
   await page.keyboard.press("Control+Shift+z");
   await expect.poll(saved).toEqual(["research", "review"]);
+});
+
+test("on a phone a floating message never hides the last step's +", async ({ page }) => {
+  test.skip(page.viewportSize()!.width > 743, "the phone list is what scrolls");
+  await editor(
+    page,
+    Array.from({ length: 8 }, (_, index) => ({
+      id: `research_${index}`,
+      uses: "rpi.research",
+    })),
+  );
+  await block(page, "research_0").focus();
+  await page.keyboard.press("Delete");
+  const message = page.locator('[data-ui-component="toast"]');
+  await expect(message).toBeVisible();
+  const lastAdd = page.locator("[data-connector]").last();
+  await expect.poll(async () => {
+    await page.mouse.wheel(0, 4000);
+    const add = (await lastAdd.boundingBox())!;
+    const shown = (await message.boundingBox())!;
+    return add.y + add.height <= shown.y;
+  }).toBe(true);
+  await still(page, "editor-toast-room");
 });
 
 test("the keys leave a step written in code alone", async ({ page }) => {
