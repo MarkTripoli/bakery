@@ -24,10 +24,15 @@ export const APP_ID = "A0TESTAPP";
 
 type SlackCall = { url: string; body: string; authorization: string | null };
 
-export function fakeSlack(options: { tokenOk?: boolean } = {}) {
+export function fakeSlack(
+  options: { tokenOk?: boolean; tokenResponse?: Record<string, unknown> } = {},
+) {
   const calls: SlackCall[] = [];
   const issued = { token: BOT_TOKEN };
-  const answers: { authTest: (() => Response) | null } = { authTest: null };
+  const answers: {
+    authTest: (() => Response) | null;
+    tokenResponse: Record<string, unknown>;
+  } = { authTest: null, tokenResponse: options.tokenResponse ?? {} };
   const respond = (input: URL, init: RequestInit): Response => {
     const headers = new Headers(init.headers);
     const body = init.body instanceof URLSearchParams
@@ -54,6 +59,7 @@ export function fakeSlack(options: { tokenOk?: boolean } = {}) {
         team: { id: TEAM_ID, name: "Test Workspace" },
         enterprise: null,
         authed_user: { id: "U0TESTUSER" },
+        ...answers.tokenResponse,
       });
     }
     if (input.href === "https://slack.com/api/auth.test") {
