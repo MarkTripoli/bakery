@@ -8,7 +8,9 @@ import { useConnectivity } from "../app/connectivity.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import { useSession } from "../app/session-context.tsx";
+import type { SlackLinkNotice } from "../screens/LinkedSlackSection.tsx";
 import { SecurityHubScreen } from "../screens/SecurityHubScreen.tsx";
+import { LinkedSlackAccounts } from "./LinkedSlackAccounts.tsx";
 
 /**
  * The full security hub: identity and two-factor state come from the
@@ -16,7 +18,10 @@ import { SecurityHubScreen } from "../screens/SecurityHubScreen.tsx";
  * stays read-only; every change happens on the page its row links to.
  */
 export function SecurityHubPage(
-  { confirmed }: { readonly confirmed: boolean },
+  { confirmed, slackResult }: {
+    readonly confirmed: boolean;
+    readonly slackResult: SlackLinkNotice | null;
+  },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -44,6 +49,7 @@ export function SecurityHubPage(
       confirmed={confirmed}
       displayName={identity.displayName}
       email={identity.email}
+      linkedAccounts={<LinkedSlackAccounts result={slackResult} />}
       onRefresh={refetch}
       onReload={refetch}
       onRetry={refetch}

@@ -83,6 +83,7 @@ function fakeApi(
       recipientAccept: rejecting,
       recipientReject: rejecting,
     },
+    mySlackLink: { get: rejecting, start: rejecting, unlink: rejecting },
     browserSessions: {
       list: rejecting,
       revoke: rejecting,
