@@ -974,7 +974,13 @@ export async function createRunCommand(
     undefined,
     false,
   );
-  await lockApplication(transaction, organizationId, taskScope.application_id);
+  if (taskScope.application_id !== null) {
+    await lockApplication(
+      transaction,
+      organizationId,
+      taskScope.application_id,
+    );
+  }
   const task = await loadTaskForAdmission(
     transaction,
     organizationId,

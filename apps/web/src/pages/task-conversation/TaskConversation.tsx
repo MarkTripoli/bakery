@@ -575,8 +575,8 @@ export function TaskConversation(
   const conflictNotice = planPhase === "conflict" ||
     revision?.status === "superseded" || obsoleteNotice !== null;
   const application = useQuery({
-    ...applicationQueryOptions(api, scope, task.applicationId),
-    enabled,
+    ...applicationQueryOptions(api, scope, task.applicationId ?? ""),
+    enabled: enabled && task.applicationId !== null,
   });
   const repository = useQuery({
     ...repositoryQueryOptions(api, scope, task.repositoryId ?? ""),

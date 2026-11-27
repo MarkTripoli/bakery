@@ -91,7 +91,9 @@ export function TaskCoordinationPage(
     task.data
       ? [
         { type: "task", id: taskId },
-        { type: "application", id: task.data.applicationId },
+        ...(task.data.applicationId === null
+          ? []
+          : [{ type: "application" as const, id: task.data.applicationId }]),
       ]
       : [],
     () => refreshRef.current(),

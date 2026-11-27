@@ -272,27 +272,22 @@ function presetPin(preset: WorkflowPresetDefinition): TicketPresetPin {
   };
 }
 
-/**
- * The source's application, or a stated refusal.
- *
- * A task names an application and cannot omit one (tasks.application_id is NOT
- * NULL), so a source with no application cannot admit. 0206 made the source's
- * application optional for providers that verify a webhook with a shared
- * secret; that is enough to read readiness and report it, and not enough to
- * create a task. Refusing here keeps the answer a reason a caller can act on
- * rather than a contract error from deep inside task creation, and it runs
- * before any write so two concurrent attempts store nothing.
- */
-function requireApplication(
-  source: Readonly<{ applicationId: string | null }>,
-): string {
-  if (source.applicationId === null) {
-    throw new StandardError({
-      code: "PRECONDITION_FAILED",
-      params: { reason: "source_application_required" },
-    });
+async function lockAdmissionScope(
+  transaction: PgTransactionClient,
+  source: TicketSource,
+): Promise<void> {
+  if (source.applicationId !== null) {
+    await lockApplication(
+      transaction,
+      source.organizationId,
+      source.applicationId,
+    );
+    return;
   }
-  return source.applicationId;
+  await transaction.query(
+    "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+    [`ticket-source-admission:${source.id}`],
+  );
 }
 
 /**
@@ -801,11 +796,7 @@ async function recordWithin(
     const { report } = await unstored(frame, callerActor);
     return { ticketId: null, report, storedReport: null };
   }
-  await lockApplication(
-    transaction,
-    organizationId,
-    requireApplication(source),
-  );
+  await lockAdmissionScope(transaction, source);
   const existing = await findNonterminalRequest(
     transaction,
     organizationId,
@@ -912,13 +903,6 @@ async function admitWithin(
   };
   // (1) The source, `for share`: pins the policy revision and the delegation.
   const source = await lockSource(transaction, organizationId, call.sourceId);
-  // A task names an application and cannot omit one (tasks.application_id is
-  // NOT NULL), so a source with no application cannot admit. 0206 made the
-  // source's application optional for providers that verify a webhook with a
-  // shared secret; that is enough to read readiness and report it, and not
-  // enough to create a task. Refused here, before any write, so the answer is a
-  // stated reason rather than a contract error from deep inside task creation.
-  requireApplication(source);
   // (2) Live source authority, `for share`, in the order the intake path uses.
   const authority = await sourceAuthority(transaction, source);
   const frame: Frame = {
@@ -940,11 +924,7 @@ async function admitWithin(
     return await unstored(frame, callerActor);
   }
   // (4) The application, before any branch that can write a task or a run.
-  await lockApplication(
-    transaction,
-    organizationId,
-    requireApplication(source),
-  );
+  await lockAdmissionScope(transaction, source);
 
   const existing = await findNonterminalRequest(
     transaction,
@@ -2032,11 +2012,7 @@ async function recheckWithin(
     existing === null ||
     (scope.requestId !== null && existing.id !== scope.requestId)
   ) return nothing;
-  await lockApplication(
-    transaction,
-    organizationId,
-    requireApplication(source),
-  );
+  await lockAdmissionScope(transaction, source);
   let ticket = locked;
   if (prefetch.issue.kind === "present") {
     const resolved = await resolveTicket(frame);
