@@ -66,7 +66,7 @@ Deno.test("an agent's file search shows only files its step's grants cover", () 
         where organization_id = $1 and attempt_id = $2`,
       [fixture.organizationId, assignment.attemptId],
     );
-    for (let index = 0; index < 14; index++) {
+    for (let index = 0; index < 201; index++) {
       const refusedFile = await putFile(
         fixture,
         `/users/${fixture.principalId}/uploads/needle-${index}.txt`,

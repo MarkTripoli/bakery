@@ -472,7 +472,9 @@ export function createFileSearchHandler(
     const afterAtIndex = params.length - 1;
     const afterId = p(position?.id ?? null);
     const afterIdIndex = params.length - 1;
-    const batchSize = Math.max(limit + 1, SCAN_BATCH);
+    const batchSize = context.agentSession === undefined
+      ? limit + 1
+      : Math.max(limit + 1, SCAN_BATCH);
     const pageSize = p(batchSize);
     const branches: string[] = [];
     if (wantFiles) {
