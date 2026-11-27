@@ -9275,6 +9275,56 @@
         }
       ]
     },
+    "OpenPullRequestInput": {
+      "description": "Input to the delivery.openPullRequest workflow action: the pushed branch to open a pull request from, and its title and description. A retried step registers the pull request already open from that branch instead of opening another.",
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Repository to open the pull request in; omitted, the step's own repository."
+        },
+        {
+          "name": "headBranch",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 250
+          },
+          "description": "Branch that holds the changes, already pushed, normally the branch a preceding implement step pushed."
+        },
+        {
+          "name": "baseBranch",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 250
+          },
+          "description": "Branch the changes should merge into; omitted, the repository's default branch."
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "description": "Pull request title GitHub shows."
+        },
+        {
+          "name": "body",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 65536
+          },
+          "description": "Pull request description in Markdown; omitted, empty."
+        }
+      ]
+    },
     "PrepareInput": {
       "description": "Input to the delivery.prepare workflow action: the exact merged commit to turn into a release candidate and the repository profile revision that governs how it is built.",
       "fields": [
@@ -9532,7 +9582,7 @@
       "fields": [
         {
           "name": "actionId",
-          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+          "type": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.openPullRequest|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
           "required": true,
           "description": "Registered workflow action name, for example harness.implement or delivery.candidate_evidence; an unknown name answers not found."
         },
@@ -26974,7 +27024,7 @@
         "modelBillingRequired"
       ],
       "fieldTypes": {
-        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "actionId": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.openPullRequest|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "version": "integer",
         "input": "string",
         "output": "string",
@@ -27019,7 +27069,7 @@
       ],
       "fieldTypes": {
         "stepId": "string",
-        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
+        "action": "enum(rpi.research|rpi.design|rpi.plan|harness.implement|harness.repair|quality.check|review.independent|tool.call|coordination.split|delivery.candidate_evidence|delivery.prepare|delivery.openPullRequest|delivery.merge|delivery.deploy|delivery.health|agent.freeform|workflow.noop|workflow.stop|human.approval|people.tag|artifact.publish|memory.promote|evaluation.sample|evaluation.check|evaluation.score|task.brief|secret.identity.read)",
         "source": "enum(step|workflow|profile|none)",
         "agentVersionId": "uuid|null",
         "revision": "integer|null",

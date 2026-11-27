@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "dfac7ed348849333360522d9cdba9afc0fd3bb5c"
+    "73abaa09134da2dd7bc75b6faff32e31a15cf2ba"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:dbe559d1589e5a88445a2e334848ddd5dc20a7c533fbea35cb50e0acbbbf3d0a",
-  "reason": "#70 machine models read by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main dfac7ed3: adds machines.models and MachineModel.",
+  "targetCompatibilityDigest": "sha256:68e2e4f1029d8d60d39772d0e7d5d178c3962a4829be87e2297c5dd5c87c1c4b",
+  "reason": "#70 machine models read by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 73abaa09: adds machines.models and MachineModel.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "dfac7ed348849333360522d9cdba9afc0fd3bb5c"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1ec459bf5ae9d35a0ed8c4b1ee4b7eab3e4ced338a43c23e26263b19131c87a1",
+      "reason": "#67 delivery.openPullRequest by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main dfac7ed3: adds the delivery.openPullRequest workflow action and OpenPullRequestInput."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
