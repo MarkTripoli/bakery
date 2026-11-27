@@ -6,12 +6,6 @@
  * request, run, merge-entry and usage rows it reads in production. Only the two
  * ports are faked (start and cancel) so each case can say exactly what the
  * supervisor asked for and as whom.
- *
- * Two kinds of row are too heavy to seed honestly (a merge entry needs a pull
- * request and a review cycle, a usage record needs an attempt and a worker). They
- * are inserted by `insertWithoutForeignKeys` as the superuser with foreign keys off,
- * and only the columns the supervisor reads are meaningful. That shortcut is test
- * only and is named so a reader sees it.
  */
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
