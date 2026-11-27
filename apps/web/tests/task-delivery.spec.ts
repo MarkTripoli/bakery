@@ -1003,6 +1003,7 @@ for (
       "This run is no longer waiting for more tries. The page now shows where it is.",
     );
     await expect(page.getByText("Bakery stopped to ask you")).toHaveCount(0);
+    await expect(nowCard(page)).toHaveCount(0);
     await expect(dialog).toBeVisible();
     expect(posted).toHaveLength(posts);
     await still(page, "limit-answered-elsewhere");

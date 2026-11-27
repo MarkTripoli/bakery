@@ -792,6 +792,7 @@ export function TaskRunSection(
       delivery={activeRun && run.data
         ? (
           <DeliverySection
+            key={runId}
             taskId={taskId}
             runId={runId}
             enabled={activeRun}

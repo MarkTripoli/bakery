@@ -1021,7 +1021,7 @@ function ReadyView(
   return (
     <>
       {noticeAbove && mergeNoticeElement}
-      {copy === null ? null : (
+      {copy === null || !model.visible ? null : (
         <UI.AlertBanner
           action={action}
           actionLayout="stretch"
