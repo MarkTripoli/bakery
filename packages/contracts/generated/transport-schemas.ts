@@ -13713,12 +13713,19 @@ const transportSchemas = {
           "type": "secretString",
           "required": true,
           "description": "The OAuth application's client secret. Write-only: it is sealed under the installation key and never returned; saving always replaces the stored secret with this one."
+        },
+        {
+          "name": "signingSecret",
+          "type": "secretString",
+          "required": false,
+          "description": "The secret the provider's app signs the requests it sends Bakery with (Slack's signing secret), accepted only for a provider whose manifest declares a signing_secret field. Write-only: it is sealed under the installation key as the next revision of one installation secret and never returned. Leaving it out keeps the signing secret already saved."
         }
       ],
       "rules": [
-        "clientSecret is write-only and is never returned by any operation, audit row or log."
+        "clientSecret is write-only and is never returned by any operation, audit row or log.",
+        "signingSecret is write-only and is never returned by any operation, audit row or log."
       ],
-      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. Both fields are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree."
+      "description": "Registers or replaces the OAuth client credentials an installation uses to connect organizations to one integration provider. The client ID and secret are required every time: a replacement states the whole pair, so the stored client ID and secret can never disagree. A signing secret is optional and replaced only when sent."
     },
     "McpToolClassificationPut": {
       "fields": [
@@ -36112,18 +36119,21 @@ const transportSchemas = {
         "configured",
         "clientId",
         "clientSecretSavedAt",
+        "signingSecretSavedAt",
         "callbackUrl",
         "version"
       ],
       "nullableFields": [
         "clientId",
-        "clientSecretSavedAt"
+        "clientSecretSavedAt",
+        "signingSecretSavedAt"
       ],
       "fieldTypes": {
         "provider": "string",
         "configured": "boolean",
         "clientId": "string",
         "clientSecretSavedAt": "timestamp",
+        "signingSecretSavedAt": "timestamp",
         "callbackUrl": "uri",
         "version": "integer"
       },
@@ -36133,6 +36143,7 @@ const transportSchemas = {
         "configured": "True once a client ID and secret have been saved for this provider.",
         "clientId": "The registered client ID, or null while nothing is registered.",
         "clientSecretSavedAt": "UTC timestamp at which the current client secret was saved, or null while nothing is registered. A secret is never shown, so this is how an administrator tells it was replaced.",
+        "signingSecretSavedAt": "UTC timestamp at which the current signing secret was saved, or null while none is saved. The signing secret is never shown; this is how an administrator tells one is saved and when it was replaced.",
         "callbackUrl": "The URL to enter in the provider's OAuth application as its callback, derived from this installation's public address.",
         "version": "Registration version: 0 while nothing is registered, then the optimistic-concurrency value to send as If-Match when replacing the credentials."
       }

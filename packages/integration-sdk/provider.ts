@@ -107,6 +107,7 @@ export type {
   CredentialStrategy,
   IntakeIntent,
   OAuth2Profile,
+  SignedEventSource,
   WebhookIngress,
 } from "./src/strategies.ts";
 export type {

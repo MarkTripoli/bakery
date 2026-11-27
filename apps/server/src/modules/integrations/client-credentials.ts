@@ -33,6 +33,7 @@ import { postgresErrorCode } from "../../platform/postgres-errors.ts";
 import { encryptInstallationSecret, loadSecretKey } from "../secrets/crypto.ts";
 import { installationActor } from "./postgres.ts";
 import { PROVIDERS } from "./registry.ts";
+import { adoptRegistrationSigningSecret } from "./slack-receipts.ts";
 
 /**
  * Installation-level OAuth client credentials for any integration provider whose
@@ -86,7 +87,17 @@ type Stored = {
   secretId: string;
   secretRevision: number;
   savedAt: Date | string;
+  signingSecretId: string | null;
+  signingSecretRevision: number | null;
+  signingSecretSavedAt: Date | string | null;
 };
+
+type CredentialProvider = {
+  slug: string;
+  signingSecret: boolean;
+};
+
+const SIGNING_SECRET_FIELD = "signing_secret";
 
 const CLIENT_ID_MAX = 200;
 const CLIENT_SECRET_MAX = 4096;
@@ -107,7 +118,7 @@ function hasControlCharacter(value: string): boolean {
  * Unknown slugs and providers that ask for something other than the OAuth pair
  * answer the same way, so the response never says which providers exist.
  */
-function credentialProvider(slug: string | undefined): string {
+function credentialProvider(slug: string | undefined): CredentialProvider {
   const provider = slug === undefined ? undefined : PROVIDERS.get(slug);
   const registration = provider?.manifest.appRegistration ?? null;
   if (provider === undefined || registration === null) {
@@ -119,11 +130,17 @@ function credentialProvider(slug: string | undefined): string {
   const byId = new Map(registration.fields.map((field) => [field.id, field]));
   const clientId = byId.get("client_id");
   const clientSecret = byId.get("client_secret");
+  const signingSecret = byId.get(SIGNING_SECRET_FIELD);
+  const expected = signingSecret === undefined ? 2 : 3;
   if (
-    byId.size !== 2 || clientId === undefined || clientSecret === undefined ||
-    clientId.secret || !clientSecret.secret
+    byId.size !== expected || clientId === undefined ||
+    clientSecret === undefined || clientId.secret || !clientSecret.secret ||
+    (signingSecret !== undefined && !signingSecret.secret)
   ) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  return provider.manifest.slug;
+  return {
+    slug: provider.manifest.slug,
+    signingSecret: signingSecret !== undefined,
+  };
 }
 
 export function providerCallbackUrl(
@@ -132,6 +149,9 @@ export function providerCallbackUrl(
 ): string {
   return new URL(`/v1/integration-auth/${slug}/callback`, publicBaseUrl).href;
 }
+
+const isoOrNull = (value: Date | string | null | undefined) =>
+  value === null || value === undefined ? null : new Date(value).toISOString();
 
 function projection(
   slug: string,
@@ -145,6 +165,7 @@ function projection(
     clientSecretSavedAt: stored === null
       ? null
       : new Date(stored.savedAt).toISOString(),
+    signingSecretSavedAt: isoOrNull(stored?.signingSecretSavedAt),
     callbackUrl: providerCallbackUrl(slug, publicBaseUrl),
     version: stored?.version ?? 0,
   };
@@ -162,10 +183,16 @@ export async function readStoredClientCredentials(
     secret_id: string;
     revision: number;
     saved_at: Date | string;
+    signing_secret_id: string | null;
+    signing_revision: number | null;
+    signing_saved_at: Date | string | null;
   }>(
     `select registration.id, registration.client_id, registration.version,
             secret.id as secret_id, secret.active_version_revision as revision,
-            secret_version.created_at as saved_at
+            secret_version.created_at as saved_at,
+            signing.id as signing_secret_id,
+            signing.active_version_revision as signing_revision,
+            signing_version.created_at as signing_saved_at
        from bakery.integration_app_registrations as registration
        join bakery.secrets as secret
          on secret.id = registration.client_secret_id
@@ -173,6 +200,12 @@ export async function readStoredClientCredentials(
        join bakery.secret_versions as secret_version
          on secret_version.id = secret.active_version_id
         and secret_version.secret_id = secret.id
+       left join bakery.secrets as signing
+         on signing.id = registration.webhook_secret_id
+        and signing.organization_id is null and signing.application_id is null
+       left join bakery.secret_versions as signing_version
+         on signing_version.id = signing.active_version_id
+        and signing_version.secret_id = signing.id
       where registration.provider = $1${
       options.lock ? "\n        for update of registration" : ""
     }`,
@@ -187,6 +220,9 @@ export async function readStoredClientCredentials(
     secretId: row.secret_id,
     secretRevision: row.revision,
     savedAt: row.saved_at,
+    signingSecretId: row.signing_secret_id,
+    signingSecretRevision: row.signing_revision,
+    signingSecretSavedAt: row.signing_saved_at,
   };
 }
 
@@ -200,7 +236,7 @@ export async function getClientCredentials(
   dependencies: Dependencies,
 ): Promise<Credentials> {
   const { context: value } = installationActor(context);
-  const slug = credentialProvider(context.params.provider);
+  const { slug } = credentialProvider(context.params.provider);
   return projection(
     slug,
     await readStoredClientCredentials(value.transaction, slug),
@@ -221,7 +257,8 @@ export async function putClientCredentials(
   const { context: value, actor } = installationActor(context);
   const principalId = actor.subject.principalId;
   const transaction = value.transaction;
-  const slug = credentialProvider(context.params.provider);
+  const provider = credentialProvider(context.params.provider);
+  const slug = provider.slug;
 
   const clientId = input.clientId;
   if (
@@ -229,10 +266,18 @@ export async function putClientCredentials(
     clientId !== clientId.trim() || hasControlCharacter(clientId)
   ) throw unprocessable(["clientId"], "invalid_client_id");
   const clientSecret = input.clientSecret;
-  if (
-    clientSecret.length === 0 || clientSecret.length > CLIENT_SECRET_MAX ||
-    clientSecret !== clientSecret.trim() || hasControlCharacter(clientSecret)
-  ) throw unprocessable(["clientSecret"], "invalid_client_secret");
+  if (!isAcceptableSecret(clientSecret)) {
+    throw unprocessable(["clientSecret"], "invalid_client_secret");
+  }
+  const signingSecret = input.signingSecret;
+  if (signingSecret !== undefined) {
+    if (!provider.signingSecret) {
+      throw unprocessable(["signingSecret"], "signing_secret_not_supported");
+    }
+    if (!isAcceptableSecret(signingSecret)) {
+      throw unprocessable(["signingSecret"], "invalid_signing_secret");
+    }
+  }
 
   const expectedVersion = requireCommandMetadata(context).expectedVersion;
   const stored = await readStoredClientCredentials(transaction, slug, {
@@ -246,27 +291,136 @@ export async function putClientCredentials(
       throw new StandardError({ code: "PRECONDITION_FAILED" });
     }
   } else if (expectedVersion !== undefined) {
-    // Nothing is registered, so there is no version to hold the caller to.
     throw new StandardError({ code: "PRECONDITION_FAILED" });
   }
 
   const key = await loadSecretKey(dependencies.secretsKey);
-  const keyId = dependencies.secretsKey!.keyId;
-  const secretId = stored?.secretId ?? crypto.randomUUID();
-  const revision = stored === null ? 1 : stored.secretRevision + 1;
+  const sealer = {
+    transaction,
+    key,
+    keyId: dependencies.secretsKey!.keyId,
+    slug,
+    principalId,
+  };
+  const secretId = await sealRevision(sealer, {
+    current: stored === null
+      ? null
+      : { secretId: stored.secretId, revision: stored.secretRevision },
+    name: `${slug} client secret`,
+    plaintext: clientSecret,
+  });
+  const signingSecretId = signingSecret === undefined
+    ? stored?.signingSecretId ?? null
+    : await sealRevision(sealer, {
+      current: stored?.signingSecretId == null ? null : {
+        secretId: stored.signingSecretId,
+        revision: stored.signingSecretRevision ?? 0,
+      },
+      name: `${slug} signing secret`,
+      plaintext: signingSecret,
+    });
+
+  let registrationId: string;
+  if (stored === null) {
+    registrationId = crypto.randomUUID();
+    try {
+      await transaction.query(
+        `insert into bakery.integration_app_registrations (
+           id, provider, name, client_id, client_secret_id, webhook_secret_id,
+           status, registered_by
+         ) values ($1, $2, $3, $4, $5, $6, 'registered', $7)`,
+        [
+          registrationId,
+          slug,
+          slug,
+          clientId,
+          secretId,
+          signingSecretId,
+          principalId,
+        ],
+      );
+    } catch (error) {
+      if (postgresErrorCode(error) === POSTGRES_UNIQUE_VIOLATION) {
+        throw new StandardError({ code: "PRECONDITION_FAILED" });
+      }
+      throw error;
+    }
+  } else {
+    registrationId = stored.id;
+    const updated = await transaction.query(
+      `update bakery.integration_app_registrations
+          set client_id = $3, webhook_secret_id = $4, updated_at = now(),
+              version = version + 1
+        where provider = $1 and version = $2`,
+      [slug, stored.version, clientId, signingSecretId],
+    );
+    if (updated.rowCount !== 1) {
+      throw new StandardError({ code: "PRECONDITION_FAILED" });
+    }
+  }
+
+  const adopted = signingSecretId !== null && stored?.signingSecretId == null
+    ? await adoptRegistrationSigningSecret(transaction, {
+      registrationId,
+      signingSecretId,
+    })
+    : 0;
+  const saved = await readStoredClientCredentials(transaction, slug);
+  await recordAuthAudit(transaction, value, {
+    organizationId: null,
+    principalId,
+    operation: Action.IntegrationClientCredentialsPut,
+    resourceType: "integration_client_credentials",
+    resourceId: registrationId,
+    details: {
+      provider: slug,
+      replaced: stored !== null,
+      secretRevision: saved?.secretRevision ?? null,
+      signingSecretReplaced: signingSecret !== undefined,
+      signingSecretRevision: saved?.signingSecretRevision ?? null,
+      signedEventSourcesAdopted: adopted,
+      version: saved?.version ?? null,
+    },
+  });
+  return projection(slug, saved, dependencies.publicBaseUrl);
+}
+
+function isAcceptableSecret(value: string): boolean {
+  return value.length > 0 && value.length <= CLIENT_SECRET_MAX &&
+    value === value.trim() && !hasControlCharacter(value);
+}
+
+type Sealer = {
+  transaction: ActionContextTransaction;
+  key: Awaited<ReturnType<typeof loadSecretKey>>;
+  keyId: string;
+  slug: string;
+  principalId: string;
+};
+
+async function sealRevision(
+  sealer: Sealer,
+  secret: {
+    current: { secretId: string; revision: number } | null;
+    name: string;
+    plaintext: string;
+  },
+): Promise<string> {
+  const { transaction, key, keyId, slug, principalId } = sealer;
+  const secretId = secret.current?.secretId ?? crypto.randomUUID();
+  const revision = secret.current === null ? 1 : secret.current.revision + 1;
   const cipher = await encryptInstallationSecret(
     key,
     { secretId, revision, keyId },
-    clientSecret,
+    secret.plaintext,
   );
   const versionId = crypto.randomUUID();
-
-  if (stored === null) {
+  if (secret.current === null) {
     await transaction.query(
       `insert into bakery.secrets (id, organization_id, application_id, name,
          provider, allowed_principals, allowed_actions)
        values ($1, null, null, $2, $3, '[]'::jsonb, '[]'::jsonb)`,
-      [secretId, `${slug} client secret`, slug],
+      [secretId, secret.name, slug],
     );
   }
   await transaction.query(
@@ -284,7 +438,7 @@ export async function putClientCredentials(
     ],
   );
   await transaction.query(
-    stored === null
+    secret.current === null
       ? `update bakery.secrets set active_version_id = $2
           where id = $1 and organization_id is null and application_id is null`
       : `update bakery.secrets set active_version_id = $2,
@@ -292,56 +446,13 @@ export async function putClientCredentials(
            invalidation_generation = invalidation_generation + 1,
            version = version + 1, updated_at = now()
           where id = $1 and organization_id is null and application_id is null`,
-    stored === null ? [secretId, versionId] : [secretId, versionId, revision],
+    secret.current === null ? [secretId, versionId] : [
+      secretId,
+      versionId,
+      revision,
+    ],
   );
-
-  let registrationId: string;
-  if (stored === null) {
-    registrationId = crypto.randomUUID();
-    try {
-      await transaction.query(
-        `insert into bakery.integration_app_registrations (
-           id, provider, name, client_id, client_secret_id, status, registered_by
-         ) values ($1, $2, $3, $4, $5, 'registered', $6)`,
-        [registrationId, slug, slug, clientId, secretId, principalId],
-      );
-    } catch (error) {
-      // A concurrent first save won the one-row-per-provider key.
-      if (postgresErrorCode(error) === POSTGRES_UNIQUE_VIOLATION) {
-        throw new StandardError({ code: "PRECONDITION_FAILED" });
-      }
-      throw error;
-    }
-  } else {
-    registrationId = stored.id;
-    const updated = await transaction.query(
-      `update bakery.integration_app_registrations
-          set client_id = $3, updated_at = now(), version = version + 1
-        where provider = $1 and version = $2`,
-      [slug, stored.version, clientId],
-    );
-    if (updated.rowCount !== 1) {
-      throw new StandardError({ code: "PRECONDITION_FAILED" });
-    }
-  }
-
-  const saved = await readStoredClientCredentials(transaction, slug);
-  // The provider, the replaced flag and revision numbers only: never the client
-  // secret, its ciphertext, the key id or the secret record id.
-  await recordAuthAudit(transaction, value, {
-    organizationId: null,
-    principalId,
-    operation: Action.IntegrationClientCredentialsPut,
-    resourceType: "integration_client_credentials",
-    resourceId: registrationId,
-    details: {
-      provider: slug,
-      replaced: stored !== null,
-      secretRevision: saved?.secretRevision ?? null,
-      version: saved?.version ?? null,
-    },
-  });
-  return projection(slug, saved, dependencies.publicBaseUrl);
+  return secretId;
 }
 
 export function createClientCredentialsActionRegistry(

@@ -1,13 +1,33 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a6a33fa18fb838e462f67f831e0892b0fbaca861"
+    "f9c1ef1f9240a85230080f1eddeb53537d515762"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:69dc7039ce4346b5f82d2c89a7b45be58d3a300179d75760d33cfabcb07708f2",
-  "reason": "#458 run-page lines by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main a6a33fa18fb838e462f67f831e0892b0fbaca861: RunRequest gains nextAsk (RunRequestNextAsk: dueAt, askedAt, who) and passedOn, read-only fields that say whom a waiting step asks next and when, and mark the request that next ask made.",
+  "targetCompatibilityDigest": "sha256:a667b25c30640cc23b2e5478b7a8f3022065d774392eacaad3b2f683939aff50",
+  "reason": "#458 Slack signing secret by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main f9c1ef1f9240a85230080f1eddeb53537d515762: IntegrationClientCredentials gains a required, nullable signingSecretSavedAt (when the provider app's signing secret was saved, never the secret) and IntegrationClientCredentialsPut gains an optional write-only signingSecret, so Slack's signing secret is configured in the UI with the app registration. The web client and its test mocks in this PR carry the field.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "d041b89b69a41894e7a059daf3834debc662e09a"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:73834fa4bcbc8621befaf608164a4e3b65e638e330df12d01475e21f437ca44d",
+      "reason": "#458 Slack signing secret by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main d041b89b69a41894e7a059daf3834debc662e09a: IntegrationClientCredentials gains a required, nullable signingSecretSavedAt (when the provider app's signing secret was saved, never the secret) and IntegrationClientCredentialsPut gains an optional write-only signingSecret, so Slack's signing secret is configured in the UI with the app registration. The web client and its test mocks in this PR carry the field."
+    },
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "a6a33fa18fb838e462f67f831e0892b0fbaca861"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:69dc7039ce4346b5f82d2c89a7b45be58d3a300179d75760d33cfabcb07708f2",
+      "reason": "#458 run-page lines by dev-server on 2026-11-26 under the owner's standing breaking-change authorization (2026-10-09), main a6a33fa18fb838e462f67f831e0892b0fbaca861: RunRequest gains nextAsk (RunRequestNextAsk: dueAt, askedAt, who) and passedOn, read-only fields that say whom a waiting step asks next and when, and mark the request that next ask made."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [
