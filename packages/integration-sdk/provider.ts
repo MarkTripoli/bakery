@@ -103,6 +103,7 @@ export type {
   ConnectedResource,
   ConnectedResourceGrant,
   ConnectedResourceInput,
+  ConnectRefusal,
   ConnectStrategy,
   CredentialStrategy,
   IntakeIntent,
