@@ -35,6 +35,7 @@ import {
   isOAuth2Profile,
   type OAuth2Fetch,
 } from "./oauth2-connect.ts";
+import { SCOPES_MISSING } from "./connection-problems.ts";
 import { PROVIDERS } from "./registry.ts";
 import { GITHUB_PROVIDER, type IntegrationsDependencies } from "./postgres.ts";
 import {
@@ -58,6 +59,7 @@ export const CheckProblem = Object.freeze(
     /** GitHub refused the token's read for want of permission (403). */
     PermissionLost: "permission_lost",
     DependencyUnavailable: "dependency_unavailable",
+    ScopesMissing: SCOPES_MISSING,
   } as const,
 );
 export type CheckProblem = (typeof CheckProblem)[keyof typeof CheckProblem];
@@ -292,12 +294,18 @@ export async function checkConnection(
     current.version !== result.expectedVersion ||
     current.installationExternalId !== result.installationExternalId
   ) throw connectionChanged();
-  const health = result.health ?? current.health;
+  const scopesStillMissing = current.lastProblemCode ===
+      CheckProblem.ScopesMissing && result.health === "healthy";
+  const health = scopesStillMissing
+    ? "degraded"
+    : result.health ?? current.health;
   // A probe that could not complete proves nothing about a recorded
   // permission loss: it stays recorded, so the next 403 does not request
   // discovery a second time for the same loss.
   const lost = current.lastProblemCode === CheckProblem.PermissionLost;
-  const problem = !result.completed && lost
+  const problem = scopesStillMissing
+    ? CheckProblem.ScopesMissing
+    : !result.completed && lost
     ? CheckProblem.PermissionLost
     : result.problem;
   // Only a check stores permission_lost, and it queues a discovery when it

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SCOPES_MISSING } from "./connection-problems.ts";
 import type {
   ActionContext,
   ActionDefinition,
@@ -248,13 +249,20 @@ export function bearerRequestPort(
   };
 }
 
+export function grantedScopeNames(
+  profile: OAuth2Profile,
+  granted: GrantedTokens,
+): string[] {
+  return granted.scope === undefined
+    ? [...profile.scopes]
+    : granted.scope.split(/[ ,]+/).filter((scope) => scope.length > 0);
+}
+
 export function grantedScopes(
   profile: OAuth2Profile,
   granted: GrantedTokens,
 ): Record<string, PermissionLevel> {
-  const scopes = granted.scope === undefined
-    ? [...profile.scopes]
-    : granted.scope.split(/[ ,]+/).filter((scope) => scope.length > 0);
+  const scopes = grantedScopeNames(profile, granted);
   const permissions = new Map<string, PermissionLevel>();
   for (const scope of scopes) {
     const separator = scope.indexOf(":");
@@ -341,6 +349,8 @@ export type OAuth2BindingPreparation = Readonly<{
   registrationId: string;
   identity: Pick<Identity, "externalAccountId" | "accountLabel">;
   grantedPermissions: Readonly<Record<string, string>>;
+  grantedScopeNames: readonly string[];
+  scopesMissing: boolean;
   secretSlots: string;
   connectedResource: ConnectedResource | null;
 }>;
@@ -516,6 +526,7 @@ export function createOAuth2CallbackRunner(
         error,
       );
     }
+    const scopeNamesGranted = grantedScopeNames(provider.profile, granted);
     const prepared: OAuth2BindingPreparation = {
       connectedResource,
       attemptId: claim.id,
@@ -526,6 +537,10 @@ export function createOAuth2CallbackRunner(
         accountLabel: identity.accountLabel,
       },
       grantedPermissions: grantedScopes(provider.profile, granted),
+      grantedScopeNames: scopeNamesGranted,
+      scopesMissing: provider.profile.scopes.some((scope) =>
+        !scopeNamesGranted.includes(scope)
+      ),
       secretSlots: encodeSecretSlots({
         access_token: granted.access_token,
         ...(granted.refresh_token === undefined
@@ -621,6 +636,9 @@ export async function bindOAuth2Connection(
   const accountId = prepared.identity.externalAccountId;
   const label = prepared.identity.accountLabel;
   const permissions = JSON.stringify(prepared.grantedPermissions);
+  const scopeNames = [...prepared.grantedScopeNames];
+  const health = prepared.scopesMissing ? "degraded" : "unknown";
+  const problem = prepared.scopesMissing ? SCOPES_MISSING : null;
 
   if (attempt.reconnectConnectionId !== null) {
     const target = await transaction.query<
@@ -669,9 +687,10 @@ export async function bindOAuth2Connection(
     `insert into bakery.integration_connections (
        id, organization_id, provider, installation_id,
        external_authorization_id, external_account_id, label,
-       adapter_version, granted_permissions, status, health, created_by
-     ) values ($1, $2, $3, $4, $5, $5, $6, $7, $8::jsonb, 'enabled',
-       'unknown', $9)
+       adapter_version, granted_permissions, granted_scope_names, status,
+       health, last_problem_code, created_by
+     ) values ($1, $2, $3, $4, $5, $5, $6, $7, $8::jsonb, $10::text[],
+       'enabled', $11, $12, $9)
      on conflict (organization_id, installation_id) where archived_at is null
      do nothing
      returning id`,
@@ -685,6 +704,9 @@ export async function bindOAuth2Connection(
       `${provider}@oauth2`,
       permissions,
       attempt.initiatingPrincipalId,
+      scopeNames,
+      health,
+      problem,
     ],
   );
   const created = connection.rows[0];
@@ -714,12 +736,21 @@ export async function bindOAuth2Connection(
     >(
       `update bakery.integration_connections
           set label = $3, granted_permissions = $4::jsonb,
+              granted_scope_names = $5::text[],
               authorization_revision = authorization_revision + 1,
-              status = 'enabled', health = 'unknown',
+              status = 'enabled', health = $6, last_problem_code = $7,
               version = version + 1, updated_at = now()
         where organization_id = $1 and id = $2
         returning version, authorization_revision as "authorizationRevision"`,
-      [attempt!.organizationId, connectionId, label, permissions],
+      [
+        attempt!.organizationId,
+        connectionId,
+        label,
+        permissions,
+        scopeNames,
+        health,
+        problem,
+      ],
     );
     const updated = refreshed.rows[0];
     if (updated === undefined) throw new StandardError({ code: "INTERNAL" });

@@ -27,6 +27,7 @@ const connectionColumns = `connection.id, connection.provider,
   connection.label, connection.external_account_id as "externalAccountId",
   connection.config, connection.secret_id as "secretId",
   connection.granted_permissions as "grantedScopes",
+  connection.granted_scope_names as "grantedScopeNames",
   connection.status, connection.health,
   to_char(connection.last_checked_at at time zone 'UTC', ${TIMESTAMP})
     as "lastCheckedAt",
@@ -66,15 +67,12 @@ const connectionProjection = `select ${connectionColumns}
 
 type ConnectionRow = Omit<Connection, "status"> & {
   status: string;
-  health: string;
 };
 
-function toConnection(
-  { health, ...connection }: ConnectionRow,
-): Connection {
+function toConnection(connection: ConnectionRow): Connection {
   return contractSchemas.IntegrationConnection.parse({
     ...connection,
-    status: connectionStatus(connection.status, health),
+    status: connectionStatus(connection.status, connection.health),
   });
 }
 
