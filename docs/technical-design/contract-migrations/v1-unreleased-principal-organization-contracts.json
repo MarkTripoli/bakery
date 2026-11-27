@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "30c5ed55c9dea4d74f941f74a9bd4462f517fd0f"
+    "733031570eec6033bf1a00ef70efe0f8b6bdd5b5"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:9b65c56c63f5da75bdbc39b9f6df85df27e2269894d48b2d8a4e4893027c7c80",
-  "reason": "#57 merge requester by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 30c5ed55: MergeEntry gains requestedBy and requestedByName.",
+  "reason": "#57 merge requester by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 73303157: MergeEntry gains requestedBy and requestedByName.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",

@@ -884,7 +884,7 @@ Deno.test("CheckOutput field descriptions say what each field means before they 
 
 Deno.test("compatibility migration approves only its exact generated delta", () => {
   const approvedBases = [
-    "30c5ed55c9dea4d74f941f74a9bd4462f517fd0f",
+    "733031570eec6033bf1a00ef70efe0f8b6bdd5b5",
   ];
   const approvedDigest =
     "sha256:9b65c56c63f5da75bdbc39b9f6df85df27e2269894d48b2d8a4e4893027c7c80";
