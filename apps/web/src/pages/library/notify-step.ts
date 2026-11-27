@@ -76,6 +76,18 @@ function recipientInput(who: string): Record<string, string> {
   };
 }
 
+function textOf(value: unknown): string | null {
+  if (value === undefined) return "";
+  if (typeof value === "string") return value.startsWith("$") ? null : value;
+  return isPlainObject(value) && Object.keys(value).join() === "$literal" &&
+      typeof value.$literal === "string"
+    ? value.$literal
+    : null;
+}
+
+const namesNobody = (input: Record<string, unknown>): boolean =>
+  Object.values(RECIPIENT_KEYS).every((key) => input[key] === undefined);
+
 function nextOf(value: unknown): NotifyNext | null | undefined {
   if (value === undefined) return null;
   if (
@@ -84,7 +96,7 @@ function nextOf(value: unknown): NotifyNext | null | undefined {
   ) {
     return undefined;
   }
-  const who = recipientOf(value);
+  const who = namesNobody(value) ? "" : recipientOf(value);
   const after = value.afterHours ?? DEFAULT_AFTER_HOURS;
   return who === null || typeof after !== "number" ? undefined : { after, who };
 }
@@ -102,7 +114,7 @@ export function notifyOfNode(
   }
   const who = recipientOf(input);
   const need = input.intent;
-  const note = input.note ?? "";
+  const note = textOf(input.note);
   const wait = input.wait ?? false;
   const next = nextOf(input.ifNobodyAnswers);
   const reference = input.artifactVersionId;
@@ -111,8 +123,7 @@ export function notifyOfNode(
     : undefined;
   if (
     who === null || (need !== "fyi" && need !== "review") ||
-    typeof note !== "string" || note.startsWith("$") ||
-    typeof wait !== "boolean" || next === undefined ||
+    note === null || typeof wait !== "boolean" || next === undefined ||
     (reference !== undefined && from === undefined)
   ) {
     return null;
@@ -128,11 +139,13 @@ export function notifyInput(fields: NotifyFields): Record<string, unknown> {
     ...(fields.need === "review" && fields.from !== ""
       ? { artifactVersionId: `$step.${fields.from}.artifact.versionId` }
       : {}),
-    ...(fields.note.trim() === "" || fields.note.includes("$")
-      ? {}
-      : { note: fields.note }),
+    ...(fields.note.trim() === "" ? {} : {
+      note: fields.note.startsWith("$")
+        ? { $literal: fields.note }
+        : fields.note,
+    }),
     ...(waits ? { wait: true } : {}),
-    ...(waits && fields.next !== null && fields.next.who !== ""
+    ...(waits && fields.next !== null
       ? {
         ifNobodyAnswers: {
           afterHours: fields.next.after,
@@ -186,6 +199,55 @@ export type PlacedStep = Readonly<
 
 export const documentKey = (step: PlacedStep): string =>
   step.list === undefined ? step.id : `${step.list}.${step.id}`;
+
+export type NotifyDirectory = Readonly<{
+  people: ReadonlySet<string> | null;
+  groups: ReadonlyMap<string, number> | null;
+}>;
+
+export type NotifyWarning = Readonly<{
+  field: "who" | "next";
+  kind: "personGone" | "groupGone" | "groupEmpty";
+  who: string;
+}>;
+
+function warningOf(
+  who: string,
+  directory: NotifyDirectory,
+): NotifyWarning["kind"] | null {
+  const at = who.indexOf(":");
+  const kind = who.slice(0, at);
+  if (kind === "person") {
+    return directory.people === null ||
+        directory.people.has(who.slice(at + 1))
+      ? null
+      : "personGone";
+  }
+  if (kind !== "group" && kind !== "role") return null;
+  if (directory.groups === null) return null;
+  const members = directory.groups.get(who);
+  return members === undefined
+    ? "groupGone"
+    : members === 0
+    ? "groupEmpty"
+    : null;
+}
+
+export function notifyWarnings(
+  fields: NotifyFields,
+  directory: NotifyDirectory,
+): readonly NotifyWarning[] {
+  const asked: readonly (readonly [NotifyWarning["field"], string])[] = [
+    ["who", fields.who],
+    ...(fields.need === "review" && fields.wait && fields.next !== null
+      ? [["next", fields.next.who] as const]
+      : []),
+  ];
+  return asked.flatMap(([field, who]) => {
+    const kind = warningOf(who, directory);
+    return kind === null ? [] : [{ field, kind, who }];
+  });
+}
 
 export function documentsBefore<Step extends PlacedStep>(
   steps: readonly Step[],

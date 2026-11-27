@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import {
@@ -91,11 +98,19 @@ import {
   documentsBefore,
   NEW_NOTIFY,
   NOTIFY_ACTION,
+  type NotifyNext,
   notifyOfNode,
   type NotifyProblem,
   notifyProblems,
+  type NotifyWarning,
+  notifyWarnings,
 } from "./notify-step.ts";
-import { notifyCardLine, notifyChoices } from "./notify-copy.ts";
+import {
+  type ListStates,
+  notifyCardLine,
+  notifyChoices,
+  whoName,
+} from "./notify-copy.ts";
 import { ACTION_TITLES, stepName } from "./workflow-state.ts";
 import {
   type GroupLabel,
@@ -862,6 +877,62 @@ export function WorkflowEditorPage(
     () => notifyChoices(groups.data, people, translate),
     [groups.data, people, translate],
   );
+  const lists = useMemo<ListStates>(() => ({
+    people: members.isError
+      ? "failed"
+      : members.data === undefined
+      ? "loading"
+      : "ready",
+    groups: groups.isError
+      ? "failed"
+      : groups.data === undefined
+      ? "loading"
+      : "ready",
+  }), [members.isError, members.data, groups.isError, groups.data]);
+  const notifyNotes = useMemo(() => {
+    const directory = {
+      people: everyone === null ? null : new Set(
+        everyone.filter((one) => one.active).map((one) => one.principalId),
+      ),
+      groups: groups.data === undefined ? null : new Map([
+        ...groups.data.groups.map((group) =>
+          [`group:${group.id}`, group.memberCount] as const
+        ),
+        ...groups.data.fromRoles.map((role) =>
+          [`role:${role.roleKey}`, role.memberCount] as const
+        ),
+      ]),
+    };
+    const sentence = ({ field, kind, who }: NotifyWarning) => {
+      const name = whoName(who, choices, lists, translate);
+      if (kind === "personGone") {
+        return translate("library.editor.notify.warning.personGone", {
+          name: choices.some((choice) => choice.value === who)
+            ? name
+            : translate("library.editor.notify.warning.thisPerson"),
+        });
+      }
+      return translate(`library.editor.notify.warning.${field}.${kind}`, {
+        name,
+      });
+    };
+    const found = new Map<
+      string,
+      readonly (NotifyWarning & { readonly sentence: string })[]
+    >();
+    for (const step of steps) {
+      if (step.notify === undefined) continue;
+      const warnings = notifyWarnings(step.notify, directory).map(
+        (warning) => ({ ...warning, sentence: sentence(warning) }),
+      );
+      if (warnings.length > 0) found.set(step.id, warnings);
+    }
+    return found;
+  }, [steps, everyone, groups.data, choices, lists, translate]);
+  const rememberedNext = useRef(new Map<string, NotifyNext>());
+  const rememberNext = useCallback((next: NotifyNext) => {
+    if (selectedId !== null) rememberedNext.current.set(selectedId, next);
+  }, [selectedId]);
   const notifyIssues = useMemo(() => {
     const found = new Map<
       string,
@@ -884,7 +955,8 @@ export function WorkflowEditorPage(
     const lines = new Map<string, string>();
     for (const step of steps) {
       if (step.notify !== undefined) {
-        lines.set(step.id, notifyCardLine(step.notify, choices, translate));
+        const line = notifyCardLine(step.notify, choices, lists, translate);
+        if (line !== null) lines.set(step.id, line);
       }
       if (step.approval === undefined) continue;
       const who = askedWho(
@@ -903,7 +975,7 @@ export function WorkflowEditorPage(
       );
     }
     return lines;
-  }, [steps, people, members.data, choices, translate]);
+  }, [steps, people, members.data, choices, lists, translate]);
   const needs = useMemo(
     () => startNeeds(draft?.normalizedSpec),
     [draft],
@@ -1000,6 +1072,14 @@ export function WorkflowEditorPage(
           blocking: true,
         });
       }
+      for (const warning of notifyNotes.get(step.id) ?? []) {
+        out.push({
+          key: `notify-${step.id}-${warning.field}-${warning.kind}`,
+          name: stepName(step, translate),
+          sentence: warning.sentence,
+          stepId: step.id,
+        });
+      }
       for (const issue of approvalIssues.get(step.id) ?? []) {
         out.push({
           key: `ask-${step.id}-${issue.field}-${issue.name}`,
@@ -1054,6 +1134,7 @@ export function WorkflowEditorPage(
     problemsByStep,
     approvalIssues,
     notifyIssues,
+    notifyNotes,
     startIssues,
     translate,
   ]);
@@ -1378,15 +1459,18 @@ export function WorkflowEditorPage(
             })
           : undefined,
         choices,
-        choicesState: members.isError || groups.isError
-          ? "failed" as const
-          : members.data === undefined || groups.data === undefined
-          ? "loading" as const
-          : "ready" as const,
+        lists,
         onRetry: () => {
           void members.refetch();
           void groups.refetch();
         },
+        remembered: rememberedNext.current.get(live.id) ?? null,
+        onRemember: rememberNext,
+        whoWarning: notifyNotes.get(live.id)?.find((one) => one.field === "who")
+          ?.sentence,
+        nextWarning: notifyNotes.get(live.id)?.find((one) =>
+          one.field === "next"
+        )?.sentence,
         documents: documentsBefore(steps, live.id).map((one) => ({
           value: documentKey(one),
           label: translate(ACTION_TITLES[one.uses]),
@@ -1449,7 +1533,10 @@ export function WorkflowEditorPage(
     checker.unboundActions,
     approvalIssues,
     notifyIssues,
+    notifyNotes,
     choices,
+    lists,
+    rememberNext,
     groups.status,
     people,
     members.status,

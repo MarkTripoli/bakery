@@ -7695,5 +7695,16 @@
   "library.editor.notify.problem.from": "⟦Çĥôôšë ŧĥë ðôçûɱëñŧ ŧô ŕëṽïëŵ. ŧëšŧ çôþ⟧",
   "library.editor.notify.problem.fromGone": "⟦Ŧĥàŧ šŧëþ ïš ĝôñë ôŕ çôɱëš ļàŧëŕ. Çĥôôšë àñôŧĥëŕ ðôçûɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "library.editor.notify.problem.nextEmpty": "⟦Çĥôôšë ŵĥô ïš àšķëð ñëẋŧ, ôŕ ŧûŕñ ŧĥïš ôƒƒ. ŧëšŧ çôþÿ ŧëš⟧",
-  "library.editor.notify.problem.nextSame": "⟦Çĥôôšë šôɱëôñë ðïƒƒëŕëñŧ ƒŕôɱ ŧĥë ƒïŕšŧ þëŕšôñ àšķëð. ŧëšŧ çôþÿ ŧëšŧ ç⟧"
+  "library.editor.notify.problem.nextSame": "⟦Çĥôôšë šôɱëôñë ðïƒƒëŕëñŧ ƒŕôɱ ŧĥë ƒïŕšŧ þëŕšôñ àšķëð. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "library.editor.notify.who.loading": "⟦Ļôàðïñĝ þëôþļë àñð ĝŕôûþš… ŧëšŧ çô⟧",
+  "library.editor.notify.who.unread": "⟦Ñôŧ ļôàðëð ŧ⟧",
+  "library.editor.notify.warning.thisPerson": "⟦Ŧĥïš þëŕšôñ ŧ⟧",
+  "library.editor.notify.warning.personGone": "⟦{name} ñô ļôñĝëŕ ëẋïšŧš. Ûñŧïļ ÿôû çĥôôšë šôɱëôñë ëļšë, ŧĥë ŵôŕķƒļôŵ'š ôŵñëŕ ïš àšķëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "library.editor.notify.warning.who.groupGone": "⟦Ŧĥïš ĝŕôûþ ñô ļôñĝëŕ ëẋïšŧš. Ŧĥë šŧëþ ŵïļļ ƒàïļ ûñŧïļ ÿôû çĥôôšë šôɱëôñë ëļšë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.editor.notify.warning.who.groupEmpty": "⟦{name} ĥàš ñô ɱëɱƀëŕš. Ŧĥë šŧëþ ŵïļļ ƒàïļ ûñŧïļ šôɱëôñë ïš àððëð ôŕ ÿôû çĥôôšë šôɱëôñë ëļšë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "library.editor.notify.warning.next.groupGone": "⟦Ŧĥïš ĝŕôûþ ñô ļôñĝëŕ ëẋïšŧš. Ŧĥë šŧëþ ŵïļļ ƒàïļ ïƒ ïŧ ĥàš ŧô àšķ ŧĥëɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "library.editor.notify.warning.next.groupEmpty": "⟦{name} ĥàš ñô ɱëɱƀëŕš. Ŧĥë šŧëþ ŵïļļ ƒàïļ ïƒ ïŧ ĥàš ŧô àšķ ŧĥëɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "library.editor.notify.who.goneName": "⟦šôɱëôñë ŵĥô ñô ļôñĝëŕ ëẋïšŧš ŧëšŧ çô⟧",
+  "library.editor.notify.who.goneGroup": "⟦À ĝŕôûþ ŧĥàŧ ñô ļôñĝëŕ ëẋïšŧš ŧëšŧ çôþ⟧",
+  "library.editor.notify.who.goneGroupName": "⟦à ĝŕôûþ ŧĥàŧ ñô ļôñĝëŕ ëẋïšŧš ŧëšŧ çôþ⟧"
 }

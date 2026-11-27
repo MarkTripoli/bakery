@@ -10,6 +10,7 @@ import {
   notifyInput,
   notifyOfNode,
   notifyProblems,
+  notifyWarnings,
 } from "../../apps/web/src/pages/library/notify-step.ts";
 
 const review: NotifyFields = {
@@ -100,5 +101,60 @@ Deno.test("a review needs a document from earlier, and someone new to ask next",
       next: { after: 4, who: "run:starter" },
     }, documents),
     [{ field: "from", kind: "from" }, { field: "next", kind: "nextSame" }],
+  );
+});
+
+Deno.test("a note keeps its dollar signs and reaches the engine unchanged", async () => {
+  for (const note of ["Costs $5 per seat, yes", "$5 per seat"]) {
+    const fields = { ...NEW_NOTIFY, note };
+    const input = notifyInput(fields);
+    assertEquals(notifyOfNode({ with: input }), fields, note);
+    const compiled = await compileWorkflowDocumentDetailed({
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
+      name: "notify",
+      steps: [{ id: "ask", uses: "people.tag", with: input }],
+    }, { catalog: defaultWorkflowCompilerCatalog() });
+    assertEquals(compiled.result.ok, true, note);
+    assertEquals(
+      JSON.stringify(compiled.result).includes(JSON.stringify(note)),
+      true,
+      note,
+    );
+  }
+});
+
+Deno.test("a second ask with nobody chosen is kept, and still a problem", () => {
+  const unfinished = { ...review, next: { after: 4, who: "" } };
+  assertEquals(notifyInput(unfinished).ifNobodyAnswers, { afterHours: 4 });
+  assertEquals(notifyOfNode({ with: notifyInput(unfinished) }), unfinished);
+  assertEquals(notifyProblems(unfinished, ["flow.design"]), [
+    { field: "next", kind: "nextEmpty" },
+  ]);
+});
+
+Deno.test("gone and empty recipients warn only once the lists are known", () => {
+  const fields = {
+    ...review,
+    who: "group:gone",
+    next: { after: 4, who: "role:admin" },
+  };
+  assertEquals(notifyWarnings(fields, { people: null, groups: null }), []);
+  assertEquals(
+    notifyWarnings(fields, {
+      people: new Set(),
+      groups: new Map([["role:admin", 0]]),
+    }),
+    [
+      { field: "who", kind: "groupGone", who: "group:gone" },
+      { field: "next", kind: "groupEmpty", who: "role:admin" },
+    ],
+  );
+  assertEquals(
+    notifyWarnings({ ...NEW_NOTIFY, who: "person:left" }, {
+      people: new Set(["here"]),
+      groups: new Map(),
+    }).map((one) => one.kind),
+    ["personGone"],
   );
 });

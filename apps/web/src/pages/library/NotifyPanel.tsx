@@ -1,7 +1,13 @@
 import { useEffect, useId, useState } from "react";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { afterName, type NotifyChoice, whoName } from "./notify-copy.ts";
+import {
+  afterName,
+  type ListStates,
+  type NotifyChoice,
+  unknownWho,
+  whoName,
+} from "./notify-copy.ts";
 import {
   AFTER_HOURS,
   DEFAULT_AFTER_HOURS,
@@ -16,8 +22,12 @@ export type NotifyPanelProps = Readonly<{
   fields: NotifyFields;
   onChange: ((fields: NotifyFields, typing?: string) => void) | undefined;
   choices: readonly NotifyChoice[];
-  choicesState: "loading" | "failed" | "ready";
+  lists: ListStates;
   onRetry: () => void;
+  remembered: NotifyNext | null;
+  onRemember: (next: NotifyNext) => void;
+  whoWarning: string | undefined;
+  nextWarning: string | undefined;
   documents: readonly NotifyChoice[];
   fromProblem: string | undefined;
   nextProblem: string | undefined;
@@ -49,14 +59,14 @@ function EndNote({ escalates }: { readonly escalates: boolean }) {
 }
 
 function ReadOnlyNotify(
-  { fields, choices, documents }: NotifyPanelProps,
+  { fields, choices, lists, documents }: NotifyPanelProps,
 ) {
   const { translate } = useI18n();
   return (
     <UI.Stack gap="compact">
       <UI.Text>
         {translate("library.editor.notify.read.who", {
-          who: whoName(fields.who, choices, translate),
+          who: whoName(fields.who, choices, lists, translate),
         })}
       </UI.Text>
       <UI.Text>
@@ -90,7 +100,7 @@ function ReadOnlyNotify(
         <UI.Text>
           {translate("library.editor.notify.read.next", {
             time: afterName(fields.next.after, translate),
-            who: whoName(fields.next.who, choices, translate),
+            who: whoName(fields.next.who, choices, lists, translate),
           })}
         </UI.Text>
       )}
@@ -111,7 +121,6 @@ function EditableNotify(
   const nextId = `${base}-next`;
   const [note, setNote] = useState(fields.note);
   const [seenNote, setSeenNote] = useState(fields.note);
-  const [remembered, setRemembered] = useState<NotifyNext | null>(fields.next);
   if (seenNote !== fields.note) {
     setSeenNote(fields.note);
     setNote(fields.note);
@@ -121,28 +130,32 @@ function EditableNotify(
     globalThis.document.getElementById(focus.field === "from" ? fromId : nextId)
       ?.focus();
   }, [focus, fromId, nextId]);
-  const withGone = (value: string) =>
-    value === "" || choices.some((choice) => choice.value === value)
-      ? [...choices]
-      : [...choices, {
-        value,
-        label: translate("library.editor.notify.who.gone"),
-      }];
   const options = (value: string) =>
-    withGone(value).map((choice) => ({
-      value: choice.value,
-      label: choice.label,
-    }));
-  const setNext = (next: NotifyNext) => {
-    setRemembered(next);
-    onChange({ ...fields, next });
-  };
+    [
+      ...choices.filter((choice) => !choice.gone || choice.value === value),
+      ...(value === "" || choices.some((choice) => choice.value === value)
+        ? []
+        : [{
+          value,
+          label: unknownWho(value, props.lists, translate, "alone"),
+        }]),
+    ].map((choice) => ({ value: choice.value, label: choice.label }));
+  const { onRemember } = props;
   const next = fields.next;
+  useEffect(() => {
+    if (next !== null) onRemember(next);
+  }, [next, onRemember]);
+  const setNext = (changed: NotifyNext) =>
+    onChange({ ...fields, next: changed });
+  const loading = props.lists.people === "loading" ||
+    props.lists.groups === "loading";
+  const failed = props.lists.people === "failed" ||
+    props.lists.groups === "failed";
   return (
     <UI.Stack gap="standard" data-testid="notify-fields">
       <UI.Stack gap="tight">
         <UI.Combobox
-          disabled={props.choicesState === "loading"}
+          disabled={loading}
           label={translate("library.editor.notify.who.label")}
           onChange={(event) =>
             onChange({ ...fields, who: event.currentTarget.value })}
@@ -152,7 +165,11 @@ function EditableNotify(
         <UI.Text variant="caption">
           {translate("library.editor.notify.who.help")}
         </UI.Text>
-        {props.choicesState === "failed"
+        {props.whoWarning === undefined
+          ? null
+          : <UI.InlineNotice tone="warning">{props.whoWarning}
+          </UI.InlineNotice>}
+        {failed
           ? (
             <UI.InlineNotice
               tone="error"
@@ -268,7 +285,8 @@ function EditableNotify(
                 onChange({
                   ...fields,
                   next: event.currentTarget.checked
-                    ? remembered ?? { after: DEFAULT_AFTER_HOURS, who: "" }
+                    ? props.remembered ??
+                      { after: DEFAULT_AFTER_HOURS, who: "" }
                     : null,
                 })}
             >
@@ -309,6 +327,13 @@ function EditableNotify(
                   ]}
                   value={next.who}
                 />
+                {props.nextWarning === undefined
+                  ? null
+                  : (
+                    <UI.InlineNotice tone="warning">
+                      {props.nextWarning}
+                    </UI.InlineNotice>
+                  )}
               </UI.Stack>
             )}
             <EndNote escalates={next !== null} />

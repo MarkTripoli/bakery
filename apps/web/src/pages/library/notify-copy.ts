@@ -9,8 +9,35 @@ export type Translate = (
 ) => string;
 
 export type NotifyChoice = Readonly<
-  { value: string; label: string; name?: string }
+  { value: string; label: string; name?: string; gone?: boolean }
 >;
+
+export type ListState = "loading" | "failed" | "ready";
+
+export type ListStates = Readonly<{ people: ListState; groups: ListState }>;
+
+export function unknownWho(
+  who: string,
+  lists: ListStates,
+  translate: Translate,
+  placed: "alone" | "inSentence",
+): string {
+  const person = who.startsWith("person:");
+  const state = person ? lists.people : lists.groups;
+  if (state !== "ready") {
+    return translate(
+      state === "failed"
+        ? "library.editor.notify.who.unread"
+        : "library.editor.notify.who.loading",
+    );
+  }
+  const kind = person ? "gone" : "goneGroup";
+  return translate(
+    placed === "alone"
+      ? `library.editor.notify.who.${kind}`
+      : `library.editor.notify.who.${kind}Name`,
+  );
+}
 
 export function notifyChoices(
   groups: GroupsResponse | undefined,
@@ -44,9 +71,10 @@ export function notifyChoices(
         count: role.memberCount,
       }),
     })),
-    ...people.filter((person) => person.active).map((person) => ({
+    ...people.map((person) => ({
       value: `person:${person.principalId}`,
       label: person.displayName,
+      gone: !person.active,
     })),
   ];
 }
@@ -54,11 +82,21 @@ export function notifyChoices(
 export function whoName(
   who: string,
   choices: readonly NotifyChoice[],
+  lists: ListStates,
   translate: Translate,
 ): string {
   const found = choices.find((choice) => choice.value === who);
   return found?.name ?? found?.label ??
-    translate("library.editor.notify.who.gone");
+    unknownWho(who, lists, translate, "inSentence");
+}
+
+export function whoIsKnown(
+  who: string,
+  choices: readonly NotifyChoice[],
+  lists: ListStates,
+): boolean {
+  const state = who.startsWith("person:") ? lists.people : lists.groups;
+  return state === "ready" || choices.some((choice) => choice.value === who);
 }
 
 export function afterName(hours: number, translate: Translate): string {
@@ -70,21 +108,27 @@ export function afterName(hours: number, translate: Translate): string {
 export function notifyCardLine(
   fields: NotifyFields,
   choices: readonly NotifyChoice[],
+  lists: ListStates,
   translate: Translate,
-): string {
-  const who = whoName(fields.who, choices, translate);
+): string | null {
+  const next = fields.need === "review" && fields.wait && fields.next?.who
+    ? fields.next
+    : null;
+  const asked = [fields.who, ...(next === null ? [] : [next.who])];
+  if (!asked.every((who) => whoIsKnown(who, choices, lists))) return null;
+  const who = whoName(fields.who, choices, lists, translate);
   if (fields.need === "fyi") {
     return translate("library.editor.notify.card.fyi", { who });
   }
   if (!fields.wait) {
     return translate("library.editor.notify.card.review", { who });
   }
-  if (fields.next === null || fields.next.who === "") {
+  if (next === null) {
     return translate("library.editor.notify.card.waits", { who });
   }
   return translate("library.editor.notify.card.next", {
     who,
-    next: whoName(fields.next.who, choices, translate),
-    time: afterName(fields.next.after, translate),
+    next: whoName(next.who, choices, lists, translate),
+    time: afterName(next.after, translate),
   });
 }

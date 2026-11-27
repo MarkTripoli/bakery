@@ -7695,5 +7695,16 @@
   "library.editor.notify.problem.from": "⟪Choose the document to review.⟫",
   "library.editor.notify.problem.fromGone": "⟪That step is gone or comes later. Choose another document.⟫",
   "library.editor.notify.problem.nextEmpty": "⟪Choose who is asked next, or turn this off.⟫",
-  "library.editor.notify.problem.nextSame": "⟪Choose someone different from the first person asked.⟫"
+  "library.editor.notify.problem.nextSame": "⟪Choose someone different from the first person asked.⟫",
+  "library.editor.notify.who.loading": "⟪Loading people and groups…⟫",
+  "library.editor.notify.who.unread": "⟪Not loaded⟫",
+  "library.editor.notify.warning.thisPerson": "⟪This person⟫",
+  "library.editor.notify.warning.personGone": "⟪{name} no longer exists. Until you choose someone else, the workflow's owner is asked.⟫",
+  "library.editor.notify.warning.who.groupGone": "⟪This group no longer exists. The step will fail until you choose someone else.⟫",
+  "library.editor.notify.warning.who.groupEmpty": "⟪{name} has no members. The step will fail until someone is added or you choose someone else.⟫",
+  "library.editor.notify.warning.next.groupGone": "⟪This group no longer exists. The step will fail if it has to ask them.⟫",
+  "library.editor.notify.warning.next.groupEmpty": "⟪{name} has no members. The step will fail if it has to ask them.⟫",
+  "library.editor.notify.who.goneName": "⟪someone who no longer exists⟫",
+  "library.editor.notify.who.goneGroup": "⟪A group that no longer exists⟫",
+  "library.editor.notify.who.goneGroupName": "⟪a group that no longer exists⟫"
 }
