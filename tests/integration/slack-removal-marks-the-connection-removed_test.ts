@@ -275,3 +275,56 @@ Deno.test("an uninstall delivered after the workspace reconnected leaves the rec
     await o.finish();
   }
 });
+
+Deno.test("turning the connection off and on does not hide an uninstall dated after the connect", async () => {
+  const o = await open(fakeSlack(), { signingSecret: SIGNING_SECRET });
+  try {
+    const connectionId = await connectOnce(o);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const uninstalledAt = Math.floor(Date.now() / 1000);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const headers = { "Bakery-Organization-Id": o.fixture.organizationId };
+    const patch = async (enabled: boolean) => {
+      const current = await call(
+        o.fixture,
+        "GET",
+        `/v1/integration-connections/${connectionId}`,
+        o.fixture.adminCookie,
+        { headers },
+      );
+      const { version } = await current.json() as { version: number };
+      const response = await call(
+        o.fixture,
+        "PATCH",
+        `/v1/integration-connections/${connectionId}`,
+        o.fixture.adminCookie,
+        {
+          body: { enabled },
+          headers: {
+            ...headers,
+            "If-Match": `"${version}"`,
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+        },
+      );
+      assertEquals(response.status, 200, await response.clone().text());
+    };
+    await patch(false);
+    await patch(true);
+    assertEquals(
+      await send(
+        o,
+        removal(
+          "EvAFTERTOGGLE",
+          { type: "app_uninstalled" },
+          TEAM_ID,
+          uninstalledAt,
+        ),
+      ),
+      200,
+    );
+    assertEquals((await state(o, connectionId)).status, "revoked");
+  } finally {
+    await o.finish();
+  }
+});

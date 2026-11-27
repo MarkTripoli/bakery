@@ -196,6 +196,7 @@ export async function connectSlackInstallation(
   const updated = await transaction.query<InstallationRow>(
     `update bakery.slack_installations
         set signing_secret_id = $3, status = 'active', updated_at = now(),
+            connected_at = now(),
             version = version + 1
       where id = $1 and organization_id = $2
       returning ${INSTALLATION_COLUMNS}`,
@@ -536,7 +537,7 @@ export async function commitSlackReceipt(
   }
   const found = await transaction.query<ActiveSlackInstallation>(
     `select organization_id as "organizationId", team_id as "teamId",
-            updated_at as "connectedAt"
+            connected_at as "connectedAt"
        from bakery.slack_installations
       where app_id = $1 and id = $2 and status = 'active'
       for share`,
