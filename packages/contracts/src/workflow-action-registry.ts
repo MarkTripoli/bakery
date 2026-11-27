@@ -13,6 +13,7 @@ export const WORKFLOW_ACTION_NAMES = Object.freeze(
     "coordination.split",
     "delivery.candidate_evidence",
     "delivery.prepare",
+    "delivery.openPullRequest",
     "delivery.merge",
     "delivery.deploy",
     "delivery.health",
@@ -213,6 +214,18 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
         faults: ["DEPENDENCY_UNAVAILABLE"],
       },
       effectPolicy: "external_prepare",
+    }),
+    "delivery.openPullRequest": metadata({
+      input: "OpenPullRequestInput",
+      output: "PullRequest",
+      capabilities: ["delivery"],
+      cancel: "cooperative",
+      retry: {
+        maxAttempts: 1,
+        backoff: "0s",
+        faults: ["DEPENDENCY_UNAVAILABLE"],
+      },
+      effectPolicy: "external_effect_keyed",
     }),
     "delivery.merge": metadata({
       input: "MergeInput",

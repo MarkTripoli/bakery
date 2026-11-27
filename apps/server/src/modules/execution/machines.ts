@@ -49,7 +49,7 @@ const WORKER_UPDATE_STATUS_DESIRED_MODE: Record<string, string> = {
 };
 type CursorQueryInput = { cursor?: string; limit?: number };
 
-function parseCursorQuery(
+export function parseCursorQuery(
   context: Context<{ Variables: AuthVariables }>,
 ): CursorQueryInput {
   const search = new URL(context.req.url).searchParams;
