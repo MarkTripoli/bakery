@@ -56,8 +56,10 @@ export function fakeSlack(options: { tokenOk?: boolean } = {}) {
       });
     }
     if (input.href === "https://slack.com/api/auth.test") {
+      const ok = headers.get("authorization") === `Bearer ${issued.token}`;
       return Response.json({
-        ok: headers.get("authorization") === `Bearer ${issued.token}`,
+        ok,
+        ...(ok ? {} : { error: "invalid_auth" }),
         team_id: TEAM_ID,
         team: "Test Workspace",
         bot_id: "B0TESTBOT",
