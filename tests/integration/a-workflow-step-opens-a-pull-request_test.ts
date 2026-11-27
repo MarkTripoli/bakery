@@ -122,6 +122,21 @@ Deno.test("a delivery.openPullRequest step opens the pull request as the run's p
       input: { title: "No branch" },
     });
     assertEquals(invalid.kind, "failed");
+    const legal = await runner.run({
+      ...step,
+      stepKey: "deliver.open-legal",
+      input: { headBranch: "fix/#123", title: "Legal name" },
+    });
+    assertEquals(legal.kind, "completed", JSON.stringify(legal));
+    const refused = await runner.run({
+      ...step,
+      stepKey: "deliver.open-bad",
+      input: { headBranch: "a..b", title: "Bad name" },
+    });
+    assertEquals(
+      [refused.kind, (refused as { message?: string }).message],
+      ["failed", "branch_name_invalid"],
+    );
   } finally {
     if (seed) {
       for (

@@ -23,6 +23,15 @@ function failed(code: string, message: string): EngineStepResult {
   return { kind: "failed", code, message };
 }
 
+function refusalReason(error: StandardError): string {
+  const params = error.params as
+    | { reason?: unknown; issues?: readonly { code?: unknown }[] }
+    | undefined;
+  if (typeof params?.reason === "string") return params.reason;
+  const issue = params?.issues?.[0]?.code;
+  return typeof issue === "string" ? issue : error.code;
+}
+
 async function runOpen(
   database: PgDatabase,
   dependencies: ReconcileDependencies,
@@ -57,10 +66,7 @@ async function runOpen(
   } catch (error) {
     if (!(error instanceof StandardError)) throw error;
     if (RETRYABLE.has(error.code)) return { kind: "pending" };
-    const reason = typeof error.params?.reason === "string"
-      ? error.params.reason
-      : error.code;
-    return failed(error.code, reason);
+    return failed(error.code, refusalReason(error));
   }
 }
 
