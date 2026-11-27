@@ -1,25 +1,48 @@
+import { useEffect, useRef, useState } from "react";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+
+export type PublishedNotice = {
+  readonly kind: "published";
+  readonly versionId: string;
+  readonly revision: number;
+  readonly used: boolean;
+  readonly refused?: boolean;
+};
 
 export type EditorNotice =
   | { readonly kind: "deleted"; readonly name: string }
   | { readonly kind: "refused"; readonly why: "away" | "conflict" }
-  | {
-    readonly kind: "published";
-    readonly revision: number;
-    readonly used: boolean;
-  }
+  | PublishedNotice
   | {
     readonly kind: "skill";
     readonly text: string;
     readonly undo?: () => void;
   };
 
+const offersUndo = (notice: EditorNotice): boolean =>
+  notice.kind === "deleted" ||
+  (notice.kind === "skill" && notice.undo !== undefined);
+
+export function useEditorNotice(edit: unknown) {
+  const [notice, setNotice] = useState<EditorNotice | null>(null);
+  const offered = useRef<{ notice: EditorNotice; edit: unknown } | null>(null);
+  useEffect(() => {
+    if (notice === null || !offersUndo(notice)) return;
+    if (offered.current?.notice !== notice) {
+      offered.current = { notice, edit };
+    } else if (offered.current.edit !== edit) {
+      setNotice(null);
+    }
+  }, [notice, edit]);
+  return [notice, setNotice] as const;
+}
+
 export function EditorToast(
   { notice, onUndoDelete, onUse, onClose }: {
     notice: EditorNotice;
     onUndoDelete: () => void;
-    onUse: () => void;
+    onUse: (version: PublishedNotice) => void;
     onClose: () => void;
   },
 ) {
@@ -65,19 +88,32 @@ export function EditorToast(
             : "library.editor.publishConflict",
         ),
       );
-    case "published":
+    case "published": {
+      const version = { version: String(notice.revision) };
+      if (notice.used) {
+        return toast(
+          "success",
+          translate("library.editor.published.used", version),
+        );
+      }
       return toast(
-        "success",
+        notice.refused ? "warning" : "success",
         translate(
-          notice.used
-            ? "library.editor.published.used"
+          notice.refused
+            ? "library.editor.publish.notUsed"
             : "library.editor.published.notUsed",
-          { version: String(notice.revision) },
+          version,
         ),
-        notice.used
-          ? undefined
-          : offer(translate("library.workflow.versions.use"), onUse),
+        offer(
+          translate(
+            notice.refused
+              ? "library.editor.save.tryAgain"
+              : "library.workflow.versions.use",
+          ),
+          () => onUse(notice),
+        ),
       );
+    }
     case "skill":
       return toast(
         "success",

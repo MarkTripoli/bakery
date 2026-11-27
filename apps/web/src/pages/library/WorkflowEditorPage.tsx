@@ -37,7 +37,11 @@ import { publishChanges } from "./publish-changes.ts";
 import { DraftKeptNotice } from "./DraftKeptNotice.tsx";
 import { rewriteDraft } from "./leftover-draft.ts";
 import { PublishSummary } from "./PublishSummary.tsx";
-import { type EditorNotice, EditorToast } from "./EditorToast.tsx";
+import {
+  EditorToast,
+  type PublishedNotice,
+  useEditorNotice,
+} from "./EditorToast.tsx";
 import { useBakeryApi } from "../../api/context.tsx";
 import {
   asyncKindForError,
@@ -377,7 +381,7 @@ export function WorkflowEditorPage(
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishAfterSave, setPublishAfterSave] = useState(false);
   const [problemsOpen, setProblemsOpen] = useState(false);
-  const [notice, setNotice] = useState<EditorNotice | null>(null);
+  const [notice, setNotice] = useEditorNotice(editor);
   // null until the version being edited is known: an unknown baseline is not a
   // change, so the leave warning is never armed on a page nobody has touched.
   const lastSaved = useRef<string | null>(null);
@@ -648,7 +652,30 @@ export function WorkflowEditorPage(
       setPublishedOnly(alsoUse ? null : versionId);
       await queryClient.invalidateQueries({ queryKey: ["protected"] });
       setPublishOpen(false);
-      setNotice({ kind: "published", revision, used: alsoUse });
+      setNotice({ kind: "published", versionId, revision, used: alsoUse });
+    },
+  });
+
+  const activateNamed = useMutation({
+    mutationKey: ["workflowVersions.activate"],
+    mutationFn: async ({ versionId }: PublishedNotice) => {
+      const used = await api.activateWorkflowVersion({
+        organizationId: scope.organizationId as string,
+        id: workflowId,
+        versionId,
+        version: workflow.data?.version ?? 0,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      if (!used.ok) throw used.error;
+    },
+    onSuccess: async (_, named) => {
+      await queryClient.invalidateQueries({ queryKey: ["protected"] });
+      setPublishedOnly(null);
+      setNotice({ ...named, used: true, refused: false });
+    },
+    onError: (_, named) => {
+      void queryClient.invalidateQueries({ queryKey: ["protected"] });
+      setNotice({ ...named, refused: true });
     },
   });
 
@@ -2142,7 +2169,10 @@ export function WorkflowEditorPage(
           <EditorToast
             notice={notice}
             onUndoDelete={() => dispatch({ kind: "undo" })}
-            onUse={() => publish.mutate(true)}
+            onUse={(version) =>
+              away
+                ? setNotice({ ...version, refused: true })
+                : activateNamed.mutate(version)}
             onClose={() => setNotice(null)}
           />
         )}

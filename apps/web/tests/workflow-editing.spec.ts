@@ -190,6 +190,38 @@ test("a new message takes the place of the one before it", async ({ page, contex
   );
 });
 
+test("typing after a delete takes the Undo offer away and keeps the words", async ({ page }) => {
+  const { seen, saved } = await editor(page, [
+    ...STEPS,
+    { id: "ask", uses: "human.approval" },
+  ]);
+  const offer = page.getByRole("button", { name: "Undo", exact: true });
+  await block(page, "research").focus();
+  await page.keyboard.press("Delete");
+  await expect(offer).toBeVisible();
+  await block(page, "ask").click();
+  const question = page.getByRole("textbox", { name: /What you are asking/ });
+  await question.pressSequentially("Ship it today?");
+  await expect(offer).toHaveCount(0);
+  await expect(question).toHaveValue("Ship it today?");
+  await expect.poll(() => JSON.stringify(seen.draftSaves.at(-1)?.body))
+    .toContain("Ship it today?");
+  expect(saved()).toEqual(["implement", "review", "ask"]);
+  await still(page, "editor-undo-offer-gone");
+});
+
+test("an undo by key also takes the Undo offer away", async ({ page }) => {
+  const { saved } = await editor(page);
+  await block(page, "implement").focus();
+  await page.keyboard.press("Delete");
+  const offer = page.getByRole("button", { name: "Undo", exact: true });
+  await expect(offer).toBeVisible();
+  await expect.poll(saved).toEqual(["research", "review"]);
+  await page.keyboard.press("Control+z");
+  await expect(offer).toHaveCount(0);
+  await expect.poll(saved).toEqual(["research", "implement", "review"]);
+});
+
 test("offline, the change is kept and saved when the connection returns", async ({ page, context }) => {
   const { seen, saved } = await editor(page);
   await context.setOffline(true);
