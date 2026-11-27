@@ -230,6 +230,7 @@ test.describe("add a machine with one command", () => {
       "web",
       "model",
       "claude",
+      "tool-gateway",
     ]);
     await expect(page.getByText("build-box-01 · 2 tasks at once · Claude Code"))
       .toBeVisible();
