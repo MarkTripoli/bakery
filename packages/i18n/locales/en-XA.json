@@ -7750,5 +7750,7 @@
   "integrations.slack.credentials.saveFailedWithSigning": "⟦Ŧĥë ðëŧàïļš çôûļð ñôŧ ƀë šàṽëð. Ëñŧëŕ ŧĥë çļïëñŧ šëçŕëŧ àñð ŧĥë šïĝñïñĝ šëçŕëŧ àĝàïñ, ŧĥëñ šàṽë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "integrations.slack.credentials.signingSecretRefused": "⟦Ɓàķëŕÿ çôûļð ñôŧ àççëþŧ ŧĥïš šïĝñïñĝ šëçŕëŧ. Çôþÿ ïŧ àĝàïñ ƒŕôɱ ÿôûŕ Šļàçķ àþþ'š Ɓàšïç Ïñƒôŕɱàŧïôñ þàĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "settings.connections.outcome.heldElsewhere": "⟦Àñôŧĥëŕ ôŕĝàñïžàŧïôñ ïñ Ɓàķëŕÿ àļŕëàðÿ ĥôļðš ŧĥïš çôññëçŧïôñ, šô ñôŧĥïñĝ ŵàš çôññëçŧëð. Ïŧ çàñ ƀë çôññëçŧëð ĥëŕë ôñçë ŧĥàŧ ôŕĝàñïžàŧïôñ ŕëɱôṽëš ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "settings.roles.thing.ownIdentityLink": "⟦ŧĥëïŕ ôŵñ ļïñķëð ôûŧšïðë àççôûñŧš ŧëšŧ çôþÿ⟧"
+  "settings.roles.thing.ownIdentityLink": "⟦ŧĥëïŕ ôŵñ ļïñķëð ôûŧšïðë àççôûñŧš ŧëšŧ çôþÿ⟧",
+  "tasks.delivery.now.stopped.limitTitle": "⟦Ɓàķëŕÿ šŧôþþëð ŧô àšķ ÿôû ŧëšŧ ç⟧",
+  "tasks.delivery.now.stopped.limitBody": "⟦Ïŧ ŧŕïëð {count, plural, one {# time} other {# times}}{findings, plural, =0 {.} one { and # blocking finding remains.} other { and # blocking findings remain.}} Ŧĥïš ŵôŕķƒļôŵ àļļôŵš ûþ ŧô {max} ŧŕïëš, šô ïŧ çàñ ŧŕÿ {room} ɱôŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

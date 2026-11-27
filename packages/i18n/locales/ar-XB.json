@@ -7750,5 +7750,7 @@
   "integrations.slack.credentials.saveFailedWithSigning": "⟪The details could not be saved. Enter the client secret and the signing secret again, then save.⟫",
   "integrations.slack.credentials.signingSecretRefused": "⟪Bakery could not accept this signing secret. Copy it again from your Slack app's Basic Information page.⟫",
   "settings.connections.outcome.heldElsewhere": "⟪Another organization in Bakery already holds this connection, so nothing was connected. It can be connected here once that organization removes it.⟫",
-  "settings.roles.thing.ownIdentityLink": "⟪their own linked outside accounts⟫"
+  "settings.roles.thing.ownIdentityLink": "⟪their own linked outside accounts⟫",
+  "tasks.delivery.now.stopped.limitTitle": "⟪Bakery stopped to ask you⟫",
+  "tasks.delivery.now.stopped.limitBody": "⟪It tried {count, plural, one {# time} other {# times}}{findings, plural, =0 {.} one { and # blocking finding remains.} other { and # blocking findings remain.}} This workflow allows up to {max} tries, so it can try {room} more.⟫"
 }
