@@ -6426,6 +6426,8 @@
   "library.editor.published.notUsed": "Version {version} is published. It is not used until you choose Use this version.",
   "library.editor.conflict": "Someone else changed this draft. Reload to see their changes.",
   "library.editor.conflictReload": "Reload",
+  "library.editor.publishAway": "You are offline. Publish when you are back.",
+  "library.editor.publishConflict": "Reload to see their changes, then publish.",
   "library.editor.offlineEditing": "You are offline. Changes are kept on this page and saved when you are back.",
   "library.editor.ask.panelLine": "This step stops the run and asks a person. The run continues when they answer.",
   "library.editor.ask.who": "Who is asked",

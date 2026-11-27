@@ -84,6 +84,7 @@ import { LeaveGuard } from "../repository-rules/leave-guard.tsx";
 import { useConnectivity } from "../../app/connectivity.ts";
 import { focusAfterPaint } from "../../app/focus.ts";
 import { authoredYaml } from "./authored-yaml.ts";
+import { readableSource } from "./readable-source.ts";
 import { useStepKeys } from "./use-step-keys.ts";
 import { useEscapeClosesPanel } from "./use-escape-closes-panel.ts";
 import {
@@ -604,6 +605,12 @@ export function WorkflowEditorPage(
     void rebaseLeftoverDraft(kept.used);
   };
 
+  useEffect(() => {
+    if (skillToast === null) return;
+    setDeleted(null);
+    setPublished(null);
+  }, [skillToast]);
+  const [refused, setRefused] = useState<"away" | "conflict" | null>(null);
   const [published, setPublished] = useState<
     { readonly revision: number; readonly used: boolean } | null
   >(null);
@@ -654,6 +661,7 @@ export function WorkflowEditorPage(
       await queryClient.invalidateQueries({ queryKey: ["protected"] });
       setPublishOpen(false);
       setDeleted(null);
+      setSkillToast(null);
       setPublished({ revision, used: alsoUse });
     },
   });
@@ -743,28 +751,34 @@ export function WorkflowEditorPage(
   const deletable = (step: EditorStep | undefined) =>
     canChange(step) &&
     (!grouped || steps.filter((one) => one.list === step?.list).length > 1);
-  const moveStep = (id: string, by: -1 | 1) => {
-    const index = steps.findIndex((one) => one.id === id);
-    const other = steps[index + by];
-    if (
-      !canChange(steps[index]) || other === undefined ||
-      other.list !== steps[index].list
-    ) return;
-    dispatch({ kind: "move", id, index: index + by });
+  const written = (id: string) =>
+    stepsOfTree(tree).find((one) => one.id === id)?.codeOnly === true;
+  const focusBlock = (id: string) =>
     focusAfterPaint(() =>
       document.querySelector<HTMLElement>(
         `[data-card="${CSS.escape(id)}"] button`,
       )
     );
+  const moveStep = (id: string, by: -1 | 1) => {
+    const index = steps.findIndex((one) => one.id === id);
+    const other = steps[index + by];
+    if (
+      written(id) || !canChange(steps[index]) || other === undefined ||
+      other.list !== steps[index].list
+    ) return;
+    dispatch({ kind: "move", id, index: index + by });
+    focusBlock(id);
   };
   const removeStep = (id: string) => {
     const drawn = stepsOfTree(tree).find((one) => one.id === id);
-    if (!deletable(steps.find((one) => one.id === id)) || drawn === undefined) {
-      return;
-    }
+    const index = steps.findIndex((one) => one.id === id);
+    if (written(id) || !deletable(steps[index]) || drawn === undefined) return;
+    setPublished(null);
+    setSkillToast(null);
     setDeleted(stepName(drawn, translate));
     dispatch({ kind: "remove", id });
     setSelectedId(null);
+    focusBlock((steps[index + 1] ?? steps[index - 1])?.id ?? "start");
   };
   useStepKeys(editable, {
     move: moveStep,
@@ -1992,7 +2006,13 @@ export function WorkflowEditorPage(
     </UI.Button>
   );
   const pressPublish = () => {
-    if (saveState.kind === "conflict" || away) return;
+    if (saveState.kind === "conflict" || away) {
+      setPublished(null);
+      setDeleted(null);
+      setSkillToast(null);
+      setRefused(away ? "away" : "conflict");
+      return;
+    }
     if (notSaved) {
       setSaveState({ kind: "saving" });
       setPublishAfterSave(true);
@@ -2131,6 +2151,7 @@ export function WorkflowEditorPage(
       {body}
       {deleted === null ? null : (
         <UI.Toast
+          placement="floating"
           tone="success"
           action={
             <UI.Button
@@ -2150,8 +2171,25 @@ export function WorkflowEditorPage(
           })}
         </UI.Toast>
       )}
+      {refused === null ||
+          !(refused === "away" ? away : saveState.kind === "conflict")
+        ? null
+        : (
+          <UI.Toast
+            onDismiss={() => setRefused(null)}
+            placement="floating"
+            tone="warning"
+          >
+            {translate(
+              refused === "away"
+                ? "library.editor.publishAway"
+                : "library.editor.publishConflict",
+            )}
+          </UI.Toast>
+        )}
       {published === null ? null : (
         <UI.Toast
+          placement="floating"
           tone="success"
           {...(published.used ? {} : {
             action: (
@@ -2178,6 +2216,7 @@ export function WorkflowEditorPage(
       )}
       {skillToast === null ? null : (
         <UI.Toast
+          placement="floating"
           tone="success"
           {...(skillToast.undo === undefined ? {} : {
             action: (
@@ -2452,10 +2491,12 @@ export function WorkflowEditorPage(
           >
             <UI.CodeBlock
               aria-label={translate("library.editor.code.label" as never)}
-              code={versionSource(
-                workflow.data ?? { name: "", description: "" },
-                draft,
-              ).sourceYaml ?? ""}
+              code={readableSource(
+                versionSource(
+                  workflow.data ?? { name: "", description: "" },
+                  draft,
+                ).sourceYaml ?? "",
+              )}
               language="yaml"
               variant="syntax"
             />

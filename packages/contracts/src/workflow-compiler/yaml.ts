@@ -385,7 +385,9 @@ export function rewriteWorkflowYaml(
   if (!plain.ok) return null;
   const wanted = decodeWorkflowYaml(plain.text);
   if (!wanted.ok) return null;
-  if (!decodeWorkflowYaml(source).ok) return plain.text;
+  if (!source.trim().includes("\n") || !decodeWorkflowYaml(source).ok) {
+    return plain.text;
+  }
   const document = parseDocument(source, PARSE_OPTIONS) as Document;
   document.contents = reconciled(
     document,

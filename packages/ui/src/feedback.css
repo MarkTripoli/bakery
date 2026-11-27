@@ -848,3 +848,13 @@
   outline: var(--border-emphasis) solid var(--color-destructive);
   outline-offset: var(--space-1);
 }
+
+.ui-toast[data-placement="floating"] {
+  inline-size: max-content;
+  inset-block-end: calc(var(--space-4) + env(safe-area-inset-bottom));
+  inset-inline: var(--space-4);
+  margin-inline: auto;
+  max-inline-size: min(40rem, calc(100vw - var(--space-8)));
+  position: fixed;
+  z-index: var(--layer-tooltip);
+}

@@ -9,6 +9,7 @@ export type ToastProps =
     children: ReactNode;
     onDismiss?: () => void;
     state?: "entering" | "visible" | "dismissed";
+    placement?: "inline" | "floating";
     tone?: "success" | "information" | "warning" | "error";
   };
 
@@ -18,6 +19,7 @@ export function Toast(
     action,
     children,
     onDismiss,
+    placement = "inline",
     state = "visible",
     tone = "information",
     ...props
@@ -42,6 +44,7 @@ export function Toast(
       className={["ui-toast", `ui-toast--${tone}`].filter(Boolean).join(" ")}
       role={tone === "error" ? "alert" : "status"}
       {...props}
+      data-placement={placement}
       data-state={state}
       data-ui-component="toast"
       data-variant={tone}

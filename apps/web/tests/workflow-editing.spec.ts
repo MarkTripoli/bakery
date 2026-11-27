@@ -13,7 +13,10 @@ const STEPS = [
   { id: "review", uses: "review.independent" },
 ];
 
-async function editor(page: Page) {
+async function editor(
+  page: Page,
+  steps: readonly { id: string; uses: string }[] = STEPS,
+) {
   const seen = await libraryFixture(page, {
     workflows: [{ ...WORKFLOW }],
     versions: [{
@@ -21,7 +24,7 @@ async function editor(page: Page) {
       workflowId: WORKFLOW.id,
       revision: 1,
       status: "draft",
-      steps: STEPS,
+      steps: [...steps],
     }],
   });
   await page.goto(EDIT);
@@ -53,11 +56,35 @@ test("Alt with an arrow moves a block, Delete removes it, and undo and redo foll
   await expect(block(page, "implement")).toBeFocused();
   await page.keyboard.press("Delete");
   await expect(page.getByText("Implement deleted")).toBeVisible();
+  await expect(block(page, "review")).toBeFocused();
+  const toast = (await page.locator('[data-ui-component="toast"]')
+    .boundingBox())!;
+  expect(toast.y).toBeGreaterThanOrEqual(0);
+  expect(toast.y + toast.height).toBeLessThanOrEqual(
+    page.viewportSize()!.height,
+  );
   await expect.poll(saved).toEqual(["research", "review"]);
   await page.keyboard.press("Control+z");
   await expect.poll(saved).toEqual(["research", "implement", "review"]);
   await page.keyboard.press("Control+Shift+z");
   await expect.poll(saved).toEqual(["research", "review"]);
+});
+
+test("the keys leave a step written in code alone", async ({ page }) => {
+  const { seen } = await editor(page, [
+    { id: "research", uses: "rpi.research" },
+    { id: "brief", uses: "task.brief" },
+    { id: "implement", uses: "harness.implement" },
+  ]);
+  await block(page, "brief").focus();
+  await page.keyboard.press("Alt+ArrowUp");
+  await page.keyboard.press("Alt+ArrowDown");
+  await page.keyboard.press("Delete");
+  await page.waitForTimeout(1500);
+  expect(seen.draftSaves).toHaveLength(0);
+  await expect(page.locator("[data-card]:not([data-card='start'])"))
+    .toHaveCount(3);
+  await expect(page.locator('[data-ui-component="toast"]')).toHaveCount(0);
 });
 
 test("a save sends the authored text with its comment and the new order", async ({ page }) => {
@@ -108,6 +135,9 @@ test("a draft someone else changed says so and Reload reads theirs", async ({ pa
   )).toBeVisible();
   await expect(status(page)).toHaveText("Not saved");
   await still(page, "editor-conflict");
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByText("Reload to see their changes, then publish."))
+    .toBeVisible();
   await page.getByRole("button", { name: "Reload" }).click();
   await expect(page.locator("[data-card='implement']")).toBeVisible();
   await expect(status(page)).toHaveText("Saved");
@@ -127,6 +157,9 @@ test("offline, the change is kept and saved when the connection returns", async 
   )).toBeVisible();
   await expect(status(page)).toHaveText("Not saved");
   await still(page, "editor-offline");
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByText("You are offline. Publish when you are back."))
+    .toBeVisible();
   await page.waitForTimeout(1500);
   expect(seen.draftSaves).toHaveLength(0);
   await context.setOffline(false);

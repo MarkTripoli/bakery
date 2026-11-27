@@ -55,6 +55,12 @@ Deno.test("a removed step takes its comment with it", () => {
   assertStringIncludes(text, "# the long one");
 });
 
+Deno.test("a definition stored on one line is rewritten as a readable export", () => {
+  const stored = JSON.stringify({ ...base, steps: [brief] });
+  const text = rewritten([brief, build], stored);
+  assert(text.split("\n").length > 5);
+});
+
 Deno.test("source the importer refuses is replaced by a plain export", () => {
   const text = rewritten([brief], "steps: [unclosed");
   assertStringIncludes(text, "apiVersion: bakery.dev/v1");
