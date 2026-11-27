@@ -862,7 +862,7 @@ const allowanceAnswer = () => ({
 
 async function mockMoreTries(
   page: Page,
-  reply: { status: number; reason?: string },
+  reply: { status: number; reason?: string; added?: number },
 ) {
   const posted: { body: unknown; key: string | undefined }[] = [];
   await page.route(`**/v1/runs/${runId}/repair-allowances`, (route) => {
@@ -873,7 +873,10 @@ async function mockMoreTries(
     });
     if (reply.status < 300) {
       return route.fulfill({
-        json: allowanceAnswer(),
+        json: {
+          ...allowanceAnswer(),
+          addedTries: reply.added ?? request.postDataJSON().tries,
+        },
       });
     }
     return route.fulfill({
@@ -971,6 +974,21 @@ test("someone who cannot give tries at a repeat limit is told who can", async ({
   );
   await expect(now.getByRole("button")).toHaveCount(0);
   await still(page, "limit-stop-no-permission");
+});
+
+test("fewer tries added than asked, because someone else answered first, is said", async ({ page }) => {
+  await mockLimitStop(page, "admin");
+  const posted = await mockMoreTries(page, { status: 201, added: 1 });
+  await page.goto(`/tasks/${id}`);
+  await button(nowCard(page), "Give Bakery more tries").click();
+  const dialog = page.getByRole("dialog", { name: "Give Bakery more tries?" });
+  await dialog.getByRole("button", { name: "Give more tries" }).click();
+  await expect(dialog).toContainText(
+    "This run is no longer waiting for more tries. The page now shows where it is.",
+  );
+  await expect(dialog.getByRole("button", { name: "Give more tries" }))
+    .toHaveCount(0);
+  expect(posted[0].body).toEqual({ tries: 2 });
 });
 
 test("a refused allowance keeps the dialog open and says why", async ({ page }) => {

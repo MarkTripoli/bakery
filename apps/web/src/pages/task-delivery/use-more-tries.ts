@@ -67,8 +67,9 @@ export function useMoreTries(runId: string, refresh: () => Promise<void>) {
         held.current = null;
         await refresh();
         if (!alive.current) return "idle";
-        setPhase("idle");
-        return "idle";
+        const ended = result.data.addedTries === tries ? "idle" : "notStopped";
+        setPhase(ended);
+        return ended;
       }
       const failure = moreTriesFailure(result.error);
       if (failure !== "noAnswer") held.current = null;
