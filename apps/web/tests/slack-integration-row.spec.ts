@@ -133,12 +133,24 @@ test("Connect Slack without app details says who enters them", async ({ page }) 
     row.getByRole("link", { name: "Open installation integrations" }),
   ).toBeVisible();
   await still(page, "slack-connect-unregistered");
+  await page.route(
+    "**/v1/integration-app-registrations/github",
+    async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.fallback();
+    },
+  );
+  const gitHubRead = page.waitForResponse(
+    "**/v1/integration-app-registrations/github",
+  );
   await row.getByRole("link", { name: "Open installation integrations" })
     .click();
+  await gitHubRead;
+  await expect(page.getByRole("button", { name: "Create GitHub App" }))
+    .toBeAttached();
   await expect(
     page.getByTestId("slack-credentials").getByRole("heading").first(),
-  )
-    .toBeInViewport();
+  ).toBeInViewport();
 });
 
 for (

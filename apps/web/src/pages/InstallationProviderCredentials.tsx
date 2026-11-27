@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useBakeryApi } from "../api/context.tsx";
 import { integrationClientCredentialsQueryOptions } from "../api/query.ts";
 import { failureStatus, isForbiddenFailure } from "../app/async-state.ts";
@@ -111,11 +111,16 @@ export function InstallationProviderCredentials(
     : loaded
     ? "ready"
     : "loading";
+  const pageSettled = useIsFetching() === 0 && view === "ready";
+  const scrolled = useRef(false);
   useEffect(() => {
-    if (view === "ready" && globalThis.location.hash === `#${provider}`) {
-      globalThis.document.getElementById(provider)?.scrollIntoView();
-    }
-  }, [view, provider]);
+    if (
+      !pageSettled || scrolled.current ||
+      globalThis.location.hash !== `#${provider}`
+    ) return;
+    scrolled.current = true;
+    globalThis.document.getElementById(provider)?.scrollIntoView();
+  }, [pageSettled, provider]);
   return (
     <ProviderCredentialsSection
       connectAvailable={connectAvailable}
