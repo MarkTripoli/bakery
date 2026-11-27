@@ -1,13 +1,23 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "68987065d92dd1cd08e71d5183bd535941e0993f"
+    "b749e118780433d7d734935fe73977400a8861a7"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:37ddd6ede1b7e1bdddfe1cdd46be0f0a1cc0e81f1a28fbd589b6403aab6a8dd4",
-  "reason": "#12 connection health descriptions by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 68987065: IntegrationConnection gains health and grantedScopeNames; status and health descriptions say a missing scope shows only in health.",
+  "targetCompatibilityDigest": "sha256:8976885170db7124b2fe39a44575d25a86ad1656324fdd6b3ec721098d714199",
+  "reason": "#12 Slack removal by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main b749e118: IntegrationConnection gains removedBy.",
   "priorApprovals": [
+    {
+      "id": "v1-unreleased-principal-organization-contracts",
+      "fromBaseRefs": [
+        "68987065d92dd1cd08e71d5183bd535941e0993f"
+      ],
+      "status": "displaced",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:37ddd6ede1b7e1bdddfe1cdd46be0f0a1cc0e81f1a28fbd589b6403aab6a8dd4",
+      "reason": "#12 connection health descriptions by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 68987065: IntegrationConnection gains health and grantedScopeNames; status and health descriptions say a missing scope shows only in health."
+    },
     {
       "id": "v1-unreleased-principal-organization-contracts",
       "fromBaseRefs": [

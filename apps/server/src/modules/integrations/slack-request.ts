@@ -127,6 +127,12 @@ export const SLACK_IGNORE_REASONS = [
 
 export type SlackIgnoreReason = (typeof SLACK_IGNORE_REASONS)[number];
 
+export const SLACK_REMOVAL_CAUSES = [
+  "app_uninstalled",
+  "tokens_revoked",
+] as const;
+export type SlackRemovalCause = typeof SLACK_REMOVAL_CAUSES[number];
+
 export type SlackEventDecision =
   | { readonly kind: "challenge"; readonly challenge: string }
   | { readonly kind: "ignore"; readonly reason: SlackIgnoreReason }
@@ -139,6 +145,11 @@ export type SlackEventDecision =
 
     readonly threadTs: string;
     readonly text: string;
+  }
+  | {
+    readonly kind: "removed";
+    readonly eventId: string;
+    readonly cause: SlackRemovalCause;
   }
   | {
     readonly kind: "thread_reply";
@@ -155,6 +166,17 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const nonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
+
+function readSlackRemoval(
+  event: Record<string, unknown>,
+  botUserId: string,
+): SlackRemovalCause | null | undefined {
+  if (event.type === "app_uninstalled") return "app_uninstalled";
+  if (event.type !== "tokens_revoked") return undefined;
+  const tokens = isRecord(event.tokens) ? event.tokens : {};
+  const bots = Array.isArray(tokens.bot) ? tokens.bot : [];
+  return bots.includes(botUserId) ? "tokens_revoked" : null;
+}
 
 export function readSlackEvent(
   body: unknown,
@@ -177,6 +199,12 @@ export function readSlackEvent(
   }
   if (body.team_id !== app.teamId) {
     return { kind: "ignore", reason: "wrong_workspace" };
+  }
+  const removal = readSlackRemoval(body.event, app.botUserId);
+  if (removal !== undefined) {
+    return removal === null
+      ? { kind: "ignore", reason: "unsupported_event" }
+      : { kind: "removed", eventId: body.event_id, cause: removal };
   }
   const authorizations = Array.isArray(body.authorizations)
     ? body.authorizations

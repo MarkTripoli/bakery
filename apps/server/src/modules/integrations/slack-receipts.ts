@@ -26,7 +26,8 @@ import {
   type SlackInstallation,
 } from "./slack-scope.ts";
 import { lockSlackIdentityLink } from "./slack-identity-links.ts";
-import { SLACK_IGNORE_REASONS } from "./slack-request.ts";
+import { SLACK_IGNORE_REASONS, SLACK_REMOVAL_CAUSES } from "./slack-request.ts";
+import { markSlackConnectionsRemoved } from "./slack-removal.ts";
 
 export const SLACK_RECEIPT_RETENTION_DAYS = 7;
 
@@ -324,8 +325,21 @@ const SlackThreadReplyDecisionSchema = z.object({
   ...SlackReceiptWorkFields,
 }).strict().describe("Verified and binding-authorized Slack thread reply.");
 
+const SlackRemovedDecisionSchema = z.object({
+  kind: z.literal("removed").describe(
+    "Marks a verified event saying Slack removed Bakery from the workspace.",
+  ),
+  eventId: SlackReceiptWorkFields.eventId,
+  cause: z.enum(SLACK_REMOVAL_CAUSES).describe(
+    "Which Slack event removed Bakery: the app was uninstalled or its bot token revoked.",
+  ),
+}).strict().describe(
+  "Verified Slack removal that ends the workspace's connections as removed by Slack.",
+);
+
 export const PersistedSlackDecisionSchema = z.discriminatedUnion("kind", [
   SlackIgnoredDecisionSchema,
+  SlackRemovedDecisionSchema,
   SlackMentionDecisionSchema,
   SlackThreadReplyDecisionSchema,
 ]).describe(
@@ -358,7 +372,7 @@ type ActiveSlackInstallation = {
 
 type SlackReceiptWork = Exclude<
   PersistedSlackDecision,
-  { readonly kind: "ignore" }
+  { readonly kind: "ignore" } | { readonly kind: "removed" }
 >;
 const PERMANENT_SLACK_ADMISSION_CODES = new Set([
   "AUTH_FORBIDDEN",
@@ -572,15 +586,25 @@ export async function commitSlackReceipt(
   }
   if (work === null) return { kind: "recorded", receiptId, outcome };
   let handedOff = false;
-  try {
-    handedOff = await handoffSlackWork(transaction, {
-      installation: { ...active, installationId: input.installationId },
-      appId: input.appId,
+  if (work.kind === "removed") {
+    await markSlackConnectionsRemoved(transaction, {
+      organizationId: active.organizationId,
+      teamId: active.teamId,
       eventId: input.eventId,
-      work,
+      cause: work.cause,
     });
-  } catch (error) {
-    if (!isPermanentSlackAdmissionError(error)) throw error;
+    handedOff = true;
+  } else {
+    try {
+      handedOff = await handoffSlackWork(transaction, {
+        installation: { ...active, installationId: input.installationId },
+        appId: input.appId,
+        eventId: input.eventId,
+        work,
+      });
+    } catch (error) {
+      if (!isPermanentSlackAdmissionError(error)) throw error;
+    }
   }
   const settledOutcome: SlackReceiptOutcome = handedOff
     ? "accepted"
