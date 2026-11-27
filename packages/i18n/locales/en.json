@@ -1760,7 +1760,7 @@
   "tasks.run.revision.diff": "Open the changes",
   "tasks.run.revision.hideDiff": "Close the changes",
   "tasks.run.revision.tooLarge": "This patch exceeds the inline preview limit.",
-  "tasks.run.revision.patchSummary": "Patch: {files} files · +{added} −{removed}",
+  "tasks.run.revision.patchSummary": "Patch: {files, plural, one {# file} other {# files}} · +{added} −{removed}",
   "tasks.run.identity.select": "Try",
   "tasks.run.identity.current": "Current try",
   "tasks.run.identity.attempt": "Try {number}",

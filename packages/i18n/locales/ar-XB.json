@@ -1176,7 +1176,6 @@
   "tasks.run.revision.version": "⟪Version {revision}⟫",
   "tasks.run.output.state.complete": "⟪Capture complete⟫",
   "tasks.run.revision.tooLarge": "⟪This patch exceeds the inline preview limit.⟫",
-  "tasks.run.revision.patchSummary": "⟪Patch: {files} files · +{added} −{removed}⟫",
   "tasks.run.identity.select": "⟪Try⟫",
   "tasks.run.identity.current": "⟪Current try⟫",
   "tasks.run.identity.attempt": "⟪Try {number}⟫",
@@ -7872,5 +7871,6 @@
   "tasks.run.line.finishedFiles": "⟪{steps, plural, one {# step} other {# steps}} in {duration} · {files, plural, one {# file changed} other {# files changed}}⟫",
   "tasks.run.revision.diff": "⟪Open the changes⟫",
   "tasks.run.revision.hideDiff": "⟪Close the changes⟫",
-  "tasks.run.revision.changeSummary": "⟪{files, plural, one {# file} other {# files}}, +{added} −{removed}⟫"
+  "tasks.run.revision.changeSummary": "⟪{files, plural, one {# file} other {# files}}, +{added} −{removed}⟫",
+  "tasks.run.revision.patchSummary": "⟪Patch: {files, plural, one {# file} other {# files}} · +{added} −{removed}⟫"
 }

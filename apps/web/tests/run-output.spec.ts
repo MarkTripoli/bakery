@@ -723,7 +723,7 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
     "run-revision",
     page.getByRole("region", { name: "Changes" }),
   );
-  await expect(page.getByText("Patch: 1 files · +1 −1", { exact: true }))
+  await expect(page.getByText("Patch: 1 file · +1 −1", { exact: true }))
     .toBeVisible();
   await expect(page.getByText("1 file, +1 −1", { exact: true }))
     .toBeVisible();

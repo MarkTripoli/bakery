@@ -1174,7 +1174,6 @@
   "tasks.run.revision.version": "⟦Ṽëŕšïôñ {revision} ŧëšŧ⟧",
   "tasks.run.output.state.complete": "⟦Çàþŧûŕë çôɱþļëŧë ŧëš⟧",
   "tasks.run.revision.tooLarge": "⟦Ŧĥïš þàŧçĥ ëẋçëëðš ŧĥë ïñļïñë þŕëṽïëŵ ļïɱïŧ. ŧëšŧ çôþÿ ŧëš⟧",
-  "tasks.run.revision.patchSummary": "⟦Þàŧçĥ: {files} ƒïļëš · +{added} −{removed} ŧëšŧ çôþÿ ŧë⟧",
   "tasks.run.identity.select": "⟦Ŧŕÿ⟧",
   "tasks.run.identity.current": "⟦Çûŕŕëñŧ ŧŕÿ ŧ⟧",
   "tasks.run.identity.attempt": "⟦Ŧŕÿ {number} ŧë⟧",
@@ -7872,5 +7871,6 @@
   "tasks.run.line.finishedFiles": "⟦{steps, plural, one {# step} other {# steps}} ïñ {duration} · {files, plural, one {# file changed} other {# files changed}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "tasks.run.revision.diff": "⟦Ôþëñ ŧĥë çĥàñĝëš ŧëš⟧",
   "tasks.run.revision.hideDiff": "⟦Çļôšë ŧĥë çĥàñĝëš ŧëš⟧",
-  "tasks.run.revision.changeSummary": "⟦{files, plural, one {# file} other {# files}}, +{added} −{removed} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧"
+  "tasks.run.revision.changeSummary": "⟦{files, plural, one {# file} other {# files}}, +{added} −{removed} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "tasks.run.revision.patchSummary": "⟦Þàŧçĥ: {files, plural, one {# file} other {# files}} · +{added} −{removed} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧"
 }

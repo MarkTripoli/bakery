@@ -274,8 +274,6 @@ function PatchContent(
           removed: summary.removed,
         })
         : null}
-      disclaimer={t("tasks.run.revision.disclaimer")}
-      unknownLabel={t("tasks.run.unknown")}
       action={
         <UI.Button
           variant="text"

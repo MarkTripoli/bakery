@@ -7,8 +7,8 @@ export type RevisionSummaryProps = {
   baseRevision: string | null;
   candidateRevision: string | null;
   summary: string | null;
-  disclaimer: string;
-  unknownLabel: string;
+  disclaimer?: string;
+  unknownLabel?: string;
   /** Said instead of the badges when no commit and no change count is known. */
   noneRecorded?: string;
   diffLink?: { href: string; label: string };
