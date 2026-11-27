@@ -62,16 +62,31 @@ Deno.test("an agent's file search shows only files its step's grants cover", () 
     assert(token);
     await fixture.pgDatabase.query(
       `update bakery.session_operation_credentials
-          set scopes = array_remove(scopes, 'files.read:shared')
+          set scopes = array(select scope from unnest(scopes) as scope where scope not like 'files.read:%')
         where organization_id = $1 and attempt_id = $2`,
       [fixture.organizationId, assignment.attemptId],
     );
-    const search = async () => {
+    for (let index = 0; index < 14; index++) {
+      const refusedFile = await putFile(
+        fixture,
+        `/users/${fixture.principalId}/uploads/needle-${index}.txt`,
+        "a refused needle",
+      );
+      assertEquals(refusedFile.ok, true, await refusedFile.clone().text());
+      await refusedFile.body?.cancel();
+    }
+    const search = async (limit?: number) => {
       const response = await workerRequest(
         fixture,
         worker.credential,
         "/v1/session/call",
-        { tool: "files.search", arguments: { query: "needle" } },
+        {
+          tool: "files.search",
+          arguments: {
+            query: "needle",
+            ...(limit === undefined ? {} : { limit }),
+          },
+        },
         { headers: { "x-session-credential": token } },
       );
       const text = await response.text();
@@ -96,4 +111,10 @@ Deno.test("an agent's file search shows only files its step's grants cover", () 
     );
     const after = await search();
     assertEquals([after.status, after.names], [200, ["needle-report.txt"]]);
+    const single = await search(1);
+    assertEquals(
+      [single.status, single.names, single.nextCursor],
+      [200, ["needle-report.txt"], null],
+      single.text,
+    );
   }));

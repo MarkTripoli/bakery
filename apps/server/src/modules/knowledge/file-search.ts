@@ -75,8 +75,7 @@ async function refusedByFileGrants(
 
 const PAGE_ORDERING = "createdAt:desc,id:desc";
 
-const MAX_FILTERED_ROUNDS = 10;
-const LAST_POSSIBLE_ID = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+const SCAN_BATCH = 200;
 
 /** A friendly group for a media type, as SQL over a column. */
 const MEDIA_GROUP_SQL = `case
@@ -481,7 +480,8 @@ export function createFileSearchHandler(
     const afterAtIndex = params.length - 1;
     const afterId = p(position?.id ?? null);
     const afterIdIndex = params.length - 1;
-    const pageSize = p(limit + 1);
+    const batchSize = Math.max(limit + 1, SCAN_BATCH);
+    const pageSize = p(batchSize);
     const branches: string[] = [];
     if (wantFiles) {
       const folder = p(folderId);
@@ -696,20 +696,18 @@ export function createFileSearchHandler(
       organizationId,
     );
     const kept: HitRow[] = [];
-    let lastFetched: HitRow | undefined;
-    let more = false;
-    for (let round = 0; round < MAX_FILTERED_ROUNDS; round++) {
+    for (;;) {
       const result = await transaction.query<HitRow>(sql, params);
-      const page = result.rows.slice(0, limit);
-      more = result.rows.length > limit;
-      lastFetched = page.at(-1) ?? lastFetched;
+      const fetched = result.rows;
       const hidden = await hiddenEntryIds(
         transaction,
         isolation,
         organizationId,
-        page.filter((row) => row.source === "files").map((row) => row.sort_id),
+        fetched.filter((row) => row.source === "files").map((row) =>
+          row.sort_id
+        ),
       );
-      const reviewed = page.filter((row) =>
+      const reviewed = fetched.filter((row) =>
         row.source !== "files" || !hidden.has(row.sort_id)
       );
       const refused = context.agentSession === undefined
@@ -728,20 +726,16 @@ export function createFileSearchHandler(
           row.source !== "files" || !refused.has(row.sort_id)
         ),
       );
-      if (kept.length >= limit || !more || lastFetched === undefined) break;
-      params[afterAtIndex] = lastFetched.cursor_created_at;
-      params[afterIdIndex] = lastFetched.sort_id;
+      const last = fetched.at(-1);
+      if (kept.length > limit || fetched.length < batchSize || !last) break;
+      params[afterAtIndex] = last.cursor_created_at;
+      params[afterIdIndex] = last.sort_id;
     }
     const visible = kept.slice(0, limit);
-    const hasNext = kept.length > limit || more;
     const lastVisible = visible.at(-1);
-    const cursorPosition = !hasNext
-      ? null
-      : lastVisible !== undefined
+    const cursorPosition = kept.length > limit && lastVisible !== undefined
       ? { createdAt: lastVisible.cursor_created_at, id: lastVisible.sort_id }
-      : lastFetched === undefined
-      ? null
-      : { createdAt: lastFetched.cursor_created_at, id: LAST_POSSIBLE_ID };
+      : null;
 
     // Paths of the tree hits, in one query: each entry's ancestors, joined.
     const treeIds = visible.filter((row) => row.source === "files").map((row) =>
