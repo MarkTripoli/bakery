@@ -494,9 +494,9 @@ export function createClaimsRepository(
               where candidate_step.organization_id = jobs.organization_id
                 and candidate_step.id = jobs.run_step_id
                 and candidate_run.status not in
-                  ('completed', 'failed', 'canceled', 'blocked')
+                  ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
                 and candidate_step.status not in
-                  ('completed', 'failed', 'canceled', 'blocked')
+                  ('completed', 'failed', 'canceled', 'blocked', 'needs_human')
                 and candidate_task.status not in ('completed', 'failed', 'canceled')
                 and candidate_task.current_run_id = candidate_run.id
            )

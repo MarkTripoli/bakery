@@ -273,14 +273,16 @@ Deno.test("a row becomes a record only once it has a result", () => {
     row("f", "pending"),
     row("g", "running"),
     row("h", "waiting"),
+    row("i", "needs_human", { outcome: "expired", asked: 1 }),
   ]);
-  assertEquals([...records.keys()], ["a", "b", "c", "d", "e"]);
+  assertEquals([...records.keys()], ["a", "b", "c", "d", "e", "i"]);
   assertEquals(records.get("a"), { status: "completed", output: { x: 1 } });
   // A completed step with no stored output is a step that produced null.
   assertEquals(records.get("b"), { status: "completed", output: null });
   assertEquals(records.get("c"), { status: "completed", output: null });
   assertEquals(records.get("d"), { status: "failed" });
   assertEquals(records.get("e"), { status: "canceled" });
+  assertEquals(records.get("i"), { status: "needs_human" });
 });
 
 Deno.test("a row that cannot be read as a record is refused, not guessed at", () => {

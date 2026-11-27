@@ -247,7 +247,7 @@ Deno.test("each iteration of a repeated review step asks anew and waits on its o
   }
 });
 
-Deno.test("a waiting step whose request expires completes expired, never approved", async () => {
+Deno.test("a waiting step whose request expires needs a person, never approved", async () => {
   const o = await open();
   try {
     const version = await seedArtifactVersion(
@@ -268,10 +268,17 @@ Deno.test("a waiting step whose request expires completes expired, never approve
       [o.fixture.organizationId, o.run.runId],
     );
     assertEquals(await o.runner.run(request), {
-      kind: "completed",
+      kind: "needs_human",
       output: { outcome: "expired", asked: 1 },
     });
     assertEquals((await o.tags()).map((tag) => tag.status), ["expired"]);
+    assertEquals(
+      await o.runner.run({
+        ...request,
+        input: { ...(request.input as object), onExpiry: "continue" },
+      }),
+      { kind: "completed", output: { outcome: "expired", asked: 1 } },
+    );
   } finally {
     await o.finish();
   }
@@ -550,7 +557,7 @@ Deno.test("a next group whose members were all asked already is not shown from t
   }
 });
 
-Deno.test("a step whose first and next asks both run out completes expired and records every request expired", async () => {
+Deno.test("a step whose first and next asks both run out needs a person and records every request expired", async () => {
   const o = await openWithNextPerson();
   try {
     assertEquals(await o.runner.run(o.request), { kind: "pending" });
@@ -562,7 +569,7 @@ Deno.test("a step whose first and next asks both run out completes expired and r
       [o.fixture.organizationId, o.run.runId],
     );
     assertEquals(await o.runner.run(o.request), {
-      kind: "completed",
+      kind: "needs_human",
       output: { outcome: "expired", asked: 2 },
     });
     assertEquals(

@@ -7753,6 +7753,8 @@
   "settings.roles.thing.ownIdentityLink": "⟦ŧĥëïŕ ôŵñ ļïñķëð ôûŧšïðë àççôûñŧš ŧëšŧ çôþÿ⟧",
   "tasks.delivery.now.stopped.limitTitle": "⟦Ɓàķëŕÿ šŧôþþëð ŧô àšķ ÿôû ŧëšŧ ç⟧",
   "tasks.delivery.now.stopped.limitBody": "⟦Ïŧ ŧŕïëð {count, plural, one {# time} other {# times}}{findings, plural, =0 {.} one { and # blocking finding remains.} other { and # blocking findings remain.}} Ŧĥïš ŵôŕķƒļôŵ àļļôŵš ûþ ŧô {max} ŧŕïëš, šô ïŧ çàñ ŧŕÿ {room} ɱôŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "tasks.run.status.needs_human": "⟦Ñëëðš ïñþûŧ ŧ⟧",
+  "tasks.run.step.needs_human": "⟦Ñëëðš ïñþûŧ ŧ⟧",
   "settings.security.linked.title": "⟦Ļïñķëð àççôûñŧš ŧëš⟧",
   "settings.security.linked.description": "⟦Ļëŧš Ɓàķëŕÿ ķñôŵ ïŧ ïš ÿôû ŵĥëñ ÿôû àçŧ ƒŕôɱ àñôŧĥëŕ àþþ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "settings.security.linked.slack.notConnected": "⟦{organization} ĥàš ñôŧ çôññëçŧëð Šļàçķ, šô ŧĥëŕë ïš ñôŧĥïñĝ ŧô ļïñķ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",

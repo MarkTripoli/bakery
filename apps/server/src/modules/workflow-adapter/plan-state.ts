@@ -246,6 +246,7 @@ export function recordsFromRows(
         break;
       case "failed":
       case "canceled":
+      case "needs_human":
         records.set(row.stepKey, { status: row.status });
         break;
       case "pending":

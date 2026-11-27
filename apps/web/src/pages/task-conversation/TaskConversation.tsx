@@ -480,7 +480,7 @@ export function TaskConversation(
     ? run.data.status
     : undefined;
   const runEnded = runStatus === "completed" || runStatus === "failed" ||
-    runStatus === "canceled";
+    runStatus === "canceled" || runStatus === "needs_human";
   const runBlocked = runStatus === "blocked";
   const runPaused = runStatus === "paused";
   const runActive = task.currentRunId !== null && !runBlocked &&
