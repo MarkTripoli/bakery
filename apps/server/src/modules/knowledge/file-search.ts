@@ -15,6 +15,9 @@ import {
 } from "./storage-tree.ts";
 import { deniedEntriesCte } from "./folder-access-store.ts";
 import { hiddenEntryIds, reviewerIsolationOf } from "./reviewer-isolation.ts";
+import { agentFileReadFor } from "./agent-file-guard.ts";
+import { FILES_READ_SCOPE } from "./agent-file-scope.ts";
+import type { StoragePolicy } from "./storage-tree.ts";
 
 /**
  * File search and the read-only library mirror (chapter 25 section 17, #453).
@@ -35,6 +38,40 @@ import { hiddenEntryIds, reviewerIsolationOf } from "./reviewer-isolation.ts";
  */
 
 type FileSearchInput = z.output<typeof contractSchemas.FileSearchQuery>;
+
+async function refusedByFileGrants(
+  transaction: PgTransactionClient,
+  context: ActionContext,
+  organizationId: string,
+  principalId: string,
+  entryIds: readonly string[],
+): Promise<Set<string>> {
+  const refused = new Set<string>();
+  if (entryIds.length === 0) return refused;
+  const entries = await transaction.query<{
+    id: string;
+    policy: StoragePolicy;
+    owner_id: string | null;
+    system_key: string | null;
+  }>(
+    `select id, policy, owner_id, system_key from bakery.storage_entries
+      where organization_id = $1 and id = any($2::uuid[])`,
+    [organizationId, entryIds],
+  );
+  for (const entry of entries.rows) {
+    try {
+      await agentFileReadFor(transaction, context, {
+        organizationId,
+        principalId,
+        target: entry,
+      });
+    } catch (error) {
+      if (!(error instanceof StandardError)) throw error;
+      refused.add(entry.id);
+    }
+  }
+  return refused;
+}
 
 const PAGE_ORDERING = "createdAt:desc,id:desc";
 
@@ -356,10 +393,10 @@ export function createFileSearchHandler(
     }
 
     const scopes = context.sessionScopes;
+    const filesByGrant = scopes !== undefined &&
+      !scopes.includes("artifacts.read") && scopes.includes(FILES_READ_SCOPE);
     const includeFiles = scopes === undefined ||
-      scopes.includes("artifacts.read");
-    // The route proves the caller may read files; the library needs its own
-    // permission, and an agent session its own scope.
+      scopes.includes("artifacts.read") || filesByGrant;
     const includeLibrary = (scopes === undefined ||
       scopes.includes("library.read")) && authorizeLibraryRead(context);
 
@@ -660,8 +697,22 @@ export function createFileSearchHandler(
       organizationId,
       page.filter((row) => row.source === "files").map((row) => row.sort_id),
     );
-    const visible = page.filter((row) =>
+    const reviewed = page.filter((row) =>
       row.source !== "files" || !hidden.has(row.sort_id)
+    );
+    const refused = filesByGrant
+      ? await refusedByFileGrants(
+        transaction,
+        context,
+        organizationId,
+        principalId,
+        reviewed.filter((row) => row.source === "files").map((row) =>
+          row.sort_id
+        ),
+      )
+      : new Set<string>();
+    const visible = reviewed.filter((row) =>
+      row.source !== "files" || !refused.has(row.sort_id)
     );
 
     // Paths of the tree hits, in one query: each entry's ancestors, joined.
