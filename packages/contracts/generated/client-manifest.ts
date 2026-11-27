@@ -49546,6 +49546,23 @@ export const clientManifest = {
                 ],
                 "description": "Health of the connection: unknown until a check completes, healthy, degraded when the last check found a problem or a requested provider scope was not granted at the last connect or reconnect, or auth_required when the provider refused the credential."
               },
+              "removedBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "provider"
+                    ],
+                    "description": "Who removed a revoked connection: provider when the provider removed Bakery (Slack uninstalled the app or revoked its bot token, or GitHub removed its installation), admin when a Bakery Admin removed it; null while the connection is not revoked."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationConnection.removedBy may be null in this transport value."
+              },
               "lastCheckedAt": {
                 "anyOf": [
                   {
@@ -49597,6 +49614,7 @@ export const clientManifest = {
               "grantedScopeNames",
               "status",
               "health",
+              "removedBy",
               "lastCheckedAt",
               "createdAt",
               "createdBy",
@@ -73070,6 +73088,23 @@ export const clientManifest = {
           ],
           "description": "Health of the connection: unknown until a check completes, healthy, degraded when the last check found a problem or a requested provider scope was not granted at the last connect or reconnect, or auth_required when the provider refused the credential."
         },
+        "removedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "admin",
+                "provider"
+              ],
+              "description": "Who removed a revoked connection: provider when the provider removed Bakery (Slack uninstalled the app or revoked its bot token, or GitHub removed its installation), admin when a Bakery Admin removed it; null while the connection is not revoked."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationConnection.removedBy may be null in this transport value."
+        },
         "lastCheckedAt": {
           "anyOf": [
             {
@@ -73121,6 +73156,7 @@ export const clientManifest = {
         "grantedScopeNames",
         "status",
         "health",
+        "removedBy",
         "lastCheckedAt",
         "createdAt",
         "createdBy",
