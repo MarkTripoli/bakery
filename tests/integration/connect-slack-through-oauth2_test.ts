@@ -1,162 +1,21 @@
 import { assert, assertEquals } from "@std/assert";
+import { call } from "../helpers/installation-settings.ts";
 import {
-  call,
-  openInstallationFixture,
-} from "../helpers/installation-settings.ts";
+  BOT_TOKEN,
+  CLIENT_SECRET,
+  connectOnce,
+  DELIVERY_PRINCIPAL_NAME,
+  fakeSlack,
+  open,
+  outcome,
+  slackCallback,
+  startAttempt,
+  TEAM_ID,
+} from "../helpers/slack-connect.ts";
 import { pkceChallenge } from "../../apps/server/src/modules/integrations/auth-attempts.ts";
 import { decodeSecretSlots } from "../../apps/server/src/modules/integrations/provider-credential-port.ts";
 import { openInstallationSecret } from "../../apps/server/src/modules/secrets/installation-secrets.ts";
 import { SLACK_BOT_SCOPES } from "../../packages/integration-slack/src/server/provider.ts";
-
-const BOT_TOKEN = "xoxb-test-bot-token";
-const CLIENT_SECRET = "slack-client-secret-one";
-const TEAM_ID = "T0TESTTEAM";
-
-type SlackCall = { url: string; body: string; authorization: string | null };
-
-function fakeSlack(options: { tokenOk?: boolean } = {}) {
-  const calls: SlackCall[] = [];
-  const issued = { token: BOT_TOKEN };
-  const respond = (input: URL, init: RequestInit): Response => {
-    const headers = new Headers(init.headers);
-    const body = init.body instanceof URLSearchParams
-      ? init.body.toString()
-      : init.body === undefined || init.body === null
-      ? ""
-      : new TextDecoder().decode(init.body as Uint8Array);
-    calls.push({
-      url: input.href,
-      body,
-      authorization: headers.get("authorization"),
-    });
-    if (input.href === "https://slack.com/api/oauth.v2.access") {
-      if (options.tokenOk === false) {
-        return Response.json({ ok: false, error: "invalid_code" });
-      }
-      return Response.json({
-        ok: true,
-        access_token: issued.token,
-        token_type: "bot",
-        scope: SLACK_BOT_SCOPES.join(","),
-        bot_user_id: "U0TESTBOT",
-        app_id: "A0TESTAPP",
-        team: { id: TEAM_ID, name: "Test Workspace" },
-        enterprise: null,
-        authed_user: { id: "U0TESTUSER" },
-      });
-    }
-    if (input.href === "https://slack.com/api/auth.test") {
-      return Response.json({
-        ok: headers.get("authorization") === `Bearer ${issued.token}`,
-        team_id: TEAM_ID,
-        team: "Test Workspace",
-        bot_id: "B0TESTBOT",
-      });
-    }
-    return new Response("not found", { status: 404 });
-  };
-  const fetch = (input: URL, init: RequestInit) =>
-    Promise.resolve(respond(input, init));
-  return { calls, fetch, issued };
-}
-
-async function open(slack: ReturnType<typeof fakeSlack>) {
-  const directory = await Deno.makeTempDir({ prefix: "bakery-slack-connect-" });
-  const file = `${directory}/key`;
-  await Deno.writeFile(file, crypto.getRandomValues(new Uint8Array(32)), {
-    mode: 0o600,
-  });
-  const secretsKey = { file, keyId: "slack-connect-key-v1" };
-  const fixture = await openInstallationFixture(true, {
-    secretsKey,
-    oauth2Fetch: slack.fetch,
-  });
-  await clear(fixture);
-  const saved = await call(
-    fixture,
-    "PUT",
-    "/v1/integration-client-credentials/slack",
-    fixture.adminCookie,
-    {
-      body: { clientId: "1234.5678", clientSecret: CLIENT_SECRET },
-      headers: { "Idempotency-Key": crypto.randomUUID() },
-    },
-  );
-  assertEquals(saved.status, 200, await saved.clone().text());
-  return {
-    fixture,
-    secretsKey,
-    finish: async () => {
-      try {
-        await clear(fixture);
-      } finally {
-        try {
-          await fixture.finish();
-        } finally {
-          await Deno.remove(directory, { recursive: true });
-        }
-      }
-    },
-  };
-}
-
-type Fixture = Awaited<ReturnType<typeof openInstallationFixture>>;
-
-async function clear(fixture: Fixture) {
-  const pg = fixture.pgDatabase;
-  await pg.query(
-    "delete from bakery.integration_auth_attempts where provider = 'slack'",
-  );
-  await pg.query(
-    "delete from bakery.integration_connections where provider = 'slack'",
-  );
-  await pg.query(
-    "delete from bakery.integration_installations where provider = 'slack'",
-  );
-  await pg.query(
-    "delete from bakery.integration_app_registrations where provider = 'slack'",
-  );
-  await pg.query(
-    "update bakery.secrets set active_version_id = null where provider = 'slack'",
-  );
-  await pg.query(
-    `delete from bakery.secret_versions where secret_id in
-       (select id from bakery.secrets where provider = 'slack')`,
-  );
-  await pg.query("delete from bakery.secrets where provider = 'slack'");
-}
-
-async function startAttempt(fixture: Fixture) {
-  const response = await call(
-    fixture,
-    "POST",
-    "/v1/integration-auth-attempts",
-    fixture.adminCookie,
-    {
-      body: { provider: "slack" },
-      headers: {
-        "Bakery-Organization-Id": fixture.organizationId,
-        "Idempotency-Key": crypto.randomUUID(),
-      },
-    },
-  );
-  assertEquals(response.status, 201, await response.clone().text());
-  const created = await response.json() as {
-    id: string;
-    authorizationUrl: string;
-    installationUrl?: string;
-  };
-  return { ...created, url: new URL(created.authorizationUrl) };
-}
-
-function slackCallback(fixture: Fixture, query: Record<string, string>) {
-  return call(
-    fixture,
-    "GET",
-    `/v1/integration-auth/slack/callback?${new URLSearchParams(query)}`,
-    fixture.adminCookie,
-  );
-}
 
 Deno.test("connecting Slack sends the admin to Slack's authorize page with the bot scopes and this callback", async () => {
   const slack = fakeSlack();
@@ -351,22 +210,6 @@ async function storedToken(
   };
 }
 
-function outcome(response: Response): string | null {
-  return new URL(response.headers.get("location")!, "https://x").searchParams
-    .get("slackConnection");
-}
-
-async function connectOnce(o: Awaited<ReturnType<typeof open>>) {
-  const attempt = await startAttempt(o.fixture);
-  const response = await slackCallback(o.fixture, {
-    code: "slack-code-first",
-    state: attempt.url.searchParams.get("state")!,
-  });
-  assertEquals(outcome(response), "connected");
-  return new URL(response.headers.get("location")!, "https://x").searchParams
-    .get("connectionId")!;
-}
-
 Deno.test("an already connected workspace refuses a second connect and keeps the stored token", async () => {
   const slack = fakeSlack();
   const o = await open(slack);
@@ -423,6 +266,210 @@ Deno.test("a reconnect whose connection is gone stores nothing and leaves the in
     assertEquals(outcome(refused), "reconnect_unavailable");
     assertEquals(await storedToken(o), before);
     assertEquals(before.status, "disabled");
+  } finally {
+    await o.finish();
+  }
+});
+
+async function deliveryState(o: Awaited<ReturnType<typeof open>>) {
+  const pg = o.fixture.pgDatabase;
+  const resources = await pg.query<
+    {
+      id: string;
+      kind: string;
+      external_id: string;
+      selected: boolean;
+      available: boolean;
+      binding: unknown;
+    }
+  >(
+    `select resource.id, resource.kind, resource.external_id,
+            resource.selected, resource.available,
+            resource.capability_snapshot -> 'binding' as binding
+       from bakery.integration_resources resource
+       join bakery.integration_connections connection
+         on connection.id = resource.connection_id
+      where connection.provider = 'slack'
+        and connection.organization_id = $1`,
+    [o.fixture.organizationId],
+  );
+  const principals = await pg.query<
+    {
+      id: string;
+      provider_user_id: string | null;
+      memberships: number;
+      capabilities: string[];
+    }
+  >(
+    `select principal.id, principal.provider_user_id,
+            (select count(*)::int from bakery.organization_memberships m
+              where m.principal_id = principal.id) as memberships,
+            array(select capability from bakery.permission_grants g
+                   where g.principal_id = principal.id
+                     and g.revoked_at is null order by capability)
+              as capabilities
+       from bakery.principals principal
+      where principal.principal_type = 'service'
+        and principal.display_name = $1
+        and exists (
+          select 1 from bakery.permission_grants g
+           where g.principal_id = principal.id and g.organization_id = $2
+        )`,
+    [DELIVERY_PRINCIPAL_NAME, o.fixture.organizationId],
+  );
+  const grants = await pg.query<
+    {
+      subject_principal_id: string;
+      resource_id: string;
+      direction: string;
+      capability: string;
+      action_version: number;
+    }
+  >(
+    `select grant_row.subject_principal_id, grant_row.resource_id,
+            grant_row.direction, grant_row.capability, grant_row.action_version
+       from bakery.integration_grants grant_row
+       join bakery.integration_connections connection
+         on connection.id = grant_row.connection_id
+      where connection.provider = 'slack'
+        and connection.organization_id = $1
+        and grant_row.revoked_at is null
+      order by grant_row.capability`,
+    [o.fixture.organizationId],
+  );
+  return {
+    resources: resources.rows,
+    principals: principals.rows,
+    grants: grants.rows,
+  };
+}
+
+Deno.test("connecting Slack records the workspace, one delivery principal and its grants, and a reconnect adds none", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    const connectionId = await connectOnce(o);
+    const first = await deliveryState(o);
+    assertEquals(first.resources.length, 1);
+    const resource = first.resources[0]!;
+    assertEquals(resource.kind, "slack.workspace");
+    assertEquals(resource.external_id, TEAM_ID);
+    assertEquals(resource.selected, true);
+    assertEquals(resource.available, true);
+    assertEquals(resource.binding, { teamId: TEAM_ID, botUserId: "U0TESTBOT" });
+    assertEquals(first.principals.length, 1);
+    const principal = first.principals[0]!;
+    assertEquals(principal.provider_user_id, null);
+    assertEquals(principal.memberships, 0);
+    assertEquals(principal.capabilities, ["integrationConnections.invoke"]);
+    const keyed = await o.fixture.pgDatabase.query<{ principal_id: string }>(
+      `select principal_id from bakery.delivery_principals
+        where organization_id = $1 and purpose = 'slack.delivery'`,
+      [o.fixture.organizationId],
+    );
+    assertEquals(keyed.rows.map((row) => row.principal_id), [principal.id]);
+    assertEquals(
+      first.grants,
+      ["slack.dm.open", "slack.message.post", "slack.message.update"].map(
+        (capability) => ({
+          subject_principal_id: principal.id,
+          resource_id: resource.id,
+          direction: "out_of_bakery",
+          capability,
+          action_version: 1,
+        }),
+      ),
+    );
+    const permissions = await o.fixture.pgDatabase.query<
+      { granted_permissions: Record<string, string> }
+    >(
+      "select granted_permissions from bakery.integration_connections where id = $1",
+      [connectionId],
+    );
+    assertEquals(permissions.rows[0]!.granted_permissions, {
+      app_mentions: "read",
+      channels: "read",
+      chat: "write",
+      commands: "read",
+      im: "write",
+    });
+
+    slack.issued.token = "xoxb-refreshed-token";
+    const response = await call(
+      o.fixture,
+      "POST",
+      "/v1/integration-auth-attempts",
+      o.fixture.adminCookie,
+      {
+        body: { provider: "slack", reconnectConnectionId: connectionId },
+        headers: {
+          "Bakery-Organization-Id": o.fixture.organizationId,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assertEquals(response.status, 201, await response.clone().text());
+    const created = await response.json() as { authorizationUrl: string };
+    const refreshed = await slackCallback(o.fixture, {
+      code: "slack-code-refresh",
+      state: new URL(created.authorizationUrl).searchParams.get("state")!,
+    });
+    assertEquals(outcome(refreshed), "refreshed");
+    assertEquals(await deliveryState(o), first);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a reconnect leaves an admin's revocation of a delivery grant standing and adds no grant", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    const connectionId = await connectOnce(o);
+    await o.fixture.pgDatabase.query(
+      `update bakery.integration_grants set revoked_at = now(), revoked_by = $2
+        where connection_id = $1 and capability = 'slack.message.post'`,
+      [connectionId, o.fixture.adminId],
+    );
+    const grantsOf = async () =>
+      (await o.fixture.pgDatabase.query<
+        { id: string; capability: string; revoked: boolean }
+      >(
+        `select id, capability, revoked_at is not null as revoked
+           from bakery.integration_grants where connection_id = $1
+          order by capability, id`,
+        [connectionId],
+      )).rows;
+    const revoked = await grantsOf();
+    const response = await call(
+      o.fixture,
+      "POST",
+      "/v1/integration-auth-attempts",
+      o.fixture.adminCookie,
+      {
+        body: { provider: "slack", reconnectConnectionId: connectionId },
+        headers: {
+          "Bakery-Organization-Id": o.fixture.organizationId,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assertEquals(response.status, 201, await response.clone().text());
+    const created = await response.json() as { authorizationUrl: string };
+    const refreshed = await slackCallback(o.fixture, {
+      code: "slack-code-refresh",
+      state: new URL(created.authorizationUrl).searchParams.get("state")!,
+    });
+    assertEquals(outcome(refreshed), "refreshed");
+    assertEquals(await grantsOf(), revoked);
+    assertEquals(
+      revoked.map(({ capability, revoked }) => [capability, revoked]),
+      [
+        ["slack.dm.open", false],
+        ["slack.message.post", true],
+        ["slack.message.update", false],
+      ],
+    );
   } finally {
     await o.finish();
   }
@@ -575,6 +622,96 @@ Deno.test("connecting a removed Slack workspace again restores the same connecti
       [connectionId],
     );
     assertEquals(audited.rows.map((r) => r.step), ["bound", "restored"]);
+  } finally {
+    await o.finish();
+  }
+});
+
+Deno.test("a Slack connection turns off and on, and connecting after removal restores the revoked delivery grants", async () => {
+  const slack = fakeSlack();
+  const o = await open(slack);
+  try {
+    const first = await startAttempt(o.fixture);
+    const connected = await slackCallback(o.fixture, {
+      code: "slack-code-reset",
+      state: first.url.searchParams.get("state")!,
+    });
+    const connectionId = new URL(
+      connected.headers.get("location")!,
+      "https://x",
+    ).searchParams.get("connectionId")!;
+    const headers = { "Bakery-Organization-Id": o.fixture.organizationId };
+    const versionOf = async () =>
+      (await (await call(
+        o.fixture,
+        "GET",
+        `/v1/integration-connections/${connectionId}`,
+        o.fixture.adminCookie,
+        { headers },
+      )).json() as { version: number }).version;
+    const patch = async (enabled: boolean) =>
+      await call(
+        o.fixture,
+        "PATCH",
+        `/v1/integration-connections/${connectionId}`,
+        o.fixture.adminCookie,
+        {
+          body: { enabled },
+          headers: {
+            ...headers,
+            "If-Match": `"${await versionOf()}"`,
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+        },
+      );
+    const off = await patch(false);
+    assert(off.ok, await off.clone().text());
+    const on = await patch(true);
+    assert(on.ok, await on.clone().text());
+    const pg = o.fixture.pgDatabase;
+    await pg.query(
+      `update bakery.integration_grants set revoked_at = now(), revoked_by = $2
+        where connection_id = $1 and capability = 'slack.message.post'`,
+      [connectionId, o.fixture.adminId],
+    );
+    const removed = await call(
+      o.fixture,
+      "POST",
+      `/v1/integration-connections/${connectionId}/removal`,
+      o.fixture.adminCookie,
+      {
+        headers: {
+          ...headers,
+          "If-Match": `"${await versionOf()}"`,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assert(removed.ok, await removed.clone().text());
+    const again = await startAttempt(o.fixture);
+    const restored = await slackCallback(o.fixture, {
+      code: "slack-code-after-reset",
+      state: again.url.searchParams.get("state")!,
+    });
+    assertEquals(outcome(restored), "refreshed");
+    const live = await pg.query<{ capability: string }>(
+      `select capability from bakery.integration_grants
+        where connection_id = $1 and revoked_at is null order by capability`,
+      [connectionId],
+    );
+    assertEquals(live.rows.map((row) => row.capability), [
+      "slack.dm.open",
+      "slack.message.post",
+      "slack.message.update",
+    ]);
+    const audited = await pg.query<{ step: string; regranted: string }>(
+      `select details ->> 'step' as step, details ->> 'regranted' as regranted
+         from bakery.audit_events
+        where operation = 'integrationAuth.providerCallback'
+          and resource_id = $1 order by created_at desc limit 1`,
+      [connectionId],
+    );
+    assertEquals(audited.rows, [{ step: "restored", regranted: "true" }]);
   } finally {
     await o.finish();
   }

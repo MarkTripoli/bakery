@@ -7,6 +7,7 @@ import { appendDomainEvent } from "@bakery/persistence";
 import { decodeCursor } from "../../platform/cursor.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { recordAuthAudit } from "../auth/application/audit.ts";
+import { isDeliveryPrincipal } from "../auth/adapters/delivery-principals-postgres.ts";
 import { organizationActor } from "./auth-attempts.ts";
 import {
   cursorCreatedAt,
@@ -114,6 +115,9 @@ async function validateGrant(
   if (fields.length > 0) throw unprocessable(fields, "grant_subject_invalid");
 
   if (input.subjectPrincipalId) {
+    if (await isDeliveryPrincipal(transaction, input.subjectPrincipalId)) {
+      throw unprocessable(["subjectPrincipalId"], "grant_subject_unknown");
+    }
     const member = await transaction.query(
       `select 1 from bakery.organization_memberships
         where organization_id = $1 and principal_id = $2

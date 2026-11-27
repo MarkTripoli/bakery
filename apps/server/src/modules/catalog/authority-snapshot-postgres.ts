@@ -14,6 +14,7 @@ import type {
   IntegrationGrantRecord,
   SnapshotKey,
 } from "./integration-gate.ts";
+import type { HostResourceKind } from "./integration-gate-profiles.ts";
 
 /**
  * The deployed provider id each stored installation provider binds (#20).
@@ -45,7 +46,13 @@ type Row = {
   resource_selected: boolean;
   resource_available: boolean;
   resource_archived: boolean;
+  resource_binding: unknown;
 };
+
+type SnapshotResource = Pick<
+  AuthoritySnapshot["resource"],
+  "binding" | "providerRepositoryId" | "repositoryId"
+>;
 
 type GrantRow = {
   id: string;
@@ -135,7 +142,8 @@ export async function loadSnapshot(
             resource.display_name as resource_display_name,
             resource.selected as resource_selected,
             resource.available as resource_available,
-            resource.archived_at is not null as resource_archived
+            resource.archived_at is not null as resource_archived,
+            resource.capability_snapshot -> 'binding' as resource_binding
        from bakery.integration_connections connection
        join bakery.integration_installations installation
          on installation.id = connection.installation_id
@@ -152,43 +160,22 @@ export async function loadSnapshot(
   const row = result.rows[0];
   if (!row || row.resource_archived) return null;
 
-  const providerId = PROVIDER_IDS[row.installation_provider];
+  const providerId = Object.hasOwn(PROVIDER_IDS, row.installation_provider)
+    ? PROVIDER_IDS[row.installation_provider]
+    : registry.getProvider(row.installation_provider)?.integrationId;
   const integration = providerId ? registry.get(providerId) : undefined;
-  const kind = RESOURCE_KINDS[row.resource_kind];
-  if (!providerId || !integration || !kind) return null;
-
-  // The github.repository binding; every part must bind exactly.
-  const [owner, repo, ...rest] = row.resource_display_name.split("/");
-  const repositoryId = positiveId(row.resource_external_id);
-  const installationExternalId = positiveId(row.external_authorization_id);
-  const botUserId = positiveId(row.bot_user_id);
-  if (
-    !owner || !repo || rest.length > 0 || repositoryId === null ||
-    installationExternalId === null || botUserId === null
-  ) return null;
-
-  // The Bakery repository records this GitHub repository is tracked as. An
-  // `into_bakery` grant names one of these uuids, so a snapshot that never
-  // names one can never match an inbound repository grant. The tracking rule is
-  // the intake's: same organization and connection, not archived, and either
-  // the numeric provider id or the full name. Two matches are ambiguous, and
-  // an ambiguous repository is untracked, so the snapshot names neither.
-  const tracked = await transaction.query<{ id: string }>(
-    `select id from bakery.repositories
-      where organization_id = $1 and integration_connection_id = $2
-        and archived_at is null
-        and (provider_repo_id = $3 or provider_repo_id = $4)
-      limit 2`,
-    [
-      key.organizationId,
-      key.connectionId,
-      String(repositoryId),
-      row.resource_display_name,
-    ],
-  );
-  const bakeryRepositoryId = tracked.rows.length === 1
-    ? tracked.rows[0]!.id
+  if (!providerId || !integration) return null;
+  const kind = Object.hasOwn(RESOURCE_KINDS, row.resource_kind)
+    ? RESOURCE_KINDS[row.resource_kind]
+    : Object.hasOwn(integration.profile.resourceKinds, row.resource_kind)
+    ? row.resource_kind
     : undefined;
+  if (!kind) return null;
+
+  const resource = Object.hasOwn(RESOURCE_KINDS, row.resource_kind)
+    ? await trackedRepositoryResource(transaction, key, row)
+    : storedResource(row, integration.profile.resourceKinds[kind]);
+  if (resource === null) return null;
 
   const grants = await transaction.query<GrantRow>(
     `select id, subject_type, subject_principal_id, subject_role,
@@ -270,22 +257,7 @@ export async function loadSnapshot(
       kind,
       selected: row.resource_selected,
       available: row.resource_available,
-      // The provider's numeric id is part of the resource, not only of its
-      // binding: a token minted without it has nothing to be narrowed to, and
-      // the broker would be handed an empty set and refuse at the last moment.
-      // Named for the provider, because a grant's `repositoryId` names a Bakery
-      // repository record and the two must never be confused.
-      providerRepositoryId: String(repositoryId),
-      // The Bakery repository record a grant targets, when exactly one Bakery
-      // repository tracks this provider repository.
-      ...(bakeryRepositoryId ? { repositoryId: bakeryRepositoryId } : {}),
-      binding: {
-        owner,
-        repo,
-        repositoryId,
-        installationId: installationExternalId,
-        botUserId,
-      },
+      ...resource,
     },
     grants: grants.rows.map((grant): IntegrationGrantRecord =>
       ({
@@ -317,4 +289,58 @@ export async function loadSnapshot(
     ),
     policyRevision,
   };
+}
+
+async function trackedRepositoryResource(
+  transaction: PgTransactionClient,
+  key: SnapshotKey,
+  row: Row,
+): Promise<SnapshotResource | null> {
+  const [owner, repo, ...rest] = row.resource_display_name.split("/");
+  const repositoryId = positiveId(row.resource_external_id);
+  const installationExternalId = positiveId(row.external_authorization_id);
+  const botUserId = positiveId(row.bot_user_id);
+  if (
+    !owner || !repo || rest.length > 0 || repositoryId === null ||
+    installationExternalId === null || botUserId === null
+  ) return null;
+  const tracked = await transaction.query<{ id: string }>(
+    `select id from bakery.repositories
+      where organization_id = $1 and integration_connection_id = $2
+        and archived_at is null
+        and (provider_repo_id = $3 or provider_repo_id = $4)
+      limit 2`,
+    [
+      key.organizationId,
+      key.connectionId,
+      String(repositoryId),
+      row.resource_display_name,
+    ],
+  );
+  const bakeryRepositoryId = tracked.rows.length === 1
+    ? tracked.rows[0]!.id
+    : undefined;
+  return {
+    providerRepositoryId: String(repositoryId),
+    ...(bakeryRepositoryId ? { repositoryId: bakeryRepositoryId } : {}),
+    binding: {
+      owner,
+      repo,
+      repositoryId,
+      installationId: installationExternalId,
+      botUserId,
+    },
+  };
+}
+
+function storedResource(
+  row: Row,
+  kind: HostResourceKind | undefined,
+): SnapshotResource | null {
+  if (kind === undefined) return null;
+  const binding = kind.bindingSchema.safeParse(row.resource_binding);
+  if (!binding.success) return null;
+  const account = binding.data[kind.externalIdentity.account];
+  if (String(account) !== row.external_authorization_id) return null;
+  return { binding: binding.data };
 }
