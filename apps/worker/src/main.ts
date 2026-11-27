@@ -396,7 +396,10 @@ export async function main(options: WorkerMainOptions = {}): Promise<void> {
                 registration.workerSessionGeneration,
               ),
             };
-        }, { stdioAllowlist: config.mcpStdioAllowlist ?? [] }),
+        }, {
+          stdioAllowlist: config.mcpStdioAllowlist ?? [],
+          sessionServerUrl: config.serverUrl,
+        }),
         inner: checkedExecutor,
       })
       : codingHarness?.name === "pi"

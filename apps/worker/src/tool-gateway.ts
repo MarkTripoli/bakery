@@ -7,6 +7,11 @@ import {
   StdioMcpError,
   type StdioMcpServer,
 } from "./stdio-mcp.ts";
+import {
+  bakeryFilesTools,
+  type BuiltinGatewayTool,
+} from "./files-gateway-tools.ts";
+import { createSessionApi } from "../../../packages/cli/src/session-call.ts";
 
 /**
  * The worker-local tool gateway (#436, docs/technical-design/25-one-engine.md
@@ -44,6 +49,9 @@ export type GatewayTool = z.infer<typeof GatewayToolSchema>;
 /** What the gateway needs from the worker's server client. */
 export type ToolGatewayBackend = Readonly<{
   listTools(signal?: AbortSignal): Promise<readonly GatewayTool[]>;
+  listBuiltinTools?(
+    signal?: AbortSignal,
+  ): Promise<readonly BuiltinGatewayTool[]>;
   invokeTool(
     input: Readonly<{
       tool: GatewayTool;
@@ -60,6 +68,7 @@ export type ToolGatewaySession = Readonly<{
   /** The bearer the session presents; random per session. */
   token: string;
   tools: readonly GatewayTool[];
+  builtinTools: readonly BuiltinGatewayTool[];
   /** An MCP client configuration naming only this gateway. */
   mcpConfig(): Record<string, unknown>;
   close(): Promise<void>;
@@ -112,6 +121,7 @@ export async function answerGatewayMessage(
   tools: readonly GatewayTool[],
   backend: ToolGatewayBackend,
   signal?: AbortSignal,
+  builtins: readonly BuiltinGatewayTool[] = [],
 ): Promise<Record<string, unknown> | null> {
   const id = message.id;
   if (id === undefined || id === null) return null;
@@ -132,12 +142,20 @@ export async function answerGatewayMessage(
       return reply({});
     case "tools/list":
       return reply({
-        tools: tools.map((tool) => ({
-          name: tool.name,
-          description: tool.description,
-          inputSchema: tool.inputSchema ?? { type: "object" },
-          annotations: { readOnlyHint: tool.readOnly },
-        })),
+        tools: [
+          ...tools.map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema ?? { type: "object" },
+            annotations: { readOnlyHint: tool.readOnly },
+          })),
+          ...builtins.map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema,
+            annotations: { readOnlyHint: tool.readOnly },
+          })),
+        ],
       });
     case "tools/call": {
       const params = (message.params ?? {}) as {
@@ -145,11 +163,18 @@ export async function answerGatewayMessage(
         arguments?: unknown;
       };
       const tool = tools.find((candidate) => candidate.name === params.name);
-      // Only listed tools; the server refuses anything else again anyway.
-      if (tool === undefined) return error(-32602, "Unknown tool.");
+      const builtin = builtins.find((candidate) =>
+        candidate.name === params.name
+      );
+      if (tool === undefined && builtin === undefined) {
+        return error(-32602, "Unknown tool.");
+      }
       const args = params.arguments ?? {};
       if (args === null || typeof args !== "object" || Array.isArray(args)) {
         return error(-32602, "Tool arguments must be an object.");
+      }
+      if (tool === undefined) {
+        return reply(await builtin!.call(args as Record<string, unknown>));
       }
       try {
         const result = await backend.invokeTool({
@@ -183,6 +208,9 @@ export async function startToolGateway(
   signal?: AbortSignal,
 ): Promise<ToolGatewaySession> {
   const tools = await backend.listTools(signal);
+  const builtinTools = (await backend.listBuiltinTools?.(signal) ?? []).filter(
+    (builtin) => !tools.some((tool) => tool.name === builtin.name),
+  );
   const token = randomBytes(32).toString("base64url");
   const server: Server = createServer((request, response) => {
     const send = (status: number, body?: unknown) => {
@@ -217,6 +245,7 @@ export async function startToolGateway(
         tools,
         backend,
         signal,
+        builtinTools,
       );
       if (answer === null) send(202);
       else send(200, answer);
@@ -245,6 +274,7 @@ export async function startToolGateway(
     url,
     token,
     tools,
+    builtinTools,
     mcpConfig: () => ({
       mcpServers: {
         [TOOL_GATEWAY_SERVER_NAME]: {
@@ -266,7 +296,12 @@ export type ToolGatewayAuthority = () => Promise<
 /** Opens the gateway of one assignment's agent session. */
 export type ToolGatewayFactory = (
   assignment: Readonly<
-    { attemptId: string; leaseToken: string; fence: string }
+    {
+      attemptId: string;
+      leaseToken: string;
+      fence: string;
+      sessionCredential?: string;
+    }
   >,
   signal?: AbortSignal,
 ) => Promise<ToolGatewaySession>;
@@ -339,6 +374,8 @@ type GatewayClient = Readonly<{
 export type LocalToolOptions = Readonly<{
   stdioAllowlist: readonly string[];
   launch?: typeof launchStdioMcpServer;
+  sessionServerUrl?: string;
+  sessionFetcher?: typeof fetch;
 }>;
 
 function requestReachedServer(error: unknown): boolean {
@@ -460,7 +497,20 @@ export function createToolGatewayFactory(
       );
       return result;
     };
+    const credential = assignment.sessionCredential;
+    const sessionCaller =
+      credential === undefined || credential.trim() === "" ||
+        local.sessionServerUrl === undefined
+        ? null
+        : createSessionApi(
+          { baseUrl: local.sessionServerUrl, sessionToken: credential },
+          local.sessionFetcher,
+        );
     const gateway = await startToolGateway({
+      listBuiltinTools: async () =>
+        sessionCaller === null
+          ? []
+          : await bakeryFilesTools(sessionCaller).catch(() => []),
       listTools: async (listSignal) =>
         (await client.effectiveTools(assignment.attemptId, proof, listSignal))
           .value.tools,

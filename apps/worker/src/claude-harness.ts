@@ -1927,7 +1927,10 @@ async function runClaudeFreeform(
     // The gateway's tools reach the session as one MCP server, and no other:
     // its config lives in the attempt config dir the file tools cannot read.
     let gatewayArgs: string[] = [];
-    if (gateway !== null && gateway.tools.length > 0) {
+    if (
+      gateway !== null &&
+      gateway.tools.length + gateway.builtinTools.length > 0
+    ) {
       const configFile = join(config.path, "tool-gateway.mcp.json");
       await Deno.writeTextFile(
         configFile,
