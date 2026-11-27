@@ -37150,6 +37150,7 @@ const transportSchemas = {
         "artifactId",
         "pinned",
         "contentRemoved",
+        "version",
         "updatedAt"
       ],
       "fieldTypes": {
@@ -37166,6 +37167,7 @@ const transportSchemas = {
         "artifactId": "uuid|null",
         "pinned": "boolean",
         "contentRemoved": "boolean",
+        "version": "integer",
         "updatedAt": "timestamp"
       },
       "nullableFields": [
@@ -37175,6 +37177,9 @@ const transportSchemas = {
         "mediaType",
         "sizeBytes",
         "artifactId"
+      ],
+      "optionalFields": [
+        "version"
       ],
       "description": "One folder or file as the files browser lists it: what it is called, what its folder allows, its artifact kind and current size, and the artifact it shows when it is a work item's document.",
       "fieldDescriptions": {
@@ -37191,6 +37196,7 @@ const transportSchemas = {
         "artifactId": "The artifact a work item's document shows; the page opens the artifact page for it instead of the plain file view. Null for working-area files and folders.",
         "pinned": "True when an administrator pinned the file's artifact, which suspends retention collection of its versions. Always false for folders and for working-area files, which have no artifact to pin.",
         "contentRemoved": "True when the file's current contents were removed by retention or an Admin purge; the entry stays as a record of the file. Always false for folders.",
+        "version": "The entry's optimistic concurrency version; send it as If-Match (bakery_files_write's version) to replace, move, delete or restore it.",
         "updatedAt": "When the entry or its current version last changed."
       }
     },

@@ -54,6 +54,7 @@ import {
 } from "./harness-common.ts";
 import { executeClaudeCoordinatorTurn } from "./claude-coordinator.ts";
 import {
+  gatewayOffersTools,
   TOOL_GATEWAY_SERVER_NAME,
   type ToolGatewayFactory,
   type ToolGatewaySession,
@@ -1927,7 +1928,7 @@ async function runClaudeFreeform(
     // The gateway's tools reach the session as one MCP server, and no other:
     // its config lives in the attempt config dir the file tools cannot read.
     let gatewayArgs: string[] = [];
-    if (gateway !== null && gateway.tools.length > 0) {
+    if (gatewayOffersTools(gateway)) {
       const configFile = join(config.path, "tool-gateway.mcp.json");
       await Deno.writeTextFile(
         configFile,
