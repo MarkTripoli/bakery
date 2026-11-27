@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "47291504470b0baa4ed1ab5e887b45909bfb5da4"
+    "f9c1ef1f9240a85230080f1eddeb53537d515762"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:a667b25c30640cc23b2e5478b7a8f3022065d774392eacaad3b2f683939aff50",
-  "reason": "#458 Slack signing secret by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main 47291504470b0baa4ed1ab5e887b45909bfb5da4: IntegrationClientCredentials gains a required, nullable signingSecretSavedAt (when the provider app's signing secret was saved, never the secret) and IntegrationClientCredentialsPut gains an optional write-only signingSecret, so Slack's signing secret is configured in the UI with the app registration. The web client and its test mocks in this PR carry the field.",
+  "reason": "#458 Slack signing secret by dev-server on 2026-11-27 under the owner's standing breaking-change authorization (2026-10-09), main f9c1ef1f9240a85230080f1eddeb53537d515762: IntegrationClientCredentials gains a required, nullable signingSecretSavedAt (when the provider app's signing secret was saved, never the secret) and IntegrationClientCredentialsPut gains an optional write-only signingSecret, so Slack's signing secret is configured in the UI with the app registration. The web client and its test mocks in this PR carry the field.",
   "priorApprovals": [
     {
       "id": "v1-unreleased-principal-organization-contracts",
