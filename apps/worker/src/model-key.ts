@@ -3,6 +3,7 @@ import { contractSchemas } from "../../../packages/contracts/src/contracts.ts";
 import { type AttemptProof, attemptProofOf } from "./client.ts";
 import type { ExecutionOutcome, WorkerExecutor } from "./executor.ts";
 import type { JobAssignment } from "./types.ts";
+import { NATIVE_OUTPUT_LIMITS } from "./native-output.ts";
 
 export const ModelKeySchema = contractSchemas.WorkerModelKey;
 export type ModelKey = z.infer<typeof ModelKeySchema>;
@@ -83,6 +84,10 @@ export async function meteredModelKey(
   }
   const variable = variables[key.provider];
   if (variable === undefined) throw new ModelKeyUnavailable();
+  if (
+    new TextEncoder().encode(key.apiKey).byteLength >
+      NATIVE_OUTPUT_LIMITS.credentialSecretBytes
+  ) throw new ModelKeyUnavailable("MODEL_KEY_TOO_LONG_TO_REDACT");
   return { environment: { [variable]: key.apiKey }, secrets: [key.apiKey] };
 }
 

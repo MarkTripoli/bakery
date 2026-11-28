@@ -8,6 +8,10 @@ import {
   readOncePerAttempt,
 } from "../../apps/worker/src/model-key.ts";
 import { createReviewerExecutor } from "../../apps/worker/src/reviewer.ts";
+import {
+  NATIVE_OUTPUT_LIMITS,
+  openNativeOutputCapture,
+} from "../../apps/worker/src/native-output.ts";
 import type { WorkerExecutor } from "../../apps/worker/src/executor.ts";
 import { localAssignment } from "../helpers/worker-execution/recovery-support.ts";
 import type { JobAssignment } from "../../apps/worker/src/types.ts";
@@ -145,10 +149,53 @@ Deno.test("an independent review paid by API key redacts that key, not the host 
   );
 });
 
-Deno.test("the worker accepts any key the server's contract allows", () => {
-  const apiKey = "k".repeat(5_000);
-  assertEquals(ModelKeySchema.parse({ provider: "openrouter", apiKey }), {
-    provider: "openrouter",
-    apiKey,
-  });
+Deno.test("a key longer than output capture can redact fails closed with a named reason", async () => {
+  const long = "k".repeat(5_000);
+  assertEquals(
+    ModelKeySchema.parse({ provider: "openai", apiKey: long }).apiKey,
+    long,
+  );
+  const error = await assertRejects(
+    () =>
+      meteredModelKey(
+        paidBy("api"),
+        () => Promise.resolve({ provider: "openai", apiKey: long }),
+        CODEX,
+      ),
+    ModelKeyUnavailable,
+  );
+  assertEquals(error.message, "MODEL_KEY_TOO_LONG_TO_REDACT");
+  const fits = "k".repeat(4_096);
+  assertEquals(
+    (await meteredModelKey(
+      paidBy("api"),
+      () => Promise.resolve({ provider: "openai", apiKey: fits }),
+      CODEX,
+    ))?.secrets,
+    [fits],
+  );
+});
+
+Deno.test("the longest key the worker accepts opens output capture", async () => {
+  const fits = "k".repeat(NATIVE_OUTPUT_LIMITS.credentialSecretBytes);
+  const metered = await meteredModelKey(
+    paidBy("api"),
+    () => Promise.resolve({ provider: "openai", apiKey: fits }),
+    CODEX,
+  );
+  const capture = await openNativeOutputCapture(
+    {
+      assignment: localAssignment(),
+      client: {
+        openOutput: () => Promise.resolve({ value: { nextSequence: "1" } }),
+      },
+      spool: {},
+      workerSessionId: "s",
+      workerSessionGeneration: "1",
+      credentialSecrets: metered?.secrets ?? [],
+      leaseActive: () => true,
+      waitForAck: () => Promise.resolve(),
+    } as unknown as Parameters<typeof openNativeOutputCapture>[0],
+  );
+  assertEquals(typeof capture, "object");
 });
