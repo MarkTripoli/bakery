@@ -32342,6 +32342,17 @@
               }
             },
             {
+              "name": "query",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Text to find in a machine's name, matched case-insensitively as a substring; wildcard characters match literally. Omitted or blank lists every machine. A cursor is good only with the same query. WorkerListQuery.query must contain at most 200 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 200
+              }
+            },
+            {
               "name": "Bakery-Organization-Id",
               "in": "header",
               "required": true,
@@ -93625,10 +93636,16 @@
             "includeArchived": {
               "description": "true also lists archived (revoked and retired) machines; omitted or false lists only machines that are not archived.",
               "type": "boolean"
+            },
+            "query": {
+              "description": "Text to find in a machine's name, matched case-insensitively as a substring; wildcard characters match literally. Omitted or blank lists every machine. A cursor is good only with the same query. WorkerListQuery.query must contain at most 200 UTF-8 bytes.",
+              "type": "string",
+              "maxLength": 65536,
+              "x-utf8-max-bytes": 200
             }
           },
           "additionalProperties": false,
-          "description": "Page window for the machine list, with an explicit opt-in to include archived machines that are hidden by default."
+          "description": "Page window for the machine list, with an optional name search and an explicit opt-in to include archived machines that are hidden by default."
         },
         "WorkerLinkCodeInspect": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -339065,10 +339082,16 @@
         "includeArchived": {
           "description": "true also lists archived (revoked and retired) machines; omitted or false lists only machines that are not archived.",
           "type": "boolean"
+        },
+        "query": {
+          "description": "Text to find in a machine's name, matched case-insensitively as a substring; wildcard characters match literally. Omitted or blank lists every machine. A cursor is good only with the same query. WorkerListQuery.query must contain at most 200 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 200
         }
       },
       "additionalProperties": false,
-      "description": "Page window for the machine list, with an explicit opt-in to include archived machines that are hidden by default."
+      "description": "Page window for the machine list, with an optional name search and an explicit opt-in to include archived machines that are hidden by default."
     },
     "WorkerLinkCodeInspect": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

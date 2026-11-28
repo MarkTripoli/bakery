@@ -955,6 +955,69 @@ Deno.test("the list cursor is bound to the includeArchived choice", () =>
     assertEquals(await problemCode(switched), "INVALID_CURSOR");
   }));
 
+Deno.test("the machine list finds machines by name, and a cursor keeps its search", () =>
+  withWorkerFixture(async (fixture) => {
+    for (
+      const name of ["Build-Box-01", "build-box-02", "render_50%", "other"]
+    ) {
+      await registeredWorker(fixture, { name });
+    }
+    const names = async (search: string) => {
+      const response = await readMaintenance(fixture, `/v1/workers${search}`);
+      assertEquals(response.status, 200, await response.clone().text());
+      const page = await response.json() as {
+        items: { name: string }[];
+        nextCursor: string | null;
+      };
+      return { names: page.items.map((item) => item.name), page };
+    };
+    assertEquals((await names("?query=BUILD-box")).names, [
+      "Build-Box-01",
+      "build-box-02",
+    ]);
+    assertEquals((await names("?query=_50%25")).names, ["render_50%"]);
+    assertEquals((await names("?query=%25")).names, ["render_50%"]);
+    assertEquals((await names("?query=nothing-like-it")).names, []);
+    assertEquals((await names("?query=%20%20")).names.length, 4);
+    const first = await names("?query=box&limit=1");
+    assertEquals(first.names, ["Build-Box-01"]);
+    const cursor = encodeURIComponent(first.page.nextCursor!);
+    assertEquals((await names(`?query=box&limit=1&cursor=${cursor}`)).names, [
+      "build-box-02",
+    ]);
+    const switched = await readMaintenance(
+      fixture,
+      `/v1/workers?query=other&limit=1&cursor=${cursor}`,
+    );
+    assertEquals(switched.status, 400);
+    assertEquals(await problemCode(switched), "INVALID_CURSOR");
+    const tooLong = await readMaintenance(
+      fixture,
+      `/v1/workers?query=${"x".repeat(201)}`,
+    );
+    assertEquals(tooLong.status, 400);
+    await tooLong.body?.cancel();
+    const wideButShort = await readMaintenance(
+      fixture,
+      `/v1/workers?query=${encodeURIComponent("é".repeat(101))}`,
+    );
+    assertEquals(
+      wideButShort.status,
+      400,
+      "the bound is 200 bytes, not characters",
+    );
+    await wideButShort.body?.cancel();
+    const wideWithin = await readMaintenance(
+      fixture,
+      `/v1/workers?query=${encodeURIComponent("é".repeat(100))}`,
+    );
+    assertEquals(wideWithin.status, 200);
+    await wideWithin.body?.cancel();
+    const nul = await readMaintenance(fixture, "/v1/workers?query=a%00b");
+    assertEquals(nul.status, 400, "a control character is refused, not a 500");
+    await nul.body?.cancel();
+  }));
+
 Deno.test("a heartbeat between reading a machine and saving it does not refuse the save", () =>
   withWorkerFixture(async (fixture) => {
     const worker = await registeredWorker(fixture, { name: "issue70-beat" });
