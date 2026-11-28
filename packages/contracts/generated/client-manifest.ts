@@ -54074,6 +54074,130 @@ export const clientManifest = {
                 ],
                 "description": "WorkerHost.archivedAt may be null in this transport value."
               },
+              "checks": {
+                "description": "Every readiness check the machine last reported, passed or not, with its result and when it was observed.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "checkId": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Stable readiness check identifier, including capability:<capability> checks."
+                    },
+                    "componentKey": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "The software component the check is about, or null for a machine-wide check."
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "WorkerCheckResult.componentKey may be null in this transport value."
+                    },
+                    "result": {
+                      "type": "string",
+                      "enum": [
+                        "pass",
+                        "fail",
+                        "unknown",
+                        "not_applicable"
+                      ],
+                      "description": "pass, fail, unknown (could not be checked, or the result is out of date) or not_applicable (does not apply to this machine)."
+                    },
+                    "reason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "Bounded safe explanation recorded with the check, or null when it gave none. WorkerCheckResult.reason must contain at most 8192 UTF-8 bytes.",
+                          "x-utf8-max-bytes": 8192
+                        },
+                        {
+                          "type": "null",
+                          "description": "Null indicates that the value is unavailable."
+                        }
+                      ],
+                      "description": "WorkerCheckResult.reason may be null in this transport value."
+                    },
+                    "observedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC time the machine observed this result (the Checked column)."
+                    }
+                  },
+                  "required": [
+                    "checkId",
+                    "componentKey",
+                    "result",
+                    "reason",
+                    "observedAt"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Every readiness check the machine last reported, passed or not, with its result and when it was observed. Each array item follows this format."
+                }
+              },
+              "retirement": {
+                "description": "WorkerHost.retirement may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "principalId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "The person who retired the machine, or null when the record names nobody."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "WorkerRetirement.principalId may be null in this transport value."
+                      },
+                      "name": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Their display name, or null when it is not known."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "WorkerRetirement.name may be null in this transport value."
+                      },
+                      "at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC time the machine was retired."
+                      }
+                    },
+                    "required": [
+                      "principalId",
+                      "name",
+                      "at"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Who retired the machine and when; null unless the machine is retired."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
               "cleanup": {
                 "type": "object",
                 "properties": {
@@ -77234,6 +77358,130 @@ export const clientManifest = {
           ],
           "description": "WorkerHost.archivedAt may be null in this transport value."
         },
+        "checks": {
+          "description": "Every readiness check the machine last reported, passed or not, with its result and when it was observed.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "checkId": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Stable readiness check identifier, including capability:<capability> checks."
+              },
+              "componentKey": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The software component the check is about, or null for a machine-wide check."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkerCheckResult.componentKey may be null in this transport value."
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "pass",
+                  "fail",
+                  "unknown",
+                  "not_applicable"
+                ],
+                "description": "pass, fail, unknown (could not be checked, or the result is out of date) or not_applicable (does not apply to this machine)."
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Bounded safe explanation recorded with the check, or null when it gave none. WorkerCheckResult.reason must contain at most 8192 UTF-8 bytes.",
+                    "x-utf8-max-bytes": 8192
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "WorkerCheckResult.reason may be null in this transport value."
+              },
+              "observedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the machine observed this result (the Checked column)."
+              }
+            },
+            "required": [
+              "checkId",
+              "componentKey",
+              "result",
+              "reason",
+              "observedAt"
+            ],
+            "additionalProperties": false,
+            "description": "Every readiness check the machine last reported, passed or not, with its result and when it was observed. Each array item follows this format."
+          }
+        },
+        "retirement": {
+          "description": "WorkerHost.retirement may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "The person who retired the machine, or null when the record names nobody."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "WorkerRetirement.principalId may be null in this transport value."
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Their display name, or null when it is not known."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "WorkerRetirement.name may be null in this transport value."
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC time the machine was retired."
+                }
+              },
+              "required": [
+                "principalId",
+                "name",
+                "at"
+              ],
+              "additionalProperties": false,
+              "description": "Who retired the machine and when; null unless the machine is retired."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
         "cleanup": {
           "type": "object",
           "properties": {
@@ -82281,6 +82529,130 @@ export const clientManifest = {
                     }
                   ],
                   "description": "WorkerHost.archivedAt may be null in this transport value."
+                },
+                "checks": {
+                  "description": "Every readiness check the machine last reported, passed or not, with its result and when it was observed.",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "checkId": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Stable readiness check identifier, including capability:<capability> checks."
+                      },
+                      "componentKey": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "The software component the check is about, or null for a machine-wide check."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "WorkerCheckResult.componentKey may be null in this transport value."
+                      },
+                      "result": {
+                        "type": "string",
+                        "enum": [
+                          "pass",
+                          "fail",
+                          "unknown",
+                          "not_applicable"
+                        ],
+                        "description": "pass, fail, unknown (could not be checked, or the result is out of date) or not_applicable (does not apply to this machine)."
+                      },
+                      "reason": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Bounded safe explanation recorded with the check, or null when it gave none. WorkerCheckResult.reason must contain at most 8192 UTF-8 bytes.",
+                            "x-utf8-max-bytes": 8192
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "WorkerCheckResult.reason may be null in this transport value."
+                      },
+                      "observedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC time the machine observed this result (the Checked column)."
+                      }
+                    },
+                    "required": [
+                      "checkId",
+                      "componentKey",
+                      "result",
+                      "reason",
+                      "observedAt"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Every readiness check the machine last reported, passed or not, with its result and when it was observed. Each array item follows this format."
+                  }
+                },
+                "retirement": {
+                  "description": "WorkerHost.retirement may be null in this transport value.",
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "principalId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "description": "The person who retired the machine, or null when the record names nobody."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "WorkerRetirement.principalId may be null in this transport value."
+                        },
+                        "name": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 65536,
+                              "description": "Their display name, or null when it is not known."
+                            },
+                            {
+                              "type": "null",
+                              "description": "Null indicates that the value is unavailable."
+                            }
+                          ],
+                          "description": "WorkerRetirement.name may be null in this transport value."
+                        },
+                        "at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "description": "UTC time the machine was retired."
+                        }
+                      },
+                      "required": [
+                        "principalId",
+                        "name",
+                        "at"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Who retired the machine and when; null unless the machine is retired."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ]
                 },
                 "cleanup": {
                   "type": "object",
