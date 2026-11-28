@@ -765,7 +765,10 @@ test.describe("machine page: Add a model", () => {
     const pi = page.getByRole("radio", { name: "Pi" });
     await expect(pi).toBeVisible();
     await expect(pi).not.toBeChecked();
-    await expect(form).toContainText("How it is paid");
+    await expect(pi).toBeEnabled();
+    await expect(form).toContainText(
+      "Choose a coding agent to see how it is paid.",
+    );
     await expect(form).not.toContainText(
       "Paying with an API key is not available yet.",
     );

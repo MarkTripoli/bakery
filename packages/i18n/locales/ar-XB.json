@@ -7921,5 +7921,6 @@
   "machines.finishing.continueNamed": "⟪Continue setup of {name}⟫",
   "machines.retire.description": "⟪A retired machine takes no work until it is set up again.⟫",
   "machines.agents.paidPerUse": "⟪{agent} is paid per use by its model provider.⟫",
-  "machines.agents.banner.notSignedIn.bodyPerUse": "⟪Sign in so this machine can take {agent} work.⟫"
+  "machines.agents.banner.notSignedIn.bodyPerUse": "⟪Sign in so this machine can take {agent} work.⟫",
+  "machines.models.new.paidChooseAgent": "⟪Choose a coding agent to see how it is paid.⟫"
 }

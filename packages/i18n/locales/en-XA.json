@@ -7921,5 +7921,6 @@
   "machines.finishing.continueNamed": "⟦Çôñŧïñûë šëŧûþ ôƒ {name} ŧëšŧ ç⟧",
   "machines.retire.description": "⟦À ŕëŧïŕëð ɱàçĥïñë ŧàķëš ñô ŵôŕķ ûñŧïļ ïŧ ïš šëŧ ûþ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "machines.agents.paidPerUse": "⟦{agent} ïš þàïð þëŕ ûšë ƀÿ ïŧš ɱôðëļ þŕôṽïðëŕ. ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "machines.agents.banner.notSignedIn.bodyPerUse": "⟦Šïĝñ ïñ šô ŧĥïš ɱàçĥïñë çàñ ŧàķë {agent} ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "machines.agents.banner.notSignedIn.bodyPerUse": "⟦Šïĝñ ïñ šô ŧĥïš ɱàçĥïñë çàñ ŧàķë {agent} ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "machines.models.new.paidChooseAgent": "⟦Çĥôôšë à çôðïñĝ àĝëñŧ ŧô šëë ĥôŵ ïŧ ïš þàïð. ŧëšŧ çôþÿ ŧëš⟧"
 }

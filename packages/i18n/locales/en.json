@@ -7763,6 +7763,7 @@
   "machines.models.new.endpoint": "Provider address",
   "machines.models.new.region": "Region (optional)",
   "machines.models.new.paidBySubscription": "The {agent} subscription signed in on this machine.",
+  "machines.models.new.paidChooseAgent": "Choose a coding agent to see how it is paid.",
   "machines.models.new.fixedNotice": "A model's details cannot be changed after it is added. To change one, add a new model and turn the old one off.",
   "machines.models.new.error.required": "This is required.",
   "machines.models.new.error.tooLong": "This is too long.",

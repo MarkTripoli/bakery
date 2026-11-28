@@ -374,7 +374,13 @@ export function MachineModelNewPage(
                 )}
               </UI.Text>
             )}
-            {(chosen === null ? rows.some(paidPerUse) : paidPerUse(chosen))
+            {chosen === null && rows.some(paidPerUse)
+              ? (
+                <UI.Text variant="muted">
+                  {say("machines.models.new.paidChooseAgent")}
+                </UI.Text>
+              )
+              : chosen !== null && paidPerUse(chosen)
               ? null
               : (
                 <UI.Text variant="muted">
