@@ -78,5 +78,4 @@ export async function startLinkedService(
     }
     throw new LinkStepFailed("The service could not be started.", log);
   }
-  if (repairOf !== null) await runner.remove(setAside);
 }

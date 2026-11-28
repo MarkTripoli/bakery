@@ -2,7 +2,15 @@
 // design's terminal text verbatim, both paths (a code in the command, and a
 // code an Admin approves), and every case where it stops.
 import { assert, assertEquals, assertRejects } from "@std/assert";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -13,6 +21,7 @@ import {
   type RegisteredHost,
   runLink,
 } from "../../packages/worker-bootstrap/src/index.ts";
+import { startLinkedService } from "../../packages/worker-bootstrap/src/service-start.ts";
 
 const SERVER = "https://bakery.example";
 const CODE = "K7QM-2XPD";
@@ -115,6 +124,7 @@ async function harness(options: {
   };
 }
 
+const HOST = "11111111-1111-4111-8111-111111111111";
 const INSPECT = "/v1/worker/link-code-inspection";
 
 Deno.test("with a code: the summary, one question, then the ticks", async () => {
@@ -596,6 +606,92 @@ Deno.test("a failed repair keeps this computer's link as it was", async () => {
   } finally {
     await h.close();
   }
+});
+
+Deno.test("a macOS repair whose agent starts but never connects can be repaired again with the next code", async () => {
+  const mac = { supportedSystems: [{ os: "macos", architecture: "arm64" }] };
+  let bootstraps = 0;
+  const seen: string[] = [];
+  const first = await harness({
+    platform: "darwin",
+    routes: {
+      [INSPECT]: [{ status: 200, body: preview(mac) }, {
+        status: 409,
+        body: { reason: "used" },
+      }],
+    },
+  });
+  const registered = join(first.root, "state", "registration.json");
+  try {
+    assertEquals(await first.run(), 0, first.text());
+    await mkdir(join(first.root, "state"), { recursive: true });
+    await writeFile(registered, JSON.stringify({ workerHostId: HOST }));
+    for (const attempt of [1, 2]) {
+      const h = await harness({
+        platform: "darwin",
+        routes: {
+          [INSPECT]: [{
+            status: 200,
+            body: preview({ ...mac, repairsWorkerHostId: HOST }),
+          }, { status: 200, body: preview(mac) }],
+        },
+      });
+      const io: LinkIo = {
+        ...h.io,
+        registeredHost: async () => {
+          for (
+            const path of [
+              registered,
+              join(first.root, "state", "registration.before-repair.json"),
+            ]
+          ) {
+            try {
+              return {
+                kind: "known",
+                workerHostId:
+                  JSON.parse(await readFile(path, "utf8")).workerHostId,
+              };
+            } catch {
+              continue;
+            }
+          }
+          return { kind: "none" };
+        },
+        startService: (binding, root, repairOf) =>
+          startLinkedService(binding, {
+            target: "macos",
+            root,
+            home: first.root,
+            uid: 501,
+            username: "ana",
+          }, {
+            run: (argv: readonly string[]) =>
+              Promise.resolve(
+                argv.includes("bootstrap") && ++bootstraps < 0 ? 1 : 0,
+              ),
+            writeFile: () => Promise.resolve(),
+            makeDirectory: () => Promise.resolve(),
+            remove: (path: string) => rm(path, { force: true }),
+            move: (from: string, to: string) => rename(from, to),
+            exists: (path: string) => stat(path).then(() => true, () => false),
+          }, repairOf),
+      };
+      const code = await runLink({
+        server: SERVER,
+        code: "AAAA-BBBB",
+        root: first.root,
+      }, io);
+      seen.push(
+        "attempt " + attempt + " exit " + code + " bootstraps " + bootstraps +
+          " :: " +
+          h.text().trim().split("\n").filter(Boolean).slice(-3).join(" / "),
+      );
+      await h.close();
+    }
+  } finally {
+    await first.close();
+  }
+  console.log("QAP", JSON.stringify(seen, null, 1));
 });
 
 Deno.test("a failed install says what failed, where the log is, and to rerun", async () => {

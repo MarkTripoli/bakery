@@ -114,9 +114,7 @@ export function linuxLinkScript(
       setAside.replaceAll("'", "'\\''")
     } ${registration.replaceAll("'", "'\\''")}; fi' EXIT`,
   ];
-  const repairDone = repairOf === null
-    ? []
-    : [`rm -f ${setAside}`, "trap - EXIT"];
+  const repairDone = repairOf === null ? [] : ["trap - EXIT"];
   return [
     "set -eu",
     ...repairCheck,

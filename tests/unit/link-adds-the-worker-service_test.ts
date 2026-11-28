@@ -237,7 +237,7 @@ const MAC_HOST = {
 };
 const REPAIRED = "6c1f0c1e-4b0e-4c55-9a59-3c3e8f6b1a01";
 
-Deno.test("a macOS repair sets the old registration aside and drops it once the agent starts", async () => {
+Deno.test("a macOS repair sets the old registration aside and keeps it after the agent starts", async () => {
   const fake = fakeRunner([0, 0], [MAC_REGISTRATION]);
   await startLinkedService(
     { ...BINDING, os: "macos" },
@@ -246,8 +246,12 @@ Deno.test("a macOS repair sets the old registration aside and drops it once the 
     REPAIRED,
   );
   assertEquals(fake.moved, [[MAC_REGISTRATION, MAC_SET_ASIDE]]);
-  assertEquals(fake.removed, [MAC_SET_ASIDE]);
-  assertEquals([...fake.present], []);
+  assertEquals(fake.removed, []);
+  assertEquals(
+    [...fake.present],
+    [MAC_SET_ASIDE],
+    "a worker that never connects can still be repaired",
+  );
 });
 
 Deno.test("a failed macOS repair puts the old registration back, so the same command can be run again", async () => {
@@ -266,7 +270,7 @@ Deno.test("a failed macOS repair puts the old registration back, so the same com
   assertEquals(fake.removed, []);
 });
 
-Deno.test("a Linux repair keeps the old registration until the service has restarted", () => {
+Deno.test("a Linux repair keeps the old registration set aside after the service restarts", () => {
   const lines = linuxLinkScript(BINDING, SOURCE, REPAIRED).split("\n");
   const registration = "'/var/lib/bakery-worker/state/registration.json'";
   const setAside =
@@ -279,10 +283,13 @@ Deno.test("a Linux repair keeps the old registration until the service has resta
   );
   const restoreOnFail = lines.findIndex((line) => line.startsWith("trap '"));
   const restart = lines.indexOf("systemctl restart bakery-worker");
-  const drop = lines.indexOf(`rm -f ${setAside}`);
   assert(moveAside > 0 && restoreOnFail === moveAside + 1);
-  assert(restart > restoreOnFail && drop === restart + 1);
-  assertEquals(lines[drop + 1], "trap - EXIT");
+  assert(restart > restoreOnFail);
+  assertEquals(lines[restart + 1], "trap - EXIT");
+  assert(
+    !lines.some((line) => line === `rm -f ${setAside}`),
+    "the set-aside stays until a new registration exists",
+  );
   assert(!lines.some((line) => line === `rm -f ${registration}`));
   assert(!linuxLinkScript(BINDING, SOURCE).includes("registration"));
 });
